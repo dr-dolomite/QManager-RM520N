@@ -12,12 +12,45 @@ import type {
 // =============================================================================
 // useCustomDns — Fetch & Save Hook for Custom DNS Settings
 // =============================================================================
-// Fetches the current dnsmasq upstream configuration on mount and exposes
-// saveSettings + clearSettings actions. dnsmasq is reloaded via SIGHUP
-// (sub-second, non-destructive) — no reboot is needed.
+// Fetches the current dnsmasq upstream configuration on mount and exposes a
+// save action. dnsmasq is reloaded via SIGHUP (sub-second, non-destructive) —
+// no reboot is needed.
 //
 // Backend endpoint:
 //   GET/POST /cgi-bin/quecmanager/network/custom_dns.sh
+//
+// -----------------------------------------------------------------------------
+// `blockCorrupt` REACHES COMPONENTS THROUGH `settings`, AND THAT IS DELIBERATE
+// -----------------------------------------------------------------------------
+// `blockCorrupt?: boolean` is declared on `CustomDnsSettingsResponse` and this
+// hook returns the parsed payload verbatim, so `settings.blockCorrupt` is
+// already the whole path. It is NOT re-exported as a second top-level field.
+//
+// A duplicated field would look like a fix and behave like a hazard: two names
+// for one truth, one of which is a snapshot taken at a moment the other has
+// since moved past. The reason the flag was invisible for so long was never that
+// it was unreachable — it was that no component read it, so a malformed dnsmasq
+// block rendered identically to a healthy one. That is fixed in the components,
+// which is the only place it could have been fixed.
+//
+// -----------------------------------------------------------------------------
+// `clearSettings` IS EXPORTED AND DELIBERATELY HAS NO CALL SITE
+// -----------------------------------------------------------------------------
+// It posts `action=clear`, which the CGI maps onto save-with-`enabled=false`.
+// That path runs the sentinel stripper, and the stripper raises its in-block
+// flag on the BEGIN marker and lowers it only on END.
+//
+// A "damaged block" is DEFINED as one marker without the other. So invoking this
+// in the exact state where a repair button would be offered — BEGIN present, END
+// missing — drops every remaining line of `/etc/data/dnsmasq.conf`:
+// `listen-address`, `dhcp-authoritative`, `conf-dir`. `dnsmasq --test` passes it,
+// because the truncated file is syntactically valid and merely missing
+// directives; `sudo mv` then installs it and `killall -HUP dnsmasq` makes it
+// live, on a device the operator is reaching over that same LAN.
+//
+// The UI therefore WARNS about a damaged block and offers no in-app repair. Do
+// not wire this to a button. If a future backend gains a marker-repair verb that
+// is safe by construction, that verb — not this one — is what the button calls.
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/custom_dns.sh";
@@ -51,10 +84,24 @@ export interface UseCustomDnsReturn {
    * the device. Returns true if the apply succeeded.
    */
   saveSettings: (data: CustomDnsApplyData) => Promise<boolean>;
-  /** Remove the QManager block entirely — falls back to carrier DNS. */
+  /**
+   * Remove the QManager block entirely — falls back to carrier DNS.
+   *
+   * DELIBERATELY UNWIRED. See the module header: in the one state a caller would
+   * want it (a damaged sentinel block) it destroys the rest of `dnsmasq.conf`.
+   */
   clearSettings: () => Promise<boolean>;
-  /** Re-fetch settings. */
-  refresh: () => void;
+  /**
+   * Re-fetch settings.
+   *
+   * THE SIGNATURE IS THE POINT. `silent` suppresses the loading state for a
+   * background poll, and typing this as `() => void` made `onClick={refresh}`
+   * compile — which hands React's MouseEvent to `silent`, so a user-initiated
+   * refresh ran with its own spinner suppressed and the button looked inert for
+   * the whole request. Declaring the parameter makes that call site a type
+   * error, and `onClick={() => refresh()}` the only spelling that builds.
+   */
+  refresh: (silent?: boolean) => Promise<void>;
 }
 
 export function useCustomDns(): UseCustomDnsReturn {

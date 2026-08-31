@@ -292,6 +292,327 @@
       "dismissing": "Disattivazione…"
     }
   },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL e MTU",
+      "description": "Riscrivi il conteggio degli hop e la dimensione dei pacchetti che il modem applica sull'interfaccia cellulare."
+    },
+    "header": {
+      "refresh": "Aggiorna"
+    },
+    "strip": {
+      "label": "Attivo su rmnet",
+      "chip_custom": "Personalizzati",
+      "chip_default": "Valori predefiniti dell'operatore",
+      "retry": "Riprova",
+      "unavailable_title": "Impossibile leggere TTL o MTU",
+      "unavailable_body": "Nessuno dei due endpoint ha risposto. Sul modem non è stato modificato nulla.",
+      "idle_title": "Nessuna sostituzione attiva",
+      "idle_body": "Il modem usa TTL e MTU dell'operatore esattamente come sono stati negoziati. Attivane uno qui sotto per cambiarli."
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "Lettura in corso",
+        "caption_unread": "Questo endpoint non ha risposto"
+      },
+      "ttl": {
+        "label": "TTL — IPv4",
+        "caption_active": "Riscritto su ogni pacchetto",
+        "caption_idle": "Non riscritto"
+      },
+      "hl": {
+        "label": "Limite di hop — IPv6",
+        "caption_active": "Riscritto su ogni pacchetto",
+        "caption_idle": "Non riscritto"
+      },
+      "mtu": {
+        "label": "MTU",
+        "unit": "byte",
+        "caption_active": "Il valore predefinito dell'operatore è {{carrier}}",
+        "caption_idle": "Negoziata con l'operatore"
+      }
+    },
+    "banner": {
+      "title": "TTL e limite di hop arrivano dal profilo {{profile}}",
+      "body": "Attivare quel profilo scrive entrambi i valori, quindi questa scheda resta bloccata per evitare che i due scrittori si sovrascrivano a vicenda. Cambiali nel profilo, oppure attiva un profilo che lascia il TTL non impostato."
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL e limite di hop",
+        "description": "Applicati ai pacchetti in uscita sull'interfaccia cellulare.",
+        "provenance": "Letti dalle regole sui pacchetti attive, riapplicati all'avvio da"
+      },
+      "mtu": {
+        "title": "Unità massima di trasmissione",
+        "description": "Il pacchetto più grande che l'interfaccia cellulare invia senza frammentarlo.",
+        "provenance": "Applicata a ogni interfaccia che corrisponde a"
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "Attiva la riscrittura per impostare un valore.",
+        "consequence_unread": "Il modem non ha risposto, quindi per ora non c'è nulla da modificare."
+      },
+      "rewrite": {
+        "label": "Riscrivi il conteggio degli hop",
+        "consequence": "Se disattivata, il modem inoltra il conteggio di hop così come lo ha inviato il client. Alcuni operatori contano gli hop per individuare il tethering."
+      },
+      "ttl_value": {
+        "label": "Valore TTL",
+        "tag": "IPv4",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}. Un dispositivo a un hop dal modem di solito vuole 64."
+      },
+      "hl_value": {
+        "label": "Valore del limite di hop",
+        "tag": "IPv6",
+        "placeholder": "64",
+        "consequence": "L'equivalente IPv6. Impostali entrambi, a meno che tu non sappia che il client è single-stack."
+      },
+      "mtu_toggle": {
+        "label": "Sostituisci la MTU",
+        "consequence": "Se disattivata, su ogni interfaccia rmnet_data viene ripristinato il valore negoziato con l'operatore."
+      },
+      "mtu_value": {
+        "label": "Valore MTU",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}. Sotto circa 1400 si può rompere la path MTU discovery sui siti che scartano ICMP.",
+        "consequence_off": "Attiva la sostituzione per impostare un valore."
+      }
+    },
+    "values": {
+      "on": "Attivo",
+      "off": "Disattivo"
+    },
+    "footer": {
+      "discard": "Scarta",
+      "unsaved": "{{count}} modifiche non salvate"
+    },
+    "errors": {
+      "value_range": "TTL e limite di hop devono essere entrambi compresi tra {{min}} e {{max}}.",
+      "no_value": "Inserisci un TTL o un limite di hop prima di applicare.",
+      "mtu_range": "La MTU deve essere compresa tra {{min}} e {{max}}."
+    },
+    "toast_ttl_applied": "Applicati — TTL {{ttl}}, limite di hop {{hl}}.",
+    "toast_ttl_cleared": "Il modem è tornato al conteggio di hop dell'operatore.",
+    "toast_ttl_error": "Impossibile applicare TTL e limite di hop.",
+    "toast_mtu_applied": "MTU impostata a {{mtu}} su ogni interfaccia rmnet_data.",
+    "toast_mtu_cleared": "La MTU è tornata al valore negoziato con l'operatore.",
+    "toast_mtu_error": "Impossibile applicare la MTU."
+  },
+  "customDns": {
+    "page": {
+      "title": "DNS personalizzati",
+      "description": "Scegli a quale resolver il modem inoltra le richieste della LAN. I client continuano a interrogare il modem: cambia solo l'upstream."
+    },
+    "header": {
+      "refresh": "Aggiorna"
+    },
+    "strip": {
+      "label": "Inoltro attuale",
+      "state_custom": "I tuoi resolver",
+      "state_carrier": "Assegnati dall'operatore",
+      "state_corrupt": "Configurazione danneggiata",
+      "state_unavailable": "Non in uso",
+      "unavailable_title": "dnsmasq non è nel percorso",
+      "unavailable_body": "La modalità DNS è {{mode}}, quindi i client della LAN risolvono direttamente presso l'operatore e nulla in questa pagina può cambiarlo.",
+      "read_failed_title": "Impossibile leggere la configurazione DNS",
+      "read_failed_body": "Il modem non ha risposto all'ultima lettura. Sul dispositivo non è cambiato nulla: usa Aggiorna per riprovare."
+    },
+    "tiles": {
+      "upstream": {
+        "label_one": "Upstream primario",
+        "label_two": "Upstream secondario",
+        "caption_attach": "Dall'ultimo attach",
+        "caption_yours": "Impostato da te",
+        "caption_absent_carrier": "L'operatore ha inviato un solo resolver",
+        "caption_absent_custom": "Hai impostato un solo resolver",
+        "caption_none": "Non è configurato nulla",
+        "caption_untrusted": "Potrebbe non essere ciò che dnsmasq sta usando"
+      },
+      "source": {
+        "label": "Origine",
+        "value_custom": "Personalizzata",
+        "value_carrier": "Operatore",
+        "value_unknown": "Sconosciuta",
+        "caption": "dnsmasq, modalità {{mode}}"
+      },
+      "fallback": {
+        "label": "Fallback all'operatore",
+        "value_on": "Attivo",
+        "value_off": "Disattivo",
+        "caption_on": "Comportamento predefinito",
+        "caption_off": "Nessun fallback se i tuoi non rispondono"
+      }
+    },
+    "corrupt": {
+      "title": "Il blocco di QManager in dnsmasq.conf sembra malformato",
+      "body": "Un marcatore di inizio senza quello di fine, o viceversa. L'elenco di upstream qui sotto potrebbe non riflettere ciò che dnsmasq sta davvero usando. Controlla /etc/data/dnsmasq.conf via SSH prima di salvare."
+    },
+    "unavailable": {
+      "title": "La modalità DNS è {{mode}}, non PROXY",
+      "body": "La modalità si trova in /etc/data/mobileap_cfg.xml e va cambiata fuori da QManager. Finché non riporta PROXY, salvare qui non avrebbe alcun effetto."
+    },
+    "card": {
+      "title": "Resolver upstream",
+      "description": "Fino a quattro. dnsmasq viene ricaricato al volo: nessun riavvio, nessun collegamento interrotto.",
+      "save": "Salva e applica",
+      "add": "Aggiungi resolver",
+      "provenance": "{{used}} di {{max}} usati · riletti da",
+      "provenance_corrupt": "{{used}} di {{max}} usati · non è stato possibile rileggerli correttamente da",
+      "blocked_unavailable": "dnsmasq non è nel percorso, quindi non avrebbe alcun effetto."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Usa i miei resolver",
+        "consequence": "Se disattivato, dnsmasq torna a quanto assegnato dall'operatore all'ultimo attach."
+      },
+      "resolver": {
+        "label": "Resolver DNS {{n}}",
+        "consequence": "IPv4 o IPv6. Incolla un elenco separato da virgole per riempire più righe in una volta.",
+        "consequence_off": "Attiva i resolver personalizzati per aggiungerne uno.",
+        "placeholder": "1.1.1.1",
+        "remove": "Rimuovi il resolver {{n}}"
+      },
+      "ignore_carrier": {
+        "label": "Non ricorrere mai al DNS dell'operatore",
+        "consequence": "Se attivo, quando i tuoi resolver non sono raggiungibili la richiesta fallisce del tutto invece di finire all'operatore."
+      }
+    },
+    "delta": {
+      "unsaved": "Non salvato"
+    },
+    "errors": {
+      "invalid_address": "Non è un indirizzo IPv4 o IPv6 valido.",
+      "fix_rows": "Correggi i resolver evidenziati prima di salvare.",
+      "empty_when_enabled": "Aggiungi un resolver, oppure disattiva i resolver personalizzati."
+    },
+    "toast_saved": "DNS personalizzati applicati. I client della LAN potrebbero avere una breve pausa mentre le cache si aggiornano.",
+    "toast_error": "Impossibile applicare la modifica al DNS."
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "Passthrough IP",
+      "description": "Assegna l'IP pubblico del modem direttamente a un solo dispositivo collegato, invece di far instradare tutta la LAN dal modem."
+    },
+    "header": {
+      "refresh": "Aggiorna"
+    },
+    "strip": {
+      "label": "Ultima applicazione",
+      "state_router": "Modalità router",
+      "state_passthrough": "Passthrough attivo"
+    },
+    "tiles": {
+      "mode": {
+        "label": "Modalità",
+        "value_disabled": "Disattivato",
+        "value_eth": "Via Ethernet",
+        "value_usb": "Via USB",
+        "caption_disabled": "Il modem instrada per la LAN",
+        "caption_eth": "Impostato per assegnare l'IP WAN a eth0",
+        "caption_usb": "Impostato per assegnare l'IP WAN al dispositivo USB"
+      },
+      "target": {
+        "label": "Dispositivo di destinazione",
+        "caption_manual": "Fissato per MAC",
+        "caption_automatic": "Primo dispositivo che si collega",
+        "caption_none": "Nessun dispositivo selezionato"
+      },
+      "nat": {
+        "label": "NAT",
+        "value_on": "Attivo",
+        "value_off": "Disattivo",
+        "caption_on": "Salvato come consigliato",
+        "caption_off": "Il dispositivo di destinazione gestisce da sé l'indirizzamento pubblico"
+      },
+      "dns": {
+        "label": "Proxy DNS",
+        "value_on": "Attivo",
+        "value_off": "Disattivo",
+        "caption_on": "Il modem risponde al DNS via DHCP per il dispositivo di destinazione",
+        "caption_off": "Il dispositivo di destinazione usa il proprio resolver"
+      }
+    },
+    "card": {
+      "title": "Configurazione del passthrough",
+      "description": "Ogni impostazione qui ha effetto al prossimo avvio. Applicare riavvia il modem.",
+      "apply": "Applica e riavvia",
+      "discard": "Scarta le modifiche",
+      "provenance": "Riletto da:",
+      "provenance_dirty": "{{count}} modifiche non salvate",
+      "delta_automatic": "Automatico",
+      "delta_unset": "Non impostato",
+      "mac_label": "Indirizzo MAC di destinazione",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "rows": {
+      "mode": {
+        "label": "Modalità",
+        "consequence": "Ethernet o USB assegnano l'IP WAN a un solo dispositivo. In entrambi i casi il modem smette di essere raggiungibile al suo indirizzo di gateway sulla LAN: tieni pronto Tailscale o un altro modo per entrare."
+      },
+      "target": {
+        "label": "Dispositivo di destinazione",
+        "consequence": "In automatico viene preso il primo dispositivo che si collega; in manuale si fissa un indirizzo MAC.",
+        "consequence_disabled": "Scegli prima una modalità."
+      },
+      "nat": {
+        "label": "NAT",
+        "consequence": "Con il NAT è la scelta giusta per quasi tutte le configurazioni. Senza, il dispositivo di destinazione deve gestire da sé l'indirizzamento pubblico."
+      },
+      "usb": {
+        "label": "Modalità di connessione USB",
+        "consequence": "Usata solo dal passthrough USB. ECM funziona ovunque; RNDIS serve per le versioni di Windows più vecchie."
+      },
+      "dns": {
+        "label": "Proxy DNS",
+        "consequence": "Se attivo, il modem risponde alle richieste DNS via DHCP per il dispositivo di destinazione. Lascialo disattivo, a meno che il dispositivo non riesca a raggiungere un resolver da solo."
+      }
+    },
+    "options": {
+      "placeholder": "Non ancora letto",
+      "mode_disabled": "Disattivato — modalità router",
+      "mode_eth": "Passthrough Ethernet",
+      "mode_usb": "Passthrough USB",
+      "target_automatic": "Automatico — primo dispositivo che si collega",
+      "target_manual": "Inserisci un indirizzo MAC",
+      "nat_on": "Con NAT (consigliato)",
+      "nat_off": "Senza NAT",
+      "usb_rmnet": "RMNET (QMI)",
+      "usb_ecm": "ECM (universale)",
+      "usb_mbim": "MBIM (per Windows)",
+      "usb_rndis": "RNDIS (obsoleto)",
+      "dns_off": "Disattivo — il dispositivo usa il proprio resolver",
+      "dns_on": "Attivo — il modem risponde al DNS via DHCP"
+    },
+    "banners": {
+      "reboot": {
+        "title": "Applicare riavvia il modem, e questa scheda del browser lo perderà",
+        "body": "Dopo il riavvio il gateway sulla LAN smette di rispondere. Raggiungi il modem via Tailscale, dal dispositivo in passthrough stesso oppure via seriale. L'impostazione resta anche ai riavvii successivi."
+      },
+      "active": {
+        "title": "Questa pagina è raggiungibile perché non sei tu il dispositivo in passthrough",
+        "body": "L'indirizzo di gateway sulla LAN del modem non viene più servito a {{mac}}. Se perdi la strada che stai usando ora, Tailscale o una console seriale sono il modo per rientrare."
+      }
+    },
+    "dialog": {
+      "title": "Applicare e riavviare adesso?",
+      "body": "Le impostazioni vengono scritte e il modem si riavvia subito. Questa pagina passa il testimone al conto alla rovescia del riavvio e ti disconnette.",
+      "body_gateway": "Una volta attivo il passthrough, il modem smette di rispondere al suo indirizzo di gateway sulla LAN. Assicurati di avere Tailscale, il dispositivo in passthrough stesso o una console seriale per rientrare.",
+      "body_persist": "L'impostazione resta anche ai riavvii successivi.",
+      "cancel": "Annulla",
+      "confirm": "Applica e riavvia"
+    },
+    "toast_apply_error": "Impossibile applicare le impostazioni di Passthrough IP",
+    "errors": {
+      "read_title": "Impossibile leggere la configurazione del passthrough",
+      "read_body": "Non è stato modificato nulla. Riprova, oppure controlla che il modem stia rispondendo.",
+      "retry": "Riprova",
+      "card_unread": "Il modem non ha ancora risposto, quindi non c'è nulla da modificare finché non arriva la prima lettura.",
+      "mac_invalid": "Inserisci un indirizzo MAC completo — sei coppie di cifre esadecimali.",
+      "no_changes": "Non è ancora cambiato nulla."
+    }
+  },
   "trafficEngine": {
     "page": {
       "title": "Motore di traffico",

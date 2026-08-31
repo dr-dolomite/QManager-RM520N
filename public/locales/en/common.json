@@ -292,6 +292,327 @@
       "dismissing": "Turning off…"
     }
   },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL & MTU",
+      "description": "Rewrite the hop count and packet size the modem puts on the cellular interface."
+    },
+    "header": {
+      "refresh": "Refresh"
+    },
+    "strip": {
+      "label": "In force on rmnet",
+      "chip_custom": "Custom",
+      "chip_default": "Carrier defaults",
+      "retry": "Retry",
+      "unavailable_title": "Couldn't read TTL or MTU",
+      "unavailable_body": "Neither endpoint answered. Nothing on the modem has been changed.",
+      "idle_title": "No overrides in force",
+      "idle_body": "The modem is using the carrier's TTL and MTU exactly as negotiated. Turn one on below to change that."
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "Still reading",
+        "caption_unread": "This endpoint didn't answer"
+      },
+      "ttl": {
+        "label": "TTL — IPv4",
+        "caption_active": "Rewritten on every packet",
+        "caption_idle": "Not rewritten"
+      },
+      "hl": {
+        "label": "Hop limit — IPv6",
+        "caption_active": "Rewritten on every packet",
+        "caption_idle": "Not rewritten"
+      },
+      "mtu": {
+        "label": "MTU",
+        "unit": "bytes",
+        "caption_active": "Carrier default is {{carrier}}",
+        "caption_idle": "Carrier-negotiated"
+      }
+    },
+    "banner": {
+      "title": "TTL and hop limit come from the {{profile}} profile",
+      "body": "Activating that profile writes both values, so this card is held to stop the two writers fighting. Change them in the profile, or activate a profile that leaves TTL unset."
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL & Hop Limit",
+        "description": "Applied to outbound packets on the cellular interface.",
+        "provenance": "Read from the live packet rules, replayed at boot from"
+      },
+      "mtu": {
+        "title": "Maximum transmission unit",
+        "description": "The largest packet the cellular interface will send without fragmenting.",
+        "provenance": "Applied to every interface matching"
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "Turn the rewrite on to set a value.",
+        "consequence_unread": "The modem hasn't answered, so there is nothing to change yet."
+      },
+      "rewrite": {
+        "label": "Rewrite the hop count",
+        "consequence": "Off means the modem forwards whatever hop count the client sent. Some carriers count hops to detect tethering."
+      },
+      "ttl_value": {
+        "label": "TTL value",
+        "tag": "IPv4",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}. A device one hop behind the modem usually wants 64."
+      },
+      "hl_value": {
+        "label": "Hop limit value",
+        "tag": "IPv6",
+        "placeholder": "64",
+        "consequence": "The IPv6 equivalent. Set both unless you know the client is single-stack."
+      },
+      "mtu_toggle": {
+        "label": "Override the MTU",
+        "consequence": "Off restores the carrier-negotiated value on every rmnet_data interface."
+      },
+      "mtu_value": {
+        "label": "MTU value",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}. Below roughly 1400 can break path-MTU discovery on sites that drop ICMP.",
+        "consequence_off": "Turn the override on to set a value."
+      }
+    },
+    "values": {
+      "on": "On",
+      "off": "Off"
+    },
+    "footer": {
+      "discard": "Discard",
+      "unsaved": "{{count}} unsaved change(s)"
+    },
+    "errors": {
+      "value_range": "TTL and hop limit must each be between {{min}} and {{max}}.",
+      "no_value": "Enter a TTL or a hop limit before applying.",
+      "mtu_range": "MTU must be between {{min}} and {{max}}."
+    },
+    "toast_ttl_applied": "Applied — TTL {{ttl}}, hop limit {{hl}}.",
+    "toast_ttl_cleared": "The modem is back on the carrier's own hop count.",
+    "toast_ttl_error": "Couldn't apply the TTL and hop limit.",
+    "toast_mtu_applied": "MTU set to {{mtu}} on every rmnet_data interface.",
+    "toast_mtu_cleared": "MTU is back to the carrier-negotiated value.",
+    "toast_mtu_error": "Couldn't apply the MTU."
+  },
+  "customDns": {
+    "page": {
+      "title": "Custom DNS",
+      "description": "Choose which resolver the modem forwards LAN queries to. Clients keep querying the modem; only the upstream changes."
+    },
+    "header": {
+      "refresh": "Refresh"
+    },
+    "strip": {
+      "label": "Currently forwarding",
+      "state_custom": "Your resolvers",
+      "state_carrier": "Carrier-assigned",
+      "state_corrupt": "Config damaged",
+      "state_unavailable": "Not in use",
+      "unavailable_title": "dnsmasq is not in the path",
+      "unavailable_body": "DNS mode is {{mode}}, so LAN clients resolve directly against the carrier and nothing on this page can change that.",
+      "read_failed_title": "Couldn't read the DNS configuration",
+      "read_failed_body": "The modem did not answer the last read. Nothing on the device has changed — use Refresh to try again."
+    },
+    "tiles": {
+      "upstream": {
+        "label_one": "Upstream 1",
+        "label_two": "Upstream 2",
+        "caption_attach": "From the last attach",
+        "caption_yours": "You set this one",
+        "caption_absent_carrier": "Carrier sent one resolver",
+        "caption_absent_custom": "You set one resolver",
+        "caption_none": "Nothing is configured",
+        "caption_untrusted": "May not be what dnsmasq is using"
+      },
+      "source": {
+        "label": "Source",
+        "value_custom": "Custom",
+        "value_carrier": "Carrier",
+        "value_unknown": "Unknown",
+        "caption": "dnsmasq, {{mode}} mode"
+      },
+      "fallback": {
+        "label": "Carrier fallback",
+        "value_on": "On",
+        "value_off": "Off",
+        "caption_on": "Default behaviour",
+        "caption_off": "No fallback if yours fail"
+      }
+    },
+    "corrupt": {
+      "title": "QManager's block in dnsmasq.conf looks malformed",
+      "body": "A begin marker without its end, or the reverse. The upstream list below may not reflect what dnsmasq is actually using. Check /etc/data/dnsmasq.conf over SSH before saving."
+    },
+    "unavailable": {
+      "title": "DNS mode is {{mode}}, not PROXY",
+      "body": "The mode lives in /etc/data/mobileap_cfg.xml and has to be changed outside QManager. Until it reads PROXY, saving here would have no effect."
+    },
+    "card": {
+      "title": "Upstream resolvers",
+      "description": "Up to four. dnsmasq is reloaded in place — no reboot, no dropped link.",
+      "save": "Save and apply",
+      "add": "Add resolver",
+      "provenance": "{{used}} of {{max}} used · read back from",
+      "provenance_corrupt": "{{used}} of {{max}} used · could not be read cleanly from",
+      "blocked_unavailable": "dnsmasq is not in the path, so this would have no effect."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Use my own resolvers",
+        "consequence": "Off returns dnsmasq to whatever the carrier handed out on the last attach."
+      },
+      "resolver": {
+        "label": "Resolver {{n}}",
+        "consequence": "IPv4 or IPv6. Paste a comma-separated list to fill several rows at once.",
+        "consequence_off": "Turn custom resolvers on to add one.",
+        "placeholder": "1.1.1.1",
+        "remove": "Remove resolver {{n}}"
+      },
+      "ignore_carrier": {
+        "label": "Never fall back to carrier DNS",
+        "consequence": "On, a lookup fails outright when your resolvers are unreachable rather than leaking to the carrier."
+      }
+    },
+    "delta": {
+      "unsaved": "Unsaved"
+    },
+    "errors": {
+      "invalid_address": "Not a valid IPv4 or IPv6 address.",
+      "fix_rows": "Fix the highlighted resolvers before saving.",
+      "empty_when_enabled": "Add a resolver, or turn custom resolvers off."
+    },
+    "toast_saved": "Custom DNS applied. LAN clients may see a brief pause as caches refresh.",
+    "toast_error": "Couldn't apply the DNS change."
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "IP Passthrough",
+      "description": "Hand the modem's public IP straight to one connected device instead of routing for the whole LAN."
+    },
+    "header": {
+      "refresh": "Refresh"
+    },
+    "strip": {
+      "label": "Last applied",
+      "state_router": "Router mode",
+      "state_passthrough": "Passing through"
+    },
+    "tiles": {
+      "mode": {
+        "label": "Mode",
+        "value_disabled": "Disabled",
+        "value_eth": "Ethernet",
+        "value_usb": "USB",
+        "caption_disabled": "Modem routes for the LAN",
+        "caption_eth": "Set to hand the WAN IP to eth0",
+        "caption_usb": "Set to hand the WAN IP to the USB device"
+      },
+      "target": {
+        "label": "Target device",
+        "caption_manual": "Pinned by MAC",
+        "caption_automatic": "First device to connect",
+        "caption_none": "No device selected"
+      },
+      "nat": {
+        "label": "NAT",
+        "value_on": "On",
+        "value_off": "Off",
+        "caption_on": "Saved as recommended",
+        "caption_off": "The target device handles its own public addressing"
+      },
+      "dns": {
+        "label": "DNS proxy",
+        "value_on": "On",
+        "value_off": "Off",
+        "caption_on": "The modem answers DHCP DNS for the target device",
+        "caption_off": "The target device uses its own resolver"
+      }
+    },
+    "card": {
+      "title": "Passthrough configuration",
+      "description": "Every setting here takes effect on the next boot. Applying reboots the modem.",
+      "apply": "Apply and reboot",
+      "discard": "Discard changes",
+      "provenance": "Read back from:",
+      "provenance_dirty": "{{count}} unsaved changes",
+      "delta_automatic": "Automatic",
+      "delta_unset": "Not set",
+      "mac_label": "Target MAC address",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "rows": {
+      "mode": {
+        "label": "Mode",
+        "consequence": "Ethernet or USB hands the WAN IP to one device. In either, the modem stops being reachable at its LAN gateway address — keep Tailscale or another way in."
+      },
+      "target": {
+        "label": "Target device",
+        "consequence": "Automatic takes the first device that connects; manual pins one MAC address.",
+        "consequence_disabled": "Pick a mode first."
+      },
+      "nat": {
+        "label": "NAT",
+        "consequence": "With NAT is right for almost every setup. Without it the target device must handle its own public addressing."
+      },
+      "usb": {
+        "label": "USB connection mode",
+        "consequence": "Only used by USB passthrough. ECM works everywhere; RNDIS is for older Windows."
+      },
+      "dns": {
+        "label": "DNS proxy",
+        "consequence": "On, the modem answers DHCP DNS queries for the target device. Leave off unless the device cannot reach a resolver itself."
+      }
+    },
+    "options": {
+      "placeholder": "Not read yet",
+      "mode_disabled": "Disabled — router mode",
+      "mode_eth": "Ethernet passthrough",
+      "mode_usb": "USB passthrough",
+      "target_automatic": "Automatic — first device to connect",
+      "target_manual": "Enter a MAC address",
+      "nat_on": "With NAT (recommended)",
+      "nat_off": "Without NAT",
+      "usb_rmnet": "RMNET (QMI)",
+      "usb_ecm": "ECM (universal)",
+      "usb_mbim": "MBIM (Windows)",
+      "usb_rndis": "RNDIS (legacy)",
+      "dns_off": "Off — the device uses its own resolver",
+      "dns_on": "On — the modem answers DHCP DNS"
+    },
+    "banners": {
+      "reboot": {
+        "title": "Applying reboots the modem, and this browser tab will lose it",
+        "body": "After the reboot the LAN gateway stops answering. Reach the modem over Tailscale, from the passthrough device itself, or over serial. The setting persists across further reboots."
+      },
+      "active": {
+        "title": "This page is reachable because you are not the passthrough device",
+        "body": "The modem's LAN gateway address is no longer served to {{mac}}. If you lose your current route in, Tailscale or a serial console is the way back."
+      }
+    },
+    "dialog": {
+      "title": "Apply and reboot now?",
+      "body": "The settings are written and the modem reboots immediately. This page hands off to the reboot countdown and signs you out.",
+      "body_gateway": "Once passthrough is active the modem stops answering at its LAN gateway address. Make sure you have Tailscale, the passthrough device itself, or a serial console to get back in.",
+      "body_persist": "The setting persists across further reboots.",
+      "cancel": "Cancel",
+      "confirm": "Apply and reboot"
+    },
+    "toast_apply_error": "Couldn't apply the IP Passthrough settings",
+    "errors": {
+      "read_title": "Couldn't read the passthrough configuration",
+      "read_body": "Nothing has been changed. Try again, or check that the modem is answering.",
+      "retry": "Retry",
+      "card_unread": "The modem hasn't answered yet, so there is nothing to change until the first read lands.",
+      "mac_invalid": "Enter a full MAC address — six pairs of hex digits.",
+      "no_changes": "Nothing has changed yet."
+    }
+  },
   "trafficEngine": {
     "page": {
       "title": "Traffic Engine",

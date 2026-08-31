@@ -292,6 +292,327 @@
       "dismissing": "正在关闭…"
     }
   },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL 与 MTU",
+      "description": "重写调制解调器写入蜂窝接口的跳数和数据包大小。"
+    },
+    "header": {
+      "refresh": "刷新"
+    },
+    "strip": {
+      "label": "rmnet 上已生效",
+      "chip_custom": "自定义",
+      "chip_default": "运营商默认值",
+      "retry": "重试",
+      "unavailable_title": "无法读取 TTL 或 MTU",
+      "unavailable_body": "两个接口都没有响应。调制解调器上未做任何更改。",
+      "idle_title": "没有生效的覆盖值",
+      "idle_body": "调制解调器完全按协商结果使用运营商的 TTL 和 MTU。在下方开启其中一项即可改变。"
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "仍在读取",
+        "caption_unread": "此接口没有响应"
+      },
+      "ttl": {
+        "label": "TTL（IPv4）",
+        "caption_active": "对每个数据包重写",
+        "caption_idle": "不重写"
+      },
+      "hl": {
+        "label": "跳数限制（IPv6）",
+        "caption_active": "对每个数据包重写",
+        "caption_idle": "不重写"
+      },
+      "mtu": {
+        "label": "MTU 大小",
+        "unit": "字节",
+        "caption_active": "运营商默认值为 {{carrier}}",
+        "caption_idle": "由运营商协商确定"
+      }
+    },
+    "banner": {
+      "title": "TTL 和跳数限制来自 {{profile}} 配置",
+      "body": "激活该配置会同时写入这两个值，因此此卡片被锁定，以免两个写入方相互覆盖。请在该配置中修改，或激活一个不设置 TTL 的配置。"
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL 与跳数限制",
+        "description": "应用于蜂窝接口上的出站数据包。",
+        "provenance": "读取自实时数据包规则，开机时重放自"
+      },
+      "mtu": {
+        "title": "最大传输单元",
+        "description": "蜂窝接口在不分片的情况下能发送的最大数据包。",
+        "provenance": "应用于所有匹配以下模式的接口"
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "开启重写后才能设置数值。",
+        "consequence_unread": "调制解调器尚未响应，目前没有可更改的内容。"
+      },
+      "rewrite": {
+        "label": "重写跳数",
+        "consequence": "关闭后，调制解调器会原样转发客户端发出的跳数。部分运营商通过统计跳数来识别共享上网。"
+      },
+      "ttl_value": {
+        "label": "TTL 数值",
+        "tag": "IPv4 数据包",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}。位于调制解调器后一跳的设备通常设为 64。"
+      },
+      "hl_value": {
+        "label": "跳数限制数值",
+        "tag": "IPv6 数据包",
+        "placeholder": "64",
+        "consequence": "IPv6 的对应设置。除非确定客户端是单栈，否则两项都要设置。"
+      },
+      "mtu_toggle": {
+        "label": "覆盖 MTU",
+        "consequence": "关闭后，所有 rmnet_data 接口都会恢复运营商协商的数值。"
+      },
+      "mtu_value": {
+        "label": "MTU 值",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}。低于约 1400 时，可能会让丢弃 ICMP 的站点无法完成路径 MTU 发现。",
+        "consequence_off": "开启覆盖后才能设置数值。"
+      }
+    },
+    "values": {
+      "on": "开",
+      "off": "关"
+    },
+    "footer": {
+      "discard": "放弃更改",
+      "unsaved": "{{count}} 项未保存的更改"
+    },
+    "errors": {
+      "value_range": "TTL 和跳数限制都必须在 {{min}} 到 {{max}} 之间。",
+      "no_value": "请先填写 TTL 或跳数限制，再应用。",
+      "mtu_range": "MTU 必须在 {{min}} 到 {{max}} 之间。"
+    },
+    "toast_ttl_applied": "已应用 — TTL {{ttl}}，跳数限制 {{hl}}。",
+    "toast_ttl_cleared": "调制解调器已恢复使用运营商自己的跳数。",
+    "toast_ttl_error": "无法应用 TTL 和跳数限制。",
+    "toast_mtu_applied": "已将所有 rmnet_data 接口的 MTU 设为 {{mtu}}。",
+    "toast_mtu_cleared": "MTU 已恢复为运营商协商的数值。",
+    "toast_mtu_error": "无法应用 MTU。"
+  },
+  "customDns": {
+    "page": {
+      "title": "自定义 DNS",
+      "description": "选择调制解调器将局域网查询转发到哪个解析器。客户端仍然向调制解调器发起查询，改变的只是上游。"
+    },
+    "header": {
+      "refresh": "刷新"
+    },
+    "strip": {
+      "label": "当前转发至",
+      "state_custom": "你的解析器",
+      "state_carrier": "运营商下发",
+      "state_corrupt": "配置已损坏",
+      "state_unavailable": "未启用",
+      "unavailable_title": "dnsmasq 不在转发路径上",
+      "unavailable_body": "DNS 模式为 {{mode}}，局域网客户端直接向运营商解析，本页面的设置无法改变这一点。",
+      "read_failed_title": "无法读取 DNS 配置",
+      "read_failed_body": "调制解调器没有响应上一次读取。设备上未做任何更改 — 请点击刷新重试。"
+    },
+    "tiles": {
+      "upstream": {
+        "label_one": "上游 1",
+        "label_two": "上游 2",
+        "caption_attach": "来自上一次附着",
+        "caption_yours": "由你设置",
+        "caption_absent_carrier": "运营商只下发了一个解析器",
+        "caption_absent_custom": "你只设置了一个解析器",
+        "caption_none": "尚未配置任何解析器",
+        "caption_untrusted": "可能与 dnsmasq 实际使用的不一致"
+      },
+      "source": {
+        "label": "来源",
+        "value_custom": "自定义",
+        "value_carrier": "运营商",
+        "value_unknown": "未知",
+        "caption": "dnsmasq，{{mode}} 模式"
+      },
+      "fallback": {
+        "label": "运营商回退",
+        "value_on": "开启",
+        "value_off": "关闭",
+        "caption_on": "默认行为",
+        "caption_off": "你的解析器失败时不回退"
+      }
+    },
+    "corrupt": {
+      "title": "dnsmasq.conf 中 QManager 的配置块格式异常",
+      "body": "只有开始标记而没有结束标记，或者相反。下方的上游列表可能与 dnsmasq 实际使用的不一致。保存前请通过 SSH 检查 /etc/data/dnsmasq.conf。"
+    },
+    "unavailable": {
+      "title": "DNS 模式是 {{mode}}，不是 PROXY",
+      "body": "该模式位于 /etc/data/mobileap_cfg.xml，必须在 QManager 之外修改。在它变成 PROXY 之前，这里的保存不会产生任何效果。"
+    },
+    "card": {
+      "title": "上游解析器",
+      "description": "最多四个。dnsmasq 会原地重新加载 — 无需重启，链路不中断。",
+      "save": "保存并应用",
+      "add": "添加解析器",
+      "provenance": "已使用 {{used}} / {{max}} · 读取自",
+      "provenance_corrupt": "已使用 {{used}} / {{max}} · 无法完整读取自",
+      "blocked_unavailable": "dnsmasq 不在转发路径上，这样做不会有任何效果。"
+    },
+    "rows": {
+      "enabled": {
+        "label": "使用我自己的解析器",
+        "consequence": "关闭后，dnsmasq 会回到运营商在上一次附着时下发的解析器。"
+      },
+      "resolver": {
+        "label": "解析器 {{n}}",
+        "consequence": "IPv4 或 IPv6。粘贴以逗号分隔的列表可一次填入多行。",
+        "consequence_off": "先开启自定义解析器才能添加。",
+        "placeholder": "1.1.1.1",
+        "remove": "移除解析器 {{n}}"
+      },
+      "ignore_carrier": {
+        "label": "绝不回退到运营商 DNS",
+        "consequence": "开启后，当你的解析器不可达时查询直接失败，而不会泄漏给运营商。"
+      }
+    },
+    "delta": {
+      "unsaved": "未保存"
+    },
+    "errors": {
+      "invalid_address": "不是有效的 IPv4 或 IPv6 地址。",
+      "fix_rows": "保存前请修正高亮的解析器。",
+      "empty_when_enabled": "请添加一个解析器，或关闭自定义解析器。"
+    },
+    "toast_saved": "自定义 DNS 已应用。缓存刷新期间，局域网客户端可能会有短暂停顿。",
+    "toast_error": "无法应用 DNS 变更。"
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "IP 直通",
+      "description": "将调制解调器的公网 IP 直接交给一台连接设备，而不是为整个局域网做路由。"
+    },
+    "header": {
+      "refresh": "刷新"
+    },
+    "strip": {
+      "label": "上次应用",
+      "state_router": "路由模式",
+      "state_passthrough": "正在直通"
+    },
+    "tiles": {
+      "mode": {
+        "label": "模式",
+        "value_disabled": "已禁用",
+        "value_eth": "以太网",
+        "value_usb": "USB 接口",
+        "caption_disabled": "调制解调器为局域网做路由",
+        "caption_eth": "设置为将 WAN IP 交给 eth0",
+        "caption_usb": "设置为将 WAN IP 交给 USB 设备"
+      },
+      "target": {
+        "label": "目标设备",
+        "caption_manual": "按 MAC 地址固定",
+        "caption_automatic": "第一台连接的设备",
+        "caption_none": "未选择设备"
+      },
+      "nat": {
+        "label": "NAT 转换",
+        "value_on": "开启",
+        "value_off": "关闭",
+        "caption_on": "已按推荐值保存",
+        "caption_off": "由目标设备自行处理公网寻址"
+      },
+      "dns": {
+        "label": "DNS 代理",
+        "value_on": "开启",
+        "value_off": "关闭",
+        "caption_on": "由调制解调器为目标设备应答 DHCP DNS",
+        "caption_off": "目标设备使用自己的解析器"
+      }
+    },
+    "card": {
+      "title": "直通配置",
+      "description": "这里的每一项设置都在下次开机时生效。应用会重启调制解调器。",
+      "apply": "应用并重启",
+      "discard": "放弃更改",
+      "provenance": "读取自：",
+      "provenance_dirty": "{{count}} 项未保存的更改",
+      "delta_automatic": "自动",
+      "delta_unset": "未设置",
+      "mac_label": "目标 MAC 地址",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "rows": {
+      "mode": {
+        "label": "模式",
+        "consequence": "选择以太网或 USB 会把 WAN IP 交给一台设备。两种情况下，调制解调器都不再能通过局域网网关地址访问 — 请保留 Tailscale 或其他登入方式。"
+      },
+      "target": {
+        "label": "目标设备",
+        "consequence": "自动模式接受第一台连接的设备；手动模式固定一个 MAC 地址。",
+        "consequence_disabled": "请先选择模式。"
+      },
+      "nat": {
+        "label": "NAT 转换",
+        "consequence": "几乎所有场景都应该启用 NAT。不启用时，目标设备必须自行处理公网寻址。"
+      },
+      "usb": {
+        "label": "USB 连接模式",
+        "consequence": "仅用于 USB 直通。ECM 通用性最好；RNDIS 适用于较旧的 Windows。"
+      },
+      "dns": {
+        "label": "DNS 代理",
+        "consequence": "开启后，调制解调器会为目标设备应答 DHCP DNS 查询。除非该设备自己无法访问解析器，否则保持关闭。"
+      }
+    },
+    "options": {
+      "placeholder": "尚未读取",
+      "mode_disabled": "禁用 — 路由模式",
+      "mode_eth": "以太网直通",
+      "mode_usb": "USB 直通",
+      "target_automatic": "自动 — 第一台连接的设备",
+      "target_manual": "输入 MAC 地址",
+      "nat_on": "启用 NAT（推荐）",
+      "nat_off": "不启用 NAT",
+      "usb_rmnet": "RMNET（QMI）",
+      "usb_ecm": "ECM（通用）",
+      "usb_mbim": "MBIM（Windows）",
+      "usb_rndis": "RNDIS（旧设备）",
+      "dns_off": "关闭 — 设备使用自己的解析器",
+      "dns_on": "开启 — 由调制解调器应答 DHCP DNS"
+    },
+    "banners": {
+      "reboot": {
+        "title": "应用会重启调制解调器，当前浏览器标签页将失去连接",
+        "body": "重启后局域网网关将不再应答。请通过 Tailscale、直通设备本身或串口访问调制解调器。该设置会在后续重启后继续保持。"
+      },
+      "active": {
+        "title": "本页面能打开，是因为你不是那台直通设备",
+        "body": "调制解调器的局域网网关地址已不再提供给 {{mac}}。如果失去当前的访问路径，Tailscale 或串口控制台就是回来的方法。"
+      }
+    },
+    "dialog": {
+      "title": "现在应用并重启？",
+      "body": "设置会被写入，调制解调器随即重启。本页面将转到重启倒计时并让你退出登录。",
+      "body_gateway": "直通生效后，调制解调器将不再在局域网网关地址上应答。请确认你有 Tailscale、直通设备本身或串口控制台可以重新登入。",
+      "body_persist": "该设置会在后续重启后继续保持。",
+      "cancel": "取消",
+      "confirm": "应用并重启"
+    },
+    "toast_apply_error": "无法应用 IP 直通设置",
+    "errors": {
+      "read_title": "无法读取直通配置",
+      "read_body": "未做任何更改。请重试，或检查调制解调器是否在响应。",
+      "retry": "重试",
+      "card_unread": "调制解调器尚未响应，在首次读取完成前没有可更改的内容。",
+      "mac_invalid": "请输入完整的 MAC 地址 — 六组十六进制数字。",
+      "no_changes": "尚未有任何更改。"
+    }
+  },
   "trafficEngine": {
     "page": {
       "title": "流量引擎",

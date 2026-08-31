@@ -292,6 +292,327 @@
       "dismissing": "Mematikan…"
     }
   },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL & MTU",
+      "description": "Tulis ulang jumlah hop dan ukuran paket yang dipasang modem pada antarmuka seluler."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "strip": {
+      "label": "Berlaku di rmnet",
+      "chip_custom": "Kustom",
+      "chip_default": "Bawaan operator",
+      "retry": "Coba lagi",
+      "unavailable_title": "Tidak dapat membaca TTL atau MTU",
+      "unavailable_body": "Kedua endpoint tidak menjawab. Tidak ada yang diubah pada modem.",
+      "idle_title": "Tidak ada penggantian yang berlaku",
+      "idle_body": "Modem memakai TTL dan MTU operator persis seperti hasil negosiasi. Aktifkan salah satu di bawah untuk mengubahnya."
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "Masih membaca",
+        "caption_unread": "Endpoint ini tidak menjawab"
+      },
+      "ttl": {
+        "label": "TTL — IPv4",
+        "caption_active": "Ditulis ulang pada setiap paket",
+        "caption_idle": "Tidak ditulis ulang"
+      },
+      "hl": {
+        "label": "Batas hop — IPv6",
+        "caption_active": "Ditulis ulang pada setiap paket",
+        "caption_idle": "Tidak ditulis ulang"
+      },
+      "mtu": {
+        "label": "MTU",
+        "unit": "byte",
+        "caption_active": "Bawaan operator adalah {{carrier}}",
+        "caption_idle": "Dinegosiasikan operator"
+      }
+    },
+    "banner": {
+      "title": "TTL dan batas hop berasal dari profil {{profile}}",
+      "body": "Mengaktifkan profil itu menulis kedua nilai tersebut, jadi kartu ini ditahan agar dua penulis tidak saling menimpa. Ubah nilainya di profil itu, atau aktifkan profil yang membiarkan TTL kosong."
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL & Batas Hop",
+        "description": "Diterapkan pada paket keluar di antarmuka seluler.",
+        "provenance": "Dibaca dari aturan paket yang aktif, diputar ulang saat boot dari"
+      },
+      "mtu": {
+        "title": "Unit transmisi maksimum",
+        "description": "Paket terbesar yang dikirim antarmuka seluler tanpa fragmentasi.",
+        "provenance": "Diterapkan ke setiap antarmuka yang cocok dengan"
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "Aktifkan penulisan ulang untuk mengatur nilai.",
+        "consequence_unread": "Modem belum menjawab, jadi belum ada yang dapat diubah."
+      },
+      "rewrite": {
+        "label": "Tulis ulang jumlah hop",
+        "consequence": "Jika nonaktif, modem meneruskan jumlah hop apa adanya dari klien. Sebagian operator menghitung hop untuk mendeteksi tethering."
+      },
+      "ttl_value": {
+        "label": "Nilai TTL",
+        "tag": "IPv4",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}. Perangkat yang berjarak satu hop dari modem biasanya memakai 64."
+      },
+      "hl_value": {
+        "label": "Nilai batas hop",
+        "tag": "IPv6",
+        "placeholder": "64",
+        "consequence": "Padanan IPv6-nya. Atur keduanya kecuali Anda tahu klien hanya single-stack."
+      },
+      "mtu_toggle": {
+        "label": "Ganti nilai MTU",
+        "consequence": "Jika nonaktif, nilai hasil negosiasi operator dipulihkan di setiap antarmuka rmnet_data."
+      },
+      "mtu_value": {
+        "label": "Nilai MTU",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}. Di bawah sekitar 1400 dapat merusak path MTU discovery pada situs yang membuang ICMP.",
+        "consequence_off": "Aktifkan penggantian untuk mengatur nilai."
+      }
+    },
+    "values": {
+      "on": "Aktif",
+      "off": "Nonaktif"
+    },
+    "footer": {
+      "discard": "Buang",
+      "unsaved": "{{count}} perubahan belum tersimpan"
+    },
+    "errors": {
+      "value_range": "TTL dan batas hop masing-masing harus antara {{min}} dan {{max}}.",
+      "no_value": "Isi TTL atau batas hop sebelum menerapkan.",
+      "mtu_range": "MTU harus antara {{min}} dan {{max}}."
+    },
+    "toast_ttl_applied": "Diterapkan — TTL {{ttl}}, batas hop {{hl}}.",
+    "toast_ttl_cleared": "Modem kembali memakai jumlah hop dari operator.",
+    "toast_ttl_error": "Tidak dapat menerapkan TTL dan batas hop.",
+    "toast_mtu_applied": "MTU disetel ke {{mtu}} di setiap antarmuka rmnet_data.",
+    "toast_mtu_cleared": "MTU kembali ke nilai hasil negosiasi operator.",
+    "toast_mtu_error": "Tidak dapat menerapkan MTU."
+  },
+  "customDns": {
+    "page": {
+      "title": "DNS Kustom",
+      "description": "Pilih resolver mana yang dituju modem saat meneruskan kueri LAN. Klien tetap bertanya ke modem; hanya upstream-nya yang berubah."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "strip": {
+      "label": "Sedang diteruskan ke",
+      "state_custom": "Resolver Anda",
+      "state_carrier": "Dari operator",
+      "state_corrupt": "Konfigurasi rusak",
+      "state_unavailable": "Tidak dipakai",
+      "unavailable_title": "dnsmasq tidak berada di jalur",
+      "unavailable_body": "Mode DNS adalah {{mode}}, jadi klien LAN melakukan resolusi langsung ke operator dan tidak ada di halaman ini yang bisa mengubahnya.",
+      "read_failed_title": "Tidak dapat membaca konfigurasi DNS",
+      "read_failed_body": "Modem tidak menjawab pembacaan terakhir. Tidak ada yang berubah di perangkat — gunakan Segarkan untuk mencoba lagi."
+    },
+    "tiles": {
+      "upstream": {
+        "label_one": "DNS upstream 1",
+        "label_two": "DNS upstream 2",
+        "caption_attach": "Dari attach terakhir",
+        "caption_yours": "Anda yang mengatur ini",
+        "caption_absent_carrier": "Operator mengirim satu resolver",
+        "caption_absent_custom": "Anda mengatur satu resolver",
+        "caption_none": "Belum ada yang dikonfigurasi",
+        "caption_untrusted": "Mungkin bukan yang dipakai dnsmasq"
+      },
+      "source": {
+        "label": "Sumber",
+        "value_custom": "Kustom",
+        "value_carrier": "Operator",
+        "value_unknown": "Tidak diketahui",
+        "caption": "dnsmasq, mode {{mode}}"
+      },
+      "fallback": {
+        "label": "Cadangan operator",
+        "value_on": "Aktif",
+        "value_off": "Nonaktif",
+        "caption_on": "Perilaku bawaan",
+        "caption_off": "Tidak ada cadangan jika milik Anda gagal"
+      }
+    },
+    "corrupt": {
+      "title": "Blok QManager di dnsmasq.conf tampak rusak",
+      "body": "Ada penanda awal tanpa penanda akhir, atau sebaliknya. Daftar upstream di bawah mungkin tidak mencerminkan yang benar-benar dipakai dnsmasq. Periksa /etc/data/dnsmasq.conf lewat SSH sebelum menyimpan."
+    },
+    "unavailable": {
+      "title": "Mode DNS adalah {{mode}}, bukan PROXY",
+      "body": "Mode ini tersimpan di /etc/data/mobileap_cfg.xml dan harus diubah di luar QManager. Sampai nilainya PROXY, menyimpan di sini tidak akan berpengaruh."
+    },
+    "card": {
+      "title": "Resolver upstream",
+      "description": "Maksimal empat. dnsmasq dimuat ulang di tempat — tanpa reboot, tanpa tautan terputus.",
+      "save": "Simpan dan terapkan",
+      "add": "Tambah resolver",
+      "provenance": "{{used}} dari {{max}} terpakai · dibaca kembali dari",
+      "provenance_corrupt": "{{used}} dari {{max}} terpakai · tidak dapat dibaca dengan bersih dari",
+      "blocked_unavailable": "dnsmasq tidak berada di jalur, jadi ini tidak akan berpengaruh."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Gunakan resolver saya sendiri",
+        "consequence": "Jika nonaktif, dnsmasq kembali ke apa pun yang diberikan operator pada attach terakhir."
+      },
+      "resolver": {
+        "label": "Resolver DNS {{n}}",
+        "consequence": "IPv4 atau IPv6. Tempel daftar yang dipisahkan koma untuk mengisi beberapa baris sekaligus.",
+        "consequence_off": "Aktifkan resolver kustom untuk menambahkan satu.",
+        "placeholder": "1.1.1.1",
+        "remove": "Hapus resolver {{n}}"
+      },
+      "ignore_carrier": {
+        "label": "Jangan pernah beralih ke DNS operator",
+        "consequence": "Jika aktif, kueri langsung gagal saat resolver Anda tidak terjangkau, bukan bocor ke operator."
+      }
+    },
+    "delta": {
+      "unsaved": "Belum tersimpan"
+    },
+    "errors": {
+      "invalid_address": "Bukan alamat IPv4 atau IPv6 yang valid.",
+      "fix_rows": "Perbaiki resolver yang ditandai sebelum menyimpan.",
+      "empty_when_enabled": "Tambahkan resolver, atau matikan resolver kustom."
+    },
+    "toast_saved": "DNS kustom diterapkan. Klien LAN mungkin mengalami jeda singkat saat cache disegarkan.",
+    "toast_error": "Tidak dapat menerapkan perubahan DNS."
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "Passthrough IP",
+      "description": "Serahkan IP publik modem langsung ke satu perangkat yang terhubung, bukan merutekan untuk seluruh LAN."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "strip": {
+      "label": "Terakhir diterapkan",
+      "state_router": "Mode router",
+      "state_passthrough": "Sedang diteruskan"
+    },
+    "tiles": {
+      "mode": {
+        "label": "Mode passthrough",
+        "value_disabled": "Nonaktif",
+        "value_eth": "Lewat Ethernet",
+        "value_usb": "Lewat USB",
+        "caption_disabled": "Modem merutekan untuk LAN",
+        "caption_eth": "Disetel untuk menyerahkan IP WAN ke eth0",
+        "caption_usb": "Disetel untuk menyerahkan IP WAN ke perangkat USB"
+      },
+      "target": {
+        "label": "Perangkat target",
+        "caption_manual": "Dipatok berdasarkan MAC",
+        "caption_automatic": "Perangkat pertama yang terhubung",
+        "caption_none": "Tidak ada perangkat dipilih"
+      },
+      "nat": {
+        "label": "NAT",
+        "value_on": "Aktif",
+        "value_off": "Nonaktif",
+        "caption_on": "Disimpan sesuai anjuran",
+        "caption_off": "Perangkat target menangani pengalamatan publiknya sendiri"
+      },
+      "dns": {
+        "label": "Proxy DNS",
+        "value_on": "Aktif",
+        "value_off": "Nonaktif",
+        "caption_on": "Modem menjawab DNS lewat DHCP untuk perangkat target",
+        "caption_off": "Perangkat target memakai resolver-nya sendiri"
+      }
+    },
+    "card": {
+      "title": "Konfigurasi passthrough",
+      "description": "Setiap pengaturan di sini berlaku pada boot berikutnya. Menerapkannya akan me-reboot modem.",
+      "apply": "Terapkan dan reboot",
+      "discard": "Buang perubahan",
+      "provenance": "Dibaca kembali dari:",
+      "provenance_dirty": "{{count}} perubahan belum tersimpan",
+      "delta_automatic": "Otomatis",
+      "delta_unset": "Belum diatur",
+      "mac_label": "Alamat MAC target",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "rows": {
+      "mode": {
+        "label": "Mode passthrough",
+        "consequence": "Ethernet atau USB menyerahkan IP WAN ke satu perangkat. Pada keduanya, modem tidak lagi bisa dijangkau di alamat gateway LAN-nya — siapkan Tailscale atau jalan masuk lain."
+      },
+      "target": {
+        "label": "Perangkat target",
+        "consequence": "Otomatis mengambil perangkat pertama yang terhubung; manual mematok satu alamat MAC.",
+        "consequence_disabled": "Pilih mode terlebih dahulu."
+      },
+      "nat": {
+        "label": "NAT",
+        "consequence": "Dengan NAT cocok untuk hampir semua penyiapan. Tanpa NAT, perangkat target harus menangani pengalamatan publiknya sendiri."
+      },
+      "usb": {
+        "label": "Mode koneksi USB",
+        "consequence": "Hanya dipakai oleh passthrough USB. ECM bekerja di mana saja; RNDIS untuk Windows lawas."
+      },
+      "dns": {
+        "label": "Proxy DNS",
+        "consequence": "Jika aktif, modem menjawab kueri DNS lewat DHCP untuk perangkat target. Biarkan nonaktif kecuali perangkat itu tidak bisa menjangkau resolver sendiri."
+      }
+    },
+    "options": {
+      "placeholder": "Belum dibaca",
+      "mode_disabled": "Nonaktif — mode router",
+      "mode_eth": "Passthrough Ethernet",
+      "mode_usb": "Passthrough USB",
+      "target_automatic": "Otomatis — perangkat pertama yang terhubung",
+      "target_manual": "Masukkan alamat MAC",
+      "nat_on": "Dengan NAT (disarankan)",
+      "nat_off": "Tanpa NAT",
+      "usb_rmnet": "RMNET (QMI)",
+      "usb_ecm": "ECM (umum)",
+      "usb_mbim": "MBIM (untuk Windows)",
+      "usb_rndis": "RNDIS (lawas)",
+      "dns_off": "Nonaktif — perangkat memakai resolver sendiri",
+      "dns_on": "Aktif — modem menjawab DNS lewat DHCP"
+    },
+    "banners": {
+      "reboot": {
+        "title": "Menerapkan akan me-reboot modem, dan tab peramban ini akan kehilangan koneksinya",
+        "body": "Setelah reboot, gateway LAN berhenti menjawab. Jangkau modem lewat Tailscale, dari perangkat passthrough itu sendiri, atau lewat serial. Pengaturan ini bertahan pada reboot berikutnya."
+      },
+      "active": {
+        "title": "Halaman ini bisa dibuka karena Anda bukan perangkat passthrough-nya",
+        "body": "Alamat gateway LAN modem tidak lagi diberikan ke {{mac}}. Jika Anda kehilangan jalur yang dipakai sekarang, Tailscale atau konsol serial adalah jalan kembali."
+      }
+    },
+    "dialog": {
+      "title": "Terapkan dan reboot sekarang?",
+      "body": "Pengaturan ditulis dan modem langsung reboot. Halaman ini beralih ke hitung mundur reboot dan mengeluarkan Anda dari sesi.",
+      "body_gateway": "Begitu passthrough aktif, modem berhenti menjawab di alamat gateway LAN-nya. Pastikan Anda punya Tailscale, perangkat passthrough itu sendiri, atau konsol serial untuk masuk kembali.",
+      "body_persist": "Pengaturan ini bertahan pada reboot berikutnya.",
+      "cancel": "Batal",
+      "confirm": "Terapkan dan reboot"
+    },
+    "toast_apply_error": "Tidak dapat menerapkan pengaturan Passthrough IP",
+    "errors": {
+      "read_title": "Tidak dapat membaca konfigurasi passthrough",
+      "read_body": "Tidak ada yang diubah. Coba lagi, atau periksa apakah modem menjawab.",
+      "retry": "Coba lagi",
+      "card_unread": "Modem belum menjawab, jadi tidak ada yang dapat diubah sampai pembacaan pertama masuk.",
+      "mac_invalid": "Masukkan alamat MAC lengkap — enam pasang digit heksadesimal.",
+      "no_changes": "Belum ada yang berubah."
+    }
+  },
   "trafficEngine": {
     "page": {
       "title": "Mesin Lalu Lintas",

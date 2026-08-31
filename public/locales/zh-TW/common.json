@@ -292,6 +292,327 @@
       "dismissing": "正在關閉…"
     }
   },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL 與 MTU",
+      "description": "重寫數據機寫入行動網路介面的跳躍數與封包大小。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "strip": {
+      "label": "rmnet 上已生效",
+      "chip_custom": "自訂",
+      "chip_default": "電信商預設值",
+      "retry": "重試",
+      "unavailable_title": "無法讀取 TTL 或 MTU",
+      "unavailable_body": "兩個端點都沒有回應。數據機上未做任何變更。",
+      "idle_title": "沒有生效的覆寫值",
+      "idle_body": "數據機完全依協商結果使用電信商的 TTL 與 MTU。在下方開啟其中一項即可變更。"
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "仍在讀取",
+        "caption_unread": "此端點沒有回應"
+      },
+      "ttl": {
+        "label": "TTL（IPv4）",
+        "caption_active": "對每個封包重寫",
+        "caption_idle": "不重寫"
+      },
+      "hl": {
+        "label": "跳躍限制（IPv6）",
+        "caption_active": "對每個封包重寫",
+        "caption_idle": "不重寫"
+      },
+      "mtu": {
+        "label": "MTU 大小",
+        "unit": "位元組",
+        "caption_active": "電信商預設值為 {{carrier}}",
+        "caption_idle": "由電信商協商決定"
+      }
+    },
+    "banner": {
+      "title": "TTL 與跳躍限制來自 {{profile}} 設定檔",
+      "body": "啟用該設定檔會同時寫入這兩個值，因此此卡片已鎖定，以免兩個寫入端互相覆蓋。請在該設定檔中修改，或啟用一個未設定 TTL 的設定檔。"
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL 與跳躍限制",
+        "description": "套用於行動網路介面上的外送封包。",
+        "provenance": "讀取自即時封包規則，開機時重放自"
+      },
+      "mtu": {
+        "title": "最大傳輸單元",
+        "description": "行動網路介面在不分片的情況下能送出的最大封包。",
+        "provenance": "套用於所有符合下列樣式的介面"
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "開啟重寫後才能設定數值。",
+        "consequence_unread": "數據機尚未回應，目前沒有可變更的內容。"
+      },
+      "rewrite": {
+        "label": "重寫跳躍數",
+        "consequence": "關閉後，數據機會原樣轉送用戶端送出的跳躍數。部分電信商會統計跳躍數來偵測網路共享。"
+      },
+      "ttl_value": {
+        "label": "TTL 數值",
+        "tag": "IPv4 封包",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}。位於數據機後一跳的裝置通常設為 64。"
+      },
+      "hl_value": {
+        "label": "跳躍限制數值",
+        "tag": "IPv6 封包",
+        "placeholder": "64",
+        "consequence": "IPv6 的對應設定。除非確定用戶端是單一堆疊，否則兩項都要設定。"
+      },
+      "mtu_toggle": {
+        "label": "覆寫 MTU",
+        "consequence": "關閉後，所有 rmnet_data 介面都會回到電信商協商的數值。"
+      },
+      "mtu_value": {
+        "label": "MTU 值",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}。低於約 1400 時，可能讓丟棄 ICMP 的網站無法完成路徑 MTU 探索。",
+        "consequence_off": "開啟覆寫後才能設定數值。"
+      }
+    },
+    "values": {
+      "on": "開",
+      "off": "關"
+    },
+    "footer": {
+      "discard": "捨棄變更",
+      "unsaved": "{{count}} 項未儲存的變更"
+    },
+    "errors": {
+      "value_range": "TTL 與跳躍限制都必須介於 {{min}} 到 {{max}} 之間。",
+      "no_value": "請先填寫 TTL 或跳躍限制，再套用。",
+      "mtu_range": "MTU 必須介於 {{min}} 到 {{max}} 之間。"
+    },
+    "toast_ttl_applied": "已套用 — TTL {{ttl}}，跳躍限制 {{hl}}。",
+    "toast_ttl_cleared": "數據機已回到電信商自己的跳躍數。",
+    "toast_ttl_error": "無法套用 TTL 與跳躍限制。",
+    "toast_mtu_applied": "已將所有 rmnet_data 介面的 MTU 設為 {{mtu}}。",
+    "toast_mtu_cleared": "MTU 已回到電信商協商的數值。",
+    "toast_mtu_error": "無法套用 MTU。"
+  },
+  "customDns": {
+    "page": {
+      "title": "自訂 DNS",
+      "description": "選擇數據機要將區域網路查詢轉送到哪一個解析器。用戶端仍向數據機查詢，改變的只有上游。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "strip": {
+      "label": "目前轉送至",
+      "state_custom": "您的解析器",
+      "state_carrier": "電信商指派",
+      "state_corrupt": "設定已損毀",
+      "state_unavailable": "未使用",
+      "unavailable_title": "dnsmasq 不在轉送路徑上",
+      "unavailable_body": "DNS 模式為 {{mode}}，區域網路用戶端會直接向電信商解析，本頁面的設定無法改變這一點。",
+      "read_failed_title": "無法讀取 DNS 設定",
+      "read_failed_body": "數據機沒有回應上一次讀取。裝置上未做任何變更 — 請按重新整理再試一次。"
+    },
+    "tiles": {
+      "upstream": {
+        "label_one": "上游 1",
+        "label_two": "上游 2",
+        "caption_attach": "來自上一次附著",
+        "caption_yours": "由您設定",
+        "caption_absent_carrier": "電信商只指派了一個解析器",
+        "caption_absent_custom": "您只設定了一個解析器",
+        "caption_none": "尚未設定任何解析器",
+        "caption_untrusted": "可能與 dnsmasq 實際使用的不一致"
+      },
+      "source": {
+        "label": "來源",
+        "value_custom": "自訂",
+        "value_carrier": "電信商",
+        "value_unknown": "未知",
+        "caption": "dnsmasq，{{mode}} 模式"
+      },
+      "fallback": {
+        "label": "電信商備援",
+        "value_on": "開啟",
+        "value_off": "關閉",
+        "caption_on": "預設行為",
+        "caption_off": "您的解析器失敗時不備援"
+      }
+    },
+    "corrupt": {
+      "title": "dnsmasq.conf 中 QManager 的設定區塊格式異常",
+      "body": "只有開始標記卻沒有結束標記，或反過來。下方的上游清單可能與 dnsmasq 實際使用的不一致。儲存前請透過 SSH 檢查 /etc/data/dnsmasq.conf。"
+    },
+    "unavailable": {
+      "title": "DNS 模式是 {{mode}}，不是 PROXY",
+      "body": "該模式位於 /etc/data/mobileap_cfg.xml，必須在 QManager 之外變更。在它顯示為 PROXY 之前，這裡的儲存不會有任何作用。"
+    },
+    "card": {
+      "title": "上游解析器",
+      "description": "最多四個。dnsmasq 會原地重新載入 — 無需重啟，連線不中斷。",
+      "save": "儲存並套用",
+      "add": "新增解析器",
+      "provenance": "已使用 {{used}} / {{max}} · 讀取自",
+      "provenance_corrupt": "已使用 {{used}} / {{max}} · 無法完整讀取自",
+      "blocked_unavailable": "dnsmasq 不在轉送路徑上，這樣做不會有任何作用。"
+    },
+    "rows": {
+      "enabled": {
+        "label": "使用我自己的解析器",
+        "consequence": "關閉後，dnsmasq 會回到電信商在上一次附著時指派的解析器。"
+      },
+      "resolver": {
+        "label": "解析器 {{n}}",
+        "consequence": "IPv4 或 IPv6。貼上以逗號分隔的清單可一次填入多列。",
+        "consequence_off": "先開啟自訂解析器才能新增。",
+        "placeholder": "1.1.1.1",
+        "remove": "移除解析器 {{n}}"
+      },
+      "ignore_carrier": {
+        "label": "絕不備援到電信商 DNS",
+        "consequence": "開啟後，當您的解析器無法連通時查詢會直接失敗，而不會外洩給電信商。"
+      }
+    },
+    "delta": {
+      "unsaved": "未儲存"
+    },
+    "errors": {
+      "invalid_address": "不是有效的 IPv4 或 IPv6 位址。",
+      "fix_rows": "儲存前請修正標示的解析器。",
+      "empty_when_enabled": "請新增一個解析器，或關閉自訂解析器。"
+    },
+    "toast_saved": "自訂 DNS 已套用。快取更新期間，區域網路用戶端可能會有短暫停頓。",
+    "toast_error": "無法套用 DNS 變更。"
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "IP 直通",
+      "description": "將數據機的公網 IP 直接交給一台已連線的裝置，而不是為整個區域網路做路由。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "strip": {
+      "label": "上次套用",
+      "state_router": "路由模式",
+      "state_passthrough": "直通中"
+    },
+    "tiles": {
+      "mode": {
+        "label": "模式",
+        "value_disabled": "已停用",
+        "value_eth": "乙太網路",
+        "value_usb": "USB 介面",
+        "caption_disabled": "數據機為區域網路做路由",
+        "caption_eth": "設定為將 WAN IP 交給 eth0",
+        "caption_usb": "設定為將 WAN IP 交給 USB 裝置"
+      },
+      "target": {
+        "label": "目標裝置",
+        "caption_manual": "依 MAC 位址固定",
+        "caption_automatic": "第一台連線的裝置",
+        "caption_none": "未選擇裝置"
+      },
+      "nat": {
+        "label": "NAT 轉換",
+        "value_on": "開啟",
+        "value_off": "關閉",
+        "caption_on": "已依建議值儲存",
+        "caption_off": "由目標裝置自行處理公網定址"
+      },
+      "dns": {
+        "label": "DNS 代理",
+        "value_on": "開啟",
+        "value_off": "關閉",
+        "caption_on": "由數據機為目標裝置回應 DHCP DNS",
+        "caption_off": "目標裝置使用自己的解析器"
+      }
+    },
+    "card": {
+      "title": "直通設定",
+      "description": "這裡的每一項設定都會在下次開機時生效。套用會重啟數據機。",
+      "apply": "套用並重啟",
+      "discard": "捨棄變更",
+      "provenance": "讀取自：",
+      "provenance_dirty": "{{count}} 項未儲存的變更",
+      "delta_automatic": "自動",
+      "delta_unset": "未設定",
+      "mac_label": "目標 MAC 位址",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "rows": {
+      "mode": {
+        "label": "模式",
+        "consequence": "選擇乙太網路或 USB 會把 WAN IP 交給一台裝置。兩種情況下，數據機都無法再從區域網路閘道位址連上 — 請保留 Tailscale 或其他連入方式。"
+      },
+      "target": {
+        "label": "目標裝置",
+        "consequence": "自動模式會採用第一台連線的裝置；手動模式則固定一個 MAC 位址。",
+        "consequence_disabled": "請先選擇模式。"
+      },
+      "nat": {
+        "label": "NAT 轉換",
+        "consequence": "幾乎所有情境都應該啟用 NAT。不啟用時，目標裝置必須自行處理公網定址。"
+      },
+      "usb": {
+        "label": "USB 連線模式",
+        "consequence": "僅用於 USB 直通。ECM 相容性最好；RNDIS 適用於較舊的 Windows。"
+      },
+      "dns": {
+        "label": "DNS 代理",
+        "consequence": "開啟後，數據機會為目標裝置回應 DHCP DNS 查詢。除非該裝置自己無法連到解析器，否則請保持關閉。"
+      }
+    },
+    "options": {
+      "placeholder": "尚未讀取",
+      "mode_disabled": "停用 — 路由模式",
+      "mode_eth": "乙太網路直通",
+      "mode_usb": "USB 直通",
+      "target_automatic": "自動 — 第一台連線的裝置",
+      "target_manual": "輸入 MAC 位址",
+      "nat_on": "啟用 NAT（建議）",
+      "nat_off": "不啟用 NAT",
+      "usb_rmnet": "RMNET（QMI）",
+      "usb_ecm": "ECM（通用）",
+      "usb_mbim": "MBIM（Windows）",
+      "usb_rndis": "RNDIS（舊裝置）",
+      "dns_off": "關閉 — 裝置使用自己的解析器",
+      "dns_on": "開啟 — 由數據機回應 DHCP DNS"
+    },
+    "banners": {
+      "reboot": {
+        "title": "套用會重啟數據機，目前的瀏覽器分頁將失去連線",
+        "body": "重啟後區域網路閘道將不再回應。請透過 Tailscale、直通裝置本身或序列埠連上數據機。此設定會在後續重啟後繼續保留。"
+      },
+      "active": {
+        "title": "本頁面能開啟，是因為您不是那台直通裝置",
+        "body": "數據機的區域網路閘道位址已不再提供給 {{mac}}。若失去目前的連入路徑，Tailscale 或序列主控台就是回來的方法。"
+      }
+    },
+    "dialog": {
+      "title": "現在套用並重啟？",
+      "body": "設定會寫入，數據機隨即重啟。本頁面會轉到重啟倒數並將您登出。",
+      "body_gateway": "直通生效後，數據機將不再於區域網路閘道位址上回應。請確認您有 Tailscale、直通裝置本身或序列主控台可以重新連入。",
+      "body_persist": "此設定會在後續重啟後繼續保留。",
+      "cancel": "取消",
+      "confirm": "套用並重啟"
+    },
+    "toast_apply_error": "無法套用 IP 直通設定",
+    "errors": {
+      "read_title": "無法讀取直通設定",
+      "read_body": "未做任何變更。請再試一次，或確認數據機是否有回應。",
+      "retry": "重試",
+      "card_unread": "數據機尚未回應，在首次讀取完成前沒有可變更的內容。",
+      "mac_invalid": "請輸入完整的 MAC 位址 — 六組十六進位數字。",
+      "no_changes": "尚未有任何變更。"
+    }
+  },
   "trafficEngine": {
     "page": {
       "title": "流量引擎",
