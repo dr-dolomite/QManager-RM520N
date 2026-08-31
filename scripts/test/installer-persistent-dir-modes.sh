@@ -31,7 +31,7 @@
 # this census also turned up into a hard pass/fail gate — several other
 # sites in this file and in scripts/usr/bin/qmanager_* share the identical
 # shape (no install -d, no directory-level chmod/chown following) and were
-# NOT part of the defect this harness was commissioned to pin. Section [5]
+# NOT part of the defect this harness was commissioned to pin. Section [6]
 # below lists them for visibility without failing the run; see the commit
 # message / session report for the full list. Baking untriaged sites into
 # a hard assertion risks a harness that is wrong in the OTHER direction —
@@ -153,9 +153,85 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# [4] syntax sanity
+# [4] F15 — the three persistent dirs whose bare `mkdir -p` produced a
+#     WORLD-WRITABLE mode on BOTH shipped devices. Measured read-only over
+#     SSH 2026-08-31, identity proved by serial: /etc/profile.d,
+#     /etc/qmanager/backups and /usrdata/qmanager/locales-packs were all
+#     777 on the RM520N-GL (61368cd2) AND the RG501Q-EU (b7e3d6f1).
+#
+#     Mechanism: install_rm520n.sh:624 records that the install shell runs
+#     at umask 0000, so a bare `mkdir -p` yields 0777 — and because
+#     `mkdir -p` no-ops on an existing directory, that mode then survives
+#     every future OTA. The live PROCESS umask is a healthy 0022 on both
+#     devices, which is why inspecting the running system never revealed
+#     it. Identical defect class to SUDOERS_DIR in [3]; T3.5 fixed only
+#     that one site and left these enumerated-but-unasserted in [6].
+#
+#     /etc/profile.d is the severe one: /etc/profile:15 sources
+#     /etc/profile.d/*.sh, the directory carries no sticky bit, and
+#     www-data is the CGI user — so a web-reachable uid can drop OR
+#     REPLACE a snippet there and have it execute as root at the next root
+#     login. The existing qmanager-path.sh being 0644 is irrelevant:
+#     unlink permission comes from the directory, not the file.
+#
+#     The three modes are deliberately NOT uniform. Each is load-bearing:
+#
+#       /etc/profile.d                   0755  ordinary system directory
+#       $BACKUP_DIR                      0700  auth.json snapshots; the
+#                                              installer is its only reader
+#                                              and only writer
+#       /usrdata/qmanager/locales-packs  0755  root-writable ONLY, but it
+#                                              MUST stay world-READABLE —
+#                                              language-packs/list.sh is a
+#                                              www-data CGI that reads
+#                                              <code>/_pack.json straight
+#                                              out of this store. 0700 here
+#                                              would break the language-pack
+#                                              list endpoint, so do not
+#                                              "harden" this one further.
 # ---------------------------------------------------------------------------
-printf '\n[4] syntax sanity\n'
+printf '\n[4] F15 — persistent dirs measured 0777 on both live devices\n'
+
+if grep -qE '^[[:space:]]*mkdir -p /etc/profile\.d' "$INSTALLER"; then
+    bad '/etc/profile.d is created with a bare "mkdir -p" — measured 777 root:root on BOTH devices; /etc/profile sources *.sh from it, so a www-data write there runs as root'
+else
+    ok '/etc/profile.d is not created via a bare mkdir -p'
+fi
+
+if grep -qE 'install[[:space:]]+-d[[:space:]].*-m[[:space:]]+0755[[:space:]]+/etc/profile\.d([^/[:alnum:]]|$)' "$INSTALLER"; then
+    ok '/etc/profile.d is pinned with install -d -m 0755'
+else
+    bad '/etc/profile.d has no install -d -m 0755 call — the directory mode is never pinned'
+fi
+
+if grep -qF 'mkdir -p "$BACKUP_DIR"' "$INSTALLER"; then
+    bad 'BACKUP_DIR is created with a bare "mkdir -p" — measured 777 www-data:www-data on BOTH devices; it holds auth.json snapshots whose own 0600 is defeated by a world-writable, non-sticky parent'
+else
+    ok 'BACKUP_DIR is not created via a bare mkdir -p'
+fi
+
+if grep -qE 'install[[:space:]]+-d[[:space:]].*-m[[:space:]]+0700[[:space:]]+"\$BACKUP_DIR"([^/]|$)' "$INSTALLER"; then
+    ok 'BACKUP_DIR is pinned with install -d -m 0700'
+else
+    bad 'BACKUP_DIR has no install -d -m 0700 call — the directory mode is never pinned'
+fi
+
+if grep -qE '^[[:space:]]*mkdir -p /usrdata/qmanager/locales-packs' "$INSTALLER"; then
+    bad 'the persistent locales-packs store is created with a bare "mkdir -p" — measured 777 root:root on BOTH devices, defeating the root-only-writer boundary its own adjacent comment claims'
+else
+    ok 'the persistent locales-packs store is not created via a bare mkdir -p'
+fi
+
+if grep -qE 'install[[:space:]]+-d[[:space:]].*-m[[:space:]]+0755[[:space:]]+/usrdata/qmanager/locales-packs([^/[:alnum:]-]|$)' "$INSTALLER"; then
+    ok 'the persistent locales-packs store is pinned with install -d -m 0755 (world-readable on purpose: list.sh reads it as www-data)'
+else
+    bad 'the persistent locales-packs store has no install -d -m 0755 call — the directory mode is never pinned'
+fi
+
+# ---------------------------------------------------------------------------
+# [5] syntax sanity
+# ---------------------------------------------------------------------------
+printf '\n[5] syntax sanity\n'
 
 if "${BASH:-bash}" -n "$INSTALLER" 2>/dev/null; then
     ok "bash -n clean: $(basename "$INSTALLER")"
@@ -164,24 +240,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# [5] Informational census — additional bare `mkdir -p` sites on a
+# [6] Informational census — additional bare `mkdir -p` sites on a
 #     persistent path found while building this harness. NOT asserted
 #     (printed only; does not affect pass/fail) — each is a real candidate
 #     for the same defect class but was not part of what this harness was
 #     commissioned to pin. See the commit message / session report.
 # ---------------------------------------------------------------------------
-printf '\n[5] Informational — other bare mkdir -p sites on a persistent path (not asserted)\n'
-printf '  info install_rm520n.sh:1371  mkdir -p "$BACKUP_DIR" (/etc/qmanager/backups) — no directory-level chmod follows\n'
-printf '  info install_rm520n.sh:1442  mkdir -p "$WWW_ROOT/locales-packs" — no chmod follows\n'
-printf '  info install_rm520n.sh:1521  mkdir -p "$TAILSCALE_DIR/systemd" — no chmod follows\n'
-printf '  info install_rm520n.sh:1621  mkdir -p /etc/profile.d — no chmod follows\n'
-printf '  info install_rm520n.sh:1823  mkdir -p /usrdata/qmanager/locales-packs — no chmod follows (contrast with the install -d -m 0700 one line below it, for locales-staging)\n'
-printf '  info install_rm520n.sh:2955  mkdir -p /etc/udev/rules.d — no chmod follows\n'
-printf '  info install_rm520n.sh:3016  mkdir -p "$WANTS_DIR" (/lib/systemd/system/multi-user.target.wants) — no chmod follows\n'
-printf '  info install_rm520n.sh:3121  mkdir -p "$TIMERS_WANTS_DIR" (/lib/systemd/system/timers.target.wants) — no chmod follows\n'
-printf '  info install_rm520n.sh:315   install_tree() mkdir -p "$dst" — the directory itself is never chmodded, only files found inside it via find -exec\n'
-printf '  info qmanager_poller:648,722         mkdir -p /usrdata/qmanager — no chmod follows (QMANAGER_ROOT itself, hardened elsewhere by the installer'"'"'s install -d -m 0755, but re-created bare here if ever missing)\n'
-printf '  info qmanager_tailscale_mgr:145,272  mkdir -p /usrdata/root/bin — no chmod follows\n'
+printf '\n[6] Informational — remaining bare mkdir -p sites on a persistent path (not asserted)\n'
+printf '  Each was assessed on BOTH live devices 2026-08-31 (read-only, identity proved by\n'
+printf '  serial) and the CURRENT on-device mode is recorded. The three that measured 0777\n'
+printf '  were promoted out of this list into section [4]; these eight did not.\n'
+printf '  info install_rm520n.sh:1447  mkdir -p "$WWW_ROOT/locales-packs" — HARMLESS: live 755 both devices, web-served content, no secret and no elevated trust\n'
+printf '  info install_rm520n.sh:1526  mkdir -p "$TAILSCALE_DIR/systemd" — HARMLESS: staged (non-executing) unit copy; Tailscale absent from both test devices so mode unmeasured, but nothing is consumed from here until a later step re-copies it\n'
+printf '  info install_rm520n.sh:2970  mkdir -p /etc/udev/rules.d — HARMLESS: live 755 root:root both devices\n'
+printf '  info install_rm520n.sh:3031  mkdir -p "$WANTS_DIR" (multi-user.target.wants) — HARMLESS: live 755 both; pre-existing systemd dir, so the mkdir is a guaranteed no-op\n'
+printf '  info install_rm520n.sh:3136  mkdir -p "$TIMERS_WANTS_DIR" (timers.target.wants) — HARMLESS: live 755 both, same reasoning\n'
+printf '  info install_rm520n.sh:315   install_tree() mkdir -p "$dst" — NEEDS A DECISION: live 755 only because cp -r inherits the SOURCE tree mode; nothing in the code pins it, and unlike the others this call re-creates the dir fresh on every OTA rather than no-opping, so the umask genuinely bites every run\n'
+printf '  info qmanager_poller:714,788  mkdir -p /usrdata/qmanager (write_data_used_state / update_data_used) — HARMLESS in practice: target already exists at 755 from the installer'"'"'s install -d, so this is a no-op at every normal boot; only reachable on a corrupted-install recovery path\n'
+printf '  info qmanager_tailscale_mgr:145,272  mkdir -p /usrdata/root/bin — NEEDS A DECISION: live 755 both, but plausibly only because something else pre-creates the path; nothing in this script guarantees it\n'
 
 printf '\n[installer-persistent-dir-modes] %d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ] || exit 1
