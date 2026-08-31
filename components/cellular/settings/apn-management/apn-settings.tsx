@@ -38,6 +38,34 @@ import {
   READOUT_ROW,
 } from "../shapes";
 
+/**
+ * Band B and Band C as desktop peers, by explicit product request.
+ *
+ * This reopens a call the same re-authoring closed a few commits earlier (see
+ * the header note above): the two-column `PAGE_GRID` was removed because it
+ * force-fit two cards on unrelated clocks into one row, per DESIGN.md's
+ * Grid-Step-Costing / "split a page by cadence, not by symmetry". That
+ * argument was about the OLD pairing — APN config beside a right-column AMBR
+ * reference block with nothing in common. APN config and MBN are a closer
+ * match for it: both are write surfaces of comparable weight (a handful of
+ * rows plus a save bar), and MBN's own bundle list is height-capped at
+ * `CHOICE_ROW.SCROLL_CAP` (17rem) rather than growing unbounded, so the
+ * "dead space in whichever card has less to say" failure mode the rule warns
+ * about does not reproduce here the way it did for AMBR. Kept page-local
+ * rather than promoted to `../shapes` — nothing else on this surface pairs a
+ * fieldset-wrapped card with a plain one.
+ */
+const WRITE_GRID = "grid grid-cols-1 gap-4 @4xl/main:grid-cols-2";
+
+/**
+ * Carries the grid row's stretch down into each `Card`, same job as the
+ * family's own `CARD_CELL` — but the APN card sits one box deeper, behind the
+ * profile-override `<fieldset>`, so `CARD_CELL`'s direct-child selector can't
+ * reach it. A descendant selector clears both cells in one class: the
+ * `[&>fieldset]` rule is a no-op on the MBN cell, which has no fieldset.
+ */
+const WRITE_CELL = "h-full [&>fieldset]:h-full [&_[data-slot=card]]:h-full";
+
 // =============================================================================
 // APN Management — the route shell
 // =============================================================================
@@ -55,15 +83,18 @@ import {
 //   Band B  APN configuration          settings GET, inside the override gate
 //   Band C  Carrier bundle (MBN)       its own GET, outside the gate
 //
-// THE TWO-COLUMN GRID IS GONE, and not for taste. `PAGE_GRID`'s 1.35fr/1fr was
-// inherited from `/cellular/settings` — `git log -S "1.35fr"` returns one
-// commit and it is that page's — and its JSDoc justifies the ratio by a right
-// column ("AMBR + modem reports") that no longer exists anywhere. DESIGN.md >
-// Layout already rules on it: SPLIT A PAGE BY CADENCE, NOT BY SYMMETRY. These
-// two cards have unrelated clocks (a mount-only settings GET vs MBN's own GET),
-// unrelated weights, and different gating; forcing them onto one row is exactly
-// the split that rule forbids, and it strands dead space in whichever card has
-// less to say. `PAGE_GRID` stays exported — `imei-settings.tsx` consumes it.
+// BAND B AND BAND C SIT SIDE BY SIDE ON DESKTOP, matched to one height by the
+// page-local `WRITE_CELL`. `PAGE_GRID` — the OLD two-column grid inherited
+// from `/cellular/settings`, whose 1.35fr/1fr ratio was justified by a right
+// column ("AMBR + modem reports") this page never had — is still gone, and
+// for the reason DESIGN.md gives: SPLIT A PAGE BY CADENCE, NOT BY SYMMETRY.
+// That argument was against pairing a write card with a read-only reference
+// block on an unrelated clock. B and C are a different pairing: two write
+// surfaces of comparable weight, each with its own save bar, and MBN's own
+// list is height-capped (`CHOICE_ROW.SCROLL_CAP`) rather than open-ended — so
+// side by side does not strand the dead space the rule warns about. See
+// `WRITE_GRID` / `WRITE_CELL` below for the mechanics. `PAGE_GRID` itself
+// stays exported — `imei-settings.tsx` still consumes it for its own pairing.
 //
 // THREE DATA SOURCES, DELIBERATELY SEPARATE:
 //   useApnSettings   the writable APN CGI surface (one read on mount, re-read
@@ -390,13 +421,7 @@ function NetworkGrantedCard({
           </div>
           <div className={READOUT_ROW.GRID}>
             {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton
-                key={index}
-                className={cn(
-                  READOUT_ROW.HEIGHT,
-                  index === 3 && "@2xl/card:col-span-2",
-                )}
-              />
+              <Skeleton key={index} className={READOUT_ROW.HEIGHT} />
             ))}
           </div>
         </CardContent>
@@ -546,11 +571,13 @@ function NetworkGrantedCard({
             known={!!v4}
             mono
           />
-          {/* Full width: a compressed IPv6 still reaches 39 characters, which
-              is more than half a card column can hold. `title` keeps the whole
-              address recoverable even when the cell truncates. */}
+          {/* Beside IPv4, not full width. A RAW IPv6 reaches 39 characters, but
+              `compressIPv6` (RFC 5952) has already run by the time this value
+              arrives — a real granted address compresses to roughly half that,
+              and fits the half-card column the same way IPv4 does. `title`
+              keeps the untruncated address recoverable on the rare address
+              that still doesn't. */}
           <ReadoutRow
-            className="@2xl/card:col-span-2"
             label={t(`${R}.ipv6`)}
             value={v6 ?? EM_DASH}
             title={v6 ?? undefined}
@@ -713,43 +740,49 @@ const APNSettingsComponent = () => {
           hiding the one thing still worth reading. */}
       <NetworkGrantedCard status={status} isStale={statusStale} isLoading={statusLoading} error={statusError} configuredApn={apn?.apn ?? null} />
 
-      {/* Band B — what you can CHANGE, on the settings GET's clock. The only
-          thing a SIM profile can own, and therefore the only thing inside the
-          override fieldset. `pointer-events-none opacity-60` makes the locked
-          state obvious while leaving the values readable. */}
-      <fieldset
-        disabled={isProfileControlled || overrideUndetermined}
-        className={cn(
-          "m-0 border-0 p-0",
-          isProfileControlled && "pointer-events-none opacity-60",
-        )}
-      >
-        <ApnSettingsCard
-          apn={apn}
-          cids={cids}
-          active={active}
-          activeCid={activeCid}
-          isLoading={isLoading || overrideUndetermined}
-          isSaving={isSaving}
-          onSave={save}
-          onDeactivate={deactivate}
-        />
-      </fieldset>
+      <div className={WRITE_GRID}>
+        {/* Band B — what you can CHANGE, on the settings GET's clock. The only
+            thing a SIM profile can own, and therefore the only thing inside
+            the override fieldset. `pointer-events-none opacity-60` makes the
+            locked state obvious while leaving the values readable. */}
+        <div className={WRITE_CELL}>
+          <fieldset
+            disabled={isProfileControlled || overrideUndetermined}
+            className={cn(
+              "m-0 border-0 p-0",
+              isProfileControlled && "pointer-events-none opacity-60",
+            )}
+          >
+            <ApnSettingsCard
+              apn={apn}
+              cids={cids}
+              active={active}
+              activeCid={activeCid}
+              isLoading={isLoading || overrideUndetermined}
+              isSaving={isSaving}
+              onSave={save}
+              onDeactivate={deactivate}
+            />
+          </fieldset>
+        </div>
 
-      {/* Band C — the carrier bundle, on its own GET's clock and behind a
-          reboot. OUTSIDE the fieldset: the gate fires on
-          `profile.settings.apn.name`, and no SIM profile manages MBN bundle
-          selection, so a profile owning the APN was locking a control it has
-          nothing to say about. */}
-      <MBNCard
-        profiles={mbnProfiles}
-        autoSel={autoSel}
-        isLoading={mbnLoading}
-        isSaving={mbnSaving}
-        error={mbnError}
-        onSave={saveMbn}
-        onRetry={refreshMbn}
-      />
+        {/* Band C — the carrier bundle, on its own GET's clock and behind a
+            reboot. OUTSIDE the fieldset: the gate fires on
+            `profile.settings.apn.name`, and no SIM profile manages MBN bundle
+            selection, so a profile owning the APN was locking a control it
+            has nothing to say about. */}
+        <div className={WRITE_CELL}>
+          <MBNCard
+            profiles={mbnProfiles}
+            autoSel={autoSel}
+            isLoading={mbnLoading}
+            isSaving={mbnSaving}
+            error={mbnError}
+            onSave={saveMbn}
+            onRetry={refreshMbn}
+          />
+        </div>
+      </div>
 
       {/* The resting re-read. `refresh` was wired but reachable ONLY from
           inside the error banner, so the affordance existed exactly when the
