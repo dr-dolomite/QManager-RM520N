@@ -135,7 +135,7 @@ Pinned by `scripts/test/traffic-engine-design-language.sh` (sections [0]–[18],
 
 ## The polish pass (second round, 2026-08-31)
 
-Five user reports plus three defects a devil's-advocate pass found while attacking the plan written for them. **No backend contract changed here either** — same endpoint, same actions, same fields. Sections [19]–[28] of the harness, committed red in `a7b5d72`; the file now stands at 28 sections and 110 assertions.
+Five user reports plus three defects a devil's-advocate pass found while attacking the plan written for them, then **a third round of two more reports** (R6 the height pair, R7 the skeleton) recorded in the last two sections below. **No backend contract changed in any of them** — same endpoint, same actions, same fields. Sections [19]–[28] of the harness were committed red in `a7b5d72` and [23]/[29]/[30] in `2996d2d`; the file now stands at 30 sections and 130 assertions.
 
 ### The silent-refetch contract
 
@@ -177,9 +177,37 @@ This is a deliberate departure from the stock ARIA radiogroup pattern, which con
 
 `CARD_PAIR` is `grid grid-cols-1 items-start gap-5 @5xl/main:grid-cols-2`, and the targets card sits in the **same** grid beneath the pair via `CARD_PAIR_WIDE` (`@5xl/main:col-span-2`) rather than in a second container, so the band has one source of truth for its rows and its gaps cannot drift apart. The grid wrapper is itself the `staggerItem` with the three cards directly inside it: they are one band and arrive as one beat. (That also avoids the trap where a plain `div` between a cascade root and a `motion` child breaks variant propagation and pins everything at `hidden` — a complete DOM, no console errors, an invisible page.)
 
-- **`items-start`, with no height lock.** DESIGN.md does not ban equal heights outright; it makes them explicit and conditional on symmetry being a real property of the pair. It is not one here. The verify card is a single footnote line when idle and a headline plus three comparison bars when complete, so a lock would strand dead space in whichever card had less to say — and which one that is **changes while the test runs**. That is the Radio Information failure DESIGN.md already records paying for once. Harness section [23] bans the alternative.
+- **`items-stretch` plus `*:data-[slot=card]:h-full`, and it is only honest because of the resting state.** This reverses the pass above it, which shipped `items-start` and *banned* the lock. That reasoning was right on its own premise: DESIGN.md does not ban equal heights outright, it makes them explicit and conditional on symmetry being a real property of the pair — and it was not one, because the verify card's idle state was a single footnote line. A lock over that is the Radio Information failure verbatim.
+
+  The third round asked for the lock, and the answer was not to force one over the same premise. It was to **remove the premise**: the verify card now has a [resting state built to fill](#the-resting-state-and-the-height-lock), so both cards absorb the difference and the lock states something true. Both halves are load-bearing — `items-stretch` makes the *cell* take the row height, `*:data-[slot=card]:h-full` makes the *card* fill that cell, and a stretched cell holding a content-height card looks exactly like no change at all. Harness section [23] now asserts the lock, the fill, and a growing child in **both** cards; [29] is what keeps it honest.
 - **`@5xl`, not `@6xl`, and the reason is measured rather than aesthetic.** The container is the viewport less 264px of sidebar, less 48px of main padding, less 16px of page padding. `@6xl` (1152px) therefore needs a viewport past **1480px** — a 1440px laptop, the commonest desktop width there is, would never see the side-by-side at all. `@5xl` (1024px) needs 1352px, and its ~546px cells clear the 512px threshold `CMP_ROW` uses to hold the verify comparison rows on one line. The cost is a ~20px band of viewport widths where those rows take their already-designed wrapped layout, which is a layout and not a defect. `@5xl` is also a step this codebase already uses; `@6xl` appears nowhere in the tree.
 - **CSS `order` was considered and rejected.** It could have preserved the old single-column reading order underneath the new visual one, but that is precisely the disagreement between DOM order and visual order that WCAG 1.3.2 (Meaningful Sequence) exists to forbid. The DOM order below the shell **is** the reading order, at every width.
+
+### The resting state, and the height lock
+
+**The verify card's three footnote lines are one block with three faces.** Idle, running and not-installed used to be a single grey sentence each, sitting under a header on an otherwise empty card. They are now a centred media disc, a title, an optional body and — on the idle face — the run action, drawn from `RESTING` in the family's `shapes.ts`.
+
+**The `Empty` primitive is deliberately not used, and not on taste.** `components/ui/empty.tsx` ships `p-6 … md:p-12`: a **viewport** breakpoint, inside a family whose entire responsive contract is container queries (harness section [13]). No call-site class removes it — `p-*` and `md:p-*` are different variants, so `cn()` keeps both and the viewport one wins above 768px; the one in-repo consumer that took the primitive had to neutralise it with a `md:` class of its own. This family already refused the `Input` primitive for exactly that defect (`shapes.ts` > `FIELD`) and restates `CONDITION` rather than importing the shared condition screen for the same reason. Third instance of one rule, not a new exception to it.
+
+**The action moves, and there is only ever one of it.** Until a result exists the run lives *inside* the block, centred under the sentence explaining it. Once a result is on screen the block is gone and the action returns to the card header as "Run test again". The gate is `complete`, not "not idle" — written once, so no state can render two buttons for one action.
+
+**The running face spins the disc, not a button.** Same call `onboarding.tsx` makes for the install, and the same reason: a wait measured in minutes has to be *readable* for minutes, not merely indicated.
+
+**One string was deleted rather than left orphaned.** `trafficEngine.verify.idle` read "Run the test to compare your speed with and without the bypass" — the card description one line above, said again, over a button reading Run test. It existed because the idle state had no other content. The running and not-installed faces keep their bodies, because both say something the header does not (how long a run takes; what to do when there is no engine).
+
+Measured at a 1440 viewport: idle 379/379, complete 467/467. At the real ~546px cell the two cards' **natural** heights are 398 and 401, so the lock is stating something almost true rather than forcing something false. At 375px the grid is one column and the lock is inert by construction.
+
+### The skeleton mirrors the band, not the strip
+
+The page skeleton drew four tiles and stopped, so the handoff grew three whole cards out of nothing. Each card now exports its own mirror — `ModeCardSkeleton`, `VerifyCardSkeleton`, `TargetsCardSkeleton` — and the shell composes them inside the **same `CARD_PAIR`** the loaded band uses, so the column split, the gap and the height lock cannot disagree between the two states.
+
+> ⚠️ The mirrors live **beside the cards they mirror**, never in the shell. A skeleton kept in the shell drifts the first time its card changes, because nothing ever puts the two on one screen. That is finding 08 on this page, and it is the reason harness section [30] asserts the *location* of each mirror as well as its existence.
+
+**The mode rows mirror by construction.** `CHOICE_ROW.ROOT` is deliberately unpinned (its hint wraps to two lines on a narrow container), so there is no height for a skeleton to copy and a guessed one would be finding 08 again. The mirror renders the real row box with line boxes inside it: same padding, same gaps, same mark, so the same height falls out of the same arithmetic. Measured 73px against the real 74px.
+
+**`HOST_MAX_COLUMNS` fixes a mirror bug that predates this pass.** `HOST_VISIBLE_ROWS` counts **grid rows**, and both hostlist skeletons rendered it as a count of **chips** — five blocks, which is five rows at one column and *two* at three. On any desktop the loading box stood 138px short of the list that replaced it. The column count is a container query and therefore unknowable in JS, which is why this is a constant: the mirror renders the widest case (rows × columns), and at fewer columns the surplus falls past `VIEWPORT`'s own `max-h-56` and is clipped — which is exactly what a full list looks like, and the shipped default list is 21 domains against a five-row cap.
+
+Handoff after the pass: pair 376 → 379, targets 399 → 401.
 
 ## Files
 
@@ -193,5 +221,5 @@ This is a deliberate departure from the stock ARIA radiogroup pattern, which con
 - `scripts/test/dpi-uninstall-path-symmetry.sh` — harness pinning the uninstall paths: sections [1]–[3] that the UI and full-device paths drain the same chains (F19), section [4] that `--clear` drains **all three** rules the lib owns (F21, behavioural — the branch is awk-extracted and run against a stubbed `run_iptables`, asserting rule *signatures* not chain names), section [5] that the UI path does **not** route through `--clear`
 - `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_masquerade / save_force_tcp / verify / install / save_hostlist)
 - `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend (`shapes.ts` is the family's geometry contract; see [The UI](#the-ui-re-authored-2026-08-31))
-- `scripts/test/traffic-engine-design-language.sh` — harness pinning the re-authored surface: sections [0]–[18] the re-author, [19]–[28] the [polish pass](#the-polish-pass-second-round-2026-08-31) (silent refetch, `pendingMode`, no-select-on-arrow, `CARD_PAIR`, the capped list, import/export/restore, the em-dash sweep, and a CRLF guard on the locale packs)
+- `scripts/test/traffic-engine-design-language.sh` — harness pinning the re-authored surface: sections [0]–[18] the re-author, [19]–[28] the [polish pass](#the-polish-pass-second-round-2026-08-31) (silent refetch, `pendingMode`, no-select-on-arrow, `CARD_PAIR`, the capped list, import/export/restore, the em-dash sweep, and a CRLF guard on the locale packs), [29]–[30] the third round (the resting state, and the skeleton mirroring the band). Note [23] is **inverted** relative to its first form, deliberately and on the record
 - `hooks/use-video-optimizer.ts`, `hooks/use-traffic-masquerade.ts`, `hooks/use-force-tcp.ts`, `hooks/use-cdn-hostlist.ts`
