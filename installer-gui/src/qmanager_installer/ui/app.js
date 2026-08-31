@@ -123,6 +123,30 @@ function playResultSound(resultTone) {
   }
 }
 
+/* Splits `text` on the literal `url` substring and renders the rest as plain
+ * nodes around a real <a> — the modem address is the one thing on the result
+ * screen the user needs to act on, so it opens in their actual browser
+ * (Bridge.open_url uses Python's webbrowser module) rather than navigating
+ * the WebView itself away from the installer. */
+function setLinkedDetail(el, text, url) {
+  el.textContent = "";
+  const idx = text.indexOf(url);
+  if (idx === -1) {
+    el.textContent = text;
+    return;
+  }
+  el.append(text.slice(0, idx));
+  const a = document.createElement("a");
+  a.href = url;
+  a.textContent = url;
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    api().open_url(url);
+  });
+  el.appendChild(a);
+  el.append(text.slice(idx + url.length));
+}
+
 /* ---------- view switching ---------- */
 
 function view(name) {
@@ -381,9 +405,6 @@ function finish(snap) {
   $("#result-icon-use").setAttribute("href", GLYPH[term.tone] || GLYPH.idle);
   playResultSound(term.tone);
 
-  $("#result-badge").replaceWith(
-    Object.assign(chip(term.tone, t(term.key)), { id: "result-badge" })
-  );
   $("#result-title").textContent = t(term.key);
 
   if (snap.state === "cancelled") {
@@ -393,10 +414,14 @@ function finish(snap) {
     $("#result-facts").hidden = true;
   } else if (snap.state === "done") {
     // Never invent an address: over ADB the modem's LAN IP is not knowable
-    // from the session, so that path gets its own wording.
-    $("#result-detail").textContent = HOST
-      ? t("run.done.detail", { ip: HOST })
-      : t("run.done.detail.unknown_ip");
+    // from the session, so that path gets its own wording. When it IS
+    // known, the address is a live link — this is the one thing on the
+    // whole screen the user actually needs to act on next.
+    if (HOST) {
+      setLinkedDetail($("#result-detail"), t("run.done.detail", { ip: HOST }), `http://${HOST}`);
+    } else {
+      $("#result-detail").textContent = t("run.done.detail.unknown_ip");
+    }
     $("#result-facts").hidden = true;
   } else {
     const e = snap.error;

@@ -14,6 +14,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import threading
+import webbrowser
 from dataclasses import asdict
 from pathlib import Path
 
@@ -176,6 +177,21 @@ class Bridge:
             )
         except Exception:
             pass
+
+    def open_url(self, url: str) -> dict:
+        """Open the modem's address in the user's real default browser.
+
+        Scoped to http(s) — the result screen's only caller ever passes its
+        own `http://{host}` string, never anything sourced from outside this
+        session, but the check stays here as the boundary itself.
+        """
+        if not (url.startswith("http://") or url.startswith("https://")):
+            return {"opened": False}
+        try:
+            webbrowser.open(url)
+            return {"opened": True}
+        except Exception:
+            return {"opened": False}
 
     def list_devices(self) -> list[dict]:
         path = adb_path()

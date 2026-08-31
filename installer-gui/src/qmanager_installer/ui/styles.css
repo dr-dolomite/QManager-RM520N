@@ -359,7 +359,7 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
    convention the preflight view already uses (hero + supporting cards),
    instead of one block carrying status, facts, log and action at once. */
 
-.result-hero { display: flex; flex-direction: column; align-items: flex-start; }
+.result-hero { display: flex; flex-direction: column; align-items: center; text-align: center; }
 
 .result-icon-wrap {
   display: flex; align-items: center; justify-content: center;
@@ -383,9 +383,16 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
   animation: result-icon-draw var(--duration-emphasized) var(--ease-emphasized) 160ms both;
 }
 
-#result-badge { margin-bottom: 14px; }
 .card h2#result-title { font-size: 26px; margin-bottom: 8px; }
-#result-detail { margin-bottom: 0; max-width: 52ch; }
+#result-detail { margin: 0 auto; max-width: 52ch; }
+#result-detail a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+#result-detail a:hover { color: var(--primary); opacity: 0.85; }
 
 /* One authored entrance for this screen: the hero card arrives as a single
    deliberate move (scale + blur + fade) rather than the shared `rise` every
@@ -409,7 +416,6 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 .result-hero > * { animation: rise var(--duration-standard) var(--ease-standard) both; }
 .result-hero > *:nth-child(2) { animation-delay: 80ms; }
 .result-hero > *:nth-child(3) { animation-delay: 160ms; }
-.result-hero > *:nth-child(4) { animation-delay: 240ms; }
 
 /* Flex gap, not per-child margin: an empty/hidden child (a passing run has
    no facts, cancelled has no log) drops out of flow entirely and the gap
