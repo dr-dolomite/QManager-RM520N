@@ -447,6 +447,24 @@ export const PILL_ACTION =
 export const PILL_ACTION_GLYPH = 17;
 
 /**
+ * The compact action that rides INSIDE a `TonalBanner`'s copy.
+ *
+ * A banner's CTA cannot be a `PILL_ACTION`: at 42px it out-weighs the sentence
+ * it belongs to and pushes the banner's own height past the card row it sits
+ * above. 32px on the Label step is the shorter twin, and it keeps the pill
+ * radius so it still reads as the same family of control.
+ *
+ * Promoted here because the byte-identical string had been typed three times
+ * across this family — twice on APN Management, once on the settings index —
+ * which is the exact count that made `sms/shapes.ts` worth extracting. The
+ * third site adds `underline-offset-4` and is deliberately NOT swept in with
+ * this change: it is on another route, and a near-identical string is a
+ * judgement call rather than a mechanical one.
+ */
+export const BANNER_ACTION =
+  "h-8 rounded-pill px-3 text-xs font-semibold";
+
+/**
  * The action row that sits BELOW a `ConditionScreen`, inside the same card.
  *
  * Centred rather than trailing, because a condition screen is centred and a

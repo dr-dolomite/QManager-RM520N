@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
@@ -21,16 +22,20 @@ import { useMbnSettings } from "@/hooks/use-mbn-settings";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useSimProfiles } from "@/hooks/use-sim-profiles";
 import { compressIPv6 } from "@/lib/ipv6";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { ModemStatus } from "@/types/modem-status";
 
 import ApnSettingsCard from "./apn-settings-card";
 import MBNCard from "./mbn-card";
 import {
+  BANNER_ACTION,
   CARD_PAD,
   CARD_SHELL,
+  CARD_TITLE,
   PAGE_ROOT,
   PILL_ACTION,
+  PILL_ACTION_GLYPH,
   READOUT_ROW,
 } from "../shapes";
 
@@ -300,7 +305,7 @@ function NetworkGrantedCard({
     return (
       <Card className={cn(CARD_SHELL)}>
         <CardHeader className={CARD_PAD}>
-          <CardTitle>{t(`${R}.title`)}</CardTitle>
+          <CardTitle className={CARD_TITLE}>{t(`${R}.title`)}</CardTitle>
           <CardDescription>{t(`${R}.description`)}</CardDescription>
         </CardHeader>
         <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
@@ -360,7 +365,7 @@ function NetworkGrantedCard({
   return (
     <Card className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${R}.title`)}</CardTitle>
+        <CardTitle className={CARD_TITLE}>{t(`${R}.title`)}</CardTitle>
         <CardDescription>{t(`${R}.description`)}</CardDescription>
       </CardHeader>
 
@@ -590,7 +595,7 @@ const APNSettingsComponent = () => {
               variant="ghost"
               size="sm"
               onClick={() => refresh()}
-              className="h-8 rounded-pill px-3 text-xs font-semibold"
+              className={BANNER_ACTION}
             >
               {t("actions.retry", { ns: "common" })}
             </Button>
@@ -612,14 +617,31 @@ const APNSettingsComponent = () => {
           fieldset below: a profile owning the APN does not make the network's
           answer less true, and dimming live truth to 60% would be the page
           hiding the one thing still worth reading. */}
-      <NetworkGrantedCard status={status} isStale={statusStale} isLoading={statusLoading} error={statusError} configuredApn={apn?.apn ?? null} />
+      {/* The card cascade: Band A, then the write pair, 120ms apart on the
+          standard curve. The banner and the profile-override alert above sit
+          OUTSIDE it — they arrive on a condition rather than on page load, and
+          a fault notice should never queue behind the cards it is warning
+          about. The re-read button below is outside for the same reason.
 
-      <div className={WRITE_GRID}>
+          The write grid is a NESTED cascade container: it inherits `visible`
+          from the parent and must not declare its own initial/animate, or it
+          detaches from the parent's clock and the two cards arrive early. */}
+      <motion.div
+        className="flex flex-col gap-4"
+        initial="hidden"
+        animate="visible"
+        variants={staggerContainer}
+      >
+        <motion.div variants={staggerItem}>
+          <NetworkGrantedCard status={status} isStale={statusStale} isLoading={statusLoading} error={statusError} configuredApn={apn?.apn ?? null} />
+        </motion.div>
+
+        <motion.div className={WRITE_GRID} variants={staggerContainer}>
         {/* Band B — what you can CHANGE, on the settings GET's clock. The only
             thing a SIM profile can own, and therefore the only thing inside
             the override fieldset. `pointer-events-none opacity-60` makes the
             locked state obvious while leaving the values readable. */}
-        <div className={WRITE_CELL}>
+        <motion.div variants={staggerItem} className={WRITE_CELL}>
           <fieldset
             disabled={isProfileControlled || overrideUndetermined}
             className={cn(
@@ -638,14 +660,14 @@ const APNSettingsComponent = () => {
               onDeactivate={deactivate}
             />
           </fieldset>
-        </div>
+        </motion.div>
 
         {/* Band C — the carrier bundle, on its own GET's clock and behind a
             reboot. OUTSIDE the fieldset: the gate fires on
             `profile.settings.apn.name`, and no SIM profile manages MBN bundle
             selection, so a profile owning the APN was locking a control it
             has nothing to say about. */}
-        <div className={WRITE_CELL}>
+        <motion.div variants={staggerItem} className={WRITE_CELL}>
           <MBNCard
             profiles={mbnProfiles}
             autoSel={autoSel}
@@ -655,8 +677,9 @@ const APNSettingsComponent = () => {
             onSave={saveMbn}
             onRetry={refreshMbn}
           />
-        </div>
-      </div>
+        </motion.div>
+        </motion.div>
+      </motion.div>
 
       {/* The resting re-read. `refresh` was wired but reachable ONLY from
           inside the error banner, so the affordance existed exactly when the
@@ -674,7 +697,7 @@ const APNSettingsComponent = () => {
             }}
             className={PILL_ACTION}
           >
-            <MaterialSymbol name="refresh" size={17} />
+            <MaterialSymbol name="refresh" size={PILL_ACTION_GLYPH} />
             {t(`${K}.readout.reread`)}
           </Button>
         </div>

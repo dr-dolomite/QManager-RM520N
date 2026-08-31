@@ -49,6 +49,7 @@ import {
   CARD_NOTICE,
   CARD_PAD,
   CARD_SHELL,
+  CARD_TITLE,
   FIELD_SHELL,
   PILL_ACTION,
   ROW_GROUP,
@@ -232,7 +233,7 @@ export function ApnSettingsCard({
     return (
       <Card className={cn(CARD_SHELL)}>
         <CardHeader className={CARD_PAD}>
-          <CardTitle>{t(`${K}.card.title`)}</CardTitle>
+          <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
           <CardDescription>{t(`${K}.card.description`)}</CardDescription>
         </CardHeader>
         <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
@@ -254,7 +255,7 @@ export function ApnSettingsCard({
     return (
       <Card className={cn(CARD_SHELL)}>
         <CardHeader className={CARD_PAD}>
-          <CardTitle>{t(`${K}.card.title`)}</CardTitle>
+          <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
           <CardDescription>{t(`${K}.card.description`)}</CardDescription>
         </CardHeader>
         <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
@@ -382,7 +383,7 @@ export function ApnSettingsCard({
   return (
     <Card className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${K}.card.title`)}</CardTitle>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
         <CardDescription>{t(`${K}.card.description`)}</CardDescription>
       </CardHeader>
 

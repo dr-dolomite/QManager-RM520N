@@ -39,9 +39,11 @@ import type { MbnProfile, MbnSaveRequest } from "@/types/mbn-settings";
 
 import SettingRow from "../setting-row";
 import {
+  BANNER_ACTION,
   EMPTY_BLOCK,
   CARD_PAD,
   CARD_SHELL,
+  CARD_TITLE,
   CHOICE_ROW,
   PILL_ACTION,
   ROW_GROUP,
@@ -127,7 +129,7 @@ export function MBNCard({
     return (
       <Card className={cn(CARD_SHELL)}>
         <CardHeader className={CARD_PAD}>
-          <CardTitle>{t(`${K}.title`)}</CardTitle>
+          <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
           <CardDescription>{t(`${K}.description`)}</CardDescription>
         </CardHeader>
         <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
@@ -266,7 +268,7 @@ export function MBNCard({
   return (
     <Card className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${K}.title`)}</CardTitle>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
         <CardDescription>{t(`${K}.description`)}</CardDescription>
       </CardHeader>
 
@@ -285,7 +287,7 @@ export function MBNCard({
                   variant="ghost"
                   size="sm"
                   onClick={onRetry}
-                  className="h-8 rounded-pill px-3 text-xs font-semibold"
+                  className={BANNER_ACTION}
                 >
                   {t("actions.retry", { ns: "common" })}
                 </Button>
@@ -487,7 +489,12 @@ export function MBNCard({
                   <MaterialSymbol
                     name="progress_activity"
                     size={16}
-                    className="animate-spin motion-reduce:animate-none"
+                    // `motion-safe:`, matching `ConditionScreen` and the rest
+                    // of the family. Both variants are redefined in
+                    // globals.css so the Animations preference can outrank the
+                    // OS setting in either direction; two spellings for one
+                    // gesture inside one feature is how a retune misses half.
+                    className="motion-safe:animate-spin"
                   />
                   {t(`${K}.reboot.rebooting`)}
                 </>
