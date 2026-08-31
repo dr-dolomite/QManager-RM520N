@@ -2759,7 +2759,12 @@ migrate_backup_location() {
         # Literal glob when the directory is empty — nothing matched.
         [ -e "$f" ] || continue
         [ -f "$f" ] || continue
-        base=$(basename "$f")
+        # Parameter expansion, NOT $(basename "$f"). A command substitution is
+        # the one construct in this loop whose non-zero exit is unguarded, so
+        # under `set -e` a basename failure would abort the installer mid-loop
+        # instead of warning and returning like every other path here. `${f##*/}`
+        # cannot fail, and forks no process per file.
+        base=${f##*/}
 
         # Collision: keep what is already at the destination, discard ours.
         #
