@@ -439,16 +439,26 @@ t_perm_tmp_writable() {
 
     rm -f "$probe" 2>/dev/null || true
 
-    # Numeric uids, not `id -un`: on the RG501Q-EU `id -un` cannot resolve uid
-    # 33 back to a name ("id: unknown ID 33"), so a name comparison takes the
-    # wrong branch there. Both devices agree that www-data is uid 33.
-    if [ "$(id -u)" = "$(id -u www-data 2>/dev/null || echo -1)" ]; then
-        # Already www-data. Do not transition — sudoers refuses www-data as its
-        # own target on both devices, which would report "/tmp is not writable"
-        # on exactly the run-as-www-data path this project mandates for CGI.
-        touch "$probe" 2>>"$OUTPUT_FILE" || rc=$?
-    else
+    # Branch on "am I root", NOT on any lookup of www-data's identity. Both
+    # by-name and by-uid resolution are unavailable to a non-root caller on the
+    # RG501Q-EU: /etc/passwd is 0600 root:root there (0644 on the RM520N-GL),
+    # so `id -u www-data` returns "unknown user" and `id -un` returns "unknown
+    # ID 33" whenever the caller is already www-data — precisely this branch's
+    # own precondition. Argumentless `id -u` is a bare getuid() and needs no
+    # file access on either device.
+    local self_uid; self_uid=$(id -u)
+    echo "/tmp probe running as uid $self_uid" >> "$OUTPUT_FILE"
+
+    if [ "$self_uid" = "0" ]; then
         qm_timeout 5 sudo -n -u www-data touch "$probe" 2>>"$OUTPUT_FILE" || rc=$?
+    else
+        # Non-root. Do not transition: sudoers grants no non-root caller a
+        # www-data target (www-data is refused even as its own target, on both
+        # devices), so a transition here can only fail and would report "/tmp
+        # is not writable" on exactly the run-as-www-data path this project
+        # mandates for CGI validation. Measure this caller's own write instead;
+        # the uid is logged above so the evidence says whose write it was.
+        touch "$probe" 2>>"$OUTPUT_FILE" || rc=$?
     fi
 
     # The verdict follows the FILE, never the transition's exit status. The two

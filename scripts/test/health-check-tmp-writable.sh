@@ -59,6 +59,21 @@ case "$body" in
     *) bad "t_perm_tmp_writable has no qm_timeout bound — an unbounded transition can wedge the whole check" ;;
 esac
 
+# /etc/passwd is 0600 root:root on the RG501Q-EU (0644 on the RM520N-GL), so a
+# non-root caller there cannot resolve www-data in either direction: `id -u
+# www-data` -> "unknown user", `id -un` -> "unknown ID 33". Any by-name lookup
+# used to decide the branch therefore takes the WRONG branch on that device
+# whenever the caller is already www-data, which re-creates the false FAIL.
+# Comment lines are stripped first: the fix's own comments name the broken
+# forms in order to explain why they are not used.
+code=$(printf '%s
+' "$body" | sed 's/#.*$//')
+case "$code" in
+    *"id -u www-data"*|*"id -un"*|*getent*)
+        bad "t_perm_tmp_writable resolves www-data's identity by lookup — unavailable to a non-root caller on the RG501Q-EU (/etc/passwd is 0600 there)" ;;
+    *)  ok "no by-name identity lookup — the branch cannot misfire on the RG501Q-EU" ;;
+esac
+
 case "$body" in
     *'[ -f "$probe" ]'*) ok "the verdict is gated on the probe FILE existing" ;;
     *) bad "the verdict is not gated on [ -f \"\$probe\" ] — it measures the privilege drop, not the write" ;;
