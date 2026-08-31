@@ -297,55 +297,80 @@
       "title": "流量引擎",
       "description": "通过内置的绕过引擎，规避运营商 DPI 对视频流媒体等流量的限速。"
     },
-    "load_error": "无法加载引擎状态。",
     "binary_op_failed": "引擎二进制操作失败",
-    "tabs": {
-      "video_optimizer": "视频优化",
-      "masquerade": "流量伪装"
-    },
     "status": {
-      "title": "引擎状态",
-      "description": "流量绕过引擎的实时状态。",
-      "state": "引擎状态",
       "running": "运行中",
       "stopped": "已停止",
       "restarting": "重启中",
-      "error": "错误",
-      "uptime": "运行时长",
-      "packets": "已处理数据包",
-      "packets_per_sec": "{{n}} 包/秒",
-      "domains": "已加载域名",
-      "sni": "伪装 SNI",
-      "rule": "重定向规则",
-      "rule_active": "已生效",
-      "rule_inactive": "未应用",
-      "binary_installed": "引擎程序已安装",
-      "binary_missing": "引擎程序未安装",
-      "masq_scope": "范围",
-      "masq_all": "所有 TCP 80/443 连接"
+      "error": "错误"
     },
-    "uninstall": {
-      "button": "卸载引擎二进制",
-      "title": "确定卸载引擎二进制？",
-      "description": "此操作将停止流量引擎（如正在运行）并移除引擎二进制文件。确定要继续吗？如果您改变主意，可以稍后重新安装。",
-      "confirm": "卸载",
+    "strip": {
+      "label": "实时状态",
+      "stale_title": "无响应",
+      "stale_body": "最近一次轮询没有响应。下面的数值沿用上一次读取的结果，引擎仍在按原状态运行。",
+      "unavailable_title": "无法读取引擎状态",
+      "unavailable_body": "调制解调器没有响应。引擎仍按原状态运行 — 这是上报失败，不是服务中断。"
+    },
+    "tiles": {
+      "engine": {
+        "label": "引擎",
+        "caption_uptime": "已运行 {{uptime}}",
+        "caption_stopped": "未重定向任何流量",
+        "caption_restarting": "正在应用模式变更",
+        "caption_error": "引擎无法启动"
+      },
+      "packets": {
+        "label": "已处理",
+        "caption_rate": "{{n}} 包/秒",
+        "caption_idle": "引擎未运行"
+      },
+      "scope": {
+        "label": "作用范围",
+        "value_domains": "{{count}} 个域名",
+        "value_all": "全部流量",
+        "value_none": "无",
+        "caption_list": "来自目标列表",
+        "caption_all": "所有 TCP 80/443",
+        "caption_saved": "已保存 {{count}} 个域名"
+      },
+      "rule": {
+        "label": "重定向规则",
+        "value_active": "已生效",
+        "value_removed": "已移除",
+        "caption": "tcp 80,443 → 端口 989"
+      }
+    },
+    "mode": {
+      "title": "绕过模式",
+      "description": "同一时间只有一种模式占用引擎。切换会重启引擎。",
+      "aria": "绕过模式",
+      "off": "关闭",
+      "off_hint": "不重定向任何流量。引擎停止，规则被移除。",
+      "video_optimizer": "视频优化",
+      "video_optimizer_hint": "仅处理与目标列表匹配的连接，子域名同样匹配。",
+      "masquerade": "流量伪装",
+      "masquerade_hint": "处理每一条 TCP 80/443 连接。无需目标列表 — 没有可配置项。",
+      "toast_off": "绕过引擎已停止",
+      "toast_video_optimizer": "现由视频优化处理流量",
+      "toast_masquerade": "现由流量伪装处理流量",
+      "toast_error": "无法切换绕过模式"
+    },
+    "takeover": {
+      "title": "切换到{{mode}}？",
+      "description": "切换模式会重启引擎，正在经过引擎的所有连接会短暂中断。",
+      "confirm": "切换",
       "cancel": "取消"
     },
-    "enable": {
-      "video_optimizer": "启用视频优化",
-      "masquerade": "启用流量伪装",
-      "description_vo": "对主机列表中的流媒体与视频域名连接进行失步处理，绕过运营商的深度包检测限速。",
-      "description_masq": "为每条连接发送带伪造 SNI 的假 TLS ClientHello，向 DPI 隐藏真实目的地址。",
-      "toast_enabled_vo": "视频优化已启用",
-      "toast_disabled_vo": "视频优化已停用",
-      "toast_enabled_masq": "流量伪装已启用",
-      "toast_disabled_masq": "流量伪装已停用",
-      "toast_error": "保存引擎设置失败"
+    "targets": {
+      "title": "优化目标",
+      "description": "引擎将进行失步处理的域名。保存后立即生效，无需重启。",
+      "count": "{{count}} / {{max}}",
+      "count_saved": "已保存 {{count}} 个",
+      "idle_title": "流量伪装开启时该列表不生效",
+      "idle_body": "伪装模式会对每一条连接进行失步处理，因此没有需要匹配的列表。你保存的 {{count}} 个域名会保留，切回视频优化后立即重新生效。",
+      "idle_body_empty": "伪装模式会对每一条连接进行失步处理，因此没有需要匹配的列表。你在此添加的内容会在切回视频优化后立即生效。"
     },
-    "masquerade": {},
     "hostlist": {
-      "title": "视频域名",
-      "description": "将进行失步处理的域名列表。列出的域名的子域名也会自动匹配。引擎会热重载该列表，修改立即生效。",
       "empty": "还没有域名 — 添加一个开始使用。",
       "invalid": "请输入有效域名（字母、数字、点、短横线）。",
       "duplicate": "该域名已在列表中。",
@@ -360,43 +385,49 @@
       "description": "运行两阶段测速 — 先关闭引擎，再开启引擎 — 并附 speedtest.net 参考值，用于区分 CDN 限速与网络本身较慢。",
       "run": "运行测试",
       "running": "测试中…",
+      "progress": "正在下载同一个文件两次 — 一次直连，一次经由引擎。需要几分钟。",
+      "idle": "运行测试，比较开启与关闭绕过时的速度。",
       "timeout": "测试未在限定时间内完成。",
       "error": "无法启动测试",
       "needs_binary": "请先安装引擎程序。",
-      "improvement": "提升幅度",
+      "headline_sub": "开启绕过后的提速倍数",
       "without": "未绕过",
       "with": "已绕过",
-      "reference": "连接参考",
+      "line_speed": "线路速度",
+      "unit": "Mbps",
       "source_speedtest": "speedtest.net",
       "source_cloudflare": "Cloudflare",
       "throttled": "受限速",
-      "unthrottled": "未受限速"
+      "unthrottled": "未受限速",
+      "footnote": "线路速度是参照值：三项都慢说明线路本身慢，而不是被限速。"
     },
     "forceTcp": {
       "title": "QUIC → 强制 TCP",
       "description": "阻断 QUIC (UDP 443)，让 YouTube、Discord 等应用回落到基于 TCP 的 HTTPS，从而应用引擎的绕过。",
       "independent": "独立于流量引擎",
       "label": "将 QUIC 强制走 TCP",
-      "switch_hint": "切换后立即生效。",
+      "hint": "立即生效。两种模式下都可用，未启用任何模式时同样可用。",
       "switch_aria": "切换 QUIC 强制走 TCP",
-      "compatible": "与 Video Optimizer 和 Traffic Masquerade 均兼容 — 属于全局局域网设置，不属于任一引擎模式。",
+      "caveat_title": "可能导致播放更慢",
       "caveat": "可能更慢：如果网络已经以全速传输 QUIC，强制走 TCP 会增加延迟（以及绕过的额外一跳）。当 QUIC 视频受限速或不可靠时再开启。",
+      "read_error": "无法读取 QUIC 规则",
       "toast_enabled": "已启用 QUIC 强制 TCP",
       "toast_disabled": "已禁用 QUIC 强制 TCP"
     },
-    "takeover": {
-      "title": "切换到{{mode}}？",
-      "description": "同一时间只能运行一种模式。启用此模式将停用另一种。",
-      "confirm": "切换",
+    "uninstall": {
+      "button": "卸载引擎二进制",
+      "title": "确定卸载引擎二进制？",
+      "description": "此操作将停止流量引擎（如正在运行）并移除引擎二进制文件。确定要继续吗？如果您改变主意，可以稍后重新安装。",
+      "confirm": "卸载",
       "cancel": "取消"
     },
     "onboarding": {
-      "title": "安装引擎程序",
-      "description": "流量引擎需要 tpws 程序，将从官方 zapret 发行版下载并通过校验和验证。",
-      "install": "下载并安装",
-      "installing": "正在下载…",
-      "done": "引擎已就绪",
-      "error": "安装失败：{{detail}}"
+      "heading": "绕过引擎尚未安装",
+      "body": "QManager 会下载一个小的引擎程序，并在安装前用固定的校验和进行验证。安装完成后会自动启动。",
+      "installing_heading": "正在安装绕过引擎",
+      "installing_body": "正在依据发行清单和固定校验和验证下载内容。网络正常时约需一分钟。",
+      "failed_heading": "安装未能完成",
+      "install": "下载并安装"
     }
   }
 }

@@ -297,55 +297,80 @@
       "title": "Traffic Engine",
       "description": "Bypass ISP DPI throttling of video streaming and other traffic with the built-in bypass engine."
     },
-    "load_error": "Failed to load the engine status.",
     "binary_op_failed": "Engine binary operation failed",
-    "tabs": {
-      "video_optimizer": "Video Optimizer",
-      "masquerade": "Traffic Masquerade"
-    },
     "status": {
-      "title": "Engine Status",
-      "description": "Live state of the traffic bypass engine.",
-      "state": "Engine state",
       "running": "Running",
       "stopped": "Stopped",
       "restarting": "Restarting",
-      "error": "Error",
-      "uptime": "Uptime",
-      "packets": "Packets processed",
-      "packets_per_sec": "{{n}} pkt/s",
-      "domains": "Domains loaded",
-      "sni": "Spoofed SNI",
-      "rule": "Redirect rule",
-      "rule_active": "Active",
-      "rule_inactive": "Not applied",
-      "binary_installed": "Engine binary installed",
-      "binary_missing": "Engine binary not installed",
-      "masq_scope": "Scope",
-      "masq_all": "Every TCP 80/443 connection"
+      "error": "Error"
     },
-    "uninstall": {
-      "button": "Uninstall engine binary",
-      "title": "Uninstall engine binary?",
-      "description": "This action stops the Traffic Engine (if running) and removes the engine binary. Are you sure you want to proceed? It can be reinstalled at a later time if you change your mind.",
-      "confirm": "Uninstall",
+    "strip": {
+      "label": "Live state",
+      "stale_title": "Not responding",
+      "stale_body": "The last poll didn't answer. The figures below are held from the previous read, and the engine keeps doing whatever it was doing.",
+      "unavailable_title": "Couldn't read the engine state",
+      "unavailable_body": "The modem didn't answer. The engine keeps running whatever it was doing — this is a reporting failure, not an outage."
+    },
+    "tiles": {
+      "engine": {
+        "label": "Engine",
+        "caption_uptime": "Up {{uptime}}",
+        "caption_stopped": "No traffic redirected",
+        "caption_restarting": "Applying the mode change",
+        "caption_error": "The engine could not start"
+      },
+      "packets": {
+        "label": "Processed",
+        "caption_rate": "{{n}} pkt/s",
+        "caption_idle": "Engine not running"
+      },
+      "scope": {
+        "label": "Scope",
+        "value_domains": "{{count}} domains",
+        "value_all": "Everything",
+        "value_none": "Nothing",
+        "caption_list": "From the target list",
+        "caption_all": "All TCP 80/443",
+        "caption_saved": "{{count}} domains saved"
+      },
+      "rule": {
+        "label": "Redirect rule",
+        "value_active": "Active",
+        "value_removed": "Removed",
+        "caption": "tcp 80,443 → port 989"
+      }
+    },
+    "mode": {
+      "title": "Bypass mode",
+      "description": "One mode owns the engine at a time. Switching restarts it.",
+      "aria": "Bypass mode",
+      "off": "Off",
+      "off_hint": "No traffic is redirected. The engine stops and the rule is removed.",
+      "video_optimizer": "Video Optimizer",
+      "video_optimizer_hint": "Only connections matching your target list. Subdomains match too.",
+      "masquerade": "Traffic Masquerade",
+      "masquerade_hint": "Every TCP 80/443 connection. No target list — nothing to configure.",
+      "toast_off": "Bypass engine stopped",
+      "toast_video_optimizer": "Video Optimizer is handling traffic",
+      "toast_masquerade": "Traffic Masquerade is handling traffic",
+      "toast_error": "Couldn't change the bypass mode"
+    },
+    "takeover": {
+      "title": "Switch to {{mode}}?",
+      "description": "Switching modes restarts the engine, which briefly drops every connection going through it.",
+      "confirm": "Switch",
       "cancel": "Cancel"
     },
-    "enable": {
-      "video_optimizer": "Enable Video Optimizer",
-      "masquerade": "Enable Traffic Masquerade",
-      "description_vo": "Desynchronizes connections to streaming and video domains in the hostlist, defeating ISP deep-packet-inspection throttling.",
-      "description_masq": "Sends a fake TLS ClientHello with a spoofed SNI for every connection, hiding the real destination from DPI.",
-      "toast_enabled_vo": "Video Optimizer enabled",
-      "toast_disabled_vo": "Video Optimizer disabled",
-      "toast_enabled_masq": "Traffic Masquerade enabled",
-      "toast_disabled_masq": "Traffic Masquerade disabled",
-      "toast_error": "Failed to save engine settings"
+    "targets": {
+      "title": "Optimizer targets",
+      "description": "Domains the engine desyncs. Saved changes apply immediately — no restart.",
+      "count": "{{count}} of {{max}}",
+      "count_saved": "{{count}} saved",
+      "idle_title": "Not in use while Traffic Masquerade is on",
+      "idle_body": "Masquerade desyncs every connection, so there is no list to match against. Your {{count}} saved domains are kept and apply again the moment you switch back to Video Optimizer.",
+      "idle_body_empty": "Masquerade desyncs every connection, so there is no list to match against. Anything you add here applies again the moment you switch back to Video Optimizer."
     },
-    "masquerade": {},
     "hostlist": {
-      "title": "Video domains",
-      "description": "Domains that receive desync treatment. Subdomains of a listed domain match automatically. The engine hot-reloads this list, so changes apply immediately.",
       "empty": "No domains yet — add one to get started.",
       "invalid": "Enter a valid domain (letters, digits, dots, dashes).",
       "duplicate": "This domain is already in the list.",
@@ -360,43 +385,49 @@
       "description": "Run a two-phase speed test — without the engine, then with it — plus a speedtest.net reference, to separate CDN throttling from a slow connection.",
       "run": "Run test",
       "running": "Testing…",
+      "progress": "Downloading the same file twice — once direct, once through the engine. This takes a few minutes.",
+      "idle": "Run the test to compare your speed with and without the bypass.",
       "timeout": "The test did not finish in time.",
       "error": "The test could not be started",
       "needs_binary": "Install the engine binary first.",
-      "improvement": "Improvement",
+      "headline_sub": "faster with the bypass on",
       "without": "Without bypass",
       "with": "With bypass",
-      "reference": "Connection reference",
+      "line_speed": "Line speed",
+      "unit": "Mbps",
       "source_speedtest": "speedtest.net",
       "source_cloudflare": "Cloudflare",
       "throttled": "throttled",
-      "unthrottled": "not throttled"
+      "unthrottled": "not throttled",
+      "footnote": "Line speed is the reference: a slow result on all three is a slow connection, not throttling."
     },
     "forceTcp": {
       "title": "QUIC → Force TCP",
       "description": "Blocks QUIC (UDP 443) so apps like YouTube and Discord fall back to HTTPS over TCP, where the engine's bypass can apply.",
       "independent": "Independent of the Traffic Engine",
       "label": "Force QUIC over TCP",
-      "switch_hint": "Toggles apply immediately.",
+      "hint": "Applies immediately. Works with either mode, and with neither.",
       "switch_aria": "Toggle QUIC Force-TCP",
-      "compatible": "Works with both Video Optimizer and Traffic Masquerade — a global LAN setting, not part of either engine mode.",
+      "caveat_title": "Can stream slower",
       "caveat": "Can stream slower: if your network already delivers QUIC at full speed, forcing it to TCP adds latency (plus the bypass hop). Enable when QUIC video is throttled or unreliable.",
+      "read_error": "Couldn't read the QUIC rule",
       "toast_enabled": "QUIC Force-TCP enabled",
       "toast_disabled": "QUIC Force-TCP disabled"
     },
-    "takeover": {
-      "title": "Switch to {{mode}}?",
-      "description": "Only one mode can run at a time. Enabling this mode disables the other.",
-      "confirm": "Switch",
+    "uninstall": {
+      "button": "Uninstall engine binary",
+      "title": "Uninstall engine binary?",
+      "description": "This action stops the Traffic Engine (if running) and removes the engine binary. Are you sure you want to proceed? It can be reinstalled at a later time if you change your mind.",
+      "confirm": "Uninstall",
       "cancel": "Cancel"
     },
     "onboarding": {
-      "title": "Install engine binary",
-      "description": "The traffic engine needs its tpws binary, downloaded from the official zapret release and verified by checksum.",
-      "install": "Download & install",
-      "installing": "Downloading…",
-      "done": "Engine ready",
-      "error": "Install failed: {{detail}}"
+      "heading": "The bypass engine isn't installed yet",
+      "body": "QManager downloads a small engine binary and verifies it against a pinned checksum before installing. It starts on its own once installed.",
+      "installing_heading": "Installing the bypass engine",
+      "installing_body": "Verifying the download against the release manifest and the pinned checksum. This takes about a minute on a normal connection.",
+      "failed_heading": "The install didn't finish",
+      "install": "Download & install"
     }
   }
 }

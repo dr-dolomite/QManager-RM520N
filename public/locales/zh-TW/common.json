@@ -297,55 +297,80 @@
       "title": "流量引擎",
       "description": "透過內建的繞過引擎，規避電信商 DPI 對影片串流等流量的限速。"
     },
-    "load_error": "無法載入引擎狀態。",
     "binary_op_failed": "引擎二進位操作失敗",
-    "tabs": {
-      "video_optimizer": "影片最佳化",
-      "masquerade": "流量偽裝"
-    },
     "status": {
-      "title": "引擎狀態",
-      "description": "流量繞過引擎的即時狀態。",
-      "state": "引擎狀態",
       "running": "執行中",
       "stopped": "已停止",
       "restarting": "重新啟動中",
-      "error": "錯誤",
-      "uptime": "執行時間",
-      "packets": "已處理封包",
-      "packets_per_sec": "{{n}} 封包/秒",
-      "domains": "已載入網域",
-      "sni": "偽裝 SNI",
-      "rule": "重新導向規則",
-      "rule_active": "已生效",
-      "rule_inactive": "未套用",
-      "binary_installed": "引擎程式已安裝",
-      "binary_missing": "引擎程式未安裝",
-      "masq_scope": "範圍",
-      "masq_all": "所有 TCP 80/443 連線"
+      "error": "錯誤"
     },
-    "uninstall": {
-      "button": "解除安裝引擎二進位",
-      "title": "確定解除安裝引擎二進位？",
-      "description": "此動作會停止流量引擎（若正在執行）並移除引擎二進位檔案。確定要繼續嗎？若您改變主意，稍後可重新安裝。",
-      "confirm": "解除安裝",
+    "strip": {
+      "label": "即時狀態",
+      "stale_title": "無回應",
+      "stale_body": "最近一次輪詢沒有回應。下方數值沿用上一次讀取的結果，引擎仍依原狀態運作。",
+      "unavailable_title": "無法讀取引擎狀態",
+      "unavailable_body": "數據機沒有回應。引擎仍依原狀態運作 — 這是回報失敗，不是服務中斷。"
+    },
+    "tiles": {
+      "engine": {
+        "label": "引擎",
+        "caption_uptime": "已運作 {{uptime}}",
+        "caption_stopped": "未重新導向任何流量",
+        "caption_restarting": "正在套用模式變更",
+        "caption_error": "引擎無法啟動"
+      },
+      "packets": {
+        "label": "已處理",
+        "caption_rate": "{{n}} 封包/秒",
+        "caption_idle": "引擎未執行"
+      },
+      "scope": {
+        "label": "作用範圍",
+        "value_domains": "{{count}} 個網域",
+        "value_all": "全部流量",
+        "value_none": "無",
+        "caption_list": "來自目標清單",
+        "caption_all": "所有 TCP 80/443",
+        "caption_saved": "已儲存 {{count}} 個網域"
+      },
+      "rule": {
+        "label": "重新導向規則",
+        "value_active": "已生效",
+        "value_removed": "已移除",
+        "caption": "tcp 80,443 → 連接埠 989"
+      }
+    },
+    "mode": {
+      "title": "繞過模式",
+      "description": "同一時間只有一種模式占用引擎。切換會重新啟動引擎。",
+      "aria": "繞過模式",
+      "off": "關閉",
+      "off_hint": "不重新導向任何流量。引擎停止，規則被移除。",
+      "video_optimizer": "影片最佳化",
+      "video_optimizer_hint": "僅處理與目標清單相符的連線，子網域同樣相符。",
+      "masquerade": "流量偽裝",
+      "masquerade_hint": "處理每一條 TCP 80/443 連線。無需目標清單 — 沒有可設定項目。",
+      "toast_off": "繞過引擎已停止",
+      "toast_video_optimizer": "現由影片最佳化處理流量",
+      "toast_masquerade": "現由流量偽裝處理流量",
+      "toast_error": "無法切換繞過模式"
+    },
+    "takeover": {
+      "title": "切換到{{mode}}？",
+      "description": "切換模式會重新啟動引擎，正在經過引擎的所有連線會短暫中斷。",
+      "confirm": "切換",
       "cancel": "取消"
     },
-    "enable": {
-      "video_optimizer": "啟用影片最佳化",
-      "masquerade": "啟用流量偽裝",
-      "description_vo": "對主機清單中的串流與影片網域連線進行失步處理，繞過電信商的深度封包檢測限速。",
-      "description_masq": "為每條連線傳送帶偽造 SNI 的假 TLS ClientHello，向 DPI 隱藏真實目的位址。",
-      "toast_enabled_vo": "已啟用影片最佳化",
-      "toast_disabled_vo": "已停用影片最佳化",
-      "toast_enabled_masq": "已啟用流量偽裝",
-      "toast_disabled_masq": "已停用流量偽裝",
-      "toast_error": "儲存引擎設定失敗"
+    "targets": {
+      "title": "最佳化目標",
+      "description": "引擎將進行失步處理的網域。儲存後立即生效，無需重新啟動。",
+      "count": "{{count}} / {{max}}",
+      "count_saved": "已儲存 {{count}} 個",
+      "idle_title": "流量偽裝開啟時此清單不生效",
+      "idle_body": "偽裝模式會對每一條連線進行失步處理，因此沒有需要比對的清單。您儲存的 {{count}} 個網域會保留，切回影片最佳化後立即重新生效。",
+      "idle_body_empty": "偽裝模式會對每一條連線進行失步處理，因此沒有需要比對的清單。您在此新增的內容會在切回影片最佳化後立即生效。"
     },
-    "masquerade": {},
     "hostlist": {
-      "title": "影片網域",
-      "description": "將進行失步處理的網域清單。列出之網域的子網域也會自動比對。引擎會熱重新載入此清單，修改立即生效。",
       "empty": "尚無網域 — 請新增一個開始使用。",
       "invalid": "請輸入有效網域（字母、數字、點、連字號）。",
       "duplicate": "此網域已在清單中。",
@@ -360,43 +385,49 @@
       "description": "執行兩階段測速 — 先關閉引擎，再開啟引擎 — 並附 speedtest.net 參考值，用於區分 CDN 限速與網路本身較慢。",
       "run": "執行測試",
       "running": "測試中…",
+      "progress": "正在下載同一個檔案兩次 — 一次直連，一次經由引擎。需要幾分鐘。",
+      "idle": "執行測試，比較開啟與關閉繞過時的速度。",
       "timeout": "測試未在限定時間內完成。",
       "error": "無法啟動測試",
       "needs_binary": "請先安裝引擎程式。",
-      "improvement": "提升幅度",
+      "headline_sub": "開啟繞過後的提速倍數",
       "without": "未繞過",
       "with": "已繞過",
-      "reference": "連線參考",
+      "line_speed": "線路速度",
+      "unit": "Mbps",
       "source_speedtest": "speedtest.net",
       "source_cloudflare": "Cloudflare",
       "throttled": "受限速",
-      "unthrottled": "未受限速"
+      "unthrottled": "未受限速",
+      "footnote": "線路速度是參照值：三項都慢代表線路本身慢，而不是被限速。"
     },
     "forceTcp": {
       "title": "QUIC → 強制 TCP",
       "description": "阻斷 QUIC (UDP 443)，讓 YouTube、Discord 等應用回落到基於 TCP 的 HTTPS，從而套用引擎的繞過。",
       "independent": "獨立於流量引擎",
       "label": "將 QUIC 強制走 TCP",
-      "switch_hint": "切換後立即生效。",
+      "hint": "立即生效。兩種模式下都可用，未啟用任何模式時同樣可用。",
       "switch_aria": "切換 QUIC 強制走 TCP",
-      "compatible": "與 Video Optimizer 和 Traffic Masquerade 均相容 — 屬於全域區域網路設定，不屬於任一種引擎模式。",
+      "caveat_title": "可能導致播放更慢",
       "caveat": "可能更慢：如果網路已以全速傳輸 QUIC，強制走 TCP 會增加延遲（以及繞過的額外一跳）。當 QUIC 影片受限速或不可靠時再開啟。",
+      "read_error": "無法讀取 QUIC 規則",
       "toast_enabled": "已啟用 QUIC 強制 TCP",
       "toast_disabled": "已停用 QUIC 強制 TCP"
     },
-    "takeover": {
-      "title": "切換到{{mode}}？",
-      "description": "同一時間只能執行一種模式。啟用此模式將停用另一種。",
-      "confirm": "切換",
+    "uninstall": {
+      "button": "解除安裝引擎二進位",
+      "title": "確定解除安裝引擎二進位？",
+      "description": "此動作會停止流量引擎（若正在執行）並移除引擎二進位檔案。確定要繼續嗎？若您改變主意，稍後可重新安裝。",
+      "confirm": "解除安裝",
       "cancel": "取消"
     },
     "onboarding": {
-      "title": "安裝引擎程式",
-      "description": "流量引擎需要 tpws 程式，將從官方 zapret 發行版下載並透過校驗和驗證。",
-      "install": "下載並安裝",
-      "installing": "正在下載…",
-      "done": "引擎已就緒",
-      "error": "安裝失敗：{{detail}}"
+      "heading": "繞過引擎尚未安裝",
+      "body": "QManager 會下載一個小型引擎程式，並在安裝前以固定的校驗和驗證。安裝完成後會自動啟動。",
+      "installing_heading": "正在安裝繞過引擎",
+      "installing_body": "正在依據發行清單與固定校驗和驗證下載內容。網路正常時約需一分鐘。",
+      "failed_heading": "安裝未能完成",
+      "install": "下載並安裝"
     }
   }
 }

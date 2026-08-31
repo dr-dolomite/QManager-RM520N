@@ -297,55 +297,80 @@
       "title": "Motore di traffico",
       "description": "Aggira la limitazione DPI dell'operatore su streaming video e altro traffico con il motore di bypass integrato."
     },
-    "load_error": "Impossibile caricare lo stato del motore.",
     "binary_op_failed": "Operazione sul binario del motore non riuscita",
-    "tabs": {
-      "video_optimizer": "Ottimizzazione video",
-      "masquerade": "Mascheramento del traffico"
-    },
     "status": {
-      "title": "Stato del motore",
-      "description": "Stato in tempo reale del motore di bypass.",
-      "state": "Stato del motore",
       "running": "In esecuzione",
       "stopped": "Fermato",
       "restarting": "Riavvio",
-      "error": "Errore",
-      "uptime": "Attivo da",
-      "packets": "Pacchetti elaborati",
-      "packets_per_sec": "{{n}} pkt/s",
-      "domains": "Domini caricati",
-      "sni": "SNI falsificato",
-      "rule": "Regola di reindirizzamento",
-      "rule_active": "Attiva",
-      "rule_inactive": "Non applicata",
-      "binary_installed": "Binario del motore installato",
-      "binary_missing": "Binario del motore non installato",
-      "masq_scope": "Ambito",
-      "masq_all": "Ogni connessione TCP 80/443"
+      "error": "Errore"
     },
-    "uninstall": {
-      "button": "Disinstalla binario del motore",
-      "title": "Disinstallare il binario del motore?",
-      "description": "Questa azione arresta il Traffic Engine (se in esecuzione) e rimuove il binario del motore. Procedere? Puoi reinstallarlo in seguito se cambi idea.",
-      "confirm": "Disinstalla",
+    "strip": {
+      "label": "Stato in tempo reale",
+      "stale_title": "Non risponde",
+      "stale_body": "L'ultimo polling non ha risposto. I valori qui sotto sono quelli dell'ultima lettura riuscita e il motore continua a fare quello che stava facendo.",
+      "unavailable_title": "Impossibile leggere lo stato del motore",
+      "unavailable_body": "Il modem non ha risposto. Il motore continua a fare quello che stava facendo: è un errore di lettura, non un'interruzione."
+    },
+    "tiles": {
+      "engine": {
+        "label": "Motore",
+        "caption_uptime": "Attivo da {{uptime}}",
+        "caption_stopped": "Nessun traffico reindirizzato",
+        "caption_restarting": "Applicazione del cambio di modalità",
+        "caption_error": "Il motore non è riuscito ad avviarsi"
+      },
+      "packets": {
+        "label": "Elaborati",
+        "caption_rate": "{{n}} pacchetti/s",
+        "caption_idle": "Motore non in esecuzione"
+      },
+      "scope": {
+        "label": "Ambito",
+        "value_domains": "{{count}} domini",
+        "value_all": "Tutto",
+        "value_none": "Niente",
+        "caption_list": "Dall'elenco dei target",
+        "caption_all": "Tutto il TCP 80/443",
+        "caption_saved": "{{count}} domini salvati"
+      },
+      "rule": {
+        "label": "Regola di reindirizzamento",
+        "value_active": "Attiva",
+        "value_removed": "Rimossa",
+        "caption": "tcp 80,443 → porta 989"
+      }
+    },
+    "mode": {
+      "title": "Modalità di bypass",
+      "description": "Una sola modalità controlla il motore alla volta. Cambiarla lo riavvia.",
+      "aria": "Modalità di bypass",
+      "off": "Disattivato",
+      "off_hint": "Nessun traffico viene reindirizzato. Il motore si ferma e la regola viene rimossa.",
+      "video_optimizer": "Ottimizzazione video",
+      "video_optimizer_hint": "Solo le connessioni che corrispondono al tuo elenco di target. Anche i sottodomini corrispondono.",
+      "masquerade": "Mascheramento del traffico",
+      "masquerade_hint": "Ogni connessione TCP 80/443. Nessun elenco di target, niente da configurare.",
+      "toast_off": "Motore di bypass fermato",
+      "toast_video_optimizer": "Ora il traffico passa per l'Ottimizzazione video",
+      "toast_masquerade": "Ora il traffico passa per il Mascheramento del traffico",
+      "toast_error": "Impossibile cambiare la modalità di bypass"
+    },
+    "takeover": {
+      "title": "Passare a {{mode}}?",
+      "description": "Cambiare modalità riavvia il motore e interrompe per un istante tutte le connessioni che lo attraversano.",
+      "confirm": "Passa",
       "cancel": "Annulla"
     },
-    "enable": {
-      "video_optimizer": "Abilita Ottimizzazione video",
-      "masquerade": "Abilita Mascheramento del traffico",
-      "description_vo": "Desincronizza le connessioni ai domini di streaming e video nell'hostlist, contrastando la limitazione DPI dell'operatore.",
-      "description_masq": "Invia un falso ClientHello TLS con SNI falsificato per ogni connessione, nascondendo la destinazione reale al DPI.",
-      "toast_enabled_vo": "Ottimizzazione video abilitata",
-      "toast_disabled_vo": "Ottimizzazione video disabilitata",
-      "toast_enabled_masq": "Mascheramento del traffico abilitato",
-      "toast_disabled_masq": "Mascheramento del traffico disabilitato",
-      "toast_error": "Salvataggio impostazioni motore non riuscito"
+    "targets": {
+      "title": "Target dell'ottimizzatore",
+      "description": "Domini che il motore desincronizza. Le modifiche salvate si applicano subito, senza riavvio.",
+      "count": "{{count}} di {{max}}",
+      "count_saved": "{{count}} salvati",
+      "idle_title": "Non in uso mentre il Mascheramento del traffico è attivo",
+      "idle_body": "Il mascheramento desincronizza ogni connessione, quindi non c'è nessun elenco da confrontare. I tuoi {{count}} domini salvati restano e tornano attivi appena riselezioni l'Ottimizzazione video.",
+      "idle_body_empty": "Il mascheramento desincronizza ogni connessione, quindi non c'è nessun elenco da confrontare. Quello che aggiungi qui tornerà attivo appena riselezioni l'Ottimizzazione video."
     },
-    "masquerade": {},
     "hostlist": {
-      "title": "Domini video",
-      "description": "Domini che ricevono il trattamento di desincronizzazione. I sottodomini di un dominio elencato corrispondono automaticamente. Il motore ricarica l'elenco al volo: le modifiche si applicano subito.",
       "empty": "Nessun dominio ancora — aggiungine uno per iniziare.",
       "invalid": "Inserisci un dominio valido (lettere, cifre, punti, trattini).",
       "duplicate": "Questo dominio è già nell'elenco.",
@@ -360,43 +385,49 @@
       "description": "Esegui un test di velocità in due fasi — senza il motore, poi con il motore — più un riferimento speedtest.net per distinguere il throttling della CDN da una connessione lenta.",
       "run": "Avvia test",
       "running": "Test in corso…",
+      "progress": "Scarico lo stesso file due volte: una diretta e una attraverso il motore. Ci vogliono alcuni minuti.",
+      "idle": "Avvia il test per confrontare la velocità con e senza bypass.",
       "timeout": "Il test non è terminato in tempo.",
       "error": "Impossibile avviare il test",
       "needs_binary": "Installa prima il binario del motore.",
-      "improvement": "Miglioramento",
+      "headline_sub": "più veloce con il bypass attivo",
       "without": "Senza bypass",
       "with": "Con bypass",
-      "reference": "Riferimento connessione",
+      "line_speed": "Velocità della linea",
+      "unit": "Mbps",
       "source_speedtest": "speedtest.net",
       "source_cloudflare": "Cloudflare",
       "throttled": "limitato",
-      "unthrottled": "non limitato"
+      "unthrottled": "non limitato",
+      "footnote": "La velocità della linea è il riferimento: un risultato lento su tutti e tre indica una connessione lenta, non una limitazione."
     },
     "forceTcp": {
       "title": "QUIC → Forza TCP",
       "description": "Blocca QUIC (UDP 443) così che app come YouTube e Discord ripieghino su HTTPS via TCP, dove può agire il bypass del motore.",
       "independent": "Indipendente dal Traffic Engine",
       "label": "Forza QUIC via TCP",
-      "switch_hint": "Le modifiche vengono applicate subito.",
+      "hint": "Si applica subito. Funziona con entrambe le modalità e anche senza nessuna.",
       "switch_aria": "Attiva/disattiva Force-TCP per QUIC",
-      "compatible": "Funziona sia con Video Optimizer che con Traffic Masquerade — impostazione LAN globale, non parte di alcuna modalità del motore.",
+      "caveat_title": "Può rallentare lo streaming",
       "caveat": "Può rallentare: se la rete consegna già QUIC a piena velocità, forzarlo su TCP aggiunge latenza (più il salto del bypass). Attivalo quando il video QUIC è limitato o instabile.",
+      "read_error": "Impossibile leggere la regola QUIC",
       "toast_enabled": "QUIC Force-TCP attivato",
       "toast_disabled": "QUIC Force-TCP disattivato"
     },
-    "takeover": {
-      "title": "Passare a {{mode}}?",
-      "description": "Può essere attiva una sola modalità alla volta. Abilitarne una disabilita l'altra.",
-      "confirm": "Passa",
+    "uninstall": {
+      "button": "Disinstalla binario del motore",
+      "title": "Disinstallare il binario del motore?",
+      "description": "Questa azione arresta il Traffic Engine (se in esecuzione) e rimuove il binario del motore. Procedere? Puoi reinstallarlo in seguito se cambi idea.",
+      "confirm": "Disinstalla",
       "cancel": "Annulla"
     },
     "onboarding": {
-      "title": "Installa il binario del motore",
-      "description": "Il motore necessita del binario tpws, scaricato dalla release ufficiale di zapret e verificato tramite checksum.",
-      "install": "Scarica e installa",
-      "installing": "Download in corso…",
-      "done": "Motore pronto",
-      "error": "Installazione non riuscita: {{detail}}"
+      "heading": "Il motore di bypass non è ancora installato",
+      "body": "QManager scarica un piccolo binario del motore e lo verifica con un checksum fisso prima di installarlo. Si avvia da solo una volta installato.",
+      "installing_heading": "Installazione del motore di bypass",
+      "installing_body": "Verifica del download rispetto al manifest della release e al checksum fisso. Su una connessione normale richiede circa un minuto.",
+      "failed_heading": "L'installazione non è andata a buon fine",
+      "install": "Scarica e installa"
     }
   }
 }

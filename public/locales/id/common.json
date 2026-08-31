@@ -297,55 +297,80 @@
       "title": "Mesin Lalu Lintas",
       "description": "Lewati pembatasan DPI ISP pada streaming video dan lalu lintas lainnya dengan mesin bypass bawaan."
     },
-    "load_error": "Gagal memuat status mesin.",
     "binary_op_failed": "Operasi biner mesin gagal",
-    "tabs": {
-      "video_optimizer": "Optimasi Video",
-      "masquerade": "Penyamaran Lalu Lintas"
-    },
     "status": {
-      "title": "Status Mesin",
-      "description": "Status langsung mesin bypass lalu lintas.",
-      "state": "Status mesin",
       "running": "Berjalan",
       "stopped": "Berhenti",
       "restarting": "Memulai ulang",
-      "error": "Kesalahan",
-      "uptime": "Aktif selama",
-      "packets": "Paket diproses",
-      "packets_per_sec": "{{n}} pkt/dtk",
-      "domains": "Domain dimuat",
-      "sni": "SNI palsu",
-      "rule": "Aturan redirect",
-      "rule_active": "Aktif",
-      "rule_inactive": "Tidak diterapkan",
-      "binary_installed": "Biner mesin terpasang",
-      "binary_missing": "Biner mesin belum terpasang",
-      "masq_scope": "Cakupan",
-      "masq_all": "Semua koneksi TCP 80/443"
+      "error": "Kesalahan"
     },
-    "uninstall": {
-      "button": "Uninstal biner mesin",
-      "title": "Uninstal biner mesin?",
-      "description": "Tindakan ini akan menghentikan Traffic Engine (jika sedang berjalan) dan menghapus biner mesin. Apakah Anda yakin ingin melanjutkan? Biner dapat dipasang kembali nanti jika Anda berubah pikiran.",
-      "confirm": "Uninstal",
+    "strip": {
+      "label": "Status langsung",
+      "stale_title": "Tidak merespons",
+      "stale_body": "Polling terakhir tidak menjawab. Angka di bawah berasal dari pembacaan sebelumnya, dan mesin tetap menjalankan apa pun yang sedang dilakukannya.",
+      "unavailable_title": "Tidak bisa membaca status mesin",
+      "unavailable_body": "Modem tidak menjawab. Mesin tetap menjalankan apa pun yang sedang dilakukannya — ini kegagalan pelaporan, bukan gangguan layanan."
+    },
+    "tiles": {
+      "engine": {
+        "label": "Mesin",
+        "caption_uptime": "Aktif {{uptime}}",
+        "caption_stopped": "Tidak ada lalu lintas yang dialihkan",
+        "caption_restarting": "Menerapkan perubahan mode",
+        "caption_error": "Mesin tidak bisa dijalankan"
+      },
+      "packets": {
+        "label": "Diproses",
+        "caption_rate": "{{n}} paket/dtk",
+        "caption_idle": "Mesin tidak berjalan"
+      },
+      "scope": {
+        "label": "Cakupan",
+        "value_domains": "{{count}} domain",
+        "value_all": "Semuanya",
+        "value_none": "Tidak ada",
+        "caption_list": "Dari daftar target",
+        "caption_all": "Semua TCP 80/443",
+        "caption_saved": "{{count}} domain tersimpan"
+      },
+      "rule": {
+        "label": "Aturan pengalihan",
+        "value_active": "Aktif",
+        "value_removed": "Dihapus",
+        "caption": "tcp 80,443 → port 989"
+      }
+    },
+    "mode": {
+      "title": "Mode bypass",
+      "description": "Hanya satu mode yang memegang mesin pada satu waktu. Mengubahnya akan memulai ulang mesin.",
+      "aria": "Mode bypass",
+      "off": "Mati",
+      "off_hint": "Tidak ada lalu lintas yang dialihkan. Mesin berhenti dan aturannya dihapus.",
+      "video_optimizer": "Optimasi Video",
+      "video_optimizer_hint": "Hanya koneksi yang cocok dengan daftar target Anda. Subdomain juga ikut cocok.",
+      "masquerade": "Penyamaran Lalu Lintas",
+      "masquerade_hint": "Setiap koneksi TCP 80/443. Tanpa daftar target — tidak ada yang perlu diatur.",
+      "toast_off": "Mesin bypass dihentikan",
+      "toast_video_optimizer": "Lalu lintas kini ditangani Optimasi Video",
+      "toast_masquerade": "Lalu lintas kini ditangani Penyamaran Lalu Lintas",
+      "toast_error": "Tidak bisa mengubah mode bypass"
+    },
+    "takeover": {
+      "title": "Beralih ke {{mode}}?",
+      "description": "Mengganti mode akan memulai ulang mesin, sehingga semua koneksi yang melewatinya terputus sesaat.",
+      "confirm": "Beralih",
       "cancel": "Batal"
     },
-    "enable": {
-      "video_optimizer": "Aktifkan Optimasi Video",
-      "masquerade": "Aktifkan Penyamaran Lalu Lintas",
-      "description_vo": "Mendesinkronkan koneksi ke domain streaming dan video di daftar host, mengalahkan pembatasan DPI ISP.",
-      "description_masq": "Mengirim ClientHello TLS palsu dengan SNI tipuan untuk setiap koneksi, menyembunyikan tujuan asli dari DPI.",
-      "toast_enabled_vo": "Optimasi Video diaktifkan",
-      "toast_disabled_vo": "Optimasi Video dinonaktifkan",
-      "toast_enabled_masq": "Penyamaran Lalu Lintas diaktifkan",
-      "toast_disabled_masq": "Penyamaran Lalu Lintas dinonaktifkan",
-      "toast_error": "Gagal menyimpan pengaturan mesin"
+    "targets": {
+      "title": "Target optimasi",
+      "description": "Domain yang didesync oleh mesin. Perubahan yang disimpan langsung berlaku — tanpa memulai ulang.",
+      "count": "{{count}} dari {{max}}",
+      "count_saved": "{{count}} tersimpan",
+      "idle_title": "Tidak dipakai selama Penyamaran Lalu Lintas aktif",
+      "idle_body": "Penyamaran mendesync setiap koneksi, jadi tidak ada daftar yang perlu dicocokkan. {{count}} domain yang Anda simpan tetap ada dan berlaku lagi begitu Anda kembali ke Optimasi Video.",
+      "idle_body_empty": "Penyamaran mendesync setiap koneksi, jadi tidak ada daftar yang perlu dicocokkan. Apa pun yang Anda tambahkan di sini berlaku lagi begitu Anda kembali ke Optimasi Video."
     },
-    "masquerade": {},
     "hostlist": {
-      "title": "Domain video",
-      "description": "Domain yang mendapat perlakuan desync. Subdomain dari domain yang terdaftar ikut cocok secara otomatis. Mesin memuat ulang daftar ini secara langsung, perubahan langsung berlaku.",
       "empty": "Belum ada domain — tambahkan satu untuk memulai.",
       "invalid": "Masukkan domain yang valid (huruf, angka, titik, tanda hubung).",
       "duplicate": "Domain ini sudah ada di daftar.",
@@ -360,43 +385,49 @@
       "description": "Jalankan tes kecepatan dua fase — tanpa mesin, lalu dengan mesin — plus referensi speedtest.net, untuk membedakan pembatasan CDN dari koneksi lambat.",
       "run": "Jalankan tes",
       "running": "Menguji…",
+      "progress": "Mengunduh berkas yang sama dua kali — sekali langsung, sekali lewat mesin. Butuh beberapa menit.",
+      "idle": "Jalankan tes untuk membandingkan kecepatan dengan dan tanpa bypass.",
       "timeout": "Tes tidak selesai tepat waktu.",
       "error": "Tes tidak dapat dimulai",
       "needs_binary": "Pasang dulu biner mesin.",
-      "improvement": "Peningkatan",
+      "headline_sub": "lebih cepat dengan bypass aktif",
       "without": "Tanpa bypass",
       "with": "Dengan bypass",
-      "reference": "Referensi koneksi",
+      "line_speed": "Kecepatan saluran",
+      "unit": "Mbps",
       "source_speedtest": "speedtest.net",
       "source_cloudflare": "Cloudflare",
       "throttled": "dibatasi",
-      "unthrottled": "tidak dibatasi"
+      "unthrottled": "tidak dibatasi",
+      "footnote": "Kecepatan saluran adalah acuan: hasil lambat pada ketiganya berarti koneksi yang lambat, bukan pembatasan."
     },
     "forceTcp": {
       "title": "KUAK → Paksa TCP",
       "description": "Memblokir KUAK (UDP 443) sehingga aplikasi seperti YouTube dan Discord beralih kembali ke HTTPS melalui TCP, tempat bypass mesin dapat bekerja.",
       "independent": "Tidak Bergantung pada Mesin Lalu Lintas",
       "label": "Paksa KUAK lewat TCP",
-      "switch_hint": "Perubahan berlaku langsung.",
+      "hint": "Langsung berlaku. Bekerja dengan kedua mode, dan tanpa keduanya.",
       "switch_aria": "Alihkan KUAK Paksa-TCP",
-      "compatible": "Berfungsi dengan Video Optimizer maupun Traffic Masquerade — pengaturan LAN global, bukan bagian dari mode mesin mana pun.",
+      "caveat_title": "Bisa membuat streaming lebih lambat",
       "caveat": "Bisa lebih lambat: jika jaringan Anda sudah mengalirkan KUAK dengan kecepatan penuh, memaksanya lewat TCP menambah latensi (ditambah hop bypass). Aktifkan saat video KUAK dibatasi atau tidak stabil.",
+      "read_error": "Tidak bisa membaca aturan QUIC",
       "toast_enabled": "KUAK Paksa-TCP diaktifkan",
       "toast_disabled": "KUAK Paksa-TCP dinonaktifkan"
     },
-    "takeover": {
-      "title": "Beralih ke {{mode}}?",
-      "description": "Hanya satu mode yang dapat berjalan sekaligus. Mengaktifkan mode ini menonaktifkan mode lainnya.",
-      "confirm": "Beralih",
+    "uninstall": {
+      "button": "Uninstal biner mesin",
+      "title": "Uninstal biner mesin?",
+      "description": "Tindakan ini akan menghentikan Traffic Engine (jika sedang berjalan) dan menghapus biner mesin. Apakah Anda yakin ingin melanjutkan? Biner dapat dipasang kembali nanti jika Anda berubah pikiran.",
+      "confirm": "Uninstal",
       "cancel": "Batal"
     },
     "onboarding": {
-      "title": "Pasang biner mesin",
-      "description": "Mesin lalu lintas memerlukan biner tpws, diunduh dari rilis resmi zapret dan diverifikasi dengan checksum.",
-      "install": "Unduh & pasang",
-      "installing": "Mengunduh…",
-      "done": "Mesin siap",
-      "error": "Pemasangan gagal: {{detail}}"
+      "heading": "Mesin bypass belum terpasang",
+      "body": "QManager mengunduh biner mesin berukuran kecil dan memverifikasinya dengan checksum tetap sebelum memasang. Mesin berjalan sendiri setelah terpasang.",
+      "installing_heading": "Memasang mesin bypass",
+      "installing_body": "Memverifikasi unduhan terhadap manifes rilis dan checksum tetap. Butuh sekitar satu menit pada koneksi normal.",
+      "failed_heading": "Pemasangan tidak selesai",
+      "install": "Unduh & pasang"
     }
   }
 }
