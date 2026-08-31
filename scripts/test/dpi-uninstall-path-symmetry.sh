@@ -161,7 +161,88 @@ else
     bad "--clear no longer calls dpi_remove_rule -- section [2] no longer measures the uninstall_rm520n.sh path"
 fi
 
-printf '\n[4] syntax sanity\n'
+printf '\n[4] --clear drains EVERY rule the lib owns, not just the REDIRECT (F21)\n'
+
+# WHY: dpi_state.sh owns three iptables rules, but only one of them is a
+# rule the ENGINE installs. The other two are the standalone QUIC handles:
+#
+#   nat/PREROUTING     REDIRECT --to-ports 989                     (engine)
+#   filter/FORWARD     REJECT --reject-with icmp-port-unreachable  (Force-TCP)
+#   mangle/POSTROUTING DSCP --set-dscp 0x2e                        (legacy purge)
+#
+# The QUIC rules are deliberately ungated on the engine's enabled state:
+# `qmanager_dpi_run --ensure` reconciles them every 60s even when the engine
+# is off, so they survive QCMAP's iptables flush on every re-dial. That is
+# correct while QManager is installed -- and it is exactly what makes their
+# absence from teardown fatal. Before F21, `--clear` drained ONLY the
+# REDIRECT, so a full-device uninstall with Force-TCP previously on left a
+# `filter FORWARD -i bridge0 -p udp --dport 443 -j REJECT` rule in place with
+# QManager gone and nothing left to remove it -- every LAN client's QUIC
+# REJECTed indefinitely.
+#
+# `--clear` is the right home for the drain, and not merely a convenient one:
+# it is invoked from exactly ONE site in the tree (uninstall_rm520n.sh), so
+# it is unconditional whole-product teardown. The Traffic Engine's own UI
+# uninstall reaches dpi_remove_rule DIRECTLY via _dpi_uninstall_run and never
+# goes through this verb -- which is what preserves the lib's "engine
+# install/uninstall never touch these rules" invariant. Section [5] pins that
+# separation, because a future refactor routing the UI uninstall through
+# --clear would silently kill a live user's Force-TCP toggle.
+#
+# Measured behaviourally, not grepped: the --clear branch is awk-extracted
+# and executed against a stubbed run_iptables, so a drain that is present in
+# the source but unreachable at runtime still fails.
+
+CLEAR_BODY=$(awk '/^    --clear\)/,/^        ;;$/' "$DPI_RUN" | sed '1d;$d')
+CLEAR_LOG="$TMPD/clear.log"
+: > "$CLEAR_LOG"
+
+if [ -z "$CLEAR_BODY" ]; then
+    bad "could not extract the --clear branch from qmanager_dpi_run -- renamed? (harness setup, not the fix)"
+else
+    printf '%s\n' "$CLEAR_BODY" > "$TMPD/clear_body.sh"
+    CLEAR_LOG="$CLEAR_LOG" DPI_STATE="$DPI_STATE" TMPD="$TMPD" bash -c '
+        set +e
+        DPI_HOSTLIST_DEFAULT=/dev/null
+        . "$DPI_STATE"
+        # Return 1 so every bounded drain loop stops after one logged pass.
+        run_iptables() { printf "%s\n" "$*" >> "$CLEAR_LOG"; return 1; }
+        qlog_info()    { return 0; }
+        qlog_warn()    { return 0; }
+        svc_stop()     { return 0; }
+        . "$TMPD/clear_body.sh"
+    ' >/dev/null 2>&1 || true
+
+    # Assert on the rule SIGNATURES, not just chain names: a drain that
+    # touched filter/FORWARD for some unrelated rule would satisfy a
+    # chain-only check while leaving the REJECT in place.
+    while IFS='|' read -r probe_label probe_sig; do
+        [ -n "$probe_label" ] || continue
+        if grep -qF -- "$probe_sig" "$CLEAR_LOG"; then
+            ok "--clear drains the $probe_label rule"
+        else
+            bad "--clear does NOT drain the $probe_label rule ($probe_sig) -- a full-device uninstall strands it on the device with QManager gone and nothing left to remove it"
+        fi
+    done <<'PROBES'
+nat/PREROUTING REDIRECT|--to-ports
+filter/FORWARD Force-TCP REJECT|--reject-with icmp-port-unreachable
+mangle/POSTROUTING legacy DSCP|--set-dscp 0x2e
+PROBES
+fi
+
+printf '\n[5] the engine UI uninstall does NOT go through --clear\n'
+
+# The complement of [4]. The QUIC rules are standalone by contract, so an
+# engine-only uninstall must leave them alone. Routing _dpi_uninstall_run
+# through `qmanager_dpi_run --clear` would look like tidy deduplication and
+# would silently kill a live user's Force-TCP toggle.
+if grep -qE 'qmanager_dpi_run.*--clear' "$DPI_INSTALL"; then
+    bad "qmanager_dpi_install now routes through 'qmanager_dpi_run --clear' -- that verb drains the standalone QUIC rules, so an ENGINE-only uninstall would also kill the user's Force-TCP toggle. Call dpi_remove_rule directly instead."
+else
+    ok "the UI uninstall path reaches dpi_remove_rule directly (QUIC rules stay standalone)"
+fi
+
+printf '\n[6] syntax sanity\n'
 
 for f in "$DPI_STATE" "$DPI_INSTALL" "$DPI_RUN"; do
     if "${BASH:-bash}" -n "$f" 2>/dev/null; then
