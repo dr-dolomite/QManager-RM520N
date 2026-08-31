@@ -237,7 +237,16 @@ fi
 
 # It belongs under --purge only: auth backups are user config, same
 # "preserved unless --purge" contract as everything else in $CONF_DIR.
-purge_branch=$(awk '/^if \[ "\$PURGE" = "1" \]/{f=1} f{print} f&&/^fi[[:space:]]*$/{exit}' "$UNINSTALLER")
+# NB: uninstall_rm520n.sh has MORE THAN ONE column-0 `if [ "$PURGE" = "1" ]`
+# block (the service/data purge earlier in the file, and the config-directory
+# purge later). Anchoring on the first one and stopping at the first column-0
+# `fi` extracts the wrong block entirely, so accumulate EVERY purge branch and
+# ask whether any of them carries the line.
+purge_branch=$(awk '
+    /^if \[ "\$PURGE" = "1" \]/ { f = 1 }
+    f                          { print }
+    f && /^fi[[:space:]]*$/    { f = 0 }
+' "$UNINSTALLER")
 if printf '%s\n' "$purge_branch" | grep -qE "rm -rf[[:space:]]+\"?${NEW_PATH}\"?"; then
     ok "the purge of $NEW_PATH is inside the --purge branch (preserved on a soft uninstall, matching both sibling precedents)"
 else
@@ -279,6 +288,25 @@ else
         # Stand-ins for the installer helpers the function may reach for.
         printf '%s\n' 'info() { printf "  [info] %s\n" "$*"; }'
         printf '%s\n' 'warn() { printf "  [warn] %s\n" "$*"; }'
+        # `install -d` cannot run on the Git Bash workstation AT ALL. Measured:
+        # `install -d -o root -g root -m 0700 d` fails "invalid user 'root'"
+        # (there is no such account), and even a bare `install -d -m 0700 d`
+        # fails "cannot change permissions" on this filesystem. Without a
+        # stand-in the function correctly degrades — warns, returns 0, leaves
+        # the store alone — and every directory-handling assertion below would
+        # then be testing the failure path instead of the logic it targets.
+        #
+        # This double covers ONLY the ownership/mode syscalls this platform
+        # cannot perform, which the header already declares unassertable here.
+        # It does not stub anything the migration actually does with files, so
+        # a real defect in the copy/collision/cleanup logic still fails.
+        printf '%s\n' 'install() {'
+        printf '%s\n' '    local _last=""; for _last; do :; done'
+        printf '%s\n' '    case "${1:-}" in'
+        printf '%s\n' '        -d) mkdir -p "$_last" ;;'
+        printf '%s\n' '         *) command install "$@" ;;'
+        printf '%s\n' '    esac'
+        printf '%s\n' '}'
         printf 'BACKUP_DIR="%s%s"\n' "$HARNESS_ROOT" "$NEW_PATH"
         printf '%s\n' "$fn_body" \
             | sed "s#\"$OLD_PATH#\"$HARNESS_ROOT$OLD_PATH#g; s#\"$NEW_PATH#\"$HARNESS_ROOT$NEW_PATH#g; s#'$OLD_PATH#'$HARNESS_ROOT$OLD_PATH#g" \
@@ -309,7 +337,7 @@ else
         printf 'snapshot-%s\n' "$ts" > "$HARNESS_ROOT$OLD_PATH/auth.json.$ts"
     done
     rc=$(run_fn)
-    moved=$(ls -1 "$HARNESS_ROOT$NEW_PATH"/auth.json.* 2>/dev/null | wc -l | tr -d ' ')
+    moved=$(ls -1 "$HARNESS_ROOT$NEW_PATH"/auth.json.* 2>/dev/null | wc -l | tr -d ' ' || true)
     if [ "$rc" = "0" ] && [ "$moved" = "3" ]; then
         ok '5b legacy store with 3 snapshots: all 3 present at the new path'
     else
@@ -325,13 +353,13 @@ else
     if [ ! -d "$HARNESS_ROOT$OLD_PATH" ]; then
         ok '5b the legacy directory is removed (nothing left in the swept path)'
     else
-        leftover=$(ls -1A "$HARNESS_ROOT$OLD_PATH" 2>/dev/null | wc -l | tr -d ' ')
+        leftover=$(ls -1A "$HARNESS_ROOT$OLD_PATH" 2>/dev/null | wc -l | tr -d ' ' || true)
         bad "5b the legacy directory still exists with $leftover entries — a www-data-owned copy of the password history would survive the fix"
     fi
 
     # --- 5c: idempotent re-run -------------------------------------------
     rc=$(run_fn)
-    still=$(ls -1 "$HARNESS_ROOT$NEW_PATH"/auth.json.* 2>/dev/null | wc -l | tr -d ' ')
+    still=$(ls -1 "$HARNESS_ROOT$NEW_PATH"/auth.json.* 2>/dev/null | wc -l | tr -d ' ' || true)
     if [ "$rc" = "0" ] && [ "$still" = "3" ]; then
         ok '5c re-run is idempotent: returns 0, still exactly 3 snapshots'
     else
@@ -345,7 +373,7 @@ else
     printf 'legacy\n'  > "$HARNESS_ROOT$OLD_PATH/auth.json.20260101_010101"
     printf 'current\n' > "$HARNESS_ROOT$NEW_PATH/auth.json.20260505_050505"
     rc=$(run_fn)
-    merged=$(ls -1 "$HARNESS_ROOT$NEW_PATH"/auth.json.* 2>/dev/null | wc -l | tr -d ' ')
+    merged=$(ls -1 "$HARNESS_ROOT$NEW_PATH"/auth.json.* 2>/dev/null | wc -l | tr -d ' ' || true)
     if [ "$rc" = "0" ] && [ "$merged" = "2" ]; then
         ok '5d non-empty destination: merged to 2 snapshots, neither lost'
     else
