@@ -10,7 +10,7 @@ informational bare-`mkdir -p` sites enumerated by
 measurement on 2026-08-31 found this is **not a latent risk** — it has
 already landed on both fielded devices:
 
-- `install_rm520n.sh:1376` `$BACKUP_DIR` → `/etc/qmanager/backups` — live `drwxrwxrwx root/www-data` on both RM520N-GL and RG501Q-EU (contains `auth.json.*` backup snapshots, individually 0600 but the directory has no sticky bit, so any local writer can delete/replace them)
+- ~~`install_rm520n.sh:1376` `$BACKUP_DIR` → `/etc/qmanager/backups` — live `drwxrwxrwx root/www-data` on both RM520N-GL and RG501Q-EU~~ **SUPERSEDED 2026-09-01, twice over.** (1) Re-measured on both devices: it was `700 www-data:www-data`, not 777 — F15's `install -d` fix had already reached them by OTA, so the 777 reading above is historical. (2) F22 (`1a3be13`) then **moved the path entirely**: `$BACKUP_DIR` is now `/etc/qmanager-backups`, root:root 0700, outside the directory `qmanager_setup:177` chowns to www-data every boot. The RM520N-GL is migrated; the RG501Q-EU migrates on its next OTA. Do not re-probe `/etc/qmanager/backups` — on an up-to-date device it does not exist.
 - `install_rm520n.sh:1626` `/etc/profile.d` — live `drwxrwxrwx root:root` on both devices (root's login shell sources anything dropped here — full root code-exec path)
 - `install_rm520n.sh:1838` `/usrdata/qmanager/locales-packs` — live `drwxrwxrwx root:root` on both devices (this is the root-trusted store the `qmanager_language_pack_apply` root helper reads from; world-writable means the validation boundary is bypassable)
 
