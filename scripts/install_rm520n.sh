@@ -2704,6 +2704,16 @@ migrate_environment_location() {
 #      the destination itself rather than depending on backup_originals having
 #      already done so.
 #
+#      KNOWN, ACCEPTED CONSEQUENCE of that same asymmetry: on a
+#      `--backend-only` run this migration executes but backup_originals — and
+#      therefore the prune-to-5 — does not. A device whose legacy store held
+#      more than 5 snapshots (one predating the prune logic, or one that has
+#      not had a frontend-inclusive install since) can sit above the retention
+#      cap until the next ordinary run. That is not a regression: those files
+#      were already unpruned in the old location, they are merely unpruned in
+#      a safer one now, and the next non-backend-only run prunes the merged
+#      set correctly. Deliberately not worth gating the security fix on.
+#
 # Idempotent, and never aborts the installer: this file runs under `set -e`,
 # the call site is bare in main() with services already stopped, so every
 # failure path warns and returns 0. Each original is unlinked only after its
@@ -2751,11 +2761,20 @@ migrate_backup_location() {
         [ -f "$f" ] || continue
         base=$(basename "$f")
 
-        # Collision: keep what is already at the destination. Timestamps are
-        # second-resolution so this is near-impossible in practice, but the
-        # safe direction is unambiguous — this function runs BEFORE
-        # backup_originals takes today's snapshot, so anything already at the
-        # destination is at least as current as what we are carrying over.
+        # Collision: keep what is already at the destination, discard ours.
+        #
+        # This is not the "two different snapshots happened to share a
+        # timestamp" case — that cannot occur. Once this fix ships, NOTHING
+        # writes to the old path again (backup_originals always targets
+        # $BACKUP_DIR, which is now the new path), so the source directory is
+        # frozen. A same-name collision therefore means only one thing: an
+        # earlier run already copied this file successfully and its trailing
+        # `rm -f` did not take effect. Source and destination are byte-identical
+        # in every reachable collision, so discarding the source costs nothing.
+        #
+        # The direction is also the safe one on its own merits: this function
+        # runs BEFORE backup_originals takes today's snapshot, so anything
+        # already at the destination is at least as current as what we carry.
         if [ -e "$dst/$base" ]; then
             echo "  WARNING: $dst/$base already exists — keeping it, discarding the copy at $src" >&2
             rm -f "$f" 2>/dev/null || true
