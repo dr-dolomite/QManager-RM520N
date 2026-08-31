@@ -49,6 +49,23 @@
 # Run from repo root: bash scripts/test/build-css-gate.sh
 set -uo pipefail
 
+# When invoked from bun on Windows (e.g. `bun run package`), `bash` resolves to
+# C:\Windows\system32\bash.exe — WSL bash, which has no access to the
+# Windows-side bun install this script's own build step depends on (line 65).
+# Same defect build.sh works around for Go; mirror it here. No-op on real
+# Linux/macOS (the /proc/version check fails) and on Git Bash directly (no
+# "microsoft" string).
+if [ -z "${QMANAGER_GIT_BASH_REEXEC:-}" ] \
+    && [ -r /proc/version ] \
+    && grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+    GIT_BASH="/mnt/c/Program Files/Git/usr/bin/bash.exe"
+    if [ -x "$GIT_BASH" ]; then
+        echo "[build-css-gate] Detected WSL bash — re-execing under Git Bash for Windows bun access" >&2
+        export QMANAGER_GIT_BASH_REEXEC=1
+        exec "$GIT_BASH" "$0" "$@"
+    fi
+fi
+
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
