@@ -1375,10 +1375,19 @@ backup_originals() {
 
     # install -d, NOT mkdir -p: measured 0777 www-data:www-data on BOTH shipped
     # devices 2026-08-31 (umask 0000 at install time, see :624; mkdir -p then
-    # no-ops on the existing dir forever). 0700 because the installer is this
-    # directory's only reader and only writer. The auth.json snapshots inside
-    # are individually 0600, but a world-writable, non-sticky parent lets any
-    # uid unlink and replace them regardless of the files' own mode.
+    # no-ops on the existing dir forever). The auth.json snapshots inside are
+    # individually 0600, but a world-writable, non-sticky parent lets any uid
+    # unlink and replace them regardless of the files' own mode.
+    #
+    # 0700 is the durable part; -o root -g root is NOT. qmanager_setup:177
+    # runs `chown -R www-data:www-data /etc/qmanager` unconditionally on every
+    # boot, so from the first boot after any install or OTA this directory is
+    # owned by www-data. chown does not touch the mode, so 0700 survives and
+    # simply means "www-data only" rather than "root only" — root bypasses DAC
+    # either way, and the installer (the only thing in the tree that reads or
+    # writes here) runs as root. The security property being bought is
+    # therefore "no OTHER local uid", not a root-owned boundary; nothing
+    # root-pinned can persist in /etc/qmanager at all.
     install -d -o root -g root -m 0700 "$BACKUP_DIR"
 
     # Backup existing QManager auth (preserves password across upgrades)
