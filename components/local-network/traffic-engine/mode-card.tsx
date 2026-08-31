@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeftRightIcon,
   CheckCircle2Icon,
+  Loader2Icon,
   MinusCircleIcon,
   TriangleAlertIcon,
   VideoIcon,
@@ -59,12 +60,26 @@ import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 // disables the other mode", which the shape now states on its own.
 //
 // -----------------------------------------------------------------------------
-// KEYBOARD
+// KEYBOARD, AND ONE DELIBERATE DEPARTURE FROM THE STOCK RADIOGROUP
 // -----------------------------------------------------------------------------
 // A radiogroup is one tab stop with arrow keys inside it, not three tab stops.
 // The roving `tabIndex` is what makes that true; without it the group is
 // keyboard-reachable but does not behave like the widget its ARIA role claims,
 // which is worse than no role at all.
+//
+// The stock pattern also SELECTS on arrow, and this group does not. The
+// convention is sound because it assumes selection is cheap and instantly
+// reversible — a form field you can arrow back off. Here "select" means a
+// `systemctl start` and an iptables REDIRECT insert: arrowing from Off to
+// Masquerade committed Video Optimizer on the way past, dropping every
+// connection through the engine. This app is SERVED BY the device being
+// reconfigured, so one of those connections is the user's own browser session.
+//
+// So arrows move focus only, and commitment needs an explicit activation:
+// Space, Enter, or a click. Space and Enter are not handled here because a
+// native `<button>` already turns both into a click — adding key cases for
+// them would be a second implementation of the thing that already works, and
+// the two would drift.
 // =============================================================================
 
 const MODES: { mode: DpiMode; nameKey: string; hintKey: string; glyph?: LucideIcon }[] = [
@@ -100,10 +115,22 @@ export interface ModeCardProps {
   mode: DpiMode;
   status: DpiEngineStatus;
   isSaving: boolean;
+  /**
+   * Which mode the shell is currently writing, or `null` when nothing is in
+   * flight. Distinct from `mode`, and the distinction is the point: `mode` is
+   * what the modem confirmed, `pendingMode` is what it has been asked for.
+   */
+  pendingMode: DpiMode | null;
   onSelect: (mode: DpiMode) => void;
 }
 
-export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
+export function ModeCard({
+  mode,
+  status,
+  isSaving,
+  pendingMode,
+  onSelect,
+}: ModeCardProps) {
   const { t } = useTranslation("common");
 
   // Held while a mode->mode switch is waiting on the takeover confirm. `null`
@@ -136,6 +163,9 @@ export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
     onSelect(next);
   };
 
+  // Focus only. See the KEYBOARD note in this file's header for why this
+  // departs from the stock select-on-arrow radiogroup: here a selection is a
+  // service restart, not a form value.
   const onKeyDown = (event: React.KeyboardEvent, index: number) => {
     const forward = event.key === "ArrowDown" || event.key === "ArrowRight";
     const back = event.key === "ArrowUp" || event.key === "ArrowLeft";
@@ -143,7 +173,6 @@ export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
     event.preventDefault();
     const next = (index + (forward ? 1 : MODES.length - 1)) % MODES.length;
     refs.current[next]?.focus();
-    commit(MODES[next].mode);
   };
 
   const StatusGlyph = ENGINE_GLYPH[status] ?? MinusCircleIcon;
@@ -171,9 +200,19 @@ export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
           variants={staggerRows}
           initial="hidden"
           animate="visible"
+          aria-busy={pendingMode !== null}
         >
           {MODES.map((entry, index) => {
             const selected = entry.mode === mode;
+            // NOT folded into `selected`. A row drawn as chosen before the CGI
+            // answers is the half-edited form DESIGN.md forbids a status
+            // surface from showing ("a status surface reports what is actually
+            // running — saved settings, live service state — never the
+            // half-edited form"). Painting the pending row as selected was
+            // considered and REJECTED for that reason: the spinner says "this
+            // is being applied", the mark says "this is on", and only one of
+            // those is true yet.
+            const isPending = entry.mode === pendingMode;
             const Glyph = entry.glyph;
             return (
               <motion.button
@@ -184,8 +223,30 @@ export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                tabIndex={selected ? 0 : -1}
-                disabled={isSaving}
+                // The group keeps exactly one tab stop. While a write is in
+                // flight that stop moves to the pending row, because the other
+                // two carry the `disabled` attribute and cannot hold focus.
+                tabIndex={
+                  pendingMode !== null ? (isPending ? 0 : -1) : selected ? 0 : -1
+                }
+                // SELECTIVE DIMMING, and the mechanism is split on purpose.
+                //
+                // `CHOICE_ROW.ROOT` carries `disabled:opacity-60`, which is
+                // correct for a row that is unavailable — and wrong for the one
+                // row that is the whole answer to "what is happening". Dimming
+                // all three equally is what erased the signal in the first
+                // place.
+                //
+                // So the two rows that are NOT pending take the real `disabled`
+                // attribute and the primitive's dim comes along with it, no
+                // call-site opacity restated. The pending row takes
+                // `aria-disabled` instead: it stays at full strength, keeps its
+                // focus, and is held inert by `commit`'s own `isSaving` guard
+                // rather than by the attribute. Fighting the primitive with an
+                // opacity override at the call site was the alternative and
+                // would have put a second dim value in a second place.
+                disabled={isSaving && !isPending}
+                aria-disabled={isSaving && isPending ? true : undefined}
                 variants={staggerRowItem}
                 className={cn(
                   CHOICE_ROW.ROOT,
@@ -211,7 +272,39 @@ export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
                     {t(entry.hintKey)}
                   </span>
                 </span>
-                {Glyph ? (
+                {/* The right-hand slot is the in-progress channel, and it is a
+                    SPINNER SWAPPED INTO THE CONTROL THAT IS ACTING — the same
+                    idiom as this family's Add button, Run test button and
+                    Uninstall pill.
+
+                    A "Switching" chip in the card header was considered and
+                    rejected: `restarting` is already a real member of
+                    `DpiEngineStatus`, rendered by `ENGINE_BADGE`/`ENGINE_GLYPH`
+                    here and by `ENGINE_SPEC` in `live-strip.tsx`, so a
+                    synthetic chip would put the header and the engine tile on
+                    two different answers to one question for the duration of
+                    the switch. That is finding 01 — the exact class of defect
+                    this surface was re-authored to eliminate.
+
+                    The Off row has no resting glyph, so it borrows the slot
+                    only while it is the pending one. */}
+                {isPending ? (
+                  <span className={CHOICE_ROW.RIGHT}>
+                    <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                    {/* The spinner is `aria-hidden`, so without this line the
+                        two audiences get different interfaces: a sighted user
+                        sees WHICH row is being applied, and a screen-reader
+                        user hears only that the group is busy. `aria-busy` says
+                        something is happening; it cannot say which of three
+                        rows it is happening to.
+
+                        `state.applying` is reused rather than minting a key —
+                        it already ships translated in all five packs, and the
+                        sr-only-beside-an-aria-hidden-visual idiom is the same
+                        one `login-device-name.tsx` uses. */}
+                    <span className="sr-only">{t("state.applying")}</span>
+                  </span>
+                ) : Glyph ? (
                   <span className={CHOICE_ROW.RIGHT}>
                     <Glyph className={CHOICE_ROW.GLYPH} aria-hidden="true" />
                   </span>
@@ -237,8 +330,14 @@ export function ModeCard({ mode, status, isSaving, onSelect }: ModeCardProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("trafficEngine.takeover.cancel")}</AlertDialogCancel>
             <AlertDialogAction
+              // The `isSaving` re-check is not redundant with `commit`'s. The
+              // dialog can sit open across an arbitrary gap — the user reads
+              // it, and a write can start in that window (this page polls every
+              // 2s and the takeover confirm is the one place a decision waits
+              // on a human). Confirming into an in-flight write would queue a
+              // second engine restart behind the first.
               onClick={() => {
-                if (pending) onSelect(pending);
+                if (pending && !isSaving) onSelect(pending);
                 setPending(null);
               }}
             >

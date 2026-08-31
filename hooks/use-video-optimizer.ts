@@ -32,7 +32,20 @@ export interface UseVideoOptimizerReturn {
   installBinary: () => Promise<boolean>;
   uninstallBinary: () => Promise<boolean>;
   dismissBinaryOpError: () => void;
-  refresh: () => void;
+  /**
+   * Re-read the section.
+   *
+   * `silent` is part of the PUBLISHED signature, not an internal convenience,
+   * because the two callers want opposite things and the difference is
+   * user-visible. A banner's Retry button is a user asking to read again after
+   * a failure: it must show the loading state, so it calls `refresh()`. A
+   * background reconcile after a successful write already knows the answer is
+   * coming and must NOT show it — a non-silent refetch flips `isLoading`, the
+   * page shell swaps its content branch for its loading branch, and every card
+   * on the surface is destroyed and rebuilt for two CGI round-trips. That read
+   * as a page refresh, and it is what made a mode switch impossible to animate.
+   */
+  refresh: (silent?: boolean) => void;
 }
 
 export function useVideoOptimizer(): UseVideoOptimizerReturn {

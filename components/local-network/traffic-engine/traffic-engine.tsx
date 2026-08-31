@@ -33,7 +33,14 @@ import ModeCard from "./mode-card";
 import Onboarding from "./onboarding";
 import TargetsCard from "./targets-card";
 import VerifyCard from "./verify-card";
-import { PAGE_HEAD, PAGE_ROOT, PILL_ACTION, TILE } from "./shapes";
+import {
+  CARD_PAIR,
+  CARD_PAIR_WIDE,
+  PAGE_HEAD,
+  PAGE_ROOT,
+  PILL_ACTION,
+  TILE,
+} from "./shapes";
 import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 
 // =============================================================================
@@ -44,11 +51,25 @@ import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 // one question — "is my video throttled, and is the fix on?" — and a second one
 // they ask once: "is it actually helping?"
 //
-// It is now a page header, a live tile strip, and a stack of peer cards ordered
-// by CADENCE: what is happening right now, then the one decision, then what
-// that decision operates on, then the occasional test, then the independent
-// QUIC control. QUIC is last because its independence from the engine is
-// documented and deliberate (docs/reference/dpi.md > QUIC handling).
+// It is now a page header, a live tile strip, and a band of peer cards ordered
+// by CADENCE: the live state, then the DECISION BESIDE THE MEASUREMENT THAT
+// JUDGES IT, then what that decision operates on, then the independent QUIC
+// control. QUIC is last because its independence from the engine is documented
+// and deliberate (docs/reference/dpi.md > QUIC handling).
+//
+// That cadence changed on 2026-08-31 at direct user request, and it REORDERS
+// what the paragraph above used to document. The retired order was a single
+// column: mode, then targets, then the occasional test. The mode card and the
+// verify card are now a two-up pair on the first row of one grid, with the
+// targets card spanning both columns beneath them — because "which mode is on"
+// and "is it actually helping" are the two halves of one question, and reading
+// them a scroll apart was what made the test feel occasional.
+//
+// CSS `order` was considered and rejected. It could have kept the old
+// single-column reading order under the new visual one, but that is precisely
+// the disagreement between DOM order and visual order that WCAG 1.3.2
+// (Meaningful Sequence) exists to forbid — a worse defect than the one it would
+// paper over. The DOM order below IS the reading order, on every width.
 //
 // -----------------------------------------------------------------------------
 // ONE ANSWER TO "WHICH MODE IS ACTIVE", AND IT IS DERIVED HERE
@@ -179,6 +200,11 @@ const TrafficEngine = () => {
     source !== null &&
     (videoOptimizer.error !== null || masquerade.error !== null);
 
+  // The USER-INITIATED re-read, wired to the two banners' Retry buttons only.
+  // It is deliberately NOT silent: someone pressing Retry after a failed read
+  // is asking to see the read happen, and a button that changes nothing on
+  // screen reads as a button that did nothing. The post-write reconcile in
+  // `selectMode` is the opposite case and refetches silently — see there.
   const retry = () => {
     videoOptimizer.refresh();
     masquerade.refresh();
@@ -187,10 +213,18 @@ const TrafficEngine = () => {
   // ---------------------------------------------------------------------------
   // The one write this page makes: which mode owns the engine
   // ---------------------------------------------------------------------------
-  const [isSwitching, setIsSwitching] = React.useState(false);
+  // WHICH mode is being switched to, not merely THAT one is. A boolean cannot
+  // name one of three rows, so the card had nothing to point at and spent the
+  // flag entirely on `disabled` — which dimmed all three rows equally and
+  // erased the very signal the user was waiting for.
+  //
+  // `null` is the no-write-in-flight state, and it is the whole vocabulary:
+  // there is one write on this page and the CGI enforces a mutex, so at most
+  // one mode can ever be pending.
+  const [pendingMode, setPendingMode] = React.useState<DpiMode | null>(null);
 
   const selectMode = async (next: DpiMode) => {
-    setIsSwitching(true);
+    setPendingMode(next);
     try {
       const ok =
         next === "video_optimizer"
@@ -220,13 +254,37 @@ const TrafficEngine = () => {
       // Both sections are re-read, because the backend just changed the OTHER
       // one too. Refreshing only the section written would leave the derived
       // mode reading from a stale flag for one poll.
-      retry();
+      //
+      // SILENTLY, and this is the whole reason a mode switch has any animation
+      // at all. `refresh()` runs `fetchStatus(silent = false)`, which sets
+      // `isLoading` on both hooks; `isLoading` below then flips true and this
+      // component renders its loading branch instead of its content branch. The
+      // live strip, the mode card, the verify card and the targets card were
+      // all UNMOUNTED for the duration of two CGI round-trips and then built
+      // again from scratch. The user reported it as "it just refreshes", which
+      // is exactly what it was — there was never a missing spinner, there was
+      // nothing left on screen to put one in.
+      //
+      // A second defect falls out of the same fix, and it was the more
+      // expensive one. `VerifyCard` holds `isRunning`, its result and its poll
+      // loop in local state, and the loop aborts on `!mountedRef.current`. So a
+      // mode switch during a running Test Bypass silently killed a test that
+      // can take twelve minutes — the card came back reading "idle", said
+      // nothing about what was lost, and the backend worker carried on
+      // regardless. The two cards are now side by side (see the band below),
+      // which makes a mid-test switch MORE likely, not less.
+      videoOptimizer.refresh(true);
+      masquerade.refresh(true);
     } finally {
-      setIsSwitching(false);
+      setPendingMode(null);
     }
   };
 
-  const isSaving = isSwitching || videoOptimizer.isSaving || masquerade.isSaving;
+  // Kept as one flag for everything that only needs "is a write in flight",
+  // so the pending mode adds a channel rather than changing the shape of an
+  // existing one.
+  const isSaving =
+    pendingMode !== null || videoOptimizer.isSaving || masquerade.isSaving;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -384,21 +442,36 @@ const TrafficEngine = () => {
             />
           </motion.div>
 
-          <motion.div variants={staggerItem}>
+          {/* The decision, the measurement that judges it, and what the
+              decision operates on — one band, one grid, one stagger beat.
+
+              THE GRID WRAPPER IS ITSELF THE `staggerItem`, and the three cards
+              sit DIRECTLY inside it rather than each in its own nested
+              `motion.div`. That is a design statement before it is a technical
+              one: they are one band, so they should arrive as one beat rather
+              than counting themselves off in three. Do not declare
+              `initial`/`animate` here either — the cascade root above owns the
+              clock, and a child that declares its own detaches from it and
+              renders at `hidden` forever, which this repo has shipped before.
+
+              `TargetsCard` takes `CARD_PAIR_WIDE` through a plain wrapper
+              rather than a `className` prop, because the card's props are not
+              this file's to widen and the span belongs to the band, not to the
+              card. */}
+          <motion.div variants={staggerItem} className={CARD_PAIR}>
             <ModeCard
               mode={mode}
               status={status}
               isSaving={isSaving}
+              pendingMode={pendingMode}
               onSelect={selectMode}
             />
-          </motion.div>
 
-          <motion.div variants={staggerItem}>
-            <TargetsCard hostlist={hostlist} mode={mode} />
-          </motion.div>
-
-          <motion.div variants={staggerItem}>
             <VerifyCard binaryInstalled={installed} />
+
+            <div className={CARD_PAIR_WIDE}>
+              <TargetsCard hostlist={hostlist} mode={mode} />
+            </div>
           </motion.div>
         </>
       )}

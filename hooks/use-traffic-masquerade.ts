@@ -24,7 +24,13 @@ export interface UseTrafficMasqueradeReturn {
   isSaving: boolean;
   error: string | null;
   save: (enabled: boolean, sniDomain: string) => Promise<boolean>;
-  refresh: () => void;
+  /**
+   * Re-read the section. See `UseVideoOptimizerReturn.refresh` — the two hooks
+   * are read together by one shell and must expose the same signature, or the
+   * shell can only make half of a mode-switch refetch silent, which leaves the
+   * unmount in place.
+   */
+  refresh: (silent?: boolean) => void;
 }
 
 export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
