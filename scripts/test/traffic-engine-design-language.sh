@@ -838,9 +838,16 @@ fi
 # A height lock with no growing child IS the Radio Information bug. Both cards
 # must hand their spare height to their content, or the taller card's extra
 # pixels pool at the bottom of the shorter one as dead air.
+# The grow is accepted in EITHER spelling, and the looser form is the stricter
+# test. The mode card writes `flex-1` at the call site; the verify card takes it
+# through `RESTING.CONTENT`, whose own `flex-1` [29] asserts separately. Naming
+# only the literal would have forced the verify card to restate geometry that
+# already has a home in shapes.ts -- failing it for being MORE correct than the
+# assertion imagined. Widening a test to admit a better implementation is not
+# the same act as widening one to admit a worse one.
 for pair in "mode:mode-card" "verify:verify-card"; do
     name="${pair%%:*}"; label="${pair#*:}"
-    if grep -qE 'flex-1' "$TMPD/$name.code"; then
+    if grep -qE 'flex-1|RESTING\.CONTENT' "$TMPD/$name.code"; then
         ok "$label grows its content into the stretched card"
     else
         bad "$label locks to its sibling height with no growing child -- the spare height becomes dead air"
