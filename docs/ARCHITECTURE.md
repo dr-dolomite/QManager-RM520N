@@ -239,7 +239,7 @@ qmanager-cfun-fix.service     qmanager_cfun_fix — recovers a modem stuck in CF
 
 Scheduled work (cron, configured by `system/settings.sh`): `qmanager_scheduled_reboot` fires a reboot at a user-configured time.
 
-For the full unit dependency graph, Entware bootstrap, and lighttpd config, see [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md) and [`rm520n-phase2-systemd-migration.md`](rm520n-phase2-systemd-migration.md).
+For the full unit dependency graph, Entware bootstrap, and lighttpd config, see [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md).
 
 ### AT Command Transport
 
