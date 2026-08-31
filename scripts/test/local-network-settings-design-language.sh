@@ -188,8 +188,20 @@ strip_comments() {
 
 # Every opening tag of $2 in file $1, flattened to one line each, so a
 # multi-line JSX element can be tested as a single string.
+#
+# THE TAG NAME MUST MATCH EXACTLY. A naive "<$2[^>]*>" also matches every
+# component whose name merely STARTS with $2 -- `<Card` catches `<CardHeader`,
+# `<CardTitle`, `<CardDescription` and `<CardContent`, none of which can carry
+# CARD_SHELL. The first draft of this harness did exactly that, and it pushed
+# two builders off the convention CLAUDE.md states and the reference ships
+# (speed-limit-card.tsx:134-138 -- Card/CARD_SHELL, CardHeader/CARD_PAD,
+# CardTitle/CARD_TITLE) in two DIFFERENT directions: one invented
+# CARD_SHELL_HEAD/_TITLE/_DESC/_BODY slot names, the other replaced the header
+# primitives with bare <h2>/<p>. Harness-induced divergence between sibling
+# families is the precise failure this change exists to remove, so the regex
+# now requires whitespace, `/` or `>` to follow the tag name.
 open_tags() {
-    tr '\n' ' ' < "$1" | grep -oE "<$2[^>]*>" || true
+    tr '\n' ' ' < "$1" | grep -oE "<$2([[:space:]][^>]*)?/?>" || true
 }
 
 : > "$TMPD/empty.code"
@@ -411,7 +423,13 @@ printf '\n[5] Cards are peers: rounded-card, border-0, whisper -- with the bang\
 # the source says otherwise.
 for pair in "ttlshapes:ttl-mtu-settings" "dnsshapes:custom-dns" "iptshapes:ip-passthrough"; do
     name="${pair%%:*}"; label="${pair#*:}"
-    shell_line=$(grep -E '^export const CARD_SHELL' "$TMPD/$name.code" || true)
+    # Read the WHOLE declaration, not its first line. The reference wraps it --
+    # ethernet/shapes.ts:231 is `export const CARD_SHELL =` with the string on
+    # the following line -- so a first-line-only grep would fail against the
+    # very file this family is being asked to read like. The first draft of this
+    # harness did that, and it forced two builders into `// prettier-ignore`
+    # one-liners to satisfy a test that the reference itself would not pass.
+    shell_line=$(awk '/^export const CARD_SHELL/,/;/' "$TMPD/$name.code" | tr '\n' ' ')
     if [ -z "$shell_line" ]; then
         bad "$label: no CARD_SHELL to check"
         continue
