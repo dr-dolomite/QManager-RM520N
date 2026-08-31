@@ -18,9 +18,33 @@ if ! command -v jq >/dev/null; then
     echo "FAIL: jq not found" >&2
     exit 1
 fi
-if ! command -v ping >/dev/null; then
-    echo "FAIL: ping not found" >&2
-    exit 1
+# Capability probe, NOT a presence check. `command -v ping` is TRUE on a
+# Windows/Git-Bash workstation -- ping.exe exists and is on PATH -- but it is
+# not iputils ping: it rejects the -c/-W form, so the daemon can never write
+# /tmp/qmanager_ping.json and every assertion below then fails for an
+# environmental reason rather than a real defect.
+#
+# That mattered far more than one red harness. run-harnesses.sh aborts the
+# entire suite on the first non-zero harness (its fail() exits 1), and this
+# file sorts at position 27 of 33 -- so the six harnesses ordered after it
+# have never run on this workstation, and the suite could only ever report
+# this one failure. Tracker item F3(4).
+#
+# Probe the exact flag form the daemon uses (qmanager_ping:90-91: PROBE_COUNT
+# -> -c, PROBE_TIMEOUT -> -W) and SKIP honestly when it is unavailable, which
+# is the convention already established in this suite by
+# auth-lockout-ladder.sh, events-quality-thresholds.sh and hw-profile.sh.
+# A SKIP is correct rather than lenient here: the file header already states
+# this smoke requires a Linux/WSL2 host or a device with the service stopped,
+# so an environment that cannot send ICMP is out of scope by design, not
+# failing.
+if ! command -v ping >/dev/null 2>&1; then
+    echo "SKIP: ping not found" >&2
+    exit 0
+fi
+if ! ping -c 1 -W 1 127.0.0.1 >/dev/null 2>&1; then
+    echo "SKIP: ping does not accept the iputils -c/-W form (non-POSIX ping, e.g. Windows ping.exe), or loopback ICMP is unavailable to this user — this smoke needs a Linux/WSL2 host or a device" >&2
+    exit 0
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

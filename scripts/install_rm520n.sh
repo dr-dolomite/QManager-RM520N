@@ -1373,7 +1373,13 @@ stop_services() {
 backup_originals() {
     step "Backing up original files"
 
-    mkdir -p "$BACKUP_DIR"
+    # install -d, NOT mkdir -p: measured 0777 www-data:www-data on BOTH shipped
+    # devices 2026-08-31 (umask 0000 at install time, see :624; mkdir -p then
+    # no-ops on the existing dir forever). 0700 because the installer is this
+    # directory's only reader and only writer. The auth.json snapshots inside
+    # are individually 0600, but a world-writable, non-sticky parent lets any
+    # uid unlink and replace them regardless of the files' own mode.
+    install -d -o root -g root -m 0700 "$BACKUP_DIR"
 
     # Backup existing QManager auth (preserves password across upgrades)
     if [ -f "$CONF_DIR/auth.json" ]; then
@@ -1623,7 +1629,19 @@ install_backend() {
         # install_file also writes its atomic temp file *inside* the destination
         # dir, so without this mkdir the cp fails with ENOENT. (/etc is its own
         # always-RW UBIFS volume — no root remount is needed or helpful here.)
-        mkdir -p /etc/profile.d 2>/dev/null || true
+        # install -d, NOT mkdir -p. This directory is a root code-execution
+        # path — /etc/profile:15 sources /etc/profile.d/*.sh — and it measured
+        # 0777 root:root on BOTH shipped devices on 2026-08-31. Cause: the
+        # install shell runs at umask 0000 (see :624), so a bare `mkdir -p`
+        # creates it 0777, and `mkdir -p` then no-ops on the existing directory
+        # forever after, carrying that mode through every OTA. Because the dir
+        # has no sticky bit, a world-writable mode lets www-data (the CGI user,
+        # so web-reachable) drop a new snippet here or replace qmanager-path.sh
+        # outright — the file's own 0644 is no defence, since unlink permission
+        # comes from the directory. It would then run as root at the next root
+        # login. install -d re-applies the mode on every run, so an OTA heals
+        # an already-affected device; mkdir -p never would.
+        install -d -o root -g root -m 0755 /etc/profile.d 2>/dev/null || true
         if [ -d /etc/profile.d ] && install_file "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" \
             "/etc/profile.d/qmanager-path.sh" 644; then
             sync
@@ -1835,7 +1853,19 @@ install_backend() {
     # so the unprivileged download worker can extract + validate a pack there
     # before handing the validated tree to the root helper. install -d self-
     # heals owner/mode on re-run, so this is safe on upgrade.
-    mkdir -p /usrdata/qmanager/locales-packs
+    #
+    # Both lines below use install -d. Until 2026-08-31 the packs line was a
+    # bare `mkdir -p`, and the "install -d self-heals" sentence above was true
+    # only of the staging line directly beneath it — so the store inherited the
+    # installer's umask 0000 (see :624) and measured 0777 on BOTH shipped
+    # devices, which is precisely the root-only-writer boundary this comment
+    # claims to enforce.
+    #
+    # 0755, NOT 0700: the store must stay world-READABLE. Only root writes it,
+    # but system/language-packs/list.sh is a www-data CGI that reads each
+    # <code>/_pack.json straight out of here to report what is installed.
+    # Tightening this to 0700 breaks the language-pack list endpoint.
+    install -d -o root -g root -m 0755 /usrdata/qmanager/locales-packs
     install -d -o www-data -g www-data -m 0700 /usrdata/qmanager/locales-staging
 
     # --- Migrate legacy TTL state file (one-time, non-fatal) -----------------
