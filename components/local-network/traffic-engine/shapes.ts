@@ -394,7 +394,48 @@ export const HEADLINE = {
  * it is a quantity, so it stays in the UI face with `tabular-nums`.
  */
 export const HOST_ROW = {
-  LIST: "flex flex-col gap-1.5",
+  /**
+   * The scroll viewport, and the answer to BOTH halves of one report: the list
+   * "takes a lot of vertical AND horizontal space".
+   *
+   * They are one shape. A domain is eleven characters and the chip was a full
+   * card width, so at any desktop size most of every row was empty pill — and
+   * 21 of them stacked ran past 900px. `GRID` reclaims the horizontal run by
+   * flowing chips into columns; this caps the vertical.
+   *
+   * THE CAP IS A CEILING, NOT A HEIGHT. 5 grid rows: five 40px rows plus four
+   * 6px gaps is 224px, which is `max-h-56`. A short list still collapses well
+   * under it — twelve domains in three columns is four rows, 184px, against
+   * ~550px stacked — so this is not a floor wearing a cap's clothes. The
+   * numbers are derived from `ROOT` and `GRID` below and move with them.
+   *
+   * The gutter pair (`-mr-2` / `pr-2`) gives the scrollbar its own lane so a
+   * chip never sits underneath the thumb; `custom-profile-view.tsx` uses the
+   * same trick for the same reason.
+   *
+   * THE SCROLLBAR IS THEMED HERE BECAUSE NOTHING THEMES IT GLOBALLY. There is
+   * no `::-webkit-scrollbar` or `scrollbar-color` anywhere in `globals.css`,
+   * and two other files have already worked around that ad hoc with a bare
+   * thin-width declaration. A native scrollbar inside a `rounded-card` surface
+   * is exactly the "browser surface that belongs to no design system" the
+   * craft floor names. Scoped here rather than fixed product-wide, because a
+   * global scrollbar token is a product decision and this is a polish pass —
+   * but it is a real gap and it is logged as one.
+   *
+   * The thumb takes `surface-container-high`: light 0.938 and dark 0.235,
+   * against a card ground of 1.000 and 0.170. Visible in both themes, one step
+   * from the ground in both, and the same value the chips' own hover fill uses.
+   * A `var()` that did not resolve would ship as no declaration at all with no
+   * error anywhere, which is why the token is named rather than guessed.
+   */
+  VIEWPORT:
+    "-mr-2 max-h-56 overflow-y-auto overscroll-contain pr-2 [scrollbar-width:thin] [scrollbar-color:var(--color-surface-container-high)_transparent]",
+  /**
+   * The chip grid. Container queries against the CARD, never the viewport, so
+   * the column count follows the card's real width — which now changes with
+   * `CARD_PAIR` above it, not only with the window.
+   */
+  GRID: "grid grid-cols-1 gap-1.5 @xl/card:grid-cols-2 @3xl/card:grid-cols-3",
   /**
    * PINNED at 40px, and safe to pin because the domain truncates. `HEIGHT` is
    * what the skeleton imports, so the list mirrors by reference rather than by
@@ -407,6 +448,15 @@ export const HOST_ROW = {
     "size-8 flex-none rounded-pill text-on-surface-variant hover:bg-surface-container-high",
   GLYPH: "size-3.5",
 } as const;
+
+/**
+ * How many rows the viewport shows before it scrolls.
+ *
+ * Exported so the skeleton renders the SAME count the cap is derived from,
+ * rather than the four bare blocks it used to guess (The Skeleton-Mirror
+ * Rule). Change this and `HOST_ROW.VIEWPORT`'s ceiling together.
+ */
+export const HOST_VISIBLE_ROWS = 5;
 
 /**
  * The add-a-domain field.
@@ -470,7 +520,73 @@ export const CARD_HEAD = {
   TITLES: "flex min-w-0 flex-col gap-1.5",
   DESC: "text-on-surface-variant text-sm leading-relaxed text-pretty",
   ACTIONS: "ml-auto flex flex-none items-center gap-2",
+  /**
+   * The same header, for a card whose action group is more than one control.
+   *
+   * `ACTIONS` is `flex-none`, which is correct for a single chip and wrong for
+   * four things: the group never shrinks, so on a narrow card it takes the
+   * width it wants and `CARD_TITLE` — which WRAPS by design rather than
+   * truncating — absorbs the whole loss. The targets card now carries a count
+   * chip plus three list actions, so its group drops onto its own line instead
+   * and only claims the right edge once the card is wide enough to give it one.
+   */
+  ROOT_WRAP: "flex flex-wrap items-start gap-x-4 gap-y-3",
+  ACTIONS_WRAP: "flex flex-wrap items-center gap-2 @lg/card:ml-auto",
 } as const;
+
+/**
+ * A quiet, icon-only card action. Import, export, restore.
+ *
+ * 40px, which is `HOST_ROW.ROOT`'s own height rather than a new number, and
+ * comfortably above the row-level `REMOVE` control at 32px — a card-scoped
+ * action should not be the same size as a per-row one. These are occasional
+ * and secondary to the add-a-domain field, so they take the ghost treatment
+ * and `on-surface-variant` ink; the primary action on this card is still the
+ * one at the bottom with a fill behind it.
+ *
+ * Icon-only means the label lives in `aria-label` and a `title`, never in the
+ * glyph alone. Three unlabelled icons in a row is a guessing game.
+ */
+export const ICON_ACTION =
+  "size-10 flex-none rounded-pill text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface";
+
+/**
+ * The two-up band: the mode decision beside the test that measures it.
+ *
+ * Requested directly, and it does change this page's documented cadence — the
+ * shell used to read strip, decision, what the decision operates on, then the
+ * occasional test. It now reads decision beside measurement, then the payload.
+ * The shell's own header comment is rewritten to say so; a file that describes
+ * an order it no longer has is worse than one that describes none.
+ *
+ * `items-start` IS THE LOAD-BEARING PART. DESIGN.md does not ban equal heights
+ * — it says they are explicit, and conditional on symmetry being a real
+ * property of the pair. It is not one here. The verify card is a single
+ * footnote line when idle and a headline plus three comparison bars when
+ * complete, so a lock would strand dead space in whichever card had less to
+ * say, and which one that is CHANGES while the test runs. That is precisely
+ * the Radio Information failure DESIGN.md records having paid for once.
+ *
+ * WHY THE 5XL STEP AND NOT THE 6XL ONE. The container is the viewport less
+ * 264px of sidebar, less 48px of main padding, less 16px of page padding. The
+ * 6xl step (1152px) therefore needs a viewport past 1480px — a 1440px laptop,
+ * the commonest desktop width there is, would never see this layout at all.
+ * The 5xl step (1024px) needs 1352px, and its ~546px cells clear the 512px
+ * threshold `CMP_ROW` uses to keep the comparison rows on one line. The cost
+ * is a ~20px band of viewport widths where those rows take their already
+ * designed wrapped layout, which is a layout and not a defect. The 5xl step is
+ * also one this codebase already uses; the 6xl step appears nowhere in it.
+ */
+export const CARD_PAIR = "grid grid-cols-1 items-start gap-5 @5xl/main:grid-cols-2";
+
+/**
+ * The band's full-width member: the targets card, under the pair.
+ *
+ * It sits in the same grid rather than beside it so there is ONE source of
+ * truth for the band's rows. Splitting it into a second container would let
+ * the two gaps drift apart, which is the class of bug this module exists for.
+ */
+export const CARD_PAIR_WIDE = "@5xl/main:col-span-2";
 
 /**
  * A settings row inside a card — the Force-TCP switch.
