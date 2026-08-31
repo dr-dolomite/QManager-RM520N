@@ -16,6 +16,16 @@
 *::before,
 *::after { box-sizing: border-box; }
 
+/* `hidden` lives in the UA stylesheet, so ANY author `display` outranks it --
+   and nearly every block this UI toggles declares one (.pane is flex,
+   .identity is grid, .empty is flex, .btn is inline-flex). Without this rule
+   `el.hidden = true` sets an attribute that changes nothing on screen: it is
+   why both transport panes rendered at once, why the "no device" help sat
+   under a populated device list, and why a destructive Uninstall button
+   showed on a device with nothing installed. Declared once here rather than
+   per class, so a new togglable block cannot forget to opt in. */
+[hidden] { display: none !important; }
+
 html { color-scheme: light dark; }
 
 body {
@@ -124,7 +134,9 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
   background: transparent;
   border: none;
   border-radius: var(--radius-pill);
-  padding: 9px 16px;
+  /* Matches the .btn pill height (43px): the tab strip and the Rescan /
+     Connect buttons are the same control scale in the same card. */
+  padding: 11px 18px;
   cursor: pointer;
   transition: background var(--duration-quick) var(--ease-standard),
               color var(--duration-quick) var(--ease-standard);
@@ -132,7 +144,35 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 .tab:hover { background: var(--surface-container); }
 .tab.is-active { background: var(--primary-container); color: var(--on-primary-container); }
 
-.pane { display: flex; flex-direction: column; gap: 14px; }
+/* Exactly one pane is ever in the document's box tree -- the other carries
+   `hidden`, which the rule at the top of this file makes real. The two
+   transports ask for different things, so showing both at once was not a
+   denser layout, it was two contradictory instructions in one column.
+
+   Spacing here is a three-step cadence, and the steps carry meaning:
+     6px  a control and its own footnote
+     12px peers inside one set (the three SSH credentials)
+     20px between groups, and between the tab strip and its panel
+   Group separation is `gap` alone -- no child margins -- so a group that
+   drops out (an empty device list, a hidden hint) closes the interval behind
+   it instead of leaving a dead margin.
+
+   The entrance re-uses the one `rise` this surface already authors: a pane
+   leaving `display: none` restarts it, so a tab switch reads as the new panel
+   arriving rather than as the card snapping to a new height. No exit -- the
+   outgoing pane is simply gone. */
+.pane {
+  display: flex; flex-direction: column; gap: 20px;
+  animation: rise var(--duration-quick) var(--ease-emphasized) both;
+}
+
+/* A control and the sentence that qualifies it are one thing. Before this,
+   the help text sat 22px from its own checkbox and 14px from the Connect
+   button -- the tightest interval in the pane fell between two unrelated
+   elements, so the note read as advice about connecting rather than about
+   remembering. */
+.field-note { display: flex; flex-direction: column; gap: 6px; }
+.field-note .hint { margin: 0; }
 
 /* ---------- device list ---------- */
 
@@ -213,14 +253,12 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 
 .btn-danger { background: var(--destructive-container); color: var(--on-destructive-container); }
 
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
 .switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .switch input { accent-color: var(--primary); width: 17px; height: 17px; cursor: pointer; }
 
-.ssh-remember { margin-top: 14px; }
-.switch-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.switch-row .switch { margin: 0; }
+.switch-row { display: flex; align-items: center; gap: 8px; }
 
 /* ---------- tooltip ----------
    A "?" trigger, never a hover-only affordance: the bubble also opens on
@@ -265,7 +303,14 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
   opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
 }
 
-.card-actions { display: flex; flex-direction: column; }
+/* The same three-step cadence as .pane, for the same reason: each option is
+   grouped with its own note (6px), the options are peers within one set
+   (12px), and the set is separated from the commit action (20px). Spacing is
+   `gap` throughout -- the Uninstall button and the blocked note are both
+   conditionally `hidden`, so a child margin here would leave a dead interval
+   behind whichever one is absent. */
+.card-actions { display: flex; flex-direction: column; gap: 20px; }
+.options { display: flex; flex-direction: column; gap: 12px; }
 
 /* ---------- status chips ----------
    Filled tonal container, that container own ink, no border, pill radius,
@@ -435,18 +480,16 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 }
 .result-log:empty { display: none; }
 
-.result-next .actions { margin-top: 0; }
-
 /* ---------- errors ---------- */
 
 .inline-error {
-  margin: 16px 0 0; padding: 12px 16px;
+  margin: 20px 0 0; padding: 12px 16px;
   background: var(--destructive-container);
   color: var(--on-destructive-container);
   border-radius: var(--radius-field);
   font-size: 13px;
 }
-.inline-error[hidden] { display: none; }
+.card-actions > .inline-error { margin: 0; }
 
 /* ---------- motion ----------
    One authored entrance, on the scale. No springs, no exits. */

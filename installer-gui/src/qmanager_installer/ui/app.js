@@ -161,11 +161,18 @@ function showError(el, message) {
 
 /* ---------- connect ---------- */
 
-function transportTab(which) {
+/* One transport is live at a time, so one panel is in the document at a time:
+ * the other is `hidden`, which styles.css makes real (a UA `hidden` loses to
+ * any author `display`, and .pane has one). Selection also moves the tab stop
+ * -- a tablist is one stop, and Tab from the selected tab lands in the panel
+ * it selected rather than on the tab beside it. */
+function transportTab(which, moveFocus) {
   for (const tab of $$(".tab")) {
     const on = tab.dataset.transport === which;
     tab.classList.toggle("is-active", on);
     tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    if (on && moveFocus) tab.focus();
   }
   $("#adb-pane").hidden = which !== "adb";
   $("#ssh-pane").hidden = which !== "ssh";
@@ -524,8 +531,16 @@ async function boot() {
     if (document.body.dataset.view === "preflight") await runPreflight();
   });
 
-  for (const tab of $$(".tab")) {
+  const tabs = $$(".tab");
+  for (const tab of tabs) {
     tab.addEventListener("click", () => transportTab(tab.dataset.transport));
+    tab.addEventListener("keydown", (e) => {
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      const next = tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length];
+      transportTab(next.dataset.transport, true);
+    });
   }
   $("#rescan").addEventListener("click", refreshDevices);
   $("#ssh-connect").addEventListener("click", connectSsh);

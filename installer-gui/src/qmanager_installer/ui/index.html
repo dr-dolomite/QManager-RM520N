@@ -77,20 +77,30 @@
           <h2 id="connect-h" data-i18n="connect.title"></h2>
           <p class="lede" data-i18n="connect.lede"></p>
 
-          <div class="tabs" role="tablist">
-            <button class="tab is-active" role="tab" data-transport="adb" aria-selected="true">
+          <!-- A real tablist: each tab names the panel it controls, only the
+               selected tab is a tab stop, and Left/Right move between them
+               (app.js). The panels below are mutually exclusive -- one
+               transport is live at a time, so only one set of inputs is. -->
+          <div class="tabs" role="tablist" aria-labelledby="connect-h">
+            <button type="button" class="tab is-active" role="tab" id="tab-adb"
+                    data-transport="adb" aria-controls="adb-pane" aria-selected="true">
               <svg class="glyph" aria-hidden="true"><use href="#i-usb" /></svg>
               <span data-i18n="transport.adb"></span>
             </button>
-            <button class="tab" role="tab" data-transport="ssh" aria-selected="false">
+            <button type="button" class="tab" role="tab" id="tab-ssh"
+                    data-transport="ssh" aria-controls="ssh-pane" aria-selected="false" tabindex="-1">
               <svg class="glyph" aria-hidden="true"><use href="#i-net" /></svg>
               <span data-i18n="transport.ssh"></span>
             </button>
           </div>
 
-          <div id="adb-pane" class="pane">
+          <div id="adb-pane" class="pane" role="tabpanel" aria-labelledby="tab-adb">
             <ul id="devices" class="device-list"></ul>
-            <p id="no-device" class="empty">
+            <!-- Starts hidden so the "no device" help does not flash under an
+                 empty list during the first scan; refreshDevices() owns it
+                 from then on, and it is the empty state for the list above,
+                 never a companion to it. -->
+            <p id="no-device" class="empty" hidden>
               <svg class="glyph empty-glyph" aria-hidden="true"><use href="#i-device" /></svg>
               <span data-i18n="device.none.help"></span>
             </p>
@@ -100,7 +110,7 @@
             </button>
           </div>
 
-          <div id="ssh-pane" class="pane" hidden>
+          <div id="ssh-pane" class="pane" role="tabpanel" aria-labelledby="tab-ssh" hidden>
             <div class="fields">
               <label class="field">
                 <span data-i18n="transport.ssh.host"></span>
@@ -115,11 +125,13 @@
                 <input id="ssh-pass" type="password" autocomplete="off" />
               </label>
             </div>
-            <label class="switch ssh-remember">
-              <input type="checkbox" id="ssh-remember" />
-              <span data-i18n="transport.ssh.remember"></span>
-            </label>
-            <p class="hint" data-i18n="transport.ssh.remember.help"></p>
+            <div class="field-note">
+              <label class="switch">
+                <input type="checkbox" id="ssh-remember" aria-describedby="ssh-remember-help" />
+                <span data-i18n="transport.ssh.remember"></span>
+              </label>
+              <p class="hint" id="ssh-remember-help" data-i18n="transport.ssh.remember.help"></p>
+            </div>
             <button id="ssh-connect" class="btn btn-primary" data-i18n="transport.connect"></button>
           </div>
 
@@ -141,23 +153,32 @@
         </div>
 
         <div class="card card-actions">
-          <label class="switch">
-            <input type="checkbox" id="reboot" checked />
-            <span data-i18n="option.reboot"></span>
-          </label>
-          <p class="hint" data-i18n="option.reboot.help"></p>
+          <!-- Two options, then the commit action. Each option owns its own
+               note rather than sitting beside it as a sibling: the reboot
+               help is a visible line because that option ships checked and
+               changes what the modem does afterwards, while skip-packages is
+               an advanced opt-in whose help is on demand. -->
+          <div class="options">
+            <div class="field-note">
+              <label class="switch">
+                <input type="checkbox" id="reboot" aria-describedby="reboot-help" checked />
+                <span data-i18n="option.reboot"></span>
+              </label>
+              <p class="hint" id="reboot-help" data-i18n="option.reboot.help"></p>
+            </div>
 
-          <div class="switch-row">
-            <label class="switch">
-              <input type="checkbox" id="skip-packages" />
-              <span data-i18n="option.skip_packages"></span>
-            </label>
-            <span class="tooltip">
-              <button type="button" class="tooltip-trigger" aria-describedby="skip-packages-tip" data-i18n-aria="option.skip_packages.help">
-                <svg class="glyph" aria-hidden="true"><use href="#i-help" /></svg>
-              </button>
-              <span class="tooltip-bubble" role="tooltip" id="skip-packages-tip" data-i18n="option.skip_packages.help"></span>
-            </span>
+            <div class="switch-row">
+              <label class="switch">
+                <input type="checkbox" id="skip-packages" />
+                <span data-i18n="option.skip_packages"></span>
+              </label>
+              <span class="tooltip">
+                <button type="button" class="tooltip-trigger" aria-describedby="skip-packages-tip" data-i18n-aria="option.skip_packages.help">
+                  <svg class="glyph" aria-hidden="true"><use href="#i-help" /></svg>
+                </button>
+                <span class="tooltip-bubble" role="tooltip" id="skip-packages-tip" data-i18n="option.skip_packages.help"></span>
+              </span>
+            </div>
           </div>
 
           <div class="actions">
