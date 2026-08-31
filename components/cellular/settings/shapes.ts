@@ -69,23 +69,45 @@ export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-6 p-2";
 /**
  * A write column beside the read-only workbench that feeds it.
  *
- * WHY THIS IS NOT `CARD_CELL` AND NOT THE RETIRED `PAGE_GRID`. The old
- * `PAGE_GRID` was a 1.35fr / 1fr grid inherited from `/cellular/settings`,
- * justified in its own JSDoc by a right column ("AMBR + modem reports") that no
- * longer exists anywhere, and it left `align-items: stretch` on so the right
- * card rose to match the left. That is a split by SYMMETRY, and DESIGN.md >
- * Layout names it directly: a height lock between cards with unrelated content
- * lengths strands dead space in whichever has less to say, and which one that is
- * flips with the data. Here the left column holds TWO stacked cards and the
- * right holds one, so the lock was pinning one card to the sum of two others.
+ * The two columns sit side by side for a functional reason rather than a
+ * decorative one: the workbench generates an identifier the user then types into
+ * the write field, so both have to be on screen at once.
  *
- * The two columns are still side by side, and that part is functional rather
- * than decorative: the workbench generates an identifier the user then types
- * into the write field, so both have to be on screen at once. `items-start` is
- * what makes them peers in position without being peers in height.
+ * -----------------------------------------------------------------------------
+ * THE ROW TEMPLATE IS THE FIX. `items-start` WAS NOT.
+ * -----------------------------------------------------------------------------
+ * This grid is two rows: the left column stacks the two write cards one per row
+ * and the workbench spans both. With both tracks left `auto`, a spanning item's
+ * height is distributed ACROSS the tracks it spans — so a workbench taller than
+ * the two write cards combined pushed the row-2 grid line down and opened a
+ * ~90px void between "Device IMEI" and "Backup IMEI". Nothing in this file
+ * declared that space and no gap value could remove it. Two sibling cards in one
+ * column drifting apart because a THIRD card in the next column got taller is
+ * the antipattern; the distance between them has to be the family's regular
+ * `gap-4` in every state.
+ *
+ * `grid-rows-[auto_1fr]` fixes it at the source. Row 1 sizes to the device card
+ * and nothing else, so the gap below it is exactly the grid gap. Row 2 is the
+ * flexible track, so all of the spanning card's surplus lands there, where the
+ * backup card absorbs it by STRETCHING rather than by being pushed.
+ *
+ * ON THE HEIGHT LOCK. `items-start` is gone by explicit request — the two
+ * columns now match. A height lock between cards is normally a split by
+ * SYMMETRY, which DESIGN.md > Layout names as a defect, and what makes it safe
+ * HERE is arithmetic rather than taste: with the workbench's redundant prefix
+ * row retired and its check field collapsed from two rows to one input group,
+ * the columns land within a few tens of pixels of each other at rest. The lock
+ * closes a rounding error; it is not pinning a static reference card to a live
+ * telemetry one. The workbench spends its residual slack on purpose — see
+ * `CARD_BODY_FILL` — rather than trailing it as a void. If a future row pushes
+ * either column materially past the other, revisit this rather than letting a
+ * card grow a hole.
+ *
+ * The template is scoped to `@4xl/main` alongside the spans it serves. Stacked,
+ * the three cards are three auto rows and there is nothing to distribute.
  */
 export const WORKBENCH_SPLIT =
-  "grid grid-cols-1 items-start gap-4 @4xl/main:grid-cols-[1.35fr_1fr]";
+  "grid grid-cols-1 gap-4 @4xl/main:grid-cols-[1.35fr_1fr] @4xl/main:grid-rows-[auto_1fr]";
 
 /**
  * Wraps a grid cell so the stretched row height reaches the `Card` inside it.
@@ -94,6 +116,26 @@ export const WORKBENCH_SPLIT =
  * are explicit".
  */
 export const CARD_CELL = "h-full *:data-[slot=card]:h-full";
+
+/**
+ * The body of a card that is height-locked to a taller sibling, plus the anchor
+ * that gives its residual slack somewhere honest to go.
+ *
+ * A stretched card grows at the BOTTOM, so by default a lock hands the shorter
+ * card a hole under its last element. `Card` is already `flex flex-col`, so
+ * `BODY` (on `CardContent`) claims that growth, and `TAIL` pushes the card's
+ * standing footnote to the bottom edge — the one element on this surface that
+ * belongs there anyway, because a card-level caveat is a property of the card
+ * rather than of the block above it. The slack becomes the space between the
+ * work and its caveat instead of dead canvas below both.
+ *
+ * Only apply `TAIL` to a genuine card-level footnote. On any other element it
+ * is a hole with a paragraph pushed under it.
+ */
+export const CARD_BODY_FILL = {
+  BODY: "flex-1",
+  TAIL: "mt-auto",
+} as const;
 
 /** A card on this surface. Peer role — no hero anchor here. */
 export const CARD_SHELL =
@@ -893,9 +935,19 @@ export const segmentedBreakpoint = (
   step: "lg" | "xl" | "2xl" | "5xl" = "2xl",
 ) => SEGMENTED_BREAKPOINTS[step];
 
+/**
+ * The 42px box every control on this surface wears, and the type it speaks in.
+ *
+ * MODULE-PRIVATE, and split out for one reason: `CHECK_GROUP` below needs the
+ * same box WITHOUT the input's own padding, and the same type INSIDE a
+ * transparent child. Restating either would put a second copy of the surface's
+ * control height in the one file whose whole job is that there is only one.
+ */
+const CONTROL_BOX = "h-[2.625rem] rounded-pill border-0 bg-surface-container-high";
+const CONTROL_TEXT = "text-[0.84375rem] font-medium";
+
 /** The dropdown trigger for rows that stay a Select at every width. */
-export const SELECT_TRIGGER =
-  "h-[2.625rem] w-full rounded-pill border-0 bg-surface-container-high px-4 text-[0.84375rem] font-medium @2xl/card:w-auto";
+export const SELECT_TRIGGER = `${CONTROL_BOX} ${CONTROL_TEXT} w-full px-4 @2xl/card:w-auto`;
 
 /**
  * A free-text field on this surface, as a RAW `<input>` rather than
@@ -928,13 +980,24 @@ export const SELECT_TRIGGER =
  * `imei-settings-card.tsx` reaches for. An exported half-a-field invites a
  * fourth local variant of exactly the drift documented above.
  */
-const FIELD_INPUT = [
+/**
+ * The VOICE half: mono, tracked, tabular, with the placeholder dropping back to
+ * the interface voice. Shared with `CHECK_GROUP.INPUT`, where the ring half
+ * below moves to the group shell instead of living on the input.
+ */
+const FIELD_VOICE = [
   "font-mono tracking-[0.06em] tabular-nums",
   "placeholder:font-sans placeholder:tracking-normal placeholder:text-on-surface-variant",
+].join(" ");
+
+/** The STATE half: focus ring, invalid ring, disabled. Rides whatever is the box. */
+const FIELD_STATE = [
   "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
   "aria-invalid:ring-[3px] aria-invalid:ring-destructive/40",
   "disabled:cursor-not-allowed disabled:opacity-50",
 ].join(" ");
+
+const FIELD_INPUT = `${FIELD_VOICE} ${FIELD_STATE}`;
 
 /** A complete text field. Compose with a width and nothing else. */
 export const FIELD_SHELL = `${SELECT_TRIGGER} ${FIELD_INPUT}`;
@@ -964,6 +1027,95 @@ export const FIELD_CLUSTER =
  */
 export const FIELD_COUNTER =
   "text-on-surface-variant flex-none text-[0.78125rem] tabular-nums";
+
+/**
+ * An identifier field whose actions ride INSIDE it — one row, one box.
+ *
+ * WHERE IT IS USED. The workbench's "Check a number" field. Copy and "Look up
+ * online" used to sit on a second row underneath it, and that row never earned
+ * its own line: neither action is a decision, both operate on the value in the
+ * field above them, and stacked they read as a toolbar for the whole section
+ * rather than as two things you can do to this number. Folded in, the field
+ * states its own affordances and the section loses a row it was only spending on
+ * furniture. Actions bracket the value: the outbound link leads, the number is
+ * the content, copy closes.
+ *
+ * WHY NOT `components/ui/input-group.tsx`. The stock primitive is a hairline
+ * `border` over `rounded-md` with `dark:bg-input/30` and `text-muted-foreground`
+ * — a stroke where this system uses a fill (The No-Hairline-On-Fill Rule), the
+ * legacy `--radius` chain where this system uses the role scale, and precisely
+ * the `dark:`-scoped fill that `FIELD_VOICE`'s own note documents as surviving
+ * an unprefixed override through tailwind-merge. Overriding it back would mean
+ * restating every one of this file's numbers as a `dark:` variant. The group is
+ * therefore composed from `CONTROL_BOX` like every other control here, so it is
+ * the SAME 42px pill as the fields above it rather than a lookalike.
+ *
+ * THE RING MOVED TO THE SHELL. The input inside is transparent and unringed —
+ * a ring drawn around a child that fills only the middle of the box would trace
+ * a rectangle through the middle of a pill. `has-[input:focus-visible]` puts the
+ * ring on the group, so the whole control lights up as one object, which is what
+ * it is to the user.
+ *
+ * THE LEAD LABEL IS CONTAINER-GATED, NOT DROPPED. Below `@md/card` — which is
+ * every phone, and also the workbench's own column at the `@4xl/main` step where
+ * the split first turns on — a 15-digit mono identifier plus a labelled pill
+ * plus a copy target will not fit on one line, and the field would scroll its
+ * own value out of sight. The label hides there and the glyph carries the action
+ * (the `aria-label` is unconditional, so the accessible name never changes).
+ * `@md/card` is the step this card already uses for `BREAKDOWN.GRID` — see
+ * DESIGN.md > The Grid-Step-Costing Rule: costed against the COLUMN, not the page.
+ */
+export const CHECK_GROUP = {
+  ROOT: [
+    CONTROL_BOX,
+    "flex w-full items-center gap-1 pr-3 pl-1.5",
+    "has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50",
+  ].join(" "),
+  /** The value itself: transparent, unringed, and the only thing that grows. */
+  INPUT: [
+    CONTROL_TEXT,
+    FIELD_VOICE,
+    "min-w-0 flex-1 bg-transparent px-2.5 outline-none",
+    "disabled:cursor-not-allowed disabled:opacity-50",
+  ].join(" "),
+  /**
+   * The leading action. 30px inside a 42px shell, so it insets by the group's
+   * own 6px rather than filling it edge to edge.
+   *
+   * BRAND INK, AND `-on-surface` IS THE SLOT. `--primary` is the only hue in
+   * this system that acts and this is the one control on the card that leaves
+   * the app, so the ink is brand by construction — but `--primary` is the
+   * STRONG FILL, and tinted text sitting directly on a container is the
+   * `--{role}-on-surface` slot. Measured on the shipped tokens: `text-primary`
+   * on this group's `surface-container-high` fill is 4.18:1 in dark mode, under
+   * the 4.5:1 floor; `text-primary-on-surface` clears it. Picking the wrong one
+   * of the five is what DESIGN.md calls the most common contrast failure in this
+   * system, and it bites in dark mode where `--primary` is the lighter value and
+   * therefore looks fine. Same reasoning, same fix as `INLINE_ERROR`.
+   *
+   * The `hover:` restatement is deliberate — `ghost` ships
+   * `hover:text-accent-foreground`, so without it the ink would change colour
+   * under the cursor for no reason. Never hand-build a tonal hover on `ghost`;
+   * see the note in `components/ui/button.tsx`.
+   */
+  LEAD: [
+    "relative h-[1.875rem] flex-none gap-1.5 rounded-pill px-3",
+    "text-[0.78125rem] font-semibold",
+    "text-primary-on-surface hover:text-primary-on-surface",
+    // The 44px coarse-pointer target, bought by an inset overlay rather than by
+    // a taller pill — 30px is what fits inside a 42px shell, and `ICON_ACTION`'s
+    // `size-11` bump would burst the group it lives in. Same technique as
+    // `READOUT_ICON_ACTION`, with one difference that matters: the overlay grows
+    // DOWN and UP into the shell's own dead space and LEFT into its 6px padding,
+    // never right. A symmetric inset would overhang the input beside it, and the
+    // user would tab-free click "look this up" while aiming at the field.
+    "before:absolute before:-inset-y-[7px] before:-left-1.5 before:right-0 before:content-['']",
+  ].join(" "),
+  /** The glyph inside `LEAD`, sized to the 12.5px label beside it. */
+  LEAD_GLYPH: 15,
+  /** Hides the lead's label where the row cannot afford it. */
+  LEAD_LABEL: "hidden @md/card:inline",
+} as const;
 
 /**
  * Inline validation copy on a plain card.

@@ -207,7 +207,7 @@ Three full-width bands under the page header. **Live state → what you can chan
 - **Band A was always outside it,** on purpose. A profile owning the APN does not make the network's answer less true, and dimming live truth to 60 % opacity would be the page hiding the one thing still worth reading.
 - **There is no two-column grid.** `PAGE_GRID`'s `1.35fr / 1fr` was inherited from `/cellular/settings`, and its JSDoc justifies the ratio by a right column ("AMBR + modem reports") that no longer exists anywhere. These cards have unrelated clocks, unrelated weights and different gating — [DESIGN.md](../../DESIGN.md) > Layout: *split a page by cadence, not by symmetry*.
 
-> ℹ️ NOTE: **`PAGE_GRID` is gone as of 2026-08-31.** It survived this change only because `imei-settings.tsx` was still consuming it; the IMEI design-language adoption replaced that call site with `WORKBENCH_SPLIT`, which carries `items-start` and a justification that names the columns it actually has. With its last consumer gone, `PAGE_GRID` was deleted rather than left exported — same disposal as `PAGE_TITLE` / `PAGE_DESCRIPTION` above. `CARD_CELL` stays: it still has real consumers on `/cellular/settings` itself, where the two cards genuinely are peers.
+> ℹ️ NOTE: **`PAGE_GRID` is gone as of 2026-08-31.** It survived this change only because `imei-settings.tsx` was still consuming it; the IMEI design-language adoption replaced that call site with `WORKBENCH_SPLIT`, whose justification names the columns it actually has. (It shipped with `items-start`; the 2026-08-31 layout pass replaced that with an explicit `grid-rows-[auto_1fr]` row template — see *The row template, and why `items-start` was not the fix* below.) With its last consumer gone, `PAGE_GRID` was deleted rather than left exported — same disposal as `PAGE_TITLE` / `PAGE_DESCRIPTION` above. `CARD_CELL` stays: it still has real consumers on `/cellular/settings` itself, where the two cards genuinely are peers.
 
 A resting **"Re-read from modem"** footer (`readout.reread`) calls `refresh()` + `refreshMbn()`. Before this change `refresh` was wired but reachable **only** from inside the error banner — the affordance existed exactly when the page had already failed. It is hidden while `isLoading || isSaving || isReconciling`, so it cannot contradict the card's own save bar.
 
@@ -393,7 +393,7 @@ The route was the last in the family still outside the finalized language. What 
 | One stable `<Card>` per card, body swapped under `AnimatePresence initial={false}` | Both write cards `return`ed a separate `<Card>` per state, remounting an identical header the moment the read landed. Same fix, same pattern as Network Priority and Blocked Networks |
 | `CARD_TITLE` on all three titles | All three were unsized `CardTitle`, inheriting 16 px — the anti-pattern flagged but left out of scope by `96f32aa`. This closes it for `imei-settings/` |
 | `REVEAL` on the backup-identifier row | The row the toggle *creates* used to blink in. It now animates `grid-template-rows` 0fr→1fr, and is `inert` + `aria-hidden` while closed — it was neither, so a keyboard user could tab into an invisible field |
-| `WORKBENCH_SPLIT` replaces `PAGE_GRID` + `CARD_CELL` | The height lock pinned the workbench card to the **combined** height of the two write cards beside it. Split by symmetry; see the note under *There is no two-column grid* above |
+| `WORKBENCH_SPLIT` replaces `PAGE_GRID` + `CARD_CELL` | The height lock pinned the workbench card to the **combined** height of the two write cards beside it. Split by symmetry; see the note under *There is no two-column grid* above. Superseded in part on 2026-08-31 — the lock is back by request, but only after the row template made it cheap |
 | `FIELD_CLUSTER`, `FIELD_COUNTER`, `ICON_ACTION`, `READOUT_ICON_ACTION`, `SECTION_LABEL`, `BREAKDOWN` promoted to `shapes.ts` | Seven call-site strings, several written out twice across the two write cards. `BREAKDOWN` had also been a module-local constant in `imei-tools-card.tsx` |
 
 > ⚠️ WARNING: **`duration-[--duration-quick]` is invalid CSS, not an off-scale duration.** Tailwind v4 compiles the bare `[--custom-property]` arbitrary value to the *literal* `transition-duration: --duration-quick`; the browser drops the declaration, so the transition ships as **no transition at all**. Six sites in this family carried it (`shapes.ts` ×5, `imei-settings-card.tsx` ×1) and all are now `duration-[var(--duration-*)]`. Verified by compiling the class with `bunx @tailwindcss/cli` and by grepping `out/_next/static/chunks/*.css` before and after. **Two sites survive in `components/local-network/ethernet-card.tsx:155,163`** — a different route family, deliberately not swept.
@@ -401,6 +401,46 @@ The route was the last in the family still outside the finalized language. What 
 > ⚠️ WARNING: **`BREAKDOWN.GRID` steps at `@md/card`, not `@2xl/card`, and that is load-bearing.** The workbench card lives in the *narrow* half of `WORKBENCH_SPLIT` — roughly 40 % of the content column — so a 672 px step never fired at any realistic window width and the three cells shipped stacked while looking deliberate. Costed against the column it actually lives in, per [DESIGN.md](../../DESIGN.md) > The Grid-Step-Costing Rule.
 
 > ℹ️ NOTE: **`REVEAL` carries its own reduced-motion guard, and new work here should copy that, not `RATE_CEILING`.** A CSS grid transition is neither transform nor opacity, so `<MotionConfig reducedMotion="user">` cannot see it. `RATE_CEILING.PANEL_MOTION` plugs the hole by making every consumer call `useReducedMotion()` and drop the class — which works and is one `cn()` away from being forgotten. `REVEAL.ROOT` instead prefixes its transition with `motion-safe:`, the `@custom-variant` globals.css redefines to honour the sidebar's Animations preference in **both** directions. The consumer cannot omit it.
+
+### The 2026-08-31 layout pass
+
+Four changes, one root cause between the first two.
+
+#### The row template, and why `items-start` was not the fix
+
+`WORKBENCH_SPLIT` is a two-row grid: the left column stacks the two write cards one per row, and the workbench spans both. With both tracks left `auto`, **a spanning item's height is distributed across the tracks it spans** — so a workbench taller than the two write cards combined pushed the row-2 grid line down and opened roughly 90 px of blank between "Device IMEI" and "Backup IMEI". Nothing in `shapes.ts` declared that space and no gap value could remove it.
+
+> ⚠️ WARNING: **Two sibling cards drifting apart because a THIRD card in the next column got taller is the defect.** The distance between them has to be the family's regular `gap-4` in every state. `items-start` does not fix it: alignment governs how an item sits *inside* its track, and the problem was the track sizing.
+
+`grid-rows-[auto_1fr]` fixes it at the source. Row 1 sizes to the device card and nothing else, so the gap below it is exactly the grid gap; row 2 is the flexible track, so all of the spanning card's surplus lands there and the backup card absorbs it by **stretching** rather than by being pushed. The template is scoped to `@4xl/main` alongside the spans it serves — stacked, the three cards are three auto rows and there is nothing to distribute.
+
+#### The height lock is back, and `CARD_BODY_FILL` is what pays for it
+
+`items-start` is gone by explicit request: the two columns now match. That is normally a split by **symmetry**, which [DESIGN.md](../../DESIGN.md) > Layout names as a defect, and what makes it survivable here is arithmetic rather than taste — measured at a 1500 px viewport, the left column runs 641 px against the workbench's 640 px.
+
+> ℹ️ NOTE: **The lock's cost is real, and it moved rather than vanished.** The two content changes below shorten the workbench by roughly 130 px, so the shorter column is now the right one and it carries ~90 px of slack with a number in the check field (~135 px with the field empty). `CARD_BODY_FILL` spends that deliberately: `BODY` on `CardContent` claims the growth (`Card` is already `flex flex-col`) and `TAIL` anchors the card's standing footnote to the bottom edge, so the slack becomes the space between the work and its caveat instead of dead canvas under both. It is **one** elastic zone on purpose — distributing it across the card's own gaps would make one card's internal rhythm change with the height of a card in the next column, which is off the fixed spacing scale.
+>
+> If a future row pushes either column materially past the other, revisit the lock rather than letting a card grow a hole.
+
+#### The prefix row is a disclosure, not a standing field
+
+Under a preset, "Prefix" was a **read-only echo** of the TAC the Select above it had just resolved — the same eight digits restated as a field, directly above a breakdown that already names them as "TAC" and "Serial". Three renderings of one number, and the only one the user could act on was the Select.
+
+The row now reveals only for the **Custom code** option, which is the one case where it is the sole input rather than a repeat. Deleting it outright was not available: without it `isValidPrefix` can never become true under Custom, so Generate would sit permanently disabled and Custom would be a dead option. It uses the same `REVEAL` clock and the same `inert` + `aria-hidden` pair as the backup-identifier row, and **the group divider travels inside the clip** so the collapsed group has no dangling hairline.
+
+#### "Check a number" is one row: `CHECK_GROUP`
+
+Copy and "Look up online" sat on a second row under the field. Neither is a decision, both operate on the value above them, and stacked they read as a toolbar for the whole section rather than as two things you can do to *this* number. They are now addons inside the field itself — the outbound link leads, the number is the content, copy closes.
+
+> ⚠️ WARNING: **Do not reach for `components/ui/input-group.tsx` on this surface.** The stock primitive is a hairline `border` over `rounded-md` with `dark:bg-input/30` and `text-muted-foreground`: a stroke where this system uses a fill (The No-Hairline-On-Fill Rule), the legacy `--radius` chain where this system uses the role scale, and precisely the `dark:`-scoped fill that `FIELD_VOICE`'s own note documents as surviving an unprefixed override through tailwind-merge. `CHECK_GROUP` is composed from `CONTROL_BOX` instead, so it is the **same** 42 px pill as the fields above it rather than a lookalike.
+
+Three things about it are load-bearing:
+
+- **The ring is on the shell, not the input.** `has-[input:focus-visible]` lights the whole group. A ring drawn around a transparent child that fills only the middle of the box would trace a rectangle through the middle of a pill.
+- **The lead ink is `text-primary-on-surface`, not `text-primary`.** Measured on the shipped tokens: `text-primary` on this group's `surface-container-high` fill is **4.18:1** in dark mode, under the AA floor; `primary-on-surface` reads 5.07 dark / 4.54 light. `--primary` is the strong fill and belongs under `--primary-foreground` — same slot mistake, same fix as `INLINE_ERROR`.
+- **The lead's 44 px target grows down, up and left — never right.** A symmetric `::before` inset would overhang the input beside it, and a user aiming at the field would open somebody else's website instead. Verified with `elementFromPoint` at all four edges.
+
+The lead's **label** hides below `@md/card` and the glyph carries the action there; the `aria-label` is unconditional, so the accessible name never changes. That step is not cosmetic — the workbench's own column at the `@4xl/main` breakpoint is ~325 px of content, and a 15-digit mono identifier plus a labelled pill plus a copy target does not fit on one line. Measured at a 390 px viewport: the input's `scrollWidth === clientWidth`, so the value never scrolls out of its own field.
 
 ### Luhn validation now gates both write paths
 

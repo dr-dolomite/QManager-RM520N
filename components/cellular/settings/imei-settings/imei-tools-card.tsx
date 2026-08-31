@@ -41,16 +41,18 @@ import SettingRow from "../setting-row";
 import {
   BADGE_GLYPH_SIZE,
   BREAKDOWN,
+  CARD_BODY_FILL,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
+  CHECK_GROUP,
   FIELD_SHELL,
-  ICON_ACTION,
-  ICON_ACTION_GLYPH,
   INLINE_ERROR,
   PILL_ACTION,
-  PILL_ACTION_GLYPH,
+  READOUT_ICON_ACTION,
+  READOUT_ICON_GLYPH,
   READOUT_ROW,
+  REVEAL,
   ROW_GROUP,
   SECTION_DIVIDER,
   SECTION_LABEL,
@@ -133,7 +135,9 @@ const IMEIToolsCard = () => {
         <CardDescription>{t(`${K}.description`)}</CardDescription>
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, "flex flex-col gap-5")}>
+      <CardContent
+        className={cn(CARD_PAD, CARD_BODY_FILL.BODY, "flex flex-col gap-5")}
+      >
         {/* --- Generate ------------------------------------------------------ */}
         <div className="flex flex-col gap-3">
           <div className={ROW_GROUP.ROOT}>
@@ -166,44 +170,58 @@ const IMEIToolsCard = () => {
               }
             />
 
-            <div className={ROW_GROUP.DIVIDER} />
+            {/* THE PREFIX ROW IS A DISCLOSURE, NOT A STANDING FIELD.
+                Under a preset it was a READ-ONLY echo of the TAC the Select
+                above had just resolved — the same eight digits restated as a
+                field, directly above a breakdown that already names them as
+                "TAC" and "Serial". Three renderings of one number, and the only
+                one the user could act on was the Select. So the row is spent
+                where it is the sole input and nowhere else: Custom is the one
+                option that has a prefix to ASK for.
 
-            <SettingRow
-              label={t(`${K}.generate.prefix_label`)}
-              consequence={t(`${K}.generate.prefix_consequence`)}
-              labelId="imei-prefix-label"
-              control={
-                <input
-                  id="imei-prefix-input"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={12}
-                  value={prefix}
-                  // A preset's TAC is a fact, not a draft: it is shown in the
-                  // same field so the user can see what the Select resolved to,
-                  // and only the Custom option makes it editable.
-                  readOnly={!isCustom}
-                  aria-readonly={!isCustom}
-                  onChange={(event) =>
-                    setCustomPrefix(
-                      event.target.value.replace(/\D/g, "").slice(0, 12),
-                    )
+                It arrives rather than blinking in, on the same `REVEAL` clock
+                and with the same `aria-hidden` + `inert` pair the backup card
+                uses — a clipped row is still in the DOM and a keyboard user must
+                not tab into a field they cannot see. The divider travels INSIDE
+                the clip, so the collapsed group has no dangling hairline. */}
+            <div
+              className={cn(REVEAL.ROOT, isCustom ? REVEAL.OPEN : REVEAL.CLOSED)}
+            >
+              <div
+                className={REVEAL.CLIP}
+                aria-hidden={isCustom ? undefined : true}
+                inert={!isCustom}
+              >
+                <div className={ROW_GROUP.DIVIDER} />
+                <SettingRow
+                  label={t(`${K}.generate.prefix_label`)}
+                  consequence={t(`${K}.generate.prefix_consequence`)}
+                  labelId="imei-prefix-label"
+                  control={
+                    <input
+                      id="imei-prefix-input"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={12}
+                      value={customPrefix}
+                      onChange={(event) =>
+                        setCustomPrefix(
+                          event.target.value.replace(/\D/g, "").slice(0, 12),
+                        )
+                      }
+                      placeholder={t(`${K}.generate.prefix_placeholder`)}
+                      aria-labelledby="imei-prefix-label"
+                      aria-invalid={prefixError}
+                      aria-describedby={
+                        prefixError ? "imei-prefix-error" : undefined
+                      }
+                      className={cn(FIELD_SHELL, "@2xl/card:w-[13rem]")}
+                    />
                   }
-                  placeholder={t(`${K}.generate.prefix_placeholder`)}
-                  aria-labelledby="imei-prefix-label"
-                  aria-invalid={prefixError}
-                  aria-describedby={
-                    prefixError ? "imei-prefix-error" : undefined
-                  }
-                  className={cn(
-                    FIELD_SHELL,
-                    "@2xl/card:w-[13rem]",
-                    !isCustom && "text-on-surface-variant",
-                  )}
                 />
-              }
-            />
+              </div>
+            </div>
           </div>
 
           {prefixError ? (
@@ -243,7 +261,61 @@ const IMEIToolsCard = () => {
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-2.5 @2xl/card:flex-row @2xl/card:items-center">
+          {/* ONE ROW, ONE BOX. The field and the two things you can do to the
+              number inside it are a single control — see `CHECK_GROUP` for why
+              this is composed from the family's own `CONTROL_BOX` rather than
+              from `components/ui/input-group.tsx`, and why the focus ring sits
+              on the shell instead of on the input.
+
+              A REAL ANCHOR for the lookup, not a Button running `window.open`:
+              it navigates to somebody else's website, and a button cannot be
+              opened in a new tab, middle-clicked, copied as a link, or read as a
+              link by assistive tech. `asChild` keeps the pill's own geometry.
+              While there is nothing to look up the anchor would have no
+              destination, so that state renders as a real disabled `button`
+              rather than as a dead `href`. The accessible name is on the
+              control in both states, so it survives the label hiding at narrow
+              container widths. */}
+          <div className={CHECK_GROUP.ROOT}>
+            {isComplete ? (
+              <Button
+                asChild
+                variant="ghost"
+                aria-label={t(`${K}.check.lookup`)}
+                className={CHECK_GROUP.LEAD}
+              >
+                <a
+                  href={`https://www.imei.info/?imei=${candidate}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MaterialSymbol
+                    name="open_in_new"
+                    size={CHECK_GROUP.LEAD_GLYPH}
+                  />
+                  <span className={CHECK_GROUP.LEAD_LABEL}>
+                    {t(`${K}.check.lookup`)}
+                  </span>
+                </a>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled
+                aria-label={t(`${K}.check.lookup`)}
+                className={CHECK_GROUP.LEAD}
+              >
+                <MaterialSymbol
+                  name="open_in_new"
+                  size={CHECK_GROUP.LEAD_GLYPH}
+                />
+                <span className={CHECK_GROUP.LEAD_LABEL}>
+                  {t(`${K}.check.lookup`)}
+                </span>
+              </Button>
+            )}
+
             <input
               id="imei-check-input"
               type="text"
@@ -256,54 +328,24 @@ const IMEIToolsCard = () => {
               }
               placeholder={t(`${K}.check.placeholder`)}
               aria-label={t(`${K}.check.label`)}
-              className={cn(FIELD_SHELL, "@2xl/card:flex-1")}
+              className={CHECK_GROUP.INPUT}
             />
 
-            <div className="flex flex-none items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleCopy}
-                disabled={!candidate}
-                aria-label={t(`${K}.actions.copy`)}
-                className={ICON_ACTION}
-              >
-                <MaterialSymbol name="content_copy" size={ICON_ACTION_GLYPH} />
-              </Button>
-              {/* A REAL ANCHOR, not a Button running `window.open`. This
-                  navigates to somebody else's website, and a button cannot be
-                  opened in a new tab, middle-clicked, copied as a link, or read
-                  as a link by assistive tech. `asChild` keeps the ghost pill's
-                  own geometry. While there is nothing to look up the anchor
-                  would have no destination, so the disabled state renders as a
-                  real disabled `button` rather than as a dead `href`. */}
-              {isComplete ? (
-                <Button asChild variant="ghost" className={PILL_ACTION}>
-                  <a
-                    href={`https://www.imei.info/?imei=${candidate}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <MaterialSymbol
-                      name="open_in_new"
-                      size={PILL_ACTION_GLYPH}
-                    />
-                    {t(`${K}.check.lookup`)}
-                  </a>
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled
-                  className={PILL_ACTION}
-                >
-                  <MaterialSymbol name="open_in_new" size={PILL_ACTION_GLYPH} />
-                  {t(`${K}.check.lookup`)}
-                </Button>
+            {/* The 24px copy target that rides inside a pill — the same control
+                the device card's readout uses, with its 44px hit area bought by
+                an inset overlay rather than by a bigger button. */}
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!candidate}
+              aria-label={t(`${K}.actions.copy`)}
+              className={cn(
+                READOUT_ICON_ACTION,
+                "disabled:pointer-events-none disabled:opacity-50",
               )}
-            </div>
+            >
+              <MaterialSymbol name="content_copy" size={READOUT_ICON_GLYPH} />
+            </button>
           </div>
 
           {/* The breakdown and the line that stands in for it are ONE slot, so
@@ -359,7 +401,14 @@ const IMEIToolsCard = () => {
           </AnimatePresence>
         </div>
 
-        <p className={SETTING_ROW.CONSEQUENCE}>{t(`${K}.footnote`)}</p>
+        {/* The card-level caveat, anchored to the bottom edge. This card is
+            height-matched to the two write cards beside it and is normally the
+            shorter of the two columns, so `CARD_BODY_FILL` spends that slack
+            here — between the work and its caveat — rather than trailing it
+            under the footnote as dead canvas. */}
+        <p className={cn(SETTING_ROW.CONSEQUENCE, CARD_BODY_FILL.TAIL)}>
+          {t(`${K}.footnote`)}
+        </p>
       </CardContent>
     </Card>
   );

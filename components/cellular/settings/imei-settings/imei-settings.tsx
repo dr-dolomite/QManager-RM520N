@@ -8,8 +8,9 @@ import CellularPageHeader from "@/components/cellular/page-header";
 import { Banner, bannerActionVariants } from "@/components/ui/banner";
 import { useImeiSettings } from "@/hooks/use-imei-settings";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
-import { PAGE_ROOT, WORKBENCH_SPLIT } from "../shapes";
+import { CARD_CELL, PAGE_ROOT, WORKBENCH_SPLIT } from "../shapes";
 import BackupIMEICard from "./backup-imei-card";
 import IMEISettingsCard from "./imei-settings-card";
 import IMEIToolsCard from "./imei-tools-card";
@@ -197,8 +198,15 @@ const IMEISettings = () => {
         animate="visible"
       >
         {/* Left column: the two write surfaces, stacked. They cascade as two
-            cards rather than as one column, because that is what they are. */}
-        <motion.div variants={staggerItem}>
+            cards rather than as one column, because that is what they are.
+
+            Every cell carries `CARD_CELL` because a grid cell stretches by
+            default but a block child does not inherit that as its own height —
+            DESIGN.md > Layout, "Equal heights are explicit". On the device card,
+            which owns the template's `auto` row alone, that resolves to its own
+            content height; it is here so the row template stays the ONE place
+            that decides which card absorbs slack. */}
+        <motion.div variants={staggerItem} className={CARD_CELL}>
           <IMEISettingsCard
             anchorId={DEVICE_CARD_ID}
             currentImei={currentImei}
@@ -210,7 +218,10 @@ const IMEISettings = () => {
           />
         </motion.div>
 
-        <motion.div variants={staggerItem} className="@4xl/main:row-start-2">
+        <motion.div
+          variants={staggerItem}
+          className={cn(CARD_CELL, "@4xl/main:row-start-2")}
+        >
           <BackupIMEICard
             backupEnabled={backupEnabled}
             backupImei={backupImei}
@@ -220,12 +231,19 @@ const IMEISettings = () => {
           />
         </motion.div>
 
-        {/* Right column: the read-only workbench. Nothing here touches NVM, and
-            it spans both write rows rather than being locked to their combined
-            height — it stops where its content stops. */}
+        {/* Right column: the read-only workbench. Nothing here touches NVM, so
+            it sits away from the two write surfaces.
+
+            It spans both write rows and is height-matched to them. See
+            `WORKBENCH_SPLIT` for why that lock is safe on this page and what
+            would make it stop being safe; the card spends its own residual slack
+            through `CARD_BODY_FILL` rather than trailing it as a void. */}
         <motion.div
           variants={staggerItem}
-          className="@4xl/main:col-start-2 @4xl/main:row-span-2 @4xl/main:row-start-1"
+          className={cn(
+            CARD_CELL,
+            "@4xl/main:col-start-2 @4xl/main:row-span-2 @4xl/main:row-start-1",
+          )}
         >
           <IMEIToolsCard />
         </motion.div>
