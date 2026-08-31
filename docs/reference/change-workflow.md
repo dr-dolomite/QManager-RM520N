@@ -39,6 +39,14 @@ Poller / CGI / parser harnesses run real fixtures through real code and are red-
 
 Where behaviour cannot be executed, ordering is the *only* defense against a self-agreeing test, which makes Phase 4a more important for installer work, not less.
 
+### A frontend harness's own PROSE compiles to CSS
+
+> ⚠️ **Tailwind v4 scans `scripts/` and `docs/`, so an arbitrary-value class quoted in prose — a comment, a failure message, a doc paragraph — is extracted and compiled into real CSS.** Write such a class with a *placeholder* between the brackets and it emits a declaration whose value is an unparseable custom-property reference. Lightning CSS then aborts the **whole** stylesheet, and every page in `next dev` returns 500 — the app shell, not just the routes under test — while `next build` silently drops the bad rule and exits 0.
+>
+> This happened during the 2026-08-31 `/local-network/` re-author: assertion `[7]`'s failure message warned about exactly the class of bug it was causing (`92781f8`). `next build`, `tsc --noEmit`, `eslint`, `i18n:check` and the harness itself were **all green** on a tree where the product did not render in development. The only thing that surfaced it was loading a page in a browser — the check the Done bar names and no builder had run.
+>
+> **The rule:** in a comment, a failure message, or a doc, describe the correct spelling in *words*. A concrete arbitrary-value class naming a custom property that actually exists is fine — it costs one dead utility and breaks nothing. A placeholder inside the brackets is not.
+
 ### The floor, for work that skips the plan
 
 Lite Path, skip phrases, and opportunistic fixes still owe the weaker version: **prove the harness fails against the pre-fix tree** — `git show HEAD:<file> > scratch/...` and run it there — and say so in the commit body with the failure count. That rules out a vacuous test even though it cannot rule out a test shaped by the code (`d7f30fb`/F13 is the reference example, and stays as written rather than being retrofitted: rewriting it after the fact would hide that history, not repair it).
