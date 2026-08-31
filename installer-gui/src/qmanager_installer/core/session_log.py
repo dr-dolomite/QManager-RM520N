@@ -27,6 +27,8 @@ class SessionLog:
 
 def open_session_log(serial: str, root: Path | None = None) -> SessionLog:
     base = root or (Path(sys.executable).parent if getattr(sys, "frozen", False) else Path.cwd())
+    logs_dir = base / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     safe_serial = "".join(ch for ch in (serial or "unknown") if ch.isalnum() or ch in "-_")
-    return SessionLog(base / f"qmanager-install-{safe_serial}-{stamp}.log")
+    return SessionLog(logs_dir / f"qmanager-install-{safe_serial}-{stamp}.log")
