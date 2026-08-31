@@ -590,12 +590,6 @@
       "cards": {
         "unread": "Belum ada data yang terbaca dari modem, jadi kartu ini belum punya nilai untuk ditampilkan."
       },
-      "status": {
-        "live": "Aktif di jaringan",
-        "not_granted": "APN tersimpan bukan yang sedang dipakai",
-        "not_reported": "Tidak dilaporkan",
-        "carrier_default": "Default operator"
-      },
       "save_connection_notice": "Menyimpan akan melepas dan menyambungkan ulang modem. Data seluler terputus sekitar empat detik — dan jika Anda terhubung lewat port Ethernet modem, halaman ini juga akan terputus lalu menyambung sendiri.",
       "carrier_default": {
         "button": "Gunakan default operator",
@@ -689,8 +683,6 @@
         "granted_label": "Yang jaringan berikan",
         "source_stored": "Dari pengaturan tersimpan",
         "source_negotiated": "Hasil negosiasi dengan jaringan",
-        "matches": "Cocok",
-        "does_not_match": "Tidak cocok",
         "stale": "Pembacaan berhenti",
         "stale_body": "Umpan status modem belum melapor akhir-akhir ini. Nilai di atas mungkin sudah tidak benar.",
         "reread": "Baca ulang dari modem"

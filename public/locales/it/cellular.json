@@ -590,12 +590,6 @@
       "cards": {
         "unread": "Non è stato letto nulla dal modem, quindi questa scheda non ha valori da mostrare."
       },
-      "status": {
-        "live": "Attivo sulla rete",
-        "not_granted": "L'APN salvato non è quello in uso",
-        "not_reported": "Non riportato",
-        "carrier_default": "Predefinito operatore"
-      },
       "save_connection_notice": "Il salvataggio scollega e ricollega il modem. I dati cellulari si interrompono per circa quattro secondi — e se sei collegato tramite la porta Ethernet del modem, anche questa pagina cadrà e si riconnetterà da sola.",
       "carrier_default": {
         "button": "Usa predefinito operatore",
@@ -689,8 +683,6 @@
         "granted_label": "La rete ha concesso",
         "source_stored": "Dalle impostazioni salvate",
         "source_negotiated": "Negoziato con la rete",
-        "matches": "Corrisponde",
-        "does_not_match": "Non corrisponde",
         "stale": "Letture ferme",
         "stale_body": "Il feed di stato del modem non riporta da un po'. I valori sopra potrebbero non essere più veri.",
         "reread": "Rileggi dal modem"

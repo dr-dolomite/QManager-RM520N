@@ -590,12 +590,6 @@
       "cards": {
         "unread": "尚未從數據機讀取到任何資料，因此此卡片沒有可顯示的值。"
       },
-      "status": {
-        "live": "已在網路上生效",
-        "not_granted": "已儲存的 APN 不是目前使用的",
-        "not_reported": "未回報",
-        "carrier_default": "電信商預設"
-      },
       "save_connection_notice": "儲存會讓數據機中斷並重新附著網路。行動數據會中斷約四秒——如果你是透過數據機的乙太網路埠連線的，此頁面也會隨之中斷，並會自動重新連線。",
       "carrier_default": {
         "button": "使用電信商預設",
@@ -689,8 +683,6 @@
         "granted_label": "網路授予的",
         "source_stored": "來自已儲存的設定",
         "source_negotiated": "與網路協商的結果",
-        "matches": "一致",
-        "does_not_match": "不一致",
         "stale": "讀數已停止更新",
         "stale_body": "數據機狀態來源近期沒有更新。上方的值可能已經不再準確。",
         "reread": "從數據機重新讀取"

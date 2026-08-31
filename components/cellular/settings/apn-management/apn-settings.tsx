@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import CellularPageHeader from "@/components/cellular/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,8 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import type { MaterialSymbolName } from "@/components/ui/material-symbol";
-import type { BadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TonalBanner } from "@/components/ui/tonal-banner";
 import { useApnSettings } from "@/hooks/use-apn-settings";
@@ -30,7 +27,6 @@ import type { ModemStatus } from "@/types/modem-status";
 import ApnSettingsCard from "./apn-settings-card";
 import MBNCard from "./mbn-card";
 import {
-  BADGE_GLYPH_SIZE,
   CARD_PAD,
   CARD_SHELL,
   PAGE_ROOT,
@@ -131,118 +127,6 @@ const K = "core_settings.apn";
 const EM_DASH = "—";
 
 // -----------------------------------------------------------------------------
-// The page-header status chip
-// -----------------------------------------------------------------------------
-// IT USED TO COMPARE CONFIGURATION AGAINST CONFIGURATION. The incumbent read
-// `cids[].apn` and called it the live value:
-//
-//     const liveCtx = cids.find((c) => c.cid === activeCid);
-//     const matches = storedApn === (liveCtx?.apn ?? "");
-//
-// `cids[]` is not a reading. `apn.sh:407` derives it from the `AT+CGDCONT?`
-// loop with no extra AT calls, and `AT+CGDCONT?` is the CONFIGURED view — it
-// echoes back what was last requested, "so it matches even when the bearer is
-// stale" (wan-profile-management.md > "Verification reads AT+CGCONTRDP, never
-// AT+CGDCONT?"). Comparing against it is self-concealing: it was already the
-// root cause of the profile worker's silent-failure bug on the backend, and the
-// one chip on this page claiming to report "is it live" was running it again —
-// while rendering a green `success` "Active" over the top.
-//
-// It now reads `status.network.apn`, the poller's `+CGCONTRDP`-derived
-// NEGOTIATED value: what the network actually granted, from a source that
-// cannot echo the request back. No backend change was needed; this page already
-// fetched it for the granted band.
-//
-// FOUR STATES, FOUR GLYPHS. `success-container` and `warning-container` measure
-// 1.03:1 apart and are the same surface under deuteranopia, so the glyph is
-// what actually separates the verdicts — they may never share one.
-//
-// The comp also drew a "Read from modem 6 s ago" freshness chip here. It is
-// gone by product decision: this page's writable half is not polled, so the
-// number would have been counting since a fetch the user cannot see, and a
-// freshness claim nobody can act on is noise wearing precision's clothes.
-// STALENESS IS A DIFFERENT THING and it is here: a boolean the poller already
-// publishes, which says the readings below are FROZEN. It outranks the
-// live/drift verdict because a green "Live on the network" drawn from frozen
-// readings is exactly the lie this chip was rewritten to stop telling.
-
-type StatusChip = { variant: BadgeVariant; glyph: MaterialSymbolName; label: string };
-
-function useApnStatusChip(
-  active: number | null,
-  status: ModemStatus | null,
-  storedApn: string,
-  isSaving: boolean,
-  isReconciling: boolean,
-  isStale: boolean,
-): StatusChip | null {
-  const { t } = useTranslation("cellular");
-
-  if (active === null) return null;
-
-  // Carrier default is a SETTINGS fact, not a poller one, so it is stated
-  // before staleness can suppress anything — a frozen poller says nothing
-  // about whether a custom APN is configured.
-  if (active === 0) {
-    return {
-      variant: "muted",
-      glyph: "do_not_disturb_on",
-      label: t(`${K}.status.carrier_default`),
-    };
-  }
-
-  if (isStale) {
-    return {
-      variant: "warning",
-      glyph: "schedule",
-      label: t(`${K}.readout.stale`),
-    };
-  }
-
-  // The negotiated APN. An empty string from the poller is "we do not know",
-  // never "none" — `||` (not `??`) collapses it so an unread value reports
-  // itself as unread instead of asserting a mismatch nobody measured.
-  const grantedApn = status?.network?.apn?.trim() || null;
-
-  if (grantedApn === null) {
-    return {
-      variant: "muted",
-      glyph: "help",
-      label: t(`${K}.status.not_reported`),
-    };
-  }
-
-  // Case-folded, matching the backend's own comparison: APNs are DNS-style
-  // labels and case-insensitive per 3GPP, and a live device negotiated
-  // `INTERNET.GLOBE.COM.PH` for a stored `internet`.
-  if (storedApn.trim().toLowerCase() === grantedApn.toLowerCase()) {
-    return {
-      variant: "success",
-      glyph: "check_circle",
-      label: t(`${K}.status.live`),
-    };
-  }
-
-  // A write in flight disagrees legitimately: the attach cycle detaches, and
-  // the poller keeps reporting the OLD granted APN until it completes. Saying
-  // "not in use" there would be true of a state the user is mid-way through
-  // leaving, so the chip stands down to "we cannot say" rather than accusing.
-  if (isSaving || isReconciling) {
-    return {
-      variant: "muted",
-      glyph: "help",
-      label: t(`${K}.status.not_reported`),
-    };
-  }
-
-  return {
-    variant: "warning",
-    glyph: "warning",
-    label: t(`${K}.status.not_granted`),
-  };
-}
-
-// -----------------------------------------------------------------------------
 // What the network granted — the live-truth strip
 // -----------------------------------------------------------------------------
 // ROWS, NOT TILES. The comp drew this as five `1fr` stat tiles. Two of those
@@ -280,7 +164,7 @@ function useApnStatusChip(
  * role on a fact with no verdict attached. The granted block carries the
  * verdict because the granted block IS the verdict.
  *
- * EYEBROW, PROVENANCE AND MARK SET NO INK. They sit on three different fills
+ * EYEBROW AND PROVENANCE SET NO INK. They sit on three different fills
  * (`surface-container` neutral, `success-container` on agreement,
  * `destructive-container` on disagreement) and dim whatever the block already
  * carries, which is the only spelling that stays correct on all three — the
@@ -288,34 +172,43 @@ function useApnStatusChip(
  * names as its most common contrast failure. Same mechanism as
  * `CHOICE_ROW.CAPTION`.
  *
- * The mark is a GLYPH plus a WORD, never the fill alone: `success-container`
- * and `destructive-container` are distinguishable, but the fill is not allowed
- * to be the only channel.
+ * THE VERDICT GLYPH RIDES THE VALUE LINE, not a row of its own below it — the
+ * word ("Matches" / "Does not match") was redundant with the block's own fill
+ * (`MATCH` / `DRIFT`) once both are visible at once, and dropping that row is
+ * what lets `BLOCK` slim down. The glyph alone would fail the fill-is-not-the-
+ * only-channel rule (`success-container` and `destructive-container` measure
+ * close together and collapse under deuteranopia), so it stays a real glyph —
+ * distinct per verdict — beside the value it is a verdict ABOUT, not a second
+ * label restating the fill.
  */
 const COMPARE = {
   GRID: "grid grid-cols-1 gap-2.5 @2xl/card:grid-cols-2",
-  BLOCK: "flex min-w-0 flex-col gap-1.5 rounded-field p-4",
+  BLOCK: "flex min-w-0 flex-col gap-1 rounded-field p-3.5",
   NEUTRAL: "bg-surface-container text-on-surface",
   MATCH: "bg-success-container text-on-success-container",
   DRIFT: "bg-destructive-container text-on-destructive-container",
   EYEBROW:
     "truncate text-[0.6875rem] font-semibold tracking-[0.02em] opacity-90",
+  /** The value line: an optional verdict glyph beside the APN itself. */
+  VALUE_ROW: "flex min-w-0 items-center gap-1.5",
   /**
    * An APN is a machine string the device emits verbatim, so `font-mono` (The
    * Machine-Voice Rule). `break-all` rather than `truncate`: a browser will not
    * break at the dots in `internet.talkntext.ph`, and a block with vertical
    * room to spare should spend a second line before it loses characters.
    */
-  VALUE: "font-mono text-[0.9375rem] font-semibold leading-[1.25] break-all",
+  VALUE:
+    "min-w-0 font-mono text-[0.9375rem] font-semibold leading-[1.25] break-all",
   /** No reading. The em-dash is punctuation, so it is dimmed, not coloured. */
   VALUE_UNKNOWN: "opacity-70",
+  /** The verdict glyph, sized to sit on the value's own line. */
+  MARK_GLYPH: "flex-none",
+  MARK_GLYPH_SIZE: 15,
   PROVENANCE: "text-[0.71875rem] leading-relaxed text-pretty opacity-90",
-  MARK: "inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold",
-  MARK_GLYPH: 13,
   /**
-   * Mirrors BLOCK's resting height for the skeleton: `p-4` either side (32) +
-   * eyebrow 16 + value 19 + provenance 19 + two `gap-1.5` (12) = 98px. The mark
-   * is absent while loading, so the unmarked height is the one to mirror.
+   * Mirrors BLOCK's resting height for the skeleton: `p-3.5` either side (28) +
+   * eyebrow 16 + value 19 + provenance 19 + two `gap-1` (8) = 90px. The glyph
+   * rides the value's own line, so it adds no height in either state.
    *
    * THE `!` IS LOAD-BEARING. `cn()` is bare `tailwind-merge`, which does not
    * know this repo's custom radius names and therefore cannot dedupe
@@ -326,7 +219,7 @@ const COMPARE = {
    * takes the radius back. (Product-wide hazard, ~20 call sites; this one is
    * spelled correctly rather than adding a twenty-first.)
    */
-  HEIGHT: "h-[6.125rem] rounded-field!",
+  HEIGHT: "h-[5.625rem] rounded-field!",
 } as const;
 
 interface ReadoutRowProps {
@@ -505,10 +398,12 @@ function NetworkGrantedCard({
             <span className={COMPARE.EYEBROW}>
               {t(`${R}.configured_label`)}
             </span>
-            <span
-              className={cn(COMPARE.VALUE, !configured && COMPARE.VALUE_UNKNOWN)}
-            >
-              {configured ?? EM_DASH}
+            <span className={COMPARE.VALUE_ROW}>
+              <span
+                className={cn(COMPARE.VALUE, !configured && COMPARE.VALUE_UNKNOWN)}
+              >
+                {configured ?? EM_DASH}
+              </span>
             </span>
             <span className={COMPARE.PROVENANCE}>{t(`${R}.source_stored`)}</span>
           </div>
@@ -524,21 +419,21 @@ function NetworkGrantedCard({
             )}
           >
             <span className={COMPARE.EYEBROW}>{t(`${R}.granted_label`)}</span>
-            <span
-              className={cn(COMPARE.VALUE, !servingApn && COMPARE.VALUE_UNKNOWN)}
-            >
-              {servingApn ?? EM_DASH}
-            </span>
-            {comparable ? (
-              <span className={COMPARE.MARK}>
+            <span className={COMPARE.VALUE_ROW}>
+              {comparable ? (
                 <MaterialSymbol
                   name={grantedMatches ? "check_circle" : "warning"}
                   filled
-                  size={COMPARE.MARK_GLYPH}
+                  size={COMPARE.MARK_GLYPH_SIZE}
+                  className={COMPARE.MARK_GLYPH}
                 />
-                {t(grantedMatches ? `${R}.matches` : `${R}.does_not_match`)}
+              ) : null}
+              <span
+                className={cn(COMPARE.VALUE, !servingApn && COMPARE.VALUE_UNKNOWN)}
+              >
+                {servingApn ?? EM_DASH}
               </span>
-            ) : null}
+            </span>
             <span className={COMPARE.PROVENANCE}>
               {t(`${R}.source_negotiated`)}
             </span>
@@ -675,32 +570,11 @@ const APNSettingsComponent = () => {
     ? profileOverride.name
     : t(`${K}.managed_by_profile_fallback`);
 
-  const statusChip = useApnStatusChip(
-    active,
-    status,
-    apn?.apn ?? "",
-    isSaving,
-    isReconciling,
-    statusStale,
-  );
-
   return (
     <div className={PAGE_ROOT}>
       <CellularPageHeader
         title={t(`${K}.page.title`)}
         description={t(`${K}.page.description`)}
-        actions={
-          statusChip ? (
-            <Badge variant={statusChip.variant}>
-              <MaterialSymbol
-                name={statusChip.glyph}
-                filled
-                size={BADGE_GLYPH_SIZE}
-              />
-              {statusChip.label}
-            </Badge>
-          ) : null
-        }
       />
 
       {error && !isLoading ? (

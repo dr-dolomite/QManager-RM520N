@@ -590,12 +590,6 @@
       "cards": {
         "unread": "Nothing has been read from the modem yet, so this card has no values to show."
       },
-      "status": {
-        "live": "Live on the network",
-        "not_granted": "Saved APN is not the one in use",
-        "not_reported": "Not reported",
-        "carrier_default": "Carrier default"
-      },
       "save_connection_notice": "Saving detaches and re-attaches the modem. Cellular data drops for about four seconds — and if you are connected over the modem's Ethernet port, this page will drop with it and reconnect on its own.",
       "carrier_default": {
         "button": "Use carrier default",
@@ -689,8 +683,6 @@
         "granted_label": "The network granted",
         "source_stored": "From saved settings",
         "source_negotiated": "Negotiated with the network",
-        "matches": "Matches",
-        "does_not_match": "Does not match",
         "stale": "Readings frozen",
         "stale_body": "The modem status feed has not reported recently. The values above may no longer be true.",
         "reread": "Re-read from modem"
