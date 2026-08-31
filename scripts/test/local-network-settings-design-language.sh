@@ -571,7 +571,14 @@ fi
 barevar=$(grep -nE 'duration-\[--' "$TMPD/family.code" || true)
 if [ -n "$barevar" ]; then
     show "$barevar"
-    bad "duration-[--...] is invalid CSS in Tailwind v4 -- use duration-[var(--...)]"
+    # The message deliberately does NOT spell the fixed form as a bracketed
+    # class with a placeholder inside it. Tailwind v4 scans scripts/ and docs/,
+    # so a quoted arbitrary value in PROSE is compiled into real CSS -- and a
+    # placeholder in the brackets emits `var(--...)`, which fails to parse and
+    # 500s every page in `next dev` while `next build` silently drops it and
+    # passes. This exact line did that until it was caught by measuring a
+    # rendered page, which no other gate in this run would have caught.
+    bad "a bare-var duration arbitrary is invalid CSS in Tailwind v4 -- wrap the custom property in var() inside the brackets"
 else
     ok "no bare-var duration arbitrary"
 fi
