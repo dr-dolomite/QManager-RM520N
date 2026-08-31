@@ -203,7 +203,8 @@ export type DiscTone = keyof typeof DISC_TONE;
  * silently inherits Tailwind's 150ms, which is off the scale and will not
  * retune with it. The duration and easing are read from the custom properties
  * through the PARENTHESIS arbitrary form, not the bracket one: Tailwind v4
- * dropped the bare-var bracket shorthand, and that spelling
+ * dropped the bare-var bracket shorthand (the custom property written
+ * directly in the brackets with no `var()` wrapper), and that spelling
  * now compiles to a declaration whose value is the property NAME rather than
  * its value — a declaration that parses, so nothing warns, and that the browser discards, so it ships as no
  * transition at all. The class is still generated, so grepping the class name
@@ -459,6 +460,27 @@ export const HOST_ROW = {
 export const HOST_VISIBLE_ROWS = 5;
 
 /**
+ * The widest `GRID` ever gets, and the second half of the count a skeleton needs.
+ *
+ * `HOST_VISIBLE_ROWS` counts GRID ROWS, not chips, and that distinction was
+ * silently dropped: the skeleton rendered five blocks, which is five rows at one
+ * column and TWO at three — so on any desktop the loading box stood 138px short
+ * of the list that replaced it, and the page jumped on every load. The mirror
+ * has to fill the same cap the real list fills, so it renders rows x columns.
+ *
+ * The column count is a CONTAINER QUERY and therefore unknowable in JS, which is
+ * the whole reason this is a constant rather than a measurement. Rendering the
+ * widest case is the correct overshoot: at fewer columns the extra blocks fall
+ * past `VIEWPORT`'s ceiling and are clipped by its own `overflow-y-auto`, so the
+ * box is `max-h-56` at every width — which is exactly what a full list looks
+ * like, and the shipped default list is 21 domains against a five-row cap.
+ *
+ * Derived from `GRID`'s last step (`@3xl/card:grid-cols-3`). Move that and this
+ * moves with it.
+ */
+export const HOST_MAX_COLUMNS = 3;
+
+/**
  * The add-a-domain field.
  *
  * Handed to a raw `<input>`, deliberately NOT to the `Input` primitive.
@@ -559,13 +581,29 @@ export const ICON_ACTION =
  * The shell's own header comment is rewritten to say so; a file that describes
  * an order it no longer has is worse than one that describes none.
  *
- * `items-start` IS THE LOAD-BEARING PART. DESIGN.md does not ban equal heights
- * — it says they are explicit, and conditional on symmetry being a real
- * property of the pair. It is not one here. The verify card is a single
- * footnote line when idle and a headline plus three comparison bars when
- * complete, so a lock would strand dead space in whichever card had less to
- * say, and which one that is CHANGES while the test runs. That is precisely
- * the Radio Information failure DESIGN.md records having paid for once.
+ * THE HEIGHT LOCK REPLACED AN `items-start`, AND THE EARLIER CALL IS RECORDED
+ * RATHER THAN OVERWRITTEN. That version reasoned: DESIGN.md does not ban equal
+ * heights, it makes them explicit and conditional on symmetry being a real
+ * property of the pair, and it was not one, because the verify card was a
+ * single footnote line when idle and a headline plus three bars when complete,
+ * so a lock would strand dead space in whichever card had less to say.
+ *
+ * The reasoning held. The premise did not survive contact with the request.
+ * The right answer to "make these the same height" is not to force a lock over
+ * a card with nothing to fill it. That IS the Radio Information failure
+ * DESIGN.md records paying for once, where a static reference card and a live
+ * telemetry card were `h-full`-locked and ~200px of dead air moved between
+ * them with the carrier count. The answer is to give the shorter card a
+ * resting state designed to FILL (`RESTING` below), after which symmetry is a
+ * real property of the pair and the lock states something true.
+ *
+ * So both halves are load-bearing and neither works alone: `items-stretch`
+ * makes the CELL take the row's height, `*:data-[slot=card]:h-full` makes the
+ * CARD fill that cell (a stretched cell holding a content-height card looks
+ * exactly like no change at all), and both cards grow their `CardContent` so
+ * the spare height reaches the content instead of pooling underneath it. This
+ * is the spelling DESIGN.md > Layout names, and the one four `/cellular/`
+ * surfaces already ship.
  *
  * WHY THE 5XL STEP AND NOT THE 6XL ONE. The container is the viewport less
  * 264px of sidebar, less 48px of main padding, less 16px of page padding. The
@@ -577,7 +615,8 @@ export const ICON_ACTION =
  * designed wrapped layout, which is a layout and not a defect. The 5xl step is
  * also one this codebase already uses; the 6xl step appears nowhere in it.
  */
-export const CARD_PAIR = "grid grid-cols-1 items-start gap-5 @5xl/main:grid-cols-2";
+export const CARD_PAIR =
+  "grid grid-cols-1 items-stretch gap-5 *:data-[slot=card]:h-full @5xl/main:grid-cols-2";
 
 /**
  * The band's full-width member: the targets card, under the pair.
@@ -587,6 +626,85 @@ export const CARD_PAIR = "grid grid-cols-1 items-start gap-5 @5xl/main:grid-cols
  * the two gaps drift apart, which is the class of bug this module exists for.
  */
 export const CARD_PAIR_WIDE = "@5xl/main:col-span-2";
+
+/**
+ * The resting state of a card that has nothing to report yet.
+ *
+ * THE LAYOUT IS `components/ui/empty.tsx`'s AND THE PRIMITIVE IS NOT USED, for
+ * a measured reason rather than a preference. `Empty` ships
+ * `p-6 ... md:p-12` — a VIEWPORT breakpoint — inside a family whose entire
+ * responsive contract is container queries, and no call-site class can remove
+ * it: `p-*` and `md:p-*` are different variants, so `cn()` keeps both and the
+ * viewport one wins above 768px. The only escape is to restate a `md:` class of
+ * your own, which is what the one in-repo consumer had to do
+ * (`antenna-statistics/tech-card.tsx`, `py-10 md:py-10`).
+ *
+ * This family already made exactly this call once, one section down: `FIELD`
+ * refuses the `Input` primitive because "the size reverts at a 768px VIEWPORT,
+ * which is a viewport breakpoint leaking into a container-query surface".
+ * `CONDITION` restates the shared condition screen for the same reason. So the
+ * shape is restated here and the primitive stays unimported — the third
+ * instance of one rule, not a new exception to it.
+ *
+ * WHAT IT IS FOR. A resting state that fills is the thing that makes
+ * `CARD_PAIR`'s height lock honest instead of forced: `flex-1` on the block AND
+ * on the `CardContent` that hosts it, so the spare height from the taller
+ * sibling reaches the content rather than pooling under it. `Empty` itself
+ * ships `flex-1 justify-center` and still failed at this in `tech-card.tsx`,
+ * because a block-level `CardContent` gave the grow nothing to grow inside.
+ * That note is why `CONTENT` exists here as its own export: the host has to be
+ * a flex column too, and it is the half that gets forgotten.
+ *
+ * The disc is the family's own: 56px, full-round, one container step above the
+ * card ground, per The Glyph-Disc Rule — not the primitive's `bg-muted`
+ * `rounded-lg` square, whose radius is off the role scale entirely.
+ */
+export const RESTING = {
+  /** The `CardContent` that hosts the block. Half of the fill, and the half that gets forgotten. */
+  CONTENT: "flex flex-1 flex-col",
+  ROOT: "flex flex-1 flex-col items-center justify-center gap-3 rounded-tile bg-surface-container px-6 py-10 text-center",
+  DISC: "mb-1 grid size-14 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant",
+  DISC_ACTIVE: "bg-primary text-primary-foreground",
+  GLYPH: "size-[1.625rem]",
+  TITLE: "text-[0.9375rem] font-semibold",
+  /**
+   * The ink token, never `text-muted-foreground` (finding 13) — which is what
+   * `EmptyDescription` hardcodes, and a second reason the primitive would have
+   * had to be fought rather than used.
+   */
+  BODY: "text-on-surface-variant max-w-[38ch] text-[0.8125rem] leading-relaxed text-pretty",
+  /** The CTA's geometry only; the fill comes from the `Button` variant. */
+  ACTION: "mt-2",
+} as const;
+
+/**
+ * Skeleton line boxes, named once.
+ *
+ * The Skeleton-Mirror Rule has a sharp edge: a skeleton that restates a height
+ * is worse than no skeleton, because it looks maintained while it drifts. This
+ * page has already paid for it — finding 08, where the page skeleton guessed
+ * `h-40` / `h-9` / `h-[22rem]` against a layout it had never measured.
+ *
+ * So the rule here is: a skeleton mirrors a BOX by importing the box, and it
+ * mirrors TEXT by importing a line height from this block. Nothing in a
+ * skeleton is a number typed at the call site.
+ *
+ * The values are line boxes, not font sizes — a rendered line of
+ * `text-[0.9375rem]` at the default 1.5 leading occupies 22px, and 22px is what
+ * a skeleton standing in for it should be. Two stops cover every text role on
+ * this surface: the card title and body sit at 22px, the smaller hint at 21px.
+ */
+export const SKELETON = {
+  /** `CARD_TITLE` (18px/tight) and `CHOICE_ROW.NAME` (15px/normal) both land here. */
+  LINE: "h-[1.375rem] rounded-field",
+  /** `CHOICE_ROW.HINT` and `CARD_HEAD.DESC` at 13px/relaxed. */
+  LINE_SM: "h-[1.3125rem] rounded-field",
+  /** The mark on a choice row and the disc on a resting block, as plain circles. */
+  MARK: "size-5 flex-none rounded-pill",
+  DISC: "size-14 flex-none rounded-pill",
+  /** A control standing in for `PILL_ACTION`, which is 42px. */
+  PILL: "h-[2.625rem] rounded-pill",
+} as const;
 
 /**
  * A settings row inside a card — the Force-TCP switch.

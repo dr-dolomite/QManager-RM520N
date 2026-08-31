@@ -29,10 +29,10 @@ import { useVideoOptimizer } from "@/hooks/use-video-optimizer";
 
 import ForceTcpCard from "./force-tcp-card";
 import LiveStrip, { type LiveStripReading } from "./live-strip";
-import ModeCard from "./mode-card";
+import ModeCard, { ModeCardSkeleton } from "./mode-card";
 import Onboarding from "./onboarding";
-import TargetsCard from "./targets-card";
-import VerifyCard from "./verify-card";
+import TargetsCard, { TargetsCardSkeleton } from "./targets-card";
+import VerifyCard, { VerifyCardSkeleton } from "./verify-card";
 import {
   CARD_PAIR,
   CARD_PAIR_WIDE,
@@ -393,13 +393,45 @@ const TrafficEngine = () => {
         </motion.div>
       ) : isLoading ? (
         showSkeleton ? (
-          <motion.div variants={staggerItem}>
-            <div className={TILE.GRID}>
-              {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} className={cn(TILE.HEIGHT, "rounded-tile")} />
-              ))}
-            </div>
-          </motion.div>
+          /* THE SKELETON IS THE PAGE, NOT THE STRIP.
+
+             It used to be four tiles and nothing else, so the handoff grew the
+             mode card, the verify card and the targets card out of nothing --
+             roughly 800px of layout arriving after the fact, on a surface whose
+             own module exists because a skeleton had already drifted from its
+             content once (finding 08). The report was that it "doesnt really
+             show the true content once loaded", which is precisely what a
+             skeleton for one of four bands does.
+
+             Each card's mirror lives BESIDE that card rather than here. A
+             skeleton kept in the shell drifts the first time its card changes,
+             because nothing ever puts the two on one screen; kept next to the
+             card, the two are read together by anyone editing either. What the
+             shell owns is the BAND, and it lays the mirror out with the same
+             `CARD_PAIR` the loaded band uses -- so the column split, the gap
+             and the height lock cannot disagree between the two states.
+
+             `aria-hidden` on each mirror, and the whole thing is inert: the
+             root already carries `aria-live="polite"`, so an announced skeleton
+             would read its placeholder geometry aloud before the real content
+             arrived to replace it. */
+          <>
+            <motion.div variants={staggerItem}>
+              <div className={TILE.GRID}>
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={index} className={cn(TILE.HEIGHT, "rounded-tile")} />
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div variants={staggerItem} className={CARD_PAIR}>
+              <ModeCardSkeleton />
+              <VerifyCardSkeleton />
+              <div className={CARD_PAIR_WIDE}>
+                <TargetsCardSkeleton />
+              </div>
+            </motion.div>
+          </>
         ) : null
       ) : !installed ? (
         <motion.div variants={staggerItem}>

@@ -41,9 +41,11 @@ import {
   FIELD,
   FIELD_ROW,
   HOST_ROW,
+  HOST_MAX_COLUMNS,
   HOST_VISIBLE_ROWS,
   ICON_ACTION,
   PILL_ACTION,
+  SKELETON,
 } from "./shapes";
 import type { UseCdnHostlistReturn } from "@/hooks/use-cdn-hostlist";
 import type { DpiMode } from "@/types/traffic-engine";
@@ -553,7 +555,7 @@ export function TargetsCard({ hostlist, mode }: TargetsCardProps) {
           // number, so the loading state cannot drift from the loaded one.
           <div className={HOST_ROW.VIEWPORT}>
             <div className={HOST_ROW.GRID}>
-              {Array.from({ length: HOST_VISIBLE_ROWS }).map((_, index) => (
+              {Array.from({ length: HOST_VISIBLE_ROWS * HOST_MAX_COLUMNS }).map((_, index) => (
                 <Skeleton key={index} className={cn(HOST_ROW.HEIGHT, "rounded-pill")} />
               ))}
             </div>
@@ -640,6 +642,47 @@ export function TargetsCard({ hostlist, mode }: TargetsCardProps) {
             {hostlist.error}
           </p>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * The loading mirror, for the PAGE's read rather than the hostlist's.
+ *
+ * Two different loads reach this card and only one of them was ever drawn. The
+ * hostlist's own read is handled inside the card above (the list becomes
+ * `HOST_VISIBLE_ROWS` blocks and the header keeps its actions); the PAGE's read
+ * used to render nothing at all, so the whole card arrived after the fact along
+ * with the two above it. That is the reported defect: the skeleton "doesnt
+ * really show the true content once loaded".
+ *
+ * Everything geometric here is imported. The header line boxes come from
+ * `SKELETON`, the list from `HOST_ROW` and `HOST_VISIBLE_ROWS`, the field row
+ * from `FIELD_ROW` -- so this file states no number the loaded view does not
+ * also state.
+ */
+export function TargetsCardSkeleton() {
+  return (
+    <Card className={CARD_SHELL} aria-hidden="true">
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD.ROOT_WRAP)}>
+        <div className={cn(CARD_HEAD.TITLES, "w-full max-w-[26rem]")}>
+          <Skeleton className={cn(SKELETON.LINE, "w-40")} />
+          <Skeleton className={cn(SKELETON.LINE_SM, "w-full")} />
+        </div>
+      </CardHeader>
+      <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+        <div className={HOST_ROW.VIEWPORT}>
+          <div className={HOST_ROW.GRID}>
+            {Array.from({ length: HOST_VISIBLE_ROWS * HOST_MAX_COLUMNS }).map((_, index) => (
+              <Skeleton key={index} className={cn(HOST_ROW.HEIGHT, "rounded-pill")} />
+            ))}
+          </div>
+        </div>
+        <div className={FIELD_ROW}>
+          <Skeleton className={cn(SKELETON.PILL, "flex-1 rounded-field")} />
+          <Skeleton className={cn(SKELETON.PILL, "w-32")} />
+        </div>
       </CardContent>
     </Card>
   );

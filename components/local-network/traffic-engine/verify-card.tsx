@@ -5,6 +5,8 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle2Icon,
+  DownloadIcon,
+  GaugeIcon,
   Loader2Icon,
   RefreshCcwIcon,
   TriangleAlertIcon,
@@ -16,6 +18,7 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { MetricBar, type MetricBarTone } from "@/components/ui/metric-bar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
@@ -30,6 +33,8 @@ import {
   FOOTNOTE,
   HEADLINE,
   PILL_ACTION,
+  RESTING,
+  SKELETON,
 } from "./shapes";
 import type { VerifyResult } from "@/types/traffic-engine";
 
@@ -276,28 +281,44 @@ export function VerifyCard({ binaryInstalled }: VerifyCardProps) {
           <span className={CARD_TITLE}>{t("trafficEngine.verify.title")}</span>
           <span className={CARD_HEAD.DESC}>{t("trafficEngine.verify.description")}</span>
         </div>
-        <div className={CARD_HEAD.ACTIONS}>
-          <Button
-            variant="tonal"
-            onClick={runVerify}
-            disabled={!binaryInstalled || isRunning}
-            className={PILL_ACTION}
-          >
-            {isRunning ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
+        {/* THE ACTION MOVES, AND THERE IS ONLY EVER ONE OF IT.
+
+            Until a result exists the run lives INSIDE the resting block below,
+            centred under the sentence that says what it does. Requested
+            directly, and it is also the ordinary empty-state convention: the
+            primary action belongs where the eye already is when the card has
+            nothing else to hold it.
+
+            Once a result is on screen the block is gone and the action returns
+            to the header, the way a toolbar action replaces an empty-state
+            CTA. The gate is `complete` and not "not idle", so no state can ever
+            render two buttons for one action -- which is the obvious way to get
+            this wrong, and the reason the condition is written once here rather
+            than negated in two places. */}
+        {complete ? (
+          <div className={CARD_HEAD.ACTIONS}>
+            <Button
+              variant="tonal"
+              onClick={runVerify}
+              disabled={!binaryInstalled || isRunning}
+              className={PILL_ACTION}
+            >
               <RefreshCcwIcon className="size-4" />
-            )}
-            {t(isRunning ? "trafficEngine.verify.running" : "trafficEngine.verify.run")}
-          </Button>
-        </div>
+              {t("trafficEngine.verify.run_again")}
+            </Button>
+          </div>
+        ) : null}
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-        {!binaryInstalled ? (
-          <p className={FOOTNOTE}>{t("trafficEngine.verify.needs_binary")}</p>
-        ) : null}
-
+      {/* `RESTING.CONTENT` is `flex flex-1 flex-col`, not the primitive's bare
+          `px-6` block, and that is the half of the height lock that gets
+          forgotten. `CARD_PAIR` stretches this card to its sibling; without a
+          growing child the extra pixels pool underneath the content as dead
+          air, which is the exact Radio Information failure the lock is
+          otherwise accused of. `tech-card.tsx` records hitting this with the
+          `Empty` primitive, whose own `flex-1` had no flex context to grow
+          inside. */}
+      <CardContent className={cn(CARD_PAD, RESTING.CONTENT, "gap-4")}>
         {error !== null ? (
           <Banner
             role="degraded"
@@ -367,11 +388,118 @@ export function VerifyCard({ binaryInstalled }: VerifyCardProps) {
 
             {reference ? <p className={FOOTNOTE}>{t("trafficEngine.verify.footnote")}</p> : null}
           </>
-        ) : !isRunning && error === null && !failed ? (
-          <p className={FOOTNOTE}>{t("trafficEngine.verify.idle")}</p>
-        ) : null}
+        ) : (
+          /* THE THREE FOOTNOTE LINES THIS REPLACES were the whole of the card
+             below its header: "Run the test to compare...", "Downloading the
+             same file twice...", "Install the engine binary first." Each was
+             one sentence of grey text against 160px of card, and the run took
+             minutes with nothing on screen but a spinner in a header button.
 
-        {isRunning ? <p className={FOOTNOTE}>{t("trafficEngine.verify.progress")}</p> : null}
+             They are now one block with three faces, which is what lets the
+             card stand at its sibling's height without being padded to it. The
+             running face puts the spinner ON the disc rather than beside a
+             button -- the same call `onboarding.tsx` makes for the install, and
+             for the same reason: a wait measured in minutes has to be readable
+             for minutes, not merely indicated. */
+          <div
+            className={RESTING.ROOT}
+            role={isRunning ? "status" : undefined}
+            aria-live={isRunning ? "polite" : undefined}
+          >
+            <span
+              className={cn(RESTING.DISC, isRunning && RESTING.DISC_ACTIVE)}
+              aria-hidden="true"
+            >
+              {isRunning ? (
+                <Loader2Icon className={cn(RESTING.GLYPH, "animate-spin")} />
+              ) : binaryInstalled ? (
+                <GaugeIcon className={RESTING.GLYPH} />
+              ) : (
+                <DownloadIcon className={RESTING.GLYPH} />
+              )}
+            </span>
+            <span className={RESTING.TITLE}>
+              {t(
+                isRunning
+                  ? "trafficEngine.verify.running"
+                  : binaryInstalled
+                    ? "trafficEngine.verify.idle_heading"
+                    : "trafficEngine.verify.needs_binary_heading",
+              )}
+            </span>
+            {/* NO BODY ON THE IDLE FACE, AND ITS STRING IS DELETED.
+                `trafficEngine.verify.idle` read "Run the test to compare your
+                speed with and without the bypass" -- which is the card
+                description one line above ("Run a two-phase speed test...")
+                said again, over a button that says Run test. It existed
+                because the idle state had no other content; it was the whole
+                card below the header. With a designed resting state it is the
+                third telling of one thing, so it is gone from all five packs
+                rather than left orphaned.
+
+                The other two faces keep theirs, because both say something the
+                header does not: how long the run takes, and what to do when
+                there is no engine to run against. */}
+            {!binaryInstalled || isRunning ? (
+              <p className={RESTING.BODY}>
+                {t(
+                  isRunning
+                    ? "trafficEngine.verify.progress"
+                    : "trafficEngine.verify.needs_binary",
+                )}
+              </p>
+            ) : null}
+            {/* No CTA while running, and none with no engine to run against.
+                A disabled button in an empty state is a dead end wearing an
+                affordance -- the sentence above it already says what to do. */}
+            {binaryInstalled && !isRunning ? (
+              <Button
+                variant="tonal"
+                onClick={runVerify}
+                className={cn(PILL_ACTION, RESTING.ACTION)}
+              >
+                <RefreshCcwIcon className="size-4" />
+                {t("trafficEngine.verify.run")}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * The loading mirror, and it lives here rather than in the shell on purpose.
+ *
+ * A skeleton kept in the page shell drifts the first time its card changes,
+ * because nothing puts the two on the same screen. This one imports the same
+ * `CARD_SHELL`, the same `CARD_PAD`, the same `RESTING.ROOT` and the same disc
+ * as the card above it, so the only thing it can get wrong is the text, and the
+ * text is the one thing a skeleton is not mirroring anyway.
+ *
+ * It draws the RESTING face rather than the result face, because that is what
+ * the card resolves to on a cold load: a verify result is per-session state
+ * that no read restores.
+ */
+export function VerifyCardSkeleton() {
+  return (
+    <Card className={CARD_SHELL} aria-hidden="true">
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD.ROOT)}>
+        <div className={cn(CARD_HEAD.TITLES, "w-full")}>
+          <Skeleton className={cn(SKELETON.LINE, "w-32")} />
+          <Skeleton className={cn(SKELETON.LINE_SM, "w-full max-w-[26rem]")} />
+          <Skeleton className={cn(SKELETON.LINE_SM, "w-3/5")} />
+        </div>
+      </CardHeader>
+      <CardContent className={cn(CARD_PAD, RESTING.CONTENT, "gap-4")}>
+        {/* Disc, title, action -- the idle face exactly, with no body line,
+            because the idle face no longer has one. */}
+        <div className={RESTING.ROOT}>
+          <Skeleton className={SKELETON.DISC} />
+          <Skeleton className={cn(SKELETON.LINE, "w-28")} />
+          <Skeleton className={cn(SKELETON.PILL, RESTING.ACTION, "w-32")} />
+        </div>
       </CardContent>
     </Card>
   );

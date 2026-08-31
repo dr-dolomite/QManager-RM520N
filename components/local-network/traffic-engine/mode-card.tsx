@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 
@@ -37,6 +38,7 @@ import {
   CHIP_GLYPH,
   CHOICE_ROW,
   ENGINE_BADGE,
+  SKELETON,
 } from "./shapes";
 import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 
@@ -192,7 +194,17 @@ export function ModeCard({
         </div>
       </CardHeader>
 
-      <CardContent className={CARD_PAD}>
+      {/* `flex flex-1 flex-col` so the card's share of the pair's height
+          reaches the rows instead of pooling below them.
+
+          IN THE COMMON CASE THIS CHANGES NOTHING: three mode rows are the taller
+          of the two cards, so this card sets the row height and has no spare
+          space to hand anywhere. It matters in exactly one state -- a completed
+          test, where the verify card grows past it -- and there the three rows
+          sit centred in the taller card rather than hanging from its top edge
+          above a band of empty surface. `justify-center` is a no-op at every
+          other moment, which is why it is safe to state unconditionally. */}
+      <CardContent className={cn(CARD_PAD, "flex flex-1 flex-col justify-center")}>
         <motion.div
           className={CHOICE_ROW.GROUP}
           role="radiogroup"
@@ -346,6 +358,49 @@ export function ModeCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </Card>
+  );
+}
+
+/**
+ * The loading mirror.
+ *
+ * THE ROWS MIRROR BY CONSTRUCTION, WHICH IS THE ONLY WAY THEY CAN. A choice row
+ * is deliberately NOT height-pinned (`shapes.ts` > CHOICE_ROW: the hint wraps
+ * to two lines on a narrow container, and a fixed height would clip it), so
+ * there is no number for a skeleton to copy -- and a guessed one is finding 08
+ * all over again. Instead the skeleton renders `CHOICE_ROW.ROOT` itself with
+ * line boxes inside it: same padding, same gaps, same mark, so the same height
+ * falls out of the same arithmetic. Change the row and the mirror follows
+ * without anyone remembering to.
+ *
+ * `MODES.length` rather than a literal 3, for the same reason.
+ */
+export function ModeCardSkeleton() {
+  return (
+    <Card className={CARD_SHELL} aria-hidden="true">
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD.ROOT)}>
+        <div className={cn(CARD_HEAD.TITLES, "w-full")}>
+          <Skeleton className={cn(SKELETON.LINE, "w-32")} />
+          <Skeleton className={cn(SKELETON.LINE_SM, "w-full max-w-[22rem]")} />
+        </div>
+      </CardHeader>
+      <CardContent className={cn(CARD_PAD, "flex flex-1 flex-col justify-center")}>
+        <div className={CHOICE_ROW.GROUP}>
+          {MODES.map((entry) => (
+            <div
+              key={entry.mode}
+              className={cn(CHOICE_ROW.ROOT, CHOICE_ROW.UNSELECTED)}
+            >
+              <Skeleton className={SKELETON.MARK} />
+              <span className={CHOICE_ROW.TEXT}>
+                <Skeleton className={cn(SKELETON.LINE, "w-28")} />
+                <Skeleton className={cn(SKELETON.LINE_SM, "w-4/5")} />
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
     </Card>
   );
 }
