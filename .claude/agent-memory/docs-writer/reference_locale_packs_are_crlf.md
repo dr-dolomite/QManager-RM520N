@@ -26,3 +26,12 @@ rewrites every pack in one commit and buries whatever real change rides with it.
 
 Full mechanism documented at `docs/reference/i18n.md` § "Locale files are CRLF".
 Related: [[i18n-check-now-hard-gate]].
+
+**The same trap applies to `docs/reference/*.md` and the repo-root Markdown.**
+They are CRLF in the working tree too, and an edit pass can silently rewrite a
+whole file to LF (observed 2026-08-31 on `docs/reference/dpi.md`). `git diff`
+does **not** show it, because `core.autocrlf=true` normalises on read, so the
+stat line still reads as a handful of changed lines. Check after editing any
+doc — count `\n` not preceded by `\r` with a node byte read, since `cat -A`,
+`sed` and `awk` all strip the carriage return in this environment — and convert
+back if the file came out all-LF while its siblings are CRLF.
