@@ -37,7 +37,7 @@ def app_icon() -> str | None:
 
 def run() -> int:
     bridge = Bridge()
-    webview.create_window(
+    window = webview.create_window(
         "QManager Installer",
         str(ui_dir() / "index.html"),
         js_api=bridge,
@@ -45,5 +45,9 @@ def run() -> int:
         height=680,
         min_size=(760, 560),
     )
+    # Without this, a lingering `adb.exe` server started by this session
+    # outlives the window and locks its own exe file — the next PyInstaller
+    # build then fails to replace vendor/adb/adb.exe with Access is denied.
+    window.events.closing += bridge.shutdown
     webview.start(icon=app_icon())
     return 0

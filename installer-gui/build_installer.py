@@ -270,6 +270,39 @@ def check_vendor_adb(vendor_adb: Path = VENDOR_ADB) -> None:
         )
 
 
+def kill_stale_vendor_adb(dist_dir: Path) -> None:
+    """Stop a leftover adb.exe server backed by a PREVIOUS build's output.
+
+    `adb devices` (run.py's connect screen) implicitly spawns a detached
+    background server the first time it runs. Bridge.shutdown() now kills it
+    when the installer window closes normally, but a crashed or
+    Task-Manager-killed run skips that entirely — and a live server still
+    holding dist/QManagerInstaller/vendor/adb/adb.exe open is exactly what
+    makes `--clean` fail with `PermissionError: Access is denied` a moment
+    from now. Best-effort and scoped to THIS project's vendored exe path
+    only, never a system-wide adb.exe (e.g. from an installed Android SDK)
+    a developer might legitimately have running for other reasons.
+    """
+    if sys.platform != "win32":
+        return
+    target = (dist_dir / "QManagerInstaller" / "vendor" / "adb" / "adb.exe").resolve()
+    if not target.is_file():
+        return
+    try:
+        subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                "Get-CimInstance Win32_Process -Filter \"Name='adb.exe'\" | "
+                f"Where-Object {{ $_.ExecutablePath -eq '{target}' }} | "
+                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+            ],
+            capture_output=True,
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
 def build_pyinstaller_argv(
     here: Path = HERE,
     ui_dir: Path = UI_DIR,
@@ -353,6 +386,7 @@ def main(
     if not run_pyinstaller:
         return 0
 
+    kill_stale_vendor_adb(here / "dist")
     argv = build_pyinstaller_argv(here=here, ui_dir=ui_dir)
     result = subprocess.run(argv, cwd=here)
     if result.returncode != 0:

@@ -11,6 +11,7 @@ structured dict instead of letting an exception cross.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import threading
 from dataclasses import asdict
@@ -150,6 +151,31 @@ class Bridge:
         """Spec check #1 — adb.exe present. Without it nothing else can run."""
         path = adb_path()
         return {"ok": path.is_file(), "path": str(path)}
+
+    def shutdown(self) -> None:
+        """Best-effort teardown, wired to the window's `closing` event.
+
+        `adb devices` implicitly starts a detached background server the
+        first time it runs — a second, independent process backed by the
+        same vendor/adb/adb.exe binary, which keeps running (and keeps
+        Windows' handle on that file open) long after this window closes.
+        Left alive, it is exactly what makes the NEXT PyInstaller build fail
+        with `PermissionError: Access is denied` trying to replace that exe.
+        `kill-server` is a safe no-op if no server is running, so this is
+        unconditional rather than gated on whether ADB was ever used.
+        """
+        path = adb_path()
+        if not path.is_file():
+            return
+        try:
+            subprocess.run(
+                [str(path), "kill-server"],
+                capture_output=True,
+                timeout=5,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception:
+            pass
 
     def list_devices(self) -> list[dict]:
         path = adb_path()
