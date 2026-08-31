@@ -469,9 +469,9 @@ t_perm_tmp_writable() {
         rm -f "$probe"
         echo "pass|writable"
     elif [ "$rc" -ne 0 ]; then
-        echo "fail|www-data cannot write to /tmp (rc=$rc)"
+        echo "fail|uid $self_uid cannot write to /tmp (rc=$rc)"
     else
-        echo "fail|www-data cannot write to /tmp"
+        echo "fail|uid $self_uid cannot write to /tmp"
     fi
 }
 
