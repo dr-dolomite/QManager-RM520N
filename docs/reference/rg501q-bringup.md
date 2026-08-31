@@ -212,7 +212,7 @@ both `die` paths now remove the half-written binary first.
 | Unit | State |
 | --- | --- |
 | `qmanager-ping` (Rust binary) | **active running** — and it works: `/tmp/qmanager_ping.json` 466 bytes, freshly written |
-| `qmanager-poller` | active running, but **produces nothing** — `/tmp/qmanager_events.json` is 0 bytes, no `qmanager_status.json` at all |
+| `qmanager-poller` | active running. ⚠️ **Corrected 2026-08-25** (tracker finding F4): the original row here claimed it "produces nothing". That was wrong and was retracted the same day it was filed — the RG501Q's AT stack is healthy and the poller publishes live data (`modem_reachable: true`, `5G-NSA`, carrier present, `ca_active: true`). Do not re-open this as a modem or transport problem |
 | `qmanager-console`, `-cfun-fix`, `-setup`, `-ttl` | active |
 | `qmanager-ethernet` | **failed** |
 | `qmanager-firewall` | **failed** (exit code 4) |
@@ -221,6 +221,14 @@ both `die` paths now remove the half-written binary first.
 
 **The only component that works is the one with no Entware dependency.** Everything
 that needs `jq` runs but emits nothing.
+
+> ⚠️ **That sentence is a snapshot of the PRE-BOOTSTRAP state, not current fact
+> (noted 2026-08-31).** It was written before the Entware bootstrap fix landed
+> (T2.5, 2026-08-25), so it describes a device that had no `jq`. The RG501Q has
+> `/opt/bin/jq` now, and the poller publishes live data — see the corrected
+> `qmanager-poller` row above. Read this whole table as a dated bring-up capture:
+> the failures listed are what was observed on that day, and several have since
+> been fixed. Re-measure before treating any row as a live defect.
 
 > **Mitigated since 2026-08-30 (`3a7c537` + `71c9d59`, tracker F2 and F17).** The CGI
 > layer's share of this was self-concealing: `cgi_error` — the single error reporter

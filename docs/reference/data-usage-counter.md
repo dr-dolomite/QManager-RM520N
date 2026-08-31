@@ -38,7 +38,7 @@ Schema v5 keeps the v3 storage model and adds an `orientation` field. **v3/v4 â†
 
 **Removed in v5:** `orientation_state`, `orientation_history_swapped`, and the entire async probe state (`ORIENTATION_*` constants, `start_orientation_probe`, `apply_orientation_result`).
 
-**CGI response:** the `data_used` block in `fetch_data.sh` output includes `stale: true` when the file mtime is stale, and surfaces `orientation` (rather than v4's `orientation_state`) for diagnostics. The legacy v2 fields (`orientation_calibrated`, `orientation_attempts`, `divergence_count`, `mode_transition_count`) remain gone; do not reference them.
+**CGI response:** the `data_used` block in `scripts/www/cgi-bin/quecmanager/network/data_used.sh` output includes `stale: true` when the file mtime is stale, and surfaces `orientation` (rather than v4's `orientation_state`) for diagnostics. `orientation` is surfaced by **passthrough, not by name**: the poller emits it inside the `data_used` object and the CGI forwards that object wholesale (`jq '.data_used // empty'`, then `. + { stale: $stale }`), so the string `orientation` never appears in the CGI â€” a grep that comes up empty there is not evidence the field is unsurfaced. The legacy v2 fields (`orientation_calibrated`, `orientation_attempts`, `divergence_count`, `mode_transition_count`) remain gone; do not reference them.
 
 ---
 
