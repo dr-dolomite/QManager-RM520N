@@ -425,11 +425,41 @@ t_perm_rootfs_state() {
                      *rw*) echo "warn|read-write (atypical for RM520N-GL)";;
                      *)    echo "fail|could not determine";; esac
 }
+# Deliberately NOT `su`. su's PAM stack loads Quectel's proprietary
+# /lib/security/loginpw.so on the RM520N-GL (absent on the RG501Q-EU), which
+# prints a challenge banner and then blocks on a terminal read with no timeout
+# whenever su has a controlling TTY — parking a setuid-root su on a pty
+# forever. Production never hit it only because run.sh:44 uses `setsid`, which
+# strips the TTY; running this check by hand from an interactive shell wedged.
+# `sudo -n` has no auth stack for a root caller and no TTY requirement, and was
+# measured behaving identically on both devices.
 t_perm_tmp_writable() {
     local probe="/tmp/qmanager_health_check_probe.$$"
-    if su -s /bin/sh -c "touch $probe" www-data 2>>"$OUTPUT_FILE"; then
+    local rc=0
+
+    rm -f "$probe" 2>/dev/null || true
+
+    # Numeric uids, not `id -un`: on the RG501Q-EU `id -un` cannot resolve uid
+    # 33 back to a name ("id: unknown ID 33"), so a name comparison takes the
+    # wrong branch there. Both devices agree that www-data is uid 33.
+    if [ "$(id -u)" = "$(id -u www-data 2>/dev/null || echo -1)" ]; then
+        # Already www-data. Do not transition — sudoers refuses www-data as its
+        # own target on both devices, which would report "/tmp is not writable"
+        # on exactly the run-as-www-data path this project mandates for CGI.
+        touch "$probe" 2>>"$OUTPUT_FILE" || rc=$?
+    else
+        qm_timeout 5 sudo -n -u www-data touch "$probe" 2>>"$OUTPUT_FILE" || rc=$?
+    fi
+
+    # The verdict follows the FILE, never the transition's exit status. The two
+    # are not the same question: a drop that returns 0 without writing, or a
+    # caller that simply may not drop privileges, both say nothing about
+    # whether www-data can write to /tmp.
+    if [ -f "$probe" ]; then
         rm -f "$probe"
         echo "pass|writable"
+    elif [ "$rc" -ne 0 ]; then
+        echo "fail|www-data cannot write to /tmp (rc=$rc)"
     else
         echo "fail|www-data cannot write to /tmp"
     fi
