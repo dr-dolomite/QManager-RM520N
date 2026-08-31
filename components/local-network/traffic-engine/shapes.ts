@@ -205,7 +205,7 @@ export type DiscTone = keyof typeof DISC_TONE;
  * through the PARENTHESIS arbitrary form, not the bracket one: Tailwind v4
  * dropped the bare-var bracket shorthand, and that spelling
  * now compiles to a declaration whose value is the property NAME rather than
- * its value — invalid CSS, which the browser discards, so it ships as no
+ * its value — a declaration that parses, so nothing warns, and that the browser discards, so it ships as no
  * transition at all. The class is still generated, so grepping the class name
  * finds it and tsc / eslint / next build all pass; only the emitted value tells.
  */

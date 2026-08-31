@@ -192,7 +192,7 @@ export type DiscTone = keyof typeof DISC_TONE;
  * dropped the bare-var bracket shorthand — the custom property written
  * directly in the brackets with no `var()` wrapper — and that spelling
  * now compiles to a declaration whose value is the property NAME rather than
- * its value — invalid CSS, which the browser discards, so it ships as NO
+ * its value — a declaration that parses, so nothing warns, and that the browser discards, so it ships as NO
  * transition rather than an off-scale one. The class is still generated, so
  * grepping the class name finds it and tsc / eslint / next build all pass; only
  * the emitted value tells.

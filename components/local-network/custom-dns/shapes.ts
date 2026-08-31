@@ -194,7 +194,7 @@ export type DiscTone = keyof typeof DISC_TONE;
  * rather than stylistic. Tailwind v4 dropped the BARE-VAR arbitrary shorthand,
  * so writing the custom property directly in the brackets with no `var()`
  * wrapper compiles to a declaration whose value is the property NAME rather
- * than its value. That is invalid CSS, the
+ * than its value. That declaration parses, so nothing warns anywhere; the
  * browser discards it, and it ships as no transition at all rather than as an
  * off-scale one. The class is still generated, so grepping the class name finds
  * it and tsc / eslint / next build all pass; only the emitted value tells.

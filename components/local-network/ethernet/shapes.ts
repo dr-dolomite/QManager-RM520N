@@ -139,7 +139,7 @@ export const DISC_NEUTRAL = "bg-surface-container-high text-on-surface-variant";
  * Tailwind v4 dropped the BARE-VAR arbitrary shorthand — writing the custom
  * property inside the brackets without wrapping it in `var()`. That spelling
  * compiles to a declaration whose value is the property NAME rather than its
- * value, which is invalid CSS and which the browser discards, so it ships as no
+ * value. That declaration parses, so nothing warns, and the browser discards it, so it ships as no
  * transition at all rather than as an off-scale one. The class is still
  * generated, so grepping the class name finds it and tsc / eslint / next build
  * all pass; only the emitted value tells. The two sites this file replaces were

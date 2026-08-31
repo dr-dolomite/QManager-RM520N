@@ -41,11 +41,11 @@ Where behaviour cannot be executed, ordering is the *only* defense against a sel
 
 ### A frontend harness's own PROSE compiles to CSS
 
-> ⚠️ **Tailwind v4 scans `scripts/` and `docs/`, so an arbitrary-value class quoted in prose — a comment, a failure message, a doc paragraph — is extracted and compiled into real CSS.** Write such a class with a *placeholder* between the brackets and it emits a declaration whose value is an unparseable custom-property reference. Lightning CSS then aborts the **whole** stylesheet, and every page in `next dev` returns 500 — the app shell, not just the routes under test — while `next build` silently drops the bad rule and exits 0.
+> ⚠️ **Tailwind v4 scans EVERY non-gitignored file in the repo** — `scripts/`, `docs/`, Python, Rust, JSON, `LICENSE` — **so an arbitrary-value class quoted in prose (a comment, a failure message, a doc paragraph) is extracted and compiled into real CSS.** Most malformed spellings cost one dead rule. **Four** shapes instead make the whole stylesheet unparseable, and then every page in `next dev` returns 500 — the app shell, not just the routes under test. `next build` is **not** silent about it: its optimizer runs Lightning CSS with error recovery, prints `Found N warnings while optimizing generated CSS` with a code frame naming the class, drops the rule and exits 0. That report was simply never read — which is why `scripts/test/build-css-gate.sh` now gates `bun run package` on it. Full mechanism, the four fatal families, and the measured scan: [tailwind-prose-hazard.md](tailwind-prose-hazard.md).
 >
 > This happened during the 2026-08-31 `/local-network/` re-author: assertion `[7]`'s failure message warned about exactly the class of bug it was causing (`92781f8`). `next build`, `tsc --noEmit`, `eslint`, `i18n:check` and the harness itself were **all green** on a tree where the product did not render in development. The only thing that surfaced it was loading a page in a browser — the check the Done bar names and no builder had run.
 >
-> **The rule:** in a comment, a failure message, or a doc, describe the correct spelling in *words*. A concrete arbitrary-value class naming a custom property that actually exists is fine — it costs one dead utility and breaks nothing. A placeholder inside the brackets is not.
+> **The rule:** in a comment, a failure message, or a doc, describe the correct spelling in *words*. A concrete arbitrary-value class naming a custom property that actually exists is fine — it costs one dead utility and breaks nothing. A placeholder inside the brackets is not. And if a dev server has already 500ed, **removing the text does not recover it** — the failure latches until a cold restart.
 
 ### The floor, for work that skips the plan
 
@@ -53,7 +53,7 @@ Lite Path, skip phrases, and opportunistic fixes still owe the weaker version: *
 
 ### A red commit blocks nothing
 
-`bun run package` gates on `run-all.sh` only (syntax + CRLF). The deep harnesses run through `run-harnesses.sh` / `bun run test:harness`, which nothing gates on automatically — so a knowingly-red harness sitting on a feature branch for one commit cannot jam a build.
+`bun run package` gates on `run-all.sh` (syntax + CRLF), `icons:check`, and `scripts/test/build-css-gate.sh` (the production build, failed on Tailwind's CSS-optimizer report) — none of which run the deep harnesses. Those run through `run-harnesses.sh` / `bun run test:harness`, which nothing gates on automatically — so a knowingly-red harness sitting on a feature branch for one commit cannot jam a build.
 
 ### Validation is still Phase 5
 

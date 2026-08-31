@@ -58,14 +58,22 @@
 #      worth knowing about rather than a formatting whim. An earlier draft of
 #      this comment wrote them with a `*` wildcard where `standard` now sits.
 #      `globals.css:1` is a bare `@import "tailwindcss"` with no `@source`
-#      narrowing, so Tailwind v4 auto-scans the project — including scripts/ —
-#      and happily read that prose as a class name, emitting
-#      `--tw-duration: var(--duration-<asterisk>)`. That is not a legal custom
-#      property, so Turbopack's dev CSS parser rejected globals.css and EVERY
-#      PAGE 500'd. `next build` passed the whole time: its minifier silently
-#      drops the invalid declaration. A harness that quotes a Tailwind
-#      arbitrary-value class must therefore quote a VALID one — these three all
-#      already exist in components/, so generating them costs nothing.
+#      narrowing, so Tailwind v4 auto-detects content and scans EVERY
+#      non-gitignored file in the repo — scripts/, docs/, Python, Rust, JSON,
+#      LICENSE, package.json — and it happily read that prose as a class name,
+#      emitting a --tw-duration whose var() named no legal custom property. A
+#      var() whose first argument is not exactly one valid dashed identifier
+#      makes the WHOLE stylesheet unparseable, so the dev CSS parser rejected
+#      globals.css and EVERY PAGE 500'd. `next build` passed — but it was
+#      never silent. Its optimizer runs Lightning CSS with error recovery and
+#      prints "Found N warnings while optimizing generated CSS" with a code
+#      frame naming the class, then drops the rule and exits 0. Nothing read
+#      that report; `scripts/test/build-css-gate.sh` now does, inside
+#      `bun run package`. A harness that quotes a Tailwind arbitrary-value
+#      class must therefore quote a VALID one — these three all already exist
+#      in components/, so generating them costs nothing. The full mechanism —
+#      the three other fatal families, and the fact that the 500 LATCHES until
+#      a cold restart — is in docs/reference/tailwind-prose-hazard.md.
 #
 # THE THREE APPROVED DECISIONS (recorded 2026-08-30, user, at the Phase 3 gate)
 # -----------------------------------------------------------------------------
