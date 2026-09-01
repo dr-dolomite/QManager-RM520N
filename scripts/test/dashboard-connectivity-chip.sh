@@ -169,18 +169,49 @@ for tone in success warning destructive muted; do
 done
 
 # -----------------------------------------------------------------------------
-printf '\n[5] The five states never share an icon glyph (Every-Chip-Has-A-Glyph Rule)\n'
+# buildInternetChip is scoped out here and reused by the sixth-state check below.
+chip_fn=$(awk '/buildInternetChip/,/^\}/' "$TMPD/netstat.code")
+printf '\n[5] The five states never share a leading mark (Every-Chip-Has-A-Glyph Rule)\n'
 # success-container and warning-container measure 1.03:1 apart -- the same
 # surface to the eye -- so recovery/degraded (both warning-toned) MUST carry
-# different glyphs from each other and from every other state, or the
+# different marks from each other and from every other state, or the
 # colour becomes the only channel distinguishing them.
-glyph_lines=$(grep -nE 'name="[a-z_]+"' "$TMPD/netstat.code" | grep -iE 'icon|Symbol' || true)
-glyphs=$(printf '%s' "$glyph_lines" | grep -oE 'name="[a-z_]+"' | sort -u | wc -l | tr -d ' ')
-if [ "${glyphs:-0}" -ge 5 ]; then
-    ok "network-status.tsx uses $glyphs distinct icon glyphs (>= 5 states)"
+#
+# Scoped to buildInternetChip's own body, and line-break agnostic. The previous
+# form of this assertion grepped the WHOLE file for a name= and an icon/Symbol
+# token on the SAME line, which measured neither the right symbols nor the right
+# scope: it counted single-line MaterialSymbol call sites anywhere in the file
+# (the radio chips' help/radar/cell_tower among them) and went blind the moment
+# a call site was wrapped onto several lines by the formatter. It has therefore
+# been counting the wrong thing in both directions -- green while the states
+# shared a glyph, red while they did not.
+#
+# The connected state deliberately carries NO glyph: its leading mark is the
+# pulsing disc (live: true), which no other state renders and which degrades to
+# a plain filled disc under reduced motion. That is a distinct non-chromatic
+# mark, so the rule is satisfied -- but it is satisfied by exactly one state, so
+# this asserts that too. A second icon-less state would put two chips behind the
+# same blank leading slot.
+chip_marks=$(printf '%s\n' "$chip_fn" | tr -d '\n' | grep -oE 'name="[a-z_]+"' | sort -u)
+chip_glyphs=$(printf '%s' "$chip_marks" | grep -c . || true)
+live_states=$(printf '%s\n' "$chip_fn" | grep -cE 'live:[[:space:]]*true' || true)
+iconless=$(printf '%s\n' "$chip_fn" | grep -cE 'icon:[[:space:]]*null' || true)
+if [ "${chip_glyphs:-0}" -ge 4 ]; then
+    ok "buildInternetChip uses $chip_glyphs distinct icon glyphs"
 else
-    printf '       found: %s distinct MaterialSymbol name= glyphs\n' "${glyphs:-0}"
-    bad "only ${glyphs:-0} distinct glyphs found -- two of the five connectivity states are sharing one"
+    printf '       found: %s distinct glyphs\n' "${chip_glyphs:-0}"
+    printf '%s\n' "$chip_marks" | sed 's/^/         /'
+    bad "only ${chip_glyphs:-0} distinct glyphs -- two of the glyph-bearing states are sharing one"
+fi
+if [ "${iconless:-0}" -eq 1 ] && [ "${live_states:-0}" -eq 1 ]; then
+    ok "exactly one state is icon-less, and it is the one carrying the live disc"
+else
+    bad "expected exactly 1 icon-less state and 1 live state, found ${iconless:-0} and ${live_states:-0} -- an icon-less state with no live disc has no leading mark at all"
+fi
+if [ $((${chip_glyphs:-0} + ${iconless:-0})) -ge 5 ]; then
+    ok "all five states carry a distinct leading mark"
+else
+    bad "the five states resolve to only $((${chip_glyphs:-0} + ${iconless:-0})) distinct leading marks"
 fi
 
 # -----------------------------------------------------------------------------
