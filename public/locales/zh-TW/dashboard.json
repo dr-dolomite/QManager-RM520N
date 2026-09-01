@@ -8,6 +8,10 @@
   },
   "network": {
     "title": "網路狀態",
+    "description": "數據機目前連線的網路。",
+    "description_unreachable": "上次輪詢沒有回應。",
+    "unreachable": "無法連線數據機",
+    "sim_generic": "SIM 卡",
     "signal_5g": "5G 訊號",
     "signal_5g_lte_nrca": "5G + LTE / NR-CA",
     "signal_5g_lte": "5G + LTE",

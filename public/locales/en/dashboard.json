@@ -8,6 +8,10 @@
   },
   "network": {
     "title": "Network Status",
+    "description": "What the modem is connected to right now.",
+    "description_unreachable": "The last poll did not return.",
+    "unreachable": "Modem unreachable",
+    "sim_generic": "SIM",
     "signal_5g": "5G Signal",
     "signal_5g_lte_nrca": "5G + LTE / NR-CA",
     "signal_5g_lte": "5G + LTE",

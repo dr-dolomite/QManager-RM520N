@@ -8,6 +8,10 @@
   },
   "network": {
     "title": "网络状态",
+    "description": "调制解调器当前连接的网络。",
+    "description_unreachable": "上次轮询没有返回结果。",
+    "unreachable": "无法访问调制解调器",
+    "sim_generic": "SIM 卡",
     "signal_5g": "5G 信号",
     "signal_5g_lte_nrca": "5G + LTE / NR-CA",
     "signal_5g_lte": "5G + LTE",

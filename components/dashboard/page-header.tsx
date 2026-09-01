@@ -19,13 +19,19 @@ import { HEADER } from "./shapes";
 // header that disagrees with the cards beneath it is the one place the
 // difference is most visible.
 //
-// `rail` ships EMPTY. Step 01 moves the Radio / Internet / Stale chips out of
-// `network-status.tsx` and into it; until then the slot renders nothing at all
-// rather than an empty flex box, so the header has no invisible gap on its end.
+// `rail` now carries the Radio / Internet / Stale chips, moved out of
+// `network-status.tsx`: they answer "is the whole thing up?", which is a
+// question about the route rather than about any one card. It stays OPTIONAL,
+// and the slot renders nothing at all rather than an empty flex box when it is
+// omitted, so the header has no invisible gap on its end.
+//
+// The rail slot owns the flex row and its gap. `DashboardStatusRail` renders
+// `display: contents` so it contributes the stagger and nothing else — one
+// place to change the spacing, not two.
 // =============================================================================
 
 export interface DashboardPageHeaderProps {
-  /** Status chips, right-aligned on a wide container. Empty until step 01. */
+  /** Status chips, right-aligned on a wide container. */
   rail?: React.ReactNode;
 }
 

@@ -10,6 +10,7 @@ import { useModemStatus } from "@/hooks/use-modem-status";
 import { useAboutDevice } from "@/hooks/use-about-device";
 import { BAND, PAGE_GRID } from "./shapes";
 import { DashboardPageHeader } from "./page-header";
+import { DashboardStatusRail } from "./status-rail";
 import NetworkStatusComponent from "./network-status";
 import DeviceStatus from "./device-status";
 import LTEStatusComponent from "./lte-status";
@@ -76,9 +77,26 @@ const HomeComponent = () => {
         />
       )}
 
-      {/* Beat 1 — the page heading. */}
+      {/* Beat 1 — the page heading, and the Radio / Internet / Stale rail that
+          now rides in its slot.
+
+          The rail is built HERE rather than inside a card because the three
+          chips answer "is the whole thing up?", which is a question about the
+          route. Every input they need was already in this component — it hands
+          the same four values down to the hero — so moving them up re-fetches
+          nothing. */}
       <motion.div className={BAND.FULL} variants={staggerItem}>
-        <DashboardPageHeader />
+        <DashboardPageHeader
+          rail={
+            <DashboardStatusRail
+              data={data?.network ?? null}
+              connectivity={data?.connectivity ?? null}
+              modemReachable={data?.modem_reachable ?? false}
+              isLoading={isLoading}
+              isStale={isStale}
+            />
+          }
+        />
       </motion.div>
 
       {/* Beat 2 — the hero band. A nested grid with the SAME five columns and
@@ -89,10 +107,8 @@ const HomeComponent = () => {
           <motion.div variants={staggerItem}>
             <NetworkStatusComponent
               data={data?.network ?? null}
-              connectivity={data?.connectivity ?? null}
               modemReachable={data?.modem_reachable ?? false}
               isLoading={isLoading}
-              isStale={isStale}
             />
           </motion.div>
 

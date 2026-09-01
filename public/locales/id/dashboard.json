@@ -8,6 +8,10 @@
   },
   "network": {
     "title": "Status Jaringan",
+    "description": "Jaringan yang saat ini terhubung ke modem.",
+    "description_unreachable": "Polling terakhir tidak memberikan hasil.",
+    "unreachable": "Modem tidak dapat dijangkau",
+    "sim_generic": "SIM",
     "signal_5g": "Sinyal 5G",
     "signal_5g_lte_nrca": "5G + LTE / NR-CA",
     "signal_5g_lte": "5G + LTE",

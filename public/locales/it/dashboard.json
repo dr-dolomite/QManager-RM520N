@@ -8,6 +8,10 @@
   },
   "network": {
     "title": "Stato della rete",
+    "description": "A cosa è connesso il modem in questo momento.",
+    "description_unreachable": "L'ultimo sondaggio non ha risposto.",
+    "unreachable": "Modem non raggiungibile",
+    "sim_generic": "SIM",
     "signal_5g": "5G Segnale",
     "signal_5g_lte_nrca": "5G + LTE / NR-CA",
     "signal_5g_lte": "5G + LTE",

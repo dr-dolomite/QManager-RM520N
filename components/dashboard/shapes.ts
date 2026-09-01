@@ -135,7 +135,11 @@ export const HEADER = {
   TEXT: "flex max-w-[41rem] flex-col gap-1.5",
   TITLE: "text-3xl font-bold tracking-[-0.02em]",
   DESC: "text-on-surface-variant text-sm leading-relaxed text-pretty",
-  /** Where the Radio / Internet / Stale chips land. Empty until step 01. */
+  /**
+   * Where the Radio / Internet / Stale chips land. It owns the row and its gap;
+   * `DashboardStatusRail` renders `display: contents` so the spacing has one
+   * home rather than two nested flex boxes.
+   */
   RAIL: "flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto",
 } as const;
 
@@ -347,27 +351,142 @@ export const LANE = "w-14 shrink-0";
 // The hero orb
 // -----------------------------------------------------------------------------
 
-/** The orb box, shared by the real orbs and their skeletons so neither drifts. */
-export const ORB = "size-[152px]";
-
 /**
- * The glyph inside an orb.
+ * The three hero orbs — one geometry, two sizes, ONE ratio.
  *
- * 96 in a 152 disc leaves ~28px of optical padding; 74 left 39px, which read as
- * a small mark floating in a large disc rather than as a single object. The
- * ceiling is set by the corner badge, not by taste: the badge occupies
- * x 110-138 / y 4-32 of the orb box, and at 96px the widest glyph's ink still
- * clears it. Do not raise this without re-checking that overlap.
- */
-export const GLYPH = "size-[96px]";
-
-/**
- * The orb badge's lift.
+ * -----------------------------------------------------------------------------
+ * WHY THIS IS A PROPERTY AND NOT TWO SETS OF NUMBERS
+ * -----------------------------------------------------------------------------
+ * The service orb is four concentric absolutely-positioned discs — an outer
+ * ring, two inner rings and a core — and their sizes only mean anything
+ * RELATIVE to each other. Shipped, they were 152 / 112 / 80 / 48, which is
+ * 1 : 0.7368 : 0.5263 : 0.3158.
  *
- * Deliberately NOT a token: it is a one-off elevation on a 28px disc, and the
- * whisper shadow is a card-level shadow, not this one.
+ * Adding a second size by re-typing four numbers is four chances to get one of
+ * them wrong, and a wrong one fails nothing that would tell you: not the build,
+ * not the typecheck, not a screenshot. It just makes the stack very slightly
+ * not concentric, at one width, on one device class. So `--orb` carries the
+ * size and every other dimension below is a `calc()` against it. There is one
+ * number to change and the proportions cannot drift.
+ *
+ * -----------------------------------------------------------------------------
+ * WHY THE COMPACT SIZE IS FLUID RATHER THAN A FLAT 92px
+ * -----------------------------------------------------------------------------
+ * Below the card query the orbs sit 3-across, and three 92px discs plus their
+ * gaps do not fit a hero card on a 320px phone: the page gutter and the card's
+ * own `px-7` leave ~232px of content there, against 3 × 92 + 2 × 12 = 300.
+ * A flat 92 would overflow exactly the device class R3 exists for.
+ *
+ * `min(92px, 28cqw)` reads 92px wherever the card has ~329px of content and
+ * degrades below it, so the cap is the design value and the query unit is only
+ * the fallback — not the other way round. At the narrowest realistic card it
+ * resolves to ~65px against a 69px ceiling, which is the fit this ratio was
+ * chosen to clear.
+ *
+ * ⚠️ `cqw` AND THE SIZE QUERY BOTH MEASURE THE CONTENT BOX, not the border box.
+ * `HERO_SHELL` declares `@container/card` and carries `px-7`, so a 624px card
+ * queries as 568. This was measured, not assumed, and it corrected this
+ * module's first draft twice: the threshold below had been pushed one step up
+ * on border-box arithmetic that said three full-size orbs would not fit a
+ * 512px card. Against the content box they fit with 24px to spare, and the
+ * step-up had simply stopped firing at widths where the full orbs belong.
+ *
+ * -----------------------------------------------------------------------------
+ * THE PULSE SURVIVES THE SCALING FOR FREE
+ * -----------------------------------------------------------------------------
+ * `animate-pulse-ring` is a `scale(0.82) → scale(1)` keyframe. A transform
+ * scale is proportional by construction, so it reads identically at 92px and at
+ * 152px and needed no second tuning. Had it been written in px it would have.
  */
-export const BADGE = "shadow-[0_2px_6px_oklch(0.20_0.05_262_/_0.25)]";
+export const ORB = {
+  /**
+   * Declares `--orb` for a whole orb grid. Must sit on an ancestor of both the
+   * loaded orbs and their skeletons, which is why `GRID` carries it — the two
+   * then read one source and the handoff moves nothing.
+   *
+   * The step-up is `@lg/card` (512px of CONTENT — see the content-box note
+   * above). Three 152px discs plus two 16px gaps need 488px, so they clear it
+   * with 24px to spare, and the full-size orbs come back at the width they
+   * were designed for.
+   */
+  SCALE: "[--orb:min(92px,28cqw)] @lg/card:[--orb:152px]",
+  /**
+   * Three across at EVERY width. Stacked, the orbs ran ~456px of disc plus
+   * three label blocks — roughly 600px before the reader reached anything else,
+   * on the surface built for a thirty-second glance beside the modem.
+   */
+  GRID: "grid grid-cols-3 place-items-center gap-3 @lg/card:gap-4",
+  /** One orb's box, shared by the real orb and its skeleton. */
+  BOX: "size-[var(--orb)]",
+  /**
+   * The glyph inside an orb — 0.6316, i.e. 96 in the full 152 disc.
+   *
+   * 96 leaves ~28px of optical padding; 74 left 39px, which read as a small
+   * mark floating in a large disc rather than as a single object. The ceiling
+   * is set by the corner badge, not by taste: the badge occupies x 110–138 /
+   * y 4–32 of the full-size orb box, and at 96px the widest glyph's ink still
+   * clears it. Do not raise this ratio without re-checking that overlap.
+   */
+  GLYPH: "size-[calc(var(--orb)*0.6316)]",
+  /** The ring stack, outward in. 1 / 0.7368 / 0.5263 around a 0.3158 core. */
+  RING_1: "size-[var(--orb)]",
+  RING_2: "size-[calc(var(--orb)*0.7368)]",
+  RING_3: "size-[calc(var(--orb)*0.5263)]",
+  CORE: "size-[calc(var(--orb)*0.3158)]",
+  /**
+   * The corner badge's disc and its inset, on the same ratio — with a FLOOR.
+   *
+   * The floor is the one place the ratio is deliberately broken, and it is not
+   * a taste call. The badge glyph is what carries ok/warn/fail when colour
+   * cannot: `success-container` and `warning-container` measure 1.03:1 apart
+   * and are the same surface under deuteranopia, so DESIGN.md's Every-Chip-Has-
+   * A-Glyph contract rests on that mark being READ. Pure proportion put it at
+   * 14px on a 76px orb, which is below the size at which a check and a cross
+   * are reliably told apart. Scaling wins down to 20px; legibility wins below.
+   */
+  BADGE:
+    "size-[max(20px,calc(var(--orb)*0.1842))] top-[calc(var(--orb)*0.0263)] right-[calc(var(--orb)*0.0921)]",
+  /**
+   * The badge's lift. Deliberately NOT a token: it is a one-off elevation on a
+   * small disc, and the whisper shadow is a card-level shadow, not this one.
+   */
+  LIFT: "shadow-[0_2px_6px_oklch(0.20_0.05_262_/_0.25)]",
+  /**
+   * Font sizes for the Material glyphs that must scale with the orb.
+   *
+   * `MaterialSymbol` sets `fontSize` as an inline style from its numeric
+   * `size`, which no utility class can override — so a class alone cannot
+   * scale these three, and this is the one place on the surface where that
+   * matters. The component spreads its `style` prop AFTER `fontSize`, so a
+   * call site passes `size` for the optical-size axis and overrides the font
+   * size here.
+   */
+  SYMBOL: {
+    BODY: "calc(var(--orb)*0.6316)",
+    /** Floored with its disc above, and for the same contrast reason. */
+    BADGE: "max(12px,calc(var(--orb)*0.1118))",
+    CORE: "calc(var(--orb)*0.1447)",
+  },
+  /**
+   * The `size` numbers those three call sites still pass, for the `opsz`
+   * variable axis. They are the FULL-size figures: `opsz` is clamped to the
+   * subset's 20..48 range, so the two larger ones are already saturated and
+   * only the badge glyph could differ — by an amount below the threshold at
+   * which the axis changes a stroke.
+   */
+  OPSZ: { BODY: 96, BADGE: 17, CORE: 22 },
+  /**
+   * The label block beneath an orb. It steps with the disc: three 92px columns
+   * cannot hold "4G Carrier Aggregation" at 16px without wrapping to four
+   * lines, which would give back the vertical space the smaller orb just saved.
+   */
+  LABEL: {
+    ROOT: "flex flex-col gap-[3px] text-center",
+    TITLE:
+      "justify-center text-sm leading-tight font-semibold text-balance @lg/card:text-base @lg/card:leading-none",
+    SUB: "justify-center text-xs text-on-surface-variant text-balance @lg/card:text-sm",
+  },
+} as const;
 
 // -----------------------------------------------------------------------------
 // Clocks

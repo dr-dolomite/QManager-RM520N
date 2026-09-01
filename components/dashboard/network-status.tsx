@@ -3,9 +3,13 @@
 import React from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
 import { SwapLabel } from "@/components/ui/swap-label";
@@ -26,45 +30,32 @@ import {
   Md3gMobiledata,
 } from "react-icons/md";
 
-import type {
-  NetworkStatus,
-  ConnectivityStatus,
-  ConnectivityState,
-  ServiceStatus,
-} from "@/types/modem-status";
+import type { NetworkStatus, ServiceStatus } from "@/types/modem-status";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { CARD_DESC, CARD_TITLE, HERO_SHELL, ORB } from "./shapes";
 
 interface NetworkStatusComponentProps {
   data: NetworkStatus | null;
-  connectivity: ConnectivityStatus | null;
   modemReachable: boolean;
   isLoading: boolean;
-  isStale: boolean;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * Hero glance surface. Deliberately carries NO numeric telemetry: this card
  * answers "is it up?", the sibling carrier cards answer "how good is it?".
  * Do not add dB/ms/percent values here.
+ *
+ * It no longer carries the Radio / Internet / Stale rail either. Those three
+ * chips answer "is the WHOLE THING up?", which is a page question, and they now
+ * render through the page header's rail slot from
+ * `components/dashboard/status-rail.tsx`. What is left here is three orbs and
+ * their labels, which is what the card was always about.
+ *
+ * All geometry comes from `./shapes`. This file used to declare its own
+ * identical copies of the orb box, the glyph size and the badge lift beside the
+ * ones in the shapes module — two declarations of one number, either of which
+ * a future author could have changed alone.
  * ────────────────────────────────────────────────────────────────────────────*/
-
-// Shared geometry so the skeletons and the real orbs can never drift apart.
-const ORB = "size-[152px]";
-// 96 in a 152 disc leaves ~28px of optical padding. 74 left 39px, which read as
-// a small mark floating in a large disc rather than as a single object. The
-// ceiling is set by the corner badge, not by taste: the badge occupies
-// x 110-138 / y 4-32 of the orb box, and at 96px the widest glyph's ink still
-// clears it. Do not raise this without re-checking that overlap.
-const GLYPH = "size-[96px]";
-
-// The prototype's badge lift. Not a token: it is a one-off elevation on a
-// 28px disc, and --shadow-whisper is a card-level shadow, not this.
-const BADGE_SHADOW = "shadow-[0_2px_6px_oklch(0.20_0.05_262_/_0.25)]";
 
 // --- Helper: Determine network icon & label keys from type + CA status ---
 // Returns dashboard-namespace keys (network.*); the component resolves them via
@@ -78,14 +69,14 @@ function getNetworkDisplay(
   switch (type) {
     case "5G-NSA":
       return {
-        icon: <MdOutline5G className={GLYPH} />,
+        icon: <MdOutline5G className={ORB.GLYPH} />,
         labelKey: "network.signal_5g",
         sublabelKey: nrCaActive ? "network.signal_5g_lte_nrca" : "network.signal_5g_lte",
         hasNetwork: true,
       };
     case "5G-SA":
       return {
-        icon: <MdOutline5G className={GLYPH} />,
+        icon: <MdOutline5G className={ORB.GLYPH} />,
         labelKey: "network.signal_5g",
         sublabelKey: nrCaActive ? "network.signal_sa_nrca" : "network.signal_sa",
         hasNetwork: true,
@@ -93,20 +84,20 @@ function getNetworkDisplay(
     case "LTE":
       return caActive
         ? {
-            icon: <Md4gPlusMobiledata className={GLYPH} />,
+            icon: <Md4gPlusMobiledata className={ORB.GLYPH} />,
             labelKey: "network.signal_lte_plus",
             sublabelKey: "network.ca_4g",
             hasNetwork: true,
           }
         : {
-            icon: <Md4gMobiledata className={GLYPH} />,
+            icon: <Md4gMobiledata className={ORB.GLYPH} />,
             labelKey: "network.signal_lte",
             sublabelKey: "network.connected_4g",
             hasNetwork: true,
           };
     default:
       return {
-        icon: <Md3gMobiledata className={GLYPH} />,
+        icon: <Md3gMobiledata className={ORB.GLYPH} />,
         labelKey: "network.signal_generic",
         sublabelKey: "network.no_signal",
         hasNetwork: false,
@@ -204,251 +195,15 @@ const serviceColorMap: Record<
   },
 };
 
-// ─── Chips ────────────────────────────────────────────────────────────────
-// Filled tonal pills. The outline-badge pattern is retired ON THIS CARD ONLY:
-// the hero surface needs its two live signals to read at a glance, and an
-// outline chip on a borderless 40px card reads as debris.
-
-// Two clocks, per DESIGN.md > Motion > "Status chip swap" (Motion Guide recipe
-// 05). The container's fill and ink morph over `standard` through this CSS
-// transition; the contents crossfade over `quick` through the keyed span in the
-// body. The state change is therefore FELT peripherally — a 300ms colour mass
-// moving at the edge of vision — before it is READ. Collapsing both onto one
-// clock loses that ordering, and running the container at `quick` reads as a
-// flicker, which is exactly why the old 140-160ms floor was retired.
-const CHIP_BASE =
-  "inline-flex items-center gap-[7px] rounded-full text-xs font-semibold py-[7px] pr-[13px] pl-[11px] transition-colors duration-(--duration-standard) ease-standard";
-
-// The four roles this card's chips can wear. Keyed as a record rather than a
-// ternary chain so a tone with no container pairing cannot compile — the same
-// guarantee `BadgeVariant` gives the shared wrapper, restated here because this
-// card renders its own pill (see the note above).
-type ChipTone = "success" | "warning" | "destructive" | "muted";
-
-const CHIP_TONE: Record<ChipTone, string> = {
-  success: "bg-success-container text-on-success-container",
-  warning: "bg-warning-container text-on-warning-container",
-  destructive: "bg-destructive-container text-on-destructive-container",
-  muted: "bg-surface-container-high text-on-surface-variant",
+// The neutral ramp, used by the two states where a role colour would assert
+// something the card did not observe: a deliberate airplane-mode off-state, and
+// a poll that never came back.
+const MUTED_RINGS = {
+  ring1: "bg-surface-container",
+  ring2: "bg-surface-container-high",
+  ring3: "bg-surface-container-high",
+  center: "bg-surface-container-high text-on-surface-variant",
 };
-
-function Chip({
-  tone,
-  swapKey,
-  children,
-}: {
-  tone: ChipTone;
-  /** Identity of the current contents. When it changes the label and glyph
-   *  crossfade; when it does not, a poll returning the same state animates
-   *  nothing. Callers pass the label, which is what actually changes. */
-  swapKey: string;
-  children: React.ReactNode;
-}) {
-  const toneCls = CHIP_TONE[tone];
-  return (
-    <span className={`${CHIP_BASE} ${toneCls}`}>
-      {/* The inner span carries the gap so the crossfade wraps glyph and label
-          together: they are one statement, and fading the word while the icon
-          holds would let the two disagree for 180ms. */}
-      <SwapLabel swapKey={swapKey} className="gap-[7px]">
-        {children}
-      </SwapLabel>
-    </span>
-  );
-}
-
-// ─── Radio chip ───────────────────────────────────────────────────────────
-// "Radio off" is a deliberate state, not a failure, so it renders muted rather
-// than destructive — the loudest thing on a glance surface should be a problem
-// the user did not choose.
-function buildRadioChip(
-  modemReachable: boolean,
-  radioOn: boolean,
-  isAirplaneMode: boolean,
-  isSearching: boolean,
-  t: TFunction,
-): { tone: ChipTone; icon: React.ReactNode; label: string } {
-  if (isAirplaneMode) {
-    return {
-      tone: "warning",
-      icon: (
-        <MaterialSymbol
-          name="airplanemode_active"
-          size={15}
-          filled
-          className="shrink-0"
-        />
-      ),
-      label: t("network.airplane_mode"),
-    };
-  }
-  // Unreachable is NOT "off". When the poller has lost the modem we cannot
-  // observe CFUN at all, so claiming the radio is off would assert a device
-  // state we did not read. Say we don't know instead.
-  if (!modemReachable) {
-    return {
-      tone: "muted",
-      icon: <MaterialSymbol name="help" size={15} filled className="shrink-0" />,
-      label: t("network.radio_unknown"),
-    };
-  }
-  if (!radioOn) {
-    return {
-      tone: "muted",
-      icon: (
-        <MaterialSymbol
-          name="power_settings_new"
-          size={15}
-          filled
-          className="shrink-0"
-        />
-      ),
-      label: t("network.radio_off"),
-    };
-  }
-  if (isSearching) {
-    return {
-      tone: "warning",
-      icon: <MaterialSymbol name="radar" size={15} filled className="shrink-0" />,
-      label: t("network.service_searching"),
-    };
-  }
-  return {
-    tone: "success",
-    icon: (
-      <MaterialSymbol name="cell_tower" size={15} filled className="shrink-0" />
-    ),
-    label: t("network.radio_on"),
-  };
-}
-
-// ─── Internet chip ────────────────────────────────────────────────────────
-// Reads `connectivity.status`, the five-value verdict qmanager_poller derives
-// from the ICMP daemon's reachability plus its rolling packet-loss window. It
-// deliberately does NOT re-derive that verdict from raw reachability: a link
-// answering one ping in ten is reachable and is not healthy, and the poller is
-// the only party holding the loss window needed to tell those apart.
-//
-// The card used to read a sibling `state` field instead. That field was fed by
-// a retired Rust HTTP daemon, so the shell probe that replaced it never wrote
-// one — the poller emitted the literal string "unknown" forever, and because a
-// non-empty string is truthy the fallback beneath it was unreachable code. The
-// chip was therefore pinned grey on every healthy device that ever shipped.
-//
-// COPY DISCIPLINE. This is an ICMP probe, and plenty of carriers silently drop
-// ICMP. An unanswered ping is indistinguishable from a real outage, so nothing
-// here may assert an outage: the label reports what was observed (no reply) and
-// the tooltip names the ambiguity. The TONE is still destructive, because a
-// probe that has stopped answering is worth interrupting for even when the
-// cause turns out to be a filter.
-interface InternetChip {
-  tone: ChipTone;
-  dotCls: string;
-  live: boolean;
-  /**
-   * Non-connected states carry a glyph instead of the heartbeat dot, and no two
-   * of them may share one. `success-container` (L 0.89) and `warning-container`
-   * (L 0.905) measure 1.03:1 apart and are the same surface under deuteranopia,
-   * so with `prefers-reduced-motion` stripping the pulse the leading mark is
-   * the only channel left. Colour must never be the sole carrier of meaning.
-   */
-  icon: React.ReactNode | null;
-  label: string;
-  tooltip: string | null;
-}
-
-function buildInternetChip(
-  c: ConnectivityStatus | null,
-  t: TFunction,
-): InternetChip {
-  // No connectivity object at all is the same statement as the poller's own
-  // "unknown": nothing was measured, so nothing is claimed.
-  const status: ConnectivityState = c?.status ?? "unknown";
-
-  switch (status) {
-    case "connected":
-      return {
-        tone: "success",
-        dotCls: "bg-success",
-        // The pulse is gated on real reachability — a live halo over a dead
-        // link is the interface lying about what it knows. It is also this
-        // state's distinct leading mark: a beating disc, which no other state
-        // renders, and which degrades to a plain filled disc (still unlike any
-        // of the four glyphs below) under reduced motion.
-        live: true,
-        icon: null,
-        label: t("network.internet_online"),
-        tooltip: null,
-      };
-    case "degraded":
-      return {
-        tone: "warning",
-        dotCls: "bg-warning",
-        // No pulse. The probes ARE answering, but a heartbeat over a link
-        // losing a tenth of its packets would read as health.
-        live: false,
-        icon: (
-          <MaterialSymbol
-            name="warning"
-            size={15}
-            filled
-            className="shrink-0"
-          />
-        ),
-        label: t("network.internet_degraded"),
-        tooltip: t("network.internet_tooltip.degraded"),
-      };
-    case "recovery":
-      return {
-        tone: "warning",
-        dotCls: "bg-warning",
-        live: false,
-        icon: (
-          <MaterialSymbol
-            name="restart_alt"
-            size={15}
-            filled
-            className="shrink-0"
-          />
-        ),
-        label: t("network.internet_recovering"),
-        tooltip: t("network.internet_tooltip.recovery"),
-      };
-    case "disconnected":
-      return {
-        tone: "destructive",
-        dotCls: "bg-destructive",
-        live: false,
-        icon: (
-          <MaterialSymbol
-            name="signal_disconnected"
-            size={15}
-            filled
-            className="shrink-0"
-          />
-        ),
-        label: t("network.internet_unreachable"),
-        tooltip: t("network.internet_tooltip.no_reply"),
-      };
-    case "unknown":
-    default:
-      return {
-        tone: "muted",
-        dotCls: "bg-on-surface-variant",
-        live: false,
-        icon: (
-          <MaterialSymbol
-            name="do_not_disturb_on"
-            size={15}
-            filled
-            className="shrink-0"
-          />
-        ),
-        label: t("network.internet_unknown"),
-        tooltip: t("network.internet_tooltip.unknown"),
-      };
-  }
-}
 
 // ─── Corner badge ─────────────────────────────────────────────────────────
 // The glyph changes with the colour. That is the colour-blindness contract,
@@ -463,20 +218,24 @@ function CornerBadge({ state }: { state: "ok" | "warn" | "fail" }) {
   return (
     <span
       aria-hidden="true"
-      className={`absolute top-[4px] right-[14px] grid size-7 place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${cls} ${BADGE_SHADOW}`}
+      className={`absolute ${ORB.BADGE} grid place-items-center rounded-pill transition-colors duration-(--duration-standard) ease-standard ${cls} ${ORB.LIFT}`}
     >
-      {/* The badge is a 28px disc, so its fill morph is small enough to miss.
+      {/* The badge is a small disc, so its fill morph is easy to miss.
           Crossfading the glyph on the `quick` clock is what makes the change
           legible at that size — and the glyph is the half that survives
-          greyscale and deuteranopia, so it is the half that must not snap. */}
+          greyscale and deuteranopia, so it is the half that must not snap.
+
+          The `style` override is what scales the glyph with the orb: the size
+          prop lands as an inline fontSize that no utility can reach, and the
+          primitive spreads `style` after it. `size` still carries the optical-
+          size axis. */}
       <SwapLabel swapKey={state} className="justify-center">
-        {state === "ok" ? (
-          <MaterialSymbol name="check" size={17} filled />
-        ) : state === "warn" ? (
-          <MaterialSymbol name="warning" size={17} filled />
-        ) : (
-          <MaterialSymbol name="close" size={17} filled />
-        )}
+        <MaterialSymbol
+          name={state === "ok" ? "check" : state === "warn" ? "warning" : "close"}
+          size={ORB.OPSZ.BADGE}
+          filled
+          style={{ fontSize: ORB.SYMBOL.BADGE }}
+        />
       </SwapLabel>
     </span>
   );
@@ -501,17 +260,11 @@ function simBadgeState(status: ServiceStatus): "ok" | "warn" | "fail" {
 // ride under the crossfade without the text appearing to slide.
 function OrbLabel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="flex flex-col gap-[3px] text-center">
-      <SwapLabel
-        swapKey={title}
-        className="justify-center text-base leading-none font-semibold"
-      >
+    <div className={ORB.LABEL.ROOT}>
+      <SwapLabel swapKey={title} className={ORB.LABEL.TITLE}>
         {title}
       </SwapLabel>
-      <SwapLabel
-        swapKey={subtitle}
-        className="justify-center text-sm text-on-surface-variant"
-      >
+      <SwapLabel swapKey={subtitle} className={ORB.LABEL.SUB}>
         {subtitle}
       </SwapLabel>
     </div>
@@ -521,10 +274,10 @@ function OrbLabel({ title, subtitle }: { title: string; subtitle: string }) {
 function OrbSkeleton() {
   return (
     <div className="flex flex-col items-center gap-2.5">
-      <Skeleton className={`${ORB} rounded-full`} />
+      <Skeleton className={`${ORB.BOX} rounded-pill`} />
       <div className="flex flex-col items-center gap-[3px]">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-3.5 w-28" />
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-3.5 w-20" />
       </div>
     </div>
   );
@@ -532,10 +285,8 @@ function OrbSkeleton() {
 
 const NetworkStatusComponent = ({
   data,
-  connectivity,
   modemReachable,
   isLoading,
-  isStale,
 }: NetworkStatusComponentProps) => {
   const { t } = useTranslation("dashboard");
   // Derive display values
@@ -546,30 +297,41 @@ const NetworkStatusComponent = ({
   const caActive = data?.ca_active ?? false;
   const nrCaActive = data?.nr_ca_active ?? false;
 
+  // The last poll did not come back. Everything below is then a statement about
+  // a payload that was never read, so the card says so rather than drawing a
+  // full, confident set of orbs underneath a page banner that says the modem is
+  // unreachable. The card and the banner used to disagree.
+  const unreachable = !modemReachable;
+
   const networkDisplay = getNetworkDisplay(networkType, caActive, nrCaActive);
   const networkLabel = t(networkDisplay.labelKey);
   const networkSublabel = t(networkDisplay.sublabelKey);
   const serviceLabel = t(getServiceLabelKey(serviceStatus));
   const serviceColor = getServiceColor(networkType, caActive, serviceStatus);
   // Airplane mode: CFUN=0 (radio off) or CFUN=4 (RF off)
-  const isAirplaneMode = data?.cfun === 0 || data?.cfun === 4;
+  const isAirplaneMode = !unreachable && (data?.cfun === 0 || data?.cfun === 4);
 
   // Airplane mode reports `no_service`, which maps to the destructive ramp —
   // but the user CHOSE this. Destructive fill is reserved for failures the user
   // did not pick, so a deliberate off-state wears muted surface tones instead.
-  const serviceColors = isAirplaneMode
-    ? {
-        ring1: "bg-surface-container",
-        ring2: "bg-surface-container-high",
-        ring3: "bg-surface-container-high",
-        center: "bg-surface-container-high text-on-surface-variant",
-      }
-    : serviceColorMap[serviceColor];
+  // An unreachable modem takes the same ramp for the mirror-image reason: we
+  // did not observe a failure, we observed nothing.
+  const serviceColors =
+    unreachable || isAirplaneMode ? MUTED_RINGS : serviceColorMap[serviceColor];
 
-  // Radio is ON when the modem is reachable and not in airplane mode
-  const radioOn = modemReachable && !isAirplaneMode;
+  // The unreachable orb body. Neutral, because the alternative is painting a
+  // role colour onto a reading that does not exist.
+  const MUTED_ORB = "bg-surface-container-high text-on-surface-variant";
 
-  // Service is active when we have a good service status
+  // Service is active when we have a good service status.
+  //
+  // THIS IS THE ONLY GATE ON THE AMBIENT LOOP and it is deliberately left as it
+  // was. It already covers the unreachable case rather than needing a second
+  // clause beside it: `determine_service_status()` in qmanager_poller resets
+  // service_status to "unknown" on every cycle where modem_reachable is not
+  // true (qmanager_poller:1313-1319), so an unreachable modem can never reach
+  // either arm below. Two gates on one loop is how a later author removes the
+  // wrong one. Verified against the poller, not assumed.
   const isServiceActive =
     serviceStatus === "optimal" || serviceStatus === "connected";
 
@@ -577,137 +339,56 @@ const NetworkStatusComponent = ({
   // glyph itself can never disagree about which state is being drawn — keying
   // a swap on a value re-derived beside the branch is how a crossfade silently
   // stops firing.
-  const coreState: "off" | "ok" | "warn" | "fail" = isAirplaneMode
-    ? "off"
-    : isServiceActive
-      ? "ok"
-      : serviceStatus === "searching" || serviceStatus === "limited"
-        ? "warn"
-        : "fail";
+  const coreState: "off" | "ok" | "warn" | "fail" | "unknown" = unreachable
+    ? "unknown"
+    : isAirplaneMode
+      ? "off"
+      : isServiceActive
+        ? "ok"
+        : serviceStatus === "searching" || serviceStatus === "limited"
+          ? "warn"
+          : "fail";
 
   // Whether we have a real network (LTE/5G), not fallback 3G
   const hasNetwork = networkDisplay.hasNetwork;
 
-  const radio = buildRadioChip(
-    modemReachable,
-    radioOn,
-    isAirplaneMode,
-    serviceStatus === "searching",
-    t,
-  );
-  const internet = buildInternetChip(connectivity, t);
-
   return (
-    <Card className="@container/card gap-5 rounded-hero border-0 px-7 py-[26px] shadow-[var(--shadow-whisper)]">
-      {/* ── Header row ── */}
-      <div className="flex flex-wrap items-center gap-4">
-        {/* h3 to match the sibling CardTitle level — the hero's prominence is
-            carried by size, not by jumping the heading hierarchy. */}
-        <h3 className="text-[30px] font-semibold tracking-[-0.02em]">
-          {t("network.title")}
-        </h3>
+    <Card className={HERO_SHELL}>
+      {/* The heading sits at the shared 18px Title step, not at the Display
+          step it used to wear. That size belongs to the page h1 — one per
+          route — and this card was standing in for a page header the route did
+          not have until step 00 gave it one.
 
-        {isLoading ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <Skeleton className="h-[30px] w-28 rounded-full" />
-            <Skeleton className="h-[30px] w-24 rounded-full" />
-          </div>
-        ) : (
-          // flex-wrap so up to three chips break BETWEEN pills on a phone
-          // rather than overflowing the hero or wrapping inside a pill.
-          //
-          // The rail cascades on the row step when data first lands. It is the
-          // shorter of the card's two groups and sits above the orbs, so it
-          // reads as the first beat of one entrance rather than as a second,
-          // competing one.
-          <motion.div
-            className="ml-auto flex flex-wrap items-center justify-end gap-2"
-            // Variants only, no initial/animate: this cascade INHERITS the
-            // page-wide clock in home-component.tsx. Declaring its own would
-            // detach it and start a second clock, which is the defect the
-            // single-cascade step retired.
-            variants={staggerRows}
-          >
-            {/* Stale — stays a CARD-scoped chip. "Your last poll was late" is
-                not an assertive alert; promoting it to a banner would cry wolf.
-
-                Every rail item wraps in an `inline-flex` span, not a bare one:
-                transforms are ignored on non-replaced inline boxes, so the row
-                item's 5px rise would silently do nothing while the opacity
-                half still ran — a half-working entrance that reads as a design
-                choice rather than as the bug it is. */}
-            {isStale && (
-              <motion.span variants={staggerRowItem} className="inline-flex">
-                <Chip tone="warning" swapKey="stale">
-                  <MaterialSymbol
-                    name="schedule"
-                    size={15}
-                    filled
-                    className="shrink-0"
-                  />
-                  {t("network.data_delayed_badge")}
-                </Chip>
-              </motion.span>
-            )}
-
-            {/* Radio */}
-            <motion.span variants={staggerRowItem} className="inline-flex">
-              <Chip tone={radio.tone} swapKey={radio.label}>
-                {radio.icon}
-                {radio.label}
-              </Chip>
-            </motion.span>
-
-            {/* Internet */}
-            <motion.span variants={staggerRowItem} className="inline-flex">
-              {internet.tooltip ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      // The chip is 30px tall; `before:` lifts the hit area to
-                      // the 44px touch floor without shifting any layout.
-                      //
-                      // The ring arrives over `quick` and is never animated
-                      // away: a focus ring that fades out on blur trails the
-                      // caret through a keyboard pass and reads as lag, which
-                      // is why only the appearing half is transitioned.
-                      className="relative rounded-full transition-[box-shadow] duration-(--duration-quick) ease-quick before:absolute before:-inset-[7px] before:content-[''] focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    >
-                      <Chip tone={internet.tone} swapKey={internet.label}>
-                        <InternetDot chip={internet} />
-                        {internet.label}
-                      </Chip>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{internet.tooltip}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Chip tone={internet.tone} swapKey={internet.label}>
-                  <InternetDot chip={internet} />
-                  {internet.label}
-                </Chip>
-              )}
-            </motion.span>
-          </motion.div>
-        )}
-      </div>
+          CardDescription carries an explicit ink class because the primitive
+          hardcodes a retired one. */}
+      <CardHeader className="px-0">
+        <CardTitle className={CARD_TITLE}>{t("network.title")}</CardTitle>
+        <CardDescription className={CARD_DESC}>
+          {unreachable
+            ? t("network.description_unreachable")
+            : t("network.description")}
+        </CardDescription>
+      </CardHeader>
 
       {/* ── Three orbs ──
           One branch, not three: the cascade has to key on the skeleton→data
           handoff, and with a ternary per orb the wrapper grid persists across
           that handoff, so a container mounted with the skeletons would have
           fired its entrance against placeholder geometry and left the real
-          orbs to appear with no motion at all. */}
+          orbs to appear with no motion at all.
+
+          Both branches carry ORB.SCALE, which declares the one custom property
+          every dimension below derives from — so the skeleton and the loaded
+          orb are the same size at every width by construction. */}
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 place-items-center @lg/card:grid-cols-3">
+        <div className={`${ORB.SCALE} ${ORB.GRID}`}>
           <OrbSkeleton />
           <OrbSkeleton />
           <OrbSkeleton />
         </div>
       ) : (
         <motion.div
-          className="grid grid-cols-1 gap-4 place-items-center @lg/card:grid-cols-3"
+          className={`${ORB.SCALE} ${ORB.GRID}`}
           // Variants only, no initial/animate: this cascade INHERITS the
           // page-wide clock in home-component.tsx. Declaring its own would
           // detach it and start a second clock, which is the defect the
@@ -720,64 +401,106 @@ const NetworkStatusComponent = ({
             className="flex flex-col items-center gap-2.5"
           >
             <div className="relative">
-              {/* Every orb fill morphs over `standard`. These are 152px
-                  containers changing fill — the largest colour mass on the
-                  dashboard — and a hard swap on a RAT handover or an airplane
-                  toggle is the single most jarring frame the card can produce. */}
+              {/* Every orb fill morphs over `standard`. These are the largest
+                  colour mass on the dashboard, and a hard swap on a RAT
+                  handover or an airplane toggle is the single most jarring
+                  frame the card can produce. */}
               <div
-                className={`${ORB} grid place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${
-                  isAirplaneMode
-                    ? "bg-success-container text-on-success-container"
-                    : hasNetwork
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-surface-container-high text-on-surface-variant"
+                className={`${ORB.BOX} grid place-items-center rounded-pill transition-colors duration-(--duration-standard) ease-standard ${
+                  unreachable
+                    ? MUTED_ORB
+                    : isAirplaneMode
+                      ? "bg-success-container text-on-success-container"
+                      : hasNetwork
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-surface-container-high text-on-surface-variant"
                 }`}
               >
-                {isAirplaneMode ? (
-                  <MaterialSymbol name="energy_savings_leaf" size={96} filled />
+                {unreachable ? (
+                  <MaterialSymbol
+                    name="signal_cellular_off"
+                    size={ORB.OPSZ.BODY}
+                    filled
+                    style={{ fontSize: ORB.SYMBOL.BODY }}
+                  />
+                ) : isAirplaneMode ? (
+                  <MaterialSymbol
+                    name="energy_savings_leaf"
+                    size={ORB.OPSZ.BODY}
+                    filled
+                    style={{ fontSize: ORB.SYMBOL.BODY }}
+                  />
                 ) : (
                   networkDisplay.icon
                 )}
               </div>
               {!isAirplaneMode && (
-                <CornerBadge state={hasNetwork ? "ok" : "fail"} />
+                <CornerBadge
+                  state={unreachable ? "fail" : hasNetwork ? "ok" : "fail"}
+                />
               )}
             </div>
             <OrbLabel
-              title={isAirplaneMode ? t("network.low_power") : networkLabel}
-              subtitle={isAirplaneMode ? t("network.radio_off") : networkSublabel}
+              title={
+                unreachable
+                  ? networkLabel
+                  : isAirplaneMode
+                    ? t("network.low_power")
+                    : networkLabel
+              }
+              subtitle={
+                unreachable
+                  ? t("network.unreachable")
+                  : isAirplaneMode
+                    ? t("network.radio_off")
+                    : networkSublabel
+              }
             />
           </motion.div>
 
-          {/* === Orb 2 — SIM / Carrier === */}
+          {/* === Orb 2 — SIM / Carrier ===
+              On the STRONG fill, not the pale container: The Glyph-Disc Rule.
+              In light mode the identity containers collapse under CVD
+              simulation and the fills do not, so a 152px category disc on a
+              container is the one place the identity colour is least legible. */}
           <motion.div
             variants={staggerRowItem}
             className="flex flex-col items-center gap-2.5"
           >
             <div className="relative">
               <div
-                className={`${ORB} grid place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${
-                  isAirplaneMode
-                    ? "bg-surface-container-high text-on-surface-variant"
-                    : "bg-primary-container text-on-primary-container"
+                className={`${ORB.BOX} grid place-items-center rounded-pill transition-colors duration-(--duration-standard) ease-standard ${
+                  unreachable || isAirplaneMode
+                    ? MUTED_ORB
+                    : "bg-primary text-primary-foreground"
                 }`}
               >
                 {isAirplaneMode ? (
-                  <Plane className={GLYPH} strokeWidth={1.25} />
+                  <Plane className={ORB.GLYPH} strokeWidth={1.25} />
                 ) : (
-                  <CardSimIcon className={GLYPH} strokeWidth={1.25} />
+                  <CardSimIcon className={ORB.GLYPH} strokeWidth={1.25} />
                 )}
               </div>
               {!isAirplaneMode && (
-                <CornerBadge state={simBadgeState(serviceStatus)} />
+                <CornerBadge
+                  state={unreachable ? "fail" : simBadgeState(serviceStatus)}
+                />
               )}
             </div>
             <OrbLabel
-              title={t("network.sim_label", { slot: simSlot })}
+              // A slot number is a reading like any other. With no poll to read
+              // it from, the label drops the number rather than asserting 1.
+              title={
+                unreachable
+                  ? t("network.sim_generic")
+                  : t("network.sim_label", { slot: simSlot })
+              }
               subtitle={
-                isAirplaneMode
-                  ? t("network.airplane_mode")
-                  : carrier || t("network.no_carrier")
+                unreachable
+                  ? t("network.unreachable")
+                  : isAirplaneMode
+                    ? t("network.airplane_mode")
+                    : carrier || t("network.no_carrier")
               }
             />
           </motion.div>
@@ -786,70 +509,84 @@ const NetworkStatusComponent = ({
               The isServiceActive gate is load-bearing: rings only breathe when
               service is genuinely live. A pulsing ring over "No Service" would
               animate a lie, so the inactive branch renders the same geometry
-              static.
+              static — and an unreachable modem reaches that branch for free,
+              because the poller resets service_status to "unknown" whenever it
+              cannot see the device.
 
               The ring tones morph over `standard` in BOTH branches. That is
               the seam the gate creates: crossing it swaps the whole ramp (say
               success → destructive) at the same instant the pulse starts or
               stops, and without the transition the stack jump-cuts to a new
               colour. The morph runs on background-color while the ambient loop
-              runs on transform and opacity, so the two never contend. */}
+              runs on transform and opacity, so the two never contend.
+
+              Every disc below is a calc against ORB.SCALE's one property, at
+              the shipped 1 / 0.7368 / 0.5263 proportions around a 0.3158 core.
+              animate-pulse-ring is a transform scale, so it is proportional and
+              reads the same at both sizes. */}
           <motion.div
             variants={staggerRowItem}
             className="flex flex-col items-center gap-2.5"
           >
-            <div className={`relative ${ORB} grid place-items-center`}>
+            <div className={`relative ${ORB.BOX} grid place-items-center`}>
               {isServiceActive ? (
                 <>
                   <span
-                    className={`absolute size-[152px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring1} animate-pulse-ring`}
+                    className={`absolute ${ORB.RING_1} rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring1} animate-pulse-ring`}
                   />
                   <span
-                    className={`absolute size-[112px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring2} animate-pulse-ring`}
+                    className={`absolute ${ORB.RING_2} rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring2} animate-pulse-ring`}
                     style={{ animationDelay: "0.3s" }}
                   />
                   <span
-                    className={`absolute size-[80px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring3} animate-pulse-ring`}
+                    className={`absolute ${ORB.RING_3} rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring3} animate-pulse-ring`}
                     style={{ animationDelay: "0.6s" }}
                   />
                 </>
               ) : (
                 <>
                   <span
-                    className={`absolute size-[152px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring1}`}
+                    className={`absolute ${ORB.RING_1} rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring1}`}
                   />
                   <span
-                    className={`absolute size-[112px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring2}`}
+                    className={`absolute ${ORB.RING_2} rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring2}`}
                   />
                   <span
-                    className={`absolute size-[80px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring3}`}
+                    className={`absolute ${ORB.RING_3} rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring3}`}
                   />
                 </>
               )}
               <span
                 aria-hidden="true"
-                className={`relative grid size-[48px] place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.center}`}
+                className={`relative ${ORB.CORE} grid place-items-center rounded-pill transition-colors duration-(--duration-standard) ease-standard ${serviceColors.center}`}
               >
                 {/* The core glyph tracks service LIVENESS, not the ring tone:
                     a yellow stack just means single-band LTE, which is still a
                     working connection and must not wear an alert glyph — hence
                     amber-pulsing rings around a `check`. `warning` is reserved
-                    for the transitional states (searching / limited) and
-                    `priority_high` for outright failure, so all four states
-                    hold distinct glyphs and the card never encodes its verdict
-                    in hue alone.
+                    for the transitional states (searching / limited),
+                    `priority_high` for outright failure and `help` for a poll
+                    that never returned, so all five states hold distinct glyphs
+                    and the card never encodes its verdict in hue alone.
                     Crossfaded on `quick` so the glyph and the disc fill never
                     disagree for longer than a label swap. */}
                 <SwapLabel swapKey={coreState} className="justify-center">
-                  {coreState === "off" ? (
-                    <MaterialSymbol name="power_settings_new" size={22} />
-                  ) : coreState === "ok" ? (
-                    <MaterialSymbol name="check" size={22} />
-                  ) : coreState === "warn" ? (
-                    <MaterialSymbol name="warning" size={22} filled />
-                  ) : (
-                    <MaterialSymbol name="priority_high" size={22} />
-                  )}
+                  <MaterialSymbol
+                    name={
+                      coreState === "unknown"
+                        ? "help"
+                        : coreState === "off"
+                          ? "power_settings_new"
+                          : coreState === "ok"
+                            ? "check"
+                            : coreState === "warn"
+                              ? "warning"
+                              : "priority_high"
+                    }
+                    size={ORB.OPSZ.CORE}
+                    filled={coreState === "warn"}
+                    style={{ fontSize: ORB.SYMBOL.CORE }}
+                  />
                 </SwapLabel>
               </span>
             </div>
@@ -859,7 +596,13 @@ const NetworkStatusComponent = ({
                   ? t("network.standby_label")
                   : t("network.service_label")
               }
-              subtitle={isAirplaneMode ? t("network.radio_off") : serviceLabel}
+              subtitle={
+                unreachable
+                  ? t("network.unreachable")
+                  : isAirplaneMode
+                    ? t("network.radio_off")
+                    : serviceLabel
+              }
             />
           </motion.div>
         </motion.div>
@@ -867,28 +610,5 @@ const NetworkStatusComponent = ({
     </Card>
   );
 };
-
-// Internet chip's leading element is a dot, not a glyph — "reachable" is a
-// heartbeat, and only a heartbeat gets the live halo.
-function InternetDot({ chip }: { chip: InternetChip }) {
-  // A glyph, when we have one, beats a dot: it survives colour-blindness and
-  // reduced motion, both of which erase the difference between the dots.
-  if (chip.icon) return <>{chip.icon}</>;
-  if (!chip.live) {
-    return (
-      <span
-        className={`inline-flex size-2 shrink-0 rounded-full ${chip.dotCls}`}
-      />
-    );
-  }
-  return (
-    <span className="relative inline-flex size-2 shrink-0">
-      <span
-        className={`absolute inset-0 rounded-full ${chip.dotCls} animate-live-ping`}
-      />
-      <span className={`relative size-2 rounded-full ${chip.dotCls}`} />
-    </span>
-  );
-}
 
 export default NetworkStatusComponent;
