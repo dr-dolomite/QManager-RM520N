@@ -1521,6 +1521,414 @@ else
     ok "the no-reading stop no longer claims a zero measurement"
 fi
 
+# =============================================================================
+# SECTION 03 -- Device Information
+# =============================================================================
+#
+# The right rail of the hero band. It is the surface's densest card -- nine
+# identity rows, a 188px device mark and two uptime figures -- and it carries
+# more of the pass's findings than any other single file: 02, 04, 05, 07, 09,
+# 12 and 13 all name it.
+#
+# WHAT CHANGES, AND WHY EACH ONE IS NOT A TASTE CALL
+# ---------------------------------------------------------------------
+#
+#   1. THE HEADING JOINS THE RAMP. `text-2xl @[250px]/card:text-3xl` is a PAGE
+#      title's size, and this card wore it while five siblings on the same
+#      screen wore `text-lg`. Three page-title-sized headings on one screen is
+#      three things claiming to be the top of the hierarchy, which is the same
+#      as none of them claiming it. It takes CARD_TITLE, and gains the
+#      description the whole surface was missing.
+#
+#   2. CALL C -- THE 188px SLAB GOES NEUTRAL. Approved 2026-09-01. A
+#      `primary-container` disc 188px across is the largest single area of role
+#      colour on the route, and what it is encoding is "a photograph of a modem
+#      goes here". The Data-Ink Rule spends colour on things that report; the
+#      mark reports nothing, so the slab goes `surface-container` and the hue
+#      goes back to the cards that are measuring something.
+#
+#      THE MARK STAYS 188px. Shrinking it was considered and REJECTED ON
+#      MEASUREMENT: this card is h-full-locked to a left column carrying the
+#      hero PLUS the carrier pair, so it has slack, and the mark is partly what
+#      fills it. Neutralising is Call C; shrinking is a different change that
+#      was not approved, and [03-2] pins the size so the two do not get
+#      conflated by a later reader.
+#
+#   3. THE UPTIME TILES STOP ENCODING THEIR STATE IN THE BODY FILL. Shipped,
+#      the connection tile is a `success-container` slab with NO GLYPH, beside
+#      an identically shaped neutral tile. That is colour as the sole channel,
+#      on the one pairing where it is least survivable: the two tiles are the
+#      same shape, the same size and adjacent, so a reader who cannot separate
+#      the fills has nothing else to read. They become the canonical TILE --
+#      neutral body, a 52px disc carrying the colour, and A DISTINCT GLYPH
+#      EACH.
+#
+#   4. THE ROWS BECOME THE CANONICAL PILL. `px-[15px]` against the module's
+#      `px-4` is divergence 1, recorded in shapes.ts at step 00 and owned here.
+#      One pixel is not the point; a second spelling of one row is.
+#
+#   5. THE UNREACHABLE BRANCH. Finding 13. And the split it makes is the whole
+#      value of the branch: an IDENTIFIER does not go stale. A firmware version
+#      read four seconds ago is still this modem's firmware version when the
+#      next poll fails, so the identity rows KEEP their last-known values. The
+#      two uptime figures are the opposite -- they are measurements of a clock
+#      that is still running while we cannot see it -- so they go to the absent
+#      sentinel on a muted disc. Blanking the rows would throw away nine true
+#      facts to report one unknown.
+#
+# WHAT THIS SECTION DELIBERATELY DOES AND DOES NOT PIN
+# ---------------------------------------------------------------------
+# [03-3] pins the shell to a shapes export and pins that export's CONTENT,
+#        because this card's shell is NOT the grid-peer CARD_SHELL and must not
+#        be quietly re-pointed at one. It is a hero-radius side rail. Whether
+#        the surface should carry a 40px radius outside its one hero is a real
+#        question and it belongs to a later call, not to a step whose contract
+#        is grammar; minting the string byte-identical is what step 00 did with
+#        every shell it hoisted, and it is what makes this a zero-visual-change
+#        re-point rather than a redesign smuggled in under a dedup.
+# [03-6] cannot assert what a glyph LOOKS like. It asserts the two tiles carry
+#        different names, that neither is the eye toggle, and that every name
+#        the file asks for is actually in the subset -- a ligature we do not
+#        ship renders as its own literal text on a modem in the field, which no
+#        typecheck catches and no screenshot of a dev machine reproduces.
+# [03-7] asserts the identity rows are NOT gated on reachability, positively.
+#        The failure mode this step is closest to introducing is over-applying
+#        its own branch: the honest fix for a failed poll blanks the two
+#        measurements and leaves the nine identifiers alone, and an assertion
+#        that only checked "an unreachable branch exists" would pass just as
+#        happily on a card that blanked everything.
+# [03-9] pins the masking, the tick composition and the inherited clock, for
+#        the same reason [02-9] pinned the ramp: the comment explaining why one
+#        TickGroup spans eleven figures is still correct, and a step that opens
+#        the file for other reasons is exactly when a correct subsystem gets
+#        tidied away.
+# [03-1] [03-2] [03-3] [03-4] [03-5] [03-6] [03-7] [03-8] [03-9] run against
+#        comment-stripped source, same rationale as R0-6, 00-5, 01-6 and 02-3.
+#        This file's JSDoc necessarily quotes `bg-primary-container`,
+#        `px-[15px]` and `h-[62px]` to explain what they were and why they went.
+# [03-10] extracts the device_status object before grepping, same as [02-10].
+#        A whole-file grep for "description" is how SECTION 01 nearly shipped a
+#        false green.
+# EVERY class spelling quoted below is a real utility already emitted elsewhere
+#        in this repo. No pattern here invents a class-shaped string.
+#
+# Run: bash scripts/test/dashboard-design-language.sh
+# =============================================================================
+
+DEV_03="$DASHBOARD/device-status.tsx"
+SHAPES_03="$SHAPES_00"
+HOME_03="$HOME_00"
+ICONS_03="$COMPONENTS/ui/material-symbol-names.ts"
+
+printf '\n=============================================================\n'
+printf 'SECTION 03 -- Device Information\n'
+printf '=============================================================\n'
+
+dev_stripped="$TMPD/device-status.stripped"
+if [ -f "$DEV_03" ]; then
+    strip_comments "$DEV_03" > "$dev_stripped"
+else
+    : > "$dev_stripped"
+fi
+
+shapes_stripped_03="$TMPD/shapes.03.stripped"
+if [ -f "$SHAPES_03" ]; then
+    strip_comments "$SHAPES_03" > "$shapes_stripped_03"
+else
+    : > "$shapes_stripped_03"
+fi
+
+home_stripped_03="$TMPD/home-component.03.stripped"
+if [ -f "$HOME_03" ]; then
+    strip_comments "$HOME_03" > "$home_stripped_03"
+else
+    : > "$home_stripped_03"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-1] the heading joins the surface type ramp\n'
+# Finding 02, and finding 03 beside it. A card title is `text-lg`; the page
+# heading minted in step 00 is the only `text-3xl` on the route.
+if [ ! -f "$DEV_03" ]; then
+    bad "device-status.tsx is missing"
+else
+    if grep -q 'CARD_TITLE' "$dev_stripped"; then
+        ok "the title reads the shared card-title size"
+    else
+        bad "the title still sizes itself instead of importing CARD_TITLE"
+    fi
+    if grep -q 'text-2xl' "$dev_stripped"; then
+        bad "a page-title-sized heading survives in device-status.tsx"
+    else
+        ok "no page-sized heading is left on this card"
+    fi
+    if grep -q '250px./card:text-3xl' "$dev_stripped"; then
+        bad "the card still steps its title up to text-3xl"
+    else
+        ok "the title no longer steps up to a page size"
+    fi
+    if grep -q 'CardDescription' "$dev_stripped"; then
+        ok "the card carries a description"
+    else
+        bad "the card still has no CardDescription"
+    fi
+    if grep -q 'CARD_DESC' "$dev_stripped"; then
+        ok "the description speaks the surface's secondary ink"
+    else
+        bad "the description does not read CARD_DESC"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-2] Call C -- the device mark sits on a neutral slab, still 188px\n'
+# The largest single area of role colour on the route, behind decoration.
+if [ -f "$DEV_03" ]; then
+    if grep -q 'bg-primary-container' "$dev_stripped"; then
+        bad "the 188px decorative slab is still painted with a role container"
+    else
+        ok "the device mark's slab is off the role palette"
+    fi
+    if grep -q 'bg-surface-container' "$dev_stripped"; then
+        ok "the neutral surface fill is present"
+    else
+        bad "nothing neutral replaced the container fill"
+    fi
+    mark_count=$(grep -c 'w-\[188px\]' "$dev_stripped" || true)
+    if [ "$mark_count" -eq 2 ]; then
+        ok "the mark is still 188px in both the loaded card and its skeleton"
+    else
+        bad "the 188px mark changed size or lost its mirror (found $mark_count of 2)"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-3] the shell has one home, and it is still this card own shell\n'
+# Byte-identical hoist, not a re-point at the grid-peer shell. See the section
+# note: demoting a 40px radius to 36px is a visual change and a later call.
+if grep -q 'export const SIDE_SHELL' "$shapes_stripped_03"; then
+    ok "shapes.ts owns the side-rail shell"
+    side_line=$(grep -A2 'export const SIDE_SHELL' "$shapes_stripped_03" | tr -d '\n')
+    for frag in 'rounded-hero' 'border-0' 'bg-surface' 'gap-4' 'h-full' '@container/card'; do
+        case "$side_line" in
+            *"$frag"*) ok "SIDE_SHELL still carries $frag" ;;
+            *) bad "SIDE_SHELL lost $frag -- the hoist stopped being byte-identical" ;;
+        esac
+    done
+else
+    bad "shapes.ts does not export SIDE_SHELL"
+fi
+if [ -f "$DEV_03" ]; then
+    if grep -q 'SIDE_SHELL' "$dev_stripped"; then
+        ok "device-status.tsx imports its shell"
+    else
+        bad "device-status.tsx does not read SIDE_SHELL"
+    fi
+    if grep -q 'rounded-hero border-0' "$dev_stripped"; then
+        bad "the shell is still written inline in device-status.tsx"
+    else
+        ok "no inline shell copy survives in device-status.tsx"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-4] the rows are the canonical pill, and the skeleton mirrors it\n'
+# Divergence 1, recorded in shapes.ts at step 00 and owned here.
+if [ -f "$DEV_03" ]; then
+    if grep -q 'px-\[15px\]' "$dev_stripped"; then
+        bad "the row pill is still written at its own padding"
+    else
+        ok "the second spelling of the row pill is gone"
+    fi
+    if grep -q 'ROW\.ROOT' "$dev_stripped"; then
+        ok "the row reads ROW.ROOT"
+    else
+        bad "the row does not read ROW.ROOT"
+    fi
+    if grep -q 'ROW\.KEY' "$dev_stripped" && grep -q 'ROW\.VALUE' "$dev_stripped"; then
+        ok "the row's key and value take the shared type"
+    else
+        bad "the row's key or value still sizes itself"
+    fi
+    if grep -q 'h-\[41px\]' "$dev_stripped"; then
+        bad "the row skeleton still restates a height it cannot see"
+    else
+        ok "no restated row height survives"
+    fi
+    if grep -q 'ROW\.HEIGHT' "$dev_stripped"; then
+        ok "the row skeleton mirrors by import"
+    else
+        bad "the row skeleton does not import ROW.HEIGHT"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-5] the uptime tiles are the canonical tile\n'
+# Divergence 3 in shapes.ts: TILE was minted at step 00 with no consumer, and
+# this is the step that gives it one.
+if [ -f "$DEV_03" ]; then
+    for frag in 'TILE\.ROOT' 'TILE\.DISC' 'TILE\.TEXT' 'TILE\.EYEBROW' 'TILE\.VALUE' 'TILE\.CAPTION' 'TILE\.HEIGHT'; do
+        name=$(printf '%s' "$frag" | tr -d '\\')
+        if grep -q "$frag" "$dev_stripped"; then
+            ok "the tile reads $name"
+        else
+            bad "the tile does not read $name"
+        fi
+    done
+    if grep -q 'h-\[62px\]' "$dev_stripped"; then
+        bad "the tile skeleton still restates the old floating height"
+    else
+        ok "no restated tile height survives"
+    fi
+    if grep -qE 'rounded-tile (px|py)' "$dev_stripped"; then
+        bad "a bespoke tile box is still written inline"
+    else
+        ok "no bespoke tile box survives"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-6] the connection state is not carried by colour alone\n'
+# Finding 09. success-container against surface-container is not the 1.03:1
+# pair, but the two tiles are the same shape, the same size and adjacent, so a
+# fill difference is the ONLY thing separating them and a reader who cannot
+# resolve it has nothing else to read.
+if [ -f "$DEV_03" ]; then
+    if grep -qE 'bg-success-container' "$dev_stripped"; then
+        bad "the tile BODY still wears the role fill; the colour belongs on the disc"
+    else
+        ok "the tile body is neutral and the colour moved to the disc"
+    fi
+    for sym in DISC_SUCCESS DISC_MUTED; do
+        if grep -q "export const $sym" "$shapes_stripped_03"; then
+            ok "shapes.ts owns $sym"
+        else
+            bad "shapes.ts does not export $sym"
+        fi
+        if grep -q "$sym" "$dev_stripped"; then
+            ok "the tiles read $sym"
+        else
+            bad "the tiles do not read $sym"
+        fi
+    done
+    # Every glyph the file asks for, minus the eye toggle, must be distinct and
+    # must exist in the shipped subset.
+    glyphs=$(grep -oE 'name="[a-z0-9_]+"' "$dev_stripped" \
+        | sed 's/name="//; s/"//' \
+        | grep -vE '^visibility(_off)?$' | sort -u)
+    glyph_n=$(printf '%s\n' "$glyphs" | grep -c . || true)
+    if [ "$glyph_n" -ge 3 ]; then
+        ok "the tiles carry three distinct marks (up, down, and device uptime)"
+    else
+        bad "the two tiles do not carry distinct glyphs (found $glyph_n, need 3)"
+    fi
+    missing=0
+    for g in $glyphs; do
+        grep -q "\"$g\"," "$ICONS_03" || { bad "glyph '$g' is not in the shipped subset"; missing=1; }
+    done
+    [ "$missing" -eq 0 ] && [ "$glyph_n" -ge 1 ] \
+        && ok "every glyph this card asks for is in the subset"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-7] the unreachable branch exists, and stops at the measurements\n'
+# Finding 13, and the split that makes the branch worth having. An identifier
+# does not go stale; a running clock we cannot see does.
+if [ -f "$DEV_03" ]; then
+    if grep -q 'modemReachable' "$dev_stripped"; then
+        ok "the card is told whether the modem answered"
+    else
+        bad "the card still cannot tell a failed poll from a real reading"
+    fi
+    if grep -q 'unreachable' "$dev_stripped"; then
+        ok "the card derives an unreachable state"
+    else
+        bad "no unreachable state is derived"
+    fi
+    if grep -q 'modemReachable' "$home_stripped_03"; then
+        ok "home-component.tsx hands the card its reachability"
+    else
+        bad "home-component.tsx does not pass modemReachable to the device card"
+    fi
+    if grep -q 'ABSENT' "$dev_stripped"; then
+        ok "the absent sentinel is the one this surface already uses"
+    else
+        bad "the card does not read the shared ABSENT sentinel"
+    fi
+    if grep -qE '\|\| "-"|\? "-"|: "-"' "$dev_stripped"; then
+        bad "a bare hyphen placeholder survives in device-status.tsx"
+    else
+        ok "no bare hyphen placeholder survives"
+    fi
+    # POSITIVE: the identity rows must still take their own last-known value.
+    # An assertion that only checked "a branch exists" would pass on a card
+    # that blanked all nine identifiers too.
+    if grep -qE 'data\?\.manufacturer \|\| ABSENT' "$dev_stripped"; then
+        ok "the identity rows keep their last-known values"
+    else
+        bad "the identity rows no longer take their own value unconditionally"
+    fi
+    if grep -qE 'unreachable.*data\?\.(manufacturer|firmware|imei|iccid|imsi)' "$dev_stripped"; then
+        bad "an identity row was gated on reachability -- identifiers do not go stale"
+    else
+        ok "no identity row is gated on reachability"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-8] the radii are on the role scale\n'
+# Finding 12. Two sites in this file.
+if [ -f "$DEV_03" ]; then
+    if grep -q 'rounded-full' "$dev_stripped"; then
+        bad "a legacy rounded-full survives in device-status.tsx"
+    else
+        ok "no legacy radius survives in device-status.tsx"
+    fi
+    if grep -q 'rounded-pill' "$dev_stripped"; then
+        ok "the pill radius is on the role scale"
+    else
+        bad "the pill radius is gone entirely"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-9] the masking, the ranking and the inherited clock all survive\n'
+# The comment explaining why one TickGroup spans eleven figures is still
+# correct. A step that opens the file for other reasons is exactly when a
+# correct subsystem gets tidied away.
+if [ -f "$DEV_03" ]; then
+    keep03=0
+    for sym in TickGroup TickingValue staggerRows staggerRowItem MASK hidePrivate formatUptime; do
+        grep -q "$sym" "$dev_stripped" || { bad "device-status.tsx lost $sym"; keep03=1; }
+    done
+    [ "$keep03" -eq 0 ] && ok "masking, ticking, ranking and uptime formatting are all present"
+    if grep -qE 'initial=|animate=' "$dev_stripped"; then
+        bad "this card declares its own clock again -- it must inherit the page-wide one"
+    else
+        ok "the card's cascade still inherits the page-wide clock"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[03-10] the locale packs carry the new copy on every language\n'
+# The description is new; so are the tile captions and the unreachable word.
+# Extract the device_status object first -- a whole-file grep for a common key
+# name is how SECTION 01 nearly shipped a false green.
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block03=$(awk '/^  "device_status": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    for key in description conn_uptime_caption_up conn_uptime_caption_down device_uptime_caption uptime_unknown; do
+        if printf '%s' "$block03" | grep -q "\"$key\""; then
+            ok "$lang carries device_status.$key"
+        else
+            bad "$lang is missing device_status.$key"
+        fi
+    done
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
