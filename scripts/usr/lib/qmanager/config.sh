@@ -53,7 +53,7 @@ qm_config_init() {
     "enabled": 0,
     "strategy": "full"
   },
-  "traffic_masquerade": {
+  "full_bypass": {
     "enabled": 0,
     "sni_domain": "speedtest.net"
   },
@@ -129,6 +129,31 @@ qm_config_delete() {
     # empty temp. Only publish the temp when jq actually succeeded.
     if jq --arg s "$section" --arg k "$key" \
         'if has($s) then .[$s] |= del(.[$k]) else . end' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null; then
+        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    else
+        rm -f "$QM_CONFIG_TMP"
+        return 1
+    fi
+}
+
+# Delete a whole section: qm_config_delete_section <section>
+# Example: qm_config_delete_section traffic_masquerade
+# Atomic write via temp file + mv. No-op (success) if the config file or the
+# section doesn't exist.
+#
+# The section-scoped sibling of qm_config_delete above, and it exists because
+# that one cannot retire a section: deleting a section's keys one at a time
+# leaves an empty `"traffic_masquerade": {}` behind on every device, which is
+# how a renamed-away concept survives its own rename. Used by section-rename
+# migrations in install_rm520n.sh.
+qm_config_delete_section() {
+    local section="$1"
+    [ -f "$QM_CONFIG" ] || return 0
+    # Same gated mv as qm_config_delete: the '>' redirect creates an empty
+    # $QM_CONFIG_TMP before jq runs, so an unconditional mv after a jq failure
+    # (e.g. a corrupt/unparseable config) would clobber the live file with that
+    # empty temp. Only publish the temp when jq actually succeeded.
+    if jq --arg s "$section" 'del(.[$s])' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null; then
         mv "$QM_CONFIG_TMP" "$QM_CONFIG"
     else
         rm -f "$QM_CONFIG_TMP"

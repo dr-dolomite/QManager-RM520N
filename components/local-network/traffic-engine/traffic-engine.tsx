@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { useCdnHostlist } from "@/hooks/use-cdn-hostlist";
-import { useTrafficMasquerade } from "@/hooks/use-traffic-masquerade";
+import { useFullBypass } from "@/hooks/use-full-bypass";
 import { useVideoOptimizer } from "@/hooks/use-video-optimizer";
 
 import ForceTcpCard from "./force-tcp-card";
@@ -75,9 +75,9 @@ import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 // ONE ANSWER TO "WHICH MODE IS ACTIVE", AND IT IS DERIVED HERE
 // -----------------------------------------------------------------------------
 // This is the fix for the correctness bug. The shell used to hand the status
-// card `videoOptimizer.data ?? masquerade.data` and let the card work out its
+// card `videoOptimizer.data ?? fullBypass.data` and let the card work out its
 // own shape from `"sni_domain" in data`. Both hooks fetch, so the Video
-// Optimizer's payload essentially always won — and with MASQUERADE enabled the
+// Optimizer's payload essentially always won — and with FULL BYPASS enabled the
 // card still rendered "Domains loaded", a figure for a mode that has no domain
 // list.
 //
@@ -96,17 +96,18 @@ import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 // =============================================================================
 
 /**
- * Sent with every masquerade write and inert on this platform.
+ * Sent with every Full Bypass write and inert on this platform.
  *
- * tpws has no fake-ClientHello mode (that is nfqws-only), so masquerade means
- * "split everything" rather than "spoof this name". The key is accepted and
+ * tpws has no fake-ClientHello mode (that is nfqws-only), so this mode means
+ * "split everything" rather than "spoof this name" — which is why it is no
+ * longer called Traffic Masquerade. The key is accepted and
  * stored for API-contract compatibility with the RM551E and is documented as
  * inert (docs/reference/dpi.md > Modes). It is a constant here rather than a
  * field because there is nothing for a user to decide about it — the retired UI
  * removed the input for exactly that reason, and the orphaned
  * `trafficEngine.status.sni` key went with this re-author.
  */
-const MASQUERADE_SNI = "speedtest.net";
+const FULL_BYPASS_SNI = "speedtest.net";
 
 /**
  * True only once `active` has held for `delayMs`.
@@ -134,17 +135,17 @@ const TrafficEngine = () => {
   const { t } = useTranslation("common");
 
   const videoOptimizer = useVideoOptimizer();
-  const masquerade = useTrafficMasquerade();
+  const fullBypass = useFullBypass();
   const hostlist = useCdnHostlist();
 
   // ---------------------------------------------------------------------------
   // The two derivations, kept apart on purpose
   // ---------------------------------------------------------------------------
   // The mode comes from the two `enabled` flags, which the backend keeps
-  // mutually exclusive. Masquerade is tested first only so the expression has a
+  // mutually exclusive. Full Bypass is tested first only so the expression has a
   // fixed order; the mutex means at most one can be true.
-  const mode: DpiMode = masquerade.data?.enabled
-    ? "masquerade"
+  const mode: DpiMode = fullBypass.data?.enabled
+    ? "full_bypass"
     : videoOptimizer.data?.enabled
       ? "video_optimizer"
       : "none";
@@ -153,7 +154,7 @@ const TrafficEngine = () => {
   // out rather than as a `??` chain because the chain is what the wrong-mode bug
   // looked like, and the two reads should not resemble each other.
   const primary = videoOptimizer.data;
-  const secondary = masquerade.data;
+  const secondary = fullBypass.data;
   const source = primary !== null ? primary : secondary;
 
   const reading: LiveStripReading | null = source
@@ -189,7 +190,7 @@ const TrafficEngine = () => {
   // ---------------------------------------------------------------------------
   // Read states
   // ---------------------------------------------------------------------------
-  const isLoading = videoOptimizer.isLoading && masquerade.isLoading;
+  const isLoading = videoOptimizer.isLoading && fullBypass.isLoading;
   const showSkeleton = useDelayedFlag(isLoading);
   // Nothing was ever read. Distinct from a poll that failed on top of data.
   const readFailed = source === null && !isLoading;
@@ -198,7 +199,7 @@ const TrafficEngine = () => {
   // and a healthy one render identically.
   const pollFailed =
     source !== null &&
-    (videoOptimizer.error !== null || masquerade.error !== null);
+    (videoOptimizer.error !== null || fullBypass.error !== null);
 
   // The USER-INITIATED re-read, wired to the two banners' Retry buttons only.
   // It is deliberately NOT silent: someone pressing Retry after a failed read
@@ -207,7 +208,7 @@ const TrafficEngine = () => {
   // `selectMode` is the opposite case and refetches silently — see there.
   const retry = () => {
     videoOptimizer.refresh();
-    masquerade.refresh();
+    fullBypass.refresh();
   };
 
   // ---------------------------------------------------------------------------
@@ -229,13 +230,13 @@ const TrafficEngine = () => {
       const ok =
         next === "video_optimizer"
           ? await videoOptimizer.saveEnabled(true)
-          : next === "masquerade"
-            ? await masquerade.save(true, MASQUERADE_SNI)
+          : next === "full_bypass"
+            ? await fullBypass.save(true, FULL_BYPASS_SNI)
             : // Turning off means disabling whichever mode currently owns the
               // engine. Writing "off" to the section that is already off would
               // be a no-op that reported success.
-              mode === "masquerade"
-              ? await masquerade.save(false, MASQUERADE_SNI)
+              mode === "full_bypass"
+              ? await fullBypass.save(false, FULL_BYPASS_SNI)
               : await videoOptimizer.saveEnabled(false);
 
       if (!ok) {
@@ -246,8 +247,8 @@ const TrafficEngine = () => {
         t(
           next === "video_optimizer"
             ? "trafficEngine.mode.toast_video_optimizer"
-            : next === "masquerade"
-              ? "trafficEngine.mode.toast_masquerade"
+            : next === "full_bypass"
+              ? "trafficEngine.mode.toast_full_bypass"
               : "trafficEngine.mode.toast_off",
         ),
       );
@@ -274,7 +275,7 @@ const TrafficEngine = () => {
       // regardless. The two cards are now side by side (see the band below),
       // which makes a mid-test switch MORE likely, not less.
       videoOptimizer.refresh(true);
-      masquerade.refresh(true);
+      fullBypass.refresh(true);
     } finally {
       setPendingMode(null);
     }
@@ -284,7 +285,7 @@ const TrafficEngine = () => {
   // so the pending mode adds a channel rather than changing the shape of an
   // existing one.
   const isSaving =
-    pendingMode !== null || videoOptimizer.isSaving || masquerade.isSaving;
+    pendingMode !== null || videoOptimizer.isSaving || fullBypass.isSaving;
 
   // ---------------------------------------------------------------------------
   // Render

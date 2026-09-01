@@ -1945,6 +1945,7 @@ install_backend() {
         qm_config_init
         info "Config initialized at /etc/qmanager/qmanager.conf"
         migrate_watchcat_fail_threshold
+        migrate_traffic_masquerade_to_full_bypass
     fi
 
     # --- Bootstrap default ping_profile.json / migrate legacy env vars ----------
@@ -2013,6 +2014,77 @@ migrate_watchcat_fail_threshold() {
     if [ -z "$probe_interval" ]; then
         qm_config_set watchcat probe_interval 5 || true
         echo "  Seeded watchcat.probe_interval=5 (default)"
+    fi
+}
+
+# --- Migrate traffic_masquerade -> full_bypass (Traffic Engine rename) -------
+#
+# "Traffic Masquerade" was renamed "Full Bypass" because the old name described
+# a capability this platform does not have: the RM551E's nfqws rewrote the
+# outgoing ClientHello's SNI to a spoofed identity, while the tpws engine used
+# here only splits and reorders the connection's real ClientHello. The mode
+# never impersonated anything on an RM520N-GL.
+#
+# The CONFIG SECTION moves with the name, and that is the part that needs this
+# function. config.sh has no key-migration primitive: qm_config_init only seeds
+# an empty file and returns early the moment $QM_CONFIG is non-empty. Every
+# already-deployed device therefore keeps its traffic_masquerade section, the
+# renamed reader looks up full_bypass, qm_config_get's `// empty` hands back the
+# caller's default, and a user who had the mode ON silently comes back from an
+# OTA with it OFF -- no error, no log line, nothing they could notice.
+#
+# Runs unconditionally on every install/OTA -- mirrors migrate_ping_environment
+# and migrate_watchcat_fail_threshold above. Four cases, each a no-op on re-run:
+#   1. full_bypass absent, traffic_masquerade present -> copy both keys over,
+#      then retire the old section
+#   2. both present (an earlier run died between the copy and the delete)
+#      -> full_bypass WINS and is left alone; only the legacy section is
+#      retired. The stale value must not revert a change the user made in
+#      between the two runs
+#   3. neither present                                -> seed full_bypass
+#   4. full_bypass present, legacy absent             -> nothing to do
+#
+# sni_domain travels with enabled: it is inert in the tpws engine but is still
+# validated, stored and published by the CGI for RM551 API-contract parity, so
+# dropping it here would be a contract change wearing a migration's clothes.
+#
+# Pinned behaviourally by scripts/test/full-bypass-config-migration.sh.
+migrate_traffic_masquerade_to_full_bypass() {
+    command -v qm_config_get >/dev/null 2>&1 || return 0
+
+    # qm_config_set/qm_config_delete_section (config.sh) return 1 on a jq
+    # failure -- e.g. a corrupt/unparseable qmanager.conf -- and this file runs
+    # under `set -e` with this function called bare from install_backend(), so
+    # an unguarded call here would abort the entire installer/OTA over a
+    # non-fatal config migration. `|| true` on each: worst case the migration
+    # is skipped and retried on the next install. config.sh's writers are
+    # self-contained (temp file + gated mv), so a skip cannot corrupt the
+    # config -- it can only leave the old section in place for the next run,
+    # which is exactly what case 2 above is written to absorb.
+    local current legacy_enabled legacy_sni
+    current=$(qm_config_get full_bypass enabled "")
+    legacy_enabled=$(qm_config_get traffic_masquerade enabled "")
+
+    if [ -n "$current" ]; then
+        # Cases 2 and 4. full_bypass is authoritative; drop any legacy leftover.
+        if [ -n "$legacy_enabled" ]; then
+            qm_config_delete_section traffic_masquerade || true
+            echo "  Retired the legacy traffic_masquerade config section"
+        fi
+    elif [ -n "$legacy_enabled" ]; then
+        # Case 1 -- the upgrade path that carries a real device's saved state.
+        legacy_sni=$(qm_config_get traffic_masquerade sni_domain "speedtest.net")
+        qm_config_set full_bypass enabled "$legacy_enabled" || true
+        qm_config_set full_bypass sni_domain "$legacy_sni" || true
+        qm_config_delete_section traffic_masquerade || true
+        echo "  Migrated traffic_masquerade -> full_bypass (enabled=$legacy_enabled)"
+    else
+        # Case 3 -- neither section exists (a config predating the Traffic
+        # Engine entirely, or one hand-edited). Seed the defaults qm_config_init
+        # would have written.
+        qm_config_set full_bypass enabled 0 || true
+        qm_config_set full_bypass sni_domain "speedtest.net" || true
+        echo "  Seeded full_bypass (default: disabled)"
     fi
 }
 

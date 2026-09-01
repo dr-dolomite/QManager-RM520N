@@ -59,12 +59,12 @@ import type { DpiMode } from "@/types/traffic-engine";
 // -----------------------------------------------------------------------------
 // A CONTROL THAT CANNOT WORK NOW EXPLAINS WHY, INSTEAD OF DISAPPEARING
 // -----------------------------------------------------------------------------
-// Finding 17. Switching to Traffic Masquerade used to unmount this editor along
-// with its tab. The saved list still exists on the modem and applies again the
+// Finding 17. Switching to Full Bypass (then called Traffic Masquerade) used to
+// unmount this editor with its tab. The saved list still exists and applies the
 // moment you switch back — but the interface's only statement about that was
 // its absence, which reads as "the list is gone" (The State-Honesty Rule).
 //
-// The card now stays mounted in every mode and says what is true: masquerade
+// The card now stays mounted in every mode and says what is true: full bypass
 // desyncs every connection, so there is no list to match against, and the saved
 // domains are kept. The count Tag changes with it — "12 of 300" while the list
 // is live, "12 saved" while it is idle — because the ceiling is only meaningful
@@ -72,7 +72,7 @@ import type { DpiMode } from "@/types/traffic-engine";
 //
 // The editor is deliberately NOT disabled in the idle state either. The list is
 // stored independently of the mode and tpws re-reads it per connection, so
-// editing it while masquerade is on is a legitimate thing to do; what would be
+// editing it while full bypass is on is a legitimate thing to do; what would be
 // dishonest is implying the edits take effect right now. The same reasoning
 // governs import, export and restore: none of the three is gated on the mode.
 //
@@ -210,9 +210,9 @@ export function TargetsCard({ hostlist, mode }: TargetsCardProps) {
   const [restoreOpen, setRestoreOpen] = React.useState(false);
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
-  // The list is not consulted while masquerade owns the engine. It is still
+  // The list is not consulted while Full Bypass owns the engine. It is still
   // stored, still editable, and still applies the moment the mode changes back.
-  const idle = mode === "masquerade";
+  const idle = mode === "full_bypass";
   const count = hostlist.domains.length;
   const defaultCount = hostlist.defaultDomains.length;
   const listBusy = busy !== null || hostlist.isSaving;

@@ -30,7 +30,7 @@ import type { DpiMode } from "@/types/traffic-engine";
 // -----------------------------------------------------------------------------
 // THE RETIRED CARD COULD REPORT THE WRONG MODE
 // -----------------------------------------------------------------------------
-// The shell read `videoOptimizer.data ?? masquerade.data` and the card then
+// The shell read `videoOptimizer.data ?? fullBypass.data` and the card then
 // picked its own shape from `"sni_domain" in data`. Both hooks fetch, so the
 // Video Optimizer's payload was essentially always present and always won —
 // which meant that with MASQUERADE enabled the card still rendered the Video
@@ -167,7 +167,7 @@ export function LiveStrip({
     : TILE.NONE;
 
   const scope =
-    mode === "masquerade"
+    mode === "full_bypass"
       ? {
           value: t("trafficEngine.tiles.scope.value_all"),
           caption: t("trafficEngine.tiles.scope.caption_all"),

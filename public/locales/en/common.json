@@ -669,11 +669,11 @@
       "off_hint": "No traffic is redirected. The engine stops and the rule is removed.",
       "video_optimizer": "Video Optimizer",
       "video_optimizer_hint": "Only connections matching your target list. Subdomains match too.",
-      "masquerade": "Traffic Masquerade",
-      "masquerade_hint": "Every TCP 80/443 connection. No target list, so nothing to configure.",
+      "full_bypass": "Full Bypass",
+      "full_bypass_hint": "Every TCP 80/443 connection. No target list, so nothing to configure.",
       "toast_off": "Bypass engine stopped",
       "toast_video_optimizer": "Video Optimizer is handling traffic",
-      "toast_masquerade": "Traffic Masquerade is handling traffic",
+      "toast_full_bypass": "Full Bypass is handling traffic",
       "toast_error": "Couldn't change the bypass mode"
     },
     "takeover": {
@@ -687,9 +687,9 @@
       "description": "Domains the engine desyncs. Saved changes apply immediately, with no restart.",
       "count": "{{count}} of {{max}}",
       "count_saved": "{{count}} saved",
-      "idle_title": "Not in use while Traffic Masquerade is on",
-      "idle_body": "Masquerade desyncs every connection, so there is no list to match against. Your {{count}} saved domains are kept and apply again the moment you switch back to Video Optimizer.",
-      "idle_body_empty": "Masquerade desyncs every connection, so there is no list to match against. Anything you add here applies again the moment you switch back to Video Optimizer."
+      "idle_title": "Not in use while Full Bypass is on",
+      "idle_body": "Full Bypass desyncs every connection, so there is no list to match against. Your {{count}} saved domains are kept and apply again the moment you switch back to Video Optimizer.",
+      "idle_body_empty": "Full Bypass desyncs every connection, so there is no list to match against. Anything you add here applies again the moment you switch back to Video Optimizer."
     },
     "hostlist": {
       "empty": "No domains yet. Add one to get started.",

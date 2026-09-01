@@ -8,16 +8,34 @@
 # Endpoints:
 #   GET /cgi-bin/quecmanager/network/video_optimizer.sh
 #       → Video Optimizer settings + engine status
-#   GET ...?section=masquerade
-#       → Traffic Masquerade settings + engine status (adds sni_domain)
+#   GET ...?section=full_bypass
+#       → Full Bypass settings + engine status (adds sni_domain)
+#       Legacy alias: ?section=masquerade (see "The rename" below)
 #   GET ...?action=verify_status
 #       → poll /tmp/qmanager_dpi_verify.json (running|complete|idle|error)
 #   GET ...?action=install_status
 #       → poll /tmp/qmanager_dpi_install.json (idle|running|complete|error)
 #   POST {"action":"save","enabled":bool}
-#       → Video Optimizer enable/disable (mutex: disables masquerade)
-#   POST {"action":"save_masquerade","enabled":bool,"sni_domain":str}
-#       → Traffic Masquerade enable/disable (mutex: disables video optimizer)
+#       → Video Optimizer enable/disable (mutex: disables full bypass)
+#   POST {"action":"save_full_bypass","enabled":bool,"sni_domain":str}
+#       → Full Bypass enable/disable (mutex: disables video optimizer)
+#       Legacy alias: "save_masquerade" (see "The rename" below)
+#
+# The rename (2026-09-01)
+# -----------------------
+# "Traffic Masquerade" became "Full Bypass". The old name described the RM551E
+# behaviour, where nfqws rewrote the ClientHello's SNI to a spoofed identity;
+# tpws, this platform's engine, has no fake-SNI mode and only splits the real
+# ClientHello, so nothing was ever masqueraded here. The mode differs from
+# Video Optimizer in SCOPE (no hostlist), which is what the new name says.
+#
+# ?section=masquerade and action=save_masquerade are kept as deprecated
+# aliases for ONE release. An OTA replaces this script and the JS bundle
+# together, so a device is never half-updated — but a browser tab left open
+# across the OTA still holds the old bundle, and without the aliases its next
+# write returns unknown_action. Remove both aliases (and the assertions naming
+# them in scripts/test/traffic-engine-design-language.sh section [31]) once no
+# supported upgrade path can still be serving the old bundle.
 #   POST {"action":"save_force_tcp","enabled":bool}
 #       → QUIC Force-TCP toggle (standalone iptables rule, independent of the
 #         engine: no binary check, no mutex, untouched by install/uninstall)
@@ -64,16 +82,16 @@ fi
 # ---------------------------------------------------------------------------
 emit_status() {
     local enabled status sni json
-    if [ "$1" = "masquerade" ]; then
-        enabled=$(qm_config_get traffic_masquerade enabled 0)
-        sni=$(qm_config_get traffic_masquerade sni_domain 'speedtest.net')
+    if [ "$1" = "full_bypass" ]; then
+        enabled=$(qm_config_get full_bypass enabled 0)
+        sni=$(qm_config_get full_bypass sni_domain 'speedtest.net')
     else
         enabled=$(qm_config_get video_optimizer enabled 0)
     fi
     status=$(dpi_service_status)
     # "enabled" is the config intent; the engine may be stopped because the
     # binary isn't installed yet — the UI reads both, exactly like RM551.
-    # The masquerade view merges sni_domain in the SAME jq pass (RM551 emits
+    # The full-bypass view merges sni_domain in the SAME jq pass (RM551 emits
     # a single self-contained document; a pipeline-merge with `input` would
     # break, since `input` without -n consumes the one stdin line and then
     # hits EOF).
@@ -88,7 +106,7 @@ emit_status() {
         --argjson ftcp "$([ "$(qm_config_get quic force_tcp 0)" = "1" ] && echo true || echo false)" \
         --argjson ftcpact "$(dpi_force_tcp_rule_present && echo true || echo false)" \
         '{success:true,enabled:$enabled,status:$status,uptime:$uptime,packets_processed:$pkts,domains_loaded:$domains,binary_installed:$bin,kernel_module_loaded:$kmod,force_tcp:$ftcp,force_tcp_active:$ftcpact}')
-    if [ "$1" = "masquerade" ]; then
+    if [ "$1" = "full_bypass" ]; then
         printf '%s' "$json" | jq --arg sni_domain "$sni" '. + {sni_domain: $sni_domain}'
     else
         printf '%s' "$json"
@@ -202,10 +220,12 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                     '{"success":true,"domains":$domains,"default_domains":$default_domains,"count":$count}'
                 exit 0
             fi
-            if [ "$SECTION" = "masquerade" ]; then
+            # "masquerade" is the pre-rename spelling, accepted for one release
+            # so a browser tab held open across an OTA keeps reading status.
+            if [ "$SECTION" = "full_bypass" ] || [ "$SECTION" = "masquerade" ]; then
                 # sni_domain is stored for API-REFERENCE contract parity but is
                 # inert in the tpws engine (no fake-SNI mode) — see dpi_state.sh.
-                emit_status masquerade
+                emit_status full_bypass
             else
                 emit_status
             fi
@@ -238,8 +258,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 exit 0
             fi
             qm_config_set video_optimizer enabled "$EN_INT"
-            # Mutex: video optimizer owns the engine; masquerade must yield.
-            qm_config_set traffic_masquerade enabled 0
+            # Mutex: video optimizer owns the engine; full bypass must yield.
+            qm_config_set full_bypass enabled 0
             qlog_info "save: video_optimizer enabled=$EN_INT"
             if [ "$EN_INT" = "1" ]; then
                 svc_start qmanager-dpi
@@ -250,8 +270,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             cgi_success
             exit 0
             ;;
-        save_masquerade)
-            # --- Traffic Masquerade save ---
+        save_full_bypass|save_masquerade)
+            # --- Full Bypass save ---
+            # "save_masquerade" is the pre-rename action name, accepted for one
+            # release so a browser tab held open across an OTA can still write.
             # has() — NOT "// empty": jq's alternative operator treats `false`
             # as absent (false // empty → no output), so a disable request
             # read as an empty string and failed bool_of validation.
@@ -261,8 +283,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 exit 0
             }
             # sni_domain: validated + stored for API-REFERENCE contract parity
-            # (RM551's fake-SNI domain), inert in the tpws engine — masquerade
-            # splits every ClientHello instead. See docs/reference/dpi.md.
+            # (RM551's fake-SNI domain), inert in the tpws engine — Full Bypass
+            # splits every real ClientHello instead of forging one. That gap is
+            # what the rename was for. See docs/reference/dpi.md.
             SNI=$(printf '%s' "$POST_DATA" | jq -r '.sni_domain // "speedtest.net"' 2>/dev/null)
             case "$SNI" in
                 ''|*[!A-Za-z0-9._-]*) cgi_error "invalid_sni_domain" "sni_domain contains invalid characters"; exit 0 ;;
@@ -279,11 +302,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 cgi_error "binary_not_installed" "tpws is not installed — run install first"
                 exit 0
             fi
-            qm_config_set traffic_masquerade enabled "$EN_INT"
-            qm_config_set traffic_masquerade sni_domain "$SNI"
-            # Mutex: masquerade owns the engine; video optimizer must yield.
+            qm_config_set full_bypass enabled "$EN_INT"
+            qm_config_set full_bypass sni_domain "$SNI"
+            # Mutex: full bypass owns the engine; video optimizer must yield.
             qm_config_set video_optimizer enabled 0
-            qlog_info "save_masquerade: enabled=$EN_INT sni_domain=$SNI"
+            qlog_info "save_full_bypass: enabled=$EN_INT sni_domain=$SNI (action=$ACTION)"
             if [ "$EN_INT" = "1" ]; then
                 svc_start qmanager-dpi
             else

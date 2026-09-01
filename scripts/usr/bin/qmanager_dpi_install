@@ -136,9 +136,16 @@ _dpi_uninstall_run() {
     rm -f "$DPI_BINARY"
     # An engine without its binary cannot stay enabled: drop the mode configs
     # so the UI stops advertising enabled-but-uninstallable features.
+    # traffic_masquerade is full_bypass's pre-rename name and is listed on
+    # purpose: this is a TEARDOWN, and it may run on a device that has not yet
+    # taken install_rm520n.sh's migration (a UI uninstall needs no OTA). del()
+    # on an absent key is a no-op, so naming both costs nothing and stops the
+    # uninstall stranding an enabled-but-uninstallable mode. Unlike the READ
+    # sites, which were renamed outright, this one keeps the legacy name until
+    # no supported upgrade path can still be carrying it.
     QM_CONF="/etc/qmanager/qmanager.conf"
     [ -f "$QM_CONF" ] \
-        && jq 'del(.video_optimizer, .traffic_masquerade)' "$QM_CONF" > "${QM_CONF}.tmp" 2>/dev/null \
+        && jq 'del(.video_optimizer, .full_bypass, .traffic_masquerade)' "$QM_CONF" > "${QM_CONF}.tmp" 2>/dev/null \
         && mv "${QM_CONF}.tmp" "$QM_CONF"
     qlog_info "tpws uninstalled (binary absent: $(dpi_binary_installed && echo no || echo yes))"
     _dpi_marker_complete "Engine binary removed successfully" ""

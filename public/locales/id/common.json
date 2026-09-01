@@ -669,11 +669,11 @@
       "off_hint": "Tidak ada lalu lintas yang dialihkan. Mesin berhenti dan aturannya dihapus.",
       "video_optimizer": "Optimasi Video",
       "video_optimizer_hint": "Hanya koneksi yang cocok dengan daftar target Anda. Subdomain juga ikut cocok.",
-      "masquerade": "Penyamaran Lalu Lintas",
-      "masquerade_hint": "Setiap koneksi TCP 80/443. Tanpa daftar target, jadi tidak ada yang perlu diatur.",
+      "full_bypass": "Bypass Penuh",
+      "full_bypass_hint": "Setiap koneksi TCP 80/443. Tanpa daftar target, jadi tidak ada yang perlu diatur.",
       "toast_off": "Mesin bypass dihentikan",
       "toast_video_optimizer": "Lalu lintas kini ditangani Optimasi Video",
-      "toast_masquerade": "Lalu lintas kini ditangani Penyamaran Lalu Lintas",
+      "toast_full_bypass": "Lalu lintas kini ditangani Bypass Penuh",
       "toast_error": "Tidak bisa mengubah mode bypass"
     },
     "takeover": {
@@ -687,9 +687,9 @@
       "description": "Domain yang didesync oleh mesin. Perubahan yang disimpan langsung berlaku, tanpa memulai ulang.",
       "count": "{{count}} dari {{max}}",
       "count_saved": "{{count}} tersimpan",
-      "idle_title": "Tidak dipakai selama Penyamaran Lalu Lintas aktif",
-      "idle_body": "Penyamaran mendesync setiap koneksi, jadi tidak ada daftar yang perlu dicocokkan. {{count}} domain yang Anda simpan tetap ada dan berlaku lagi begitu Anda kembali ke Optimasi Video.",
-      "idle_body_empty": "Penyamaran mendesync setiap koneksi, jadi tidak ada daftar yang perlu dicocokkan. Apa pun yang Anda tambahkan di sini berlaku lagi begitu Anda kembali ke Optimasi Video."
+      "idle_title": "Tidak dipakai selama Bypass Penuh aktif",
+      "idle_body": "Bypass Penuh mendesync setiap koneksi, jadi tidak ada daftar yang perlu dicocokkan. {{count}} domain yang Anda simpan tetap ada dan berlaku lagi begitu Anda kembali ke Optimasi Video.",
+      "idle_body_empty": "Bypass Penuh mendesync setiap koneksi, jadi tidak ada daftar yang perlu dicocokkan. Apa pun yang Anda tambahkan di sini berlaku lagi begitu Anda kembali ke Optimasi Video."
     },
     "hostlist": {
       "empty": "Belum ada domain. Tambahkan satu untuk memulai.",

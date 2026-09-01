@@ -2,24 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
-import type { MasqueradeStatus } from "@/types/traffic-engine";
+import type { FullBypassStatus } from "@/types/traffic-engine";
 
 // =============================================================================
-// useTrafficMasquerade — Traffic Engine Masquerade status & control hook
+// useFullBypass — Traffic Engine Full Bypass status & control hook
 // =============================================================================
-// Fetches the masquerade section status (?section=masquerade) on mount and
+// Renamed from useTrafficMasquerade (2026-09-01) along with the mode itself:
+// tpws has no fake-SNI mode, so nothing was ever masqueraded on this platform.
+// See types/traffic-engine.ts > DpiMode.
+//
+// Fetches the full-bypass section status (?section=full_bypass) on mount and
 // re-polls on the same 2s cadence as useVideoOptimizer (the two share one
 // engine; both cards show live state). Provides save (enabled + sni_domain).
 //
 // Backend endpoint:
-//   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh?section=masquerade
+//   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh?section=full_bypass
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/video_optimizer.sh";
 const POLL_MS = 2000;
 
-export interface UseTrafficMasqueradeReturn {
-  data: MasqueradeStatus | null;
+export interface UseFullBypassReturn {
+  data: FullBypassStatus | null;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
@@ -33,8 +37,8 @@ export interface UseTrafficMasqueradeReturn {
   refresh: (silent?: boolean) => void;
 }
 
-export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
-  const [data, setData] = useState<MasqueradeStatus | null>(null);
+export function useFullBypass(): UseFullBypassReturn {
+  const [data, setData] = useState<FullBypassStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,13 +56,13 @@ export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
-      const resp = await authFetch(`${CGI_ENDPOINT}?section=masquerade`);
+      const resp = await authFetch(`${CGI_ENDPOINT}?section=full_bypass`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       const json = await resp.json();
       if (!mountedRef.current) return;
 
       if (!json.success) {
-        setError(json.error || "Failed to fetch masquerade status");
+        setError(json.error || "Failed to fetch Full Bypass status");
         return;
       }
 
@@ -77,7 +81,7 @@ export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
       });
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(err instanceof Error ? err.message : "Failed to fetch masquerade status");
+      setError(err instanceof Error ? err.message : "Failed to fetch Full Bypass status");
     } finally {
       if (mountedRef.current && !silent) setIsLoading(false);
     }
@@ -97,21 +101,21 @@ export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
         const resp = await authFetch(CGI_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "save_masquerade", enabled, sni_domain: sniDomain }),
+          body: JSON.stringify({ action: "save_full_bypass", enabled, sni_domain: sniDomain }),
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
         if (!mountedRef.current) return false;
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save masquerade settings");
+          setError(json.detail || json.error || "Failed to save Full Bypass settings");
           return false;
         }
         await fetchStatus(true);
         return true;
       } catch (err) {
         if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save masquerade settings");
+        setError(err instanceof Error ? err.message : "Failed to save Full Bypass settings");
         return false;
       } finally {
         if (mountedRef.current) setIsSaving(false);

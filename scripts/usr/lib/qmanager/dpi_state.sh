@@ -12,7 +12,7 @@
 #
 # Engine model: ONE tpws instance on ONE port (989), reached by a single
 # REDIRECT rule for bridge0 LAN clients on tcp 80,443. Video Optimizer and
-# Traffic Masquerade are mutually exclusive modes of that one engine — the
+# Full Bypass are mutually exclusive modes of that one engine — the
 # CGI enforces the mutex on save, matching the RM551 UI's takeover-confirm
 # dialog. tpws does its own hostlist filtering, so only hostlist-matching
 # connections are desync'd in Video Optimizer mode.
@@ -21,8 +21,8 @@
 #   video_optimizer.enabled     0/1
 #   video_optimizer.strategy    "full" | "targeted" (reserved; affects the
 #                               hostlist the UI manages, not the engine)
-#   traffic_masquerade.enabled  0/1
-#   traffic_masquerade.sni_domain  reserved: accepted+stored by the CGI for
+#   full_bypass.enabled         0/1
+#   full_bypass.sni_domain      reserved: accepted+stored by the CGI for
 #                               API-REFERENCE contract parity, inert in the
 #                               tpws engine (tpws has no fake-SNI mode)
 #   quic.force_tcp              0/1  — standalone QUIC handle, REJECTs bridge0
@@ -43,7 +43,7 @@
 #
 # Public API:
 #   DPI_PORT / DPI_BIND_ADDR / DPI_BINARY / DPI_HOSTLIST / DPI_RULE_SIG
-#   dpi_active_mode            — print video_optimizer|masquerade|none
+#   dpi_active_mode            — print video_optimizer/full_bypass/none
 #   dpi_is_enabled             — 0 if a mode is active
 #   dpi_binary_installed       — 0 if the tpws binary exists and is executable
 #   dpi_domains_loaded         — print hostlist line count (0 if absent)
@@ -84,20 +84,20 @@ DPI_VERIFY_PID="/tmp/qmanager_dpi_verify.pid"
 
 # =============================================================================
 # dpi_active_mode — which engine mode config currently selects
-# Prints: video_optimizer | masquerade | none
+# Prints: video_optimizer | full_bypass | none
 # Defensive: if both are enabled (should never happen — the CGI enforces a
 # mutex), Video Optimizer wins and a warning is logged.
 # =============================================================================
 dpi_active_mode() {
-    local vo masq
+    local vo full
     vo=$(qm_config_get video_optimizer enabled 0)
-    masq=$(qm_config_get traffic_masquerade enabled 0)
+    full=$(qm_config_get full_bypass enabled 0)
     if [ "$vo" = "1" ]; then
-        [ "$masq" = "1" ] && [ "$(command -v qlog_warn 2>/dev/null)" ] && \
-            qlog_warn "dpi_state: both video_optimizer and traffic_masquerade enabled — engine running Video Optimizer mode"
+        [ "$full" = "1" ] && [ "$(command -v qlog_warn 2>/dev/null)" ] && \
+            qlog_warn "dpi_state: both video_optimizer and full_bypass enabled — engine running Video Optimizer mode"
         echo "video_optimizer"
-    elif [ "$masq" = "1" ]; then
-        echo "masquerade"
+    elif [ "$full" = "1" ]; then
+        echo "full_bypass"
     else
         echo "none"
     fi
@@ -211,7 +211,7 @@ dpi_remove_rule() {
 # timers before falling back, which reads as a dead connection per host.
 #
 # Persisted config:
-#   quic.force_tcp   0/1  (independent of video_optimizer/traffic_masquerade)
+#   quic.force_tcp   0/1  (independent of video_optimizer/full_bypass)
 # =============================================================================
 
 # Identified by its unique target string — the RM520N kernel has no xt_comment
@@ -364,13 +364,16 @@ dpi_uptime_str() {
 #   verified recipe. (Titan/RM551E reportedly tolerates --oob; the RM520N +
 #   T-Mobile path does not.)
 # --filter-l7=tls,http is what makes the engine only touch TLS/HTTP handshakes.
-# Masquerade mode: the SAME recipe applied to EVERY connection (no hostlist).
-# This is the tpws-native equivalent of the RM551 "fake TLS ClientHello with
-# spoofed SNI" — tpws has no fake-hello mode (nfqws-only), and splitting the
-# ClientHello so the SNI lands in a later segment defeats SNI-based DPI
-# throttling just as effectively, for every destination. The contract's
-# sni_domain key is accepted and stored by the CGI but is inert in the tpws
-# engine — see docs/reference/dpi.md.
+# Full Bypass mode: the SAME recipe applied to EVERY connection (no hostlist).
+# The mode differs from Video Optimizer in SCOPE, not in technique, which is
+# what the name says. It replaced "Traffic Masquerade": the RM551's nfqws did
+# masquerade, sending a fake TLS ClientHello carrying a spoofed SNI, but tpws
+# has no fake-hello mode at all (that is nfqws-only). It splits the real
+# ClientHello so the SNI lands in a later segment, which defeats SNI-based DPI
+# throttling just as effectively, for every destination — but impersonates
+# nothing, which is why the old name had to go. The contract's sni_domain key
+# is accepted and stored by the CGI but is inert in the tpws engine — see
+# docs/reference/dpi.md.
 # =============================================================================
 dpi_build_args() {
     case "$(dpi_active_mode)" in
@@ -384,7 +387,7 @@ dpi_build_args() {
                 " --filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls" \
                 " --hostlist=$DPI_HOSTLIST"
             ;;
-        masquerade)
+        full_bypass)
             printf '%s' \
                 "--port=$DPI_PORT --bind-addr=$DPI_BIND_ADDR" \
                 " --filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls"

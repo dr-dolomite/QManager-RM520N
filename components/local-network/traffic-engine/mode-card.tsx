@@ -73,7 +73,7 @@ import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
 // convention is sound because it assumes selection is cheap and instantly
 // reversible — a form field you can arrow back off. Here "select" means a
 // `systemctl start` and an iptables REDIRECT insert: arrowing from Off to
-// Masquerade committed Video Optimizer on the way past, dropping every
+// Full Bypass committed Video Optimizer on the way past, dropping every
 // connection through the engine. This app is SERVED BY the device being
 // reconfigured, so one of those connections is the user's own browser session.
 //
@@ -97,9 +97,9 @@ const MODES: { mode: DpiMode; nameKey: string; hintKey: string; glyph?: LucideIc
     glyph: VideoIcon,
   },
   {
-    mode: "masquerade",
-    nameKey: "trafficEngine.mode.masquerade",
-    hintKey: "trafficEngine.mode.masquerade_hint",
+    mode: "full_bypass",
+    nameKey: "trafficEngine.mode.full_bypass",
+    hintKey: "trafficEngine.mode.full_bypass_hint",
     glyph: ArrowLeftRightIcon,
   },
 ];

@@ -669,11 +669,11 @@
       "off_hint": "不重定向任何流量。引擎停止，规则被移除。",
       "video_optimizer": "视频优化",
       "video_optimizer_hint": "仅处理与目标列表匹配的连接，子域名同样匹配。",
-      "masquerade": "流量伪装",
-      "masquerade_hint": "处理每一条 TCP 80/443 连接。无需目标列表，没有可配置项。",
+      "full_bypass": "全量绕过",
+      "full_bypass_hint": "处理每一条 TCP 80/443 连接。无需目标列表，没有可配置项。",
       "toast_off": "绕过引擎已停止",
       "toast_video_optimizer": "现由视频优化处理流量",
-      "toast_masquerade": "现由流量伪装处理流量",
+      "toast_full_bypass": "现由全量绕过处理流量",
       "toast_error": "无法切换绕过模式"
     },
     "takeover": {
@@ -687,9 +687,9 @@
       "description": "引擎将进行失步处理的域名。保存后立即生效，无需重启。",
       "count": "{{count}} / {{max}}",
       "count_saved": "已保存 {{count}} 个",
-      "idle_title": "流量伪装开启时该列表不生效",
-      "idle_body": "伪装模式会对每一条连接进行失步处理，因此没有需要匹配的列表。你保存的 {{count}} 个域名会保留，切回视频优化后立即重新生效。",
-      "idle_body_empty": "伪装模式会对每一条连接进行失步处理，因此没有需要匹配的列表。你在此添加的内容会在切回视频优化后立即生效。"
+      "idle_title": "全量绕过开启时该列表不生效",
+      "idle_body": "全量绕过会对每一条连接进行失步处理，因此没有需要匹配的列表。你保存的 {{count}} 个域名会保留，切回视频优化后立即重新生效。",
+      "idle_body_empty": "全量绕过会对每一条连接进行失步处理，因此没有需要匹配的列表。你在此添加的内容会在切回视频优化后立即生效。"
     },
     "hostlist": {
       "empty": "还没有域名。添加一个开始使用。",

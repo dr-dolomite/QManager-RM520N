@@ -669,11 +669,11 @@
       "off_hint": "Nessun traffico viene reindirizzato. Il motore si ferma e la regola viene rimossa.",
       "video_optimizer": "Ottimizzazione video",
       "video_optimizer_hint": "Solo le connessioni che corrispondono al tuo elenco di target. Anche i sottodomini corrispondono.",
-      "masquerade": "Mascheramento del traffico",
-      "masquerade_hint": "Ogni connessione TCP 80/443. Nessun elenco di target, niente da configurare.",
+      "full_bypass": "Bypass completo",
+      "full_bypass_hint": "Ogni connessione TCP 80/443. Nessun elenco di target, niente da configurare.",
       "toast_off": "Motore di bypass fermato",
       "toast_video_optimizer": "Ora il traffico passa per l'Ottimizzazione video",
-      "toast_masquerade": "Ora il traffico passa per il Mascheramento del traffico",
+      "toast_full_bypass": "Ora il traffico passa per il Bypass completo",
       "toast_error": "Impossibile cambiare la modalità di bypass"
     },
     "takeover": {
@@ -687,9 +687,9 @@
       "description": "Domini che il motore desincronizza. Le modifiche salvate si applicano subito, senza riavvio.",
       "count": "{{count}} di {{max}}",
       "count_saved": "{{count}} salvati",
-      "idle_title": "Non in uso mentre il Mascheramento del traffico è attivo",
-      "idle_body": "Il mascheramento desincronizza ogni connessione, quindi non c'è nessun elenco da confrontare. I tuoi {{count}} domini salvati restano e tornano attivi appena riselezioni l'Ottimizzazione video.",
-      "idle_body_empty": "Il mascheramento desincronizza ogni connessione, quindi non c'è nessun elenco da confrontare. Quello che aggiungi qui tornerà attivo appena riselezioni l'Ottimizzazione video."
+      "idle_title": "Non in uso mentre il Bypass completo è attivo",
+      "idle_body": "Il bypass completo desincronizza ogni connessione, quindi non c'è nessun elenco da confrontare. I tuoi {{count}} domini salvati restano e tornano attivi appena riselezioni l'Ottimizzazione video.",
+      "idle_body_empty": "Il bypass completo desincronizza ogni connessione, quindi non c'è nessun elenco da confrontare. Quello che aggiungi qui tornerà attivo appena riselezioni l'Ottimizzazione video."
     },
     "hostlist": {
       "empty": "Nessun dominio ancora. Aggiungine uno per iniziare.",
