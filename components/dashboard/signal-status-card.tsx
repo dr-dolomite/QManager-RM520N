@@ -30,6 +30,7 @@ import { TickingValue } from "@/components/ui/ticking-value";
 import { getValueColorClass } from "./signal-card-utils";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
 import {
+  ABSENT,
   CARD_DESC,
   CARD_SHELL,
   CARD_TITLE,
@@ -37,24 +38,6 @@ import {
   ROW,
   TAG_HEIGHT,
 } from "./shapes";
-
-/**
- * What a value cell renders when the poll did not carry one.
- *
- * An em dash, not a hyphen-minus: beside a column of right-aligned figures a
- * hyphen reads as a minus sign with its digits missing.
- *
- * It is a shared SENTINEL rather than a spelling because two places have to
- * agree about it. `signal-rows.ts` emits it, and the identity-pill branch below
- * has to recognise it — a pill wrapping a placeholder reads as a broken chip
- * rather than as absent data, so the band falls back to plain ink. A builder
- * and a guard that disagree about the placeholder ship exactly the broken chip
- * the guard exists to prevent, and nothing fails when they drift.
- *
- * It lives HERE and not in the builder so the dependency runs one way:
- * `signal-rows.ts` already imports this file's types.
- */
-export const ABSENT = "—";
 
 /** Which radio leg this card describes. Drives the identity tone only: blue is
  *  the 5G NR leg, violet the 4G LTE leg. Neither ever acts as a control. */

@@ -54,6 +54,7 @@
   },
   "device_status": {
     "title": "裝置資訊",
+    "description": "硬體識別、韌體與運行時間。",
     "icon_alt": "裝置圖示",
     "show_private": "顯示隱私資訊",
     "hide_private": "隱藏隱私資訊",
@@ -66,6 +67,10 @@
     "device_imei": "裝置 IMEI",
     "conn_uptime_short": "連線時長",
     "device_uptime_short": "裝置時長",
+    "conn_uptime_caption_up": "鏈路已連線",
+    "conn_uptime_caption_down": "鏈路已中斷",
+    "device_uptime_caption": "自上次開機",
+    "uptime_unknown": "無法連線",
     "lte_category": "LTE 類別",
     "active_mimo": "活動 MIMO",
     "lan_gateway": "LAN 閘道器",

@@ -47,6 +47,8 @@
     "info",
     "layers",
     "light_mode",
+    "link",
+    "link_off",
     "location_on",
     "lock",
     "lock_clock",
@@ -117,6 +119,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 42992,
-  "sha256": "7d8b860ea383c47a244296875d6787a380ab2ff0c3252e83ee1b4bc0a1172f39"
+  "bytes": 43488,
+  "sha256": "9c7bd8505e49c6ce85c0b49f184d5753eb4da4ecc42204f4fef0c9f2ab6231b5"
 }

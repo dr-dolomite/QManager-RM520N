@@ -157,6 +157,7 @@ const HomeComponent = () => {
           <DeviceStatus
             data={data?.device ?? null}
             isLoading={isLoading}
+            modemReachable={data?.modem_reachable ?? false}
             lanGateway={aboutDevice?.network.lan_gateway}
           />
         </motion.div>

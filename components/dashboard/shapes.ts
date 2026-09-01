@@ -33,20 +33,18 @@
 // stops them "fixing" one in isolation and finding out afterwards that the
 // skeleton beside it was mirroring the old number.
 //
-//   1. `device-status.tsx` writes the row pill with `px-[15px]` where the other
-//      two sites use `px-4` (16px). `ROW` standardises on `px-4`; device-status
-//      is NOT re-pointed here. Step 03 owns that file.
+//   1. `device-status.tsx` wrote the row pill with `px-[15px]` where the other
+//      two sites use `px-4` (16px). `ROW` standardises on `px-4`, and step 03
+//      re-pointed device-status onto it. RESOLVED — one spelling remains.
 //
 //   2. `signal-history.tsx` is a grid PEER (`rounded-card`) but padded `px-7`,
 //      which is the HERO padding, with a comment defending the mock's 28px.
 //      The pass resolves that in favour of `px-6` so the card matches its
 //      row-mates; step 08 owns the re-point, not this step.
 //
-//   3. `TILE` is minted at the system's 104px pinned geometry and has NO
-//      consumer yet. The dashboard's only current tiles are device-status's
-//      62px uptime pair, which are not migrated here — step 03 owns them. An
-//      export with no call site is expected at this point in the pass, not an
-//      oversight.
+//   3. `TILE` is minted at the system's 104px pinned geometry. Step 03 gave it
+//      its first consumer: device-status's uptime pair, which shipped as
+//      bespoke 62px blocks with a floating height. RESOLVED.
 //
 // -----------------------------------------------------------------------------
 // GEOMETRY ONLY — NO JSX
@@ -183,6 +181,30 @@ export const CARD_SHELL =
  */
 export const HERO_SHELL =
   "@container/card gap-5 rounded-hero border-0 px-7 py-[26px] shadow-[var(--shadow-whisper)]";
+
+/**
+ * Device Information — the right rail of the hero band.
+ *
+ * ⚠️ THIS IS A THIRD SHELL ON PURPOSE, and it is deliberately NOT reconciled
+ * with either of the two above. The string is BYTE-IDENTICAL to what
+ * `device-status.tsx` shipped inline, twice, so hoisting it is a provably
+ * zero-visual-change edit — which is the bar every re-point in this pass has
+ * to clear.
+ *
+ * It differs from both of its neighbours in ways that are real rather than
+ * accidental: `rounded-hero` (40px) while sitting beside grid peers at 36px, an
+ * explicit `bg-surface`, and NO whisper shadow. Whether a 40px radius belongs
+ * anywhere but the surface’s one true hero is a fair question — "there is
+ * exactly ONE hero per surface, by definition" is written a few lines up — but
+ * the answer is a VISUAL call about the hero band’s silhouette, not a grammar
+ * call. Making it inside a step whose whole contract is that it changes no
+ * card’s rendered geometry would be a redesign smuggled in under a dedup.
+ *
+ * So the divergence is RECORDED rather than silently normalised, exactly like
+ * the three in the header note. Reconciling it is a later, separate call.
+ */
+export const SIDE_SHELL =
+  "@container/card h-full gap-4 rounded-hero border-0 bg-surface";
 
 /**
  * A card's title.
@@ -347,6 +369,17 @@ export const TILE = {
   VALUE:
     "flex min-w-0 items-center gap-2 text-[1.375rem] font-bold leading-[1.1] tracking-[-0.015em] tabular-nums",
   CAPTION: "text-on-surface-variant truncate text-xs",
+  /**
+   * A PAIR of tiles inside a card, rather than a strip across the page.
+   *
+   * The step-up is `@md/card` — the CARD’s content box, not the page’s.
+   * Two tiles side by side need room for two full text columns beside two
+   * 52px discs, and the chrome alone (disc, gap, `px-5` either side) is 106px
+   * per tile before a character is drawn. Below the step they stack, because
+   * a 22px uptime figure truncating to "1d 4h…" in a squeezed column gives
+   * back exactly the legibility the pinned tile was adopted for.
+   */
+  PAIR: "grid grid-cols-1 gap-2.5 @md/card:grid-cols-2",
 } as const;
 
 /**
@@ -360,6 +393,23 @@ export const TILE = {
  * has, so adding a lane does not change the row's height.
  */
 export const LANE = "w-14 shrink-0";
+
+/**
+ * A tile disc’s two tones.
+ *
+ * SOLID role colour, not a container. A disc is an accent MARK — the glyph
+ * inside it is the thing being read, and it takes the role’s `-foreground`
+ * ink. The tile body underneath stays `surface-container` in both states, so
+ * the fill difference lives in a 52px disc rather than across a 104px slab.
+ *
+ * That relocation is the point of the pair, and it is not about taste.
+ * Concentrating the colour is what makes room for the glyph to carry the state
+ * non-chromatically (DESIGN.md > The Glyph-Carries-The-State Rule): a reader
+ * who cannot separate two fills reads the mark instead, and two adjacent tiles
+ * of identical shape and size offer no other channel.
+ */
+export const DISC_SUCCESS = "bg-success text-success-foreground";
+export const DISC_MUTED = "bg-surface-container-high text-on-surface-variant";
 
 // -----------------------------------------------------------------------------
 // The hero orb
@@ -524,3 +574,28 @@ export const ORB = {
  * means.
  */
 export const CLOCK_TICK_MS = 30_000;
+
+// ---------------------------------------------------------------------------
+// Sentinels
+// ---------------------------------------------------------------------------
+
+/**
+ * What a value cell renders when the datum is absent.
+ *
+ * An EM DASH, never a hyphen-minus. A hyphen is a joiner that happens to be on
+ * the keyboard, and beside a column of right-aligned figures it reads as a
+ * minus sign with its digits missing.
+ *
+ * It is a shared SENTINEL rather than a spelling because separate places have
+ * to AGREE about it, not merely match it by eye. `signal-rows.ts` emits it and
+ * `signal-status-card.tsx` compares against it — a pill wrapping a placeholder
+ * reads as a broken chip rather than as absent data, so the identity band falls
+ * back to plain ink when it sees this string. A builder and a guard that
+ * disagree about the placeholder ship exactly the broken chip the guard exists
+ * to prevent, and nothing fails when they drift.
+ *
+ * Step 03 gave it a third consumer, which is what moved it here from
+ * `signal-status-card.tsx`: a sentinel read by three files in two card families
+ * is a property of the SURFACE, and a card is not the right home for one.
+ */
+export const ABSENT = "—";

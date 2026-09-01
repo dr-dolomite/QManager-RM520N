@@ -92,6 +92,16 @@ export const MATERIAL_SYMBOL_NAMES = [
   "info",
   "layers",
   "light_mode",
+  // The connection-uptime tile's state pair. The tile reports whether the
+  // data bearer is attached, and shipped it said so with a success-container
+  // body and NO mark at all, beside an identically shaped neutral tile --
+  // colour as the sole channel, on the one pairing where it is least
+  // survivable. `signal_disconnected` could not be borrowed for the down
+  // state: it is already the Internet chip's down mark in the rail at the top
+  // of this same page, and two adjacent things on one screen wearing one glyph
+  // for two different questions is the ambiguity the ladder exists to remove.
+  "link",
+  "link_off",
   "location_on",
   "lock",
   "lock_clock",

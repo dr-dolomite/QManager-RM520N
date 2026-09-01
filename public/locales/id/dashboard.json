@@ -54,6 +54,7 @@
   },
   "device_status": {
     "title": "Informasi Perangkat",
+    "description": "Identitas perangkat keras, firmware, dan waktu aktif.",
     "icon_alt": "Ikon Perangkat",
     "show_private": "Tampilkan detail pribadi",
     "hide_private": "Sembunyikan detail pribadi",
@@ -66,6 +67,10 @@
     "device_imei": "IMEI Perangkat",
     "conn_uptime_short": "Waktu Koneksi",
     "device_uptime_short": "Waktu Perangkat",
+    "conn_uptime_caption_up": "Tautan aktif",
+    "conn_uptime_caption_down": "Tautan terputus",
+    "device_uptime_caption": "Sejak boot terakhir",
+    "uptime_unknown": "Tidak terjangkau",
     "lte_category": "Kategori LTE",
     "active_mimo": "MIMO Aktif",
     "lan_gateway": "Gateway LAN",

@@ -54,6 +54,7 @@
   },
   "device_status": {
     "title": "设备信息",
+    "description": "硬件标识、固件与运行时间。",
     "icon_alt": "设备图标",
     "show_private": "显示隐私信息",
     "hide_private": "隐藏隐私信息",
@@ -66,6 +67,10 @@
     "device_imei": "设备 IMEI",
     "conn_uptime_short": "连接时长",
     "device_uptime_short": "设备时长",
+    "conn_uptime_caption_up": "链路已连接",
+    "conn_uptime_caption_down": "链路已断开",
+    "device_uptime_caption": "自上次启动",
+    "uptime_unknown": "无法连接",
     "lte_category": "LTE 类别",
     "active_mimo": "活动 MIMO",
     "lan_gateway": "LAN 网关",

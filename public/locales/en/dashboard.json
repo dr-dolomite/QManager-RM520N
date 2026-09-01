@@ -54,6 +54,7 @@
   },
   "device_status": {
     "title": "Device Information",
+    "description": "Hardware identity, firmware, and uptime.",
     "icon_alt": "Device Icon",
     "show_private": "Show private details",
     "hide_private": "Hide private details",
@@ -66,6 +67,10 @@
     "device_imei": "Device IMEI",
     "conn_uptime_short": "Conn. Uptime",
     "device_uptime_short": "Device Uptime",
+    "conn_uptime_caption_up": "Link up",
+    "conn_uptime_caption_down": "Link down",
+    "device_uptime_caption": "Since last boot",
+    "uptime_unknown": "Not reachable",
     "lte_category": "LTE Category",
     "active_mimo": "Active MIMO",
     "lan_gateway": "LAN Gateway",

@@ -54,6 +54,7 @@
   },
   "device_status": {
     "title": "Informazioni sul dispositivo",
+    "description": "Identità hardware, firmware e tempo di attività.",
     "icon_alt": "Icona del dispositivo",
     "show_private": "Mostra dettagli privati",
     "hide_private": "Nascondi i dettagli privati",
@@ -66,6 +67,10 @@
     "device_imei": "Dispositivo IMEI",
     "conn_uptime_short": "Tempo Conn.",
     "device_uptime_short": "Tempo Disp.",
+    "conn_uptime_caption_up": "Collegamento attivo",
+    "conn_uptime_caption_down": "Collegamento assente",
+    "device_uptime_caption": "Dall'ultimo avvio",
+    "uptime_unknown": "Non raggiungibile",
     "lte_category": "Categoria LTE",
     "active_mimo": "Attivo MIMO",
     "lan_gateway": "Gateway LAN",

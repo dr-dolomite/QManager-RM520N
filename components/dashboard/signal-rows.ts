@@ -7,8 +7,8 @@ import {
   SINR_THRESHOLDS,
 } from "@/types/modem-status";
 
+import { ABSENT } from "./shapes";
 import {
-  ABSENT,
   type RadioFamily,
   type SignalStatusRow,
 } from "./signal-status-card";
