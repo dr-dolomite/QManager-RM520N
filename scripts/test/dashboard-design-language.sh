@@ -393,7 +393,9 @@ fi
 #   [00-1] shapes.ts exists
 #   [00-2] each of the six contract exports is present, named individually so
 #          a partial mint is not read as a pass
-#   [00-3] PillRow is exported from shapes.ts
+#   [00-3] PillRow has exactly one home, components/dashboard/pill-row.tsx,
+#          and shapes.ts stays geometry-only. CORRECTED BEFORE THE FIX -- see
+#          the note beside the assertion.
 #   [00-4] PillRow is no longer declared in device-metrics.tsx -- this is what
 #          turns [00-3] from "copied" into "moved"
 #   [00-5] CLOCK_TICK_MS is declared exactly once across components/dashboard/**
@@ -455,6 +457,7 @@ SHAPES_00="$DASHBOARD/shapes.ts"
 HOME_00="$DASHBOARD/home-component.tsx"
 DEVICE_METRICS_00="$DASHBOARD/device-metrics.tsx"
 PAGE_HEADER_00="$DASHBOARD/page-header.tsx"
+PILL_ROW_00="$DASHBOARD/pill-row.tsx"
 APP_PAGE_00="$REPO_ROOT/app/dashboard/page.tsx"
 LOCALES_ROOT="$REPO_ROOT/public/locales"
 
@@ -490,13 +493,30 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-printf '\n[00-3] PillRow is exported from shapes.ts\n'
-if [ ! -f "$SHAPES_00" ]; then
-    bad "shapes.ts is missing -- cannot check PillRow export"
-elif grep -qE 'export (const|function) PillRow\b' "$TMPD/shapes.stripped"; then
-    ok "PillRow is exported from shapes.ts"
+printf '\n[00-3] PillRow has one home, and shapes.ts stays geometry-only\n'
+# CORRECTED BY THE ORCHESTRATOR before the fix was written, so this section is
+# still red-first. The first draft asserted an export of PillRow inside
+# shapes.ts. That cannot be built: PillRow is a JSX component and shapes.ts is a
+# .ts file, and every one of the thirteen sibling shapes modules in the product
+# is geometry-only for exactly that reason. The approved Test Contract never
+# listed PillRow among shapes.ts's exports either -- it names CARD_SHELL,
+# HERO_SHELL, ROW, TILE, LANE and CLOCK_TICK_MS. What the plan actually asks for
+# is that PillRow stop being file-local to device-metrics.tsx and gain ONE home
+# that step 06 can import from too. A dedicated pill-row.tsx is that home, and
+# shapes.ts keeps the ROW geometry it consumes.
+if [ ! -f "$PILL_ROW_00" ]; then
+    bad "missing: components/dashboard/pill-row.tsx"
+elif ! strip_comments "$PILL_ROW_00" | grep -qE '(export (const|function)|export default function) PillRow\b'; then
+    bad "pill-row.tsx does not export PillRow"
 else
-    bad "PillRow is not exported from shapes.ts"
+    ok "PillRow is exported from pill-row.tsx"
+fi
+if [ -f "$SHAPES_00" ]; then
+    if grep -qE '<[A-Za-z]' "$TMPD/shapes.stripped"; then
+        bad "shapes.ts contains JSX -- it must stay geometry-only, like its 13 siblings"
+    else
+        ok "shapes.ts is geometry-only"
+    fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -507,7 +527,7 @@ if [ ! -f "$DEVICE_METRICS_00" ]; then
     bad "missing: components/dashboard/device-metrics.tsx"
 else
     if strip_comments "$DEVICE_METRICS_00" | grep -qE '(function|const) PillRow\b'; then
-        bad "device-metrics.tsx still declares PillRow -- it should import it from shapes.ts"
+        bad "device-metrics.tsx still declares PillRow -- it should import it from pill-row.tsx"
     else
         ok "device-metrics.tsx no longer declares PillRow"
     fi
