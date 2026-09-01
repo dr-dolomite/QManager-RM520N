@@ -1840,7 +1840,7 @@ The following features have been removed from the `dev-rm520` branch:
 | Feature | Reason |
 |---------|--------|
 | VPN Management (NetBird only) | Third-party binary, fw4/mwan3 dependencies — Tailscale is implemented |
-| Video Optimizer / Traffic Masquerade (DPI) | Depends on nftables NFQUEUE; nfqws ARM32 binary not validated |
+| Video Optimizer / Traffic Masquerade (DPI) | Depends on nftables NFQUEUE; nfqws ARM32 binary not validated. **Superseded:** re-ported on tpws as Video Optimizer / **Full Bypass** (the mode was renamed from Traffic Masquerade 2026-09-01) — see `docs/reference/dpi.md` |
 | Bandwidth Monitor | ARM64 binary not portable to ARM32; websocat WSS dependency |
 | Ethernet Status & Link Speed | RM520N-GL uses RGMII (bridge0/eth0) vs USB Ethernet — different management model |
 | Custom DNS | Depends on UCI network config — no equivalent on RM520N-GL |

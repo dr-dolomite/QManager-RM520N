@@ -317,6 +317,21 @@ if [ -n "$src_line" ] && [ -n "$mig_line" ] && [ "$mig_line" -gt "$src_line" ]; 
 else
     bad "the migration call does not follow the config.sh source -- its helpers would not be in scope"
 fi
+# ...and the source must itself follow the lib DEPLOY. Raised by the Phase 5
+# installer-safety audit as a seam the two checks above cannot see: they only
+# compare the source line to the migration line, so a refactor that moved the
+# whole source-and-migrate block ABOVE install_dir_flat would keep both of them
+# green while the source picked up the OLD config.sh already on the device --
+# one without qm_config_delete_section, which then resolves to nothing and
+# leaves "traffic_masquerade": {} on every upgraded device. Silent, and
+# invisible to every behavioural section here, which runs against the
+# repo's copy of config.sh rather than a device's.
+dep_line=$(printf '%s\n' "$INSTALL_BACKEND" | grep -n 'install_dir_flat "\$SRC_SCRIPTS/usr/lib/qmanager"' | head -1 | cut -d: -f1 || true)
+if [ -n "$dep_line" ] && [ -n "$src_line" ] && [ "$src_line" -gt "$dep_line" ]; then
+    ok "config.sh is deployed before it is sourced (the new primitive is the fresh one)"
+else
+    bad "install_backend() sources config.sh before deploying it -- qm_config_delete_section would resolve against the device's OLD lib"
+fi
 
 # =============================================================================
 printf '\n[9] syntax sanity\n'

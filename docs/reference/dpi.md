@@ -1,6 +1,8 @@
-# Traffic Engine (DPI bypass) — Video Optimizer & Traffic Masquerade
+# Traffic Engine (DPI bypass) — Video Optimizer & Full Bypass
 
 The Traffic Engine re-ports the RM551-era "Video Optimizer / Traffic Masquerade" DPI bypass to the RM520N-GL using **zapret's `tpws`** (the transparent-proxy mode) instead of the RM551's `nfqws` (netfilter queue mode). The RM551 implementation was removed in the dev-rm520 branch (nftables/fw4 dependency, ARM32 nfqws unvalidated); tpws runs as a plain userspace proxy on vanilla Linux, so the RM520's iptables REDIRECT is enough.
+
+> ℹ️ **"Traffic Masquerade" is the retired name for Full Bypass (renamed 2026-09-01).** Read [The rename](#the-rename-traffic-masquerade--full-bypass) before touching anything that still spells it the old way — one CGI alias and one uninstall drain still do, deliberately.
 
 ## Mental model
 
@@ -13,7 +15,7 @@ ISPs that throttle by site name inspect the **SNI** (the plaintext site name at 
   `-t nat PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports 989`
   - **No `-m comment`**: the RM520N kernel ships **without `xt_comment`**, so the rule is identified by its `--to-ports 989` signature (`DPI_RULE_SIG`) in the `-S` listing, and its packet counter via `grep "redir ports 989"` in `iptables -L -v -x`.
 - Units:
-  - `qmanager-dpi.service` — runs `/usr/bin/qmanager_dpi_run` with the args built by `dpi_build_args()` (from `dpi_state.sh`). The unit is **not** enabled; starting is config-gated: the 60s `qmanager-dpi-ensure.timer` (monotonic `OnBootSec`, passes the 1970-clock fire guard) runs `qmanager_dpi_run --ensure`, which starts the engine only if `video_optimizer.enabled=1` or `traffic_masquerade.enabled=1`, and stops/removes the rule when both are off.
+  - `qmanager-dpi.service` — runs `/usr/bin/qmanager_dpi_run` with the args built by `dpi_build_args()` (from `dpi_state.sh`). The unit is **not** enabled; starting is config-gated: the 60s `qmanager-dpi-ensure.timer` (monotonic `OnBootSec`, passes the 1970-clock fire guard) runs `qmanager_dpi_run --ensure`, which starts the engine only if `video_optimizer.enabled=1` or `full_bypass.enabled=1`, and stops/removes the rule when both are off.
 - Binary: `/usrdata/qmanager/bin/tpws` — **root-owned** (`/usrdata/qmanager/www`, where the CGI writes, is www-data-owned; the binary lives in the root-owned `/usrdata/qmanager/bin` so a web compromise cannot swap the engine binary — the CGI only ever executes it via the root helper).
 
 ## Modes
@@ -21,9 +23,43 @@ ISPs that throttle by site name inspect the **SNI** (the plaintext site name at 
 | Mode | Config keys | Effect |
 |------|-------------|--------|
 | Video Optimizer | `video_optimizer.enabled`, `video_optimizer.strategy` | Desync only connections whose SNI matches the hostlist (`/etc/qmanager/video_domains.txt`, subdomains match automatically). `strategy` is reserved (`full`/`targeted`); current tpws builds have exactly one recipe, so it is stored but does not change the recipe. |
-| Traffic Masquerade | `traffic_masquerade.enabled`, `traffic_masquerade.sni_domain` | The **same** recipe applied to every 80/443 connection (no hostlist). |
+| Full Bypass | `full_bypass.enabled`, `full_bypass.sni_domain` | The **same** recipe applied to every 80/443 connection (no hostlist). |
 
-The two modes are **mutually exclusive** (CGI-enforced; enabling one disables the other). `sni_domain` is accepted and stored for API-contract compatibility with the RM551, but is **inert** — tpws has no fake-ClientHello mode (that is nfqws-only), so masquerade instead means "split everything."
+The two modes are **mutually exclusive** (CGI-enforced; enabling one disables the other), and they differ in **scope, not technique** — which is the whole content of the distinction, and the reason for the name. `sni_domain` is accepted and stored for API-contract compatibility with the RM551, but is **inert**: tpws has no fake-ClientHello mode (that is nfqws-only), so there is nothing to put a spoofed name into.
+
+### The rename: Traffic Masquerade → Full Bypass
+
+**Full Bypass was called "Traffic Masquerade" until 2026-09-01**, and the old name was inherited rather than chosen. On the RM551E it was accurate: nfqws rewrote the outgoing ClientHello's SNI to a spoofed identity (`sni_domain`, default `speedtest.net`), so real traffic genuinely pretended to be a different site, and the field named the disguise.
+
+None of that survived the port. tpws has no fake-SNI capability at all — it splits and reorders the connection's **real** ClientHello so DPI cannot parse it. So on this platform the mode never impersonated anything; it meant "run the anti-DPI recipe unscoped". The name promised a target, a disguise identity and something to configure, and there was none of it. `sni_domain` is carried for contract parity and is otherwise dead, which made the surface worse rather than better: the one field that looked like the answer was the one field that did nothing.
+
+The historical explanation above is why the divergence from RM551 exists, and it stays relevant under the new name — it is what `sni_domain` is still doing in the contract.
+
+**What moved, and what did not:**
+
+| Layer | Retired | Current |
+| --- | --- | --- |
+| Config section | `traffic_masquerade` | `full_bypass` (same `enabled` / `sni_domain` keys) |
+| CGI GET | `?section=masquerade` | `?section=full_bypass` |
+| CGI POST | `save_masquerade` | `save_full_bypass` |
+| `dpi_active_mode()` prints | `masquerade` | `full_bypass` |
+| `DpiMode` member | `"masquerade"` | `"full_bypass"` |
+| Type | `MasqueradeStatus` | `FullBypassStatus` |
+| Hook | `hooks/use-traffic-masquerade.ts` (`useTrafficMasquerade`) | `hooks/use-full-bypass.ts` (`useFullBypass`) |
+| i18n | `trafficEngine.mode.masquerade{,_hint}`, `.toast_masquerade` | `.full_bypass{,_hint}`, `.toast_full_bypass` |
+
+> ⚠️ **The persisted config section is renamed, and `config.sh` has no migration primitive.** `qm_config_init` only *seeds* an empty file — it returns early the moment `$QM_CONFIG` is non-empty. Every already-deployed device therefore keeps its `traffic_masquerade` section, and a renamed reader would find nothing, fall back to its default, and switch the mode **off** on a user who had it on: no error, no log line, nothing observable. `migrate_traffic_masquerade_to_full_bypass()` in `install_rm520n.sh` (called from `install_backend()`, right after `migrate_watchcat_fail_threshold`) copies both keys across and retires the old section. It is idempotent, runs on every install and OTA, and takes `|| true` on every write because `install_backend` runs under `set -e`. Pinned behaviourally by `scripts/test/full-bypass-config-migration.sh`.
+>
+> Retiring the section needed a new primitive: `qm_config_delete` is **key**-scoped, so using it would have left `"traffic_masquerade": {}` behind on every device. `qm_config_delete_section` in `config.sh` mirrors its gated-`mv` pattern.
+
+**Two sites still spell it the old way, deliberately:**
+
+1. **The CGI accepts `?section=masquerade` and `action=save_masquerade` as deprecated aliases, for one release.** An OTA replaces the CGI and the JS bundle together, so a *device* is never half-updated — but a browser tab left open across the OTA still holds the old bundle, and its next write would return `unknown_action`. Remove the aliases, and the assertions naming them in `traffic-engine-design-language.sh` [31], once no supported upgrade path can still be serving the old bundle.
+2. **`_dpi_uninstall_run`'s config cleanup drains both names** (`del(.video_optimizer, .full_bypass, .traffic_masquerade)`). It is a teardown that can run on a device which has not taken the installer migration — a UI uninstall needs no OTA — and `del()` on an absent key is free. Every **read** site was renamed outright; only this drain is bilingual.
+
+Historical prose in `dpi_state.sh`'s header and `targets-card.tsx`'s finding-17 note still says "Traffic Masquerade", because both describe the RM551E feature or the file's own past. Renaming those would make the comments false rather than current.
+
+The rename is pinned across all four layers by `scripts/test/traffic-engine-design-language.sh` section [31], including an i18n assertion that each locale's `targets.idle_*` prose no longer contains that locale's own word for the retired mode — matched case-insensitively, which is what forces a real re-translation rather than a key swap.
 
 ## The recipe (why it is what it is)
 
@@ -80,7 +116,7 @@ The two modes are **mutually exclusive** (CGI-enforced; enabling one disables th
 
 The engine is **TCP-only**: `tpws` desyncs TLS/HTTP handshakes, and the transparent REDIRECT rule matches `-p tcp --dports 80,443`. QUIC (UDP 443) passes through untouched, so deprecated builds added an iptables DSCP-marking rule (`--set-dscp 0x2e`, "prioritize" QUIC) alongside the engine. That coupling is **removed**: QUIC is now handled solely by a standalone **Force-TCP** toggle.
 
-- **Config key:** `quic.force_tcp` (0/1) — independent of `video_optimizer` / `traffic_masquerade`.
+- **Config key:** `quic.force_tcp` (0/1) — independent of `video_optimizer` / `full_bypass`.
 - **Rule** (idempotent; identified by its `--reject-with icmp-port-unreachable` signature — no `xt_comment` on this kernel):
   `-t filter FORWARD -i bridge0 -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable`
   REJECTing QUIC makes QUIC-first apps (YouTube, Discord, Instagram) fall back to HTTPS over TCP, where the engine's bypass applies. A LAN-side **REJECT** (not DROP) lets clients fail back on the first packet; DROP would make them wait out QUIC retransmit/PTO timers — a dead-feeling second or two per new host.
@@ -96,7 +132,7 @@ The engine is **TCP-only**: `tpws` desyncs TLS/HTTP handshakes, and the transpar
 
 ## Status contract
 
-`GET /cgi-bin/quecmanager/network/video_optimizer.sh` (with `?section=masquerade` for the masquerade view) returns: `enabled` (config intent), `status` (`running`/`stopped`, plus `restarting`/`error` when systemd permits the follow-up query), `uptime`, `packets_processed`, `domains_loaded`, `binary_installed`, `kernel_module_loaded` (rule present), `force_tcp`, `force_tcp_active`. Full contract in `docs/API-REFERENCE.md`.
+`GET /cgi-bin/quecmanager/network/video_optimizer.sh` (with `?section=full_bypass` for the Full Bypass view) returns: `enabled` (config intent), `status` (`running`/`stopped`, plus `restarting`/`error` when systemd permits the follow-up query), `uptime`, `packets_processed`, `domains_loaded`, `binary_installed`, `kernel_module_loaded` (rule present), `force_tcp`, `force_tcp_active`. Full contract in `docs/API-REFERENCE.md`.
 
 ## Platform / ISP findings (tested on pilot, AT&T Wireless)
 
@@ -119,7 +155,7 @@ The four LIVE fields are read differently and deliberately so: `status`, `uptime
 
 **The two modes are one three-way selector**, not tabs. They are mutually exclusive by construction (see [Modes](#modes)) and tabs say "two independent panes you may browse", so the mutex only ever surfaced as a surprise dialog at toggle time. The takeover confirm survives with a different job — it guards "this restarts the engine" — and fires **only on a mode→mode switch**, which is the only transition that actually restarts anything.
 
-**The target list stays mounted while masquerade owns the engine**, and says why. It used to unmount with its tab, so the interface's only statement about a list that is still stored and still applies on switching back was its absence. The count chip switches from "N of 300" to "N saved" with it. The editor is not disabled either: the list is stored independently of the mode and tpws re-reads it per connection, so editing it is legitimate — what would be dishonest is implying the edits take effect right now.
+**The target list stays mounted while Full Bypass owns the engine**, and says why. It used to unmount with its tab, so the interface's only statement about a list that is still stored and still applies on switching back was its absence. The count chip switches from "N of 300" to "N saved" with it. The editor is not disabled either: the list is stored independently of the mode and tpws re-reads it per connection, so editing it is legitimate — what would be dishonest is implying the edits take effect right now.
 
 **The verify result is a comparison, not a list.** Three rows on one shared 0–100 scale whose ceiling is the fastest of the three samples, so "did the bypass help" is read by bar length. The winner is promoted to `primary-container` and its numeral drops ramp ink for `on-primary-container`. **The line-speed row shares the scale but can never be the winner** — it is the reference (see [Verify](#verify-test-bypass)), not a contestant.
 
@@ -149,7 +185,7 @@ The report was "switching Bypass Mode has no animation, it just refreshes then s
 > - **It also kills a running Test bypass.** `VerifyCard` holds `isRunning`, its result and its poll loop in local state, and the loop aborts on `!mountedRef.current` — so an unmount throws away up to twelve minutes of measurement, the card returns reading "idle" without saying anything was lost, and the backend worker carries on regardless. This has no separate fix and no separate assertion: the silent refetch *is* the fix. The two-up band makes a mid-test mode switch **more** likely, not less.
 > - **Conversely, making `retry()` silent breaks the banners.** Someone pressing Retry after a failed read is asking to *see* the read happen; a button that changes nothing on screen reads as a button that did nothing.
 
-**`refresh` takes an optional silent flag on both status hooks** — `refresh: (silent?: boolean) => void` in `hooks/use-video-optimizer.ts` and `hooks/use-traffic-masquerade.ts`. It is part of the published signature rather than an internal convenience, because the shell has to silence **both** halves of a mode-switch refetch; a hook that could not would leave half the page tearing down anyway. `use-cdn-hostlist`'s `refresh` is unchanged — nothing refetches it mid-write.
+**`refresh` takes an optional silent flag on both status hooks** — `refresh: (silent?: boolean) => void` in `hooks/use-video-optimizer.ts` and `hooks/use-full-bypass.ts`. It is part of the published signature rather than an internal convenience, because the shell has to silence **both** halves of a mode-switch refetch; a hook that could not would leave half the page tearing down anyway. `use-cdn-hostlist`'s `refresh` is unchanged — nothing refetches it mid-write.
 
 **Which mode is pending, not merely that one is.** `ModeCard` now takes `pendingMode: DpiMode | null` in place of `isSwitching: boolean`. A boolean cannot name one of three rows, so the flag was spent entirely on `disabled`, which fired the group-wide dim on all three rows equally and erased the signal it was meant to carry. The two non-pending rows take the real `disabled` attribute and inherit the primitive's dim for free; the pending row takes `aria-disabled` so it stays at full strength and holds the spinner, kept inert by `commit`'s existing `isSaving` guard. Two deliberate omissions, both recorded at their call sites: the pending row is **not** painted as selected (a status surface reports what is actually running, never the half-edited form — and on failure `selectMode` returns before the refetch, so an optimistic mark would visibly snap back), and there is **no synthetic "Switching" chip** in the card header, because `restarting` is already a real `DpiEngineStatus` member rendered by `ENGINE_BADGE` here and by `ENGINE_SPEC` in `live-strip.tsx`, and a second answer to one question is the exact defect this surface was re-authored to remove.
 
@@ -157,7 +193,7 @@ The report was "switching Bypass Mode has no animation, it just refreshes then s
 
 **The mode radiogroup does not commit on arrow.** Arrows move focus only; committing needs Space, Enter or a click — and neither key is handled explicitly, because a native `<button>` already turns both into a click and a second implementation of that would only drift from the first.
 
-This is a deliberate departure from the stock ARIA radiogroup pattern, which conventionally selects on arrow. That convention assumes selection is cheap and instantly reversible. Here "select" is a service restart: `onKeyDown` used to call `commit()` on every row the arrows passed over, so arrowing from Off to Traffic Masquerade fired a real `svc_start` and an iptables REDIRECT insert for Video Optimizer on the way past. **QManager is served by the device it is reconfiguring**, so one of the connections a restart drops is the user's own browser session.
+This is a deliberate departure from the stock ARIA radiogroup pattern, which conventionally selects on arrow. That convention assumes selection is cheap and instantly reversible. Here "select" is a service restart: `onKeyDown` used to call `commit()` on every row the arrows passed over, so arrowing from Off to Full Bypass fired a real `svc_start` and an iptables REDIRECT insert for Video Optimizer on the way past. **QManager is served by the device it is reconfiguring**, so one of the connections a restart drops is the user's own browser session.
 
 `AlertDialogAction` re-checks `isSaving` as well. That is not redundant with `commit`'s own check: the takeover confirm sits open across an arbitrary human-length gap, and a write starting in that window would queue a second restart behind the first.
 
@@ -219,7 +255,7 @@ Handoff after the pass: pair 376 → 379, targets 399 → 401.
 - `scripts/test/installer-teardown-lockstep.sh` — harness pinning that call
 - `scripts/test/dpi-rule-signature-port.sh` — harness pinning `DPI_RULE_SIG` and the `_dpi_uninstall_run` teardown to `$DPI_PORT`
 - `scripts/test/dpi-uninstall-path-symmetry.sh` — harness pinning the uninstall paths: sections [1]–[3] that the UI and full-device paths drain the same chains (F19), section [4] that `--clear` drains **all three** rules the lib owns (F21, behavioural — the branch is awk-extracted and run against a stubbed `run_iptables`, asserting rule *signatures* not chain names), section [5] that the UI path does **not** route through `--clear`
-- `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_masquerade / save_force_tcp / verify / install / save_hostlist)
+- `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_full_bypass / save_force_tcp / verify / install / save_hostlist)
 - `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend (`shapes.ts` is the family's geometry contract; see [The UI](#the-ui-re-authored-2026-08-31))
 - `scripts/test/traffic-engine-design-language.sh` — harness pinning the re-authored surface: sections [0]–[18] the re-author, [19]–[28] the [polish pass](#the-polish-pass-second-round-2026-08-31) (silent refetch, `pendingMode`, no-select-on-arrow, `CARD_PAIR`, the capped list, import/export/restore, the em-dash sweep, and a CRLF guard on the locale packs), [29]–[30] the third round (the resting state, and the skeleton mirroring the band). Note [23] is **inverted** relative to its first form, deliberately and on the record
-- `hooks/use-video-optimizer.ts`, `hooks/use-traffic-masquerade.ts`, `hooks/use-force-tcp.ts`, `hooks/use-cdn-hostlist.ts`
+- `hooks/use-video-optimizer.ts`, `hooks/use-full-bypass.ts`, `hooks/use-force-tcp.ts`, `hooks/use-cdn-hostlist.ts`

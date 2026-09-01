@@ -1311,7 +1311,7 @@ The frontend hook (`hooks/use-modem-subsys.ts`) treats `null` fields the same as
 
 ## DPI Settings
 
-The **Traffic Engine** page manages two modes through a single CGI endpoint: **Video Optimizer** (SNI splitting for video throttle bypass) and **Traffic Masquerade** (the same recipe applied to every 80/443 connection). This is the zepret add-on: the engine is one userspace `tpws` instance behind an iptables REDIRECT — not the legacy nfqws/NFQUEUE model, and masquerade is not a fake ClientHello. The endpoint also exposes the standalone **QUIC Force-TCP** toggle and the test-bypass comparison. See `docs/reference/dpi.md` for the architecture and recipe.
+The **Traffic Engine** page manages two modes through a single CGI endpoint: **Video Optimizer** (SNI splitting scoped to a hostlist) and **Full Bypass** (the same recipe applied to every 80/443 connection). This is the zapret add-on: the engine is one userspace `tpws` instance behind an iptables REDIRECT — not the legacy nfqws/NFQUEUE model. The two modes differ in **scope, not technique**, which is why Full Bypass is no longer called "Traffic Masquerade": there is no fake ClientHello anywhere in this engine. The endpoint also exposes the standalone **QUIC Force-TCP** toggle and the test-bypass comparison. See `docs/reference/dpi.md` for the architecture and recipe.
 
 ### GET `/network/video_optimizer.sh`
 
@@ -1335,9 +1335,23 @@ Read video optimizer settings and service status.
 
 Status values: `running`, `stopped`, `restarting`, `error`. `force_tcp` is the config intent (`quic.force_tcp`); `force_tcp_active` is whether the FORWARD rule rejecting QUIC (UDP 443) is currently applied — independent of the engine.
 
-### GET `/network/video_optimizer.sh?section=masquerade`
+### GET `/network/video_optimizer.sh?section=full_bypass`
 
-Read traffic masquerade settings and service status.
+Read Full Bypass settings and service status.
+
+> **Renamed 2026-09-01.** This section was `?section=masquerade` ("Traffic
+> Masquerade") until v0.1.14. The old name came from the RM551E, where nfqws
+> forged a TLS ClientHello carrying a spoofed SNI; the tpws engine used here has
+> no fake-SNI mode and only splits the real ClientHello, so nothing was ever
+> masqueraded on this platform. The mode differs from Video Optimizer in
+> **scope** (no hostlist), which is what the new name says.
+>
+> `?section=masquerade` and `action=save_masquerade` are still accepted as
+> **deprecated aliases for one release**, so a browser tab held open across an
+> OTA does not get `unknown_action` on its next write. Do not write new clients
+> against them. The persisted config section moved with the name
+> (`traffic_masquerade` → `full_bypass`) and existing devices are migrated in
+> place on install/OTA — see `docs/reference/dpi.md` > Modes.
 
 **Response:**
 ```json
@@ -1412,15 +1426,16 @@ Poll nfqws installation progress/results.
 {"action": "save", "enabled": true}
 ```
 
-**Save traffic masquerade settings:**
+**Save Full Bypass settings:**
 ```json
-{"action": "save_masquerade", "enabled": true, "sni_domain": "speedtest.net"}
+{"action": "save_full_bypass", "enabled": true, "sni_domain": "speedtest.net"}
 ```
 
-- `enabled` (boolean, required): Enable or disable traffic masquerade.
-- `sni_domain` (string, optional): Domain to spoof in fake TLS ClientHello. Must contain at least one dot, max 253 characters. Defaults to `speedtest.net` if not provided.
+- `enabled` (boolean, required): Enable or disable Full Bypass.
+- `sni_domain` (string, optional): Must contain at least one dot, max 253 characters. Defaults to `speedtest.net` if not provided. **Inert on this platform** — it is validated and stored for RM551E contract parity only, and tpws never reads it (there is no fake ClientHello to put it in). Kept deliberately through the rename; removing it would be a contract change.
+- Legacy alias: `"action": "save_masquerade"` is accepted for one release (see the GET section above).
 
-Saving masquerade settings restarts the entire `qmanager_dpi` service (both instances) to apply changes.
+Saving Full Bypass settings restarts the `qmanager-dpi` service to apply changes, and the CGI-enforced mutex disables Video Optimizer in the same write.
 
 **Force QUIC over TCP (standalone):**
 ```json
