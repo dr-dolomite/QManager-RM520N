@@ -20,6 +20,8 @@ import type {
   ConnectivityStatus,
   ConnectivityState,
 } from "@/types/modem-status";
+import { cn } from "@/lib/utils";
+import { TAG_HEIGHT } from "./shapes";
 
 // =============================================================================
 // The page-level status rail — Radio / Internet / Stale
@@ -348,8 +350,8 @@ export function DashboardStatusRail({
   if (isLoading) {
     return (
       <>
-        <Skeleton className="h-[30px] w-28 rounded-pill" />
-        <Skeleton className="h-[30px] w-24 rounded-pill" />
+        <Skeleton className={cn(TAG_HEIGHT, "w-28 rounded-pill")} />
+        <Skeleton className={cn(TAG_HEIGHT, "w-24 rounded-pill")} />
       </>
     );
   }

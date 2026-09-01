@@ -109,6 +109,7 @@
     "scs": "SCS"
   },
   "signal_card": {
+    "description": "主分量載波",
     "strength_heading": "訊號強度",
     "connected": "已連線",
     "disconnected": "已斷開",
@@ -121,7 +122,7 @@
     "quality_fair": "一般",
     "quality_poor": "較差",
     "quality_bad": "極弱",
-    "quality_none": "無訊號"
+    "quality_none": "無讀數"
   },
   "signal_history": {
     "title": "訊號質量監控",

@@ -13,8 +13,8 @@ import { DashboardPageHeader } from "./page-header";
 import { DashboardStatusRail } from "./status-rail";
 import NetworkStatusComponent from "./network-status";
 import DeviceStatus from "./device-status";
-import LTEStatusComponent from "./lte-status";
-import NrStatusComponent from "./nr-status";
+import { SignalStatusCard } from "./signal-status-card";
+import { buildSignalRows } from "./signal-rows";
 import CarrierAggregationComponent from "./carrier-aggregation";
 import { SignalHistoryComponent } from "./signal-history";
 import RecentActivitiesComponent from "./recent-activities";
@@ -123,9 +123,10 @@ const HomeComponent = () => {
                   networkType === "LTE" && "@3xl/main:col-span-2",
                 )}
               >
-                <LTEStatusComponent
-                  data={data?.lte ?? null}
+                <SignalStatusCard
+                  family="lte"
                   isLoading={isLoading}
+                  {...buildSignalRows("lte", data?.lte ?? null, t)}
                 />
               </motion.div>
             )}
@@ -140,9 +141,10 @@ const HomeComponent = () => {
                   networkType === "5G-SA" && "@3xl/main:col-span-2",
                 )}
               >
-                <NrStatusComponent
-                  data={data?.nr ?? null}
+                <SignalStatusCard
+                  family="nr"
                   isLoading={isLoading}
+                  {...buildSignalRows("nr", data?.nr ?? null, t)}
                 />
               </motion.div>
             )}

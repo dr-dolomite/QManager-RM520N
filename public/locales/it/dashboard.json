@@ -109,6 +109,7 @@
     "scs": "SCS"
   },
   "signal_card": {
+    "description": "Portante componente primaria",
     "strength_heading": "Potenza del segnale",
     "connected": "Connesso",
     "disconnected": "Disconnesso",
@@ -121,7 +122,7 @@
     "quality_fair": "Discreto",
     "quality_poor": "Scarso",
     "quality_bad": "Molto debole",
-    "quality_none": "Nessun segnale"
+    "quality_none": "Nessuna lettura"
   },
   "signal_history": {
     "title": "Monitoraggio della qualità del segnale",

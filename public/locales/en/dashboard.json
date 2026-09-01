@@ -109,6 +109,7 @@
     "scs": "SCS"
   },
   "signal_card": {
+    "description": "Primary component carrier",
     "strength_heading": "Signal Strength",
     "connected": "Connected",
     "disconnected": "Disconnected",
@@ -121,7 +122,7 @@
     "quality_fair": "Fair",
     "quality_poor": "Poor",
     "quality_bad": "Very weak",
-    "quality_none": "No signal"
+    "quality_none": "No reading"
   },
   "signal_history": {
     "title": "Signal Quality Monitor",

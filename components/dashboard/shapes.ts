@@ -246,6 +246,20 @@ export const VALUE_CLASS = "text-sm font-semibold text-on-surface";
 export const METER_H = "h-2";
 
 /**
+ * The resolved height of a chip on this surface — a `Badge` or a `Tag` at
+ * `px-3 py-1.5 text-xs` — and therefore of the skeleton standing in for one.
+ *
+ * The number is derived, which is the whole reason it lives here: 1px of
+ * border, `py-1.5` 6px, a 16px content box, and the same 6 and 1 back again.
+ * The content box is 16px because `text-xs` carries a 1rem line-height, so
+ * neither the glyph nor its size prop ever drove this height. No Tailwind step
+ * lands on 30px, so the class has to be arbitrary — and an arbitrary value
+ * restated in a second file is a value that can be re-derived wrong in one of
+ * them. It was already written in three places before this constant existed.
+ */
+export const TAG_HEIGHT = "h-[30px]";
+
+/**
  * The focus ring for a BARE trigger — a hand-rolled button or a tooltip
  * trigger. Anything built on `Button` already carries the project ring.
  *

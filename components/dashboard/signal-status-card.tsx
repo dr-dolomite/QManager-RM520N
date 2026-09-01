@@ -3,7 +3,12 @@
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { Tag, type TagVariant } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   QUALITY_GLYPH,
@@ -24,6 +29,32 @@ import {
 import { TickingValue } from "@/components/ui/ticking-value";
 import { getValueColorClass } from "./signal-card-utils";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
+import {
+  CARD_DESC,
+  CARD_SHELL,
+  CARD_TITLE,
+  LANE,
+  ROW,
+  TAG_HEIGHT,
+} from "./shapes";
+
+/**
+ * What a value cell renders when the poll did not carry one.
+ *
+ * An em dash, not a hyphen-minus: beside a column of right-aligned figures a
+ * hyphen reads as a minus sign with its digits missing.
+ *
+ * It is a shared SENTINEL rather than a spelling because two places have to
+ * agree about it. `signal-rows.ts` emits it, and the identity-pill branch below
+ * has to recognise it — a pill wrapping a placeholder reads as a broken chip
+ * rather than as absent data, so the band falls back to plain ink. A builder
+ * and a guard that disagree about the placeholder ship exactly the broken chip
+ * the guard exists to prevent, and nothing fails when they drift.
+ *
+ * It lives HERE and not in the builder so the dependency runs one way:
+ * `signal-rows.ts` already imports this file's types.
+ */
+export const ABSENT = "—";
 
 /** Which radio leg this card describes. Drives the identity tone only: blue is
  *  the 5G NR leg, violet the 4G LTE leg. Neither ever acts as a control. */
@@ -100,6 +131,30 @@ interface SignalStatusCardProps {
   family: RadioFamily;
 }
 
+/**
+ * The card's heading, rendered identically in both branches.
+ *
+ * It is NOT inside the loading branch as a skeleton, because neither line is
+ * ever unknown: the title arrives from the row builder before the first poll
+ * lands, and the description is a constant. A skeleton standing in for text we
+ * already have mirrors nothing — it just withholds the one thing on the card
+ * that could orient a reader while the rest of it fills in.
+ *
+ * `CardDescription` carries an explicit ink class because the primitive
+ * hardcodes a retired one; see the note in `network-status.tsx`.
+ */
+function SignalCardHeader({ title }: { title: string }) {
+  const { t } = useTranslation("dashboard");
+  return (
+    <CardHeader className="px-0">
+      <CardTitle className={CARD_TITLE}>{title}</CardTitle>
+      <CardDescription className={CARD_DESC}>
+        {t("signal_card.description")}
+      </CardDescription>
+    </CardHeader>
+  );
+}
+
 export function SignalStatusCard({
   title,
   state,
@@ -120,32 +175,25 @@ export function SignalStatusCard({
 
   if (isLoading) {
     return (
-      <Card className="gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]">
-        {/* Every height here is the loaded element's LINE BOX, not its font
-            size — a skeleton sized to the glyph reflows the moment real text
-            lands. Title: `text-lg` is 18px on a 28px line box. */}
-        <Skeleton className="h-7 w-40" />
+      <Card className={CARD_SHELL}>
+        <SignalCardHeader title={title} />
         <div className="flex items-center justify-between gap-3">
-          {/* 38px: `text-sm` 20px + `gap-0.5` 2px + `text-xs` 16px. */}
+          {/* 38px: `text-sm` 20px + `gap-0.5` 2px + `text-xs` 16px. Every
+              height here is the loaded element's LINE BOX, not its font size —
+              a skeleton sized to the glyph reflows the moment real text
+              lands. */}
           <div className="grid gap-0.5">
             <Skeleton className="h-5 w-28" />
             <Skeleton className="h-4 w-20" />
           </div>
-          {/* 30px: 1px border + `py-1.5` 6px + a 16px content box + 6 + 1. The
-              content box is 16px because `text-xs` carries a 1rem line-height —
-              it was 16px before the glyph swap too, so neither the old lucide
-              `size-3` nor the new 16px Material glyph ever drove this height.
-              Hence the literal value: no Tailwind step lands on 30px. */}
-          <Skeleton className="h-[30px] w-24 rounded-pill" />
+          <Skeleton className={cn(TAG_HEIGHT, "w-24 rounded-pill")} />
         </div>
         {/* Mirrors the loaded geometry exactly — same row count, same pill
-            radius — so nothing reflows when data lands. Rows stay 40px:
-            `text-[13px]/5` pins the line box to 20px and `py-2.5` adds 10px on
-            each side, which is why the arbitrary font-size carries an explicit
-            leading rather than inheriting one. */}
+            radius, and the same height constant the loaded row derives its own
+            from — so nothing reflows when data lands. */}
         <div className="grid gap-1.5">
           {Array.from({ length: rows.length || 7 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 rounded-pill" />
+            <Skeleton key={i} className={cn(ROW.HEIGHT, "rounded-pill")} />
           ))}
         </div>
       </Card>
@@ -153,8 +201,8 @@ export function SignalStatusCard({
   }
 
   return (
-    <Card className="gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]">
-      <h3 className="text-lg font-semibold">{title}</h3>
+    <Card className={CARD_SHELL}>
+      <SignalCardHeader title={title} />
 
       <div className="flex items-center justify-between gap-3">
         {/* `min-w-0` + `truncate`: these two cards sit side by side, and neither
@@ -232,26 +280,40 @@ export function SignalStatusCard({
           variants={staggerRows}
         >
           {rows.map((row) => {
-            // Only measurement rows carry a tint. Band/ARFCN/PCI/SCS are
-            // identifiers with no good-or-bad reading, so they must not get a
-            // quality word announced after them.
-            const isTinted = row.rawValue != null && row.thresholds != null;
-            const rowQuality = isTinted
-              ? getSignalQuality(row.rawValue!, row.thresholds!)
+            // TWO QUESTIONS, NOT ONE. This used to be a single predicate —
+            // "does the row have BOTH a threshold set and a live value?" —
+            // deciding the bar, the ink and the screen-reader word together.
+            // So a measurement whose reading did not arrive rendered
+            // byte-identical to an identifier that has no scale at all: no
+            // bar, no ink, no announced word, and a dash. The two must not
+            // look the same. An ARFCN has no position on a quality scale; an
+            // RSRP has one and we failed to read it.
+            //
+            // Whether a row is a MEASUREMENT is a property of the row — it
+            // declares a threshold set, and that never changes between polls.
+            // Whether it has a READING is a property of this poll.
+            const isMeasurement = row.thresholds != null;
+            const rowQuality = isMeasurement
+              ? getSignalQuality(row.rawValue ?? null, row.thresholds!)
               : "none";
-            // Untinted rows pass NO class at all. `getValueColorClass` used to
+            // Identifiers pass NO class at all. `getValueColorClass` used to
             // return `""` for everything it didn't recognise, so an identifier
             // row happened to inherit the card's ink; on the ramp, `none` is a
             // real token (`on-surface-variant`, "we have no reading") and
             // handing it to a PCI would grey out a perfectly good identifier.
-            const valueColor = isTinted
+            // A measurement with no reading DOES take it, and that is the
+            // point: neutral ink is what "we did not measure" looks like.
+            const valueColor = isMeasurement
               ? getValueColorClass(rowQuality)
               : undefined;
             // The bar half of the ramp. Derived from the SAME `rowQuality` the
-            // ink is, so length and hue can never disagree, and only ever for a
-            // tinted row — an ARFCN has no position on a quality scale, so it
-            // gets no gauge and no ink.
-            const rowTone = isTinted ? qualityMeterTone(rowQuality) : null;
+            // ink is, so length and hue can never disagree. `qualityMeterTone`
+            // returns null for `none` on purpose — a missing reading has no
+            // correct fill colour — and that null is passed straight through.
+            // Never default it: `active-bands-card.tsx` let exactly this null
+            // fall through a `default:` arm and painted an unread antenna
+            // green.
+            const rowTone = isMeasurement ? qualityMeterTone(rowQuality) : null;
             const rowPercent =
               rowTone === null
                 ? null
@@ -261,19 +323,19 @@ export function SignalStatusCard({
               <motion.div
                 key={row.label}
                 variants={staggerRowItem}
-                className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
+                className={ROW.ROOT}
               >
                 {/* 13px/600 per the mock. The `/5` pins line-height to 20px so
                     the row stays exactly 40px tall and the skeleton's `h-10`
                     keeps matching — an arbitrary font-size would otherwise
                     inherit whatever leading the card sits in. */}
-                <dt className="text-[13px]/5 font-semibold text-on-surface-variant">
+                <dt className={cn(ROW.KEY, "text-on-surface-variant")}>
                   {row.label}
                 </dt>
                 {/* An identity pill wrapping a placeholder dash reads as a broken
                     chip rather than as absent data, so a missing band falls back
                     to plain ink. */}
-                {row.asIdentity && row.value !== "-" ? (
+                {row.asIdentity && row.value !== ABSENT ? (
                   // The band is an identifier, not a measurement: it changes on a
                   // handover, not on a poll. So it takes the container morph
                   // (`standard`) and NOT the live tick — dipping a value that
@@ -295,7 +357,8 @@ export function SignalStatusCard({
                   // colour is the `quick` clock; only containers get `standard`.
                   <dd
                     className={cn(
-                      "m-0 flex items-center gap-2.5 text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
+                      "m-0 flex items-center gap-2.5 transition-colors duration-(--duration-quick) ease-quick",
+                      ROW.VALUE,
                       row.isIdentifier && "font-mono",
                       valueColor,
                     )}
@@ -316,8 +379,8 @@ export function SignalStatusCard({
                         same 20px line box a 4px one did, so the row is still
                         40px — measured on the rendered node, not read off the
                         class string. */}
-                    {isTinted && (
-                      <div className="w-14 shrink-0" aria-hidden="true">
+                    {isMeasurement && (
+                      <div className={LANE} aria-hidden="true">
                         <MetricBar
                           value={rowPercent}
                           max={100}
@@ -342,7 +405,7 @@ export function SignalStatusCard({
                         width — an ARFCN is longer than "8 dB" and must not be
                         clipped to match it. */}
                     <span
-                      className={cn(isTinted && "w-[4.75rem] text-right")}
+                      className={cn(isMeasurement && "w-[4.75rem] text-right")}
                     >
                       {/* Keyed on the rendered string rather than `rawValue`: the
                           quality thresholds mean a raw RSRP can drift by a tenth
@@ -354,7 +417,7 @@ export function SignalStatusCard({
                     {/* The third channel. The bar and the ink both fail in
                         greyscale-plus-low-vision together, and neither reaches a
                         screen reader at all. Never drop it from a tinted row. */}
-                    {isTinted && (
+                    {isMeasurement && (
                       <span className="sr-only">
                         {" "}
                         {t(`signal_card.quality_${rowQuality}`)}

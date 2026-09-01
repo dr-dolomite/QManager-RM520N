@@ -109,6 +109,7 @@
     "scs": "SCS"
   },
   "signal_card": {
+    "description": "主分量载波",
     "strength_heading": "信号强度",
     "connected": "已连接",
     "disconnected": "已断开",
@@ -121,7 +122,7 @@
     "quality_fair": "一般",
     "quality_poor": "较差",
     "quality_bad": "极弱",
-    "quality_none": "无信号"
+    "quality_none": "无读数"
   },
   "signal_history": {
     "title": "信号质量监控",

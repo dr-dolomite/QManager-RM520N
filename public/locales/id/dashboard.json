@@ -109,6 +109,7 @@
     "scs": "SCS"
   },
   "signal_card": {
+    "description": "Pembawa komponen utama",
     "strength_heading": "Kekuatan Sinyal",
     "connected": "Terhubung",
     "disconnected": "Terputus",
@@ -121,7 +122,7 @@
     "quality_fair": "Cukup",
     "quality_poor": "Buruk",
     "quality_bad": "Sangat lemah",
-    "quality_none": "Tidak Ada Sinyal"
+    "quality_none": "Tidak Ada Pembacaan"
   },
   "signal_history": {
     "title": "Monitor Kualitas Sinyal",
