@@ -667,6 +667,491 @@ for loc in en zh-CN zh-TW it id; do
     fi
 done
 
+# =============================================================================
+# SECTION 01 -- Network Status
+# =============================================================================
+#
+# The hero card. Step 01 is the first step that changes card grammar, and it is
+# the largest single-file step in the pass: seven changes land in one commit.
+#
+#   1. The hero heading drops from the Display step to the 18px Title step every
+#      other card uses, and the card gains a description. The Display step is
+#      reserved for the page h1 -- "one per route" -- and step 00 gave the route
+#      a real one, so the card no longer has to fake it.
+#
+#   2. The Card shell at the top of the file is written inline and is
+#      BYTE-IDENTICAL to HERO_SHELL. It is re-pointed at the constant.
+#
+#   3. The SIM orb moves onto the strong fill. The Glyph-Disc Rule: a category
+#      icon sits in a filled circle on the role's STRONG fill, never on the pale
+#      container -- in light mode the containers collapse under CVD simulation
+#      and the fills do not.
+#
+#   4. CALL B -- the Radio / Internet / Stale rail LEAVES this card. Those three
+#      chips answer "is the whole thing up?", which is a question about the
+#      route rather than about Network Status, so they render through the page
+#      header's rail slot instead. They move UNCHANGED: the tone map, the
+#      tooltip, the 44px touch target and the two-clock chip morph all travel
+#      with them into components/dashboard/status-rail.tsx.
+#
+#      This UPHOLDS this card's existing reasoning rather than overturning it.
+#      The comment beside the Stale chip argues against promoting it to a
+#      BANNER -- "promoting it to a banner would cry wolf" -- and a page-header
+#      chip is not a banner. /cellular/settings/apn-management is the precedent
+#      for a header chip reporting a live fact.
+#
+#   5. The legacy full radius goes to the role scale, 18 sites in this file.
+#
+#   6. ORB / GLYPH / the badge lift stop being file-local. Step 00 minted them
+#      in shapes.ts and this file still declared its own identical copies, so
+#      until this step the surface carried exactly the drift the module exists
+#      to prevent -- two declarations of one number, either of which a future
+#      author could change alone.
+#
+#   7. The unreachable branch is ADDED. Six cards on this surface draw a dash or
+#      a zero in the same slot as a real reading while the page banner says the
+#      modem is unreachable, so the card and the banner disagree. This is the
+#      first of the six to go honest.
+#
+# R3 -- THE ORBS SCALE AT PHONE WIDTH. Approved 2026-09-01.
+# ---------------------------------------------------------------------
+# The three orbs were a fixed 152px in a grid that stacked to one column on a
+# narrow card, so on a phone they ran roughly 600px of orb and label before the
+# reader reached anything else -- on the surface built for a thirty-second
+# glance beside the modem. They now sit 3-across at every width and take their
+# size from ONE custom property, which steps up at a card container query.
+#
+# THE ONE-RATIO REQUIREMENT IS THE INTERESTING PART, and it is what [01-11] and
+# [01-13] pin between them. The ring stack is four concentric absolutely-
+# positioned discs whose sizes only mean anything RELATIVE to each other: an
+# outer ring, two inner rings and a core, in the proportions 1 : 0.7368 :
+# 0.5263 : 0.3158. Re-typing four numbers at a second size is four chances to
+# get one of them wrong, and a wrong one does not fail a build, a typecheck or
+# a screenshot -- it just makes the stack very slightly not concentric. So the
+# second size is not a second set of numbers at all: one property carries the
+# orb size and every other dimension is a calc against it.
+#
+# WHICH ASSERTION PINS WHAT
+#   [01-1]  no legacy full radius survives in the card OR in the rail carved
+#           out of it -- the rail is new code on this step's budget, not a file
+#           belonging to a later one
+#   [01-2]  the heading is off the Display step and on the shared title class
+#   [01-3]  the card carries a description, with an EXPLICIT ink class. The
+#           shared primitive hardcodes a retired ink, so a description with no
+#           class override renders the wrong grey -- see the scoping note below
+#   [01-4]  the shell is the imported hero constant, not the inline copy
+#   [01-5]  the SIM orb is on the strong fill and the pale container is gone
+#   [01-6]  this file contains NO chip rail -- none of the seven symbols that
+#           made it, and no tooltip import
+#   [01-7]  the rail has exactly one home and it is status-rail.tsx
+#   [01-8]  the rail is threaded from home-component.tsx into the page header's
+#           slot, and page-header.tsx still accepts one
+#   [01-9]  the chips moved UNCHANGED -- the four tone roles, the crossfade and
+#           the 44px touch floor all survive the move
+#   [01-10] ORB / GLYPH / the badge lift are declared once, in shapes.ts, and
+#           imported here -- the skeleton and the loaded orb read one source
+#   [01-11] shapes.ts carries BOTH orb sizes and derives every ring from one
+#           property, so the four proportions cannot drift apart
+#   [01-12] the unreachable branch exists, and it says so in all five locales
+#   [01-13] the ring pulse is still gated by the ONE existing service gate, and
+#           no hand-typed ring size survived the scaling
+#   [01-14] the three recorded icon exceptions are still present, so a drive-by
+#           icon sweep through this file goes red
+#
+# SCOPINGS, stated openly so they are not mistaken for a weakened test
+# ---------------------------------------------------------------------
+#  [01-3] asserts that the description element carries an ink class, NOT that a
+#         retired ink is absent from this directory. Grepping the directory
+#         would prove nothing: the retired ink is baked into
+#         components/ui/card.tsx, so it never appears here whether the call
+#         site overrides it or not. Fixing the primitive touches every card in
+#         the product and is its own tracked delta.
+#  [01-6] [01-10] [01-13] are checked against comment-stripped source, same
+#         rationale as R0-6 and 00-5: the file's JSDoc necessarily quotes the
+#         values and symbols being retired, and failing on a comment pushes the
+#         author to delete the reasoning rather than the code.
+#  [01-11] does not spell complete utility classes in its grep patterns. This
+#         harness is a non-gitignored file, so Tailwind's content scan extracts
+#         class-shaped strings out of it and compiles them into real CSS. A
+#         concrete class naming a property that exists costs one dead rule; a
+#         malformed one can make the whole stylesheet unparseable. The patterns
+#         below match the calc fragment only.
+#  [01-12] checks the locale keys directly rather than shelling out to the
+#         i18n parity gate, same as 00-11, and tolerates the CRLF endings the
+#         locale packs ship with.
+#
+# Run: bash scripts/test/dashboard-design-language.sh
+# =============================================================================
+
+NS_01="$DASHBOARD/network-status.tsx"
+RAIL_01="$DASHBOARD/status-rail.tsx"
+SHAPES_01="$SHAPES_00"
+HOME_01="$HOME_00"
+PAGE_HEADER_01="$PAGE_HEADER_00"
+
+printf '\n=============================================================\n'
+printf 'SECTION 01 -- Network Status\n'
+printf '=============================================================\n'
+
+ns_stripped="$TMPD/network-status.stripped"
+if [ -f "$NS_01" ]; then
+    strip_comments "$NS_01" > "$ns_stripped"
+else
+    : > "$ns_stripped"
+fi
+
+rail_stripped="$TMPD/status-rail.stripped"
+if [ -f "$RAIL_01" ]; then
+    strip_comments "$RAIL_01" > "$rail_stripped"
+else
+    : > "$rail_stripped"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-1] no legacy full radius in the card or in the rail carved out of it\n'
+# The role scale is 12/20/28/36/40 plus pill. The legacy chain still RESOLVES,
+# which is why this is a grammar defect rather than a visual one: nothing looks
+# wrong today, and the next author copies the spelling that was already there.
+if [ ! -f "$NS_01" ]; then
+    bad "missing: components/dashboard/network-status.tsx"
+else
+    n=$(grep -c 'rounded-full' "$ns_stripped")
+    if [ "$n" -eq 0 ]; then
+        ok "network-status.tsx is off the legacy full radius"
+    else
+        bad "network-status.tsx still has $n legacy full-radius call sites, expected 0"
+    fi
+fi
+if [ -f "$RAIL_01" ]; then
+    n=$(grep -c 'rounded-full' "$rail_stripped")
+    if [ "$n" -eq 0 ]; then
+        ok "status-rail.tsx is off the legacy full radius"
+    else
+        bad "status-rail.tsx has $n legacy full-radius call sites, expected 0"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-2] the hero heading is off the Display step\n'
+# The page-title size is the Display step, and Typography > Hierarchy says one
+# per route. The route has a real page title now, so a card wearing that size
+# is a second one.
+if [ -f "$NS_01" ]; then
+    if grep -q 'text-\[30px\]' "$ns_stripped"; then
+        bad "network-status.tsx still sets its heading at the page-title size"
+    else
+        ok "the hero heading is no longer at the page-title size"
+    fi
+    if grep -qE '\bCARD_TITLE\b' "$ns_stripped"; then
+        ok "the heading reads CARD_TITLE from shapes.ts"
+    else
+        bad "network-status.tsx does not use CARD_TITLE"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-3] the card carries a description with an explicit ink class\n'
+# Written as "the element carries a class", never as "a retired ink is absent".
+# See the scoping note in the section header: the retired ink lives inside the
+# shared card primitive, so a directory grep is silent either way.
+if [ -f "$NS_01" ]; then
+    if grep -q 'CardDescription' "$ns_stripped"; then
+        ok "network-status.tsx renders a CardDescription"
+        if grep 'CardDescription' "$ns_stripped" | grep -qE 'className=\{?(CARD_DESC|`|")'; then
+            ok "the description carries an explicit ink class"
+        else
+            bad "the CardDescription has no explicit ink class -- it inherits the retired ink from the primitive"
+        fi
+    else
+        bad "network-status.tsx renders no CardDescription"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-4] the shell is the imported hero constant\n'
+# The inline string in this file is byte-identical to HERO_SHELL, which is what
+# makes the re-point provably zero-visual-change.
+if [ -f "$NS_01" ]; then
+    if grep -qE '\bHERO_SHELL\b' "$ns_stripped"; then
+        ok "the Card reads HERO_SHELL"
+    else
+        bad "network-status.tsx does not use HERO_SHELL"
+    fi
+    if grep -q 'rounded-hero border-0 px-7' "$ns_stripped"; then
+        bad "the inline hero shell string still ships alongside the constant"
+    else
+        ok "the inline hero shell string is gone"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-5] the SIM orb is on the strong fill\n'
+# The Glyph-Disc Rule. A 152px category disc on the pale container is the one
+# place on this surface where the identity colour is least legible -- the
+# containers collapse under CVD simulation in light mode and the fills do not.
+if [ -f "$NS_01" ]; then
+    if grep -q 'bg-primary-container' "$ns_stripped"; then
+        bad "network-status.tsx still paints an orb on the pale primary container"
+    else
+        ok "no orb sits on the pale primary container"
+    fi
+    if grep -q 'bg-primary text-primary-foreground' "$ns_stripped"; then
+        ok "an orb sits on the strong primary fill"
+    else
+        bad "no orb sits on the strong primary fill"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-6] network-status.tsx contains no chip rail\n'
+# Named symbol by symbol rather than as one grep, so a partial move is
+# diagnosable from the output alone. A rail half-moved is worse than one not
+# moved: two files would then own the tone map.
+if [ -f "$NS_01" ]; then
+    rail_left=0
+    for sym in CHIP_BASE CHIP_TONE ChipTone buildRadioChip buildInternetChip InternetChip InternetDot; do
+        if grep -qE "(^|[^A-Za-z_])$sym\b" "$ns_stripped"; then
+            bad "network-status.tsx still carries the chip rail symbol $sym"
+            rail_left=1
+        fi
+    done
+    [ "$rail_left" -eq 0 ] && ok "none of the seven chip-rail symbols remain in network-status.tsx"
+    if grep -q 'components/ui/tooltip' "$ns_stripped"; then
+        bad "network-status.tsx still imports the tooltip -- only the Internet chip used it"
+    else
+        ok "network-status.tsx no longer imports the tooltip"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-7] the rail has exactly one home\n'
+if [ ! -f "$RAIL_01" ]; then
+    bad "missing: components/dashboard/status-rail.tsx"
+else
+    if grep -qE 'export (const|function|default function) DashboardStatusRail\b' "$rail_stripped"; then
+        ok "status-rail.tsx exports DashboardStatusRail"
+    else
+        bad "status-rail.tsx does not export DashboardStatusRail"
+    fi
+    rail_missing=0
+    for sym in CHIP_TONE buildRadioChip buildInternetChip; do
+        if ! grep -qE "(^|[^A-Za-z_])$sym\b" "$rail_stripped"; then
+            bad "status-rail.tsx does not carry $sym -- the rail did not move whole"
+            rail_missing=1
+        fi
+    done
+    [ "$rail_missing" -eq 0 ] && ok "the tone map and both chip builders live in status-rail.tsx"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-8] the rail is threaded into the page header from home-component.tsx\n'
+# Call B is only done when the chips RENDER in the header. A rail component that
+# exists and is never mounted would satisfy [01-6] and [01-7] and ship a page
+# header with an empty slot.
+if [ -f "$HOME_01" ]; then
+    home_stripped="$TMPD/home.stripped"
+    strip_comments "$HOME_01" > "$home_stripped"
+    if grep -q 'DashboardStatusRail' "$home_stripped"; then
+        ok "home-component.tsx renders the status rail"
+    else
+        bad "home-component.tsx does not render the status rail"
+    fi
+    if grep -qE 'rail=\{' "$home_stripped"; then
+        ok "home-component.tsx passes a rail into the page header"
+    else
+        bad "home-component.tsx renders the page header with no rail"
+    fi
+fi
+if [ -f "$PAGE_HEADER_01" ]; then
+    if strip_comments "$PAGE_HEADER_01" | grep -qE '\brail\b'; then
+        ok "page-header.tsx still accepts a rail"
+    else
+        bad "page-header.tsx no longer accepts a rail"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-9] the chips moved unchanged\n'
+# The three things most likely to be lost in a move, because each is invisible
+# in a screenshot: the four-role tone map, the two-clock morph, and the touch
+# target that lifts a 30px chip to the 44px floor without shifting layout.
+if [ -f "$RAIL_01" ]; then
+    tone_members=$(grep -cE '^\s+(success|warning|destructive|muted):' "$rail_stripped")
+    if [ "$tone_members" -eq 4 ]; then
+        ok "the chip tone map still carries its four roles"
+    else
+        bad "the chip tone map has $tone_members roles, expected 4"
+    fi
+    if grep -q 'SwapLabel' "$rail_stripped"; then
+        ok "the chip crossfade survived the move"
+    else
+        bad "the chips no longer use SwapLabel -- the two-clock morph was lost"
+    fi
+    if grep -q 'before:-inset-\[7px\]' "$rail_stripped"; then
+        ok "the 44px touch floor survived the move"
+    else
+        bad "the Internet chip lost its 44px touch target"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-10] the orb geometry is declared once, in shapes.ts\n'
+# Step 00 minted these and this file kept its own identical copies, so until now
+# the surface carried two declarations of one number -- the exact failure a
+# shapes module exists to remove, sitting inside the module that removed it.
+if [ -f "$NS_01" ]; then
+    dup=0
+    for sym in ORB GLYPH BADGE_SHADOW; do
+        if grep -qE "^\s*const\s+$sym\b" "$ns_stripped"; then
+            bad "network-status.tsx still declares its own $sym"
+            dup=1
+        fi
+    done
+    [ "$dup" -eq 0 ] && ok "network-status.tsx declares no orb geometry of its own"
+    if grep -q 'from "./shapes"' "$ns_stripped"; then
+        ok "network-status.tsx imports from shapes.ts"
+    else
+        bad "network-status.tsx does not import from shapes.ts"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-11] shapes.ts carries both orb sizes and one ring ratio\n'
+# Both sizes in one place is what lets the skeleton read the same pair as the
+# loaded orb. One ratio is what stops the four concentric discs drifting: their
+# sizes only mean anything relative to each other, and a wrong one fails no
+# build, no typecheck and no screenshot.
+if [ ! -f "$SHAPES_01" ]; then
+    bad "shapes.ts is missing -- cannot check the orb scale"
+else
+    shapes_01="$TMPD/shapes01.stripped"
+    strip_comments "$SHAPES_01" > "$shapes_01"
+    orb_block=$(awk '/^export const ORB = \{/{f=1} f{print} /^\} as const;/{if(f) exit}' "$shapes_01")
+    if [ -z "$orb_block" ]; then
+        bad "shapes.ts does not export an ORB block"
+    else
+        ok "shapes.ts exports an ORB block"
+        if printf '%s\n' "$orb_block" | grep -q '92px' && printf '%s\n' "$orb_block" | grep -q '152px'; then
+            ok "the ORB block declares both the compact and the full size"
+        else
+            bad "the ORB block does not declare both orb sizes"
+        fi
+        derived=$(printf '%s\n' "$orb_block" | grep -c 'calc(var(--orb)')
+        if [ "$derived" -ge 4 ]; then
+            ok "the ring stack derives $derived dimensions from the one orb property"
+        else
+            bad "only $derived orb dimensions are derived from the shared property, expected at least 4"
+        fi
+        legacy_ring=0
+        for legacy in '112px' '80px' '48px' '96px'; do
+            if printf '%s\n' "$orb_block" | grep -q "$legacy"; then
+                bad "the ORB block still hand-types the $legacy ring -- it must derive from the ratio"
+                legacy_ring=1
+            fi
+        done
+        [ "$legacy_ring" -eq 0 ] && ok "no ring dimension is hand-typed in the ORB block"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-12] the unreachable branch exists, in all five locales\n'
+# The page banner already says the modem is unreachable. Before this step the
+# card underneath it drew a full, confident set of orbs from a payload that was
+# never read, so the two disagreed.
+if [ -f "$NS_01" ]; then
+    if grep -qE '(^|[^A-Za-z_])unreachable\b' "$ns_stripped"; then
+        ok "network-status.tsx branches on reachability"
+    else
+        bad "network-status.tsx has no unreachable branch"
+    fi
+    if grep -q 'signal_cellular_off' "$ns_stripped"; then
+        ok "the unreachable orb carries the no-signal glyph"
+    else
+        bad "the unreachable branch has no no-signal glyph"
+    fi
+    for key in 'network.description_unreachable' 'network.unreachable'; do
+        if grep -q "$key" "$ns_stripped"; then
+            ok "network-status.tsx reads $key"
+        else
+            bad "network-status.tsx does not read $key"
+        fi
+    done
+fi
+for loc in en zh-CN zh-TW it id; do
+    locale_file="$LOCALES_ROOT/$loc/dashboard.json"
+    if [ ! -f "$locale_file" ]; then
+        bad "missing locale file: public/locales/$loc/dashboard.json"
+        continue
+    fi
+    # Scoped to the "network" object, not to the whole file. The dashboard pack
+    # already carries a page.description from step 00, so a file-wide grep for
+    # "description" passes before this step is written -- a false green on the
+    # one key most likely to be forgotten.
+    net_block=$(awk '/^  "network": \{/{f=1} f{print} f && /^  \},?$/{exit}' "$locale_file")
+    miss=0
+    if [ -z "$net_block" ]; then
+        bad "$loc dashboard.json has no network block"
+        miss=1
+    else
+        for key in description description_unreachable unreachable sim_generic; do
+            if ! printf '%s
+' "$net_block" | grep -qE "\"$key\"[[:space:]]*:"; then
+                bad "$loc dashboard.json is missing network.$key"
+                miss=1
+            fi
+        done
+    fi
+    [ "$miss" -eq 0 ] && ok "$loc dashboard.json has all four new network keys"
+done
+
+# -----------------------------------------------------------------------------
+printf '\n[01-13] one pulse gate, and no hand-typed ring size\n'
+# The One-Loop Rule: an ambient loop only runs where something is genuinely
+# live. The service gate that does this is already correct and this step must
+# VERIFY it rather than add a second one -- two gates on one loop is how a
+# later author removes the wrong one.
+if [ -f "$NS_01" ]; then
+    gates=$(grep -c 'isServiceActive ?' "$ns_stripped")
+    if [ "$gates" -eq 1 ]; then
+        ok "the ring pulse has exactly one gate"
+    else
+        bad "the ring pulse has $gates gates, expected 1"
+    fi
+    rings=$(grep -c 'animate-pulse-ring' "$ns_stripped")
+    if [ "$rings" -eq 3 ]; then
+        ok "all three rings still breathe on the live branch"
+    else
+        bad "found $rings pulsing rings, expected 3"
+    fi
+    hand=0
+    for legacy in '152px' '112px' '80px' '48px' '96px'; do
+        if grep -q "size-\[$legacy\]" "$ns_stripped"; then
+            bad "network-status.tsx still hand-types the $legacy orb dimension"
+            hand=1
+        fi
+    done
+    [ "$hand" -eq 0 ] && ok "no orb dimension is hand-typed in the component"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[01-14] the three recorded icon exceptions survive\n'
+# DESIGN.md > Icons records all three as deliberate: the SIM card and its
+# airplane stand-in are landmarks on the one glance surface, and the RAT marks
+# are typographic, not pictorial -- Material Symbols has no equivalent. Pinned
+# so a drive-by icon sweep through this file goes red rather than quiet.
+if [ -f "$NS_01" ]; then
+    if grep -qE 'CardSimIcon.*Plane|Plane.*CardSimIcon' "$ns_stripped"; then
+        ok "the lucide SIM and airplane landmarks are present"
+    else
+        bad "the lucide SIM / airplane landmark exception was swept"
+    fi
+    rat=0
+    for mark in MdOutline5G Md4gMobiledata Md4gPlusMobiledata Md3gMobiledata; do
+        grep -q "$mark" "$ns_stripped" || { bad "the RAT mark $mark was swept"; rat=1; }
+    done
+    [ "$rat" -eq 0 ] && ok "all four react-icons RAT marks are present"
+fi
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
