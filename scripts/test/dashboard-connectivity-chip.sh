@@ -47,7 +47,26 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-NETWORK_STATUS="$REPO_ROOT/components/dashboard/network-status.tsx"
+
+# Where buildInternetChip lives is deliberately DISCOVERED, not hardcoded.
+# The dashboard adoption pass is moving the chip rail (buildInternetChip and
+# the five-state connectivity switch) out of network-status.tsx into a sibling
+# status-rail.tsx. That move is orthogonal to the connectivity contract this
+# file pins, and a hardcoded path would turn it into a spurious red -- or
+# worse, into a green that is only measuring an empty file. Whichever component
+# actually owns the function is the one under test.
+NETWORK_STATUS=""
+for cand in \
+    "$REPO_ROOT/components/dashboard/network-status.tsx" \
+    "$REPO_ROOT/components/dashboard/status-rail.tsx"; do
+    if [ -f "$cand" ] && grep -q 'buildInternetChip' "$cand"; then
+        NETWORK_STATUS="$cand"
+        break
+    fi
+done
+# Nothing owns it: fall back to the historical home so the assertions below
+# report a missing symbol rather than a missing file.
+[ -n "$NETWORK_STATUS" ] || NETWORK_STATUS="$REPO_ROOT/components/dashboard/network-status.tsx"
 LIVE_LATENCY="$REPO_ROOT/components/dashboard/live-latency.tsx"
 LATENCY_CARD="$REPO_ROOT/components/monitoring/latency-monitoring/latency-monitoring-card.tsx"
 TYPES="$REPO_ROOT/types/modem-status.ts"
@@ -235,6 +254,70 @@ if grep -qE 'export type ConnectivityState' "$TMPD/types.code"; then
     ok "ConnectivityState (the status union) still exists"
 else
     bad "ConnectivityState is gone -- the wrong type was deleted"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[9] the five chip states are UNCHANGED by the probe redesign (guard)\n'
+# The probe chain goes from two legs to four and the reachable flip switches to
+# wall-clock seconds, but the five-value ConnectivityState union the poller
+# derives is deliberately untouched: the verdict stays binary, with no
+# captive-portal, auth-gateway or reason-for-failure third state. This section
+# exists so a builder cannot quietly grow a sixth state -- or a "why" field --
+# while implementing the new chain.
+# Scoped to buildInternetChip's own body. The surrounding file legitimately
+# carries a "limited" literal for the SIM/service-status orb, which is a
+# different axis entirely -- asserting against the whole file would fail on it
+# forever.
+chip_fn=$(awk '/buildInternetChip/,/^\}/' "$TMPD/netstat.code")
+if [ -n "$chip_fn" ]; then
+    ok "buildInternetChip was located for scoped inspection"
+else
+    bad "buildInternetChip could not be located in the chip source"
+fi
+extra_states=0
+for forbidden in limited intercepted captive portal auth_gateway; do
+    if printf '%s\n' "$chip_fn" | grep -qE "\"$forbidden\""; then
+        bad "buildInternetChip introduces a '$forbidden' state -- the verdict is binary by design"
+        extra_states=$((extra_states + 1))
+    fi
+done
+[ "$extra_states" -eq 0 ] && ok "no sixth connectivity state was introduced"
+
+conn_iface=$(awk '/export interface ConnectivityStatus/,/^}/' "$TMPD/types.code")
+state_union=$(awk '/export type ConnectivityState/,/;/' "$TMPD/types.code")
+union_count=$(printf '%s' "$state_union" | grep -oE '"[a-z_]+"' | sort -u | wc -l | tr -d ' ')
+if [ "${union_count:-0}" -eq 5 ]; then
+    ok "ConnectivityState is still exactly five members"
+else
+    printf '       members found: %s\n' "${union_count:-0}"
+    bad "ConnectivityState has ${union_count:-0} members, expected the unchanged five"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[10] ConnectivityStatus.ping_target is documented as the WINNING leg\n'
+# The chain short-circuits, so the first configured target is only the winner
+# on a link where the first leg answers. The poller now sources this field from
+# the daemon's last_target, falling back to targets[0] when nothing has
+# answered yet. There is no component consumer -- the field exists only here --
+# so the doc comment IS the contract, and it is checked against the RAW file
+# because a comment is precisely what is being asserted.
+if [ -f "$TYPES" ]; then
+    ping_target_doc=$(grep -B 4 -E '^\s*ping_target\s*:' "$TYPES" | grep -E '^\s*(/\*\*|\*|//)' || true)
+    if printf '%s' "$ping_target_doc" | grep -q 'last_target'; then
+        ok "the ping_target doc comment names last_target as its source"
+    else
+        printf '       current doc comment:\n'
+        printf '%s\n' "$ping_target_doc" | sed 's/^/         /'
+        bad "the ping_target doc comment still describes a fixed target, not the winning leg (last_target)"
+    fi
+    if printf '%s\n' "$conn_iface" | grep -qE '^\s*ping_target\s*:\s*string'; then
+        ok "ConnectivityStatus still declares ping_target as a string"
+    else
+        bad "ConnectivityStatus no longer declares ping_target: string -- the field was deleted, not repointed"
+    fi
+else
+    bad "types/modem-status.ts missing -- cannot check the ping_target contract"
+    bad "(skipped) ConnectivityStatus still declares ping_target as a string"
 fi
 
 printf '\n---------------------------------------------\n'

@@ -239,7 +239,7 @@ conn=$(run_cycle '{"reachable":true,"last_rtt_ms":9.9,"during_recovery":false,"i
 avail=$(printf '%s' "$conn" | jq -r '.internet_available')
 status=$(printf '%s' "$conn" | jq -r '.status')
 if [ "$status" = "unknown" ] && [ "$avail" = "null" ]; then
-    ok "stale ping cache (90s > 10s threshold) -> status=unknown, internet_available=null"
+    ok "stale ping cache (90s, past any derived threshold) -> status=unknown, internet_available=null"
 else
     bad "stale ping cache -> status=$status, internet_available=$avail (expected unknown/null)"
 fi
@@ -279,16 +279,220 @@ else
     bad "qmanager_ping no longer reads its own fail_secs/recover_secs config -- the same-named daemon config was deleted, not just the poller's dead read"
 fi
 
-if [ -f "$PING_PROFILE_CGI" ] && grep -q 'fail_secs' "$PING_PROFILE_CGI" && grep -q 'recover_secs' "$PING_PROFILE_CGI" && grep -q 'intercept_secs' "$PING_PROFILE_CGI"; then
-    ok "ping_profile.sh still names fail_secs/recover_secs/intercept_secs as daemon-owned debounce fields it must not clobber"
+if [ -f "$PING_PROFILE_CGI" ] && grep -q 'fail_secs' "$PING_PROFILE_CGI" && grep -q 'recover_secs' "$PING_PROFILE_CGI"; then
+    ok "ping_profile.sh still names fail_secs/recover_secs as daemon-owned debounce fields it must not clobber"
 else
     bad "ping_profile.sh no longer names the daemon's debounce fields -- check its merge did not start dropping them"
 fi
 
-if [ -f "$PING_PROFILE_SEED" ] && grep -q '"fail_secs"' "$PING_PROFILE_SEED" && grep -q '"recover_secs"' "$PING_PROFILE_SEED" && grep -q '"intercept_secs"' "$PING_PROFILE_SEED"; then
-    ok "the seed ping_profile.json still carries all three daemon debounce keys"
+if [ -f "$PING_PROFILE_SEED" ] && grep -q '"fail_secs"' "$PING_PROFILE_SEED" && grep -q '"recover_secs"' "$PING_PROFILE_SEED"; then
+    ok "the seed ping_profile.json still carries the daemon debounce keys"
 else
-    bad "the seed ping_profile.json is missing one of fail_secs/recover_secs/intercept_secs"
+    bad "the seed ping_profile.json is missing fail_secs or recover_secs"
+fi
+
+# intercept_secs is the ONE member of that same-named trio that does NOT
+# survive. It is pruned outright: no shipped code reads it, and none can under
+# a binary reachable/not-reachable verdict. Section 5 above removes it from the
+# poller's dead read path; these two remove it from the producer side, so a fix
+# that only silences the consumer leaves nothing behind.
+if [ -f "$PING_PROFILE_CGI" ] && grep -q 'intercept_secs' "$PING_PROFILE_CGI"; then
+    bad "ping_profile.sh still names the retired intercept_secs"
+else
+    ok "ping_profile.sh no longer names intercept_secs"
+fi
+if [ -f "$PING_PROFILE_SEED" ] && grep -q '"intercept_secs"' "$PING_PROFILE_SEED"; then
+    bad "the seed ping_profile.json still carries the retired intercept_secs"
+else
+    ok "the seed ping_profile.json no longer carries intercept_secs"
+fi
+
+# =============================================================================
+section "7. staleness is DERIVED from the cache's interval_sec, not hardcoded"
+# =============================================================================
+# The chain grew from two legs to four, so the worst case a cycle can take grew
+# with it. The poller's staleness cliff, however, was a bare 10 -- a number
+# derived from nothing. Two consequences, both silent:
+#
+#   * At the quiet profile (interval_sec 10) the cycle already sat ON the cliff
+#     BEFORE this change, so a perfectly healthy device could read "unknown".
+#   * During the outage this feature exists to detect, an over-budget cycle
+#     flips the verdict to unknown instead of disconnected -- and an unknown
+#     verdict is exactly the null that section 9 below shows swallows the
+#     internet_lost alert.
+#
+# The replacement is a threshold each consumer computes for itself:
+#
+#     stale_threshold = max(3 * interval_sec, 15)
+#
+# interval 1 -> 15 · interval 5 -> 15 · interval 10 -> 30
+#
+# run_cycle() deliberately still exports the legacy PING_STALE_THRESHOLD=10
+# global. That is the point: the only way the interval-10 case below can read
+# fresh is if read_ping_data() computes its own threshold and stops consulting
+# a constant handed to it.
+stale_case() {
+    _label="$1"; _interval="$2"; _age="$3"; _want="$4"
+    _conn=$(run_cycle "{\"reachable\":true,\"last_rtt_ms\":9.9,\"during_recovery\":false,\"interval_sec\":$_interval,\"targets\":[\"cloudflare.com\",\"google.com\",\"1.1.1.1\",\"8.8.8.8\"],\"last_target\":\"cloudflare.com\",\"last_family\":\"ipv4\"}" '9.9' "$_age")
+    _status=$(printf '%s' "$_conn" | jq -r '.status')
+    if [ "$_want" = "fresh" ]; then
+        if [ "$_status" != "unknown" ]; then
+            ok "$_label"
+        else
+            bad "$_label -- status went unknown (threshold is still a hardcoded constant, not max(3 * interval_sec, 15))"
+        fi
+    else
+        if [ "$_status" = "unknown" ]; then
+            ok "$_label"
+        else
+            bad "$_label -- status is '$_status', expected unknown"
+        fi
+    fi
+}
+
+stale_case "interval_sec 10, age 20s -> FRESH (threshold 30)"  10 20 fresh
+stale_case "interval_sec 10, age 40s -> stale (threshold 30)"  10 40 stale
+stale_case "interval_sec 1,  age 12s -> FRESH (floor of 15)"    1 12 fresh
+stale_case "interval_sec 1,  age 20s -> stale (floor of 15)"    1 20 stale
+stale_case "interval_sec 5,  age 12s -> FRESH (threshold 15)"   5 12 fresh
+stale_case "interval_sec 5,  age 20s -> stale (threshold 15)"   5 20 stale
+
+# The literal must be gone, not merely shadowed. A surviving constant is the
+# thing a future reader copies.
+if grep -qE '^PING_STALE_THRESHOLD=(10|15)[[:space:]]*(#.*)?$' "$POLLER"; then
+    printf '       offending line:\n'
+    grep -nE '^PING_STALE_THRESHOLD=(10|15)' "$POLLER" | sed 's/^/         /'
+    bad "the poller still carries a hardcoded staleness constant"
+else
+    ok "no hardcoded staleness constant survives in the poller"
+fi
+if grep -q 'stale_threshold' "$POLLER"; then
+    ok "the poller names a derived stale_threshold"
+else
+    bad "the poller never names stale_threshold -- nothing computes the derived value"
+fi
+
+# =============================================================================
+section "8. connectivity.ping_target comes from last_target, not targets[0]"
+# =============================================================================
+# The chain short-circuits, so targets[0] is only the winner on a link where the
+# first leg answers. On a device whose carrier blocks the first target -- the
+# RM520N-GL's exact documented regression path -- reporting targets[0] names a
+# host that never answered, and the latency chart beside it belongs to a
+# different one.
+conn=$(run_cycle '{"reachable":true,"last_rtt_ms":12.3,"during_recovery":false,"interval_sec":5,"targets":["cloudflare.com","google.com","1.1.1.1","8.8.8.8"],"last_target":"google.com","last_family":"ipv4"}' '12.3')
+got=$(printf '%s' "$conn" | jq -r '.ping_target // "ABSENT"')
+if [ "$got" = "google.com" ]; then
+    ok "ping_target follows last_target when a later leg won"
+else
+    bad "ping_target = '$got', expected the winning leg 'google.com'"
+fi
+
+# Fallback: nothing has answered yet, so last_target is empty and the first
+# slot is the honest thing to name.
+conn=$(run_cycle '{"reachable":false,"last_rtt_ms":null,"during_recovery":false,"interval_sec":5,"targets":["cloudflare.com","google.com","1.1.1.1","8.8.8.8"],"last_target":"","last_family":"none"}' 'null
+null')
+got=$(printf '%s' "$conn" | jq -r '.ping_target // "ABSENT"')
+if [ "$got" = "cloudflare.com" ]; then
+    ok "ping_target falls back to targets[0] when last_target is empty"
+else
+    bad "ping_target = '$got', expected the targets[0] fallback 'cloudflare.com'"
+fi
+
+# =============================================================================
+section "9. internet_lost still fires across a true -> null -> false sequence"
+# =============================================================================
+# events.sh:400 copies prev_ev_internet="$conn_internet_available"
+# UNCONDITIONALLY, while the emit guard requires prev == "true". A single cycle
+# of null in between -- which is exactly what a stale or dead ping cache
+# produces -- therefore rewrites the baseline to "null", and the following
+# false compares against "null" instead of "true". No event, and so no SMS, no
+# email, no Discord. The adjacent prev_ev_lte_band lines already use the
+# preserve-on-blank idiom for this very reason; the internet line was missed.
+#
+# Any change that lets the cache age past the staleness cliff turns this latent
+# bug into a live one, which is why the fix ships alongside the new chain
+# rather than after it.
+EVENTS_SH="$REPO_ROOT/scripts/usr/lib/qmanager/events.sh"
+if [ ! -f "$EVENTS_SH" ]; then
+    bad "events.sh not found at $EVENTS_SH"
+else
+    # ev_sequence <verdict> ... -- run one cycle per argument through the two
+    # real functions, in the real order poll_cycle() uses
+    # (detect_data_connection_events then snapshot_event_state), and echo the
+    # event names that were emitted. append_event is overridden AFTER sourcing
+    # so the names land on fd 3 instead of the device event log.
+    _ev_seq_n=0
+    ev_sequence() {
+        _ev_seq_n=$((_ev_seq_n + 1))
+        (
+            set +eu
+            EVENT_STATE_FILE="$work/ev_state_$_ev_seq_n.json"
+            EVENTS_FILE="$work/ev_events_$_ev_seq_n.json"
+            QUALITY_CONFIG="$work/ev_quality.json"
+            QUALITY_RELOAD_FLAG="$work/ev_quality_$_ev_seq_n.flag"
+            export EVENT_STATE_FILE EVENTS_FILE QUALITY_CONFIG QUALITY_RELOAD_FLAG
+            . "$EVENTS_SH" >/dev/null 2>&1
+
+            append_event() { printf '%s\n' "$1" >&3; }
+            qlog_warn()  { :; }
+            qlog_info()  { :; }
+            qlog_debug() { :; }
+            qlog_error() { :; }
+
+            conn_during_recovery="false"
+            conn_latency="null"
+            conn_avg_latency="null"
+            conn_packet_loss="null"
+
+            for _verdict in "$@"; do
+                conn_internet_available="$_verdict"
+                detect_data_connection_events
+                snapshot_event_state >/dev/null 2>&1
+            done
+        ) 3>&1 1>/dev/null 2>/dev/null
+    }
+
+    # Control. This is not decoration: if the plumbing above cannot make
+    # events.sh emit anything at all, every "was SWALLOWED" verdict below would
+    # be a false red, and the builder would go hunting a bug that is in this
+    # file instead. This case works today and must keep working.
+    emitted=$(ev_sequence true false)
+    if printf '%s\n' "$emitted" | grep -qx 'internet_lost'; then
+        ok "CONTROL: a plain true -> false emits internet_lost (the harness plumbing works)"
+    else
+        bad "CONTROL: even a plain true -> false emitted nothing -- the assertions below cannot be trusted (events emitted: $(printf '%s' "$emitted" | tr '\n' ' '))"
+    fi
+
+    # Drive the two real functions in the real order poll_cycle uses:
+    # detect_data_connection_events() first, then snapshot_event_state().
+    #
+    # Cycle 1 healthy, establishing the baseline. Cycle 2 the ping cache is
+    # stale or missing, so the poller resets the verdict to null -- nothing
+    # should be emitted, and nothing should be FORGOTTEN either. Cycle 3 the
+    # outage is confirmed, and that is the alert the user needs.
+    emitted=$(ev_sequence true null false)
+
+    if printf '%s\n' "$emitted" | grep -qx 'internet_lost'; then
+        ok "internet_lost fires across true -> null -> false"
+    else
+        bad "internet_lost was SWALLOWED across true -> null -> false (events emitted: $(printf '%s' "$emitted" | tr '\n' ' '))"
+    fi
+    if printf '%s\n' "$emitted" | grep -qx 'internet_restored'; then
+        bad "internet_restored fired on a true -> null -> false sequence"
+    else
+        ok "no spurious internet_restored on the same sequence"
+    fi
+
+    # The mirror case: a null in the middle of an outage must not manufacture a
+    # restore either, and must not lose the eventual real one.
+    emitted=$(ev_sequence false null true)
+
+    if printf '%s\n' "$emitted" | grep -qx 'internet_restored'; then
+        ok "internet_restored fires across false -> null -> true"
+    else
+        bad "internet_restored was SWALLOWED across false -> null -> true (events emitted: $(printf '%s' "$emitted" | tr '\n' ' '))"
+    fi
 fi
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
