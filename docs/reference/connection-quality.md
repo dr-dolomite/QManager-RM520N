@@ -9,6 +9,8 @@
 
 > ⚠️ WARNING — ICMP probe change (v0.1.32): the producer was switched from a compiled Rust **HTTP/204** daemon to a pure-shell **ICMP `ping`** daemon, ported from the RM551E sibling project for 1:1 parity. This was a deliberate, user-approved tradeoff that **removed the `connected`/`limited`/`disconnected` tri-state** — an ICMP echo either answers or it doesn't, so carrier-intercept ("Limited by carrier" / captive-portal / billing-wall) detection is gone. See [The producer](#the-producer--qmanager_ping-shell-icmp-daemon) for the mechanism and the [known regression path](#known-tradeoffs-and-the-icmp-regression-path).
 
+> ⚠️ WARNING — poller/UI realignment (2026-09-01): the ICMP port changed the producer but left the **poller and the dashboard** reading the retired daemon's key set. The dashboard's "Internet" chip was consequently stuck grey on every device for six weeks. Before touching this pipeline, read [The producer key contract](#the-producer-key-contract) and [The absent-key trap](#the-absent-key-trap) — the second is the durable lesson, and it generalises well beyond this subsystem.
+
 ---
 
 ## Quick Reference
@@ -17,7 +19,7 @@
 |------|-------|
 | Frontend page | `/system-settings/connection-quality` (`components/system-settings/connection-quality/`) |
 | Producer daemon | `qmanager_ping` — `#!/bin/sh` **ICMP `ping`** daemon (source: `scripts/usr/bin/qmanager_ping`, installed to `/usr/bin/qmanager_ping`) |
-| Poller | `qmanager_poller` (`scripts/usr/bin/qmanager_poller`) — derives latency/jitter/loss/history (**unchanged** by the ICMP port) |
+| Poller | `qmanager_poller` (`scripts/usr/bin/qmanager_poller`) — derives latency/jitter/loss/history **and** the `status` verdict (realigned to the ICMP daemon's key set on 2026-09-01) |
 | Consumer (recovery) | `qmanager_watchcat` — reads `streak_fail`, never probes; see [connection-watchdog.md](connection-watchdog.md) |
 | Ping verdict cache | `/tmp/qmanager_ping.json` (written by `qmanager_ping`, read by poller + watchdog) — **slim schema, no stats/history** |
 | History ring buffer | `/tmp/qmanager_ping_history` (flat file, one RTT float or `null` per line, read by poller for stats) |
@@ -28,6 +30,8 @@
 | Quality Thresholds CGI | `GET/POST /cgi-bin/quecmanager/settings/quality_thresholds.sh` |
 | Quality Thresholds config | `/etc/qmanager/quality_thresholds.json` (read by `events.sh`) |
 | Poller status output | `/tmp/qmanager_status.json` → `connectivity` block (typed as `ConnectivityStatus` in `types/modem-status.ts`) |
+| Dashboard "Internet" chip | `buildInternetChip()` in `components/dashboard/network-status.tsx` — reads `connectivity.status` and nothing else |
+| Latency charts | `components/dashboard/live-latency.tsx` and `components/monitoring/latency-monitoring/latency-monitoring-card.tsx` — a `null` RTT renders as a **gap**, never as 0 ms |
 
 **The three-daemon split, at a glance:**
 
@@ -101,7 +105,19 @@ Atomic write (`.tmp` + `mv`) every cycle. The schema is now **slim** — the dae
 | `during_recovery` | `true` while `/tmp/qmanager_recovery_active` exists (the watchdog is mid-recovery); lets the poller suppress noise. |
 | `last_family` | `ipv4` \| `ipv6` \| `none` — which address family answered last cycle. `ipv6` means the IPv4 leg failed and the fallback carried it; `none` means nothing answered. |
 
-**Fields that are GONE** (were emitted by the Rust daemon, no longer written): `connectivity`, `limited_reason`, `down_reason`, `streak_limited`, `probe_target_used`, `http_code_seen`, `tcp_reused`. The `connectivity`/`state` tri-state no longer exists at the producer.
+<a id="the-producer-key-contract"></a>
+### The producer key contract — exactly these eleven keys
+
+> ⚠️ WARNING: the table above is the **complete** key set, not a selection from it. `write_cache()` (`scripts/usr/bin/qmanager_ping`, ~:309-346) is a single `jq -n` object literal with eleven members and no conditional branches, so every cycle writes all eleven and **never** a twelfth. A consumer that reads any other key gets its own fallback — forever, on every device, silently.
+
+```
+timestamp  mono  profile  targets  interval_sec  last_rtt_ms
+reachable  streak_success  streak_fail  during_recovery  last_family
+```
+
+**Fields that are GONE** (emitted by the retired Rust HTTP daemon, never written by the shell daemon): `connectivity`, `limited_reason`, `down_reason`, `streak_limited`, `probe_target_used`, `http_code_seen`, `tcp_reused`. The `connectivity` / `state` tri-state does not exist at the producer, and nothing downstream may claim otherwise — see [The absent-key trap](#the-absent-key-trap).
+
+If you add a key to `write_cache()`, add it to the list above in the same change. Reading this contract is the cheap way to catch a producer/consumer divergence; the expensive way is what actually happened — six weeks of a wrong badge on every shipped device, caught by probing live hardware.
 
 ### Config and live reload
 
@@ -126,32 +142,104 @@ Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`
 
 ## The poller — turning probes into stats
 
-**Short version:** `qmanager_poller` reads the daemon's raw verdict plus the RTT history ring and computes the latency/jitter/loss numbers the UI actually shows. **The poller was not modified by the ICMP port** — its null-safe `jq` reads simply see the fields the slim schema still emits and degrade gracefully on the ones it dropped.
+**Short version:** `qmanager_poller` reads the daemon's raw verdict plus the RTT history ring, computes the latency/jitter/loss numbers the UI shows, and derives the single `status` verdict every connectivity surface reads.
+
+> ⚠️ WARNING — the poller was **not** realigned when the ICMP port landed (2026-07-20, `8f0f8f0`). For six weeks it read seven keys the shell daemon never writes and dropped one it does. Corrected 2026-09-01; the mechanism, and why three separate guards all failed to catch it, is in [The absent-key trap](#the-absent-key-trap) below.
 
 The poller reads two files the daemon produces:
 
-- `/tmp/qmanager_ping.json` — the current verdict (`reachable`, `streak_*`, `during_recovery`, `last_family`).
+- `/tmp/qmanager_ping.json` — the current verdict (`reachable`, `streak_*`, `during_recovery`, `last_family`, `profile`), read as a single `jq @tsv` extraction in `read_ping_data()`. **The extraction is positional** — seven `cut -f<N>` offsets follow it, so adding or removing a field means renumbering every offset below it.
 - `/tmp/qmanager_ping_history` — a flat ring buffer of RTT samples (one float or literal `null` per line), trimmed to `history_secs / interval_sec` entries.
 
-From those, in a single pass, it derives the `connectivity` block written into `/tmp/qmanager_status.json` and typed as `ConnectivityStatus` (`types/modem-status.ts`):
+From those, in a single pass, it derives the `connectivity` block written into `/tmp/qmanager_status.json` and typed as `ConnectivityStatus` (`types/modem-status.ts`). **This table is the complete block** — no other keys are emitted:
 
 | Field | Meaning |
 |-------|---------|
 | `internet_available` | `true`/`false`, or `null` when the ping daemon isn't running |
-| `status` | Derived UI state: `connected` / `degraded` / `disconnected` / `recovery` / `unknown` |
+| `status` | The derived UI verdict: `connected` / `degraded` / `disconnected` / `recovery` / `unknown`. **This is the only connectivity verdict any surface reads** — see the derivation table below |
 | `latency_ms` | Most recent RTT (null if the last probe failed) |
 | `avg_latency_ms` / `min_latency_ms` / `max_latency_ms` | Rolling stats over the history window |
 | `jitter_ms` | Average inter-sample RTT variation |
 | `packet_loss_pct` | Percentage of failed probes in the history window (0–100) |
+| `ping_target` | The IPv4 target currently being probed (`targets[0]` from the daemon) |
 | `latency_history` | Ring buffer of the last N RTTs (`null` = failed probe) — the data behind the latency graph |
-| `state` | The daemon's tri-state, passed through — now only ever `connected` / `disconnected` / `unknown` (never `limited`; `PingTriState` dropped that member) |
-| `last_family` | `ipv4` / `ipv6` / `none` — new field, mirrors the daemon's `last_family` |
-| `limited_reason` / `streak_limited` | Legacy HTTP-probe fields — kept **typed but always `null`/`0`** for rolling-upgrade safety (a `status.json` from an older poller still parses); never populated post-ICMP |
-| `down_reason` | Failure reason when disconnected (may be `null` under ICMP) |
+| `history_interval_sec` / `history_size` | Sample spacing and ring length, for charting |
+| `during_recovery` | `true` while the watchdog is mid-recovery |
+| `profile` | The daemon's live profile name, or `"unknown"` when the daemon is dead/stale |
+| `last_family` | `ipv4` / `ipv6` / `none`, forwarded from the daemon; a real JSON `null` when the ping cache is missing or stale. Read by the Radio Information card and the Probe Targets card |
 
-**Where it surfaces:** the dashboard latency card and the Connection Quality page's live "Current" readouts consume this via the `useModemStatus` hook (5-second poll of `/tmp/qmanager_status.json`). The latency **chart** additionally pulls the NDJSON history through `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh`, which reads `/tmp/qmanager_ping_history.json` from RAM and reshapes it into a JSON array — zero modem contact.
+**Fields the poller no longer emits** (removed 2026-09-01, `000255e`): `state`, `limited_reason`, `down_reason`, `streak_limited`, `fail_secs`, `recover_secs`, `intercept_secs`. Every one of them was read from a key the shell daemon [never writes](#the-producer-key-contract), so each sat at its `jq` default forever; a repo-wide census found **zero** consumers of the six besides `state`. The matching members are gone from `ConnectivityStatus` too, so a component reading one now fails the build.
 
-> ℹ️ NOTE — the dashboard's `limited` internet badge was removed (`components/dashboard/network-status.tsx`), because the producer can no longer emit that state. The badge now renders only connected / degraded / disconnected.
+> ℹ️ NOTE — do not confuse these with the same-named trio in `ping_profile.json`. `fail_secs` / `recover_secs` / `intercept_secs` are live **config** keys there, read by `qmanager_ping` and written by `settings/ping_profile.sh`. Only the poller's dead `status.json` read path was deleted; the config keys, their seed, and the daemon's consumption of them are untouched.
+
+### How `status` is derived
+
+`qmanager_poller` (~:1510-1524) computes the verdict in this order — the first match wins:
+
+| `status` | Condition | Meaning to the user |
+|----------|-----------|---------------------|
+| `recovery` | `during_recovery` is `true` | The watchdog is mid-restore; readings are unreliable by definition. Checked **first**, so it outranks a reachable link |
+| `degraded` | reachable **and** `packet_loss_pct >= 10` | Probes answer, but at least one in ten is lost |
+| `connected` | reachable **and** loss under 10 % | Healthy |
+| `disconnected` | `internet_available` is `false` | The debounced probe verdict says nothing answered |
+| `unknown` | `internet_available` is `null` | The probe itself is not reporting — **not** an outage claim |
+
+The 10 % degraded cut lives here, in the poller, because the poller is the only layer holding the rolling loss window. A component deriving its own verdict from raw `internet_available` would paint a link losing 90 % of its packets as full success.
+
+**Where it surfaces:** the dashboard latency card, the dashboard's "Internet" chip, and the Connection Quality page's live "Current" readouts consume this via the `useModemStatus` hook (5-second poll of `/tmp/qmanager_status.json`). The latency **chart** additionally pulls the NDJSON history through `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh`, which reads `/tmp/qmanager_ping_history.json` from RAM and reshapes it into a JSON array — zero modem contact.
+
+---
+
+## The dashboard "Internet" chip
+
+`buildInternetChip()` (`components/dashboard/network-status.tsx`) switches on `connectivity.status` and nothing else; a missing `connectivity` object is treated as `unknown`, which is the same statement the poller makes. All five states are reachable in production — `degraded` and `recovery` for the first time as of 2026-09-01.
+
+| `status` | Badge tone | Label | Leading mark |
+|----------|-----------|-------|--------------|
+| `connected` | `success` | Online | A live pulsing dot — **no glyph**, because the glyph would replace the pulse |
+| `degraded` | `warning` | Unstable | `warning` |
+| `recovery` | `warning` | Recovering | `restart_alt` |
+| `disconnected` | `destructive` | No Reply | `signal_disconnected` |
+| `unknown` | `muted` | Not Measured | `do_not_disturb_on` |
+
+Three rules govern this table, and each is load-bearing:
+
+- **Every state carries a distinct mark.** `success-container` and `warning-container` measure 1.03:1 apart and are the same surface under deuteranopia, so the glyph — not the fill — is what separates these states. The two `warning` states must never share a glyph. `connected`'s pulse is its mark; under reduced motion it degrades to a plain filled disc, still unlike any of the four glyphs.
+- **`disconnected` is `destructive`, not `warning`.** CLAUDE.md's status-chip table names a disconnected link as a destructive state.
+- **No string asserts an outage.** This is an ICMP probe, and on a carrier that filters ICMP an unanswered ping is indistinguishable from a real outage. Hence the label "No Reply" rather than "Offline", and a tooltip saying some carriers block these probes and the connection may still be working. Copy here is written to the limit of what the probe knows — keep it that way.
+
+Copy lives in `public/locales/*/dashboard.json` under `network.internet_*` and `network.internet_tooltip.*`, in all five packs.
+
+<a id="the-absent-key-trap"></a>
+### The absent-key trap — a jq `//` default is not `null`
+
+**Short version:** `jq`'s `// "default"` turns an **absent** key into a truthy sentinel string, not into `null` — and a truthiness guard downstream can never see through it. This is the bug that kept the Internet chip grey on every device ever shipped, and it is the durable lesson of this whole subsystem.
+
+The chain, layer by layer:
+
+1. `qmanager_ping` writes eleven keys and no `connectivity` key.
+2. `qmanager_poller` read it as `(.connectivity // "unknown")` and emitted the result through `jq --arg`, which forces a JSON **string**. So `connectivity.state` in `status.json` was permanently the string `"unknown"` — never `null`, which is what the type's own doc comment claimed the pipeline could produce.
+3. `buildInternetChip()` guarded with `if (c?.state)`. `"unknown"` is truthy, so the documented rolling-upgrade fallback to `internet_available` beneath it was **unreachable code**, and the switch landed in `default:` every time: a grey chip with a minus-in-circle glyph over a healthy link. The amber branch had never rendered in production.
+
+Three layers each had a guard that would have caught this — the daemon's key list, the poller's `//` default, the component's truthiness test — and all three were written assuming one of the others was authoritative. Confirmed on live hardware (RM520N-GL, serial `61368cd2`): `internet_available: false`, `status: "disconnected"`, `packet_loss_pct: 100` — all correct — sitting beside `state: "unknown"`, the one field the component read.
+
+What to take from it when editing this pipeline:
+
+- A `//` default is indistinguishable from a real reading at the consumer. If a field can be genuinely absent, emit a real JSON `null` (the guarded-sentinel pattern the poller now uses for `last_family`: carry the literal string `"null"` through the shell, then `if $x == "null" then null else $x end` in the emit) — or omit the key outright, which is what happened to `state`.
+- Guard on the **value you mean**, not on truthiness. A truthiness test cannot distinguish "absent" from "the string unknown".
+- A doc comment describing a `null` the pipeline structurally cannot emit is worse than no comment — it is what made every later reader believe the fallback worked.
+
+<a id="latency-charts-null-is-a-gap"></a>
+### Latency charts — a lost ping is a gap, never 0 ms
+
+Both chart sites treat a `null` RTT sample as an **absent** reading rather than a fast one. Previously a total blackout drew a live-updating flat line pinned to the floor of the plot, which reads as a perfectly healthy 0 ms link:
+
+- `components/dashboard/live-latency.tsx` maps a `null` history entry to `null`, not `0`. Recharts breaks the path and skips the dot, and the packet-loss series beside it still rises, so the outage is stated rather than merely missing.
+- `components/monitoring/latency-monitoring/latency-monitoring-card.tsx` does the same for realtime samples and for aggregate buckets in which every ping was lost. Its rolling latency average **excludes** gaps rather than averaging in zeros — a window half of which timed out averages the readings it has, and the packet-loss figure beside it reports the other half.
+
+> ℹ️ NOTE — `ok` on a ping row is still wired: `PingEntriesCard` reads it to print "Timeout" in the latency cell, which is why an aggregate row can carry a printable `0` there without the table ever showing "null ms". Do not delete it as dead.
+
+> ℹ️ NOTE — the dashboard's `limited` internet badge was removed (`components/dashboard/network-status.tsx`), because the producer can no longer emit that state.
 
 ---
 
@@ -241,6 +329,19 @@ The ICMP port was a deliberate, user-approved decision that accepts real costs f
 - **No carrier-intercept detection.** The `limited` state — an honest "Limited by carrier" badge when a billing/data-cap/activation walled garden intercepts traffic — is gone. Under ICMP, an intercept that still routes ICMP reads as `reachable: true` (falsely "up"); one that drops ICMP reads as `reachable: false` (indistinguishable from a real outage). The Watchdog's old `limited` short-circuit is now permanently inert (see [connection-watchdog.md](connection-watchdog.md#carrier-intercept-short-circuit-now-inert)).
 - **ICMP reachability is per-carrier variable.** This is the documented regression path: the very reason the Rust daemon used HTTP/204 was that *this project's* carrier dropped ICMP to `1.1.1.1`/`8.8.8.8` entirely. On a carrier (or SIM/APN) that filters ICMP to the configured DNS-server targets, `qmanager_ping` will read **100 % loss** and report a **false "disconnected"** even when the link is fine — which can drive the Watchdog into needless recovery. If you hit this, change the Probe Targets to hosts your carrier does answer ICMP for, before assuming the link is actually down.
 
+### Known limitation — carrier-intercept detection is not coming back
+
+The `limited` state is a **genuine capability loss**, and the 2026-09-01 chip fix did not restore it. The new five-state chip is derived entirely from ICMP reachability plus packet loss; none of its states means "a captive portal is answering for your carrier". A billing wall that still routes ICMP reads as `connected`. If that detection is ever wanted again it needs a second, content-aware probe at the producer — there is nothing left in the pipeline to re-wire.
+
+### Open follow-up — inert `limited` machinery still in `qmanager_watchcat`
+
+`qmanager_watchcat` still carries the carrier-`limited` machinery from the HTTP era, and it is **known-inert, deliberately out of scope** of the 2026-09-01 fix:
+
+- `~:251` reads the same absent `.connectivity` key, with a **third** contradictory default — `"disconnected"`, where the poller used `"unknown"` and the type comment implied `null`. Three layers, three different opinions about a key nobody writes.
+- `~:961-978` is the unreachable suppression branch that would short-circuit the recovery ladder on `limited`.
+
+Neither ever fires, and the recovery ladder is unaffected because it keys off `streak_fail`, which the producer does emit. Do not read either site as evidence that a `connectivity` field exists. See [connection-watchdog.md](connection-watchdog.md#carrier-intercept-short-circuit-now-inert) for the ladder's side of this.
+
 > ℹ️ NOTE: The `ping-daemon/` Rust crate remains in the tree for now — **retired but present**, pending deletion in a follow-up cleanup commit after on-device soak. `ping-daemon/build-ping-daemon.sh` is neutered (early `exit 1`) so it can no longer produce the old binary. Do not treat the crate as live.
 
 ---
@@ -261,5 +362,6 @@ The ICMP port was a deliberate, user-approved decision that accepts real costs f
 ## Related docs
 
 - Connection Watchdog — the recovery state machine that consumes this telemetry (`qmanager_watchcat`, 4-tier ladder, SIM failover, probe-cadence ownership) — [connection-watchdog.md](connection-watchdog.md)
+- Dashboard chart cards — the Live Latency card's chip, geometry and recharts contracts — [dashboard-chart-cards.md](dashboard-chart-cards.md)
 - AT command transport (`qcmd`, flock serialization) — [at-command-transport.md](at-command-transport.md)
 - Platform architecture, daemons, boot sequence — `../rm520n-gl-architecture.md`

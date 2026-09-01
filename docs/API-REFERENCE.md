@@ -235,11 +235,13 @@ Main polling endpoint. Returns the cached modem status JSON (built by `qmanager_
     "max_latency_ms": 89.3,
     "jitter_ms": 4.8,
     "packet_loss_pct": 0,
-    "ping_target": "8.8.8.8",
-    "latency_history": [34.2, 36.1, 38.0, ...],
+    "ping_target": "1.1.1.1",
+    "latency_history": [34.2, 36.1, null, 38.0, ...],
     "history_interval_sec": 5,
     "history_size": 60,
-    "during_recovery": false
+    "during_recovery": false,
+    "profile": "relaxed",
+    "last_family": "ipv4"
   },
   "signal_per_antenna": {
     "lte_rsrp": [-95, -97, -102, null],
