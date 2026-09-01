@@ -1,7 +1,8 @@
 # QManager GUI Installer
 
 Windows GUI that installs QManager onto a Quectel modem over ADB or SSH,
-without any GitHub access. Design: `docs/superpowers/specs/2026-08-26-gui-installer-design.md`.
+without any GitHub access. Design was written up as a local working note (not
+tracked in the repo).
 
 ## One-time setup
 

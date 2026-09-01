@@ -21,10 +21,9 @@ shape: the manual alternative (`adb push` + `adb shell` + reading a 3,700-line
 installer's output) is precisely the friction that produces half-installed
 devices.
 
-Design: [`docs/superpowers/specs/2026-08-26-gui-installer-design.md`](../superpowers/specs/2026-08-26-gui-installer-design.md).
-Implementation plan: [`docs/superpowers/plans/2026-08-26-gui-installer.md`](../superpowers/plans/2026-08-26-gui-installer.md).
-The two build commits (`fcce270`, `9afd010`) carry the full defect archive; this
-doc carries only what a future task needs.
+The design and implementation plan were written up as local working notes
+(not tracked in the repo). The two build commits (`fcce270`, `9afd010`) carry
+the full defect archive; this doc carries only what a future task needs.
 
 ## Quick Reference
 
