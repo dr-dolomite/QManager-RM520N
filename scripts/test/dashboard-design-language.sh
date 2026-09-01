@@ -2157,6 +2157,289 @@ for lang in en zh-CN zh-TW it id; do
     fi
 done
 
+# =============================================================================
+# SECTION 05 -- Device Metrics
+# =============================================================================
+#
+# The other light step, and its shell work was already done: step 00 hoisted
+# CARD_SHELL, METER_H, VALUE_CLASS and FOCUS_RING out of this file and step 03
+# moved PillRow to its own module. What is left is the description and the
+# unreachable branch, and the second one is the whole section.
+#
+# WHERE THE UNREACHABLE BRANCH STOPS
+# ----------------------------------
+#
+# `modem_reachable` means ONE thing: the last AT command timed out. It says
+# nothing about the box serving the page, and this card reads BOTH -- which is
+# why "gate the card on it" would be wrong in three of seven rows.
+#
+#   AT-SOURCED, AND THE QUANTITY KEEPS MOVING -> the sentinel.
+#     Temperature is AT+QTEMP, and the two cell distances derive from the
+#     serving cell's timing advance. When the poll fails the poller keeps the
+#     previous value rather than clearing it, so the figure on screen is a
+#     PHOTOGRAPH of a number that has been free to change ever since. Same
+#     argument step 03 made for the two uptimes.
+#
+#   MEASURED LOCALLY, AND STILL FRESH -> no gate at all.
+#     CPU is /proc/stat and memory is /proc/meminfo, both read by
+#     `update_proc_metrics()`, which runs UNCONDITIONALLY every cycle and
+#     BEFORE the serving-cell poll. Storage arrives on a different hook against
+#     a different endpoint. A failed AT command does not make any of them
+#     stale, and blanking them would be inventing an outage the machine
+#     serving the page is not having.
+#
+#   ALREADY HAPPENED -> no gate.
+#     The data counter is cumulative and monotone. A byte total read four
+#     seconds ago is still bytes that were genuinely carried; unlike a
+#     temperature it cannot become WRONG, only incomplete. Step 03's
+#     identifier argument, applied to a total instead of a name.
+#
+# [05-3] asserts that split in BOTH directions, because an assertion that only
+# checked "an unreachable branch exists" would pass just as happily on a card
+# that blanked all seven rows.
+#
+# [05-1] through [05-5] run against comment-stripped source, same rationale as
+# R0-6, 00-5, 01-6, 02-3, 03-1 and 04-1.
+
+DM_05="$DASHBOARD/device-metrics.tsx"
+SHAPES_05="$SHAPES_00"
+HOME_05="$DASHBOARD/home-component.tsx"
+
+printf '\n=============================================================\n'
+printf 'SECTION 05 -- Device Metrics\n'
+printf '=============================================================\n'
+
+dm_stripped="$TMPD/device-metrics.stripped"
+if [ -f "$DM_05" ]; then
+    strip_comments "$DM_05" > "$dm_stripped"
+else
+    : > "$dm_stripped"
+fi
+
+shapes_stripped_05="$TMPD/shapes.05.stripped"
+if [ -f "$SHAPES_05" ]; then
+    strip_comments "$SHAPES_05" > "$shapes_stripped_05"
+else
+    : > "$shapes_stripped_05"
+fi
+
+home_stripped_05="$TMPD/home-component.05.stripped"
+if [ -f "$HOME_05" ]; then
+    strip_comments "$HOME_05" > "$home_stripped_05"
+else
+    : > "$home_stripped_05"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[05-1] the header carries a description, and the title reads the ramp\n'
+# Finding 03. The fifth of nine cards to gain one.
+if [ ! -f "$DM_05" ]; then
+    bad "device-metrics.tsx is missing"
+else
+    if grep -q 'CardDescription' "$dm_stripped"; then
+        ok "the card carries a description"
+    else
+        bad "the card still has no CardDescription"
+    fi
+    if grep -q 'CARD_DESC' "$dm_stripped"; then
+        ok "the description speaks the surface's secondary ink"
+    else
+        bad "the description does not read CARD_DESC"
+    fi
+    if grep -q 'CARD_TITLE' "$dm_stripped"; then
+        ok "the title reads the shared card-title size"
+    else
+        bad "the title still spells its own size instead of importing CARD_TITLE"
+    fi
+    if grep -q 'text-lg font-semibold' "$dm_stripped"; then
+        bad "a hand-spelled card title survives in device-metrics.tsx"
+    else
+        ok "no hand-spelled title size is left on this card"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[05-2] the shell and the row primitives stay shared, not re-inlined\n'
+# Green BEFORE the fix and required to be green after it. Step 00 hoisted these
+# and step 03 moved PillRow out; the job here is that a step adding a branch
+# does not quietly re-inline one of them.
+if [ -f "$DM_05" ]; then
+    imports05=0
+    for sym in CARD_SHELL FOCUS_RING METER_H VALUE_CLASS; do
+        if ! grep -q -- "$sym" "$dm_stripped"; then
+            bad "device-metrics.tsx no longer reads $sym from shapes.ts"
+            imports05=1
+        fi
+    done
+    if [ "$imports05" -eq 0 ]; then
+        ok "the shell, the focus ring, the track height and the value ink are all shared"
+    fi
+    if grep -q 'className={CARD_SHELL}' "$dm_stripped"; then
+        ok "the card draws the hoisted shell"
+    else
+        bad "the card no longer draws CARD_SHELL"
+    fi
+    if grep -q 'rounded-card border-0' "$dm_stripped"; then
+        bad "a shell is spelled inline in device-metrics.tsx"
+    else
+        ok "no shell is spelled inline"
+    fi
+    if grep -q 'PillRow' "$dm_stripped"; then
+        ok "the three pill rows still read the shared row"
+    else
+        bad "device-metrics.tsx lost PillRow"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[05-3] the unreachable branch exists, and it stops where the AT transport does\n'
+# Finding 13. Both directions -- see the section header for why the split is
+# the assertion rather than the branch's mere existence.
+if [ -f "$DM_05" ]; then
+    if grep -q 'modemReachable' "$dm_stripped"; then
+        ok "the card is told whether the last poll reached the modem"
+    else
+        bad "device-metrics.tsx still cannot tell a failed poll from a reading"
+    fi
+    if grep -q 'const unreachable = !modemReachable' "$dm_stripped"; then
+        ok "unreachable is spelled exactly as the other two cards spell it"
+    else
+        bad "the unreachable test is not the surface's shared spelling"
+    fi
+    if grep -q 'ABSENT' "$dm_stripped"; then
+        ok "the card reads the surface's absent sentinel"
+    else
+        bad "device-metrics.tsx does not use ABSENT"
+    fi
+
+    # --- gated: the three AT-sourced readings ---
+    for pair in "tempValue:temperature" "lteDistance:the LTE cell distance" \
+                "nrDistance:the NR cell distance"; do
+        var05=${pair%%:*}
+        what05=${pair#*:}
+        if grep -A 4 "const $var05" "$dm_stripped" | grep -q 'unreachable'; then
+            ok "$what05 goes to the sentinel when the modem cannot be reached"
+        else
+            bad "$what05 still reports a photograph during an outage"
+        fi
+    done
+
+    # --- NOT gated: the three read on the box serving the page ---
+    for pair in "cpuValue:CPU" "memValue:memory" "storageValue:storage"; do
+        var05=${pair%%:*}
+        what05=${pair#*:}
+        if grep -A 4 "const $var05" "$dm_stripped" | grep -q 'unreachable'; then
+            bad "$what05 is blanked by an AT timeout, and it is not read over AT"
+        else
+            ok "$what05 keeps reporting -- a failed AT command does not make it stale"
+        fi
+    done
+
+    # --- NOT gated: a cumulative total cannot become wrong ---
+    if grep 'accumulated_rx_bytes' "$dm_stripped" | grep -q 'unreachable'; then
+        bad "the cumulative data counter is blanked during an outage"
+    else
+        ok "the data counter keeps its total -- bytes already carried stay carried"
+    fi
+
+    # --- the warning chip must not fire off a stale reading ---
+    if grep -q 'const isTempHigh' "$dm_stripped" && \
+       grep -A 1 'const isTempHigh' "$dm_stripped" | grep -q 'unreachable'; then
+        ok "the high-temperature chip cannot fire off a photograph"
+    else
+        bad "the high-temperature chip still reads the stale temperature"
+    fi
+fi
+
+if [ -f "$HOME_05" ]; then
+    if grep -A 6 'DeviceMetricsComponent' "$home_stripped_05" | grep -q 'modemReachable'; then
+        ok "home-component.tsx hands the card its reachability"
+    else
+        bad "the card takes modemReachable and nothing passes it"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[05-4] a meter with no reading draws an empty track, never a blank gap\n'
+# DESIGN.md > Quality bars: "A missing reading is an empty track
+# (`MetricBar value={null}`), never a zero-length fill." The shipped card had a
+# THIRD spelling -- an invisible spacer holding the height and drawing nothing,
+# which says "no meter" where an empty track says "no reading".
+if [ -f "$DM_05" ]; then
+    bars05=$(grep -c '<MetricBar' "$dm_stripped" || true)
+    if [ "$bars05" -eq 4 ]; then
+        ok "all four meters draw a track ($bars05 bars for 4 rows)"
+    else
+        bad "found $bars05 MetricBar call sites for 4 meter rows"
+    fi
+    # Narrowed to the spacer's own spelling on purpose: the crossfade overlay
+    # is also aria-hidden and must stay that way, so a bare grep would be red
+    # forever.
+    if grep -q 'className={METER_H} aria-hidden' "$dm_stripped"; then
+        bad "an invisible spacer still stands in for a track"
+    else
+        ok "no invisible spacer is left holding a meter height"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[05-5] everything this card is known for survives the step\n'
+# The thresholds, the counter reset, the direction ink, the crossfade and the
+# 8px bars. The plan's DO-NOT list, made mechanical.
+if [ -f "$DM_05" ]; then
+    for thr in "TEMP_WARN = 60" "TEMP_DANGER = 75" "CPU_WARN = 70" "CPU_DANGER = 90"; do
+        if grep -qF -- "$thr" "$dm_stripped"; then
+            ok "threshold intact: $thr"
+        else
+            bad "a warning threshold moved: expected $thr"
+        fi
+    done
+    keep05=0
+    for sym in ca-content-in ca-skeleton-out AlertDialog restart_alt \
+               text-downlink-on-surface text-uplink-on-surface \
+               TickGroup TickingValue staggerRows MeterRow; do
+        if ! grep -q -- "$sym" "$dm_stripped"; then
+            bad "device-metrics.tsx lost $sym"
+            keep05=1
+        fi
+    done
+    if [ "$keep05" -eq 0 ]; then
+        ok "the crossfade, the reset dialog, the direction ink and the cascade are intact"
+    fi
+    if grep -qE 'initial=|animate=' "$dm_stripped"; then
+        bad "this card declares its own entrance clock -- it must inherit the page-wide one"
+    else
+        ok "the card starts no clock of its own"
+    fi
+    if grep -q 'TILE\.' "$dm_stripped"; then
+        bad "the data-usage row was promoted to tiles -- user-vetoed 2026-09-01"
+    else
+        ok "the data-usage row stays a row, in the quiet slot"
+    fi
+fi
+if grep -q 'export const METER_H = "h-2"' "$shapes_stripped_05"; then
+    ok "the meters are still 8px -- METER_H was not thinned"
+else
+    bad "METER_H moved off 8px, and the skeleton mirrors it"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[05-6] the locale packs carry the new copy on every language\n'
+# Extract the `metrics` object first, same reason as [04-6].
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block05=$(awk '/^  "metrics": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    if printf '%s' "$block05" | grep -q '"description"'; then
+        ok "$lang carries metrics.description"
+    else
+        bad "$lang is missing metrics.description"
+    fi
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
