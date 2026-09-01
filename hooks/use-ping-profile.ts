@@ -4,52 +4,63 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 
 // =============================================================================
-// usePingProfile — Fetch & Save Hook for the probe targets
+// usePingProfile — Fetch & Save Hook for the four probe target slots
 // =============================================================================
 // Backend: GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh
 //
-// GET returns { success: true, settings: { target_ipv4, target_ipv6, ... } }. The
-// endpoint may still echo a legacy `profile` field — we ignore it. Probe timing
-// (cadence + failure threshold) is now owned by the Connection Watchdog, so this
-// hook is targets-only.
-// POST { action: "save_settings", target_ipv4, target_ipv6 } writes the file and
-// pokes /tmp/qmanager_ping_reload; the daemon reloads its targets on the next cycle.
-// The two targets are DNS hosts the ICMP-port daemon pings — IPv4 first, IPv6 as
-// the fallback so an IPv6-only bearer is never reported as down.
+// GET returns { success: true, settings: { target_host_1, target_host_2,
+// target_ip_1, target_ip_2, ... } }. The endpoint may still echo a `profile`
+// label — we ignore it. Probe timing (cadence + failure threshold) is owned by
+// the Connection Watchdog, so this hook is targets-only.
+//
+// POST { action: "save_settings", <the four slots> } writes the file and pokes
+// /tmp/qmanager_ping_reload; the daemon reloads its chain on the next cycle.
+//
+// --- Why four slots, in this order -------------------------------------------
+// The daemon walks the chain in a fixed order and SHORT-CIRCUITS on the first
+// success:
+//
+//   target_host_1 → target_host_2 → target_ip_1 → target_ip_2
+//
+// The two hostname legs come first so the RESOLVER, not a config key, decides
+// the address family — that is what retired the old v4/v6 slot pair. The two
+// IPv4 literal legs are the fallback for the case the hostname legs cannot
+// cover: a broken resolver. A hostname in a literal slot would fail for the
+// same reason the hostname legs already did, which is why the CGI rejects one.
 // =============================================================================
 
 const ENDPOINT = "/cgi-bin/quecmanager/settings/ping_profile.sh";
 
-interface PingProfileSettings {
-  target_ipv4: string;
-  target_ipv6: string;
+export interface PingProfileTargets {
+  target_host_1: string;
+  target_host_2: string;
+  target_ip_1: string;
+  target_ip_2: string;
 }
 
 interface PingProfileResponse {
   success: boolean;
-  settings?: PingProfileSettings;
+  settings?: Partial<PingProfileTargets> & { profile?: string };
   error?: string;
   detail?: string;
 }
 
 export interface UsePingProfileReturn {
-  targetIpv4: string | undefined;
-  targetIpv6: string | undefined;
+  /** The four saved slots, or undefined until the first GET resolves. */
+  targets: PingProfileTargets | undefined;
   isLoading: boolean;
   error: string | null;
   isSaving: boolean;
   saveError: string | null;
-  save: (settings: {
-    target_ipv4: string;
-    target_ipv6: string;
-  }) => Promise<PingProfileResponse>;
+  save: (settings: PingProfileTargets) => Promise<PingProfileResponse>;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function usePingProfile(): UsePingProfileReturn {
-  const [targetIpv4, setTargetIpv4] = useState<string | undefined>(undefined);
-  const [targetIpv6, setTargetIpv6] = useState<string | undefined>(undefined);
+  const [targets, setTargets] = useState<PingProfileTargets | undefined>(
+    undefined,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -79,8 +90,17 @@ export function usePingProfile(): UsePingProfileReturn {
         throw new Error(json.detail ?? json.error ?? "Failed to load targets");
       }
 
-      setTargetIpv4(json.settings.target_ipv4);
-      setTargetIpv6(json.settings.target_ipv6);
+      // The CGI defaults every slot independently, so a complete chain always
+      // comes back. `?? ""` is only a type narrowing, not a fallback policy —
+      // an empty string renders as an empty field the user must fill, which is
+      // the honest reading of a slot the backend could not supply.
+      const s = json.settings;
+      setTargets({
+        target_host_1: s.target_host_1 ?? "",
+        target_host_2: s.target_host_2 ?? "",
+        target_ip_1: s.target_ip_1 ?? "",
+        target_ip_2: s.target_ip_2 ?? "",
+      });
     } catch (err) {
       if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load targets");
@@ -94,10 +114,7 @@ export function usePingProfile(): UsePingProfileReturn {
   }, [fetchProfile]);
 
   const save = useCallback(
-    async (settings: {
-      target_ipv4: string;
-      target_ipv6: string;
-    }): Promise<PingProfileResponse> => {
+    async (settings: PingProfileTargets): Promise<PingProfileResponse> => {
       setSaveError(null);
       setIsSaving(true);
 
@@ -107,8 +124,10 @@ export function usePingProfile(): UsePingProfileReturn {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "save_settings",
-            target_ipv4: settings.target_ipv4,
-            target_ipv6: settings.target_ipv6,
+            target_host_1: settings.target_host_1,
+            target_host_2: settings.target_host_2,
+            target_ip_1: settings.target_ip_1,
+            target_ip_2: settings.target_ip_2,
           }),
         });
 
@@ -119,8 +138,7 @@ export function usePingProfile(): UsePingProfileReturn {
           throw new Error(json.detail ?? json.error ?? "Save failed");
         }
 
-        setTargetIpv4(settings.target_ipv4);
-        setTargetIpv6(settings.target_ipv6);
+        setTargets({ ...settings });
         fetchProfile(true);
 
         return json;
@@ -136,8 +154,7 @@ export function usePingProfile(): UsePingProfileReturn {
   );
 
   return {
-    targetIpv4,
-    targetIpv6,
+    targets,
     isLoading,
     error,
     isSaving,
