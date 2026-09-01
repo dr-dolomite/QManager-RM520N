@@ -210,6 +210,7 @@
   },
   "ca": {
     "title": "Carrier Aggregation",
+    "description": "Component carriers on air, and the bandwidth each contributes.",
     "aggregated": "MHz aggregated",
     "bandwidth": "MHz bandwidth",
     "bw_unknown": "— MHz",

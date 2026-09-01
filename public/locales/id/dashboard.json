@@ -210,6 +210,7 @@
   },
   "ca": {
     "title": "Agregasi Carrier",
+    "description": "Carrier komponen yang aktif dan lebar pita kontribusi masing-masing.",
     "aggregated": "MHz teragregasi",
     "bandwidth": "MHz lebar pita",
     "bw_unknown": "— MHz",

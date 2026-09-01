@@ -210,6 +210,7 @@
   },
   "ca": {
     "title": "载波聚合",
+    "description": "当前在用的成员载波，以及各自贡献的带宽。",
     "aggregated": "MHz 聚合带宽",
     "bandwidth": "MHz 带宽",
     "bw_unknown": "— MHz",

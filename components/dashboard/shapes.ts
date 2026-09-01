@@ -103,8 +103,7 @@ export const BAND = {
   /** The LTE/NR carrier pair inside the hero column. */
   CARRIERS: "grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4",
   /** Metrics / Latency / Recent Activity — the three cards that share a shell. */
-  TRIO:
-    "col-span-full grid grid-cols-1 @3xl/main:grid-cols-2 @5xl/main:grid-cols-3 grid-flow-row gap-4",
+  TRIO: "col-span-full grid grid-cols-1 @3xl/main:grid-cols-2 @5xl/main:grid-cols-3 grid-flow-row gap-4",
   /**
    * Makes a grid cell stretch its Card to the row height.
    *
@@ -205,6 +204,32 @@ export const HERO_SHELL =
  */
 export const SIDE_SHELL =
   "@container/card h-full gap-4 rounded-hero border-0 bg-surface";
+
+/**
+ * Carrier Aggregation — the widest card on the surface, and a FOURTH shell.
+ *
+ * ⚠️ Also byte-identical to what it replaces, for the same reason SIDE_SHELL
+ * is: this string is what `carrier-aggregation.tsx` shipped inline, so
+ * hoisting it is provably a zero-visual-change edit.
+ *
+ * It is not CARD_SHELL (36px radius, 24px padding) and it is not HERO_SHELL
+ * either, differing from that one in three places at once — its own container
+ * name, `gap-4` rather than `gap-5`, and `py-6` rather than `py-[26px]`. The
+ * container name is the load-bearing one: this card queries itself at `@md/ca`
+ * and `@3xl/ca` in five places, so the root cannot simply be renamed to
+ * `/card` inside a step that changes nothing rendered.
+ *
+ * WHAT THIS CONSTANT DOES FIX is the drift INSIDE the file. The empty-state
+ * card was a second hand-spelling of this same shell that had lost the
+ * container root entirely and set `gap-3` — a 4px difference nobody chose,
+ * which is the whole finding. Three branches, one string.
+ *
+ * Whether four shells is one too many is a fair question and it is the same
+ * question SIDE_SHELL records. It is a VISUAL call about the surface, not a
+ * grammar call, and it belongs to a later, separate step.
+ */
+export const CA_SHELL =
+  "@container/ca gap-4 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]";
 
 /**
  * A card's title.

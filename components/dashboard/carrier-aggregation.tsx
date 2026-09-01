@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Card } from "@/components/ui/card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -30,6 +30,8 @@ import {
   type CarrierRole,
   type ResolvedCarrier,
 } from "@/lib/carrier-aggregation";
+
+import { CARD_DESC, CARD_TITLE, CA_SHELL } from "./shapes";
 
 interface CarrierAggregationProps {
   carriers: CarrierComponent[];
@@ -98,8 +100,36 @@ function meterFillTone(c: ResolvedCarrier): string {
   return c.technology === "NR" ? "bg-primary" : "bg-lte";
 }
 
-const CARD_SHELL =
-  "@container/ca gap-4 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]";
+/**
+ * The card heading, drawn by all THREE branches — loading, empty and loaded.
+ *
+ * Both lines are constants, so neither was ever unknown and neither is
+ * skeletoned: the loading branch draws the REAL heading and placeholders only
+ * the two things that are actually data. That matters more here than on an
+ * ordinary card, because this skeleton is ALSO the fade-out overlay (see the
+ * crossfade shell below) — a title placeholder in it would be a grey box
+ * fading out on top of the very title it was standing in for.
+ *
+ * The children are the status chip and the aggregate figure, and they stay ON
+ * the title line rather than moving to a `CardAction`. A `CardHeader` grid
+ * would park them at the right edge; this row wraps at phone width instead,
+ * and the chip belongs beside the words it qualifies.
+ */
+function AggregationHeading({ children }: { children?: React.ReactNode }) {
+  const { t } = useTranslation("dashboard");
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-3.5">
+        <CardTitle className={CARD_TITLE}>{t("ca.title")}</CardTitle>
+        {children}
+      </div>
+      {/* An explicit ink class because the primitive hardcodes a retired one. */}
+      <CardDescription className={CARD_DESC}>
+        {t("ca.description")}
+      </CardDescription>
+    </div>
+  );
+}
 
 /**
  * Extracted so the loading branch and the crossfade overlay render the SAME
@@ -109,12 +139,11 @@ const CARD_SHELL =
  */
 function AggregationSkeleton() {
   return (
-    <Card className={CARD_SHELL}>
-      <div className="flex flex-wrap items-center gap-3.5">
-        <Skeleton className="h-6 w-48" />
+    <Card className={CA_SHELL}>
+      <AggregationHeading>
         <Skeleton className="h-8 w-40 rounded-pill" />
         <Skeleton className="ml-auto h-8 w-36" />
-      </div>
+      </AggregationHeading>
       {/* Matches the chain's own responsive height, or the page reflows 16px
           at phone width the moment data lands. */}
       <Skeleton className="h-8 w-full rounded-tile @md/ca:h-12" />
@@ -264,8 +293,8 @@ export function CarrierAggregationComponent({
 
   if (resolved.length === 0) {
     return shell(
-      <Card className="gap-3 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]">
-        <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
+      <Card className={CA_SHELL}>
+        <AggregationHeading />
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -303,7 +332,7 @@ export function CarrierAggregationComponent({
   const hasReleased = resolved.some((c) => c.released);
 
   return shell(
-    <Card className={CARD_SHELL}>
+    <Card className={CA_SHELL}>
       {/* One tick cascade for the card: the aggregate bandwidth figure in the
           header, then each carrier tile's RSRP. The tile grid runs
           `grid-cols-1 -> @md:grid-cols-2 -> @3xl:grid-cols-4`, and no direction
@@ -318,9 +347,7 @@ export function CarrierAggregationComponent({
           Two different gestures on two different clocks; leave both alone. */}
       <TickGroup>
         {/* ── Header ── */}
-        <div className="flex flex-wrap items-center gap-3.5">
-          <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
-
+        <AggregationHeading>
           {/* Two clocks, per the chip-swap recipe: the Badge's own transition
               morphs the container fill over `standard` (see badge.tsx), while the
               glyph and label crossfade over `quick` on the key change below. The
@@ -385,7 +412,7 @@ export function CarrierAggregationComponent({
               {aggregating ? t("ca.aggregated") : t("ca.bandwidth")}
             </span>
           </span>
-        </div>
+        </AggregationHeading>
 
         {/* ── Proportional chain ──
             Width is the one property in the product allowed to animate, because

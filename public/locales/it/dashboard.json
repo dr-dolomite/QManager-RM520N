@@ -210,6 +210,7 @@
   },
   "ca": {
     "title": "Aggregazione portanti",
+    "description": "Portanti componenti attive e la banda che ciascuna contribuisce.",
     "aggregated": "MHz aggregati",
     "bandwidth": "MHz di banda",
     "bw_unknown": "— MHz",
