@@ -1929,6 +1929,234 @@ for lang in en zh-CN zh-TW it id; do
     done
 done
 
+# =============================================================================
+# SECTION 04 -- Carrier Aggregation
+# =============================================================================
+#
+# The lightest step in the pass, and it is light for a good reason: this card
+# is a SIGNATURE surface. The proportional chain, the released-carrier
+# contract, the freeze-while-stale rule and the `--meter-index` cascade are all
+# already canon -- DESIGN.md quotes this file's width animation as the one
+# sanctioned `width` transition in the entire product. Almost everything here
+# is on the DO-NOT-TOUCH list, and the assertions below spend as much of their
+# weight guarding that as they do on the three things that change.
+#
+# WHAT CHANGES
+# ------------
+#
+#   1. THE HEADER GAINS A DESCRIPTION (finding 03). Zero CardDescription on the
+#      whole surface was the finding; this is the fourth of nine cards to get
+#      one. The title also stops spelling its own size and reads CARD_TITLE --
+#      byte-identical at 18px semibold, so it is a re-point, not a resize.
+#
+#   2. THE SHELL HOISTS (finding 04). This file inlines a card shell no other
+#      file has, and then writes a SECOND, drifted copy of it eight lines
+#      further down for the empty state. Two spellings of one shell inside one
+#      file is the narrowest possible version of the finding and the easiest to
+#      fix: one exported constant, three call sites.
+#
+#   3. THE EMPTY STATE STOPS BEING A NEAR-COPY. A 12px gap where every other
+#      use of this shell is 16px, and no container query root at all. Neither
+#      is a decision anybody made -- it is what happens when a shell is spelled
+#      by hand twice.
+#
+# ONE ASSERTION THAT IS NOT THE OBVIOUS ONE
+# -----------------------------------------
+#
+# [04-5] requires the title and the description to each resolve from EXACTLY
+# ONE call site. This card has THREE branches that draw a heading -- loading,
+# empty and loaded -- and the loading one is not an ordinary skeleton: it is
+# also drawn as a fade-out OVERLAY on top of the real card during the handoff
+# (recipe 03). A title placeholder in that overlay is a grey box fading out on
+# top of the real title, and a title spelled three times is three places for
+# the wording to drift with nothing rendering two of them at once to reveal it.
+# Both lines are CONSTANTS -- neither was ever unknown -- so neither is
+# skeletoned at all and all three branches read one definition. Same call step
+# 03 made, for the same reason.
+#
+# [04-1] through [04-5] run against comment-stripped source: this file's
+# comments necessarily quote the shell they replaced.
+
+CA_04="$DASHBOARD/carrier-aggregation.tsx"
+SHAPES_04="$SHAPES_00"
+
+printf '\n=============================================================\n'
+printf 'SECTION 04 -- Carrier Aggregation\n'
+printf '=============================================================\n'
+
+ca_stripped="$TMPD/carrier-aggregation.stripped"
+if [ -f "$CA_04" ]; then
+    strip_comments "$CA_04" > "$ca_stripped"
+else
+    : > "$ca_stripped"
+fi
+
+shapes_stripped_04="$TMPD/shapes.04.stripped"
+if [ -f "$SHAPES_04" ]; then
+    strip_comments "$SHAPES_04" > "$shapes_stripped_04"
+else
+    : > "$shapes_stripped_04"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[04-1] the header carries a description, and the title reads the ramp\n'
+# Finding 03. The surface had none; this is the fourth card to gain one.
+if [ ! -f "$CA_04" ]; then
+    bad "carrier-aggregation.tsx is missing"
+else
+    if grep -q 'CardDescription' "$ca_stripped"; then
+        ok "the card carries a description"
+    else
+        bad "the card still has no CardDescription"
+    fi
+    if grep -q 'CARD_DESC' "$ca_stripped"; then
+        ok "the description speaks the surface's secondary ink"
+    else
+        bad "the description does not read CARD_DESC"
+    fi
+    if grep -q 'CARD_TITLE' "$ca_stripped"; then
+        ok "the title reads the shared card-title size"
+    else
+        bad "the title still spells its own size instead of importing CARD_TITLE"
+    fi
+    if grep -q 'text-lg font-semibold' "$ca_stripped"; then
+        bad "a hand-spelled card title survives in carrier-aggregation.tsx"
+    else
+        ok "no hand-spelled title size is left on this card"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[04-2] the card shell hoists to shapes.ts, byte-identical\n'
+# Finding 04. Every utility quoted here is one this repo already emits, so
+# Tailwind's content scan lifting one out of this harness costs nothing.
+if grep -q 'export const CA_SHELL' "$shapes_stripped_04"; then
+    ok "shapes.ts exports the aggregation shell"
+else
+    bad "shapes.ts has no CA_SHELL export"
+fi
+ca_shell_def=$(grep -A 2 'export const CA_SHELL' "$shapes_stripped_04" || true)
+shell_ok=0
+for frag in "@container/ca" "gap-4" "rounded-hero" "border-0" "px-7" "py-6" "shadow-[var(--shadow-whisper)]"; do
+    if ! printf '%s' "$ca_shell_def" | grep -qF -- "$frag"; then
+        bad "CA_SHELL is not byte-identical to the shipped shell -- missing $frag"
+        shell_ok=1
+    fi
+done
+if [ "$shell_ok" -eq 0 ]; then
+    ok "CA_SHELL still spells the shipped shell exactly"
+fi
+if [ -f "$CA_04" ]; then
+    if grep -q 'CA_SHELL' "$ca_stripped"; then
+        ok "the card reads the hoisted shell"
+    else
+        bad "the card still inlines its own shell"
+    fi
+    if grep -q 'rounded-hero border-0' "$ca_stripped"; then
+        bad "a shell is still spelled inline in carrier-aggregation.tsx"
+    else
+        ok "no shell is spelled inline any more"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[04-3] the empty state stops being a drifted near-copy of the shell\n'
+# A 12px gap against the constant's 16px, and no container query root at all.
+# Neither divergence is a decision; both are what a second hand-spelling makes.
+if [ -f "$CA_04" ]; then
+    if grep -q 'gap-3 rounded-hero' "$ca_stripped"; then
+        bad "the empty state still carries its own drifted shell"
+    else
+        ok "the empty state no longer drifts from the shell"
+    fi
+    shell_uses=$(grep -c 'CA_SHELL' "$ca_stripped" || true)
+    if [ "$shell_uses" -ge 3 ]; then
+        ok "all three branches draw the same shell ($shell_uses references)"
+    else
+        bad "the shell is not read by every branch (found $shell_uses references, need 3+)"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[04-4] everything this card is known for survives the step\n'
+# This is a Signature surface. The width animation below is the ONE sanctioned
+# width transition in the product; the rest of this list is the released-
+# carrier contract, the freeze-while-stale rule and the two cascades.
+if [ -f "$CA_04" ]; then
+    keep04=0
+    for sym in ca-segment-enter ca-meter ca-content-in ca-skeleton-out \
+               computeSegmentShares reconcileCarriers releasedForMs isStale \
+               segmentTone tileTone roleChipTone meterFillTone \
+               TickGroup SwapLabel TickingValue; do
+        if ! grep -q -- "$sym" "$ca_stripped"; then
+            bad "carrier-aggregation.tsx lost $sym"
+            keep04=1
+        fi
+    done
+    if [ "$keep04" -eq 0 ]; then
+        ok "the chain, the tiles, the release clock and both cascades are intact"
+    fi
+    if grep -q -- '--meter-index' "$ca_stripped"; then
+        ok "the meter stagger custom property survives"
+    else
+        bad "the --meter-index cascade is gone"
+    fi
+    if grep -q 'shares\[i\]' "$ca_stripped"; then
+        ok "the proportional chain still drives segment width from the data"
+    else
+        bad "the segment width is no longer the share it is reporting"
+    fi
+    if grep -qE 'initial=|animate=' "$ca_stripped"; then
+        bad "this card declares its own entrance clock -- it must inherit the page-wide one"
+    else
+        ok "the card starts no clock of its own"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[04-5] the heading resolves from one definition, not three\n'
+# Loading, empty and loaded all draw a heading, and the loading one is ALSO the
+# fade-out overlay. Both lines are constants, so neither is skeletoned and all
+# three branches read one definition.
+if [ -f "$CA_04" ]; then
+    title_uses=$(grep -c 'ca\.title' "$ca_stripped" || true)
+    if [ "$title_uses" -eq 1 ]; then
+        ok "the title is spelled once for all three branches"
+    else
+        bad "the title is spelled $title_uses times (need exactly 1)"
+    fi
+    desc_uses=$(grep -c 'ca\.description' "$ca_stripped" || true)
+    if [ "$desc_uses" -eq 1 ]; then
+        ok "the description is spelled once for all three branches"
+    else
+        bad "the description is spelled $desc_uses times (need exactly 1)"
+    fi
+    if grep -q 'h-6 w-48' "$ca_stripped"; then
+        bad "the title is still skeletoned -- it is a constant and was never unknown"
+    else
+        ok "no placeholder stands in for a line the card always knew"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[04-6] the locale packs carry the new copy on every language\n'
+# Extract the `ca` object first: "description" is the commonest key name in
+# these packs and a whole-file grep is how SECTION 01 nearly shipped a false
+# green.
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block04=$(awk '/^  "ca": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    if printf '%s' "$block04" | grep -q '"description"'; then
+        ok "$lang carries ca.description"
+    else
+        bad "$lang is missing ca.description"
+    fi
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
