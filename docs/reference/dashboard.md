@@ -29,6 +29,7 @@ three-state contract, and which parts are load-bearing.
 | Shape module | `components/dashboard/shapes.ts` — *lands in this pass* |
 | Page header | `components/dashboard/page-header.tsx` — *lands in this pass* |
 | Cards | 9 widgets across 12 files, ~6,300 lines |
+| Signal rows | `components/dashboard/signal-rows.ts` — `buildSignalRows(family, data, t)`; *lands in this pass* |
 | Data source | `useModemStatus()` (poller cache) + `useAboutDevice()` |
 | Poll cadence | Tied to `connectivity.history_interval_sec` + 250 ms; **measured ~3.7–4.0 s** |
 | Icon library | **Material Symbols Rounded** (route-scoped), with three recorded exceptions |
@@ -113,10 +114,40 @@ The surface uses three repeating units, and the canon owns all three.
   silently breaks the skeleton's `h-10` mirror.
 - **Tile** — 28px radius, **pinned** `h-[6.5rem]` (104px), a 52px full-round glyph disc
   beside eyebrow → value → caption. **A tile body is neutral; the disc carries the
-  colour.** A `min-h-` here is a bug, not a lenient pin: a floor cannot be a mirror.
-- **Quality lane** — a 56px, 4px-tall track inline beside the figure it belongs to.
-  Length carries magnitude, the glyph carries the stop, and a missing reading is
-  `MetricBar value={null}` — an empty track, never a zero-length fill.
+  colour.** A `min-h-` on a *tile* is a bug, not a lenient pin: a floor cannot be a
+  mirror.
+  > ⚠️ **But not every `min-h-` on this surface is that bug.** `live-latency.tsx`'s
+  > `CHART_BOX = "min-h-[150px] flex-1"` is correct as shipped and must not be
+  > "corrected" to a pin. `ChartContainer`'s base class is `aspect-video`, so an unpinned
+  > chart's height is a function of the card's *width* and changes as the grid reflows;
+  > and recharts' `ResponsiveContainer` renders **nothing** until it has measured its
+  > parent, so a zero-height parent on the first frame makes the card pop when the
+  > measurement lands. The floor guarantees a measurable height on frame one; the
+  > `flex-1` beside it absorbs the slack from Device Metrics being the taller row-mate.
+  > **A floor standing in for a mirror is a defect; a floor guaranteeing a first-frame
+  > measurement is not.** Neither failure shows in a static screenshot.
+- **Bars — one thickness, two widths.** *(lands in step R0)* Every bar in the product is
+  **8px tall**. What varies is **width**, chosen by slot:
+
+  | Form | Width | Where | Why |
+  |------|-------|-------|-----|
+  | **Full-width meter** | spans the row | Device Metrics — CPU, memory, storage, temperature | The bar owns its own line beneath the label, so it has the width to spend |
+  | **Inline lane** | `w-14` (56px) | The NR / LTE signal rows | It shares a 40px row with the figure it qualifies. A full-width bar under the last line would read as a coloured bottom border rather than as a gauge |
+
+  > **Why one thickness.** `DESIGN.md` rests the whole quality ramp on length — adjacent
+  > stops sit *deliberately* below the CVD separation floor, on the understanding that
+  > **bar length carries the fine distinctions**. The old 4px lane was the thinnest mark
+  > on its card, carrying the one channel the ramp may not lose. And the 4px/8px split was
+  > never a decision: `MetricBar`'s `size` **defaulted to `sm`**, so 11 call sites
+  > inherited 4px and 9 opted out. `sm` is deleted, not deprecated — a size nobody should
+  > pick is a trap.
+
+  > ⚠️ **Do not thin Device Metrics' meters, and do not re-introduce a thin variant.**
+  > User-directed 2026-09-01. `METER_H = "h-2"` is mirrored by that card's skeleton, so
+  > changing one silently breaks the other.
+
+  In both forms, **length carries magnitude and the glyph carries the stop**, and a
+  missing reading is `MetricBar value={null}` — an empty track, never a zero-length fill.
 
 > ℹ️ NOTE: **ramp ink on a numeral with no lane beside it is a bug.** Adjacent quality
 > stops sit deliberately below the CVD separation floor, on the explicit understanding
@@ -181,6 +212,50 @@ value that holds steady for minutes invents an event.
 
 ---
 
+## The trio row, and why one card could not absorb slack
+
+*(R1 lands in this pass)*
+
+Device Metrics, Live Latency and Recent Activity share one grid row and are `h-full`-locked
+by `*:data-[slot=card]:h-full`. Equalising a 3-up row is the documented norm — "Equal
+heights are explicit" — but it only works if every card can *use* the height it is given.
+
+- **Device Metrics drives it.** Seven rows: four `MeterRow` plus three `PillRow` (data
+  used, LTE cell distance, NR cell distance). It is the tallest by content.
+- **Live Latency absorbs.** `CHART_BOX`'s `flex-1` hands the chart whatever slack exists.
+- **Recent Activity could not.** Its list was pinned *and* clipped —
+  `maxHeight: LIST_MAX_H` (332px) under `overflow-hidden` — so every pixel past 332
+  became dead space at the bottom of that card.
+
+`VISIBLE_ROWS` is now container-query-driven, and **it is the only number to change.**
+`LIST_MAX_H`, `RENDER_COUNT` and `ROW_ADVANCE` all derive from it, so the clip edge and the
+push animation stay correct by construction.
+
+> ⚠️ `RENDER_COUNT` must stay exactly `VISIBLE_ROWS + 1`. The spare row exists to be pushed
+> *under* the clip edge; with no spare, the bottom row is pulled into view at the start of
+> the push and then vanishes at the end.
+
+> ℹ️ This was originally reported as the Speed Test tile creating "a huge whitespace gap".
+> The tile was real but secondary — shrinking it to a row takes ~48px off **Live Latency**,
+> which was already absorbing fine, and gives Recent Activity nothing. **Measure which card
+> cannot absorb before shrinking the one that can.**
+
+## Orb sizing
+
+*(R3 lands in this pass)*
+
+The three orbs are 152px on desktop and **~92px, 3-across, below a card container query**.
+Stacked at 152px on a phone they run ~456px of orb plus three label blocks — roughly 600px
+before the reader reaches anything else, on the surface built for a thirty-second glance.
+
+This is a **responsive step, not a recomposition**: same three objects, same circular
+treatment, same corner badges and ring stack. Both sizes live in `shapes.ts` so the
+skeleton reads the same pair.
+
+> ⚠️ The ring stack's rings are absolutely positioned at 152 / 112 / 80px around a 48px
+> core. Scale all four from one ratio rather than by hand, and re-check that
+> `animate-pulse-ring` still reads at the smaller size.
+
 ## The parts that are load-bearing
 
 Everything in this section is **correct as shipped** and was deliberately excluded from
@@ -189,6 +264,11 @@ the adoption pass. Changing any of it needs its own justification.
 - **The signal cards' quality treatment.** Identity on the fill, quality in the Material
   glyph's bar count, ramp ink on the numeral, a 56px lane beside it, and an `sr-only`
   quality word. `DESIGN.md` cites this card by name under Signature surfaces.
+  > The **card** is load-bearing; its two wrappers were not. `nr-status.tsx` and
+  > `lte-status.tsx` rendered nothing — each mapped a poller block to
+  > `SignalStatusRow[]` and forwarded six props — so they collapsed into
+  > `signal-rows.ts` *(R2, lands in this pass)*. The builder branches on `family` rather
+  > than pretending the legs match: **NR carries `scs` and LTE does not.**
 - **Recent Activity's age-gated tone.** Tone is *what kind of thing happened* and never
   expires — carried by a full-strength disc for as long as the row exists. Weight is
   *how much it still deserves attention* and does expire, settling the container onto
