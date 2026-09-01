@@ -380,11 +380,21 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-printf '\n[15] PAGE_GRID is still exported from shapes.ts (KEEP)\n'
+printf '\n[15] PAGE_GRID stays removed (REMOVED)\n'
+# This used to be a KEEP for an export that no longer exists: the two-column
+# PAGE_GRID was deliberately retired from the settings family's shapes.ts (the
+# only surviving mentions are the explanatory comments in apn-settings.tsx that
+# record why). Inverted rather than deleted, so the removal stays guarded and
+# the assertion numbering does not shift.
 if grep -qE '^export const PAGE_GRID\b' "$SHAPES"; then
-    ok "shapes.ts still exports PAGE_GRID"
+    bad "shapes.ts re-exports PAGE_GRID -- the two-column page grid was removed on purpose"
 else
-    bad "shapes.ts no longer exports PAGE_GRID -- imei-settings.tsx imports it and would break"
+    ok "shapes.ts still has no PAGE_GRID export"
+fi
+if grep -qE '^[[:space:]]*import\b.*\bPAGE_GRID\b' "$PAGE_FILE"; then
+    bad "apn-settings.tsx imports PAGE_GRID -- the removed two-column grid is back"
+else
+    ok "apn-settings.tsx does not import PAGE_GRID"
 fi
 
 # -----------------------------------------------------------------------------
