@@ -314,15 +314,9 @@ conn_history="[]"
 conn_history_interval=5
 conn_history_size=60
 conn_during_recovery="false"
-# Phase 2 — tri-state + runtime profile/threshold (from ping daemon)
-conn_connectivity="unknown"
-conn_limited_reason="null"
-conn_down_reason="null"
-conn_streak_limited=0
+# Phase 2 — runtime profile + last-probed address family (from ping daemon)
 conn_profile="unknown"
-conn_fail_secs=0
-conn_recover_secs=0
-conn_intercept_secs=0
+conn_last_family="null"
 _last_ping_ts=0          # tracks last processed ping.json timestamp (awk gate)
 _ping_stale_since=0      # epoch when ping daemon first went stale (0 = healthy)
 
@@ -1382,14 +1376,8 @@ read_ping_data() {
         conn_history="[]"
         conn_history_interval=0
         conn_during_recovery="false"
-        conn_connectivity="unknown"
-        conn_limited_reason="null"
-        conn_down_reason="null"
-        conn_streak_limited=0
         conn_profile="unknown"
-        conn_fail_secs=0
-        conn_recover_secs=0
-        conn_intercept_secs=0
+        conn_last_family="null"
         _ping_stale_since=0
         return
     fi
@@ -1416,14 +1404,8 @@ read_ping_data() {
             conn_history="[]"
             conn_history_interval=0
             conn_during_recovery="false"
-            conn_connectivity="unknown"
-            conn_limited_reason="null"
-            conn_down_reason="null"
-            conn_streak_limited=0
             conn_profile="unknown"
-            conn_fail_secs=0
-            conn_recover_secs=0
-            conn_intercept_secs=0
+            conn_last_family="null"
 
             # Track sustained staleness: emit a one-shot event when the
             # ping daemon has been stale long enough that alerts could be
@@ -1462,14 +1444,8 @@ read_ping_data() {
         ((.during_recovery) | if . == null then "false" else tostring end),
         ((.interval_sec) | if . == null then "5" else tostring end),
         (.targets[0] // ""),
-        (.connectivity // "unknown"),
-        ((.limited_reason) | if . == null then "null" else tostring end),
-        ((.down_reason) | if . == null then "null" else tostring end),
-        ((.streak_limited) | if . == null then "0" else tostring end),
         (.profile // "unknown"),
-        ((.fail_secs) | if . == null then "0" else tostring end),
-        ((.recover_secs) | if . == null then "0" else tostring end),
-        ((.intercept_secs) | if . == null then "0" else tostring end)
+        ((.last_family) | if . == null then "null" else tostring end)
     ] | @tsv' "$PING_CACHE" 2>/dev/null)
 
     conn_internet_available=$(printf '%s' "$_pdata" | cut -f1)
@@ -1477,14 +1453,8 @@ read_ping_data() {
     conn_during_recovery=$(printf '%s' "$_pdata" | cut -f3)
     conn_history_interval=$(printf '%s' "$_pdata" | cut -f4)
     conn_ping_target=$(printf '%s' "$_pdata" | cut -f5)
-    conn_connectivity=$(printf '%s' "$_pdata" | cut -f6)
-    conn_limited_reason=$(printf '%s' "$_pdata" | cut -f7)
-    conn_down_reason=$(printf '%s' "$_pdata" | cut -f8)
-    conn_streak_limited=$(printf '%s' "$_pdata" | cut -f9)
-    conn_profile=$(printf '%s' "$_pdata" | cut -f10)
-    conn_fail_secs=$(printf '%s' "$_pdata" | cut -f11)
-    conn_recover_secs=$(printf '%s' "$_pdata" | cut -f12)
-    conn_intercept_secs=$(printf '%s' "$_pdata" | cut -f13)
+    conn_profile=$(printf '%s' "$_pdata" | cut -f6)
+    conn_last_family=$(printf '%s' "$_pdata" | cut -f7)
 
     # Step B: Single awk pass — only when ping timestamp changed (saves awk fork every 2s)
     # With ping daemon at 5s, awk runs ~every 5s instead of every cycle.
@@ -1928,14 +1898,8 @@ write_cache() {
         --argjson hist_int "${conn_history_interval:-2}" \
         --argjson hist_size "${CONN_HISTORY_SIZE:-60}" \
         --argjson during_rec "${conn_during_recovery:-false}" \
-        --arg conn_state "$conn_connectivity" \
-        --argjson conn_limited_reason "$conn_limited_reason" \
-        --arg conn_down_reason "$conn_down_reason" \
-        --argjson conn_streak_limited "$conn_streak_limited" \
         --arg conn_profile "$conn_profile" \
-        --argjson conn_fail_secs "$conn_fail_secs" \
-        --argjson conn_recover_secs "$conn_recover_secs" \
-        --argjson conn_intercept_secs "$conn_intercept_secs" \
+        --arg conn_last_family "$conn_last_family" \
         --argjson wc_enabled "${wc_enabled:-false}" \
         --arg wc_state "${wc_state:-disabled}" \
         --argjson wc_tier "${wc_current_tier:-0}" \
@@ -2058,14 +2022,8 @@ write_cache() {
                 ping_target: $ping_tgt, latency_history: $lat_hist,
                 history_interval_sec: $hist_int, history_size: $hist_size,
                 during_recovery: $during_rec,
-                state: $conn_state,
-                limited_reason: $conn_limited_reason,
-                down_reason: (if $conn_down_reason == "null" then null else $conn_down_reason end),
-                streak_limited: $conn_streak_limited,
                 profile: $conn_profile,
-                fail_secs: $conn_fail_secs,
-                recover_secs: $conn_recover_secs,
-                intercept_secs: $conn_intercept_secs
+                last_family: (if $conn_last_family == "null" then null else $conn_last_family end)
             },
             watchcat: {
                 enabled: $wc_enabled, state: $wc_state,
