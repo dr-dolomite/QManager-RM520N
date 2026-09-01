@@ -97,14 +97,22 @@ const REALTIME_LIMIT = 10;
 // Helper Functions
 // =============================================================================
 
+// Timestamps are counted back from `now` using the LENGTH OF THIS ARRAY, never
+// the connectivity payload's `history_size`. That field is a fixed capacity
+// (60), not a measurement: while the ring buffer is short — which the ping
+// daemon makes a RECURRING state, because it truncates the history on every
+// probe-winner change — `historySize - i - 1` stamps the newest sample as
+// though it were (60 - length) intervals old, stranding a fresh reading up to
+// five minutes in the past. The last element of the array is the most recent
+// sample by construction, so it belongs at `now`.
 function buildRealtimeData(
   history: (number | null)[],
   intervalSec: number,
-  historySize: number,
 ): RealtimeDataPoint[] {
   const now = Date.now();
+  const len = history.length;
   return history.map((value, i) => {
-    const timestamp = now - (historySize - i - 1) * intervalSec * 1000;
+    const timestamp = now - (len - i - 1) * intervalSec * 1000;
     if (value === null) {
       return { timestamp, latency: null, packet_loss: 100, ok: false };
     }
@@ -196,6 +204,14 @@ function computeTotals(data: ChartDataPoint[]): {
 // =============================================================================
 // Exposes table entries + metadata so the parent can pass them to PingEntriesCard.
 
+/** Headline figures above the chart. `packet_loss` is null when the poller has
+ *  not yet measured one — the ring buffer is shorter than the window a loss
+ *  ratio needs, so there is no percentage to state and "0%" would be a lie. */
+export interface LatencyTotals {
+  latency: number;
+  packet_loss: number | null;
+}
+
 export interface LatencyMonitoringData {
   entries: PingEntry[];
   emptyMessage: string;
@@ -212,14 +228,9 @@ export function useLatencyMonitoring() {
 
   const realtimeData = useMemo<RealtimeDataPoint[]>(() => {
     if (!modemStatus?.connectivity) return [];
-    const { latency_history, history_interval_sec, history_size } =
-      modemStatus.connectivity;
+    const { latency_history, history_interval_sec } = modemStatus.connectivity;
     if (!latency_history || latency_history.length === 0) return [];
-    return buildRealtimeData(
-      latency_history,
-      history_interval_sec,
-      history_size,
-    );
+    return buildRealtimeData(latency_history, history_interval_sec);
   }, [modemStatus?.connectivity]);
 
   const hourlyData = useMemo(
@@ -254,7 +265,7 @@ export function useLatencyMonitoring() {
     }
   }, [viewMode, realtimeData, hourlyData, twelveHourData, dailyData]);
 
-  const total = useMemo(() => {
+  const total = useMemo<LatencyTotals>(() => {
     if (viewMode === "realtime" && modemStatus?.connectivity) {
       return {
         latency: modemStatus.connectivity.avg_latency_ms ?? 0,
@@ -313,7 +324,7 @@ interface LatencyMonitoringCardProps {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   chartData: ChartDataPoint[];
-  total: { latency: number; packet_loss: number };
+  total: LatencyTotals;
 }
 
 const LatencyMonitoringCard = ({
@@ -334,34 +345,44 @@ const LatencyMonitoringCard = ({
           <CardDescription>{VIEW_INFO[viewMode]}</CardDescription>
         </div>
         <div className="flex">
-          {(["latency", "packet_loss"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={activeChart === key}
-              aria-label={`Show ${chartConfig[key].label} chart`}
-              data-active={activeChart === key}
-              className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l sm:border-t-0 sm:border-l sm:px-8 sm:py-6"
-              onClick={() => setActiveChart(key)}
-            >
-              <span className="text-muted-foreground text-xs">
-                {chartConfig[key].label}
-              </span>
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={Math.round(total[key])}
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
-                  className="text-base leading-none font-bold sm:text-3xl tabular-nums"
-                >
-                  {total[key].toLocaleString()}
-                  {key === "latency" ? "ms" : "%"}
-                </motion.span>
-              </AnimatePresence>
-            </button>
-          ))}
+          {(["latency", "packet_loss"] as const).map((key) => {
+            // An unmeasured figure prints an em dash, never a rounded null.
+            // `total[key]` is nullable for packet_loss, so both the animation
+            // key and the label have to survive it — a bare .toLocaleString()
+            // here would throw and take the whole page with it.
+            const value = total[key];
+            const label =
+              value === null
+                ? "—"
+                : `${value.toLocaleString()}${key === "latency" ? "ms" : "%"}`;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={activeChart === key}
+                aria-label={`Show ${chartConfig[key].label} chart`}
+                data-active={activeChart === key}
+                className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l sm:border-t-0 sm:border-l sm:px-8 sm:py-6"
+                onClick={() => setActiveChart(key)}
+              >
+                <span className="text-muted-foreground text-xs">
+                  {chartConfig[key].label}
+                </span>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={label}
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
+                    className="text-base leading-none font-bold sm:text-3xl tabular-nums"
+                  >
+                    {label}
+                  </motion.span>
+                </AnimatePresence>
+              </button>
+            );
+          })}
         </div>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:p-6">

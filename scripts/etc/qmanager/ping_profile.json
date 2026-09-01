@@ -1,9 +1,6 @@
 {
   "profile": "relaxed",
   "interval_sec": 5,
-  "fail_secs": 15,
-  "recover_secs": 10,
-  "history_secs": 300,
   "target_host_1": "cloudflare.com",
   "target_host_2": "google.com",
   "target_ip_1": "1.1.1.1",

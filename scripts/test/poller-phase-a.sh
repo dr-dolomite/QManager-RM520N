@@ -159,15 +159,45 @@ qlog_debug() { :; }
 append_event() {
     printf '{"type":"%s","message":"%s","severity":"%s"}\n' "\$1" "\$2" "\$3" >> "$events_file"
 }
-# Minimal jq stub for workstation tests that lack jq — handles only the
-# timestamp extraction used by read_ping_data.  On devices where real jq
-# is present this function is never called because the PATH resolves first.
+# jq shim for workstations without jq.
+#
+# REWRITTEN 2026-09-02. The previous version was defined unconditionally and
+# IGNORED THE FILTER, printing only the timestamp digits. Two things followed.
+# First, a shell function beats PATH in command lookup, so it ran even here
+# where a real jq is installed -- the old comment claiming "PATH resolves
+# first" had it backwards. Second, its output carried no tab, and cut on a
+# line with no delimiter returns the whole line, so read_ping_data's second
+# field came back as the epoch, was rejected by the 1-300 plausibility clamp,
+# and silently fell back to 5. The derived staleness threshold was therefore
+# never exercised at all: deleting the two-field read outright would have left
+# this harness green.
+#
+# Now: defer to the real jq whenever there is one, and otherwise emulate the
+# ONE filter read_ping_data uses before it can return -- emitting a genuine
+# tab-separated pair, so the cut -f2 path is real either way.
+if ! command -v jq >/dev/null 2>&1; then
 jq() {
-    # Usage: jq -r '<filter>' <file>
-    # Supports only: '.timestamp | if . == null then empty else tostring end'
+    # Usage: jq -r '<filter>' <file>. Only the two-field metadata filter
+    # (timestamp + interval_sec) is emulated; anything else is a hole the
+    # assertions below would have to grow into.
     local file="\${@: -1}"
-    awk -F'"timestamp":' 'NF>1{split(\$2,a,","); gsub(/[^0-9]/,"",a[1]); if(a[1]!="") print a[1]}' "\$file"
+    awk '
+        {
+            line = line \$0
+        }
+        END {
+            ts = ""; iv = ""
+            if (match(line, /"timestamp":[ ]*[0-9]+/)) {
+                ts = substr(line, RSTART, RLENGTH); sub(/^.*:[ ]*/, "", ts)
+            }
+            if (match(line, /"interval_sec":[ ]*[0-9]+/)) {
+                iv = substr(line, RSTART, RLENGTH); sub(/^.*:[ ]*/, "", iv)
+            }
+            if (iv == "") iv = "5"
+            printf "%s\t%s\n", ts, iv
+        }' "\$file"
 }
+fi
 _ping_stale_since=0
 conn_internet_available="null"
 conn_status=""
@@ -220,6 +250,84 @@ if grep -q 'ping_daemon_stale' "$events_file" 2>/dev/null; then
     bad "ping_daemon_stale fired too early (<60s threshold)"
 else
     ok "no spurious ping_daemon_stale event under threshold"
+fi
+
+section "staleness threshold is DERIVED from the cache's own interval_sec"
+
+# ADDED 2026-09-02 to close a real coverage hole. read_ping_data computes
+#     stale_threshold = max(3 * interval_sec, 15)
+# from a two-field TSV read of the ping cache. Nothing tested the second
+# field: the old jq stub emitted a delimiterless line, cut -f2 handed back the
+# whole thing, the 1-300 clamp rejected it, and the code fell back to 5 -- so
+# every case below would have looked identical and the derivation could have
+# been deleted outright without turning this harness red.
+#
+# The observable is the warning text on the stale branch, which names the
+# threshold it actually computed. Asserting on it needs nothing from the
+# payload read that follows, so these cases behave the same with a real jq and
+# with the emulation above.
+derived_probe() {
+    # $1 = interval_sec in the cache, $2 = age of the cache in seconds.
+    # Echoes whatever read_ping_data logged as a warning (empty = not stale).
+    local iv="$1" age="$2"
+    local cache="$work/derived_${iv}_${age}.json"
+    local ts=$(( $(date +%s) - age ))
+    printf '{"timestamp":%s,"reachable":true,"last_rtt_ms":12.3,"during_recovery":false,"interval_sec":%s,"targets":["a","b","c","d"],"last_target":"a","profile":"relaxed","last_family":"ipv4"}\n' \
+        "$ts" "$iv" > "$cache"
+    (
+        set +eu
+        . "$shim"
+        PING_CACHE="$cache"
+        PING_HISTORY_RAW="$work/nope"
+        qlog_warn() { printf '%s\n' "$*" >&3; }
+        . "$work/read_ping_fn.sh"
+        _ping_stale_since=0
+        read_ping_data
+    ) 3>&1 1>/dev/null 2>/dev/null
+}
+
+# interval 5 -> max(15,15) = 15. An age of 20s is over it.
+warn=$(derived_probe 5 20)
+if printf '%s' "$warn" | grep -q '> 15s'; then
+    ok "interval_sec=5 derives a 15s staleness threshold (age 20s is stale)"
+else
+    bad "interval_sec=5 did not derive 15s (warning was: ${warn:-<none, so it was not judged stale at all>})"
+fi
+
+# interval 10 -> max(30,15) = 30. The SAME 20s age is now fresh. This is the
+# case the hardcoded 10 got wrong, and the one a dropped second field would
+# still get wrong -- it is the whole point of the derivation.
+warn=$(derived_probe 10 20)
+if [ -z "$warn" ]; then
+    ok "interval_sec=10 derives a 30s threshold, so a 20s-old cache is NOT stale"
+else
+    bad "interval_sec=10 still judged a 20s-old cache stale -- the second TSV field is not reaching the derivation (warning: $warn)"
+fi
+
+# ...and the same interval DOES go stale past its own derived threshold, which
+# pins the number rather than merely proving staleness got switched off.
+warn=$(derived_probe 10 40)
+if printf '%s' "$warn" | grep -q '> 30s'; then
+    ok "interval_sec=10 goes stale past 30s (threshold named in the warning)"
+else
+    bad "interval_sec=10 at 40s did not report a 30s threshold (warning was: ${warn:-<none>})"
+fi
+
+# The stub itself must emit a tab. Without this guard the emulation could
+# regress to a delimiterless line and quietly restore the original hole on
+# every workstation that lacks jq.
+if ! command -v jq >/dev/null 2>&1; then
+    probe_line=$(
+        set +eu
+        . "$shim"
+        jq -r '.' "$ping_cache"
+    )
+    case "$probe_line" in
+        *"$(printf '\t')"*) ok "the jq emulation emits a real tab-separated pair" ;;
+        *) bad "the jq emulation emitted no tab -- cut -f2 will return the whole line again" ;;
+    esac
+else
+    ok "real jq present, so the metadata filter under test is the production one"
 fi
 
 # ---------------------------------------------------------------------------

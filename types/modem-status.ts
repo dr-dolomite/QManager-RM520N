@@ -553,10 +553,20 @@ export interface ConnectivityStatus {
   min_latency_ms: number | null;
   /** Maximum RTT in history window */
   max_latency_ms: number | null;
-  /** Average inter-packet RTT variation */
+  /**
+   * Average inter-packet RTT variation. null when the history window holds
+   * fewer than the poller's MIN_STAT_SAMPLES readings — a ratio needs a
+   * series, and the ping daemon truncates the window on every probe-winner
+   * change, so a short window is a recurring state and not a boot transient.
+   */
   jitter_ms: number | null;
-  /** Percentage of failed pings in history window (0-100) */
-  packet_loss_pct: number;
+  /**
+   * Percentage of failed pings in the history window (0-100), or null when
+   * the window is too short to express one. NEVER read a null here as 0: the
+   * whole point of the null is that "not measured yet" and "measured, and
+   * perfect" were previously indistinguishable.
+   */
+  packet_loss_pct: number | null;
   /**
    * The probe leg that actually answered — sourced from the ping daemon's
    * `last_target`, falling back to the first configured slot when nothing has
@@ -568,7 +578,15 @@ export interface ConnectivityStatus {
   latency_history: (number | null)[];
   /** Seconds between history samples */
   history_interval_sec: number;
-  /** Maximum entries in history array */
+  /**
+   * Maximum entries the history array can hold — a fixed CAPACITY (60), not a
+   * count of what is in it. `latency_history.length` is the measurement.
+   *
+   * Never derive a timestamp from this: the ping daemon truncates its history
+   * on every probe-winner change, so the array is routinely shorter than the
+   * capacity, and treating the two as equal strands the newest sample up to
+   * `(60 - length) * history_interval_sec` seconds in the past.
+   */
   history_size: number;
   /** Whether watchcat recovery is currently active */
   during_recovery: boolean;
@@ -762,8 +780,9 @@ export interface PingHistoryEntry {
   min: number | null;
   /** Maximum RTT in ms over ping daemon's history window */
   max: number | null;
-  /** Packet loss percentage (0-100) */
-  loss: number;
+  /** Packet loss percentage (0-100), or null when the poller's window was
+   *  too short to measure one at the moment this row was archived. */
+  loss: number | null;
   /** Jitter in ms, or null if insufficient data */
   jit: number | null;
 }

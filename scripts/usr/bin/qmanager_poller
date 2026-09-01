@@ -308,7 +308,7 @@ conn_avg_latency="null"
 conn_min_latency="null"
 conn_max_latency="null"
 conn_jitter="null"
-conn_packet_loss=0
+conn_packet_loss="null"
 conn_ping_target=""
 conn_history="[]"
 conn_history_interval=5
@@ -322,6 +322,22 @@ _ping_stale_since=0      # epoch when ping daemon first went stale (0 = healthy)
 
 # History size constant (must match ping daemon)
 CONN_HISTORY_SIZE=60
+
+# Minimum samples before the RATIO statistics (packet loss, jitter) mean
+# anything. Below this the poller emits a real JSON null for both.
+#
+# 10 is not arbitrary: the smallest loss threshold any consumer compares
+# against is this file's own `>= 10` degraded gate (the UI presets are 15/30/
+# 50). A window of n samples can only express loss in steps of 100/n percent,
+# so n=10 is exactly the point at which a 10% reading becomes representable
+# at all. At n=9 the quantum is 11.1% -- every window is either "0%" or an
+# instant threshold breach, and the "0%" is the dangerous half: it is
+# indistinguishable from a measured perfect link.
+#
+# This matters because qmanager_ping TRUNCATES /tmp/qmanager_ping_history on
+# every probe-winner change, which on a lossy link happens repeatedly, so a
+# 1-sample window is a recurring state and not a once-per-boot transient.
+MIN_STAT_SAMPLES=10
 
 # Connection uptime tracking
 conn_uptime_seconds=0
@@ -1191,7 +1207,7 @@ append_ping_history() {
         --argjson avg "${conn_avg_latency:-null}" \
         --argjson min "${conn_min_latency:-null}" \
         --argjson max "${conn_max_latency:-null}" \
-        --argjson loss "${conn_packet_loss:-0}" \
+        --argjson loss "${conn_packet_loss:-null}" \
         --argjson jit "${conn_jitter:-null}" \
         '{ts:$ts,lat:$lat,avg:$avg,min:$min,max:$max,loss:$loss,jit:$jit}' >> "$PING_HISTORY_FILE"
 
@@ -1390,7 +1406,7 @@ read_ping_data() {
         conn_min_latency="null"
         conn_max_latency="null"
         conn_jitter="null"
-        conn_packet_loss=0
+        conn_packet_loss="null"
         conn_ping_target=""
         conn_history="[]"
         conn_history_interval=0
@@ -1443,7 +1459,7 @@ read_ping_data() {
             conn_min_latency="null"
             conn_max_latency="null"
             conn_jitter="null"
-            conn_packet_loss=0
+            conn_packet_loss="null"
             conn_history="[]"
             conn_history_interval=0
             conn_during_recovery="false"
@@ -1528,7 +1544,7 @@ read_ping_data() {
 
         local _ha=""
         if [ -s "$PING_HISTORY_RAW" ]; then
-            _ha=$(awk '
+            _ha=$(awk -v mins="$MIN_STAT_SAMPLES" '
             BEGIN { n=0; lost=0; nv=0; have=0; sum=0; jsum=0 }
             {
                 n++; arr[n]=$0
@@ -1543,10 +1559,19 @@ read_ping_data() {
                 }
             }
             END {
+                # Loss and jitter are RATIOS over the window, so unlike
+                # min/avg/max (point statistics, honest at one sample) they
+                # say nothing until the window is long enough to carry one.
+                # Below mins they are emitted as the literal string null --
+                # the same idiom the latency stats already use at nv==0 --
+                # and never as 0, which every consumer reads as a MEASURED
+                # perfect link. See MIN_STAT_SAMPLES for why the floor is 10.
+                if (n >= mins)  lossout = sprintf("%d", int(lost*100/n)); else lossout = "null"
+                if (nv >= mins) jitout  = sprintf("%.1f", (nv>1?jsum/(nv-1):0)); else jitout = "null"
                 if (nv>0)
-                    printf "%.1f|%.1f|%.1f|%.1f|%d|", min,sum/nv,max,(nv>1?jsum/(nv-1):0),int(lost*100/n)
+                    printf "%.1f|%.1f|%.1f|%s|%s|", min,sum/nv,max,jitout,lossout
                 else
-                    printf "null|null|null|null|%d|", (n>0?100:0)
+                    printf "null|null|null|%s|%s|", jitout,lossout
                 printf "["
                 for(i=1;i<=n;i++) { if(i>1) printf ","; printf "%s",arr[i] }
                 printf "]\n"
@@ -1566,7 +1591,7 @@ read_ping_data() {
             conn_avg_latency="null"
             conn_max_latency="null"
             conn_jitter="null"
-            conn_packet_loss=0
+            conn_packet_loss="null"
             conn_history="[]"
         fi
     fi
@@ -1576,8 +1601,12 @@ read_ping_data() {
     if [ "$conn_during_recovery" = "true" ]; then
         conn_status="recovery"
     elif [ "$conn_internet_available" = "true" ]; then
-        local loss="${conn_packet_loss:-0}"
-        if [ "$loss" -ge 10 ] 2>/dev/null; then
+        # Loss is null until the window can express a 10% reading. UNKNOWN
+        # loss is not evidence of degradation, so the reachable verdict --
+        # which is binary and is the whole product question -- stands on its
+        # own: connected. The null case is spelled out rather than left to
+        # `[ null -ge 10 ]` failing quietly into the same branch by accident.
+        if [ "$conn_packet_loss" != "null" ] && [ "$conn_packet_loss" -ge 10 ] 2>/dev/null; then
             conn_status="degraded"
         else
             conn_status="connected"
@@ -1588,9 +1617,12 @@ read_ping_data() {
         conn_status="unknown"
     fi
 
-    # Sanitize: ensure numeric fields are valid
+    # Sanitize: ensure numeric fields are valid. "null" is a legitimate value
+    # here (loss not yet measurable), so it passes; anything else unparseable
+    # degrades to null too -- never to 0, which would read as a perfect link.
     case "$conn_packet_loss" in
-        *[!0-9]*|'') conn_packet_loss=0 ;;
+        null) ;;
+        ''|*[!0-9]*) conn_packet_loss="null" ;;
     esac
     case "$conn_history_interval" in
         *[!0-9]*|'') conn_history_interval=5 ;;
@@ -1957,7 +1989,7 @@ write_cache() {
         --argjson min_lat "${conn_min_latency:-null}" \
         --argjson max_lat "${conn_max_latency:-null}" \
         --argjson jit "${conn_jitter:-null}" \
-        --argjson pkt_loss "${conn_packet_loss:-0}" \
+        --argjson pkt_loss "${conn_packet_loss:-null}" \
         --arg ping_tgt "$conn_ping_target" \
         --argjson lat_hist "${conn_history:-[]}" \
         --argjson hist_int "${conn_history_interval:-2}" \

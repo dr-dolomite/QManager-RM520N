@@ -1957,6 +1957,10 @@ install_backend() {
     # note in migrate_environment_location().
     migrate_environment_location
     migrate_ping_targets
+    # Kept after migrate_ping_targets so the second read-modify-rename sees the
+    # first one's result. The two touch disjoint keys, so neither corrupts the
+    # other, but this order means a single OTA lands both edits on one file.
+    migrate_ping_debounce_shadow
     migrate_sim_registry
     migrate_apn_sidecars
     # Relocates the Discord token / Gmail app password / msmtprc out of the
@@ -2143,9 +2147,11 @@ install_ping_profile() {
 #     under a binary reachable/not-reachable verdict). The stale HTTP
 #     target_1/target_2 keys go too.
 #   * profile / interval_sec / fail_secs / recover_secs / history_secs are
-#     merged INTO, never rebuilt, so the daemon's own tuning survives.
+#     merged INTO, never rebuilt, so the daemon's own tuning survives. (The
+#     debounce triple is separately retired by migrate_ping_debounce_shadow()
+#     below when it is still the untouched seeded 15/10/300.)
 #
-# The gate is the PRESENCE of target_host_1, not the absence of a legacy key: a
+# The gate is a NON-EMPTY target_host_1, not the absence of a legacy key: a
 # fresh install seeded from the new ping_profile.json carries no legacy key at
 # all and must not be treated as unmigrated. That also makes a re-fire on the
 # next OTA a byte-for-byte no-op, so a target the user changed AFTER migrating
@@ -2155,8 +2161,15 @@ migrate_ping_targets() {
     [ -f "$target" ] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
+    # The gate tests for a NON-EMPTY target_host_1, not merely its presence.
+    # `has()` would call a config carrying `"target_host_1": ""` migrated and
+    # leave the device probing an empty slot forever; an empty value is
+    # indistinguishable from an absent one for every reader downstream, all of
+    # which test with -n. Re-firing on that shape reseeds the default, which is
+    # strictly better, and idempotency still holds because the value written is
+    # never empty.
     local has_new
-    has_new=$(jq -r 'has("target_host_1")' "$target" 2>/dev/null)
+    has_new=$(jq -r '(.target_host_1 // "") != ""' "$target" 2>/dev/null)
 
     if [ "$has_new" = "true" ]; then
         return 0
@@ -2181,15 +2194,23 @@ migrate_ping_targets() {
     }
     # A legacy target_ipv4 is carried into target_ip_1; every other slot falls
     # back to its documented default, one key at a time.
+    #
+    # `//` alone is NOT enough for the fallbacks: jq substitutes only on null
+    # and false, so a legacy `"target_ipv4": ""` would be carried through as
+    # `"target_ip_1": ""` and persisted to disk. Every runtime reader tests
+    # with -n so nothing breaks, but the file on the device would be wrong and
+    # a maintainer reading it would be misled. `nz` turns an empty string into
+    # `empty`, which `//` then does substitute for.
     if jq \
         --arg h1 "cloudflare.com" \
         --arg h2 "google.com" \
         --arg i1 "1.1.1.1" \
         --arg i2 "8.8.8.8" \
-        '.target_host_1 = (.target_host_1 // $h1)
-         | .target_host_2 = (.target_host_2 // $h2)
-         | .target_ip_1 = (.target_ip_1 // .target_ipv4 // $i1)
-         | .target_ip_2 = (.target_ip_2 // $i2)
+        'def nz: select(. != null and . != "");
+         .target_host_1 = ((.target_host_1 | nz) // $h1)
+         | .target_host_2 = ((.target_host_2 | nz) // $h2)
+         | .target_ip_1 = ((.target_ip_1 | nz) // (.target_ipv4 | nz) // $i1)
+         | .target_ip_2 = ((.target_ip_2 | nz) // $i2)
          | del(.target_ipv4)
          | del(.target_ipv6)
          | del(.intercept_secs)
@@ -2212,6 +2233,55 @@ migrate_ping_targets() {
     else
         rm -f "$tmp"
         echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
+    fi
+}
+
+# --- Drop the seeded debounce triple that shadowed the profile table ---------
+# Until 2026-09-02 the seeded ping_profile.json carried fail_secs / recover_secs
+# / history_secs as literal values. qmanager_ping's resolve_profile() lets a
+# per-field JSON value OVERRIDE the profile table, so those three seeded keys
+# shadowed the table on every device: switching the profile from relaxed to
+# sensitive or quiet changed the probe cadence and nothing else — the debounce
+# windows stayed at the seeded 15/10/300 whatever the user picked.
+#
+# The seed no longer writes them, so a fresh install obeys the table. This
+# brings a deployed device to the same place by deleting the three keys, but
+# ONLY when all three still hold the exact old seeded triple — that is the
+# fingerprint of "nobody ever touched this". Any other combination means
+# somebody hand-edited the file and their values are kept, matching
+# migrate_ping_targets()'s rule about never discarding a chosen value.
+#
+# Idempotent: after a successful run the keys are gone, so the gate below sees
+# `false` and returns. No UI writes these keys (settings/ping_profile.sh names
+# them only to say it leaves them alone), so there is no writer to race.
+migrate_ping_debounce_shadow() {
+    local target="/etc/qmanager/ping_profile.json"
+    [ -f "$target" ] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    local pristine
+    pristine=$(jq -r '(.fail_secs == 15 and .recover_secs == 10 and .history_secs == 300)' \
+        "$target" 2>/dev/null)
+    [ "$pristine" = "true" ] || return 0
+
+    echo "  Dropping the seeded debounce keys so the profile table governs..."
+    local tmp
+    # Same-filesystem mktemp, chmod+chown before the rename — see the long
+    # rationale in migrate_ping_targets() above; /etc is UBIFS, /tmp is tmpfs,
+    # and lighttpd's CGI is a live concurrent writer of this same file.
+    tmp=$(mktemp /etc/qmanager/.ping_profile.json.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for ping_profile.json debounce migration — skipping" >&2
+        return 0
+    }
+    if jq 'del(.fail_secs) | del(.recover_secs) | del(.history_secs)' \
+        "$target" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        chmod 644 "$tmp"
+        chown www-data:www-data "$tmp" 2>/dev/null || true
+        mv "$tmp" "$target"
+        echo "  $target now follows the profile table for fail/recover windows"
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to drop seeded debounce keys in $target" >&2
     fi
 }
 

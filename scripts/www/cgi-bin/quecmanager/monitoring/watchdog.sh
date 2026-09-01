@@ -66,8 +66,9 @@ migrate_fail_threshold() {
 # Propagate the Watchdog-owned probe interval into ping_profile.json's
 # interval_sec via an atomic key-merge (read existing JSON, set only
 # .interval_sec, temp-file + mv). NEVER overwrites the whole file — that would
-# clobber target_ipv4/target_ipv6/profile, which settings/ping_profile.sh owns
-# independently in the same file. Best-effort: logs and continues on failure,
+# clobber target_host_1/target_host_2/target_ip_1/target_ip_2/profile, which
+# settings/ping_profile.sh owns independently in the same file. Best-effort:
+# logs and continues on failure,
 # matching the non-fatal reload-flag pattern used elsewhere in this endpoint —
 # the watchcat.probe_interval config value is already saved regardless.
 propagate_probe_interval() {

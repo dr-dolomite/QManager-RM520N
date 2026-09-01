@@ -154,7 +154,7 @@ PING_TARGET_HOST_2="$DEFAULT_HOST_2"
 PING_TARGET_IP_1="$DEFAULT_IP_1"
 PING_TARGET_IP_2="$DEFAULT_IP_2"
 PING_INTERVAL="${PING_INTERVAL:-5}"
-FAIL_SECS=15               # wall-clock seconds of failure before reachable=false
+FAIL_SECS=30               # wall-clock seconds of failure before reachable=false
 RECOVER_SECS=10            # wall-clock seconds of success before reachable=true
 HISTORY_SIZE="${HISTORY_SIZE:-60}"
 PROBE_COUNT=1              # ping -c : ICMP echo requests per probe
@@ -201,21 +201,50 @@ ceil_div_min1() {
 }
 
 # --- Resolve the active profile name to {interval, fail/recover secs, history} -
-# Table (seconds): sensitive 1/6/3/300 · regular 2/10/6/300 ·
-# relaxed 5/15/10/300 · quiet 10/30/20/600 (interval/fail/recover/history).
+# Table (seconds): sensitive 1/15/3/300 · regular 2/20/6/300 ·
+# relaxed 5/30/10/300 · quiet 10/60/20/600 (interval/fail/recover/history).
 # The daemon owns this table; the JSON config only stores the profile NAME
 # plus optional per-field overrides. fail/recover are carried through as
 # SECONDS — they are compared against accumulated monotonic seconds, never
 # converted into a count of cycles.
+#
+# WHY NO fail_secs IS BELOW 14 (retuned 2026-09-02)
+# ------------------------------------------------
+# `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible
+# down-verdict is cycle 2 — i.e. one whole cycle period after the outage
+# starts. A fail_secs shorter than one cycle is therefore not "aggressive",
+# it is UNACHIEVABLE: the verdict lands a cycle later regardless and the
+# number shown to the user is a promise the chain cannot keep.
+#
+# Worst-case failing cycle, read off this file rather than guessed:
+#     4 legs x PROBE_DEADLINE (3s)                    = 12.0s   (the hard cap;
+#                                                                reachable but
+#                                                                silent targets)
+#   + ~35 forks of ping/grep/cut/awk/jq on a Cortex-A7 ~  0.4s
+#   + the floored `sleep 1` at the bottom of main()   =  1.0s
+#                                                     ----------
+#                                                       ~13.4s  -> floor 14s
+#
+# The deadlines are deliberately NOT shortened to buy a faster verdict: a
+# slow-but-alive cellular link must not be called down. The consequence is
+# that the fast end of this table is clamped, and "sensitive" now means
+# "the earliest verdict the chain can honestly deliver", not 6 seconds.
+#
+# recover_secs is NOT inflated to match. The success path short-circuits on
+# leg 1, so a healthy cycle costs ~0.3s and the fixed-rate loop makes its
+# period exactly interval_sec — every recover_secs below is >= its own
+# interval_sec, which is the only floor that path has. The degraded case
+# (legs 1-3 dead, leg 4 answering, ~10s) recovers LATER than promised, which
+# is the conservative direction.
 resolve_profile() {
     case "$PING_PROFILE" in
-        sensitive) _interval=1;  _fail_secs=6;  _recover_secs=3;  _history_secs=300 ;;
-        regular)   _interval=2;  _fail_secs=10; _recover_secs=6;  _history_secs=300 ;;
-        quiet)     _interval=10; _fail_secs=30; _recover_secs=20; _history_secs=600 ;;
+        sensitive) _interval=1;  _fail_secs=15; _recover_secs=3;  _history_secs=300 ;;
+        regular)   _interval=2;  _fail_secs=20; _recover_secs=6;  _history_secs=300 ;;
+        quiet)     _interval=10; _fail_secs=60; _recover_secs=20; _history_secs=600 ;;
         relaxed|*)
             # Unknown/empty falls back to relaxed defaults.
             PING_PROFILE="relaxed"
-            _interval=5;  _fail_secs=15; _recover_secs=10; _history_secs=300
+            _interval=5;  _fail_secs=30; _recover_secs=10; _history_secs=300
             ;;
     esac
 

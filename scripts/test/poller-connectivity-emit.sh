@@ -221,6 +221,61 @@ else
 fi
 
 # =============================================================================
+section "3b. a window too short to measure a ratio emits null loss/jitter, never 0"
+# =============================================================================
+# ADDED 2026-09-02. qmanager_ping truncates /tmp/qmanager_ping_history on every
+# probe-winner change, so a one-sample window is a RECURRING state on a lossy
+# link, not a once-per-daemon-start transient. The old awk emitted jitter 0.0
+# and loss 0% from that window -- byte-identical to a measured perfect link --
+# and four consumers believed it, including the 24h archive.
+#
+# The floor is MIN_STAT_SAMPLES (10): a window of n samples can only express
+# loss in steps of 100/n percent, and 10 is where the smallest threshold any
+# consumer compares against becomes representable at all.
+history_short=$(printf '12.0\n')
+conn=$(run_cycle '{"reachable":true,"last_rtt_ms":12.0,"during_recovery":false,"interval_sec":5,"targets":["1.1.1.1","::1"],"last_family":"ipv4"}' "$history_short")
+loss=$(printf '%s' "$conn" | jq -r '.packet_loss_pct')
+jit=$(printf '%s' "$conn" | jq -r '.jitter_ms')
+avg=$(printf '%s' "$conn" | jq -r '.avg_latency_ms')
+status=$(printf '%s' "$conn" | jq -r '.status')
+
+if printf '%s' "$conn" | jq -e '.packet_loss_pct == null' >/dev/null; then
+    ok "one-sample window -> packet_loss_pct is a real JSON null"
+else
+    bad "one-sample window -> packet_loss_pct is $loss, which reads as a measured perfect link"
+fi
+if printf '%s' "$conn" | jq -e '.jitter_ms == null' >/dev/null; then
+    ok "one-sample window -> jitter_ms is a real JSON null"
+else
+    bad "one-sample window -> jitter_ms is $jit, which reads as a measured perfectly steady link"
+fi
+# The POINT statistics are still honest at one sample and must NOT be nulled
+# alongside the ratios -- that would be an over-correction, not a fix.
+if [ "$avg" = "12.0" ]; then
+    ok "one-sample window still reports avg_latency_ms (a point statistic, valid at n=1)"
+else
+    bad "one-sample window nulled avg_latency_ms too (got '$avg') -- only the RATIOS lack a denominator"
+fi
+# Unknown loss is not evidence of degradation. The verdict this surface owns is
+# binary, and reachable is true, so the status is connected -- no third state.
+if [ "$status" = "connected" ]; then
+    ok "null loss + reachable -> status 'connected' (no third state invented for 'unknown loss')"
+else
+    bad "null loss + reachable -> status '$status', expected 'connected'"
+fi
+
+# The boundary itself: exactly MIN_STAT_SAMPLES readings must produce numbers.
+# Without this the fix could satisfy every assertion above by nulling the
+# ratios unconditionally.
+history_ten=$(printf '10.0\n12.0\n10.0\n12.0\n10.0\n12.0\n10.0\n12.0\n10.0\n12.0\n')
+conn=$(run_cycle '{"reachable":true,"last_rtt_ms":12.0,"during_recovery":false,"interval_sec":5,"targets":["1.1.1.1","::1"],"last_family":"ipv4"}' "$history_ten")
+if printf '%s' "$conn" | jq -e '.packet_loss_pct == 0 and .jitter_ms == 2.0' >/dev/null; then
+    ok "a full 10-sample window reports real numbers again (loss 0, jitter 2.0)"
+else
+    bad "a 10-sample window did not report measured ratios (loss=$(printf '%s' "$conn" | jq -r '.packet_loss_pct'), jitter=$(printf '%s' "$conn" | jq -r '.jitter_ms'))"
+fi
+
+# =============================================================================
 section "4. dead ping daemon -> status 'unknown' + internet_available null (both reset paths)"
 # =============================================================================
 # Guard, not a currently-broken assertion: both paths already reset
@@ -285,10 +340,34 @@ else
     bad "ping_profile.sh no longer names the daemon's debounce fields -- check its merge did not start dropping them"
 fi
 
-if [ -f "$PING_PROFILE_SEED" ] && grep -q '"fail_secs"' "$PING_PROFILE_SEED" && grep -q '"recover_secs"' "$PING_PROFILE_SEED"; then
-    ok "the seed ping_profile.json still carries the daemon debounce keys"
+# INVERTED 2026-09-02. This used to assert the OPPOSITE -- that the seed still
+# carried fail_secs and recover_secs -- and the old expectation was wrong.
+#
+# The block's own stated purpose (see the comment above) is to prove the daemon
+# did not lose its ability to HONOUR a per-field debounce override. The two
+# assertions above are what actually prove that, and both still pass untouched.
+# This third one confused "the daemon can read an override" with "the shipped
+# config must contain one", and shipping one is the defect: resolve_profile()
+# lets a per-field JSON value beat the profile table, so a seeded fail_secs
+# pinned every device to 15s no matter which of the four profiles the user
+# picked. The profiles differed in cadence and in nothing else.
+#
+# The seed must therefore NOT carry the debounce triple, and the installer must
+# carry the migration that retires it from already-deployed configs.
+if [ -f "$PING_PROFILE_SEED" ] &&
+    ! grep -q '"fail_secs"' "$PING_PROFILE_SEED" &&
+    ! grep -q '"recover_secs"' "$PING_PROFILE_SEED" &&
+    ! grep -q '"history_secs"' "$PING_PROFILE_SEED"; then
+    ok "the seed ping_profile.json ships no debounce override, so the profile table governs"
 else
-    bad "the seed ping_profile.json is missing fail_secs or recover_secs"
+    bad "the seed ping_profile.json still carries a debounce key -- it shadows resolve_profile's table and makes all four profiles share one fail window"
+fi
+
+INSTALLER="$REPO_ROOT/scripts/install_rm520n.sh"
+if [ -f "$INSTALLER" ] && grep -q 'migrate_ping_debounce_shadow' "$INSTALLER"; then
+    ok "install_rm520n.sh carries migrate_ping_debounce_shadow for already-deployed configs"
+else
+    bad "install_rm520n.sh has no migrate_ping_debounce_shadow -- an OTA device keeps the shadowing debounce keys forever"
 fi
 
 # intercept_secs is the ONE member of that same-named trio that does NOT

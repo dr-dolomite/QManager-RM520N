@@ -125,14 +125,22 @@ The daemon reads `/etc/qmanager/ping_profile.json` (env vars override it; hardco
 
 | Profile | `interval_sec` | `fail_secs` | `recover_secs` | `history_secs` |
 |---------|---------------|-------------|----------------|----------------|
-| sensitive | 1 | 6 | 3 | 300 |
-| regular | 2 | 10 | 6 | 300 |
-| relaxed *(default)* | 5 | 15 | 10 | 300 |
-| quiet | 10 | 30 | 20 | 600 |
+| sensitive | 1 | 15 | 3 | 300 |
+| regular | 2 | 20 | 6 | 300 |
+| relaxed *(default)* | 5 | 30 | 10 | 300 |
+| quiet | 10 | 60 | 20 | 600 |
 
-Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`) override the profile table when present and numeric — this is how the Watchdog retunes the **probe cadence** (`interval_sec`) without changing the profile. The config keys the daemon reads are `profile`, `target_ipv4`, `target_ipv6`, and those four optional overrides. The legacy HTTP-era keys `target_1`/`target_2` are **not** read (the installer migrates them — see below).
+**Why nothing here promises a fail window under 14 seconds** (retuned 2026-09-02). `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible down-verdict is one whole cycle period after the outage starts. A failing cycle is capped at four legs × `PROBE_DEADLINE` (3s) = 12s, plus roughly 0.4s of forks on a Cortex-A7, plus the floored 1-second sleep at the bottom of the loop — about **13.4s**. A `fail_secs` below that is not a more aggressive setting, it is a promise the chain cannot keep: the verdict lands a cycle later regardless and the number shown to the user is wrong. The old table promised 6s and 10s, both unachievable by construction.
 
-> ℹ️ NOTE — vestigial `intercept_secs`: the seed `ping_profile.json` still carries an `intercept_secs: 8` key inherited from the HTTP/204 era. The ICMP daemon does not read it (there is no intercept state to debounce). It is harmless and left in place; a future cleanup may prune it.
+The per-leg deadlines were deliberately **not** shortened to buy a faster verdict — that would risk calling a slow-but-alive cellular link down. The consequence is that the fast end of the table is clamped: `sensitive` now means "the earliest verdict this chain can honestly deliver", not six seconds. The four profiles stay distinct in both axes (cadence 1/2/5/10, window 15/20/30/60).
+
+`recover_secs` was **not** inflated to match. The success path short-circuits on leg 1, so a healthy cycle costs ~0.3s and the fixed-rate loop makes its period exactly `interval_sec`; every `recover_secs` above is at or over its own `interval_sec`, which is the only floor that path has. The degraded case (legs 1–3 dead, leg 4 answering, ~10s) recovers *later* than promised, which is the conservative direction.
+
+Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`) override the profile table when present and numeric — this is how the Watchdog retunes the **probe cadence** (`interval_sec`) without changing the profile.
+
+> ⚠️ The seed **no longer ships `fail_secs` / `recover_secs` / `history_secs`** (2026-09-02). Because a per-field value beats the table, the old seeded `15/10/300` shadowed it on every device: switching profile changed the cadence and nothing else — all four profiles shared one debounce window. `migrate_ping_debounce_shadow()` in `install_rm520n.sh` deletes the triple from a deployed config, but **only** when all three still hold the exact old seeded values; any other combination is treated as a hand edit and kept. The config keys the daemon reads are `profile`, `target_ipv4`, `target_ipv6`, and those four optional overrides. The legacy HTTP-era keys `target_1`/`target_2` are **not** read (the installer migrates them — see below).
+
+> ℹ️ NOTE — `intercept_secs` is **gone**, not vestigial: pruned from the seed and deleted from deployed configs by `migrate_ping_targets()`. It was an HTTP/204-era key with no reader, and none is possible under the settled binary verdict.
 
 **Reload without restart:** any writer updates `ping_profile.json` and then `touch /tmp/qmanager_ping_reload`. The daemon `stat`s that flag once per cycle, re-reads config, re-resolves the profile, re-detects the IPv6 invocation, unlinks the flag, and continues — streak counters survive the reload, so switching cadence mid-flight never resets the reachability verdict.
 
@@ -159,11 +167,19 @@ From those, in a single pass, it derives the `connectivity` block written into `
 | `status` | The derived UI verdict: `connected` / `degraded` / `disconnected` / `recovery` / `unknown`. **This is the only connectivity verdict any surface reads** — see the derivation table below |
 | `latency_ms` | Most recent RTT (null if the last probe failed) |
 | `avg_latency_ms` / `min_latency_ms` / `max_latency_ms` | Rolling stats over the history window |
-| `jitter_ms` | Average inter-sample RTT variation |
-| `packet_loss_pct` | Percentage of failed probes in the history window (0–100) |
+| `jitter_ms` | Average inter-sample RTT variation, or a real JSON `null` — see the note below |
+| `packet_loss_pct` | Percentage of failed probes in the history window (0–100), or a real JSON `null` — see the note below |
 | `ping_target` | The IPv4 target currently being probed (`targets[0]` from the daemon) |
 | `latency_history` | Ring buffer of the last N RTTs (`null` = failed probe) — the data behind the latency graph |
-| `history_interval_sec` / `history_size` | Sample spacing and ring length, for charting |
+| `history_interval_sec` / `history_size` | Sample spacing and ring **capacity**, for charting. `history_size` is a fixed 60, **not** a measurement — never time-stamp a sample from it (see below) |
+
+> ⚠️ **Ratio statistics go null below `MIN_STAT_SAMPLES` (10).** `jitter_ms` and `packet_loss_pct` are ratios over the window, so unlike `min`/`avg`/`max` — point statistics that are honest at one sample — they say nothing until the window is long enough to carry one. The poller emits a real JSON `null` for both below the floor, using the same literal-`null` idiom the latency stats already used at zero valid samples.
+>
+> This is not a theoretical case. `qmanager_ping` **truncates** `/tmp/qmanager_ping_history` on every probe-winner change, so a one-sample window is a *recurring* state on a link that flaps between legs, not a once-per-boot transient. The old code emitted `jitter 0.0, loss 0%` from that window — byte-identical to a measured perfect link — and four consumers believed it, including `append_ping_history()`, which archived the zeros into the persistent 24-hour record.
+>
+> The floor is 10 because a window of *n* samples can only express loss in steps of `100/n` percent, and 10% is the smallest threshold any consumer compares against (this file's own `degraded` gate; the UI presets are 15/30/50). At n=9 the quantum is 11.1%: every window reads either "0%" or an instant breach, and the "0%" half is the dangerous one.
+>
+> **Readers must not `//` the null away.** A jq `// 0` here restores the exact defect. On the TypeScript side `packet_loss_pct` and `PingHistoryEntry.loss` are `number | null`, so an unhandled null fails the build.
 | `during_recovery` | `true` while the watchdog is mid-recovery |
 | `profile` | The daemon's live profile name, or `"unknown"` when the daemon is dead/stale |
 | `last_family` | `ipv4` / `ipv6` / `none`, forwarded from the daemon; a real JSON `null` when the ping cache is missing or stale. Read by the Radio Information card and the Probe Targets card |
@@ -180,7 +196,7 @@ From those, in a single pass, it derives the `connectivity` block written into `
 |----------|-----------|---------------------|
 | `recovery` | `during_recovery` is `true` | The watchdog is mid-restore; readings are unreliable by definition. Checked **first**, so it outranks a reachable link |
 | `degraded` | reachable **and** `packet_loss_pct >= 10` | Probes answer, but at least one in ten is lost |
-| `connected` | reachable **and** loss under 10 % | Healthy |
+| `connected` | reachable **and** loss under 10 % — **or** loss `null` | Healthy. Unknown loss is not evidence of degradation, and the verdict this surface owns is binary, so a short window does not invent a third state |
 | `disconnected` | `internet_available` is `false` | The debounced probe verdict says nothing answered |
 | `unknown` | `internet_available` is `null` | The probe itself is not reporting — **not** an outage claim |
 
