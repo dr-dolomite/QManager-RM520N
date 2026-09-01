@@ -78,6 +78,7 @@
   },
   "metrics": {
     "title": "裝置指標",
+    "description": "裝置自身的運行狀況、累計流量計數，以及到各服務基站的距離。",
     "modem_temperature": "調變解調器溫度",
     "high_temp_warning": "溫度過高",
     "cpu_usage": "CPU 使用率",

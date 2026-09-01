@@ -78,6 +78,7 @@
   },
   "metrics": {
     "title": "Metriche del dispositivo",
+    "description": "Salute del dispositivo, il contatore dati cumulativo e la distanza da ciascuna cella di servizio.",
     "modem_temperature": "Temperatura del modem",
     "high_temp_warning": "Alta temperatura",
     "cpu_usage": "CPU Utilizzo",

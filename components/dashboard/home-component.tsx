@@ -186,6 +186,7 @@ const HomeComponent = () => {
             lteData={data?.lte ?? null}
             nrData={data?.nr ?? null}
             isLoading={isLoading}
+            modemReachable={data?.modem_reachable ?? false}
           />
         </motion.div>
         <motion.div variants={staggerItem} className={BAND.STRETCH}>

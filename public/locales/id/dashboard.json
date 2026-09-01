@@ -78,6 +78,7 @@
   },
   "metrics": {
     "title": "Metrik Perangkat",
+    "description": "Kesehatan perangkat, penghitung data kumulatif, dan jarak ke setiap sel yang melayani.",
     "modem_temperature": "Suhu Modem",
     "high_temp_warning": "Suhu Tinggi",
     "cpu_usage": "Penggunaan CPU",

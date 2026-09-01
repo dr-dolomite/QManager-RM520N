@@ -78,6 +78,7 @@
   },
   "metrics": {
     "title": "Device Metrics",
+    "description": "Onboard health, the cumulative data counter, and the distance to each serving cell.",
     "modem_temperature": "Modem Temperature",
     "high_temp_warning": "High Temp",
     "cpu_usage": "CPU Usage",

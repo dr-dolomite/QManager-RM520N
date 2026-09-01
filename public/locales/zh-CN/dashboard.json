@@ -78,6 +78,7 @@
   },
   "metrics": {
     "title": "设备指标",
+    "description": "设备自身的运行状况、累计流量计数，以及到各服务基站的距离。",
     "modem_temperature": "调制解调器温度",
     "high_temp_warning": "温度过高",
     "cpu_usage": "CPU 使用率",
