@@ -29,8 +29,8 @@ import {
 import type {
   NetworkStatus,
   ConnectivityStatus,
+  ConnectivityState,
   ServiceStatus,
-  PingTriState,
 } from "@/types/modem-status";
 
 import {
@@ -219,24 +219,32 @@ const serviceColorMap: Record<
 const CHIP_BASE =
   "inline-flex items-center gap-[7px] rounded-full text-xs font-semibold py-[7px] pr-[13px] pl-[11px] transition-colors duration-(--duration-standard) ease-standard";
 
+// The four roles this card's chips can wear. Keyed as a record rather than a
+// ternary chain so a tone with no container pairing cannot compile — the same
+// guarantee `BadgeVariant` gives the shared wrapper, restated here because this
+// card renders its own pill (see the note above).
+type ChipTone = "success" | "warning" | "destructive" | "muted";
+
+const CHIP_TONE: Record<ChipTone, string> = {
+  success: "bg-success-container text-on-success-container",
+  warning: "bg-warning-container text-on-warning-container",
+  destructive: "bg-destructive-container text-on-destructive-container",
+  muted: "bg-surface-container-high text-on-surface-variant",
+};
+
 function Chip({
   tone,
   swapKey,
   children,
 }: {
-  tone: "success" | "warning" | "muted";
+  tone: ChipTone;
   /** Identity of the current contents. When it changes the label and glyph
    *  crossfade; when it does not, a poll returning the same state animates
    *  nothing. Callers pass the label, which is what actually changes. */
   swapKey: string;
   children: React.ReactNode;
 }) {
-  const toneCls =
-    tone === "success"
-      ? "bg-success-container text-on-success-container"
-      : tone === "warning"
-        ? "bg-warning-container text-on-warning-container"
-        : "bg-surface-container-high text-on-surface-variant";
+  const toneCls = CHIP_TONE[tone];
   return (
     <span className={`${CHIP_BASE} ${toneCls}`}>
       {/* The inner span carries the gap so the crossfade wraps glyph and label
@@ -259,7 +267,7 @@ function buildRadioChip(
   isAirplaneMode: boolean,
   isSearching: boolean,
   t: TFunction,
-): { tone: "success" | "warning" | "muted"; icon: React.ReactNode; label: string } {
+): { tone: ChipTone; icon: React.ReactNode; label: string } {
   if (isAirplaneMode) {
     return {
       tone: "warning",
@@ -315,25 +323,34 @@ function buildRadioChip(
 }
 
 // ─── Internet chip ────────────────────────────────────────────────────────
-// The producer is a shell ICMP probe: it emits reachable / streak_fail /
-// last_family and nothing else. The old down_reason branches (timeout, refused,
-// reset, dns, malformed) were plumbing for a retired Rust HTTP daemon and could
-// never fire — they are gone, along with the copy that named a cause.
+// Reads `connectivity.status`, the five-value verdict qmanager_poller derives
+// from the ICMP daemon's reachability plus its rolling packet-loss window. It
+// deliberately does NOT re-derive that verdict from raw reachability: a link
+// answering one ping in ten is reachable and is not healthy, and the poller is
+// the only party holding the loss window needed to tell those apart.
 //
-// Unreachable renders WARNING, not destructive: ICMP is carrier-variable (some
-// carriers silently drop it), so a missing reply is a strong hint, not a fact.
-// Making a known-noisy signal the loudest thing on the glance surface trains
-// the user to ignore it.
+// The card used to read a sibling `state` field instead. That field was fed by
+// a retired Rust HTTP daemon, so the shell probe that replaced it never wrote
+// one — the poller emitted the literal string "unknown" forever, and because a
+// non-empty string is truthy the fallback beneath it was unreachable code. The
+// chip was therefore pinned grey on every healthy device that ever shipped.
+//
+// COPY DISCIPLINE. This is an ICMP probe, and plenty of carriers silently drop
+// ICMP. An unanswered ping is indistinguishable from a real outage, so nothing
+// here may assert an outage: the label reports what was observed (no reply) and
+// the tooltip names the ambiguity. The TONE is still destructive, because a
+// probe that has stopped answering is worth interrupting for even when the
+// cause turns out to be a filter.
 interface InternetChip {
-  tone: "success" | "warning" | "muted";
+  tone: ChipTone;
   dotCls: string;
   live: boolean;
   /**
-   * Non-connected states carry a glyph instead of the heartbeat dot. Green and
-   * amber converge under deuteranopia and `success-container` (L 0.89) and
-   * `warning-container` (L 0.905) are near-identical in lightness, so without
-   * this the pulse is the ONLY differentiator — and `prefers-reduced-motion`
-   * removes the pulse. Colour must never be the sole carrier of meaning.
+   * Non-connected states carry a glyph instead of the heartbeat dot, and no two
+   * of them may share one. `success-container` (L 0.89) and `warning-container`
+   * (L 0.905) measure 1.03:1 apart and are the same surface under deuteranopia,
+   * so with `prefers-reduced-motion` stripping the pulse the leading mark is
+   * the only channel left. Colour must never be the sole carrier of meaning.
    */
   icon: React.ReactNode | null;
   label: string;
@@ -344,33 +361,31 @@ function buildInternetChip(
   c: ConnectivityStatus | null,
   t: TFunction,
 ): InternetChip {
-  // Prefer the tri-state field; fall back to internet_available for
-  // rolling-upgrade safety (poller without Phase 2 forwarding).
-  let state: PingTriState = "unknown";
-  if (c?.state) {
-    state = c.state;
-  } else if (c?.internet_available === true) {
-    state = "connected";
-  } else if (c?.internet_available === false) {
-    state = "disconnected";
-  }
+  // No connectivity object at all is the same statement as the poller's own
+  // "unknown": nothing was measured, so nothing is claimed.
+  const status: ConnectivityState = c?.status ?? "unknown";
 
-  switch (state) {
+  switch (status) {
     case "connected":
       return {
         tone: "success",
         dotCls: "bg-success",
         // The pulse is gated on real reachability — a live halo over a dead
-        // link is the interface lying about what it knows.
+        // link is the interface lying about what it knows. It is also this
+        // state's distinct leading mark: a beating disc, which no other state
+        // renders, and which degrades to a plain filled disc (still unlike any
+        // of the four glyphs below) under reduced motion.
         live: true,
         icon: null,
         label: t("network.internet_online"),
         tooltip: null,
       };
-    case "disconnected":
+    case "degraded":
       return {
         tone: "warning",
         dotCls: "bg-warning",
+        // No pulse. The probes ARE answering, but a heartbeat over a link
+        // losing a tenth of its packets would read as health.
         live: false,
         icon: (
           <MaterialSymbol
@@ -380,9 +395,42 @@ function buildInternetChip(
             className="shrink-0"
           />
         ),
+        label: t("network.internet_degraded"),
+        tooltip: t("network.internet_tooltip.degraded"),
+      };
+    case "recovery":
+      return {
+        tone: "warning",
+        dotCls: "bg-warning",
+        live: false,
+        icon: (
+          <MaterialSymbol
+            name="restart_alt"
+            size={15}
+            filled
+            className="shrink-0"
+          />
+        ),
+        label: t("network.internet_recovering"),
+        tooltip: t("network.internet_tooltip.recovery"),
+      };
+    case "disconnected":
+      return {
+        tone: "destructive",
+        dotCls: "bg-destructive",
+        live: false,
+        icon: (
+          <MaterialSymbol
+            name="signal_disconnected"
+            size={15}
+            filled
+            className="shrink-0"
+          />
+        ),
         label: t("network.internet_unreachable"),
         tooltip: t("network.internet_tooltip.no_reply"),
       };
+    case "unknown":
     default:
       return {
         tone: "muted",
@@ -396,8 +444,8 @@ function buildInternetChip(
             className="shrink-0"
           />
         ),
-        label: t("network.internet_label"),
-        tooltip: null,
+        label: t("network.internet_unknown"),
+        tooltip: t("network.internet_tooltip.unknown"),
       };
   }
 }

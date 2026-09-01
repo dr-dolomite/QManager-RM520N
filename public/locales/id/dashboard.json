@@ -30,13 +30,18 @@
     "radio_unknown": "Radio Tidak Diketahui",
     "low_power": "Daya Rendah",
     "standby_label": "Siaga",
-    "internet_label": "Internet",
     "internet_online": "Online",
     "internet_unreachable": "Tanpa Respons",
+    "internet_degraded": "Tidak Stabil",
+    "internet_recovering": "Memulihkan",
+    "internet_unknown": "Belum Diukur",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "Tidak Ada Operator",
     "internet_tooltip": {
-      "no_reply": "Tidak ada balasan untuk ping konektivitas. Sebagian operator memblokir probe semacam ini, sehingga koneksi mungkin masih berfungsi."
+      "no_reply": "Tidak ada balasan untuk ping konektivitas. Sebagian operator memblokir probe semacam ini, sehingga koneksi mungkin masih berfungsi.",
+      "degraded": "Ping tetap sampai, tetapi setidaknya satu dari sepuluh hilang. Koneksi aktif namun tidak dapat diandalkan.",
+      "recovery": "Watchdog koneksi sedang memulihkan tautan. Pembacaan tetap tidak dapat diandalkan sampai proses selesai.",
+      "unknown": "Probe konektivitas tidak melaporkan data, sehingga saat ini keterjangkauan internet tidak diketahui."
     }
   },
   "device_status": {

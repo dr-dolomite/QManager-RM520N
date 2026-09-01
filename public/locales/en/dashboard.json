@@ -30,13 +30,18 @@
     "radio_unknown": "Radio Unknown",
     "low_power": "Low Power",
     "standby_label": "Standby",
-    "internet_label": "Internet",
     "internet_online": "Online",
     "internet_unreachable": "No Reply",
+    "internet_degraded": "Unstable",
+    "internet_recovering": "Recovering",
+    "internet_unknown": "Not Measured",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "No Carrier",
     "internet_tooltip": {
-      "no_reply": "No reply to the connectivity ping. Some carriers block these probes, so the connection may still be working."
+      "no_reply": "No reply to the connectivity ping. Some carriers block these probes, so the connection may still be working.",
+      "degraded": "Pings are getting through, but at least one in ten is being lost. The connection is up and unreliable.",
+      "recovery": "The connection watchdog is restoring the link. Readings stay unreliable until it finishes.",
+      "unknown": "The connectivity probe is not reporting, so nothing is known about internet reachability right now."
     }
   },
   "device_status": {

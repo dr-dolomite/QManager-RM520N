@@ -30,13 +30,18 @@
     "radio_unknown": "射頻未知",
     "low_power": "低功耗",
     "standby_label": "待機",
-    "internet_label": "網際網路",
     "internet_online": "線上",
     "internet_unreachable": "無回應",
+    "internet_degraded": "不穩定",
+    "internet_recovering": "恢復中",
+    "internet_unknown": "未偵測",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "無運營商",
     "internet_tooltip": {
-      "no_reply": "連線偵測 ping 未收到回應。部分運營商會封鎖此類探測，因此連線可能仍然正常。"
+      "no_reply": "連線偵測 ping 未收到回應。部分運營商會封鎖此類探測，因此連線可能仍然正常。",
+      "degraded": "Ping 能夠送達，但至少十分之一的探測遺失。連線處於線上但不可靠的狀態。",
+      "recovery": "連線看門狗正在恢復連線。在其完成之前，讀數仍不可靠。",
+      "unknown": "連線偵測未回報資料，因此目前無法得知網際網路的可達性。"
     }
   },
   "device_status": {

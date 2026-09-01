@@ -34,21 +34,29 @@ type ViewMode = "realtime" | "hourly" | "twelvehour" | "daily";
 
 interface RealtimeDataPoint {
   timestamp: number;
-  latency: number;
+  /** null = the ping was lost. NOT 0: a dropped probe is an absent reading, and
+   *  zeroing it drew a blackout as a healthy flat line along the axis. */
+  latency: number | null;
   packet_loss: number;
+  /** false when the sample is a lost ping. Read by PingEntriesCard, which
+   *  renders "Timeout" in the latency cell rather than a number — which is why
+   *  `latency` may be null here without the table ever printing "null ms". */
   ok: boolean;
 }
 
 interface AggregatedDataPoint {
   timestamp: number;
-  latency: number;
+  /** null when every ping in the bucket was lost — see ChartDataPoint. */
+  latency: number | null;
   packet_loss: number;
   sampleCount: number;
 }
 
 interface ChartDataPoint {
   timestamp: number;
-  latency: number;
+  /** null renders as a gap in the bar chart. Aggregated views never produce one:
+   *  a bucket with no successful ping reports 100% loss and a null latency. */
+  latency: number | null;
   packet_loss: number;
 }
 
@@ -98,7 +106,7 @@ function buildRealtimeData(
   return history.map((value, i) => {
     const timestamp = now - (historySize - i - 1) * intervalSec * 1000;
     if (value === null) {
-      return { timestamp, latency: 0, packet_loss: 100, ok: false };
+      return { timestamp, latency: null, packet_loss: 100, ok: false };
     }
     return { timestamp, latency: value, packet_loss: 0, ok: true };
   });
@@ -138,10 +146,14 @@ function aggregateByBucket(
   for (const [timestamp, bucket] of buckets) {
     result.push({
       timestamp,
+      // A bucket in which every ping was lost has no latency to report. It
+      // reports null (a gap) rather than 0, for the same reason the realtime
+      // series does — and its packet_loss below is already 100, so the outage
+      // is stated, not merely missing.
       latency:
         bucket.countLat > 0
           ? Math.round((bucket.sumLat / bucket.countLat) * 10) / 10
-          : 0,
+          : null,
       packet_loss:
         bucket.total > 0
           ? Math.round((bucket.countNull / bucket.total) * 100 * 10) / 10
@@ -160,11 +172,21 @@ function computeTotals(data: ChartDataPoint[]): {
 } {
   if (data.length === 0) return { latency: 0, packet_loss: 0 };
 
-  const sumLat = data.reduce((acc, d) => acc + d.latency, 0);
+  // Gaps are excluded from the latency mean rather than counted as zero: a
+  // window half of which timed out averages the readings it HAS, and the
+  // packet-loss figure beside it is what reports the other half. Averaging in
+  // zeros would pull the headline number down precisely when the link is worst.
+  const readings = data.filter(
+    (d): d is ChartDataPoint & { latency: number } => d.latency !== null,
+  );
+  const sumLat = readings.reduce((acc, d) => acc + d.latency, 0);
   const sumLoss = data.reduce((acc, d) => acc + d.packet_loss, 0);
 
   return {
-    latency: Math.round((sumLat / data.length) * 10) / 10,
+    latency:
+      readings.length > 0
+        ? Math.round((sumLat / readings.length) * 10) / 10
+        : 0,
     packet_loss: Math.round((sumLoss / data.length) * 10) / 10,
   };
 }
@@ -249,7 +271,12 @@ export function useLatencyMonitoring() {
     let entries: PingEntry[];
     if (isRealtime) {
       // Take the most recent N entries
-      entries = realtimeData.slice(-REALTIME_LIMIT);
+      // The table prints "Timeout" for these rows (ok === false), so the 0 is
+      // never rendered; it exists only to satisfy PingEntry's numeric latency.
+      entries = realtimeData.slice(-REALTIME_LIMIT).map((d) => ({
+        ...d,
+        latency: d.latency ?? 0,
+      }));
     } else {
       const source =
         viewMode === "hourly"
@@ -259,9 +286,12 @@ export function useLatencyMonitoring() {
             : dailyData;
       entries = source.map((d) => ({
         timestamp: d.timestamp,
-        latency: d.latency,
+        // `ok` is what PingEntriesCard reads to print "Timeout" instead of a
+        // number, and it only consults it in the realtime view — so an
+        // all-lost aggregate bucket has to carry a printable latency here.
+        latency: d.latency ?? 0,
         packet_loss: d.packet_loss,
-        ok: true,
+        ok: d.latency !== null,
       }));
     }
 

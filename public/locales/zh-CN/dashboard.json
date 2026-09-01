@@ -30,13 +30,18 @@
     "radio_unknown": "射频未知",
     "low_power": "低功耗",
     "standby_label": "待机",
-    "internet_label": "互联网",
     "internet_online": "在线",
     "internet_unreachable": "无响应",
+    "internet_degraded": "不稳定",
+    "internet_recovering": "恢复中",
+    "internet_unknown": "未检测",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "无运营商",
     "internet_tooltip": {
-      "no_reply": "连通性 ping 未收到响应。部分运营商会屏蔽此类探测，因此连接可能仍然正常。"
+      "no_reply": "连通性 ping 未收到响应。部分运营商会屏蔽此类探测，因此连接可能仍然正常。",
+      "degraded": "Ping 能够送达，但至少十分之一的探测丢失。连接处于在线但不可靠的状态。",
+      "recovery": "连接看门狗正在恢复链路。在其完成之前，读数仍不可靠。",
+      "unknown": "连通性探测未上报数据，因此目前无法得知互联网的可达性。"
     }
   },
   "device_status": {

@@ -476,7 +476,13 @@ const LiveLatencyComponent = ({
 
       return {
         time: timeLabel,
-        latency: rtt !== null ? Math.round(rtt) : 0,
+        // A lost ping is an ABSENT reading, not a fast one. Coercing it to 0
+        // drew a total blackout as a healthy flat line pinned to the floor of
+        // the plot. recharts breaks the path on a null datum and skips its dot,
+        // which is the honest shape: a gap where nothing was measured. The
+        // packet-loss series beside it still rises, so the outage stays visible
+        // rather than merely missing.
+        latency: rtt !== null ? Math.round(rtt) : null,
         packetloss: lossPct,
       };
     });

@@ -30,13 +30,18 @@
     "radio_unknown": "Stato radio sconosciuto",
     "low_power": "Bassa potenza",
     "standby_label": "Pronta attesa",
-    "internet_label": "Internet",
     "internet_online": "In linea",
     "internet_unreachable": "Nessuna risposta",
+    "internet_degraded": "Instabile",
+    "internet_recovering": "In ripristino",
+    "internet_unknown": "Non misurato",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "Nessun corriere",
     "internet_tooltip": {
-      "no_reply": "Nessuna risposta al ping di connettività. Alcuni operatori bloccano queste sonde, quindi la connessione potrebbe essere comunque attiva."
+      "no_reply": "Nessuna risposta al ping di connettività. Alcuni operatori bloccano queste sonde, quindi la connessione potrebbe essere comunque attiva.",
+      "degraded": "I ping arrivano a destinazione, ma almeno uno su dieci viene perso. La connessione è attiva e inaffidabile.",
+      "recovery": "Il watchdog di connessione sta ripristinando il collegamento. Le letture restano inaffidabili finché non termina.",
+      "unknown": "La sonda di connettività non sta riportando dati, quindi al momento non si sa nulla sulla raggiungibilità di Internet."
     }
   },
   "device_status": {

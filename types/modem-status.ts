@@ -512,10 +512,6 @@ export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality
   );
 }
 
-/** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field).
-    Post ICMP-port there is no "limited" (carrier-intercept) outcome — an ICMP ping either answers or it doesn't. */
-export type PingTriState = "connected" | "disconnected" | "unknown";
-
 /** User-selectable preset for high_latency / high_packet_loss event thresholds. */
 export type QualityPreset = "standard" | "tolerant" | "very-tolerant";
 
@@ -532,6 +528,11 @@ export interface QualityThresholdsSettings {
   loss: { preset: QualityPreset };
 }
 
+/** The poller's derived connectivity verdict, computed in qmanager_poller from the
+    ICMP daemon's reachability plus the rolling packet-loss window. This is the only
+    connectivity verdict the UI reads: "degraded" means the probes answer but at least
+    a tenth of them are lost, "recovery" means the watchdog is mid-restore, and
+    "unknown" means the probe itself is not reporting — which is not an outage. */
 export type ConnectivityState =
   | "connected"
   | "degraded"
@@ -566,31 +567,14 @@ export interface ConnectivityStatus {
   history_size: number;
   /** Whether watchcat recovery is currently active */
   during_recovery: boolean;
-  /** Phase 2 — daemon's tri-state connectivity outcome. null means the field is missing
-      from status.json (rolling-upgrade fallback). */
-  state: PingTriState | null;
-  /** Address family of the daemon's most recent successful probe. "ipv6" means the IPv4
-      leg failed and the fallback carried the connection. "none" when nothing answered.
-      null on a poller that predates the ICMP port (rolling-upgrade fallback). */
+  /** Address family of the most recent successful probe, derived by qmanager_poller
+      from the ICMP daemon's own state file. "ipv6" means the IPv4 leg failed and the
+      fallback carried the connection. "none" when nothing answered. null on a poller
+      that predates the ICMP port (rolling-upgrade fallback). */
   last_family: "ipv4" | "ipv6" | "none" | null;
-  /** Legacy HTTP-probe field. Always null post ICMP-port (kept typed for rolling-upgrade
-      safety so a status.json emitted by an older poller still parses). */
-  limited_reason: number | null;
-  /** When state == "disconnected", the failure reason: "timeout" | "refused"
-      | "reset" | "dns" | "malformed". null otherwise. */
-  down_reason: string | null;
-  /** Legacy HTTP-probe field. Always 0 post ICMP-port (kept typed for rolling-upgrade
-      safety so a status.json emitted by an older poller still parses). */
-  streak_limited: number;
   /** Daemon's runtime profile string. A named preset, "custom" (env-var override),
       or "unknown" (daemon dead/stale). Typed as string to admit all three. */
   profile: string;
-  /** Runtime fail-threshold in seconds (active in the daemon). 0 if daemon dead/stale. */
-  fail_secs: number;
-  /** Runtime recover-threshold in seconds. 0 if daemon dead/stale. */
-  recover_secs: number;
-  /** Runtime intercept-threshold in seconds. 0 if daemon dead/stale. */
-  intercept_secs: number;
 }
 
 // --- Watchcat State (from /tmp/qmanager_watchcat.json via poller) ------------
