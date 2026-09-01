@@ -141,7 +141,6 @@ function ComparisonRow({
           warnAt={Number.POSITIVE_INFINITY}
           dangerAt={Number.POSITIVE_INFINITY}
           colorOverride={rampTone(share)}
-          size="md"
           /* ONE track on every row, including the winner's, and the alignment
              card's opposite choice does not survive measurement.
 

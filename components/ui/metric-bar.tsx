@@ -36,8 +36,8 @@ const TONE_CLASS = {
 
   // The five-stop signal quality ramp (DESIGN.md > The signal quality ramp).
   // These are the `-bar` values, one lightness step bolder than the `--quality-N`
-  // numeral ink, because a 4px fill needs more weight than a text figure to read
-  // as the same colour.
+  // numeral ink, because a fill needs more weight than a text figure to read as
+  // the same colour.
   //
   // The ramp is a LIGHTNESS STAIRCASE, not a hue wheel: under deuteranopia hues
   // 27/45/72/115/149 collapse onto one yellow axis, so adjacent stops sit
@@ -59,10 +59,27 @@ const TRACK_CLASS = {
   "surface-container-high": "bg-surface-container-high",
 } as const;
 
-/** Track heights. `sm` is the historical 1px-ish hairline; `md` is the 8px
- *  track the dashboard mock draws. */
+/**
+ * ONE track height, product-wide.
+ *
+ * There were two, and the split was never a design decision: `size` DEFAULTED
+ * to the 4px `sm`, so the product's 20 call sites divided 11 against 9 purely
+ * by which ones happened to pass the prop.
+ *
+ * 8px is the resolution rather than 4px because DESIGN.md > Quality bars rests
+ * the whole five-stop ramp on LENGTH — adjacent stops sit deliberately below
+ * the 0.05 CVD separation floor, on the explicit understanding that bar length
+ * carries the fine distinctions. A 4px hairline was the thinnest mark on its
+ * card, carrying the one channel the ramp may not lose. Thickening it
+ * strengthens the encoding the accessibility argument depends on.
+ *
+ * `sm` is DELETED, not deprecated. A size nobody should pick is a trap: it
+ * survives in autocomplete, in a copied call site, and in the next reader's
+ * model of "the bar has two forms". What varies is WIDTH, chosen by slot — the
+ * bar spans the row where the row is the bar's own line, and narrows to a 56px
+ * lane where it sits inline beside the figure it qualifies.
+ */
 const SIZE_CLASS = {
-  sm: "h-1",
   md: "h-2",
 } as const;
 
@@ -73,7 +90,7 @@ export function MetricBar({
   dangerAt,
   colorOverride,
   baseTone = "primary",
-  size = "sm",
+  size = "md",
   track = "muted",
   index = 0,
 }: {
@@ -116,7 +133,11 @@ export function MetricBar({
    * still take over above their thresholds, so this never suppresses a warning.
    */
   baseTone?: MetricBarTone;
-  /** Track height. `sm` (default) keeps every existing call site unchanged. */
+  /**
+   * Track height. One legal value, and it is the default — see `SIZE_CLASS`.
+   * No call site passes this; the prop survives only so the height stays named
+   * rather than inlined.
+   */
   size?: keyof typeof SIZE_CLASS;
   /** Track fill role. Defaults to `muted` so existing call sites are unchanged. */
   track?: keyof typeof TRACK_CLASS;
@@ -150,8 +171,9 @@ export function MetricBar({
    * design, and bar LENGTH is the channel that makes that safe (DESIGN.md >
    * Quality bars, and The Glyph-Carries-The-State Rule).
    *
-   * So a ramp reading floors at one track-height stub — a 4px dot, the shortest
-   * mark that still renders as a round cap rather than a squashed ellipse.
+   * So a ramp reading floors at one track-height stub — an 8px dot, the
+   * shortest mark that still renders as a round cap rather than a squashed
+   * ellipse.
    *
    * Scoped to the ramp on purpose. On a CAPACITY meter (SIM memory, temperature)
    * 0% means empty and a stub would be a lie; on a SCALE, 0% means "bottom of
@@ -213,7 +235,9 @@ export function MetricBar({
             "h-full rounded-full transition-[width,background-color] duration-(--duration-standard) ease-standard motion-reduce:transition-none",
             // One track-height stub, so a reading at the bottom of a scale is
             // still a mark rather than an empty track. See `rampFloor` above.
-            rampFloor && (size === "md" ? "min-w-2" : "min-w-1"),
+            // One thickness means one stub width; the ternary that chose
+            // between two collapsed with the size it was choosing on.
+            rampFloor && "min-w-2",
             colorClass,
           )}
           initial={{ scaleX: 0 }}

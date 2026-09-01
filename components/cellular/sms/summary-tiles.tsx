@@ -134,7 +134,6 @@ function StorageMeter({
         warnAt={total * 0.8}
         dangerAt={total * 0.95}
         baseTone={baseTone}
-        size="md"
         // The body is `surface-container`, so the track takes the step above it.
         track="surface-container-high"
         index={0}

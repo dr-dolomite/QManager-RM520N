@@ -71,7 +71,9 @@ const CARD_SHELL =
   "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
 
 /** Meter track height, shared by the loaded bar and its skeleton slot so the
- *  handoff moves nothing. Mirrors `MetricBar size="md"`. */
+ *  handoff moves nothing. Mirrors `MetricBar`'s one track height — the
+ *  product resolved to a single 8px bar on 2026-09-01, so there is no longer a
+ *  size prop for this to drift against. */
 const METER_H = "h-2";
 
 /**
@@ -273,7 +275,6 @@ const DeviceMetricsComponent = ({
                 // meter reads green below the warn line and still escalates to
                 // amber and red above it.
                 baseTone="success"
-                size="md"
                 track="surface-container-high"
                 index={0}
               />
@@ -306,7 +307,6 @@ const DeviceMetricsComponent = ({
                 max={100}
                 warnAt={CPU_WARN}
                 dangerAt={CPU_DANGER}
-                size="md"
                 track="surface-container-high"
                 index={1}
               />
@@ -334,7 +334,6 @@ const DeviceMetricsComponent = ({
                 max={100}
                 warnAt={70}
                 dangerAt={90}
-                size="md"
                 track="surface-container-high"
                 index={2}
               />
@@ -356,7 +355,6 @@ const DeviceMetricsComponent = ({
                 max={100}
                 warnAt={80}
                 dangerAt={95}
-                size="md"
                 track="surface-container-high"
                 index={3}
               />

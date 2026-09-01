@@ -162,7 +162,6 @@ function PortMetric({
           warnAt={101}
           dangerAt={101}
           colorOverride={tone}
-          size="sm"
           /* The block is already `surface-container`, so the track takes the
              step above it or it vanishes into its own background. */
           track="surface-container-high"

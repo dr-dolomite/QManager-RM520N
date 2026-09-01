@@ -310,8 +310,10 @@ export function SignalStatusCard({
                         would silently break that mirror; and `dl > div > dt/dd`
                         is the valid definition-list shape, so the `dd` has to
                         stay a direct child of the wrapper rather than getting
-                        nested inside a new flex box. A 4px bar in a 20px line
-                        box changes no height. */}
+                        nested inside a new flex box. An 8px bar centres in the
+                        same 20px line box a 4px one did, so the row is still
+                        40px — measured on the rendered node, not read off the
+                        class string. */}
                     {isTinted && (
                       <div className="w-14 shrink-0" aria-hidden="true">
                         <MetricBar
@@ -325,7 +327,6 @@ export function SignalStatusCard({
                           // colour. No reading means no fill element at all.
                           colorOverride={rowTone}
                           // 4px, the quality-bar spec.
-                          size="sm"
                           // `-high`, not `surface-container`: the row pill is
                           // already `bg-surface-container`, so a same-step track
                           // would be invisible against it.

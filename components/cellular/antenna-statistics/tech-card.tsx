@@ -211,10 +211,10 @@ function MetricRow({
                `value` is null in the same breath, and MetricBar renders no fill
                element at all in that branch. */
             colorOverride={tone}
-            /* 4px, the quality-bar spec. Length is the primary encoding here;
-               the ramp hue is reinforcement, which is what makes adjacent stops
-               safe below the colour separation floor. */
-            size="sm"
+            /* Length is the primary encoding here; the ramp hue is
+               reinforcement, which is what makes adjacent stops safe below the
+               colour separation floor. One thickness product-wide, so the
+               height is `MetricBar`'s and is not restated at call sites. */
             /* The row sits ON `surface-container`, so the track has to be the
                step above it or it disappears into the tile. */
             track="surface-container-high"

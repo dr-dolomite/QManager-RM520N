@@ -374,7 +374,6 @@ function MetricCell({
             // breath, and MetricBar renders no fill for this prop to tint.
             // A `?? "success"` here is exactly the bug this file used to ship.
             colorOverride={tone}
-            size="md"
             track="surface-container-high"
             index={index}
           />

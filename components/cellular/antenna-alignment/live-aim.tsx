@@ -233,10 +233,13 @@ function LegRow({
           warnAt={101}
           dangerAt={101}
           colorOverride={tone}
-          /* 4px — the quality-bar spec. Deliberately lighter than the 8px
-             composite meter above, which is this card's subject rather than one
-             of its legs. */
-          size="sm"
+          /* The leg lane and the composite meter above are now the SAME 8px
+             track. That is a deliberate reversal: this lane used to be 4px, on
+             the argument that a leg should read lighter than the card's own
+             subject. The product resolved to one thickness on 2026-09-01
+             because DESIGN.md rests the ramp on LENGTH, and hierarchy here is
+             carried by the 52px composite numeral and the lane's 56px width,
+             neither of which the thickness was needed for. */
           track="surface-container-high"
           index={index}
         />
@@ -446,7 +449,6 @@ export function AimConsole({
                 /* 8px, not the 4px row-level quality bar: this meter is the
                    card's subject, read at arm's length outdoors, and it is the
                    bar the peak mark is registered against. */
-                size="md"
                 track="surface-container-high"
               />
             </div>
@@ -615,7 +617,6 @@ export function CondensedAim({
             warnAt={101}
             dangerAt={101}
             colorOverride={overallTone}
-            size="sm"
             /* `muted`, not `surface-container-high`: the bar itself is now that
                step, and a track the same tone as its ground is an invisible
                track — the empty-track signal for a missing reading would have

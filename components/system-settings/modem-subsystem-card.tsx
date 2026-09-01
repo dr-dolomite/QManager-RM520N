@@ -130,7 +130,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-20" />
                 <Skeleton className="h-5 w-12" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
             {/* Load Average */}
             <Separator />
@@ -139,7 +139,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-28" />
                 <Skeleton className="h-5 w-28" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
             {/* Memory */}
             <Separator />
@@ -148,7 +148,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-16" />
                 <Skeleton className="h-5 w-28" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
             {/* Storage */}
             <Separator />
@@ -157,7 +157,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-24" />
                 <Skeleton className="h-5 w-28" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
           </div>
         </CardContent>

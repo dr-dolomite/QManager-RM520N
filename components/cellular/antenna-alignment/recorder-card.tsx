@@ -340,7 +340,6 @@ function PositionRow({
             warnAt={101}
             dangerAt={101}
             colorOverride={qualityMeterTone(quality)}
-            size="md"
             /* The winning row is `primary-container`, against which
                `surface-container-high` renders LIGHTER than its own ground — so
                the track read as a second, paler segment continuing past the end
