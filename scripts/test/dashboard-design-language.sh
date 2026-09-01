@@ -360,6 +360,293 @@ else
     fi
 fi
 
+# =============================================================================
+# SECTION 00 -- shapes module, page header, one clock, one heading
+# =============================================================================
+#
+# Step 00 is the pre-step: it does not touch card grammar, it lays the
+# foundation the other nine steps build on. Four things land in one commit:
+#
+#   1. components/dashboard/shapes.ts is MINTED -- modelled on
+#      components/local-network/ethernet/shapes.ts -- to hold every geometry
+#      constant this route needs. PillRow, a component currently declared
+#      inline in device-metrics.tsx, MOVES into it (not copied -- a copy would
+#      leave two definitions to drift).
+#
+#   2. components/dashboard/page-header.tsx is ADDED -- modelled on
+#      components/cellular/radio/page-header.tsx -- giving the route the h1 +
+#      description + rail-slot pattern every other route family already has.
+#      Two new i18n keys, dashboard:page.title and dashboard:page.description,
+#      land in all five locale packs.
+#
+#   3. home-component.tsx's five independent stagger containers COLLAPSE into
+#      ONE parent that declares initial="hidden" animate="visible" over five
+#      direct children. Nested containers keep their `variants` prop but must
+#      NOT declare their own initial/animate -- a nested container that still
+#      declares initial detaches itself from the parent clock and reintroduces
+#      the "several independent containers" defect step 00 exists to retire.
+#
+#   4. The "several independent containers" comment block is deleted along
+#      with the containers it was explaining.
+#
+# WHICH ASSERTION PINS WHAT
+#   [00-1] shapes.ts exists
+#   [00-2] each of the six contract exports is present, named individually so
+#          a partial mint is not read as a pass
+#   [00-3] PillRow is exported from shapes.ts
+#   [00-4] PillRow is no longer declared in device-metrics.tsx -- this is what
+#          turns [00-3] from "copied" into "moved"
+#   [00-5] CLOCK_TICK_MS is declared exactly once across components/dashboard/**
+#          -- today it is declared twice (live-latency.tsx, recent-activities.tsx)
+#          and step 00's shapes module is where the single source of truth goes
+#   [00-6] home-component.tsx declares initial="hidden" exactly once
+#   [00-7] no OTHER file under components/dashboard/** declares its own
+#          entrance initial -- the nested containers must inherit the parent
+#          clock, not run their own.
+#
+#          NARROWED BY THE ORCHESTRATOR before this section was committed, and
+#          the narrowing is the interesting part. The first draft banned every
+#          initial attribute on the surface, which caught two constructions the
+#          plan never asked for and which would break if they obeyed it:
+#
+#            recent-activities.tsx  Its two are event motion, not entrance
+#                                   motion -- variant names `pushed` and
+#                                   `settled`, driven by a row ARRIVING rather
+#                                   than by the page mounting. The file's own
+#                                   comment calls this "two entrances, never
+#                                   both". A page-wide clock has no opinion
+#                                   about an event that fires minutes later.
+#            speedtest-dialog.tsx   A portal. It mounts when the dialog opens,
+#                                   so it has no cascade parent to inherit
+#                                   `visible` from. Strip its initial and the
+#                                   dialog opens with no entrance at all.
+#
+#          So the assertion matches the entrance spelling specifically and
+#          exempts the dialog. What remains is exactly the five row groups the
+#          plan names: network-status x2, device-status, device-metrics,
+#          signal-status-card.
+#   [00-8] exactly one <h1 across app/dashboard/page.tsx,
+#          components/dashboard/home-component.tsx and
+#          components/dashboard/page-header.tsx combined
+#   [00-9] components/dashboard/page-header.tsx exists and renders an h1
+#   [00-10] components/dashboard/page-header.tsx renders a description element
+#           (a second text node beneath the h1, not just the heading alone)
+#   [00-11] the page.title / page.description keys exist in the dashboard
+#           namespace of all five locale packs (en, zh-CN, zh-TW, it, id)
+#
+# SCOPINGS, stated openly so they are not mistaken for a weakened test
+# ---------------------------------------------------------------------
+#  [00-5] [00-7] are checked against comment-stripped source, same rationale
+#         as R0-6: a JSDoc explaining why a value moved necessarily quotes the
+#         old spelling, and failing on a comment would push the author to
+#         delete the most useful sentence in the file.
+#  [00-11] does not shell out to `bun run i18n:check` -- that command's own
+#          green run is part of the approved contract but belongs to Phase 5
+#          validation, not this harness. This assertion checks the two keys
+#          directly so the harness stays self-contained and fast.
+#  [00-11] locale JSON files on this repo are CRLF. The key search tolerates a
+#          trailing carriage return rather than requiring one.
+#
+# Run: bash scripts/test/dashboard-design-language.sh
+# =============================================================================
+
+DASHBOARD="$COMPONENTS/dashboard"
+SHAPES_00="$DASHBOARD/shapes.ts"
+HOME_00="$DASHBOARD/home-component.tsx"
+DEVICE_METRICS_00="$DASHBOARD/device-metrics.tsx"
+PAGE_HEADER_00="$DASHBOARD/page-header.tsx"
+APP_PAGE_00="$REPO_ROOT/app/dashboard/page.tsx"
+LOCALES_ROOT="$REPO_ROOT/public/locales"
+
+printf '\n=============================================================\n'
+printf 'SECTION 00 -- shapes module, page header, one clock, one heading\n'
+printf '=============================================================\n'
+
+# -----------------------------------------------------------------------------
+printf '\n[00-1] components/dashboard/shapes.ts exists\n'
+if [ -f "$SHAPES_00" ]; then
+    ok "shapes.ts exists"
+else
+    bad "missing: components/dashboard/shapes.ts"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-2] the six contract exports are present in shapes.ts\n'
+# Named individually rather than lumped so a partial mint is diagnosable from
+# the harness output alone -- the reader should not have to open the file to
+# learn which export is missing.
+if [ ! -f "$SHAPES_00" ]; then
+    bad "shapes.ts is missing -- cannot check exports"
+else
+    shapes_stripped="$TMPD/shapes.stripped"
+    strip_comments "$SHAPES_00" > "$shapes_stripped"
+    for member in CARD_SHELL HERO_SHELL ROW TILE LANE CLOCK_TICK_MS; do
+        if grep -qE "export (const|function) $member\b" "$shapes_stripped"; then
+            ok "shapes.ts exports $member"
+        else
+            bad "shapes.ts does not export $member"
+        fi
+    done
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-3] PillRow is exported from shapes.ts\n'
+if [ ! -f "$SHAPES_00" ]; then
+    bad "shapes.ts is missing -- cannot check PillRow export"
+elif grep -qE 'export (const|function) PillRow\b' "$TMPD/shapes.stripped"; then
+    ok "PillRow is exported from shapes.ts"
+else
+    bad "PillRow is not exported from shapes.ts"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-4] PillRow is no longer declared in device-metrics.tsx\n'
+# Pins the MOVE, not a copy: [00-3] alone would pass if PillRow were merely
+# duplicated into shapes.ts while the original definition stayed behind.
+if [ ! -f "$DEVICE_METRICS_00" ]; then
+    bad "missing: components/dashboard/device-metrics.tsx"
+else
+    if strip_comments "$DEVICE_METRICS_00" | grep -qE '(function|const) PillRow\b'; then
+        bad "device-metrics.tsx still declares PillRow -- it should import it from shapes.ts"
+    else
+        ok "device-metrics.tsx no longer declares PillRow"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-5] CLOCK_TICK_MS is declared exactly once across components/dashboard/**\n'
+# Today it is declared twice, independently, in live-latency.tsx and
+# recent-activities.tsx. Step 00 gives it one home in shapes.ts; the other two
+# sites must import it, not keep their own copy.
+if [ -d "$DASHBOARD" ]; then
+    decl_count=0
+    decl_locs=""
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        n=$(strip_comments "$file" | grep -cE '^\s*(export\s+)?const\s+CLOCK_TICK_MS\b')
+        if [ "$n" -gt 0 ]; then
+            decl_count=$((decl_count + n))
+            decl_locs="$decl_locs ${file#"$REPO_ROOT/"}"
+        fi
+    done <<< "$(grep -rl 'CLOCK_TICK_MS' "$DASHBOARD" --include='*.ts' --include='*.tsx' 2>/dev/null)"
+    if [ "$decl_count" -eq 1 ]; then
+        ok "CLOCK_TICK_MS is declared exactly once ($decl_locs)"
+    else
+        bad "CLOCK_TICK_MS is declared $decl_count times, expected 1 ($decl_locs)"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-6] home-component.tsx declares initial="hidden" exactly once\n'
+if [ ! -f "$HOME_00" ]; then
+    bad "missing: components/dashboard/home-component.tsx"
+else
+    n=$(strip_comments "$HOME_00" | grep -cE 'initial="hidden"')
+    if [ "$n" -eq 1 ]; then
+        ok "home-component.tsx declares initial=hidden exactly once"
+    else
+        bad "home-component.tsx declares initial=hidden $n times, expected 1"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-7] no nested dashboard container declares its own entrance initial\n'
+# A nested stagger container keeps its `variants` prop but must not declare an
+# entrance initial of its own -- doing so detaches it from the parent clock,
+# which is exactly the "several independent containers" defect this step
+# retires.
+#
+# Matches the ENTRANCE spelling only, and exempts the speedtest dialog. See the
+# section header for why both narrowings are load-bearing rather than leniency:
+# recent-activities keeps event motion on its own variant names, and a portal
+# has no cascade parent to inherit from.
+if [ -d "$DASHBOARD" ]; then
+    stray=0
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        base="$(basename "$file")"
+        [ "$base" = "home-component.tsx" ] && continue
+        [ "$base" = "speedtest-dialog.tsx" ] && continue
+        n=$(strip_comments "$file" | grep -cE '(^|[[:space:]])initial="hidden"')
+        if [ "$n" -gt 0 ]; then
+            bad "$base declares its own entrance initial ($n occurrence(s)) -- it should inherit the parent clock"
+            stray=1
+        fi
+    done <<< "$(grep -rl 'initial=' "$DASHBOARD" --include='*.tsx' 2>/dev/null)"
+    [ "$stray" -eq 0 ] && ok "every nested container inherits home-component.tsx's clock"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-8] exactly one <h1 across the dashboard route\n'
+h1_total=0
+h1_locs=""
+for f in "$APP_PAGE_00" "$HOME_00" "$PAGE_HEADER_00"; do
+    [ -f "$f" ] || continue
+    n=$(strip_comments "$f" | grep -cE '<h1\b')
+    if [ "$n" -gt 0 ]; then
+        h1_total=$((h1_total + n))
+        h1_locs="$h1_locs ${f#"$REPO_ROOT/"}(=$n)"
+    fi
+done
+if [ "$h1_total" -eq 1 ]; then
+    ok "exactly one <h1 across the dashboard route ($h1_locs)"
+else
+    bad "found $h1_total <h1 elements across the dashboard route, expected 1 ($h1_locs)"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-9] components/dashboard/page-header.tsx exists and renders an h1\n'
+if [ ! -f "$PAGE_HEADER_00" ]; then
+    bad "missing: components/dashboard/page-header.tsx"
+else
+    ok "page-header.tsx exists"
+    if strip_comments "$PAGE_HEADER_00" | grep -qE '<h1\b'; then
+        ok "page-header.tsx renders an h1"
+    else
+        bad "page-header.tsx does not render an h1"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-10] components/dashboard/page-header.tsx renders a description\n'
+# Looks for a second text-bearing element after the h1 -- a description with
+# no heading beside it is not the page-header pattern this step is adopting.
+if [ ! -f "$PAGE_HEADER_00" ]; then
+    bad "missing: components/dashboard/page-header.tsx -- cannot check description"
+else
+    stripped_ph=$(strip_comments "$PAGE_HEADER_00")
+    if printf '%s\n' "$stripped_ph" | grep -qE '<(p|span|div)\b[^>]*>\s*\{?\s*t\('; then
+        ok "page-header.tsx renders a translated description element"
+    elif printf '%s\n' "$stripped_ph" | grep -qE '<(p|span)\b'; then
+        ok "page-header.tsx renders a description element"
+    else
+        bad "page-header.tsx does not render a description element beneath the h1"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[00-11] page.title / page.description exist in dashboard.json for all five locales\n'
+# Locale packs on this repo are CRLF -- the trailing carriage return is
+# tolerated rather than required so the assertion survives either ending.
+for loc in en zh-CN zh-TW it id; do
+    locale_file="$LOCALES_ROOT/$loc/dashboard.json"
+    if [ ! -f "$locale_file" ]; then
+        bad "missing locale file: public/locales/$loc/dashboard.json"
+        continue
+    fi
+    if grep -qE '"title"[[:space:]]*:' "$locale_file" && \
+       grep -A3 '"page"[[:space:]]*:' "$locale_file" | grep -qE '"title"[[:space:]]*:'; then
+        ok "$loc dashboard.json has page.title"
+    else
+        bad "$loc dashboard.json is missing page.title under a \"page\" section"
+    fi
+    if grep -A4 '"page"[[:space:]]*:' "$locale_file" | grep -qE '"description"[[:space:]]*:'; then
+        ok "$loc dashboard.json has page.description"
+    else
+        bad "$loc dashboard.json is missing page.description under a \"page\" section"
+    fi
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
