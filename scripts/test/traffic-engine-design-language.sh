@@ -118,6 +118,7 @@ RETIRED=(
     "$TE_DIR/cdn-hostlist-card.tsx"
     "$TE_DIR/video-optimizer-panel.tsx"
     "$TE_DIR/masquerade-panel.tsx"
+    "$TE_DIR/full-bypass-panel.tsx"
     "$TE_DIR/result-alert.tsx"
     "$TE_DIR/force-tcp-tile.tsx"
     "$TE_DIR/engine-onboarding.tsx"
@@ -313,10 +314,10 @@ printf '\n[6] Call A: a control that cannot work explains why\n'
 # Finding 17. Switching to Masquerade unmounts the target editor with its tab.
 # The saved list still exists and applies again on switching back; the UI's only
 # statement about it is its absence. The State-Honesty Rule asks for a sentence.
-if grep -qE 'idle|unavailable|not_in_use|masquerade' "$TMPD/targets.code"; then
-    ok "targets-card knows about the masquerade case"
+if grep -qE 'idle|unavailable|not_in_use|full_bypass' "$TMPD/targets.code"; then
+    ok "targets-card knows about the full-bypass case"
 else
-    bad "targets-card has no masquerade branch -- it can only disappear"
+    bad "targets-card has no full_bypass branch -- it can only disappear"
 fi
 if grep -qE 'trafficEngine\.targets\.(idle|masq)' "$TMPD/targets.code"; then
     ok "targets-card renders a translated explanation for the idle case"
@@ -517,7 +518,11 @@ else
             const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
             const te = j.trafficEngine || {};
             const out = [];
-            if (te.masquerade !== undefined && Object.keys(te.masquerade || {}).length === 0) out.push("masquerade:{}");
+            // Renamed with the mode (2026-09-01): the dead empty subtree this
+            // pins is now `trafficEngine.full_bypass`. The finding is the same
+            // one -- an empty namespace nothing reads -- only its name moved.
+            if (te.full_bypass !== undefined && Object.keys(te.full_bypass || {}).length === 0) out.push("full_bypass:{}");
+            if (te.masquerade !== undefined) out.push("masquerade (retired namespace)");
             if (te.status && te.status.sni !== undefined) out.push("status.sni");
             process.stdout.write(out.join(","));
         ' "$f" 2>/dev/null)
@@ -689,7 +694,7 @@ fi
 # =============================================================================
 
 VO_HOOK="$REPO_ROOT/hooks/use-video-optimizer.ts"
-TM_HOOK="$REPO_ROOT/hooks/use-traffic-masquerade.ts"
+TM_HOOK="$REPO_ROOT/hooks/use-full-bypass.ts"
 HL_HOOK="$REPO_ROOT/hooks/use-cdn-hostlist.ts"
 for pair in "vohook:$VO_HOOK" "tmhook:$TM_HOOK" "hlhook:$HL_HOOK"; do
     name="${pair%%:*}"; path="${pair#*:}"
@@ -712,7 +717,7 @@ fi
 # The parameter has to exist in the TYPE, not only at the call site: both hooks
 # publish `refresh` through an exported interface, and a bare no-argument
 # signature there makes the call above a type error rather than a fix.
-for pair in "use-video-optimizer:vohook" "use-traffic-masquerade:tmhook"; do
+for pair in "use-video-optimizer:vohook" "use-full-bypass:tmhook"; do
     label="${pair%%:*}"; key="${pair#*:}"
     if grep -qE 'refresh: *\(silent\?: *boolean\) *=>' "$TMPD/$key.code"; then
         ok "$label types refresh as accepting the silent flag"
@@ -1101,6 +1106,131 @@ else
             ok "$loc/common.json is still CRLF throughout"
         else
             bad "$loc/common.json has $lone bare newlines -- the pack was silently converted to LF"
+        fi
+    done
+fi
+
+# =============================================================================
+# [31] THE RENAME: "Traffic Masquerade" -> "Full Bypass"
+# =============================================================================
+# The name described a capability this platform does not have. On the RM551E,
+# nfqws rewrote the outgoing ClientHello's SNI to a spoofed identity, so the
+# mode genuinely masqueraded. The RM520N-GL runs tpws, which has no fake-SNI
+# mode at all -- it splits and reorders the connection's REAL ClientHello. The
+# mode never impersonated anything; it ran the same recipe unscoped. Users
+# reasonably went looking for what it was masquerading AS, and there was
+# nothing there.
+#
+# `masquerade` is a MODE DISCRIMINANT, not a label: dpi_active_mode() prints
+# it, dpi_build_args() cases on it, the CGI routes on it, DpiMode carries it,
+# and four components compare against it. So this section asserts across all
+# four layers -- a rename that lands in the UI and not in the shell leaves the
+# selector unable to select anything.
+#
+# The persisted-config half of the rename is pinned separately and
+# behaviourally by scripts/test/full-bypass-config-migration.sh. That is the
+# dangerous half (a silent state reset on every deployed device); this one is
+# the consistency half.
+#
+# COMMITTED RED, before the rename exists (change-workflow.md, Phase 4a).
+printf '\n[31] the rename lands in every layer, not just the label\n'
+
+# --- the frontend discriminant ---
+if grep -qE '"full_bypass"' "$TMPD/family.code" && grep -q '"full_bypass"' "$REPO_ROOT/types/traffic-engine.ts"; then
+    ok "DpiMode carries \"full_bypass\" and the family compares against it"
+else
+    bad "the family/DpiMode does not use \"full_bypass\" -- the mode discriminant was not renamed"
+fi
+if grep -qE '"masquerade"' "$TMPD/family.code" "$REPO_ROOT/types/traffic-engine.ts"; then
+    bad "the \"masquerade\" discriminant survives in the family or DpiMode -- two names for one mode"
+else
+    ok "no \"masquerade\" discriminant left in the family or DpiMode"
+fi
+if grep -qE 'MasqueradeStatus|MASQUERADE_SNI|useTrafficMasquerade' "$TMPD/family.code" "$REPO_ROOT/types/traffic-engine.ts"; then
+    bad "a Masquerade-named export is still referenced (MasqueradeStatus / MASQUERADE_SNI / useTrafficMasquerade)"
+else
+    ok "no Masquerade-named exports remain"
+fi
+
+# --- the hook file itself ---
+# Left in place it would be the single file in the tree still carrying the
+# retired name -- exactly the "two answers to one question" residue the RETIRED
+# list above exists to prevent.
+if [ -f "$REPO_ROOT/hooks/use-traffic-masquerade.ts" ]; then
+    bad "hooks/use-traffic-masquerade.ts still exists -- it is superseded by hooks/use-full-bypass.ts"
+else
+    ok "hooks/use-traffic-masquerade.ts is retired"
+fi
+if [ -f "$REPO_ROOT/hooks/use-full-bypass.ts" ]; then
+    ok "hooks/use-full-bypass.ts exists"
+else
+    bad "hooks/use-full-bypass.ts does not exist"
+fi
+
+# --- the backend discriminant and the wire contract ---
+DPI_STATE_SH="$REPO_ROOT/scripts/usr/lib/qmanager/dpi_state.sh"
+VO_CGI="$REPO_ROOT/scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh"
+if grep -qE '^[[:space:]]*echo "full_bypass"' "$DPI_STATE_SH" && grep -qE '^[[:space:]]*full_bypass\)' "$DPI_STATE_SH"; then
+    ok "dpi_active_mode prints full_bypass and dpi_build_args cases on it"
+else
+    bad "dpi_state.sh still speaks the old mode string -- the shell and the UI would disagree on what mode is running"
+fi
+if grep -qE 'qm_config_get[[:space:]]+traffic_masquerade' "$DPI_STATE_SH" "$VO_CGI" "$REPO_ROOT/scripts/usr/bin/qmanager_dpi_install"; then
+    bad "the backend still READS the traffic_masquerade config section"
+else
+    ok "no backend reads of the traffic_masquerade config section"
+fi
+if grep -qE 'save_full_bypass' "$VO_CGI"; then
+    ok "the CGI handles the save_full_bypass action"
+else
+    bad "the CGI has no save_full_bypass action"
+fi
+# The one-release deprecation alias, approved 2026-09-01. An OTA replaces the
+# CGI and the JS bundle together, so the DEVICE is never half-updated -- but a
+# browser tab left open across the OTA holds the old bundle and would POST
+# save_masquerade into a CGI that no longer knows it. Remove the alias, and
+# this assertion, one release after the rename ships.
+if grep -qE 'save_masquerade' "$VO_CGI"; then
+    ok "the CGI still accepts save_masquerade as a deprecated alias (stale-tab safety)"
+else
+    bad "no save_masquerade alias -- a browser tab open across the OTA gets unknown_action"
+fi
+
+# --- i18n: the keys moved AND the copy was really re-translated ---
+if [ -z "$node_bin" ]; then
+    bad "neither bun nor node on PATH -- cannot check the renamed locale keys"
+else
+    # Each locale's own word for the retired mode. The targets-card idle copy
+    # names the mode in prose, so a pack that only had its KEYS renamed still
+    # tells the user about a mode that no longer exists. This is the assertion
+    # that makes a copy-paste of the English string insufficient.
+    for spec in "en:Masquerade" "zh-CN:伪装" "zh-TW:偽裝" "it:Mascheramento" "id:Penyamaran"; do
+        loc="${spec%%:*}"; oldword="${spec#*:}"
+        f="$LOCALES/$loc/common.json"
+        if [ ! -f "$f" ]; then bad "missing locale pack: $loc/common.json"; continue; fi
+        res=$("$node_bin" -e '
+            const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const te = j.trafficEngine || {}, m = te.mode || {}, tg = te.targets || {};
+            const out = [];
+            for (const k of ["full_bypass", "full_bypass_hint", "toast_full_bypass"])
+                if (!m[k]) out.push("missing mode." + k);
+            for (const k of ["masquerade", "masquerade_hint", "toast_masquerade"])
+                if (m[k] !== undefined) out.push("stale mode." + k);
+            // Case-insensitively: the Italian body says "mascheramento" in
+            // lower case mid-sentence while its title capitalises it, and a
+            // case-sensitive match would pass the file with the retired name
+            // still in two of its three strings. toLowerCase is a no-op on the
+            // two CJK packs.
+            const old = process.argv[2].toLowerCase();
+            for (const k of ["idle_title", "idle_body", "idle_body_empty"])
+                if (typeof tg[k] === "string" && tg[k].toLowerCase().includes(old))
+                    out.push("targets." + k + " still says " + process.argv[2]);
+            process.stdout.write(out.join("; "));
+        ' "$f" "$oldword" 2>/dev/null)
+        if [ -n "$res" ]; then
+            bad "$loc/common.json: $res"
+        else
+            ok "$loc/common.json: mode keys renamed and the idle copy re-translated"
         fi
     done
 fi
