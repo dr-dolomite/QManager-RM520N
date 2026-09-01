@@ -6,21 +6,80 @@
 # All consumers (poller, watchcat, frontend) read from this daemon's output.
 # This daemon NEVER touches the modem serial port.
 #
-# Probing is ICMP (iputils ping on RM520N-GL) — NOT HTTP. Each cycle probes
-# IPv4 first (target_ipv4, default 1.1.1.1) and, only if that fails, falls
-# back to IPv6 (target_ipv6, default 2606:4700:4700::1111). A probe succeeds
-# when a numeric round-trip time > 0 is parsed from the ping output
-# ("round-trip min/avg/max = a/b/c" or the iputils "rtt min/avg/max/mdev =
-# a/b/c/d" summary line — the grep below only pulls the first 3 numbers,
+# THE QUESTION THIS DAEMON ANSWERS
+# --------------------------------
+#   "There is signal and the network is registered, but is there an internet
+#    connection?"
+#
+# The verdict is BINARY: reachable, or not. There is no captive-portal state,
+# no auth-gateway state, no carrier-intercept classification and no
+# reason-for-failure field. Two consequences are accepted and documented, not
+# fixed: DNS is part of the verdict (no resolution, no internet), and a
+# DNS-hijacking captive portal that answers ICMP reads as connected.
+#
+# THE PROBE CHAIN
+# ---------------
+# Probing is ICMP (iputils ping on both supported devices) — NOT HTTP. Each
+# cycle walks four legs in a fixed order and SHORT-CIRCUITS on the first
+# success:
+#
+#   1. target_host_1  (default cloudflare.com)  hostname — the RESOLVER picks
+#   2. target_host_2  (default google.com)      the address family, not a
+#                                               config slot
+#   3. target_ip_1    (default 1.1.1.1)         IPv4 literal, DNS-independent
+#   4. target_ip_2    (default 8.8.8.8)         IPv4 literal, DNS-independent
+#
+# The two literal legs run whenever BOTH hostname legs fail, for ANY reason —
+# they are deliberately NOT gated on a resolution-specific failure. A hostname
+# leg can fail without DNS being at fault, telling the two apart means parsing
+# stderr prose, and the total cost is bounded by the per-leg deadline anyway.
+#
+# A probe succeeds when a numeric round-trip time > 0 is parsed from the ping
+# output ("round-trip min/avg/max = a/b/c" or the iputils "rtt min/avg/max/mdev
+# = a/b/c/d" summary line — the grep below only pulls the first 3 numbers,
 # a/b/c, so both formats parse the same way). 100% packet loss yields no
 # round-trip line, hence no rtt, hence a probe failure — the fail-safe.
+# Reachability requires ONE leg to answer; failure requires ALL FOUR to fail.
 #
-# The v4-primary / v6-fallback ordering is the false-positive fix: on an
-# IPv6-only bearer the v4 probe fails fast and the v6 probe succeeds, so
-# `reachable` stays true.
+# THE CYCLE BUDGET
+# ----------------
+# Two mechanisms keep a four-leg chain from outrunning its consumers:
+#
+#   * Per-leg deadline. Every leg runs under `timeout $PROBE_DEADLINE ping -c1
+#     -W $PROBE_TIMEOUT`, with PROBE_DEADLINE = PROBE_TIMEOUT + 1 (the +1 is
+#     the resolution allowance). The POSITIONAL timeout form is the only one
+#     both devices have, and its exit status differs between them, so failure
+#     is tested as NON-ZERO and never as a literal code.
+#   * Fixed-rate loop. The tail sleep is (interval_sec − elapsed), floored at
+#     1 — not a flat `sleep interval` after the work. The cycle PERIOD
+#     therefore equals interval_sec whenever the chain fits inside it.
+#
+# The invariant the consumers depend on:
+#
+#     n_targets * (PROBE_TIMEOUT + 1)  <  stale_floor
+#             4 * 3                    =  12  <  15
+#
+# where stale_floor is the max(3 * interval_sec, 15) staleness threshold the
+# poller and the watchdog each derive for themselves. If a worst-case chain
+# ever exceeded it, an outage would make this cache look STALE — the verdict
+# would read "unknown" instead of "disconnected", and the internet_lost alert
+# would be swallowed by exactly the outage it exists to report.
+#
+# THE DEBOUNCE IS WALL-CLOCK
+# --------------------------
+# fail_secs / recover_secs are presented to the user as SECONDS, so the
+# `reachable` flip is driven by accumulated MONOTONIC SECONDS, not by a count
+# of cycles. The old cycle-count thresholds are deleted outright rather than
+# renamed: a stale reader must break loudly instead of silently changing what a
+# number means. streak_success / streak_fail stay plain COUNTS — the watchdog
+# reads them and that contract is unchanged.
 #
 # Output: /tmp/qmanager_ping.json (atomic writes, slim — no stats/history)
 # History: /tmp/qmanager_ping_history (flat-file ring buffer, read by poller)
+#
+# The history file is TRUNCATED whenever the winning target changes, so a
+# switch renders as a GAP in the latency chart rather than a phantom latency
+# step, and jitter is only ever computed across one host.
 #
 # Stats (avg/min/max/jitter/loss) and history JSON array are computed by the
 # poller in a single awk pass over the raw history file — not here.
@@ -34,16 +93,22 @@
 # RM520N-GL/vanilla Linux, not OpenWRT). Keys:
 #   profile        — sensitive | regular | relaxed | quiet (daemon owns the
 #                    interval/fail/recover table below; CGI only writes the name)
-#   target_ipv4    — ICMP host probed first (default 1.1.1.1)
-#   target_ipv6    — ICMP host probed as fallback (default 2606:4700:4700::1111)
+#   target_host_1  — first hostname leg  (default cloudflare.com)
+#   target_host_2  — second hostname leg (default google.com)
+#   target_ip_1    — first IPv4 literal leg  (default 1.1.1.1)
+#   target_ip_2    — second IPv4 literal leg (default 8.8.8.8)
 #   interval_sec, fail_secs, recover_secs, history_secs — optional per-field
 #                    overrides on top of the profile table. interval_sec in
 #                    particular is Watchdog-owned (Connection Quality "Probe
 #                    Targets" cadence writes here) — read directly, never
 #                    reinvented as a separate "interval_override" key.
 #
+# Every one of the four target keys is defaulted INDEPENDENTLY, so a device
+# that somehow never ran the installer's migration probes CORRECTLY rather
+# than merely not crashing.
+#
 # Install location: /usr/bin/qmanager_ping
-# Dependencies: iputils ping (+ ping -6/ping6), jq, awk, grep, cut, date, tail, mv
+# Dependencies: iputils ping, timeout, jq, awk, grep, cut, date, tail, mv
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
@@ -76,24 +141,25 @@ fi
 # the installer at scripts/etc/qmanager/ping_profile.json). These are
 # fallbacks only; load_config() below re-reads the JSON at startup and on
 # every reload-flag trip. The active profile name drives interval + fail/
-# recover thresholds via resolve_profile(); per-field JSON keys
+# recover SECONDS via resolve_profile(); per-field JSON keys
 # (interval_sec/fail_secs/recover_secs/history_secs) override the profile
-# table when present — this mirrors the resolution order the previous Rust
-# daemon used (profile table, then JSON field overrides).
+# table when present.
 PING_PROFILE="${PING_PROFILE:-relaxed}"
-PING_TARGET_IPV4="${PING_TARGET_IPV4:-1.1.1.1}"
-PING_TARGET_IPV6="${PING_TARGET_IPV6:-2606:4700:4700::1111}"
+DEFAULT_HOST_1="cloudflare.com"
+DEFAULT_HOST_2="google.com"
+DEFAULT_IP_1="1.1.1.1"
+DEFAULT_IP_2="8.8.8.8"
+PING_TARGET_HOST_1="$DEFAULT_HOST_1"
+PING_TARGET_HOST_2="$DEFAULT_HOST_2"
+PING_TARGET_IP_1="$DEFAULT_IP_1"
+PING_TARGET_IP_2="$DEFAULT_IP_2"
 PING_INTERVAL="${PING_INTERVAL:-5}"
-FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
-RECOVER_THRESHOLD="${RECOVER_THRESHOLD:-2}"
+FAIL_SECS=15               # wall-clock seconds of failure before reachable=false
+RECOVER_SECS=10            # wall-clock seconds of success before reachable=true
 HISTORY_SIZE="${HISTORY_SIZE:-60}"
 PROBE_COUNT=1              # ping -c : ICMP echo requests per probe
 PROBE_TIMEOUT=2            # ping -W : per-probe wait
-
-# IPv6 ping invocation, detected once at startup via detect_ping6().
-# Empty string = IPv6 probing unavailable on this build (v4-only fallback off).
-PING6_CMD=""
-PING6_WARNED=0             # warn-once guard for "IPv6 unavailable"
+PROBE_DEADLINE=3           # timeout : per-leg hard deadline = PROBE_TIMEOUT + 1
 
 # --- File Paths --------------------------------------------------------------
 CONFIG_FILE="${CONFIG_FILE:-/etc/qmanager/ping_profile.json}"
@@ -105,18 +171,29 @@ RELOAD_FLAG="/tmp/qmanager_ping_reload"
 PID_FILE="/tmp/qmanager_ping.pid"
 
 # --- State Variables ---------------------------------------------------------
-streak_success=0
-streak_fail=0
+streak_success=0        # COUNT of consecutive successful cycles (watchdog reads it)
+streak_fail=0           # COUNT of consecutive failed cycles (watchdog reads it)
 reachable="true"
-prev_reachable="true"
-last_family="none"     # ipv4 | ipv6 | none — which family answered last cycle
-history_count=0        # tracked in shell — avoids wc -l fork every cycle
+last_family="none"      # ipv4 | ipv6 | none — which family answered last cycle
+last_target=""          # the exact target string that produced last_rtt_ms
+prev_winner=""          # last NON-EMPTY winner, for target-switch detection
+history_count=0         # tracked in shell — avoids wc -l fork every cycle
+
+# Wall-clock debounce accumulators, in monotonic seconds. fail_elapsed_sec is
+# emitted; recover_elapsed_sec is internal. Both are "seconds since the first
+# cycle of the current run of failures / successes", 0 when not in that run.
+fail_elapsed_sec=0
+recover_elapsed_sec=0
+_fail_since=0           # mono timestamp of the first failure of this run, 0 = none
+_recover_since=0        # mono timestamp of the first success of this run, 0 = none
 
 # =============================================================================
 # HELPERS
 # =============================================================================
 
 # --- Ceil division: ceil(a/b) using POSIX integer math, minimum result 1 ----
+# Survives ONLY for HISTORY_SIZE. The fail/recover thresholds are wall-clock
+# seconds now and are never divided by the interval.
 ceil_div_min1() {
     _n=$(( ($1 + $2 - 1) / $2 ))
     [ "$_n" -lt 1 ] && _n=1
@@ -127,9 +204,9 @@ ceil_div_min1() {
 # Table (seconds): sensitive 1/6/3/300 · regular 2/10/6/300 ·
 # relaxed 5/15/10/300 · quiet 10/30/20/600 (interval/fail/recover/history).
 # The daemon owns this table; the JSON config only stores the profile NAME
-# plus optional per-field overrides. Thresholds are derived from seconds via
-# ceil(secs/interval) so changing the interval keeps time-to-fail /
-# time-to-recover stable.
+# plus optional per-field overrides. fail/recover are carried through as
+# SECONDS — they are compared against accumulated monotonic seconds, never
+# converted into a count of cycles.
 resolve_profile() {
     case "$PING_PROFILE" in
         sensitive) _interval=1;  _fail_secs=6;  _recover_secs=3;  _history_secs=300 ;;
@@ -152,46 +229,28 @@ resolve_profile() {
     [ "$_interval" -gt 0 ] 2>/dev/null || _interval=1
 
     PING_INTERVAL="$_interval"
-    FAIL_THRESHOLD=$(ceil_div_min1 "$_fail_secs" "$_interval")
-    RECOVER_THRESHOLD=$(ceil_div_min1 "$_recover_secs" "$_interval")
+    FAIL_SECS="$_fail_secs"
+    RECOVER_SECS="$_recover_secs"
     HISTORY_SIZE=$(ceil_div_min1 "$_history_secs" "$_interval")
 }
 
-# --- Detect a working IPv6 ping invocation (called once at startup) ----------
-# Prefer `ping -6` (modern iputils/BusyBox), then the `ping6` applet. Probe
-# ::1 (loopback, always answerable when the kernel has IPv6) so detection
-# never depends on the upstream bearer. Sets PING6_CMD; empty means IPv6
-# probing is unavailable.
-detect_ping6() {
-    if ping -6 -c 1 -W 1 ::1 >/dev/null 2>&1; then
-        PING6_CMD="ping -6"
-        return 0
-    fi
-    if command -v ping6 >/dev/null 2>&1 && ping6 -c 1 -W 1 ::1 >/dev/null 2>&1; then
-        PING6_CMD="ping6"
-        return 0
-    fi
-    PING6_CMD=""
-    if [ "$PING6_WARNED" = "0" ]; then
-        qlog_warn "IPv6 probing unavailable (no working ping -6 or ping6) — IPv4-only reachability"
-        PING6_WARNED=1
-    fi
-    return 1
-}
-
 # --- Load configuration from JSON and re-resolve the profile ----------------
-# Reads the profile name + the IPv4/IPv6 ICMP targets + optional per-field
-# overrides from /etc/qmanager/ping_profile.json, falling back to the
-# relaxed/Cloudflare defaults when a key is unset or the file is missing.
-# The legacy target_1/target_2 keys (old HTTP URLs) are deliberately NOT
-# read — the installer's migrate_ping_targets() reseeds target_ipv4/
-# target_ipv6 for any device upgrading from the HTTP-probe era. Then
-# resolves the profile to interval + thresholds. Safe to call at startup
-# and on reload.
+# Reads the profile name, the FOUR probe targets and the optional per-field
+# overrides from /etc/qmanager/ping_profile.json.
+#
+# Every target key is defaulted INDEPENDENTLY. That is deliberate belt and
+# braces: a device that somehow misses the installer's migrate_ping_targets()
+# still probes the four documented defaults correctly, rather than merely not
+# crashing. The legacy keys (the old HTTP target_1/target_2 URLs and the
+# two-slot ICMP pair that replaced them) are NOT read here — carrying a user's
+# customised value across is the migration's job, and doing it in both places
+# would make the migration untestable.
 load_config() {
     _profile=""
-    _t4=""
-    _t6=""
+    _h1=""
+    _h2=""
+    _i1=""
+    _i2=""
     JSON_INTERVAL_SEC=""
     JSON_FAIL_SECS=""
     JSON_RECOVER_SECS=""
@@ -199,8 +258,10 @@ load_config() {
 
     if [ -f "$CONFIG_FILE" ]; then
         _profile=$(jq -r '.profile // empty' "$CONFIG_FILE" 2>/dev/null)
-        _t4=$(jq -r '.target_ipv4 // empty' "$CONFIG_FILE" 2>/dev/null)
-        _t6=$(jq -r '.target_ipv6 // empty' "$CONFIG_FILE" 2>/dev/null)
+        _h1=$(jq -r '.target_host_1 // empty' "$CONFIG_FILE" 2>/dev/null)
+        _h2=$(jq -r '.target_host_2 // empty' "$CONFIG_FILE" 2>/dev/null)
+        _i1=$(jq -r '.target_ip_1 // empty' "$CONFIG_FILE" 2>/dev/null)
+        _i2=$(jq -r '.target_ip_2 // empty' "$CONFIG_FILE" 2>/dev/null)
         JSON_INTERVAL_SEC=$(jq -r '.interval_sec // empty' "$CONFIG_FILE" 2>/dev/null)
         JSON_FAIL_SECS=$(jq -r '.fail_secs // empty' "$CONFIG_FILE" 2>/dev/null)
         JSON_RECOVER_SECS=$(jq -r '.recover_secs // empty' "$CONFIG_FILE" 2>/dev/null)
@@ -209,12 +270,17 @@ load_config() {
 
     [ -n "$_profile" ] && PING_PROFILE="$_profile"
 
-    # Reset to the Cloudflare defaults first so a cleared config key reverts
-    # cleanly on reload rather than sticking from a prior load.
-    PING_TARGET_IPV4="1.1.1.1"
-    PING_TARGET_IPV6="2606:4700:4700::1111"
-    [ -n "$_t4" ] && PING_TARGET_IPV4="$_t4"
-    [ -n "$_t6" ] && PING_TARGET_IPV6="$_t6"
+    # Reset to the documented defaults first so a cleared config key reverts
+    # cleanly on reload rather than sticking from a prior load. Four separate
+    # assignments, one per slot — never a single all-or-nothing fallback.
+    PING_TARGET_HOST_1="$DEFAULT_HOST_1"
+    PING_TARGET_HOST_2="$DEFAULT_HOST_2"
+    PING_TARGET_IP_1="$DEFAULT_IP_1"
+    PING_TARGET_IP_2="$DEFAULT_IP_2"
+    [ -n "$_h1" ] && PING_TARGET_HOST_1="$_h1"
+    [ -n "$_h2" ] && PING_TARGET_HOST_2="$_h2"
+    [ -n "$_i1" ] && PING_TARGET_IP_1="$_i1"
+    [ -n "$_i2" ] && PING_TARGET_IP_2="$_i2"
 
     # Numeric overrides only — a non-numeric JSON value is treated as unset.
     case "$JSON_INTERVAL_SEC" in ''|*[!0-9]*) JSON_INTERVAL_SEC="" ;; esac
@@ -225,22 +291,33 @@ load_config() {
     resolve_profile
 }
 
-# --- Execute a single ICMP probe against a target ----------------------------
-# $1 = target host/literal, $2 = ping invocation ("ping", "ping -6", "ping6").
-# Runs `$cmd -c 1 -W 2 <target>`. Parses the average RTT from the summary
-# line ("min/avg/max[/mdev] = X/Y/Z[/W]", avg = 2nd field), falling back to a
-# per-packet "time=<n>" field. The rtt is formatted to 1 decimal via awk.
-# SUCCESS only when a numeric rtt > 0 is extracted — 100% loss produces no
-# round-trip line, so no rtt, so failure (the fail-safe). On success the rtt
-# is echoed to stdout and 0 returned; otherwise 1.
+# --- Execute a single ICMP probe against one target --------------------------
+# $1 = target host or IPv4 literal.
+#
+# Runs `timeout $PROBE_DEADLINE ping -c 1 -W $PROBE_TIMEOUT <target>`. The
+# positional timeout form is the only one that exists on both devices, and the
+# status it reports on expiry differs between them, so nothing here tests for a
+# specific exit code — a non-zero status simply means no rtt was parsed, which
+# is already the failure path.
+#
+# Parses the average RTT from the summary line ("min/avg/max[/mdev] = X/Y/Z[/W]",
+# avg = 2nd field), falling back to a per-packet "time=<n>" field. The rtt is
+# formatted to 1 decimal via awk. SUCCESS only when a numeric rtt > 0 is
+# extracted — 100% loss produces no round-trip line, so no rtt, so failure (the
+# fail-safe).
+#
+# Also sets PROBE_FAMILY from the resolved address iputils prints on its first
+# line ("PING cloudflare.com (104.16.132.229)"): a ':' in that address means
+# ipv6, anything else ipv4. Results travel via globals, not stdout, so they
+# survive into the caller — a command substitution would discard them.
+PROBE_RTT=""
+PROBE_FAMILY="none"
 do_ping_icmp() {
     target="$1"
-    cmd="$2"
+    PROBE_RTT=""
+    PROBE_FAMILY="none"
 
-    # $cmd is an internal, fixed invocation token ("ping" / "ping -6" /
-    # "ping6") — intentional word-split, not user input.
-    # shellcheck disable=SC2086
-    out=$($cmd -c "$PROBE_COUNT" -W "$PROBE_TIMEOUT" "$target" 2>/dev/null)
+    out=$(timeout "$PROBE_DEADLINE" ping -c "$PROBE_COUNT" -W "$PROBE_TIMEOUT" "$target" 2>/dev/null)
 
     # Preferred: average from the round-trip summary line (avg = 2nd of a/b/c).
     rtt=$(printf '%s\n' "$out" \
@@ -268,43 +345,53 @@ do_ping_icmp() {
     esac
     awk -v r="$rtt" 'BEGIN { exit (r > 0) ? 0 : 1 }' || return 1
 
-    echo "$rtt"
+    # Resolved address from the banner line: "PING <target> (<addr>) ...".
+    _addr=$(printf '%s\n' "$out" \
+        | grep -oE '\([0-9A-Fa-f:.]+\)' \
+        | head -n1 \
+        | tr -d '()')
+    case "$_addr" in
+        *:*) PROBE_FAMILY="ipv6" ;;
+        ?*)  PROBE_FAMILY="ipv4" ;;
+        *)   PROBE_FAMILY="ipv4" ;;
+    esac
+
+    PROBE_RTT="$rtt"
+    return 0
 }
 
-# --- Probe one cycle: IPv4 first, IPv6 fallback ------------------------------
-# Publishes the winning rtt into the PROBE_RTT global and sets last_family
-# ("ipv4"|"ipv6") on success, returning 0. On total failure clears PROBE_RTT,
-# sets last_family="none", and returns 1. Results travel via globals (not
-# stdout) so last_family persists into the main loop — a command-substitution
-# subshell would discard it. IPv6 is attempted only when PING6_CMD is
-# available and a v6 target is set; this either-family-up reachability is the
-# fix for v6-only false positives.
-PROBE_RTT=""
+# --- Probe one cycle: four legs in a fixed order, short-circuit on success ---
+# Walks target_host_1 → target_host_2 → target_ip_1 → target_ip_2 and stops at
+# the first leg that answers. On success sets PROBE_RTT, last_family and
+# last_target and returns 0; on total failure clears PROBE_RTT, sets
+# last_family="none", last_target="" and returns 1.
+#
+# The two literal legs are reached whenever BOTH hostname legs failed, for any
+# reason at all — no attempt is made to decide whether DNS specifically was to
+# blame.
 probe_cycle() {
-    rtt=$(do_ping_icmp "$PING_TARGET_IPV4" "ping")
-    if [ -n "$rtt" ]; then
-        last_family="ipv4"
-        PROBE_RTT="$rtt"
-        return 0
-    fi
-
-    if [ -n "$PING6_CMD" ] && [ -n "$PING_TARGET_IPV6" ]; then
-        rtt=$(do_ping_icmp "$PING_TARGET_IPV6" "$PING6_CMD")
-        if [ -n "$rtt" ]; then
-            last_family="ipv6"
-            PROBE_RTT="$rtt"
+    for _t in "$PING_TARGET_HOST_1" "$PING_TARGET_HOST_2" \
+              "$PING_TARGET_IP_1" "$PING_TARGET_IP_2"; do
+        [ -n "$_t" ] || continue
+        if do_ping_icmp "$_t"; then
+            last_family="$PROBE_FAMILY"
+            last_target="$_t"
             return 0
         fi
-    fi
+    done
 
     last_family="none"
+    last_target=""
     PROBE_RTT=""
     return 1
 }
 
 # --- Write slim JSON cache atomically ----------------------------------------
-# Keys: timestamp, mono, profile, targets, interval_sec, last_rtt_ms, reachable,
-# streak_success, streak_fail, during_recovery, last_family. Stats (avg/min/max/
+# Exactly THIRTEEN keys, one `jq -n` object literal, no conditional branches:
+#   timestamp mono profile targets interval_sec last_rtt_ms reachable
+#   streak_success streak_fail during_recovery last_family last_target
+#   fail_elapsed_sec
+# `targets` is the four configured slots IN PROBE ORDER. Stats (avg/min/max/
 # jitter/loss) and the history array are computed by the poller, not here.
 write_cache() {
     rtt="$1"      # "34.2" or "null"
@@ -319,8 +406,10 @@ write_cache() {
         --argjson timestamp "$timestamp" \
         --argjson mono "$mono" \
         --arg profile "$PING_PROFILE" \
-        --arg target4 "$PING_TARGET_IPV4" \
-        --arg target6 "$PING_TARGET_IPV6" \
+        --arg host1 "$PING_TARGET_HOST_1" \
+        --arg host2 "$PING_TARGET_HOST_2" \
+        --arg ip1 "$PING_TARGET_IP_1" \
+        --arg ip2 "$PING_TARGET_IP_2" \
         --argjson interval "$PING_INTERVAL" \
         --argjson last_rtt "$rtt" \
         --argjson reachable "$reachable" \
@@ -328,18 +417,22 @@ write_cache() {
         --argjson streak_f "$streak_fail" \
         --argjson during_rec "$during_recovery" \
         --arg last_family "$last_family" \
+        --arg last_target "$last_target" \
+        --argjson fail_elapsed "$fail_elapsed_sec" \
         '{
             timestamp: $timestamp,
             mono: $mono,
             profile: $profile,
-            targets: [$target4, $target6],
+            targets: [$host1, $host2, $ip1, $ip2],
             interval_sec: $interval,
             last_rtt_ms: $last_rtt,
             reachable: $reachable,
             streak_success: $streak_s,
             streak_fail: $streak_f,
             during_recovery: $during_rec,
-            last_family: $last_family
+            last_family: $last_family,
+            last_target: $last_target,
+            fail_elapsed_sec: $fail_elapsed
         }' > "$CACHE_TMP"
 
     mv "$CACHE_TMP" "$CACHE_FILE"
@@ -373,18 +466,16 @@ main() {
     trap 'rm -f "$PID_FILE" "$CACHE_TMP"' EXIT
     trap 'rm -f "$PID_FILE" "$CACHE_TMP"; exit' INT TERM
 
-    # Load profile + targets from JSON (resolves interval/thresholds), then
-    # detect the IPv6 ping invocation once (cheap loopback probe).
+    # Load profile + the four targets from JSON (resolves interval + the
+    # wall-clock fail/recover windows).
     load_config
-    detect_ping6
 
     qlog_info "========================================"
     qlog_info "QManager Ping Daemon starting (PID $$)"
     qlog_info "Profile: ${PING_PROFILE}"
-    qlog_info "Targets: v4=${PING_TARGET_IPV4} v6=${PING_TARGET_IPV6}"
-    qlog_info "IPv6 probe: ${PING6_CMD:-unavailable}"
-    qlog_info "Interval: ${PING_INTERVAL}s, Fail threshold: ${FAIL_THRESHOLD}, Recover threshold: ${RECOVER_THRESHOLD}"
-    qlog_info "History size: ${HISTORY_SIZE}, Probe count: ${PROBE_COUNT}, Probe timeout: ${PROBE_TIMEOUT}s"
+    qlog_info "Chain: ${PING_TARGET_HOST_1} -> ${PING_TARGET_HOST_2} -> ${PING_TARGET_IP_1} -> ${PING_TARGET_IP_2}"
+    qlog_info "Interval: ${PING_INTERVAL}s, Fail after: ${FAIL_SECS}s, Recover after: ${RECOVER_SECS}s"
+    qlog_info "History size: ${HISTORY_SIZE}, Probe count: ${PROBE_COUNT}, Probe timeout: ${PROBE_TIMEOUT}s, Leg deadline: ${PROBE_DEADLINE}s"
     qlog_info "========================================"
 
     # Clean up stale files from previous run
@@ -393,14 +484,15 @@ main() {
     history_count=0
 
     while true; do
+        cycle_start=$(mono_now)
+
         # Live reload: re-read the JSON config (profile/targets/thresholds)
         # within one cycle when the CGI drops the flag, then clear it. No
         # systemd restart needed.
         if [ -f "$RELOAD_FLAG" ]; then
             load_config
-            detect_ping6
             rm -f "$RELOAD_FLAG"
-            qlog_info "Reloaded config: profile=${PING_PROFILE} interval=${PING_INTERVAL}s fail=${FAIL_THRESHOLD} recover=${RECOVER_THRESHOLD} v4=${PING_TARGET_IPV4} v6=${PING_TARGET_IPV6} ping6=${PING6_CMD:-none}"
+            qlog_info "Reloaded config: profile=${PING_PROFILE} interval=${PING_INTERVAL}s fail=${FAIL_SECS}s recover=${RECOVER_SECS}s chain=${PING_TARGET_HOST_1},${PING_TARGET_HOST_2},${PING_TARGET_IP_1},${PING_TARGET_IP_2}"
         fi
 
         if probe_cycle; then
@@ -409,36 +501,71 @@ main() {
             rtt=""
         fi
 
+        now_mono=$(mono_now)
+
         if [ -n "$rtt" ]; then
-            # --- Ping succeeded ---
+            # --- Some leg answered ---
             streak_success=$((streak_success + 1))
             streak_fail=0
 
-            qlog_debug "PING OK: family=${last_family} rtt=${rtt}ms (streak_success=${streak_success})"
+            # Wall-clock accumulators: the failing run is over, the
+            # succeeding run started at the first success of this run.
+            _fail_since=0
+            fail_elapsed_sec=0
+            if [ "$_recover_since" -eq 0 ] 2>/dev/null; then
+                _recover_since="$now_mono"
+            fi
+            recover_elapsed_sec=$((now_mono - _recover_since))
+            [ "$recover_elapsed_sec" -lt 0 ] && recover_elapsed_sec=0
 
-            # Flip reachable back to true after sustained success
-            if [ "$reachable" = "false" ] && [ "$streak_success" -ge "$RECOVER_THRESHOLD" ]; then
-                prev_reachable="$reachable"
+            qlog_debug "PING OK: target=${last_target} family=${last_family} rtt=${rtt}ms (streak_success=${streak_success})"
+
+            # Flip reachable back to true after RECOVER_SECS of sustained
+            # success, measured in seconds and not in cycles.
+            if [ "$reachable" = "false" ] && [ "$recover_elapsed_sec" -ge "$RECOVER_SECS" ]; then
                 reachable="true"
                 qlog_state_change "reachable" "false" "true"
             fi
 
+            # Latency history belongs to ONE host: when the winning target
+            # changes, the samples taken against the previous one are dropped
+            # so the chart draws a gap rather than a phantom latency step and
+            # jitter is never computed across two hosts.
+            if [ -n "$prev_winner" ] && [ "$last_target" != "$prev_winner" ]; then
+                qlog_info "Probe winner changed ${prev_winner} -> ${last_target}, truncating latency history"
+                : > "$HISTORY_FILE"
+                history_count=0
+            fi
+            prev_winner="$last_target"
+
             # Append to history ring buffer
             echo "$rtt" >> "$HISTORY_FILE"
         else
-            # --- Ping failed (both families) ---
+            # --- All four legs failed ---
             rtt="null"
             streak_fail=$((streak_fail + 1))
             streak_success=0
 
-            qlog_debug "PING FAIL: both families unreachable (streak_fail=${streak_fail})"
+            # Wall-clock accumulators: the succeeding run is over, the failing
+            # run started at the first failure of this run. prev_winner is
+            # deliberately NOT cleared — a total outage is a gap in the same
+            # host's series, not a switch to a different one.
+            _recover_since=0
+            recover_elapsed_sec=0
+            if [ "$_fail_since" -eq 0 ] 2>/dev/null; then
+                _fail_since="$now_mono"
+            fi
+            fail_elapsed_sec=$((now_mono - _fail_since))
+            [ "$fail_elapsed_sec" -lt 0 ] && fail_elapsed_sec=0
 
-            # Only mark unreachable after sustained failure
-            if [ "$reachable" = "true" ] && [ "$streak_fail" -ge "$FAIL_THRESHOLD" ]; then
-                prev_reachable="$reachable"
+            qlog_debug "PING FAIL: all four legs unreachable (streak_fail=${streak_fail}, fail_elapsed_sec=${fail_elapsed_sec})"
+
+            # Only mark unreachable after FAIL_SECS of sustained failure,
+            # measured in seconds and not in cycles.
+            if [ "$reachable" = "true" ] && [ "$fail_elapsed_sec" -ge "$FAIL_SECS" ]; then
                 reachable="false"
                 qlog_state_change "reachable" "true" "false"
-                qlog_warn "Internet unreachable after ${FAIL_THRESHOLD} consecutive failures"
+                qlog_warn "Internet unreachable after ${fail_elapsed_sec}s of continuous failure"
             fi
 
             # Append null to history
@@ -456,7 +583,17 @@ main() {
         # Write slim JSON cache
         write_cache "$rtt"
 
-        sleep "$PING_INTERVAL"
+        # FIXED-RATE loop: sleep whatever is left of the interval after the
+        # chain, floored at 1. A flat `sleep $PING_INTERVAL` here would make
+        # the real cycle period (chain + interval) drift with however long the
+        # chain took — which is exactly the skew that made a cycle-count
+        # threshold dishonest.
+        cycle_end=$(mono_now)
+        elapsed=$((cycle_end - cycle_start))
+        [ "$elapsed" -lt 0 ] && elapsed=0
+        sleep_for=$((PING_INTERVAL - elapsed))
+        [ "$sleep_for" -lt 1 ] && sleep_for=1
+        sleep "$sleep_for"
     done
 }
 

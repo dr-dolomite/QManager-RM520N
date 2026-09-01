@@ -557,7 +557,12 @@ export interface ConnectivityStatus {
   jitter_ms: number | null;
   /** Percentage of failed pings in history window (0-100) */
   packet_loss_pct: number;
-  /** Currently active ping target IP */
+  /**
+   * The probe leg that actually answered — sourced from the ping daemon's
+   * `last_target`, falling back to the first configured slot when nothing has
+   * answered yet. The four-leg chain short-circuits on the first success, so
+   * this is NOT necessarily the first target configured.
+   */
   ping_target: string;
   /** Ring buffer of last N RTT values. null entries = failed pings. */
   latency_history: (number | null)[];

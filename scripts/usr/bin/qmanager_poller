@@ -1358,8 +1358,27 @@ determine_service_status() {
 
 PING_CACHE="/tmp/qmanager_ping.json"
 PING_HISTORY_RAW="/tmp/qmanager_ping_history"   # flat-file ring buffer from ping daemon
-PING_STALE_THRESHOLD=10  # seconds before ping data is considered stale
 PING_DAEMON_STALE_EVENT_THRESHOLD=60  # seconds before emitting ping_daemon_stale
+
+# Staleness is DERIVED per read, never hardcoded:
+#
+#     stale_threshold = max(3 * interval_sec, 15)
+#
+# interval 1 -> 15 · interval 5 -> 15 · interval 10 -> 30.
+#
+# The old bare 10 was derived from nothing and had two silent consequences.
+# At the quiet profile (interval_sec 10) a perfectly healthy cycle already sat
+# ON the cliff, so the verdict could read "unknown" with nothing wrong. And
+# during the outage this feature exists to detect, one over-budget cycle would
+# flip the verdict to "unknown" instead of "disconnected" — an unknown verdict
+# is the null that used to swallow the internet_lost alert outright.
+#
+# The floor of 15 is the same number the four-leg probe budget is checked
+# against: 4 legs * (PROBE_TIMEOUT + 1) = 12 < 15.
+#
+# The derivation lives INLINE inside read_ping_data() rather than in a helper
+# function: that is the unit the harness extracts and runs on its own, and a
+# helper defined out here would be undefined in it.
 
 read_ping_data() {
     # Reset to defaults if ping file missing or stale
@@ -1382,17 +1401,41 @@ read_ping_data() {
         return
     fi
 
-    # Check staleness (ping daemon may have crashed)
+    # Check staleness (ping daemon may have crashed). The threshold is derived
+    # from the cadence the daemon itself reports, so both values come out of
+    # the SAME read.
     local ping_ts
     local now
     local age
-    ping_ts=$(jq -r '.timestamp | if . == null then empty else tostring end' "$PING_CACHE" 2>/dev/null)
+    local _pmeta
+    local ping_interval
+    local stale_threshold
+    _pmeta=$(jq -r '[
+        ((.timestamp) | if . == null then "" else tostring end),
+        ((.interval_sec) | if . == null then "5" else tostring end)
+    ] | @tsv' "$PING_CACHE" 2>/dev/null)
+    ping_ts=$(printf '%s' "$_pmeta" | cut -f1)
+    ping_interval=$(printf '%s' "$_pmeta" | cut -f2)
     now=$(date +%s)
+
+    # stale_threshold = max(3 * interval_sec, 15)
+    #
+    # An implausible interval_sec is treated as unset rather than obeyed. The
+    # cadence a probe daemon can sanely run at is bounded (the profile table
+    # tops out at 10s), and a corrupt or garbage value here would otherwise
+    # compute a threshold so large that staleness detection silently switches
+    # off — the one failure mode this guard exists to prevent, failing open.
+    case "$ping_interval" in
+        ''|*[!0-9]*) ping_interval=5 ;;
+    esac
+    { [ "$ping_interval" -ge 1 ] && [ "$ping_interval" -le 300 ]; } 2>/dev/null || ping_interval=5
+    stale_threshold=$((3 * ping_interval))
+    [ "$stale_threshold" -lt 15 ] && stale_threshold=15
 
     if [ -n "$ping_ts" ]; then
         age=$((now - ping_ts))
-        if [ "$age" -gt "$PING_STALE_THRESHOLD" ]; then
-            qlog_warn "Ping data stale (age=${age}s), marking unknown"
+        if [ "$age" -gt "$stale_threshold" ]; then
+            qlog_warn "Ping data stale (age=${age}s > ${stale_threshold}s), marking unknown"
             conn_internet_available="null"
             conn_status="unknown"
             conn_latency="null"
@@ -1436,14 +1479,23 @@ read_ping_data() {
 
     # Step A: Extract slim scalar fields from ping JSON (single jq call)
     # ping.json no longer carries stats/history — those are computed here from raw file.
-    # Phase 2 additions: tri-state connectivity + runtime profile/threshold fields.
+    #
+    # EIGHT positional fields. Field 6 (last_target) is the new one, so
+    # profile and last_family moved down one place each — every offset below
+    # the insertion was renumbered:
+    #
+    #   1 reachable   2 last_rtt_ms   3 during_recovery   4 interval_sec
+    #   5 targets[0]  6 last_target   7 profile           8 last_family
     local _pdata
+    local _first_target
+    local _last_target
     _pdata=$(jq -r '[
         ((.reachable) | if . == null then "null" else tostring end),
         ((.last_rtt_ms) | if . == null then "null" else tostring end),
         ((.during_recovery) | if . == null then "false" else tostring end),
         ((.interval_sec) | if . == null then "5" else tostring end),
         (.targets[0] // ""),
+        (.last_target // ""),
         (.profile // "unknown"),
         ((.last_family) | if . == null then "null" else tostring end)
     ] | @tsv' "$PING_CACHE" 2>/dev/null)
@@ -1452,9 +1504,22 @@ read_ping_data() {
     conn_latency=$(printf '%s' "$_pdata" | cut -f2)
     conn_during_recovery=$(printf '%s' "$_pdata" | cut -f3)
     conn_history_interval=$(printf '%s' "$_pdata" | cut -f4)
-    conn_ping_target=$(printf '%s' "$_pdata" | cut -f5)
-    conn_profile=$(printf '%s' "$_pdata" | cut -f6)
-    conn_last_family=$(printf '%s' "$_pdata" | cut -f7)
+    _first_target=$(printf '%s' "$_pdata" | cut -f5)
+    _last_target=$(printf '%s' "$_pdata" | cut -f6)
+    conn_profile=$(printf '%s' "$_pdata" | cut -f7)
+    conn_last_family=$(printf '%s' "$_pdata" | cut -f8)
+
+    # ping_target names the leg that ACTUALLY answered, not the first one
+    # configured. The chain short-circuits, so targets[0] is only the winner on
+    # a link where the first leg answers; on a device whose carrier blocks that
+    # target, reporting it names a host that never replied while the latency
+    # chart beside it belongs to a different one. targets[0] remains the honest
+    # fallback for "nothing has answered yet".
+    if [ -n "$_last_target" ]; then
+        conn_ping_target="$_last_target"
+    else
+        conn_ping_target="$_first_target"
+    fi
 
     # Step B: Single awk pass — only when ping timestamp changed (saves awk fork every 2s)
     # With ping daemon at 5s, awk runs ~every 5s instead of every cycle.

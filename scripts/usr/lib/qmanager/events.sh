@@ -397,7 +397,20 @@ snapshot_event_state() {
     prev_ev_nr_pci="${nr_pci:-$prev_ev_nr_pci}"
     prev_ev_nr_state="$nr_state"
     prev_ev_modem_reachable="$modem_reachable"
-    prev_ev_internet="$conn_internet_available"
+    # The internet verdict keeps its last known good value across a blank or
+    # null reading, for exactly the reason the band/PCI lines above do. A dead
+    # or stale ping cache makes read_ping_data() reset conn_internet_available
+    # to "null", while the emit guard in detect_data_connection_events()
+    # requires prev == "true" before it will fire internet_lost. Copying that
+    # null in unconditionally rewrote the baseline mid-outage, so the following
+    # "false" compared against "null" and the alert was swallowed outright — no
+    # event, and with it no SMS, no email and no Discord. `${x:-$prev}` alone is
+    # not enough here: the reading is the four-character string "null", not an
+    # empty one.
+    case "$conn_internet_available" in
+        ''|null) ;;
+        *) prev_ev_internet="$conn_internet_available" ;;
+    esac
     prev_ev_ca_active="$t2_ca_active"
     prev_ev_ca_count="$t2_ca_count"
     prev_ev_nr_ca_active="$t2_nr_ca_active"

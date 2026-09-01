@@ -88,7 +88,6 @@ CFG_TIER4_ENABLED=1
 CFG_BACKUP_SIM_SLOT=""
 CFG_MAX_REBOOTS_PER_HOUR=3
 BOOT_SETTLE=30
-PING_STALE_THRESHOLD=15
 MODEM_WAIT_TIMEOUT=60
 SIM_SETTLE_SECS=90
 
@@ -229,12 +228,22 @@ tower_lock_active() {
 }
 
 # Read ping daemon data — returns 0 if valid, 1 if stale/missing
-# Sets: ping_streak_fail, ping_reachable, ping_during_recovery, ping_connectivity, ping_limited_reason
+# Sets: ping_streak_fail, ping_reachable, ping_during_recovery,
+#       ping_connectivity, ping_limited_reason, ping_interval_sec
+#
+# ⚠️ THE TSV BELOW IS POSITIONAL. Fields 1-6 keep their existing meaning and
+# their existing `cut -f` offsets; interval_sec is APPENDED as field 7. That is
+# deliberate — an append leaves every -f1..-f6 untouched, so the renumbering
+# hazard is structurally absent from this change. An off-by-one here would
+# silently corrupt ping_reachable, which drives a recovery ladder whose top
+# tier REBOOTS the modem. Fields 5 and 6 read keys the daemon no longer emits
+# and are inert; a separate approved change restructures them.
 ping_streak_fail=0
 ping_reachable="true"
 ping_during_recovery="false"
 ping_connectivity="connected"
 ping_limited_reason="null"
+ping_interval_sec=5
 
 read_ping() {
     if [ ! -f "$PING_CACHE" ]; then
@@ -249,7 +258,8 @@ read_ping() {
         ((.reachable) | if . == null then "true" else tostring end),
         ((.during_recovery) | if . == null then "false" else tostring end),
         ((.connectivity) | if . == null then "disconnected" else tostring end),
-        ((.limited_reason) | if . == null then "null" else tostring end)
+        ((.limited_reason) | if . == null then "null" else tostring end),
+        ((.interval_sec) | if . == null then "5" else tostring end)
     ] | @tsv' "$PING_CACHE" 2>/dev/null)
 
     [ -z "$_pdata" ] && return 1
@@ -261,13 +271,35 @@ read_ping() {
     ping_during_recovery=$(printf '%s' "$_pdata" | cut -f4)
     ping_connectivity=$(printf '%s' "$_pdata" | cut -f5)
     ping_limited_reason=$(printf '%s' "$_pdata" | cut -f6)
+    ping_interval_sec=$(printf '%s' "$_pdata" | cut -f7)
 
-    # Staleness check
-    local now age
+    # Staleness check. The threshold is DERIVED from the cadence the daemon
+    # itself reports, never hardcoded:
+    #
+    #     stale_threshold = max(3 * interval_sec, 15)
+    #
+    # interval 1 -> 15 · interval 5 -> 15 · interval 10 -> 30. The old bare 15
+    # was derived from nothing: at the quiet profile (interval_sec 10) a
+    # healthy cycle sat right on it, so a perfectly working link could make
+    # this ladder skip cycles for no reason. The floor of 15 is the same number
+    # the four-leg probe budget is checked against: 4 * (PROBE_TIMEOUT + 1) =
+    # 12 < 15.
+    local now age stale_threshold
+    # An implausible interval_sec is treated as unset rather than obeyed: a
+    # corrupt or garbage value would otherwise compute a threshold so large
+    # that staleness detection silently switches off, and this ladder would
+    # then act on a dead daemon's last verdict.
+    case "$ping_interval_sec" in
+        ''|*[!0-9]*) ping_interval_sec=5 ;;
+    esac
+    { [ "$ping_interval_sec" -ge 1 ] && [ "$ping_interval_sec" -le 300 ]; } 2>/dev/null || ping_interval_sec=5
+    stale_threshold=$((3 * ping_interval_sec))
+    [ "$stale_threshold" -lt 15 ] && stale_threshold=15
+
     now=$(date +%s)
     age=$((now - ping_ts))
-    if [ "$age" -gt "$PING_STALE_THRESHOLD" ]; then
-        qlog_warn "Ping data stale (age=${age}s), skipping cycle"
+    if [ "$age" -gt "$stale_threshold" ]; then
+        qlog_warn "Ping data stale (age=${age}s > ${stale_threshold}s), skipping cycle"
         return 1
     fi
 

@@ -2118,28 +2118,51 @@ install_ping_profile() {
     fi
 }
 
-# --- Migrate Legacy HTTP Ping Targets to ICMP Targets ------------------------
+# --- Migrate Legacy Ping Targets to the Four-Slot ICMP Chain -----------------
 
-# The ping daemon moved from HTTP probes (target_1/target_2 URLs, e.g.
-# "http://cp.cloudflare.com/") to plain ICMP probes (target_ipv4/target_ipv6
-# hosts, e.g. "1.1.1.1"). An HTTP URL is not a valid ICMP host, so this does
-# NOT try to convert the old value — it reseeds the Cloudflare ICMP defaults
-# and drops the stale keys. Idempotent: a device already on target_ipv4/
-# target_ipv6 (or with no config file yet) is a no-op.
+# The ping daemon's target shape has changed twice. It started on HTTP probes
+# (target_1/target_2 URLs, e.g. "http://cp.cloudflare.com/"), moved to a
+# two-slot ICMP pair (target_ipv4/target_ipv6), and now runs a FOUR-leg chain
+# in a fixed probe order:
+#
+#     target_host_1  target_host_2  target_ip_1  target_ip_2
+#
+# The two hostname legs come first (the resolver, not a config key, picks the
+# address family) and the two IPv4 literals are the DNS-independent fallback.
+#
+# config.sh has no key-migration primitive and this file is only ever SEEDED
+# when absent, so an already-deployed device keeps its old shape forever unless
+# this rewrites it. What carries across:
+#
+#   * target_ipv4 -> target_ip_1. It is the one legacy value that still means
+#     something: an IPv4 literal moving into an IPv4-literal slot. Reseeding
+#     the default here would silently discard a target the user chose.
+#   * Every other new slot is seeded from the documented default.
+#   * target_ipv6 is deleted (the family question moved to the resolver) and
+#     intercept_secs with it (no reader in shipped code, and none possible
+#     under a binary reachable/not-reachable verdict). The stale HTTP
+#     target_1/target_2 keys go too.
+#   * profile / interval_sec / fail_secs / recover_secs / history_secs are
+#     merged INTO, never rebuilt, so the daemon's own tuning survives.
+#
+# The gate is the PRESENCE of target_host_1, not the absence of a legacy key: a
+# fresh install seeded from the new ping_profile.json carries no legacy key at
+# all and must not be treated as unmigrated. That also makes a re-fire on the
+# next OTA a byte-for-byte no-op, so a target the user changed AFTER migrating
+# is never reseeded.
 migrate_ping_targets() {
     local target="/etc/qmanager/ping_profile.json"
     [ -f "$target" ] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    local has_legacy has_new
-    has_legacy=$(jq -r 'has("target_1") or has("target_2")' "$target" 2>/dev/null)
-    has_new=$(jq -r 'has("target_ipv4") and has("target_ipv6")' "$target" 2>/dev/null)
+    local has_new
+    has_new=$(jq -r 'has("target_host_1")' "$target" 2>/dev/null)
 
-    if [ "$has_legacy" != "true" ] || [ "$has_new" = "true" ]; then
+    if [ "$has_new" = "true" ]; then
         return 0
     fi
 
-    echo "  Migrating ping_profile.json from HTTP targets to ICMP targets..."
+    echo "  Migrating ping_profile.json to the four-slot ICMP probe chain..."
     # Temp file MUST live in the destination directory (/etc/qmanager), not a
     # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
     # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
@@ -2156,10 +2179,22 @@ migrate_ping_targets() {
         echo "  WARNING: failed to create temp file for ping_profile.json migration — skipping" >&2
         return 0
     }
+    # A legacy target_ipv4 is carried into target_ip_1; every other slot falls
+    # back to its documented default, one key at a time.
     if jq \
-        --arg t4 "1.1.1.1" \
-        --arg t6 "2606:4700:4700::1111" \
-        '.target_ipv4 = $t4 | .target_ipv6 = $t6 | del(.target_1) | del(.target_2)' \
+        --arg h1 "cloudflare.com" \
+        --arg h2 "google.com" \
+        --arg i1 "1.1.1.1" \
+        --arg i2 "8.8.8.8" \
+        '.target_host_1 = (.target_host_1 // $h1)
+         | .target_host_2 = (.target_host_2 // $h2)
+         | .target_ip_1 = (.target_ip_1 // .target_ipv4 // $i1)
+         | .target_ip_2 = (.target_ip_2 // $i2)
+         | del(.target_ipv4)
+         | del(.target_ipv6)
+         | del(.intercept_secs)
+         | del(.target_1)
+         | del(.target_2)' \
         "$target" > "$tmp" 2>/dev/null; then
         # Set mode AND owner on the temp file BEFORE the rename: BusyBox
         # mktemp creates 0600 root:root, and mv carries both mode and owner
@@ -2173,7 +2208,7 @@ migrate_ping_targets() {
         chmod 644 "$tmp"
         chown www-data:www-data "$tmp" 2>/dev/null || true
         mv "$tmp" "$target"
-        echo "  Migrated $target to target_ipv4=1.1.1.1 target_ipv6=2606:4700:4700::1111"
+        echo "  Migrated $target to the four-slot chain: $(jq -r '[.target_host_1, .target_host_2, .target_ip_1, .target_ip_2] | join(" -> ")' "$target" 2>/dev/null)"
     else
         rm -f "$tmp"
         echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
