@@ -60,7 +60,9 @@ DISABLED  — turned off (config, or auto-disabled by the Tier-4 cap)
 - **DISABLED** — `watchcat.enabled=0`, or the daemon shut itself off after tripping the Tier-4 reboot cap.
 
 <a id="carrier-intercept-short-circuit-now-inert"></a>
-> ℹ️ NOTE — carrier-intercept short-circuit is now **inert** (v0.1.32): the watchdog still contains a branch that short-circuits recovery when the ping daemon reports `connectivity=limited` (a captive/billing portal). After the [ICMP producer port](connection-quality.md#why-the-tri-state-is-gone), `qmanager_ping` **no longer emits `connectivity` or `limited` at all** — an ICMP echo either answers or it doesn't. The branch is therefore dead code that never fires; it was left in place as harmless (no behavior change) rather than ripped out. **The recovery ladder is unaffected** — it keys off `streak_fail`, which the new ICMP producer still emits, so genuine-outage detection and recovery are intact.
+> ℹ️ NOTE — carrier-intercept short-circuit is **inert, and still present** (v0.1.32): the watchdog contains a branch that short-circuits recovery when the ping daemon reports `connectivity=limited` (a captive/billing portal), plus the `read_ping()` TSV fields 5 and 6 that feed it. After the [ICMP producer port](connection-quality.md#why-the-tri-state-is-gone), `qmanager_ping` **no longer emits `connectivity` or `limited` at all** — an ICMP echo either answers or it doesn't. The branch is therefore dead code that never fires.
+>
+> **It is removed by a separate approved follow-up change, not by the 2026-09-02 probe redesign.** Do not read its continued presence as evidence that a `connectivity` field exists at the producer — it does not, and [the producer key contract](connection-quality.md#the-producer-key-contract) is the authority. **The recovery ladder is unaffected** either way: it keys off `streak_fail`, which the producer does emit, so genuine-outage detection and recovery are intact.
 
 ### The escalation engine
 
@@ -382,7 +384,26 @@ Page: `/monitoring/watchdog` — `components/monitoring/watchdog/watchdog.tsx`. 
 
 ## Ping source / split ownership
 
-The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon** — a small always-on producer that (as of v0.1.32) issues plain **ICMP `ping`** probes (IPv4-first, IPv6-fallback) and writes its verdict — including the raw `streak_fail` count — to `/tmp/qmanager_ping.json`. It runs independently of the watchdog: **the daemon stays up regardless of `watchcat.enabled`**, so the Connection Quality page and the poller still get a live verdict even when the watchdog itself is off. The watchdog only ever *reads* that file — it never probes and never writes it.
+The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon** — a small always-on producer that issues plain **ICMP `ping`** probes and writes its verdict, including the raw `streak_fail` count, to `/tmp/qmanager_ping.json`. As of 2026-09-02 it walks a **four-leg chain** (`cloudflare.com` → `google.com` → `1.1.1.1` → `8.8.8.8`), short-circuiting on the first success; the two hostname legs let the resolver pick the address family, replacing the old IPv4-first / IPv6-fallback pair. It runs independently of the watchdog: **the daemon stays up regardless of `watchcat.enabled`**, so the Connection Quality page and the poller still get a live verdict even when the watchdog itself is off. The watchdog only ever *reads* that file — it never probes and never writes it.
+
+<a id="ping-cache-staleness-is-derived"></a>
+### Ping-cache staleness is derived, not hardcoded
+
+`read_ping()` no longer compares the cache's age against a bare `PING_STALE_THRESHOLD=15` — **that variable is deleted.** It now reads `interval_sec` out of the cache and computes the threshold from the cadence the daemon itself reports:
+
+```
+stale_threshold = max(3 × interval_sec, 15)
+```
+
+`interval_sec` 1 → **15** · 5 → **15** · 10 → **30**.
+
+**Why the old bare 15 was wrong:** at the `quiet` profile (`interval_sec` 10) a perfectly healthy cycle sat right on it, so a working link could make this ladder skip cycles for no reason at all. The floor of 15 is the same number the four-leg probe budget is checked against — `4 × (PROBE_TIMEOUT + 1)` = `4 × 3` = 12 < 15 — so a worst-case failing chain can never look stale.
+
+An implausible `interval_sec` (non-numeric, or outside 1–300) is **clamped back to 5** rather than obeyed: a garbage value would otherwise compute a threshold so large that staleness detection silently switches off, and this ladder would then act on a dead daemon's last verdict.
+
+> ℹ️ NOTE — `interval_sec` is **appended as TSV field 7** in `read_ping()`. An append leaves `cut -f1`…`-f6` untouched, so the field-renumbering hazard is structurally absent from this change. Fields 5 and 6 still read `connectivity` / `limited_reason` — keys the daemon no longer emits — and are inert; see the [inert short-circuit note](#carrier-intercept-short-circuit-now-inert).
+
+> ℹ️ NOTE — **planned follow-up, not landed.** A separate approved change will restructure that TSV, delete the inert `limited` machinery, switch the down-declaration to a wall-clock comparison against the producer's `fail_elapsed_sec`, retire `propagate_probe_interval()` in the watchdog CGI, and fix `finish_cooldown()`'s stale-retry extension. None of that has shipped — `propagate_probe_interval()` still exists and still propagates `watchcat.probe_interval` into `interval_sec`.
 
 > ℹ️ NOTE — the watchdog's input did **not** change with the ICMP port. The recovery ladder keys off `streak_fail`, which the new shell ICMP producer emits exactly as the old Rust HTTP/204 producer did. What the watchdog lost is the `connectivity=limited` short-circuit (see the [inert-short-circuit note](#carrier-intercept-short-circuit-now-inert)) — a producer field that no longer exists. Full producer details: [connection-quality.md → The producer](connection-quality.md#the-producer--qmanager_ping-shell-icmp-daemon).
 
@@ -391,9 +412,9 @@ The daemon's own config lives in `/etc/qmanager/ping_profile.json`, and that one
 | Owner | CGI | Keys it writes | Reload flag it touches |
 |-------|-----|----------------|------------------------|
 | **Connection Watchdog** (Detection tab) | `monitoring/watchdog.sh` | `interval_sec` (from `watchcat.probe_interval`) | `/tmp/qmanager_ping_reload` **and** `/tmp/qmanager_watchcat_reload` |
-| **Connection Quality** ("Probe Targets" card) | `settings/ping_profile.sh` | `profile`, `target_ipv4`, `target_ipv6` | `/tmp/qmanager_ping_reload` |
+| **Connection Quality** ("Probe Targets" card) | `settings/ping_profile.sh` | `profile`, `target_host_1`, `target_host_2`, `target_ip_1`, `target_ip_2` | `/tmp/qmanager_ping_reload` |
 
-Because each writer merges only its own keys, the two never clobber each other. This is the split-ownership realignment: **the Watchdog owns the *cadence* (probe interval + fail threshold), the Connection Quality page owns the *targets*** — now IPv4/IPv6 ICMP hosts rather than the retired HTTP `target_1`/`target_2` URLs. One documented side effect: since `ping_profile.sh` merges only its own keys, changing `profile` no longer resets the daemon's per-field `interval_sec`/`fail_secs`/`recover_secs`/`history_secs` overrides — once present, those pass through unchanged. `profile` is now effectively a label paired with the targets.
+Because each writer merges only its own keys, the two never clobber each other. This is the split-ownership realignment: **the Watchdog owns the *cadence* (probe interval + fail threshold), the Connection Quality page owns the *targets*** — now four ICMP legs (two hostnames, two IPv4 literals) rather than the retired HTTP `target_1`/`target_2` URLs. One documented side effect: since `ping_profile.sh` merges only its own keys, changing `profile` no longer resets the daemon's per-field `interval_sec`/`fail_secs`/`recover_secs`/`history_secs` overrides — once present, those pass through unchanged. `profile` is now effectively a label paired with the targets.
 
 > ℹ️ NOTE: The Quality Thresholds card (latency/loss presets feeding `events.sh` alerts) is a **separate** surface and was not touched by this rework.
 
