@@ -1152,6 +1152,375 @@ if [ -f "$NS_01" ]; then
     [ "$rat" -eq 0 ] && ok "all four react-icons RAT marks are present"
 fi
 
+# =============================================================================
+# SECTION 02 -- NR / LTE signal pair
+# =============================================================================
+#
+# signal-status-card.tsx is the reference implementation DESIGN.md cites under
+# Signature surfaces, so the ramp subsystem inside it is deliberately NOT
+# rewritten. Four things change, and one of them is a re-authoring.
+#
+#   R2 -- THE TWO PASS-THROUGH WRAPPERS COLLAPSE INTO ONE BUILDER. Approved
+#   2026-09-01. nr-status.tsx (78 lines) and lte-status.tsx (74) render nothing
+#   at all. Each maps one poller block to SignalStatusRow[] and forwards the
+#   same six props. They differ in which block they read and which labels they
+#   use -- and in two rows, not one: NR carries SCS and LTE carries RSSI. Both
+#   are replaced by buildSignalRows(family, data, t) in signal-rows.ts, and
+#   home-component.tsx renders the card directly.
+#
+#   The payoff is not the line count. The threshold table and the absent-value
+#   formatter stop existing in two copies that can drift, and -- the reason
+#   this lands in the same commit as the state work below -- the no-reading
+#   state gets written ONCE instead of twice.
+#
+#   1. The shell comes from shapes.ts. It was inlined twice inside this one
+#      file, once for the loaded card and once for its own skeleton, which is
+#      the shape of drift that has already been deleted twice elsewhere in the
+#      product.
+#
+#   2. The card gains a description, at the surface's secondary ink. Zero
+#      CardDescription shipped on the whole dashboard.
+#
+#   3. THE NO-READING STATE. This is the substantive change. The card used one
+#      predicate -- "does this row have BOTH a threshold set and a live
+#      value?" -- to decide the bar, the ink and the screen-reader word
+#      together. A measurement whose reading did not arrive therefore came out
+#      byte-identical to an identifier that has no scale at all: no bar, no
+#      ink, no announced word, and a hyphen. The two must not look the same.
+#      An ARFCN has no position on a quality scale; an RSRP has one and we
+#      failed to read it.
+#
+#      The predicate splits. Whether a row is a MEASUREMENT is a property of
+#      the row -- it declares a threshold set. Whether it has a READING is a
+#      property of this poll. A measurement with no reading draws an EMPTY
+#      TRACK, takes the neutral ink, and announces "no reading" -- which is
+#      also why the copy for that stop stops saying "No signal". "We did not
+#      measure" is not "we measured zero", and qualityInkClass's own comment
+#      has said so since the ramp was minted.
+#
+# WHAT THIS SECTION DELIBERATELY DOES AND DOES NOT PIN
+# ---------------------------------------------------------------------
+# [02-9] pins the untouched subsystem POSITIVELY -- the glyph ladder import,
+#        the meter-tone import, the TickGroup ranking, the identity tag, and
+#        the inherited cascade all have to still be there. A step described as
+#        "nearly untouched by design" needs an assertion that fails when a
+#        future author tidies one of those away, not only assertions on the
+#        parts that moved.
+# [02-6] cannot assert what renders. It asserts that the two predicates are
+#        distinct named symbols and that a render site reaches for the wider
+#        one, which is the structural form of the defect.
+# [02-7] bans a fallback tone on the same line as the meter tone or the colour
+#        override. qualityMeterTone returns null for "none" on purpose, and the
+#        bug it replaces was a surface quietly defaulting that null to a colour
+#        and painting an unread antenna green. A null-coalesce that only
+#        normalises undefined to null is not that, so the ban is scoped to the
+#        two expressions that actually carry a tone.
+# [02-3] [02-4] [02-5] [02-6] [02-7] [02-8] [02-9] run against comment-stripped
+#        source, same rationale as R0-6, 00-5 and 01-6: the file's JSDoc
+#        necessarily quotes the symbols and values being retired, and failing
+#        on a comment pushes the author to delete the reasoning rather than
+#        the code.
+# [02-10] checks the locale keys directly and tolerates the CRLF endings the
+#        packs ship with, same as 00-11 and 01-12. It extracts the signal_card
+#        object first -- a whole-file grep for a common key name is how
+#        SECTION 01 nearly shipped a false green.
+# EVERY class spelling quoted below is a real utility already emitted
+#        elsewhere in this repo, so Tailwind's content scan extracting one out
+#        of this file costs nothing. No pattern here invents a class-shaped
+#        string that does not already exist.
+#
+# Run: bash scripts/test/dashboard-design-language.sh
+# =============================================================================
+
+CARD_02="$DASHBOARD/signal-status-card.tsx"
+ROWS_02="$DASHBOARD/signal-rows.ts"
+NR_02="$DASHBOARD/nr-status.tsx"
+LTE_02="$DASHBOARD/lte-status.tsx"
+SHAPES_02="$SHAPES_00"
+HOME_02="$HOME_00"
+
+printf '\n=============================================================\n'
+printf 'SECTION 02 -- NR / LTE signal pair\n'
+printf '=============================================================\n'
+
+card_stripped="$TMPD/signal-status-card.stripped"
+if [ -f "$CARD_02" ]; then
+    strip_comments "$CARD_02" > "$card_stripped"
+else
+    : > "$card_stripped"
+fi
+
+rows_stripped="$TMPD/signal-rows.stripped"
+if [ -f "$ROWS_02" ]; then
+    strip_comments "$ROWS_02" > "$rows_stripped"
+else
+    : > "$rows_stripped"
+fi
+
+home_stripped_02="$TMPD/home-component.02.stripped"
+if [ -f "$HOME_02" ]; then
+    strip_comments "$HOME_02" > "$home_stripped_02"
+else
+    : > "$home_stripped_02"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-1] R2 -- the two pass-through wrappers are gone\n'
+# Neither file rendered anything. A component whose entire body is "map this
+# object to that prop bundle" is a function wearing a component's costume, and
+# two of them side by side are two copies of one function.
+if [ -f "$NR_02" ]; then
+    bad "nr-status.tsx still exists -- R2 replaces it with the row builder"
+else
+    ok "nr-status.tsx is gone"
+fi
+if [ -f "$LTE_02" ]; then
+    bad "lte-status.tsx still exists -- R2 replaces it with the row builder"
+else
+    ok "lte-status.tsx is gone"
+fi
+if [ -f "$ROWS_02" ]; then
+    ok "components/dashboard/signal-rows.ts exists"
+    if grep -q 'buildSignalRows' "$rows_stripped"; then
+        ok "signal-rows.ts declares buildSignalRows"
+    else
+        bad "signal-rows.ts does not declare buildSignalRows"
+    fi
+    if grep -qE '\bfamily\b' "$rows_stripped"; then
+        ok "the builder branches on the radio family rather than on the payload shape"
+    else
+        bad "signal-rows.ts never mentions family -- the two legs are not the same list"
+    fi
+else
+    bad "missing: components/dashboard/signal-rows.ts"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-2] the threshold table is imported in one dashboard file, not three\n'
+# Two copies of a threshold set is two chances for one of them to move. This is
+# the drift R2 is actually buying, and it is the assertion that fails if a
+# future author re-inlines a row list into a card.
+if [ -d "$DASHBOARD" ]; then
+    n=$(grep -rl 'RSRP_THRESHOLDS' "$DASHBOARD" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$n" -le 2 ]; then
+        ok "the threshold table is imported in $n dashboard file(s)"
+    else
+        bad "the threshold table is imported in $n dashboard files -- R2 collapses the copies"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-3] home-component renders the card directly\n'
+# The wrappers existed only to be rendered from here. If they are gone and this
+# file does not name the card, the pair is not on the page at all.
+if [ -f "$HOME_02" ]; then
+    if grep -q 'SignalStatusCard' "$home_stripped_02"; then
+        ok "home-component.tsx renders SignalStatusCard"
+    else
+        bad "home-component.tsx does not render SignalStatusCard"
+    fi
+    if grep -q 'buildSignalRows' "$home_stripped_02"; then
+        ok "home-component.tsx builds its rows through the shared builder"
+    else
+        bad "home-component.tsx does not call buildSignalRows"
+    fi
+    if grep -qE 'nr-status|lte-status' "$home_stripped_02"; then
+        bad "home-component.tsx still imports a retired wrapper"
+    else
+        ok "no retired wrapper import survives in home-component.tsx"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-4] the shell and the row geometry are imported, not inlined\n'
+# The shell was written out twice inside this one file -- once for the card and
+# once for its own skeleton -- which is the exact pair a shapes module exists
+# to keep in step. The skeleton is the half that silently rots: nothing renders
+# both at once, so a divergence is invisible until the handoff moves.
+if [ ! -f "$CARD_02" ]; then
+    bad "missing: components/dashboard/signal-status-card.tsx"
+else
+    if grep -qE '\bCARD_SHELL\b' "$card_stripped"; then
+        ok "the shell reads CARD_SHELL from shapes.ts"
+    else
+        bad "signal-status-card.tsx does not use CARD_SHELL"
+    fi
+    n=$(grep -c 'rounded-card border-0' "$card_stripped")
+    if [ "$n" -eq 0 ]; then
+        ok "no inline copy of the card shell survives"
+    else
+        bad "signal-status-card.tsx still inlines the shell $n time(s)"
+    fi
+    if grep -qE '\bROW\.' "$card_stripped"; then
+        ok "the metric row reads its geometry from shapes.ts"
+    else
+        bad "signal-status-card.tsx does not use the ROW shape group"
+    fi
+    if grep -qE '\bLANE\b' "$card_stripped"; then
+        ok "the quality-bar lane is the imported constant"
+    else
+        bad "signal-status-card.tsx inlines the quality-bar lane width"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-5] the skeleton mirrors by importing, not by restating\n'
+# The Skeleton-Mirror Rule. Both of these numbers are derived -- 40px is a 20px
+# line box plus 10px of padding either side, 30px is a border, 6px of padding,
+# a 16px content box and the same back again -- and a derived number restated
+# in a second place is a number that can be re-derived wrong.
+if [ -f "$CARD_02" ]; then
+    if grep -qE '"h-10"|h-10 |h-10"' "$card_stripped"; then
+        bad "the skeleton still restates the row height instead of importing it"
+    else
+        ok "the row skeleton does not restate the row height"
+    fi
+    if grep -q 'h-\[30px\]' "$card_stripped"; then
+        bad "the skeleton still restates the chip height instead of importing it"
+    else
+        ok "the chip skeleton does not restate the chip height"
+    fi
+fi
+if [ -f "$SHAPES_02" ]; then
+    if grep -qE '^export const TAG_HEIGHT' "$SHAPES_02"; then
+        ok "shapes.ts carries the chip height for the chip and its skeleton alike"
+    else
+        bad "shapes.ts does not export TAG_HEIGHT"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-6] a measurement and a reading are two different questions\n'
+# THE CORE OF THE STEP. One predicate decided the bar, the ink and the
+# screen-reader word together, so a measurement that failed to arrive rendered
+# byte-identical to an identifier that has no scale at all.
+if [ -f "$CARD_02" ]; then
+    if grep -q 'isMeasurement' "$card_stripped"; then
+        ok "the card names the measurement predicate separately"
+    else
+        bad "signal-status-card.tsx has no separate measurement predicate"
+    fi
+    if grep -q 'isTinted' "$card_stripped"; then
+        bad "the single combined predicate survives -- a failed reading still looks like an identifier"
+    else
+        ok "the combined predicate is retired"
+    fi
+    if grep -q 'sr-only' "$card_stripped"; then
+        ok "the screen-reader quality word is still rendered"
+    else
+        bad "the sr-only quality word was dropped -- colour and length are the only channels left"
+    fi
+    if grep -q 'isMeasurement &&' "$card_stripped"; then
+        ok "a render site is gated on the measurement, not on the reading"
+    else
+        bad "no render site is gated on the measurement predicate"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-7] no fallback tone is defaulted in\n'
+# qualityMeterTone returns null for "none" deliberately: a missing reading has
+# no correct fill colour, so the absence is a null the caller has to handle.
+# active-bands-card.tsx let that null fall through a default arm to success and
+# painted an unread antenna green. Never again on this surface.
+if [ -f "$CARD_02" ]; then
+    if grep -E 'qualityMeterTone|colorOverride' "$card_stripped" | grep -q '??'; then
+        bad "a tone expression defaults its null away"
+    else
+        ok "the meter tone and the colour override carry no fallback"
+    fi
+    if grep -qE 'value=\{rowPercent\}' "$card_stripped"; then
+        ok "the bar's value is the nullable percentage, so no reading draws an empty track"
+    else
+        bad "the MetricBar value is not the nullable percentage"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-8] an absent value is an em dash, matched against a shared sentinel\n'
+# The identity pill falls back to plain ink when the band is absent, because a
+# pill wrapping a placeholder reads as a broken chip rather than as missing
+# data. That guard compared against a hyphen literal, so changing the
+# placeholder in the builder without changing the guard would silently ship
+# exactly the broken chip the guard exists to prevent.
+if [ -f "$CARD_02" ]; then
+    if grep -qE '\bABSENT\b' "$card_stripped"; then
+        ok "the card matches the absent-value sentinel by name"
+    else
+        bad "signal-status-card.tsx has no shared absent-value sentinel"
+    fi
+    if grep -qE '!== "-"' "$card_stripped"; then
+        bad "the identity guard still compares against a hyphen literal"
+    else
+        ok "no hyphen literal survives in the identity guard"
+    fi
+fi
+if [ -f "$ROWS_02" ]; then
+    if grep -qE '\bABSENT\b' "$rows_stripped"; then
+        ok "the builder emits the shared sentinel"
+    else
+        bad "signal-rows.ts does not use the shared absent-value sentinel"
+    fi
+    if grep -qE '"-"' "$rows_stripped"; then
+        bad "signal-rows.ts still emits a bare hyphen placeholder"
+    else
+        ok "no bare hyphen placeholder survives in the builder"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-9] the reference subsystem is still intact\n'
+# This card is what DESIGN.md cites under Signature surfaces. The step is
+# explicitly scoped AWAY from the ramp, so these are pinned positively: an
+# assertion that only watches what moved cannot notice a future author tidying
+# away what did not.
+if [ -f "$CARD_02" ]; then
+    keep=0
+    for sym in QUALITY_GLYPH qualityMeterTone TickGroup MetricBar SwapLabel TickingValue staggerRows staggerRowItem; do
+        grep -q "$sym" "$card_stripped" || { bad "the reference subsystem lost $sym"; keep=1; }
+    done
+    [ "$keep" -eq 0 ] && ok "the glyph ladder, meter tone, ranking, swap and cascade are all present"
+    if grep -q 'identityVariant' "$card_stripped"; then
+        ok "the identity-tag treatment survives -- the chip fill still carries the radio"
+    else
+        bad "the identity tag was swept; the chip fill no longer carries the radio"
+    fi
+    if grep -qE 'initial=|animate=' "$card_stripped"; then
+        bad "this cascade declares its own clock again -- it must inherit the page-wide one"
+    else
+        ok "the row cascade still inherits the page-wide clock"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[02-10] the locale packs carry the new copy on every language\n'
+# The description is new. quality_none changes meaning: "No signal" asserts a
+# measurement of zero, which is the one thing this stop explicitly does not
+# mean. Extract the signal_card object first.
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block=$(awk '/^  "signal_card": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    if printf '%s' "$block" | grep -q '"description"'; then
+        ok "$lang carries signal_card.description"
+    else
+        bad "$lang is missing signal_card.description"
+    fi
+    if printf '%s' "$block" | grep -q '"quality_none"'; then
+        ok "$lang carries signal_card.quality_none"
+    else
+        bad "$lang is missing signal_card.quality_none"
+    fi
+done
+if grep -q '"quality_none": "No signal"' "$REPO_ROOT/public/locales/en/dashboard.json"; then
+    bad "the no-reading stop still reads as a measurement of zero in English"
+else
+    ok "the no-reading stop no longer claims a zero measurement"
+fi
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
