@@ -40,6 +40,13 @@ import { useUnitPreferences } from "@/hooks/use-system-settings";
 import { useDataUsed } from "@/hooks/use-data-used";
 import { useModemSubsys } from "@/hooks/use-modem-subsys";
 import { DUR, staggerRows, staggerRowItem } from "@/lib/motion";
+import {
+  CARD_SHELL,
+  FOCUS_RING,
+  METER_H,
+  VALUE_CLASS,
+} from "./shapes";
+import { PillRow } from "./pill-row";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
 
@@ -55,38 +62,6 @@ const TEMP_WARN = 60; // °C
 const TEMP_DANGER = 75; // °C
 const CPU_WARN = 70; // percentage
 const CPU_DANGER = 90; // percentage
-
-/** Card shell, identical to its two grid siblings so the row reads as one
- *  object. No fixed height: the dashboard grid stretches all three via
- *  `h-full *:data-[slot=card]:h-full`, which requires the Card to stay the
- *  DIRECT child of its wrapper — hence the skeleton overlay lives inside the
- *  card rather than around it. */
-const CARD_SHELL =
-  // gap-4, not the mock's literal 14px. This is the gap between the card's
-  // title and its body, and it is the one measurement that reads ACROSS the
-  // three cards sharing this grid row — recent-activities.tsx already ships
-  // gap-4, so 14px here would set this card 2px out of step with the card
-  // beside it to gain fidelity nobody can see. The 14px inner rhythm between
-  // metric groups is kept below, where the mock's value is doing real work.
-  "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
-
-/** Meter track height, shared by the loaded bar and its skeleton slot so the
- *  handoff moves nothing. Mirrors `MetricBar`'s one track height — the
- *  product resolved to a single 8px bar on 2026-09-01, so there is no longer a
- *  size prop for this to drift against. */
-const METER_H = "h-2";
-
-/**
- * Recipe 12, the focus ring, for the two bare tooltip triggers (the reset
- * control is a `Button`, which already carries the project ring).
- *
- * `focus-visible:transition-shadow` rather than a base `transition-shadow` is
- * the guide's "focus is never animated AWAY" clause spelled in CSS: a
- * transition is read off the state being moved TO, so on blur the element
- * reverts to a base with no transition and the ring simply stops existing.
- */
-const FOCUS_RING =
-  "rounded-pill outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:transition-shadow focus-visible:duration-(--duration-quick) focus-visible:ease-quick";
 
 /** One meter group: a label/value row over an 8px track. */
 function MeterRow({
@@ -115,31 +90,6 @@ function MeterRow({
     </motion.div>
   );
 }
-
-/** One pill row: label left, machine-voice value right, on a tonal container. */
-function PillRow({
-  label,
-  children,
-}: {
-  label: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.div
-      variants={staggerRowItem}
-      className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
-    >
-      {/* Container-Pair Rule: text on `surface-container` takes that
-          container's own ink, never a solid role colour. */}
-      <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-on-surface-variant">
-        {label}
-      </div>
-      <div className="flex shrink-0 items-center gap-3">{children}</div>
-    </motion.div>
-  );
-}
-
-const VALUE_CLASS = "text-sm font-semibold text-on-surface";
 
 /**
  * Skeleton (Skeleton-Mirror Rule): four meter groups and three pills, i.e. the
@@ -257,9 +207,11 @@ const DeviceMetricsComponent = ({
     <TickGroup>
       <motion.div
         className="flex flex-col gap-3.5"
+        // Variants only, no initial/animate: this cascade INHERITS the
+        // page-wide clock in home-component.tsx. Declaring its own would
+        // detach it and start a second clock, which is the defect the
+        // single-cascade step retired.
         variants={staggerRows}
-        initial="hidden"
-        animate="visible"
       >
         {/* ── Modem Temperature ─────────────────────────────────────────── */}
         <MeterRow

@@ -40,6 +40,7 @@ import {
   transitionEmphasized,
   transitionStandard,
 } from "@/lib/motion";
+import { CARD_SHELL, CLOCK_TICK_MS } from "./shapes";
 import { cn } from "@/lib/utils";
 import type { NetworkEvent } from "@/types/modem-status";
 
@@ -160,24 +161,6 @@ const historyGroup: Variants = {
     },
   },
 };
-
-/**
- * How often the card re-reads the wall clock, independent of the data fetch.
- *
- * Both the "12 min ago" label and the freshness gate are functions of time
- * rather than of the payload, so they cannot be left to re-evaluate only when a
- * poll succeeds. The hook's error path calls `setError` and deliberately never
- * calls `setEvents` (use-recent-activities.ts:85-90), and on a sustained
- * failure the message string is identical every time, so React bails out of the
- * re-render entirely. Without this ticker the card would go on rendering its
- * stale list with a frozen age classification: rows asserting "just now" about
- * data that has not refreshed in an hour. That is the Saved-State Honesty Rule
- * failure the header chip is already careful to avoid.
- *
- * 30s rather than the 10s poll: nothing here changes faster than a minute, and
- * an idle dashboard should not wake up three times as often as it needs to.
- */
-const CLOCK_TICK_MS = 30_000;
 
 /** Unix-seconds now, refreshed on its own clock. */
 function useNowSec(): number {
@@ -315,10 +298,6 @@ function EventRow({
   );
 }
 
-// --- Card shell --------------------------------------------------------------
-
-const CARD_SHELL =
-  "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
 
 /** Skeleton rows are the EXACT height of a real row, and there are exactly as
  *  many as the list will show, so the skeleton-to-data handoff moves nothing on

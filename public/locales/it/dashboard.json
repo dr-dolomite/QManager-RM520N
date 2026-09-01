@@ -1,4 +1,8 @@
 {
+  "page": {
+    "title": "Dashboard",
+    "description": "Una vista in tempo reale del modem: a cosa è connesso, quanto è forte il collegamento e cosa è cambiato di recente."
+  },
   "alert": {
     "modem_unreachable": "Impossibile raggiungere il modem. I dati mostrati potrebbero essere obsoleti."
   },

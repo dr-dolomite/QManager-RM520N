@@ -17,6 +17,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { DUR } from "@/lib/motion";
+import { CARD_SHELL, CLOCK_TICK_MS } from "./shapes";
 import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
 import { useSpeedtest, type SpeedtestPhase } from "@/hooks/use-speedtest";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
@@ -82,28 +83,6 @@ const LOSS_WINDOW = 10;
  */
 const CHART_BOX = "min-h-[150px] flex-1";
 
-// Byte-identical to the shells in device-metrics.tsx and recent-activities.tsx,
-// because those two are this card's row-mates and three cards sharing a grid
-// row have to share a shell. Four things were out of step and each is worth
-// naming, since a parallel rewrite is exactly where this drift comes from:
-//
-//   `@container/latency` -> `@container/card`. Harmless today only because
-//   this file happens to use no container queries; the moment one is added as
-//   `@[540px]/card:` it matches nothing and fails silently, with no error to
-//   find. Every other card in the product names this container `card`.
-//
-//   `gap-3.5`/`px-7` -> `gap-4`/`px-6`. The mock specifies 26px padding, which
-//   has no step on the scale; rounding down matches the row, rounding up did
-//   not. Signal History keeps px-7 because its mock value really is 28px and
-//   it sits alone in a full-width row with nothing to align to.
-//
-//   `h-full` restored. The parent grid already forces it via
-//   `*:data-[slot=card]:h-full`, so this is redundant rather than load-bearing
-//   — but it is redundant in all three siblings, and a shell that differs from
-//   its neighbours reads as intent.
-const CARD_SHELL =
-  "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
-
 // =============================================================================
 // Speed Test tile
 // =============================================================================
@@ -139,18 +118,6 @@ const CARD_SHELL =
  * Pinning the disc closes that 2px gap rather than papering over it.
  */
 const SPEEDTEST_TILE_H = "min-h-[88px]";
-
-/**
- * How often the tile re-reads the wall clock, independent of the status poll.
- *
- * The relative timestamp ("14 min ago") is a function of TIME, not of the
- * payload, so it cannot be left to re-evaluate only when a fetch lands. In
- * `watch` mode the status endpoint is polled every 10s but returns a
- * byte-identical cached result each time, so React bails out of the re-render
- * and the label would sit frozen at whatever it said when the result first
- * arrived. Same reasoning, same 30s cadence, as Recent Activities.
- */
-const CLOCK_TICK_MS = 30_000;
 
 /**
  * Past this, a result's age is read as a broken clock rather than an old test.

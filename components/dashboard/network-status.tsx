@@ -622,9 +622,11 @@ const NetworkStatusComponent = ({
           // competing one.
           <motion.div
             className="ml-auto flex flex-wrap items-center justify-end gap-2"
+            // Variants only, no initial/animate: this cascade INHERITS the
+            // page-wide clock in home-component.tsx. Declaring its own would
+            // detach it and start a second clock, which is the defect the
+            // single-cascade step retired.
             variants={staggerRows}
-            initial="hidden"
-            animate="visible"
           >
             {/* Stale — stays a CARD-scoped chip. "Your last poll was late" is
                 not an assertive alert; promoting it to a banner would cry wolf.
@@ -706,9 +708,11 @@ const NetworkStatusComponent = ({
       ) : (
         <motion.div
           className="grid grid-cols-1 gap-4 place-items-center @lg/card:grid-cols-3"
+          // Variants only, no initial/animate: this cascade INHERITS the
+          // page-wide clock in home-component.tsx. Declaring its own would
+          // detach it and start a second clock, which is the defect the
+          // single-cascade step retired.
           variants={staggerRows}
-          initial="hidden"
-          animate="visible"
         >
           {/* === Orb 1 — Radio / RAT === */}
           <motion.div

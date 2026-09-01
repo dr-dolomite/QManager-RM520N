@@ -1,4 +1,8 @@
 {
+  "page": {
+    "title": "Dasbor",
+    "description": "Tampilan langsung modem Anda: terhubung ke apa, seberapa kuat sinyalnya, dan apa yang berubah baru-baru ini."
+  },
   "alert": {
     "modem_unreachable": "Tidak dapat menjangkau modem. Data yang ditampilkan mungkin sudah usang."
   },

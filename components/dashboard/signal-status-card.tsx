@@ -225,9 +225,11 @@ export function SignalStatusCard({
       <TickGroup>
         <motion.dl
           className="grid gap-1.5"
+          // Variants only, no initial/animate: this cascade INHERITS the
+          // page-wide clock in home-component.tsx. Declaring its own would
+          // detach it and start a second clock, which is the defect the
+          // single-cascade step retired.
           variants={staggerRows}
-          initial="hidden"
-          animate="visible"
         >
           {rows.map((row) => {
             // Only measurement rows carry a tint. Band/ARFCN/PCI/SCS are
