@@ -33,9 +33,8 @@
 # aliases for ONE release. An OTA replaces this script and the JS bundle
 # together, so a device is never half-updated — but a browser tab left open
 # across the OTA still holds the old bundle, and without the aliases its next
-# write returns unknown_action. Remove both aliases (and the assertions naming
-# them in scripts/test/traffic-engine-design-language.sh section [31]) once no
-# supported upgrade path can still be serving the old bundle.
+# write returns unknown_action. Remove both aliases once no supported upgrade
+# path can still be serving the old bundle.
 #   POST {"action":"save_force_tcp","enabled":bool}
 #       → QUIC Force-TCP toggle (standalone iptables rule, independent of the
 #         engine: no binary check, no mutex, untouched by install/uninstall)

@@ -2052,7 +2052,6 @@ migrate_watchcat_fail_threshold() {
 # validated, stored and published by the CGI for RM551 API-contract parity, so
 # dropping it here would be a contract change wearing a migration's clothes.
 #
-# Pinned behaviourally by scripts/test/full-bypass-config-migration.sh.
 migrate_traffic_masquerade_to_full_bypass() {
     command -v qm_config_get >/dev/null 2>&1 || return 0
 

@@ -55,9 +55,12 @@ When your brief includes `modem-investigator` recon evidence (file paths, live C
 - [ ] No writes to read-only `/`; targets `/usrdata/`, `/tmp/`, `/etc/qmanager/`
 - [ ] Any new sudoers/systemd dependency is flagged for `installer-safety-auditor`
 - [ ] Behaves correctly when executed as `www-data`: permissions on every file it reads/writes, `pid_alive` instead of `kill -0`, and a sudoers rule for any root helper — validation will run it as `www-data`, not root
+- [ ] Comments are one or two lines each — no paragraph blocks, no post-mortems, no evidence tables (see `CLAUDE.md` > Code Comments). The long form goes in the commit body.
 
 ## What NOT To Do
 
+- **Never write a test harness, fixture, or assertion script.** This project deleted `scripts/test/` on purpose. A backend change is proved by `scp`-ing it to the device and running it — if you can reach a device, do that and paste the real output; otherwise hand the orchestrator the exact command to run.
+- **Never leave a paragraph-length comment.** Two lines, then stop.
 - Never call `atcli_smd11` directly — always `qcmd`.
 - Never hand-roll JSON or auth or PATH setup.
 - Never write a file non-atomically if a concurrent reader exists.

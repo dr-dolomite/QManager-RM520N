@@ -1,6 +1,0 @@
-# SYNTHETIC fixture — NOT captured from a live device.
-# 5G-SA, CONNECT. Field shape reused verbatim from scripts/test/parse-at.sh.
-# Neither live device was camped in SA mode, so no real SA capture exists.
-+QENG: "servingcell","CONNECT","NR5G-SA","TDD",515,03,12345AB,500,5A2B,627264,78,2,-90,-10,15,1,32
-
-OK

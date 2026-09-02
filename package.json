@@ -9,8 +9,7 @@
     "lint": "eslint",
     "i18n:check": "bun run lib/i18n/check.ts",
     "lang": "bun run scripts-dev/lang.ts",
-    "package": "bash scripts/test/run-all.sh && bun run icons:check && bash scripts/test/build-css-gate.sh && bash build.sh",
-    "test:harness": "bash scripts/test/run-harnesses.sh",
+    "package": "bun run icons:check && bash build.sh",
     "icons:subset": "bun run scripts-dev/subset-icons.ts",
     "icons:check": "bun run scripts-dev/check-icons.ts"
   },

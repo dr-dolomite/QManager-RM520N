@@ -3,61 +3,55 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-Every code-change request in this repo follows a tier-routed, 6-phase flow. The main session orchestrates; the specialist agents do the work. The user holds the approval gate. This flow is the project default for code changes and supersedes the generic brainstorming / writing-plans / verification skills; tests are written **before** the fix inside Phase 4 — see [Tests Come First](#tests-come-first-phase-4a).
+Every code-change request in this repo follows a tier-routed, 6-phase flow. The main session orchestrates; the specialist agents do the work. The user holds the approval gate. This flow is the project default for code changes and supersedes the generic brainstorming / writing-plans / verification skills; work is proved on hardware, not against a test harness we wrote ourselves — see [Verification Comes From The Device](#verification-comes-from-the-device).
 
 **Signal each phase transition** with a header so the user always knows where we are: `**[Phase 1 — Triage]**`, `**[Phase 2 — Plan]**`, `**[Phase 3 — Approval]**`, `**[Phase 4 — Execute]**`, `**[Phase 5 — Validation]**`, `**[Phase 6 — Docs & Close]**`.
 
 ## The 6 Phases
 
 1. **Triage & Recon (orchestrator):** Classify the request into Tier 0–4 by blast radius, then fire gates **by competency** (see Gate Routing below) — not by tier alone. Tier decides *ceremony*; competency decides *which gate agent runs*. Synthesize findings.
-2. **Plan (orchestrator synthesizes, builders pre-flight):** For Tier 2+, dispatch builder agents in parallel — `cgi-endpoint-builder` (backend CGI / daemons / libs / AT flows) and/or `ui-builder` (pages / cards / hooks / types). They return scaffolding + design notes, NOT committed code. Synthesize into ONE plan: tier, agent roster, file list, build order, risks, post-flight validator list, **and a Test Contract** (see below) for any change that will land or touch a harness.
+2. **Plan (orchestrator synthesizes, builders pre-flight):** For Tier 2+, dispatch builder agents in parallel — `cgi-endpoint-builder` (backend CGI / daemons / libs / AT flows) and/or `ui-builder` (pages / cards / hooks / types). They return scaffolding + design notes, NOT committed code. Synthesize into ONE plan: tier, agent roster, file list, build order, risks, post-flight validator list, **and a Verification Plan** (see below) naming how the change will be proved on the device or in the browser.
 3. **Approval Gate (user):** Plan changes here are cheap; later changes are not.
-4. **Execute (builders), in two steps.** **4a — harness first:** write the test from the Test Contract, run it, and commit it **red** with the failing output pasted into the commit body. **4b — then the fix:** bottom-up for cross-layer work (poller → CGI → hook → component → alerts), parallel where files are independent, sequential where there's a data dependency. The builder doing 4b may not edit the harness.
-5. **Post-Flight Validation (parallel, ONE message):** Fire every applicable validator in a single message: `busybox-portability-checker` (static audit **and** scoped on-device verification of the deployed change), `installer-safety-auditor` (verify mode, for installer/systemd/OTA changes). Loop failures back to Phase 4 — but after **2 failed validation rounds**, stop and surface to the user instead of looping further.
+4. **Execute (builders).** Bottom-up for cross-layer work (poller → CGI → hook → component → alerts), parallel where files are independent, sequential where there's a data dependency. No test harness is written.
+5. **Post-Flight Validation — on the device.** `scp` the changed script to the modem and run it. That is the primary check; the validator agents are secondary and fire only where they add something a run cannot show (see Gate Routing). Frontend work is proved in a browser instead. Loop failures back to Phase 4 — but after **2 failed rounds**, stop and surface to the user.
 6. **Docs & Close (`docs-writer`):** Update `docs/reference/`, the routing tables in `CLAUDE.md`, and `RELEASE_NOTES.md` as needed. Report summary + git status.
 
-## Tests Come First (Phase 4a)
+## Verification Comes From The Device
 
-**The test is written from the plan, before the fix exists.** Not because red-green is a ritual, but because a test written after the fix can only agree with it. Measured on this repo: of the harnesses in `scripts/test/`, six were committed red first (`bd7ca4d` "fails against current impl", `7c21bec` "(red)", the two poller skeletons, the two fixture harnesses) and ten landed in the same commit as their feature or fix — including **all four installer harnesses**. The same-commit ones are not worthless, but every one of them was shaped around code that already existed.
+**A change is proved by running it on hardware, not by a harness we wrote ourselves.** The old flow committed a red test before the fix; that is retired, and `scripts/test/` is deleted. A test written in this repo can only assert what its author already believed. The history of this project argues the point: every cross-device defect found so far — the missing `wget` applet, `timeout`'s positional form, the absent `mountpoint`, `/etc/passwd` at `0600` — came from **running a command on a second device**. None came from a harness, and none came from an agent reading code.
 
-### The Test Contract (written in Phase 2, approved in Phase 3)
+### The Verification Plan (written in Phase 2, approved in Phase 3)
 
-The plan names, precisely enough to write a test against:
+The plan names how the change will be *observed*, not what a test would assert:
 
-- **Exact symbol names** — the function, the config key, the CGI action, the JSON field.
-- **The call site / wiring requirement** — where it is invoked from, and anywhere it must *not* be (a gate that would make the fix invisible on OTA, for instance).
-- **The observable assertions** — what must be true afterward, and the specific defect shape being pinned.
+- **Backend / shell** — the `scp` target, the command to run on the device, and the output that means it worked.
+- **Frontend** — the route to load and what to look at in the browser.
+- **Anything disruptive** — a reboot, service restart, or config write. Flag it here, because it needs the user's approval before it runs.
 
-This is what makes a text-anchored test independent. Grepping for a function name is not bias; grepping for a name the *builder invented while writing the fix* is. When the name comes from an approved plan, the test pins the spec, and a builder who renames it, re-gates it, or substitutes a weaker mechanism fails the test — which is the entire point.
+### Backend: scp it and run it
 
-### Behavioural where possible, textual where it isn't
+Both devices are reachable over SSH (`.env`, Posh-SSH — see `CLAUDE.md` > Live Device Access). For a shell change the loop is: push the file, run it, read the real output. That is ground truth, and it costs a fraction of building a harness around the same question.
 
-Poller / CGI / parser harnesses run real fixtures through real code and are red-first **and** behavioural. Installer harnesses can only assert over source text, for two measured reasons:
+- **Portability questions get run on BOTH devices and diffed.** Highest-yield probe in the project — do it before dispatching any agent.
+- **Prove which device answered** (`cat /etc/quectel-project-version`, or the serial from `/proc/cmdline`). A wrong-device capture fails silently.
+- **Validate CGI as `www-data`, never as root** — through lighttpd (`curl http://127.0.0.1/cgi-bin/...`) or `sudo -u www-data`. Root-shell testing with `_SKIP_AUTH=1` has masked real permission bugs before.
+- **Ask first for anything disruptive.** A reboot, `AT+CFUN=1,1`, a service restart, a factory reset, or a config write on a live device needs explicit approval: say what you want to run and why, then wait.
 
-- `install_rm520n.sh:3693` is a bare `main "$@"` with no `BASH_SOURCE` guard, so a harness cannot source the file to call one function — it can only read it.
-- The Windows/Git Bash workstation cannot model POSIX modes: `chmod 0666 f` then `stat -c %a f` returns `644`. A "the file ends up `0644`" assertion would pass trivially here whether or not the fix exists — worse than no test.
+### Frontend: load the page
 
-Where behaviour cannot be executed, ordering is the *only* defense against a self-agreeing test, which makes Phase 4a more important for installer work, not less.
+Validate in a browser — the in-app Browser pane against `next dev`, or Claude in Chrome. Read the rendered page, the console, and the network tab. `tsc`, `eslint`, `next build` and `bun run i18n:check` still run, but none of them can tell you the page renders.
 
-### A frontend harness's own PROSE compiles to CSS
+> ⚠️ Not optional theatre. During the 2026-08-31 `/local-network/` re-author, `next build`, `tsc --noEmit`, `eslint` and `i18n:check` were **all green** on a tree where every route in `next dev` returned 500. The only thing that surfaced it was loading a page.
 
-> ⚠️ **Tailwind v4 scans EVERY non-gitignored file in the repo** — `scripts/`, `docs/`, Python, Rust, JSON, `LICENSE` — **so an arbitrary-value class quoted in prose (a comment, a failure message, a doc paragraph) is extracted and compiled into real CSS.** Most malformed spellings cost one dead rule. **Four** shapes instead make the whole stylesheet unparseable, and then every page in `next dev` returns 500 — the app shell, not just the routes under test. `next build` is **not** silent about it: its optimizer runs Lightning CSS with error recovery, prints `Found N warnings while optimizing generated CSS` with a code frame naming the class, drops the rule and exits 0. That report was simply never read — which is why `scripts/test/build-css-gate.sh` now gates `bun run package` on it. Full mechanism, the four fatal families, and the measured scan: [tailwind-prose-hazard.md](tailwind-prose-hazard.md).
+### The user's own device run is evidence
+
+The user rebuilds the tarball, installs it, and reports back with screenshots and observations. **That is the authoritative result** — it outranks any static reading of the code. When a report is ambiguous, ask for the specific screen or command output that would settle it rather than inferring.
+
+### Tailwind's prose hazard no longer has an automatic gate
+
+> ⚠️ **Tailwind v4 scans EVERY non-gitignored file** — `scripts/`, `docs/`, JSON, `LICENSE` — so an arbitrary-value class quoted in prose (a comment, a doc paragraph) is extracted and compiled into real CSS. Most malformed spellings cost one dead rule. **Four** shapes instead make the whole stylesheet unparseable, and then every page in `next dev` returns 500 — the app shell, not just the route that mentioned it. Removing the text does **not** recover it; the failure latches until a cold restart.
 >
-> This happened during the 2026-08-31 `/local-network/` re-author: assertion `[7]`'s failure message warned about exactly the class of bug it was causing (`92781f8`). `next build`, `tsc --noEmit`, `eslint`, `i18n:check` and the harness itself were **all green** on a tree where the product did not render in development. The only thing that surfaced it was loading a page in a browser — the check the Done bar names and no builder had run.
->
-> **The rule:** in a comment, a failure message, or a doc, describe the correct spelling in *words*. A concrete arbitrary-value class naming a custom property that actually exists is fine — it costs one dead utility and breaks nothing. A placeholder inside the brackets is not. And if a dev server has already 500ed, **removing the text does not recover it** — the failure latches until a cold restart.
-
-### The floor, for work that skips the plan
-
-Lite Path, skip phrases, and opportunistic fixes still owe the weaker version: **prove the harness fails against the pre-fix tree** — `git show HEAD:<file> > scratch/...` and run it there — and say so in the commit body with the failure count. That rules out a vacuous test even though it cannot rule out a test shaped by the code (`d7f30fb`/F13 is the reference example, and stays as written rather than being retrofitted: rewriting it after the fact would hide that history, not repair it).
-
-### A red commit blocks nothing
-
-`bun run package` gates on `run-all.sh` (syntax + CRLF), `icons:check`, and `scripts/test/build-css-gate.sh` (the production build, failed on Tailwind's CSS-optimizer report) — none of which run the deep harnesses. Those run through `run-harnesses.sh` / `bun run test:harness`, which nothing gates on automatically — so a knowingly-red harness sitting on a feature branch for one commit cannot jam a build.
-
-### Validation is still Phase 5
-
-None of this moves the validators. `busybox-portability-checker` and `installer-safety-auditor` still run **after** the fix, on the finished change, in one parallel message.
+> `next build` still reports it — `Found N warnings while optimizing generated CSS`, with a code frame naming the class — but it drops the rule and **exits 0**, and the gate that used to read that report is gone with `scripts/test/`. **So read the build output.** In a comment or a doc, describe the correct spelling in words; a placeholder inside the brackets is what turns a dead rule into a dead stylesheet. Full mechanism: [tailwind-prose-hazard.md](tailwind-prose-hazard.md).
 
 ## Tier Routing
 
@@ -79,11 +73,11 @@ A gate agent is worth its cost only when the change has surface inside that agen
 | --- | --- | --- |
 | `modem-investigator` | reads or writes modem state, or touches any link in the UI→hook→CGI→`qcmd`→modem chain | …the tier is high. A change with no modem surface gets no evidence from it |
 | `installer-safety-auditor` | adds or removes an installed artifact (binary, unit, config key, sudoers rule), changes install **ordering** or a gate controlling whether a step runs, or touches OTA / uninstall lockstep | …`install_rm520n.sh` was edited. Editing the file is not the trigger; changing what lands on the device is |
-| `busybox-portability-checker` | touches any shell script or systemd unit | — always fires for shell/unit work. This is the gate that consistently earns its cost |
+| `busybox-portability-checker` | touches a shell script or systemd unit **and** the question survives an on-device run — CRLF, shebang, applet limits or 32-bit arithmetic across both targets | …a script was edited. `scp` it and run it first; dispatch only for what a single run cannot show |
 
 > **Measured 2026-08-25 (T2.6).** `modem-investigator` was dispatched on the `qm_timeout` fix under the old "Tier 4 → always recon" rule. `qcmd:142` documents that the AT transport does not use `timeout` at all, so the modem was provably outside that change's blast radius — the dispatch was guaranteed to return nothing useful *before it was made*. Route by competency and that dispatch never happens.
 
-**Device-diff before agents.** For any multi-target or portability question, the first move is running the candidate command on **both** devices and comparing exit codes and output. That takes minutes and no dispatch. All three cross-device defects found so far (missing `wget` applet, the `timeout` flag form, missing `mountpoint`) came from **running code on a second device — none came from an agent reading code.** Reach for recon when the mechanism is *unknown*, not to re-confirm one already measured.
+**Run it before you dispatch.** The first move on any portability or behaviour question is running the candidate command on the device — on **both** devices, diffed, if it is a multi-target question. That takes minutes, costs no dispatch, and returns ground truth instead of an inference. Every cross-device defect found so far (missing `wget` applet, the `timeout` flag form, missing `mountpoint`, `/etc/passwd` at `0600`) came from **running code on a second device — none came from an agent reading code.** Reach for an agent when the mechanism is *unknown* or the surface is too wide to run, never to re-confirm something a run already measured.
 
 ### 🛡️ The devil's advocate is NOT a gate and is exempt from every trim on this page
 
@@ -110,14 +104,14 @@ Everything else still applies: the approval gate, `bun run i18n:check`, the type
 
 The backend sibling of the above. A change qualifies when **all four** hold:
 
-1. **One shell file**, plus its test harness.
+1. **One shell file.**
 2. **The mechanism is already measured**, not hypothesized — a captured exit code, an observed output difference, a documented version divergence. A *theory* about why something fails does not qualify; a probe transcript does.
 3. **Nothing new lands on the device that the uninstaller or OTA path would need to know about.** This is the sharp form of the lockstep rule and the real test for whether `installer-safety-auditor` has anything to audit.
 4. **No sudoers, systemd unit, `/usrdata/` layout, or install-ordering change.**
 
 Qualifying changes skip **Phase 1 recon**, **Phase 2 builder pre-flight**, and **`docs-writer`** (the orchestrator writes the one row itself).
 
-They keep: the approval gate — lightweight, "here is the fix and the probe that proves it, ok?" rather than a full plan — `busybox-portability-checker`, and a harness assertion pinning the defect.
+They keep: the approval gate — lightweight, "here is the fix and the probe that proves it, ok?" rather than a full plan — and an on-device run of the changed script.
 
 **Worked examples, from real changes:**
 
@@ -126,7 +120,7 @@ They keep: the approval gate — lightweight, "here is the fix and the probe tha
 | T2.5 Entware/`wget` bootstrap | **No** — full Tier 4 | +163 lines, a new shim, a new bootstrap function, 44 packages landing. Criteria 1 and 3 both fail |
 | T2.6 `qm_timeout` wrapper | **Partly** — skip recon, keep the auditor | Mechanism was measured, so no `modem-investigator`. But the `:1056` detector fix makes `coreutils-timeout` install for the first time — criterion 3 fails, so the auditor still fires |
 | F1 curl-guard one-liner | **No** — keep the auditor | The guard controls a `/usr/bin/curl` symlink, which is exactly an uninstaller-lockstep question. Recon still skipped |
-| A `timeout` call site routed through an existing wrapper | **Yes** | One file, mechanism already pinned by an existing harness, nothing new installed |
+| A `timeout` call site routed through an existing wrapper | **Yes** | One file, mechanism already measured on both devices, nothing new installed |
 
 Note how often the answer is *"skip recon, keep the auditor"* rather than all-or-nothing. **Trimming one gate is the common case; trimming both is rare.**
 
@@ -143,7 +137,7 @@ All agents are defined in `.claude/agents/`. Models are pinned per agent — the
 - **Recon gate (Phase 1, read-only):** `modem-investigator` — traces the full stack statically and probes the live modem read-only via Posh-SSH; returns an evidence report and can halt work before code is written.
 - **Safety gate (Phase 1 + Phase 5, read-only):** `installer-safety-auditor` — audits installer/systemd/sudoers/`/usrdata/`/OTA changes; can BLOCK before code is written; re-runs in verify mode post-change.
 - **Builders (Phases 2 & 4):** `cgi-endpoint-builder` (backend CGI shell endpoints, AT/`qcmd` flows, daemons, apply pipelines), `ui-builder` (Next.js / shadcn / Tailwind frontend).
-- **Validator (Phase 5):** `busybox-portability-checker` — static audit (shebang, CRLF, BusyBox applet limits, 32-bit arithmetic) **and** scoped on-device verification of the deployed change.
+- **Validator (Phase 5):** `busybox-portability-checker` — runs the deployed change on the device, and static-audits what a run cannot show (CRLF, shebang, BusyBox applet limits, 32-bit arithmetic, the second target when it is offline). **Dispatch it for the residue, after you have already run the script yourself.**
 - **Closer (Phase 6):** `docs-writer`.
 
 ### Model Tiering — who gets Opus
@@ -181,22 +175,24 @@ A tracker or plan document is read **at the start of every session that touches 
 
 **The test for a tracker line: does a FUTURE task need it?** If it only explains work already merged, it belongs in the commit that merged it. Git already stores it, attached to the diff it describes, at zero cost until someone asks.
 
-> **Measured 2026-08-25.** The Phase A tracker reached **872 lines / ~45K tokens** — too large to read in one call, so orienting on it costs two reads before any work starts. It had also silently drifted (it recorded 14 test harnesses; there were 17). A document that expensive to read is also expensive to keep true, and it stops being trusted exactly when it is longest.
+> **Measured 2026-08-25.** The Phase A tracker reached **872 lines / ~45K tokens** — too large to read in one call, so orienting on it costs two reads before any work starts. It had also silently drifted (it recorded 14 test harnesses; there were 17 — a count that is now moot, since they are all deleted). A document that expensive to read is also expensive to keep true, and it stops being trusted exactly when it is longest.
 
-**Lite Path changes get one row and no prose entry.** The harness pins the defect; the commit body carries the why.
+**Lite Path changes get one row and no prose entry.** The device run proves the fix; the commit body carries the why, with the probe output pasted in.
 
 ## Hard Rules
 
 - **Tier is decided once, up-front.** If tempted to skip the recon or a validator mid-flow, re-triage rather than skip.
 - **`modem-investigator` is read-only and fails loud.** If recon reveals the change needs a write action on live state, or surfaces a broken invariant, it halts and reports — the main thread re-routes through the builders + validators.
 - **The Phase 1 `installer-safety-auditor` gate fails loud.** BLOCKED halts the work before code is written. This is cheap; rework is not.
-- **The harness is committed red before the fix is written.** Phase 4a precedes 4b, the anchors come from the approved Test Contract, and the builder writing the fix does not edit the harness. Work that skipped the plan owes the floor instead: the harness proven failing against `git show HEAD:<file>`, with the failure count in the commit body.
+- **No test harnesses.** Do not create `scripts/test/`, a `*.test.*` file, or a one-off assertion script. Prove the change by running it — on the device for shell, in a browser for UI — and paste the output into the commit body. Write a test only if the user explicitly asks for one.
+- **Disruptive on-device actions need approval first.** Deploying a script and running it read-only is routine. A reboot, service restart, `AT+CFUN=1,1`, factory reset, or config write on a live device is not: say what you want to run and why, then wait for a yes.
 - **Post-flight validators always go out in a single parallel message.** Never serially.
 - **Validate CGI as `www-data`, never as root.** On-device CGI checks go through lighttpd (`curl http://127.0.0.1/cgi-bin/...`) or `sudo -u www-data` — root-shell testing with `_SKIP_AUTH=1` has masked real permission bugs before.
 - **No in-flight reboot.** The app runs on the modem itself — `reboot` / `AT+CFUN=1,1` mid-request kills the in-flight HTTP response and the device. Reboots are deferred (dialog + persistent banner after the response is written); validators reject inline reboots in a CGI response path.
 - **`docs-writer` is the closing bracket.** If it doesn't run on Tier 2+, the change isn't done — except on the Lite Path's single-file case, where the orchestrator writes the docs itself. The docs still get written either way; only the author changes.
 - **Any new UI string or nav item is i18n-keyed, across all 5 locales.** Sidebar/nav sub-items use `t_key` (never a raw `title`), and every new key is added to all of `public/locales/{en,zh-CN,zh-TW,it,id}/*.json`; `bun run i18n:check` must pass (100% parity gate) before a frontend change is done. A builder branched before the i18n conversion will reach for `title` — convert it.
 - **Installer changes move in lockstep across install + uninstall + OTA.** A feature that adds a binary, service, or config must touch `install_rm520n.sh`, `uninstall_rm520n.sh`, and the update/OTA path together — a service the uninstaller doesn't remove, or a config the updater doesn't preserve/seed, is an incomplete change. This is exactly what the `installer-safety-auditor` gate verifies.
+- **Code comments are brief.** One or two lines. Say what is non-obvious and stop — no paragraph-length essays, no post-mortems, no evidence tables in a comment block. That register belongs in the commit body or `docs/reference/`. See `CLAUDE.md` > Code Comments.
 - **Agents don't see the orchestrator's conversation.** Each dispatch is a self-contained brief with file paths, schemas, the live evidence from `modem-investigator`, and the relevant `CLAUDE.md` / `DESIGN.md` / `PRODUCT.md` sections inlined.
 
 ## Branch Model
@@ -207,7 +203,7 @@ A tracker or plan document is read **at the start of every session that touches 
 
 ## Worktree Discipline (Tier 2+)
 
-Parallel branches and parallel builders must never cross-contaminate commits. Two layers of isolation, both harness-native:
+Parallel branches and parallel builders must never cross-contaminate commits. Two layers of isolation, both native to the harness we run in:
 
 1. **Run-level — every Tier 2+ run gets its own worktree, based on `development` (see Branch Model — verify the base is not stale `main`).** Immediately after the Phase 3 approval gate (before any builder writes a file), create an isolated checkout on a fresh branch named for the change (e.g. `wt/eth-link-alerts`) via `EnterWorktree`. The session CWD moves there and every subsequently spawned teammate inherits it. Phases 1–3 (recon/plan) stay in the main checkout — they're read-only and should see the branch the user actually asked about. Tier 0/1 edits stay in-place, no worktree.
 2. **Agent-level — isolate builders only when file sets overlap.** If two builders would touch overlapping or uncertain file sets in parallel, spawn them isolated (`isolation: "worktree"`) and reconcile their results into the run worktree. When file sets are provably disjoint (the normal case — backend in `scripts/`, UI in `components/`), skip it; they share the run worktree.

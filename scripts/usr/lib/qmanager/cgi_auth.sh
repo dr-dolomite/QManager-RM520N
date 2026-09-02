@@ -502,8 +502,7 @@ qm_set_ssh_password() {
 #
 # cgi_error and cgi_headers both come from cgi_base.sh, which calls this
 # function at LOAD TIME. Both are defined above that call on purpose; see
-# the ordering note on cgi_error. Pinned by
-# scripts/test/cgi-error-jq-fallback.sh section [6].
+# the ordering note on cgi_error.
 require_auth() {
     # Setup mode
     if is_setup_required; then

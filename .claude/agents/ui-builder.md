@@ -233,6 +233,8 @@ Before considering any component done, verify:
 - [ ] Success/error toasts for all mutations
 - [ ] TypeScript types are complete (no `any`)
 - [ ] Component follows existing project patterns (check similar components)
+- [ ] Comments are one or two lines each — no paragraph blocks, no "what was here before" narration (see `CLAUDE.md` > Code Comments)
+- [ ] **The page was actually loaded in a browser.** `tsc`, `eslint` and `next build` can all be green on a tree where every route 500s — only loading it tells. Never write a test harness; look at the page.
 
 ## What NOT To Do
 

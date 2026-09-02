@@ -143,9 +143,7 @@ fi
 #
 # RETURN, NEVER EXIT. cgi_headers has already run by this point, so an `exit`
 # here would leave lighttpd emitting headers and a zero-length body — killing
-# every field in the response, not just this one. scripts/test/
-# about-firmware-revision.sh section D pins that with a reachability sentinel,
-# because the obvious assertion cannot see the difference.
+# every field in the response, not just this one.
 #
 # NOT byte-identical to the old expression in every case, and better where it
 # differs: the library takes only the first match, anchors on ^Project,

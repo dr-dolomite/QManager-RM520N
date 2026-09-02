@@ -143,8 +143,7 @@ export const DISC_NEUTRAL = "bg-surface-container-high text-on-surface-variant";
  * transition at all rather than as an off-scale one. The class is still
  * generated, so grepping the class name finds it and tsc / eslint / next build
  * all pass; only the emitted value tells. The two sites this file replaces were
- * the last two such spellings in the tree, and
- * `scripts/test/ethernet-design-language.sh` [1] is what keeps them gone.
+ * the last two such spellings in the tree.
  */
 export const DISC_TRANSITION =
   "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]";

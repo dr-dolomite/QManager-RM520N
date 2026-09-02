@@ -1,6 +1,0 @@
-# SYNTHETIC fixture — NOT captured from a live device.
-# A response with no +QENG: lines at all. Must emit the qlog_warn
-# "parse_serving_cell: no +QENG: lines in response" and set service_status
-# to unknown, leaving every radio field blank.
-
-ERROR

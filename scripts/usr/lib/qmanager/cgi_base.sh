@@ -137,8 +137,7 @@ _cgi_json_escape() {
 # ABOVE the auth section: cgi_base.sh invokes require_auth at LOAD TIME, so
 # anything require_auth calls must already be defined. cgi_headers has
 # always lived above it for exactly this reason (see its own comment). Do
-# not move this block back down. Pinned by
-# scripts/test/cgi-error-jq-fallback.sh section [6].
+# not move this block back down.
 cgi_error() {
     local _err_out
     _err_out=$(jq -n --arg error "$1" --arg detail "${2:-}" \

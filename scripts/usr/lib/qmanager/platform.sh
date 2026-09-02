@@ -174,7 +174,6 @@ pid_alive() {
 #     simpler construction with no failure mode.
 # Keep all three in sync — a change to the BusyBox-version rationale, the
 # 143->124 remap, or the fail-open bound belongs in every copy.
-# scripts/test/timeout-portability.sh FAILS if they diverge.
 #
 # BusyBox changed `timeout`'s CLI in 1.30: SECS went from an option (`-t SECS`)
 # to a positional first argument, and `-t` was dropped. RG501Q-EU (v1.29.3)

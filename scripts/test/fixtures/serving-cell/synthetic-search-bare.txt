@@ -1,8 +1,0 @@
-# SYNTHETIC fixture — NOT captured from a live device.
-# Out of service: a bare servingcell SEARCH line with no RAT token.
-# service_status is first set to searching by the state case, then OVERWRITTEN
-# to unknown by the final else. That overwrite is the current behaviour and is
-# what the golden file locks in.
-+QENG: "servingcell","SEARCH"
-
-OK

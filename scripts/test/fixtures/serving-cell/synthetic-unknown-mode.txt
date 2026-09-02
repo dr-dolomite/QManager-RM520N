@@ -1,7 +1,0 @@
-# SYNTHETIC fixture — NOT captured from a live device.
-# A +QENG: servingcell line whose RAT token is none of LTE, NR5G-NSA or
-# NR5G-SA. Falls through to the final else: lte_state, nr_state and
-# service_status all become unknown, and network_type is NOT touched.
-+QENG: "servingcell","CONNECT","WCDMA","FDD",515,03,1234,222,10713,-95,-12,-58
-
-OK

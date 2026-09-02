@@ -1,7 +1,0 @@
-# SYNTHETIC fixture — NOT captured from a live device.
-# LTE-only, CONNECT, with LOWERCASE hex in the cell-ID and TAC fields.
-# The de-forked awk pass uppercases before base-16 conversion; this proves it.
-# Must decode identically to synthetic-lte-only-connect.txt.
-+QENG: "servingcell","CONNECT","LTE","FDD",515,03,fcb04a0,222,1350,3,5,5,1a2b,-95,-12,-58,11,0
-
-OK

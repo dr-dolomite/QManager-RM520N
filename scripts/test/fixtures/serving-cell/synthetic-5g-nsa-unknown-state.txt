@@ -1,9 +1,0 @@
-# SYNTHETIC fixture — NOT captured from a live device.
-# EN-DC / 5G-NSA whose state token matches NONE of NOCONN, LIMSRV, CONNECT or
-# SEARCH. service_status must be left UNCHANGED. The rewrite needs a no-change
-# sentinel; an unconditional assignment here is a regression.
-+QENG: "servingcell","UNKNOWNST"
-+QENG: "LTE","FDD",515,03,FCB04A0,222,1350,3,5,5,1A2B,-95,-12,-58,11
-+QENG: "NR5G-NSA",515,03,262,-89,24,-10,528030,41,8,1
-
-OK

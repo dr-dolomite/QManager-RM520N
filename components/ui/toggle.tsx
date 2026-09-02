@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils"
  * off the shipped 360/600/800 scale, and immune to a retune of `lib/motion.ts`
  * plus the `--duration-*` properties. That is DESIGN.md > The One-Scale Rule,
  * and it leaked into all four consumers at once because none of them overrides
- * this string. Pinned by `scripts/test/toggle-primitive-one-scale.sh`.
+ * this string.
  *
  * `background-color` is deliberately NOT in the list. It is live and still cuts
  * instantly on the two `variant="outline"` consumers (`hover:bg-accent`,
