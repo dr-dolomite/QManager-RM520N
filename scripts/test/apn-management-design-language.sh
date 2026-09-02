@@ -8,11 +8,20 @@
 # mbn-card}.tsx` and `hooks/use-apn-settings.ts` ship six independent defects,
 # each pinned below by one or more assertions:
 #
-#   1. THE STATUS CHIP READS THE WRONG CLOCK. `useApnStatusChip` derives its
-#      live/not-live verdict from `cids[].apn` — a PDP-context snapshot the CID
-#      Select also reads — instead of the poller's `network.apn`, which is what
-#      "What the network granted" already trusts a few lines down the same
-#      file. Two readers of "is it live" can disagree.        -> [1] [2]
+#   1. THE STATUS CHIP READ THE WRONG CLOCK — RESOLVED BY REMOVAL, 2026-08-31.
+#      `useApnStatusChip` derived its live/not-live verdict from `cids[].apn`
+#      — a PDP-context snapshot the CID Select also reads — instead of the
+#      poller's `network.apn`, which is what "What the network granted" already
+#      trusts a few lines down the same file. Two readers of "is it live" could
+#      disagree. The fix was NOT to repoint the chip: commit 66a5633 deleted
+#      the "Live on the network" header chip, the `useApnStatusChip` hook that
+#      fed it, and its `status.*` / `matches` / `does_not_match` i18n keys from
+#      all five locale packs. That removal is deliberate and stands.
+#      [1] and [2] are therefore INVERTED (cf. [15] and commit 46bd30e): they
+#      now guard the removal, plus the surviving reader of the same truth —
+#      `NetworkGrantedCard`'s `network?.apn` (apn-settings.tsx:333), the
+#      poller's independent granted APN, which is what the original finding was
+#      really about.                                          -> [1] [2]
 #   2. THE DEACTIVATE BUTTON IS GATED BACKWARDS. `active !== 0` shows the
 #      button whenever `active` is anything but 0 — including `null`, before
 #      the first fetch resolves. It should show only on a confirmed `active
@@ -175,32 +184,40 @@ strip_comments "$HOOK_FILE" > "$TMPD/hook.code"
 strip_comments "$SHAPES"    > "$TMPD/shapes.code"
 
 # -----------------------------------------------------------------------------
-printf '\n[1] The status chip reads network.apn, the poller field\n'
-# useApnStatusChip is scoped to its own line range so this does not collide
-# with the (legitimate) uses of `cids` elsewhere in the file, e.g. the CID
-# Select's option list.
-awk '/^function useApnStatusChip\(/,/^}/' "$PAGE_FILE" > "$TMPD/chip.raw"
-awk '/^function useApnStatusChip\(/,/^}/' "$TMPD/page.code" > "$TMPD/chip.code"
-if [ ! -s "$TMPD/chip.raw" ]; then
-    bad "useApnStatusChip helper not found -- assertion 1/2 cannot be evaluated"
-elif grep -qE '\bnetwork\.apn\b|\bnetwork\?\.apn\b|\bstatus\.network\.apn\b|\bstatus\?\.network\?\.apn\b' "$TMPD/chip.code"; then
-    ok "useApnStatusChip references network.apn (the poller's granted APN)"
+printf '\n[1] The page reads network.apn, and the status chip stays removed\n'
+# The original defect was two readers of "is it live" that could disagree. The
+# chip was removed rather than repaired (66a5633), so what is left to pin is
+# the surviving reader: NetworkGrantedCard's `network?.apn`, the poller's own
+# granted APN. Both checks run against comment-stripped source, so the header
+# prose above -- which names the retired hook -- cannot satisfy or fail them.
+if grep -qE '\bnetwork\.apn\b|\bnetwork\?\.apn\b|\bstatus\.network\.apn\b|\bstatus\?\.network\?\.apn\b' "$TMPD/page.code"; then
+    ok "apn-settings.tsx reads network.apn (the poller's granted APN)"
 else
-    bad "useApnStatusChip never references network.apn -- it does not read the poller's granted APN"
+    bad "apn-settings.tsx never references network.apn -- the page no longer reads the poller's granted APN"
+fi
+if grep -qE '\buseApnStatusChip\b' "$TMPD/page.code"; then
+    grep -nE '\buseApnStatusChip\b' "$TMPD/page.code" | show
+    bad "useApnStatusChip is back -- the header status chip was removed on purpose (66a5633)"
+else
+    ok "useApnStatusChip stays removed"
 fi
 
 # -----------------------------------------------------------------------------
-printf '\n[2] ...and no longer derives live/not-live from cids[].apn\n'
-# The cids.find(...) -> .apn -> compare chain is the defect: it compares two
-# readings of the SAME PDP-context snapshot the CID Select also consumes,
-# instead of the poller's independent network.apn. Scoped to the helper's own
-# line range -- cids is a legitimate prop of the card and the CID Select
-# elsewhere in this file, and must not be flagged there.
-if [ -s "$TMPD/chip.raw" ] && grep -qE 'cids(\?)?\.find\(' "$TMPD/chip.code"; then
-    grep -nE 'cids(\?)?\.find\(' "$TMPD/chip.code" | show
-    bad "useApnStatusChip still derives its verdict from cids.find(...).apn"
+printf '\n[2] ...and no cids.find(...) chain in this file derives a live verdict\n'
+# The retired coupling was a cids.find(...) -> .apn -> compare chain: it read
+# the SAME PDP-context snapshot the CID Select consumes, instead of the
+# poller's independent network.apn. The old form scoped this to the hook's own
+# line range, which after the removal matched nothing -- so the guard reported
+# ok without testing anything. Widened to the whole file: apn-settings.tsx
+# contains no `.find(` at all today, so a file-wide ban flags nothing
+# legitimate while making the retired coupling unable to come back. `cids`
+# stays a legitimate prop here and is not itself flagged -- only a find() over
+# it.
+if grep -qE 'cids(\?)?\.find\(' "$TMPD/page.code"; then
+    grep -nE 'cids(\?)?\.find\(' "$TMPD/page.code" | show
+    bad "apn-settings.tsx derives from cids.find(...) again -- read the poller's network.apn, not the PDP snapshot"
 else
-    ok "useApnStatusChip no longer derives its verdict from cids.find(...).apn"
+    ok "no cids.find(...) chain in apn-settings.tsx"
 fi
 
 # -----------------------------------------------------------------------------
