@@ -529,16 +529,26 @@ qcmd_exec() {
 # SYSTEM METRICS (No modem lock needed)
 # =============================================================================
 
+# ZERO FORKS BY CONTRACT. Every value below comes out of a /proc file that the
+# read builtin can open directly, so this function creates no processes at all.
+# It used to cost 22 of them (66 ms/cycle on the RM520N-GL, 86 ms on the
+# RG501Q-EU) purely in fork+exec overhead — see docs/reference/poller-cpu-profile.md.
+# scripts/test/poller-defork-forkcount.sh pins the ceiling at 0; adding a command
+# substitution, a pipe or an applet call here turns it red.
 update_proc_metrics() {
     # --- CPU Usage % (from /proc/stat delta) ---
-    local cpu_line
-    cpu_line=$(head -1 /proc/stat 2>/dev/null)
-    if [ -n "$cpu_line" ]; then
-        # /proc/stat format: cpu user nice system idle iowait irq softirq steal
+    # /proc/stat line 1: cpu user nice system idle iowait irq softirq steal ...
+    local _pm_cpu _pm_user _pm_nice _pm_sys _pm_idle
+    local _pm_iowait _pm_irq _pm_softirq _pm_steal _pm_tail
+    _pm_cpu=""
+    read -r _pm_cpu _pm_user _pm_nice _pm_sys _pm_idle \
+            _pm_iowait _pm_irq _pm_softirq _pm_steal _pm_tail < /proc/stat 2>/dev/null
+    if [ -n "$_pm_cpu" ]; then
         local cur_idle
         local cur_total
-        cur_idle=$(echo "$cpu_line" | awk '{print $5}')
-        cur_total=$(echo "$cpu_line" | awk '{print $2+$3+$4+$5+$6+$7+$8+$9}')
+        cur_idle=$_pm_idle
+        cur_total=$(( _pm_user + _pm_nice + _pm_sys + _pm_idle \
+                    + _pm_iowait + _pm_irq + _pm_softirq + _pm_steal ))
 
         if [ "$prev_cpu_total" -gt 0 ] 2>/dev/null; then
             local diff_idle
@@ -557,10 +567,24 @@ update_proc_metrics() {
     fi
 
     # --- Memory ---
+    # One pass over /proc/meminfo with the read builtin. MemTotal: and
+    # MemAvailable: are lines 1 and 3 on both devices, so the break lands almost
+    # immediately; a host without MemAvailable (MSYS2's emulated /proc) simply
+    # scans to EOF and leaves mem_available empty, which is the same outcome the
+    # old grep produced.
     local mem_total
     local mem_available
-    mem_total=$(grep '^MemTotal:' /proc/meminfo 2>/dev/null | awk '{print $2}')
-    mem_available=$(grep '^MemAvailable:' /proc/meminfo 2>/dev/null | awk '{print $2}')
+    local _pm_key _pm_val
+    mem_total=""
+    mem_available=""
+    while read -r _pm_key _pm_val _pm_tail; do
+        case "$_pm_key" in
+            MemTotal:)     mem_total="$_pm_val" ;;
+            MemAvailable:) mem_available="$_pm_val" ;;
+            *)             continue ;;
+        esac
+        [ -n "$mem_total" ] && [ -n "$mem_available" ] && break
+    done < /proc/meminfo 2>/dev/null
 
     if [ -n "$mem_total" ]; then
         memory_total_mb=$((mem_total / 1024))
@@ -575,7 +599,12 @@ update_proc_metrics() {
     fi
 
     # --- Uptime ---
-    uptime_seconds=$(cat /proc/uptime 2>/dev/null | cut -d' ' -f1 | cut -d'.' -f1)
+    # /proc/uptime is "<seconds>.<hundredths> <idle>"; read takes the first word
+    # and %%.* drops the fraction, replacing cat | cut | cut.
+    local _pm_up
+    _pm_up=""
+    read -r _pm_up _pm_tail < /proc/uptime 2>/dev/null
+    uptime_seconds="${_pm_up%%.*}"
     uptime_seconds="${uptime_seconds:-0}"
 
     cpu_usage="${cpu_usage:-0}"
