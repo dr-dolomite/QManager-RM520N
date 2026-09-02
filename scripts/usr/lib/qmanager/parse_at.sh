@@ -54,6 +54,11 @@ _antenna_line_to_json() {
 # NR  (36-bit NCI): gNodeB ID = cell_id >> 14, Sector ID = cell_id & 0x3FFF
 # Sets globals: _cid_dec, _cid_enb, _cid_sec
 # Args: $1=hex_cell_id, $2="nr" for NR bit-split (default: LTE)
+#
+# NO LONGER CALLED BY parse_serving_cell — the de-fork pass folded this logic
+# into that function's single awk pass. Kept because parse_at.sh is a shared
+# library sourced by cgi_at.sh and events.sh, so removing exported surface is a
+# separate change with its own blast radius and no CPU gain.
 _compute_cell_parts() {
     _cid_dec="" ; _cid_enb="" ; _cid_sec=""
     [ -z "$1" ] && return
@@ -68,12 +73,17 @@ _compute_cell_parts() {
 }
 
 # Converts a hex string (e.g. TAC) to decimal. Empty input → empty output.
+# Note it has NO failure guard, so invalid hex answers 0 rather than empty —
+# parse_serving_cell's awk reproduces that.
+#
+# NO LONGER CALLED BY parse_serving_cell (see _compute_cell_parts above).
 _hex_to_dec() {
     [ -z "$1" ] && return
     printf '%d' "0x$1" 2>/dev/null
 }
 
 # --- SCS Enum to kHz Mapping --------------------------------------------------
+# NO LONGER CALLED BY parse_serving_cell (see _compute_cell_parts above).
 map_scs_to_khz() {
     case "$1" in
         0) echo 15 ;;
@@ -107,163 +117,311 @@ parse_serving_cell() {
     nr_rsrp="" ; nr_rsrq="" ; nr_sinr="" ; nr_scs=""
     nr_cell_id="" ; nr_enodeb_id="" ; nr_sector_id="" ; nr_tac=""
 
-    # Only keep +QENG: response lines (strip any residual echo/OK lines)
-    raw=$(printf '%s\n' "$raw" | grep '^+QENG:')
+    # ONE awk pass emits ONE pipe-delimited record; the walk below is pure bash.
+    #
+    # awk portability, probed live on BOTH devices — do not assume otherwise:
+    #   * strtonum() DOES NOT EXIST (both answer "Call to undefined function"),
+    #     hence the manual base-16 loop in hexval().
+    #   * a 36-bit NR NCI is exact in awk double arithmetic; print it with %.0f,
+    #     never %d.
+    #   * toupper / index / substr / split / gsub / sprintf are all present.
+    #
+    # Two sentinels leave the shell in control of the two globals this function
+    # must sometimes NOT touch:
+    #   * field 1 is a warn flag, not a message.
+    #   * @NC@ in the service_status or network_type slot means "no change".
+    #     service_status is left alone when the state token matches none of
+    #     NOCONN / LIMSRV / CONNECT / SEARCH; network_type is left alone unless
+    #     one of the three mode branches ran.
+    #
+    # THE CR-STRIPPING ASYMMETRY IS DELIBERATE AND IS PORTED FIELD FOR FIELD.
+    # The shell version stripped carriage returns unevenly, and this rewrite
+    # reproduces that rather than normalising it, so old and new agree whether or
+    # not a CR is on the wire:
+    #   * EN-DC LTE line  — csv NOT stripped; only the hex cell-ID (f5) and TAC
+    #                       (f11) are. Band, PCI, EARFCN, bandwidth, RSRP, RSRQ,
+    #                       RSSI and SINR keep any trailing CR.
+    #   * EN-DC NR line   — csv stripped wholesale.
+    #   * 5G-SA           — csv NOT stripped; only f7 (cell-ID) and f9 (TAC).
+    #                       f16 (SCS) is NOT stripped, so a trailing CR there
+    #                       makes the SCS map fall through to empty. Preserved.
+    #   * LTE-only        — csv NOT stripped; only f7 (cell-ID) and f13 (TAC).
+    #
+    # Two more shell behaviours the awk reproduces on purpose:
+    #   * cut(1) prints the WHOLE line for any -f when the line holds no
+    #     delimiter at all — see f().
+    #   * _hex_to_dec had no failure guard, so bash printf answered "0" on
+    #     invalid hex, while _compute_cell_parts guarded and answered empty.
+    #     hex2dec() and cellparts() keep that split.
+    local _rec
+    _rec=$(printf '%s\n' "$raw" | awk '
+        BEGIN { CR = sprintf("%c", 13); NLINES = 0 }
 
-    if [ -z "$raw" ]; then
+        /^[+]QENG:/ { NLINES = NLINES + 1; LN[NLINES] = $0 }
+
+        function stripcr(s) { gsub(CR, "", s); return s }
+
+        # sed s/+QENG: //g | tr -d \" | tr -d " " [ | tr -d \r ]
+        function mkcsv(s, docr,   t) {
+            t = s
+            gsub(/[+]QENG: /, "", t)
+            gsub(/"/, "", t)
+            gsub(/ /, "", t)
+            if (docr) t = stripcr(t)
+            return t
+        }
+
+        function setcsv(s) { CSVSTR = s; NCSV = split(s, CSV, ",") }
+
+        # cut -d, -fN, including its no-delimiter behaviour.
+        function f(n) {
+            if (NCSV <= 1) return CSVSTR
+            if (n > NCSV) return ""
+            return CSV[n]
+        }
+
+        # Base-16 by hand. Sets HEXOK=0 on any non-hex character.
+        function hexval(s,   h, u, i, p, n) {
+            HEXOK = 0
+            if (length(s) == 0) return 0
+            h = "0123456789ABCDEF"
+            u = toupper(s)
+            n = 0
+            for (i = 1; i <= length(u); i++) {
+                p = index(h, substr(u, i, 1))
+                if (p == 0) return 0
+                n = n * 16 + p - 1
+            }
+            HEXOK = 1
+            return n
+        }
+
+        # _compute_cell_parts: LTE 28-bit ECI >>8 / &0xFF, NR 36-bit NCI
+        # >>14 / &0x3FFF. Invalid or empty hex leaves all three empty.
+        function cellparts(hx, isnr,   v) {
+            CD = ""; CE = ""; CS = ""
+            if (length(hx) == 0) return
+            v = hexval(hx)
+            if (HEXOK == 0) return
+            CD = sprintf("%.0f", v)
+            if (isnr) {
+                CE = sprintf("%.0f", int(v / 16384))
+                CS = sprintf("%.0f", v - int(v / 16384) * 16384)
+            } else {
+                CE = sprintf("%.0f", int(v / 256))
+                CS = sprintf("%.0f", v - int(v / 256) * 256)
+            }
+        }
+
+        # _hex_to_dec: empty in, empty out; invalid hex answers 0, because the
+        # shell version had no guard and bash printf prints 0 on a bad number.
+        function hex2dec(hx,   v) {
+            if (length(hx) == 0) return ""
+            v = hexval(hx)
+            if (HEXOK == 0) return "0"
+            return sprintf("%.0f", v)
+        }
+
+        # map_scs_to_khz. Concatenating "" forces a string compare, so a value
+        # carrying a stray character never matches.
+        function scs(v,   s) {
+            s = v ""
+            if (s == "0") return "15"
+            if (s == "1") return "30"
+            if (s == "2") return "60"
+            if (s == "3") return "120"
+            if (s == "4") return "240"
+            return ""
+        }
+
+        function emit(   r) {
+            r = warn "|" svc "|" ntype "|" ltest "|" nrst "|"
+            r = r lband "|" learfcn "|" lbw "|" lpci "|"
+            r = r lrsrp "|" lrsrq "|" lsinr "|" lrssi "|"
+            r = r lcid "|" lenb "|" lsec "|" ltac "|"
+            r = r nband "|" narfcn "|" npci "|"
+            r = r nrsrp "|" nrsrq "|" nsinr "|" nscs "|"
+            r = r ncid "|" nenb "|" nsec "|" ntac "|"
+            print r "END"
+        }
+
+        END {
+            warn = 0
+            svc = "@NC@"
+            ntype = "@NC@"
+            ltest = "unknown"
+            nrst = "unknown"
+            lband = ""; learfcn = ""; lbw = ""; lpci = ""
+            lrsrp = ""; lrsrq = ""; lsinr = ""; lrssi = ""
+            lcid = ""; lenb = ""; lsec = ""; ltac = ""
+            nband = ""; narfcn = ""; npci = ""
+            nrsrp = ""; nrsrq = ""; nsinr = ""; nscs = ""
+            ncid = ""; nenb = ""; nsec = ""; ntac = ""
+
+            if (NLINES == 0) {
+                warn = 1
+                svc = "unknown"
+                emit()
+                exit
+            }
+
+            sc = ""
+            for (i = 1; i <= NLINES; i++) {
+                if (index(LN[i], "\"servingcell\"") > 0) { sc = LN[i]; break }
+            }
+
+            if (index(sc, "\"NOCONN\"") > 0)            svc = "idle"
+            else if (index(sc, "\"LIMSRV\"") > 0)       svc = "limited"
+            else if (index(sc, "\"CONNECT\"") > 0)      svc = "connected"
+            else if (index(sc, "\"SEARCH\"") > 0)       svc = "searching"
+
+            hn = 0; hs = 0; hl = 0
+            for (i = 1; i <= NLINES; i++) {
+                if (index(LN[i], "\"NR5G-NSA\"") > 0) hn = hn + 1
+                if (index(LN[i], "\"NR5G-SA\"") > 0)  hs = hs + 1
+                if (index(LN[i], "\"LTE\"") > 0)      hl = hl + 1
+            }
+
+            if (hn > 0) {
+                # ===== EN-DC / NSA MODE =====
+                ntype = "5G-NSA"
+                ll = ""
+                for (i = 1; i <= NLINES; i++) {
+                    if (index(LN[i], "\"LTE\"") > 0 && index(LN[i], "\"servingcell\"") == 0) {
+                        ll = LN[i]
+                        break
+                    }
+                }
+                if (length(ll) > 0) {
+                    # LTE,is_tdd,MCC,MNC,cellID,PCID,earfcn,band,UL_bw,DL_bw,TAC,RSRP,RSRQ,RSSI,SINR
+                    # 1   2      3   4   5      6    7      8    9     10    11  12   13   14   15
+                    ltest = "connected"
+                    setcsv(mkcsv(ll, 0))
+                    cellparts(stripcr(f(5)), 0)
+                    lcid = CD; lenb = CE; lsec = CS
+                    lpci = f(6)
+                    learfcn = f(7)
+                    lband = "B" f(8)
+                    lbw = f(10)
+                    ltac = hex2dec(stripcr(f(11)))
+                    lrsrp = f(12)
+                    lrsrq = f(13)
+                    lrssi = f(14)
+                    lsinr = f(15)
+                }
+                nline = ""
+                for (i = 1; i <= NLINES; i++) {
+                    if (index(LN[i], "\"NR5G-NSA\"") > 0) { nline = LN[i]; break }
+                }
+                if (length(nline) > 0) {
+                    # NR5G-NSA,MCC,MNC,PCID,RSRP,SINR,RSRQ,ARFCN,band,NR_DL_bw,scs
+                    # 1        2   3   4    5    6    7    8     9    10       11
+                    nrst = "connected"
+                    setcsv(mkcsv(nline, 1))
+                    npci = f(4)
+                    nrsrp = f(5)
+                    nsinr = f(6)
+                    nrsrq = f(7)
+                    narfcn = f(8)
+                    nband = "N" f(9)
+                    nscs = scs(f(11))
+                }
+            } else if (hs > 0) {
+                # ===== SA MODE =====
+                # servingcell,state,NR5G-SA,duplex,MCC,MNC,cellID,PCID,TAC,ARFCN,band,NR_DL_bw,RSRP,RSRQ,SINR,scs,srxlev
+                # 1           2     3       4      5   6   7      8    9   10    11   12       13   14   15   16  17
+                ntype = "5G-SA"
+                ltest = "inactive"
+                nrst = "connected"
+                setcsv(mkcsv(sc, 0))
+                cellparts(stripcr(f(7)), 1)
+                ncid = CD; nenb = CE; nsec = CS
+                npci = f(8)
+                ntac = hex2dec(stripcr(f(9)))
+                narfcn = f(10)
+                nband = "N" f(11)
+                nrsrp = f(13)
+                nrsrq = f(14)
+                nsinr = f(15)
+                nscs = scs(f(16))
+            } else if (hl > 0) {
+                # ===== LTE-ONLY MODE =====
+                # servingcell,state,LTE,is_tdd,MCC,MNC,cellID,PCID,earfcn,band,UL_bw,DL_bw,TAC,RSRP,RSRQ,RSSI,SINR,...
+                # 1           2     3   4      5   6   7      8    9      10   11    12    13  14   15   16   17
+                ntype = "LTE"
+                nrst = "inactive"
+                setcsv(mkcsv(sc, 0))
+                if (index(CSVSTR, "SEARCH") > 0) {
+                    # Early return: every radio field stays blank.
+                    ltest = "searching"
+                    emit()
+                    exit
+                }
+                ltest = "connected"
+                cellparts(stripcr(f(7)), 0)
+                lcid = CD; lenb = CE; lsec = CS
+                lpci = f(8)
+                learfcn = f(9)
+                lband = "B" f(10)
+                lbw = f(12)
+                ltac = hex2dec(stripcr(f(13)))
+                lrsrp = f(14)
+                lrsrq = f(15)
+                lrssi = f(16)
+                lsinr = f(17)
+            } else {
+                ltest = "unknown"
+                nrst = "unknown"
+                svc = "unknown"
+            }
+            emit()
+        }
+    ')
+
+    if [ -z "$_rec" ]; then
         qlog_warn "parse_serving_cell: no +QENG: lines in response"
         service_status="unknown"
         return
     fi
 
-    # --- Detect connection state ---
-    local sc_line
-    sc_line=$(printf '%s\n' "$raw" | grep '"servingcell"' | head -1)
+    # Pure-bash walk over the record. Same idiom as read_ping_data in the poller.
+    local _rest _v
+    _rest="$_rec"
 
-    case "$sc_line" in
-        *'"NOCONN"'*)  service_status="idle" ;;
-        *'"LIMSRV"'*)  service_status="limited" ;;
-        *'"CONNECT"'*) service_status="connected" ;;
-        *'"SEARCH"'*)  service_status="searching" ;;
-    esac
+    _v="${_rest%%|*}" ; _rest="${_rest#*|}"
+    [ "$_v" = "1" ] && qlog_warn "parse_serving_cell: no +QENG: lines in response"
 
-    # --- Determine mode ---
-    local has_nsa
-    local has_sa
-    local has_lte
-    has_nsa=$(printf '%s\n' "$raw" | grep -c '"NR5G-NSA"')
-    has_sa=$(printf '%s\n' "$raw" | grep -c '"NR5G-SA"')
-    has_lte=$(printf '%s\n' "$raw" | grep -c '"LTE"')
+    _v="${_rest%%|*}" ; _rest="${_rest#*|}"
+    [ "$_v" = "@NC@" ] || service_status="$_v"
 
-    # ===== EN-DC / NSA MODE =====
-    if [ "$has_nsa" -gt 0 ]; then
-        network_type="5G-NSA"
+    _v="${_rest%%|*}" ; _rest="${_rest#*|}"
+    [ "$_v" = "@NC@" ] || network_type="$_v"
 
-        # LTE line (separate from "servingcell" line in EN-DC)
-        local lte_line
-        lte_line=$(printf '%s\n' "$raw" | grep '"LTE"' | grep -v '"servingcell"' | head -1)
-
-        if [ -n "$lte_line" ]; then
-            lte_state="connected"
-            local csv
-            csv=$(printf '%s' "$lte_line" | sed 's/+QENG: //g' | tr -d '"' | tr -d ' ')
-
-            # LTE,is_tdd,MCC,MNC,cellID,PCID,earfcn,freq_band_ind,UL_bw,DL_bw,TAC,RSRP,RSRQ,RSSI,SINR
-            # 1   2      3   4   5      6    7      8              9     10    11  12   13   14   15
-            local raw_hex
-            raw_hex=$(printf '%s' "$csv" | cut -d',' -f5 | tr -d '\r')
-            _compute_cell_parts "$raw_hex"
-            lte_cell_id="$_cid_dec" ; lte_enodeb_id="$_cid_enb" ; lte_sector_id="$_cid_sec"
-            lte_pci=$(printf '%s' "$csv" | cut -d',' -f6)
-            lte_earfcn=$(printf '%s' "$csv" | cut -d',' -f7)
-            local band_num
-            band_num=$(printf '%s' "$csv" | cut -d',' -f8)
-            lte_band="B${band_num}"
-            lte_bandwidth=$(printf '%s' "$csv" | cut -d',' -f10)
-            lte_tac=$(_hex_to_dec "$(printf '%s' "$csv" | cut -d',' -f11 | tr -d '\r')")
-            lte_rsrp=$(printf '%s' "$csv" | cut -d',' -f12)
-            lte_rsrq=$(printf '%s' "$csv" | cut -d',' -f13)
-            lte_rssi=$(printf '%s' "$csv" | cut -d',' -f14)
-            lte_sinr=$(printf '%s' "$csv" | cut -d',' -f15)
-        fi
-
-        # NR5G-NSA line
-        local nr_line
-        nr_line=$(printf '%s\n' "$raw" | grep '"NR5G-NSA"' | head -1)
-
-        if [ -n "$nr_line" ]; then
-            nr_state="connected"
-            local csv
-            csv=$(printf '%s' "$nr_line" | sed 's/+QENG: //g' | tr -d '"' | tr -d ' ' | tr -d '\r')
-
-            # NR5G-NSA,MCC,MNC,PCID,RSRP,SINR,RSRQ,ARFCN,band,NR_DL_bw,scs
-            # 1        2   3   4    5    6    7    8     9    10        11
-            nr_pci=$(printf '%s' "$csv" | cut -d',' -f4)
-            nr_rsrp=$(printf '%s' "$csv" | cut -d',' -f5)
-            nr_sinr=$(printf '%s' "$csv" | cut -d',' -f6)
-            nr_rsrq=$(printf '%s' "$csv" | cut -d',' -f7)
-            nr_arfcn=$(printf '%s' "$csv" | cut -d',' -f8)
-            local nr_band_num
-            nr_band_num=$(printf '%s' "$csv" | cut -d',' -f9)
-            nr_band="N${nr_band_num}"
-            local nr_scs_raw
-            nr_scs_raw=$(printf '%s' "$csv" | cut -d',' -f11)
-            nr_scs=$(map_scs_to_khz "$nr_scs_raw")
-        fi
-
-    # ===== SA MODE =====
-    elif [ "$has_sa" -gt 0 ]; then
-        network_type="5G-SA"
-        lte_state="inactive"
-        nr_state="connected"
-
-        local csv
-        csv=$(printf '%s' "$sc_line" | sed 's/+QENG: //g' | tr -d '"' | tr -d ' ')
-
-        # servingcell,state,NR5G-SA,duplex,MCC,MNC,cellID,PCID,TAC,ARFCN,band,NR_DL_bw,RSRP,RSRQ,SINR,scs,srxlev
-        # 1           2     3       4      5   6   7      8    9   10     11   12       13   14   15   16  17
-        local raw_hex
-        raw_hex=$(printf '%s' "$csv" | cut -d',' -f7 | tr -d '\r')
-        _compute_cell_parts "$raw_hex" "nr"
-        nr_cell_id="$_cid_dec" ; nr_enodeb_id="$_cid_enb" ; nr_sector_id="$_cid_sec"
-        nr_pci=$(printf '%s' "$csv" | cut -d',' -f8)
-        nr_tac=$(_hex_to_dec "$(printf '%s' "$csv" | cut -d',' -f9 | tr -d '\r')")
-        nr_arfcn=$(printf '%s' "$csv" | cut -d',' -f10)
-        local nr_band_num
-        nr_band_num=$(printf '%s' "$csv" | cut -d',' -f11)
-        nr_band="N${nr_band_num}"
-        nr_rsrp=$(printf '%s' "$csv" | cut -d',' -f13)
-        nr_rsrq=$(printf '%s' "$csv" | cut -d',' -f14)
-        nr_sinr=$(printf '%s' "$csv" | cut -d',' -f15)
-        local nr_scs_raw
-        nr_scs_raw=$(printf '%s' "$csv" | cut -d',' -f16)
-        nr_scs=$(map_scs_to_khz "$nr_scs_raw")
-
-    # ===== LTE-ONLY MODE =====
-    elif [ "$has_lte" -gt 0 ]; then
-        network_type="LTE"
-        nr_state="inactive"
-
-        # LTE-only: "LTE" on the SAME line as "servingcell"
-        local csv
-        csv=$(printf '%s' "$sc_line" | sed 's/+QENG: //g' | tr -d '"' | tr -d ' ')
-
-        case "$csv" in
-            *SEARCH*)
-                lte_state="searching"
-                return
-                ;;
-            *NOCONN*)
-                lte_state="connected"
-                ;;
-            *)
-                lte_state="connected"
-                ;;
-        esac
-
-        # servingcell,state,LTE,is_tdd,MCC,MNC,cellID,PCID,earfcn,freq_band_ind,UL_bw,DL_bw,TAC,RSRP,RSRQ,RSSI,SINR,...
-        # 1           2     3   4      5   6   7      8    9      10             11    12    13  14   15   16   17
-        local raw_hex
-        raw_hex=$(printf '%s' "$csv" | cut -d',' -f7 | tr -d '\r')
-        _compute_cell_parts "$raw_hex"
-        lte_cell_id="$_cid_dec" ; lte_enodeb_id="$_cid_enb" ; lte_sector_id="$_cid_sec"
-        lte_pci=$(printf '%s' "$csv" | cut -d',' -f8)
-        lte_earfcn=$(printf '%s' "$csv" | cut -d',' -f9)
-        local band_num
-        band_num=$(printf '%s' "$csv" | cut -d',' -f10)
-        lte_band="B${band_num}"
-        lte_bandwidth=$(printf '%s' "$csv" | cut -d',' -f12)
-        lte_tac=$(_hex_to_dec "$(printf '%s' "$csv" | cut -d',' -f13 | tr -d '\r')")
-        lte_rsrp=$(printf '%s' "$csv" | cut -d',' -f14)
-        lte_rsrq=$(printf '%s' "$csv" | cut -d',' -f15)
-        lte_rssi=$(printf '%s' "$csv" | cut -d',' -f16)
-        lte_sinr=$(printf '%s' "$csv" | cut -d',' -f17)
-
-    else
-        lte_state="unknown"
-        nr_state="unknown"
-        service_status="unknown"
-    fi
+    lte_state="${_rest%%|*}"     ; _rest="${_rest#*|}"
+    nr_state="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    lte_band="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    lte_earfcn="${_rest%%|*}"    ; _rest="${_rest#*|}"
+    lte_bandwidth="${_rest%%|*}" ; _rest="${_rest#*|}"
+    lte_pci="${_rest%%|*}"       ; _rest="${_rest#*|}"
+    lte_rsrp="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    lte_rsrq="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    lte_sinr="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    lte_rssi="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    lte_cell_id="${_rest%%|*}"   ; _rest="${_rest#*|}"
+    lte_enodeb_id="${_rest%%|*}" ; _rest="${_rest#*|}"
+    lte_sector_id="${_rest%%|*}" ; _rest="${_rest#*|}"
+    lte_tac="${_rest%%|*}"       ; _rest="${_rest#*|}"
+    nr_band="${_rest%%|*}"       ; _rest="${_rest#*|}"
+    nr_arfcn="${_rest%%|*}"      ; _rest="${_rest#*|}"
+    nr_pci="${_rest%%|*}"        ; _rest="${_rest#*|}"
+    nr_rsrp="${_rest%%|*}"       ; _rest="${_rest#*|}"
+    nr_rsrq="${_rest%%|*}"       ; _rest="${_rest#*|}"
+    nr_sinr="${_rest%%|*}"       ; _rest="${_rest#*|}"
+    nr_scs="${_rest%%|*}"        ; _rest="${_rest#*|}"
+    nr_cell_id="${_rest%%|*}"    ; _rest="${_rest#*|}"
+    nr_enodeb_id="${_rest%%|*}"  ; _rest="${_rest#*|}"
+    nr_sector_id="${_rest%%|*}"  ; _rest="${_rest#*|}"
+    nr_tac="${_rest%%|*}"
 }
 
 # -----------------------------------------------------------------------------
