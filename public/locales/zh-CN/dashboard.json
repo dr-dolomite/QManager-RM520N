@@ -132,6 +132,7 @@
   },
   "signal_history": {
     "title": "信号质量监控",
+    "description": "4G 与 5G 链路近期的变化，足以区分瞬时波动和真正的下降。",
     "rsrp_label": "RSRP",
     "rsrq_label": "RSRQ",
     "sinr_label": "SINR",

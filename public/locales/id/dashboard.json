@@ -132,6 +132,7 @@
   },
   "signal_history": {
     "title": "Monitor Kualitas Sinyal",
+    "description": "Bagaimana jalur 4G dan 5G bergerak belakangan ini — cukup riwayat untuk membedakan penurunan sesaat dari tren.",
     "rsrp_label": "RSRP",
     "rsrq_label": "RSRQ",
     "sinr_label": "SINR",

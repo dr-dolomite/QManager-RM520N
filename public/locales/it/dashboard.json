@@ -132,6 +132,7 @@
   },
   "signal_history": {
     "title": "Monitoraggio della qualità del segnale",
+    "description": "Come si sono mossi di recente i collegamenti 4G e 5G: cronologia sufficiente a distinguere un calo momentaneo da una tendenza.",
     "rsrp_label": "RSRP",
     "rsrq_label": "RSRQ",
     "sinr_label": "SINR",

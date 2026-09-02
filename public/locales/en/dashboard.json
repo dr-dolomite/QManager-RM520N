@@ -132,6 +132,7 @@
   },
   "signal_history": {
     "title": "Signal Quality Monitor",
+    "description": "How the 4G and 5G legs have moved recently — enough history to tell a dip from a trend.",
     "rsrp_label": "RSRP",
     "rsrq_label": "RSRQ",
     "sinr_label": "SINR",

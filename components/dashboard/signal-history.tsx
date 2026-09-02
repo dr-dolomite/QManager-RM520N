@@ -9,6 +9,7 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -31,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { transitionStandard } from "@/lib/motion";
+import { CARD_DESC, CARD_SHELL, CARD_TITLE } from "./shapes";
 import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
 import { useSignalHistory } from "@/hooks/use-signal-history";
 import type { SignalChartPoint } from "@/hooks/use-signal-history";
@@ -40,8 +42,10 @@ import type { SignalChartPoint } from "@/hooks/use-signal-history";
 // =============================================================================
 // Shape notes that are not obvious from the JSX:
 //
-//  * The card shell is the dashboard's shared idiom (`rounded-card`, borderless,
-//    whisper shadow) at the mock's 24px/28px padding and 16px column gap.
+//  * The card shell is the surface's shared `CARD_SHELL`. This card is a PEER
+//    in a full-width row, not the hero, so it takes the peer's 24px padding
+//    rather than the 28px it was first authored with from the mock's hero
+//    figures.
 //  * The plot is pinned at the SAME height in every branch — loaded, loading,
 //    empty and error. There is zero layout jump across the handoff today and
 //    that is the one thing this card already got right; it stays true.
@@ -52,10 +56,6 @@ import type { SignalChartPoint } from "@/hooks/use-signal-history";
 //    family, so the chart neither themed nor separated its two series by
 //    anything but lightness.
 // =============================================================================
-
-/** Mock: `background:var(--surf); border-radius:36px; padding:24px 28px; gap:16px`. */
-const CARD_SHELL =
-  "@container/card gap-4 rounded-card border-0 px-7 py-6 shadow-[var(--shadow-whisper)]";
 
 /**
  * Total height reserved for the chart block, identical in every branch.
@@ -279,9 +279,17 @@ export function SignalHistoryComponent() {
   // to the same `signalType`, and the deselect-to-empty guard stays.
   const header = (
     <CardHeader className="px-0">
-      <CardTitle className="text-2xl font-semibold tracking-[-0.02em] @[250px]/card:text-3xl">
-        {t("signal_history.title")}
-      </CardTitle>
+      <CardTitle className={CARD_TITLE}>{t("signal_history.title")}</CardTitle>
+      {/* An explicit ink class because the primitive hardcodes a retired one.
+          This is NOT the footer's line said twice: `trend_heading` names the
+          metric CURRENTLY plotted and moves with the switcher, and
+          `fluctuation_note` is a caveat about reading the numbers. This says
+          what the card is FOR, which is the only one of the three still true
+          in the loading, error and empty branches -- where the plot itself
+          says nothing at all. */}
+      <CardDescription className={CARD_DESC}>
+        {t("signal_history.description")}
+      </CardDescription>
       <CardAction>
         {/* Track: `--surf2` at pill radius with 4px padding and a 4px gap
             (`spacing={1}`), exactly the mock. `spacing` also steers the
