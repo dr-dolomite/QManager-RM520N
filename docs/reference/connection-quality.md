@@ -76,10 +76,10 @@ Two mechanisms keep a four-leg chain from outrunning its consumers.
 **Per-leg deadline.** Every leg runs as:
 
 ```sh
-timeout "$PROBE_DEADLINE" ping -c1 -W "$PROBE_TIMEOUT" <target>
+qm_timeout "$PROBE_DEADLINE" ping -c1 -W "$PROBE_TIMEOUT" <target>
 ```
 
-with `PROBE_DEADLINE = PROBE_TIMEOUT + 1` (= 3s) — the `+1` is the name-resolution allowance. `timeout` is used in its **positional** form (the only one both devices have), and failure is tested as a **non-zero exit status, never as a literal code** — see [platform facts](#platform-facts-that-shape-this-design).
+with `PROBE_DEADLINE = PROBE_TIMEOUT + 1` (= 3s) — the `+1` is the name-resolution allowance. The bound goes through **`qm_timeout`** (`platform.sh`), never a bare `timeout` — the two devices accept *different* CLI forms, so no literal invocation works on both (see [platform facts](#platform-facts-that-shape-this-design)). Failure is tested as a **non-zero exit status, never as a literal code**.
 
 **Fixed-rate loop.** The sleep at the bottom of the loop is `interval_sec − elapsed`, floored at 1 — *not* a flat `sleep interval` after the work. The cycle **period** therefore equals `interval_sec` whenever the chain fits inside it. A flat sleep would have made the real period drift by however long the chain took, which is exactly the skew that made a cycle-count threshold dishonest.
 
@@ -231,7 +231,9 @@ The dead-DNS figure is the **slow** case, and it needs the distinction spelled o
 Three device facts are load-bearing here and are worth reading before editing the probe path.
 
 - **`/bin/ping` is iputils on BOTH devices — not a BusyBox applet.** It is a symlink to `/bin/ping.iputils`: iputils **s20190709+** on RM520N-GL, **s20180629** on RG501Q-EU. Both resolve hostnames and honour `-4` / `-6` / `-W` / `-w`. The feared per-device applet divergence simply does not exist for `ping`. (`ping6` *is* a separate BusyBox applet on both, and is not used.)
-- **`timeout` exits 143 on RM520N-GL but 124 on RG501Q-EU.** The RM520N-GL has the BusyBox applet in `/usr/bin`; the RG501Q-EU resolves to Entware's GNU coreutils build in `/opt/bin`. **Never test for a specific exit code** — non-zero is the only portable signal. Both accept only the positional form (`timeout N cmd`).
+- **`timeout` must be called through `qm_timeout`, never directly — the two devices accept different CLI forms.** BusyBox moved `SECS` from an option (`-t SECS`) to a positional first argument in **1.30**, and the targets straddle it: RG501Q-EU ships BusyBox **1.29.3** (legacy `-t` only) and RM520N-GL ships **1.31.1** (positional only). A literal invocation is therefore correct on exactly one device; on the other it reads the seconds argument as the program name and exits **127** without running the command at all. `qm_timeout` (`scripts/usr/lib/qmanager/platform.sh`) resolves the binary by **absolute path**, probes the accepted form by behaviour, and falls back to a **pure-shell bound** when neither binary is usable — so the dependency floor here is POSIX shell, not a working `timeout`. Exit status also differs (**143** on RM520N-GL, **124** on RG501Q-EU), so **never test for a specific exit code** — non-zero is the only portable signal.
+
+  > ⚠️ **Measure `timeout` under the DAEMON's PATH, never a login shell's.** `/etc/profile.d/qmanager-path.sh` prepends `/opt/bin:/opt/sbin`, so an interactive shell finds Entware's coreutils build and every form appears to work. A systemd unit gets `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` and no `/opt/bin` — a different binary, with different CLI rules. The 2026-09-01 measurements recorded above were all taken in a login shell, which is how this file, the daemon's own header, and `qmanager-ping-smoke.sh` step [11] all came to assert that the positional form works on both devices. It does not, and the resulting outage was invisible to three separate guards. Corrected 2026-09-03; see the `qmanager_ping` fix commit for the on-device transcript.
 - **There is NO on-device DNS cache.** `/etc/resolv.conf` points straight at the carrier's DNS servers and bypasses the local dnsmasq (which binds the LAN bridge for downstream clients only); there is no nscd and no systemd-resolved. A successful resolve is therefore **never stale evidence** — the query still has to cross the link. The faster repeat resolves observed (0.10–0.13s versus 0.16–0.38s cold) are the *carrier* resolver's cache, upstream of the bearer.
 
 ---
