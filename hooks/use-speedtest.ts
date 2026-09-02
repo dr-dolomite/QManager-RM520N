@@ -46,8 +46,18 @@ import type {
 
 const CGI_BASE = "/cgi-bin/quecmanager/at_cmd";
 
-/** Cadence while a test is actively running — fast enough to animate. */
-const LIVE_INTERVAL_MS = 500;
+/**
+ * Cadence while a test is actively running — fast enough to animate.
+ *
+ * Exported because it is not only a polling number: `speedtest-dialog.tsx`'s
+ * progress meter transitions its width LINEARLY over exactly this interval, so
+ * the fill bridges one sample to the next rather than easing on top of the
+ * data. That is a sanctioned exception to The One-Scale Rule and it is only
+ * true while the two numbers are the same number — retuning this constant with
+ * a second copy sitting in a class list would leave the bar silently lagging,
+ * with no error anywhere. The meter reads it from here.
+ */
+export const LIVE_INTERVAL_MS = 500;
 /** Cadence for `watch` consumers just checking whether a run has appeared. */
 const DETECT_INTERVAL_MS = 10_000;
 

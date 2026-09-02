@@ -3293,14 +3293,23 @@ done
 #    added was an UNQUALIFIED `duration-[var(--duration-emphasized)]
 #    ease-emphasized`, which applies to the closed state too.
 #
-#    Whether it actually wins is decided by CSS emission order between two
-#    candidates the tooling cannot see as conflicting -- `twMerge` does not
-#    read a variant-prefixed arbitrary duration as colliding with a bare one,
-#    so both survive into the class list and the cascade decides. That is the
-#    same alphabetical trap `lib/utils.ts` documents for radii and DESIGN.md
-#    documents for `bg-input` vs `bg-surface-*`. A rule that holds by accident
-#    of sort order is not held, and the cost if it flips is 800ms of dead
-#    clicks on every close of a dialog whose whole job is to be dismissed.
+#    MEASURED BEFORE THE FIX, and the first draft of this paragraph was wrong:
+#    it did NOT win. `twMerge` does not read a variant-prefixed arbitrary
+#    duration as colliding with a bare one, so both survived into the class
+#    list -- but the cascade is not a tie. `data-[state=closed]:duration-...`
+#    is an attribute selector at (0,2,0) against a bare utility at (0,1,0), so
+#    the primitive took the exit outright: the closed clock resolves to 0.36s
+#    on the shipped code and 0.36s after this section is green.
+#
+#    So the defect is LATENT, not live, and that is still worth closing. An
+#    unqualified duration parked behind a rule that outranks it springs the
+#    moment the two tie -- move it into a `data-[state]`-prefixed slot, drop
+#    the primitive's closed half, and nothing but Tailwind's name sort decides,
+#    which is the alphabetical trap `lib/utils.ts` documents for radii and
+#    DESIGN.md documents for `bg-input` vs `bg-surface-*`. The cost if it ever
+#    flips is 800ms of dead clicks per close of a dialog whose whole job is to
+#    be dismissed, and nothing in the type system or the tests would say so.
+#    A class that reads as if it sets the exit clock should set it or go.
 #
 #    [09-2] pins it by COUNT: every `duration-[var(--duration-emphasized)]` in
 #    this file must be `data-[state=open]:`-qualified, so an unqualified one

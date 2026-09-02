@@ -32,7 +32,11 @@ import {
   transitionEmphasized,
 } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { useSpeedtest, type SpeedtestPhase } from "@/hooks/use-speedtest";
+import {
+  LIVE_INTERVAL_MS,
+  useSpeedtest,
+  type SpeedtestPhase,
+} from "@/hooks/use-speedtest";
 import {
   SPEEDTEST_STEPS,
   resolveStepStates,
@@ -197,8 +201,9 @@ function mbpsText(bytesPerSec: number): string {
 // NOT `components/ui/progress.tsx`. That primitive ships `transition-all` at
 // Tailwind's 150ms default and is consumed across the product, so overriding
 // its timing here would silently retime every other bar. This one exists to
-// carry exactly one rule: the fill moves LINEARLY at the 500ms poll cadence, so
-// its travel is the data arriving rather than an eased flourish laid over it.
+// carry exactly one rule: the fill moves LINEARLY at the poll cadence, so its
+// travel is the data arriving rather than an eased flourish laid over it. That
+// cadence is `LIVE_INTERVAL_MS`, imported rather than retyped — see below.
 // -----------------------------------------------------------------------------
 
 function TrackBar({
@@ -231,10 +236,20 @@ function TrackBar({
           // to the sample cadence rather than to the duration scale.
           // `motion-reduce` drops it entirely — a bar that jumps is honest; a
           // bar that slides is a preference.
-          "transition-[width] duration-500 ease-linear motion-reduce:transition-none",
+          //
+          // The duration is an inline style rather than a `duration-*` class
+          // because it is the POLL CADENCE, and the cadence is a value the hook
+          // owns. Written as a literal it was a second copy of `500` that no
+          // type and no test could see, so a retune of the poll would leave the
+          // fill still travelling when the next sample landed. Now there is one
+          // number: change `LIVE_INTERVAL_MS` and the bar follows.
+          "transition-[width] ease-linear motion-reduce:transition-none",
           fillClassName,
         )}
-        style={{ width: `${pct}%` }}
+        style={{
+          width: `${pct}%`,
+          transitionDuration: `${LIVE_INTERVAL_MS}ms`,
+        }}
       />
     </div>
   );
@@ -325,7 +340,7 @@ function StepMark({
       <span
         aria-hidden="true"
         className={cn(
-          "size-[7px] flex-none rounded-full",
+          "size-[7px] flex-none rounded-pill",
           // Ambient, and gated on real state: this breathes only while the
           // measurement it names is actually in flight.
           "animate-pulse motion-reduce:animate-none",
@@ -337,7 +352,7 @@ function StepMark({
   return (
     <span
       aria-hidden="true"
-      className="border-outline size-[7px] flex-none rounded-full border"
+      className="border-outline size-[7px] flex-none rounded-pill border"
     />
   );
 }
@@ -431,7 +446,7 @@ function IdleBody({
             onClick={onRefreshServers}
             disabled={isLoadingServers}
             aria-label={t("speedtest.refresh_aria")}
-            className="bg-surface-container text-on-surface-variant hover:bg-surface-container-high ml-auto grid size-[30px] place-items-center rounded-full transition-colors duration-[var(--duration-quick)] ease-out disabled:opacity-60"
+            className="bg-surface-container text-on-surface-variant hover:bg-surface-container-high ml-auto grid size-[30px] place-items-center rounded-pill transition-colors duration-[var(--duration-quick)] ease-out disabled:opacity-60"
           >
             <MaterialSymbol
               name="refresh"
@@ -686,13 +701,18 @@ function TransferBody({
         </span>
       </div>
 
-      {/* Inside a coloured container the neutral track token would fight the
-          fill, so the track is a white veil ON the container — the one place
-          the Solid-Container Rule's "no alpha" does not apply, because this is
-          a shadow within a solid block rather than a container in its own right. */}
+      {/* The neutral surface step, not a veil. `bg-white/45` was here on the
+          argument that a token would fight the container fill; measured, the
+          opposite is true and only in the theme nobody checked. A fixed white
+          at 45% over `downlink-container` computes to L~0.62 in dark against a
+          `downlink` fill at L 0.66 — four hundredths apart, so the bar could
+          not be read at all. `surface-container-high` (0.938 light / 0.235
+          dark) clears both direction containers in both themes: lighter than
+          them in light, darker in dark, so it reads as a recessed groove.
+          `live-latency.tsx` made the same substitution for the same reason. */}
       <TrackBar
         value={progress}
-        trackClassName="bg-white/45"
+        trackClassName="bg-surface-container-high"
         fillClassName={role.strong}
       />
       <span className="text-xs tabular-nums opacity-80">{pct}%</span>
@@ -1093,9 +1113,26 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
         className={cn(
           "rounded-card gap-5 p-6 sm:max-w-md",
           "max-h-[85vh] overflow-y-auto",
-          // The panel is changing size and shape, so it arrives on the
-          // emphasized clock rather than the primitive's stock 200ms.
-          "duration-[var(--duration-emphasized)] ease-emphasized",
+          // The panel is changing size and shape, so it ARRIVES on the
+          // emphasized clock rather than the primitive's stock 200ms — and the
+          // state qualifier is the whole point. Unqualified, this ALSO named
+          // the closed state, where `dialog.tsx` deliberately exits on `quick`;
+          // `emphasized` there would be 800ms of a panel that is still present
+          // and still eating clicks after the user has asked it to go.
+          //
+          // Measured: it did not win. `data-[state=closed]:duration-…` is an
+          // attribute selector at (0,2,0) against a bare utility at (0,1,0), so
+          // the primitive took the exit and the closed clock resolved to 0.36s
+          // both before and after this line was qualified. What the qualifier
+          // buys is therefore not a repair but the removal of a LATENT one: an
+          // unqualified duration sitting behind a rule that outranks it is a
+          // trap that springs the moment the two tie, and at a tie nothing but
+          // Tailwind's name sort decides — the trap `lib/utils.ts` documents
+          // for radii and DESIGN.md documents for `bg-input` vs `bg-surface-*`.
+          // A class that reads as if it sets the exit clock should either set
+          // it or not be there.
+          "data-[state=open]:duration-[var(--duration-emphasized)]",
+          "data-[state=open]:ease-emphasized",
         )}
       >
         <DialogHeader className="flex-row items-center gap-2 space-y-0 text-left">
@@ -1116,7 +1153,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
             <button
               type="button"
               aria-label={t("speedtest.close_aria")}
-              className="text-on-surface-variant hover:bg-surface-container ml-auto grid size-8 flex-none place-items-center rounded-full transition-colors duration-[var(--duration-quick)] ease-out"
+              className="text-on-surface-variant hover:bg-surface-container ml-auto grid size-8 flex-none place-items-center rounded-pill transition-colors duration-[var(--duration-quick)] ease-out"
             >
               <MaterialSymbol name="close" size={20} />
             </button>
