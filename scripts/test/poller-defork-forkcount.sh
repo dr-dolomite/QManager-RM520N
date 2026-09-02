@@ -322,6 +322,30 @@ assert_ceiling "target 3" "$POLLER" "update_system_health" 4
 # are all readable with the read builtin and suffix trimming. Zero forks.
 assert_ceiling "target 4" "$POLLER" "update_proc_metrics" 0
 
+# Target 5 — qcmd_exec: the echo/OK stripper
+#
+#     result=$(printf '%s\n' "$result" | grep -v '^AT' | grep -v '^OK$' | grep -v '^$')
+#
+# becomes a pure-bash walk over the string, the same idiom parse_serving_cell
+# and read_ping_data already use. Zero forks.
+#
+# This target was added AFTER the first three landed, on measured evidence
+# rather than by inspection. Phase 5 profiling put poll_serving_cell at 42 ms
+# (RM520N-GL) and 55 ms (RG501Q-EU) against a 40/50 ms bar — a real 5-10%
+# overshoot, reproducible to within 2% across two runs per device. The residual
+# was NOT in the rewritten parse_serving_cell, which by then held exactly one
+# command substitution. It was these three greps: 3.55 ms each on the RM520N-GL
+# and 4.75 ms on the RG501Q-EU, so ~11 ms and ~14 ms per call, which is almost
+# exactly each device's overshoot.
+#
+# qcmd_exec runs for EVERY AT command the poller issues, not just the serving
+# cell, so this also reaches the CA block and poll_tier2.
+#
+# The ceiling is 1, not 0: `result=$(qcmd "$cmd" 2>/dev/null)` is the AT
+# transport itself and must stay. `qcmd` is not in the applet set above, so
+# that substitution scores 1 and nothing else does.
+assert_ceiling "target 5" "$POLLER" "qcmd_exec" 1
+
 # NOTE: read_ping_data is deliberately NOT asserted here. It was dropped from
 # this pass (its profile baseline is stale — the repo copy and the two device
 # copies differ), so a ceiling on it would be red forever and would tell us
