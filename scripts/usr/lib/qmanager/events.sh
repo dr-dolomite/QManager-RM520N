@@ -385,11 +385,15 @@ _ev_settle() {
 snapshot_event_state() {
     prev_ev_network_type="$network_type"
     # Band and PCI keep their last known good value across a blank reading.
-    # parse_serving_cell blanks all four whenever AT+QENG returns no usable
-    # line (parse_at.sh:113-119, :232-235) — i.e. on every service drop — and
-    # the previous unconditional copy propagated that blank, destroying the
-    # baseline. The visible symptom was the "was ..." clause on the NR anchor
-    # lost message (below, in detect_events) going empty precisely when a user
+    # parse_serving_cell (parse_at.sh) blanks all four whenever AT+QENG returns
+    # no usable line — the no-"+QENG:" fallback and the LTE-only SEARCH early
+    # return, i.e. on every service drop — and the previous unconditional copy
+    # propagated that blank, destroying the baseline. Deliberately described
+    # rather than cited by line number: those citations have now gone stale
+    # twice, most recently in the 2026-09-02 single-awk-pass rewrite.
+    #
+    # The visible symptom was the "was ..." clause on the NR anchor lost
+    # message (below, in detect_events) going empty precisely when a user
     # most wants to know which band they fell off.
     prev_ev_lte_band="${lte_band:-$prev_ev_lte_band}"
     prev_ev_lte_pci="${lte_pci:-$prev_ev_lte_pci}"
