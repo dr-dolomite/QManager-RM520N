@@ -511,7 +511,54 @@ qcmd_exec() {
     fi
 
     # Strip echoed AT command and trailing OK from sms_tool output.
-    result=$(printf '%s\n' "$result" | grep -v '^AT' | grep -v '^OK$' | grep -v '^$')
+    #
+    # ZERO FORKS. This used to be
+    #   result=$(printf '%s\n' "$result" | grep -v '^AT' | grep -v '^OK$' | grep -v '^$')
+    # which is one command substitution, three pipes and three greps. Measured
+    # on hardware, each of those greps costs 3.55 ms of CPU on the RM520N-GL and
+    # 4.75 ms on the RG501Q-EU, so ~11 ms and ~14 ms per call — and qcmd_exec
+    # runs for EVERY AT command the poller issues, not just the serving cell.
+    # The walk below is the same pure-bash suffix-trim idiom parse_serving_cell
+    # and read_ping_data already use, and it creates no processes at all.
+    # scripts/test/poller-defork-forkcount.sh pins the ceiling at 1 (the qcmd
+    # substitution above, which is the AT transport itself).
+    #
+    # The three filters are reproduced EXACTLY, carriage returns and all:
+    #   AT*  drops any line STARTING WITH AT   (grep -v '^AT')
+    #   OK   drops a line that is EXACTLY OK   (grep -v '^OK$')
+    #   ""   drops an EMPTY line               (grep -v '^$')
+    # AT responses are CRLF-terminated, so a line of "OK<CR>" and a line that is
+    # only "<CR>" both SURVIVE here — exactly as they survived the greps, which
+    # anchored on end-of-line. Do NOT "fix" that by trimming the CR: callers
+    # already parse the output as it is, and this change is a pure refactor.
+    #
+    # $_qe_nl holds a literal newline. It is left UNQUOTED in the patterns below
+    # on purpose: a newline is not a glob metacharacter, so quoting would change
+    # nothing about the match, and the unquoted form avoids nesting quotes inside
+    # a ${...} word — the one construct here whose bash 3.2 behaviour (the
+    # RM520N-GL ships bash 3.2.57) is worth not betting on.
+    local _qe_nl=$'\n'
+    local _qe_rest="$result"
+    local _qe_line
+    local _qe_out=""
+    while [ -n "$_qe_rest" ]; do
+        _qe_line="${_qe_rest%%$_qe_nl*}"
+        case "$_qe_rest" in
+            *$_qe_nl*) _qe_rest="${_qe_rest#*$_qe_nl}" ;;
+            *)         _qe_rest="" ;;
+        esac
+        case "$_qe_line" in
+            AT*) continue ;;
+            OK)  continue ;;
+            "")  continue ;;
+        esac
+        if [ -n "$_qe_out" ]; then
+            _qe_out="$_qe_out$_qe_nl$_qe_line"
+        else
+            _qe_out="$_qe_line"
+        fi
+    done
+    result="$_qe_out"
 
     case "$result" in
         *ERROR*)
