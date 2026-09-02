@@ -147,6 +147,7 @@
     "error_description": "無法載入訊號歷史：{{message}}"
   },
   "latency": {
+    "description": "最近十次探測的往返延遲與封包遺失率，以及最近一次測速結果。",
     "title": "即時延遲",
     "chart_latency": "延遲",
     "chart_packetloss": "丟包率",
@@ -158,7 +159,6 @@
   "speedtest": {
     "section_label": "速度測試",
     "start_button_aria": "開始速度測試",
-    "idle_description": "開始速度測試以測量當前的網路速度。",
     "dialog_idle_description": "測量當前的下載速度、上傳速度和延遲。",
     "result_label": "測試結果：",
     "title": "速度測試",

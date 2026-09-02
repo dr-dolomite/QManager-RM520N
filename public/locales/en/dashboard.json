@@ -147,6 +147,7 @@
     "error_description": "Couldn't load signal history: {{message}}"
   },
   "latency": {
+    "description": "Round-trip latency and packet loss over the last ten probes, plus the most recent speed test.",
     "title": "Live Latency",
     "chart_latency": "Latency",
     "chart_packetloss": "Packetloss",
@@ -158,7 +159,6 @@
   "speedtest": {
     "section_label": "Speed Test",
     "start_button_aria": "Start speed test",
-    "idle_description": "Start a speed test to measure your current network speed.",
     "dialog_idle_description": "Measure your current download speed, upload speed, and latency.",
     "result_label": "Speedtest result:",
     "title": "Speed Test",

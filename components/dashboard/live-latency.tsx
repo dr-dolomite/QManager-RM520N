@@ -17,7 +17,17 @@ import {
 
 import { cn } from "@/lib/utils";
 import { DUR } from "@/lib/motion";
-import { CARD_SHELL, CLOCK_TICK_MS } from "./shapes";
+import {
+  ABSENT,
+  CARD_DESC,
+  CARD_SHELL,
+  CARD_TITLE,
+  CLOCK_TICK_MS,
+  LANE,
+  ROW,
+  VALUE_CLASS,
+} from "./shapes";
+import { PillRow } from "./pill-row";
 import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
 import { useSpeedtest, type SpeedtestPhase } from "@/hooks/use-speedtest";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
@@ -25,9 +35,12 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { MetricBar } from "@/components/ui/metric-bar";
+import { Tag } from "@/components/ui/tag";
 import {
   ChartContainer,
   ChartTooltip,
@@ -84,40 +97,21 @@ const LOSS_WINDOW = 10;
 const CHART_BOX = "min-h-[150px] flex-1";
 
 // =============================================================================
-// Speed Test tile
+// Speed Test row
 // =============================================================================
-
-/**
- * The tile's resting height, shared by the tile itself and by the skeleton that
- * stands in for it (the Skeleton-Mirror Rule). The card runs a skeleton→content
- * CROSSFADE, so both are on screen together during the handoff — a drifted
- * number here is not a rounding detail, it is a visible jump at the moment the
- * real content lands.
- *
- * 88px is measured from the markup below, and every one of the three tile
- * states is built to land on it:
- *
- *   12px  py-3 top
- *   20px  header row (`text-sm` label / its `leading-5` line box)
- *   10px  gap-2.5
- *   34px  action row — the comp pins the play disc AND the running spinner disc
- *         at 34px, and the running state's stacked column is tuned to the same
- *         34px (a 22px value line + a 6px gap + the 6px meter) rather than being
- *         allowed to find its own height. The cached state's two figure chips
- *         are 30px, so the disc governs there too.
- *   12px  py-3 bottom
- *
- * It is a MIN-height, not a fixed one: the idle state's sentence can wrap on a
- * narrow card and must be allowed to, and a growing tile is far better than a
- * clipped one. What it must never do is change height when the tile switches
- * BETWEEN states, which is why the three bodies are matched rather than left to
- * their intrinsic sizes.
- *
- * Note the shipped value was already 88 while the real tile measured 90 — the
- * play button was inheriting Button's `size-9` (36px) instead of the comp's 34.
- * Pinning the disc closes that 2px gap rather than papering over it.
- */
-const SPEEDTEST_TILE_H = "min-h-[88px]";
+//
+// This was an 88px tile with two tonal figure chips. It is a 40px `PillRow`
+// now, in the SAME form Device Metrics uses for Data Used.
+//
+// The reason is not the 48px. Both are a DOWN/UP PAIR and they are the only
+// two on the surface, so drawing them in two different shapes meant a user who
+// learned one had not learned the other. The row form also invents nothing:
+// Data Used already puts a control in the label cell (the counter reset) and
+// the signal cards already put a bar inline in a 40px row, which is exactly
+// the two things this needs.
+//
+// The big result is not lost, it moves to where it belongs -- `SpeedtestDialog`
+// is the detail view and already renders it in full.
 
 /**
  * Past this, a result's age is read as a broken clock rather than an old test.
@@ -218,49 +212,6 @@ function liveReading(
   return null;
 }
 
-/**
- * One cached figure, as a filled tonal pill.
- *
- * The fill is the colour contract, not decoration: one hue per measurement,
- * held from this tile through the dialog to the result — download is primary
- * blue, upload is Carrier Violet. (Upload used to be drawn in Uplink Cyan here,
- * which left the dialog's latency reading with no hue of its own; cyan is now
- * latency's, everywhere.) These are IDENTITY fills under DESIGN.md's
- * Identity-Chip Rule — they say WHICH measurement, never how good it was — so
- * each one also carries a direction glyph and the reading is machine voice.
- */
-function SpeedtestFigure({
-  glyph,
-  className,
-  srLabel,
-  value,
-  unit,
-}: {
-  glyph: MaterialSymbolName;
-  className: string;
-  srLabel: string;
-  value: string;
-  unit: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-pill py-[5px] pl-2 pr-[11px] text-sm font-semibold tabular-nums",
-        className,
-      )}
-    >
-      <MaterialSymbol name={glyph} size={15} className="shrink-0" />
-      <span className="sr-only">{srLabel}</span>
-      {value}
-      {/* The unit is printed for assistive tech only. The two chips sit
-          adjacent and share it by eye — the mock's compact idiom — but each is
-          announced as its own reading, so a screen reader would otherwise hear
-          a bare number. */}
-      <span className="sr-only"> {unit}</span>
-    </span>
-  );
-}
-
 interface LiveLatencyComponentProps {
   connectivity: ConnectivityStatus | null;
   isLoading: boolean;
@@ -330,8 +281,10 @@ function chipTone(connectivity: ConnectivityStatus | null): {
  * geometry from one definition (the Skeleton-Mirror Rule). Two copies would
  * drift, and a drifted skeleton turns the handoff from a fade into a jump.
  *
- * Every block mirrors a real element: the title and chip row, the floor-plus-
- * grow plot, the legend, and the Speed Test tile at `SPEEDTEST_TILE_H`.
+ * Every block mirrors a real element: the title and chip row, the description
+ * line, the floor-plus-grow plot, the legend, and the Speed Test row at
+ * `ROW.HEIGHT` — the same constant `ROW.ROOT` resolves to, so the row and its
+ * placeholder cannot drift apart the way the tile and its 88px stand-in could.
  */
 function LiveLatencySkeleton() {
   return (
@@ -340,14 +293,19 @@ function LiveLatencySkeleton() {
         <Skeleton className="h-6 w-40" />
         <Skeleton className="ml-auto h-7 w-24 rounded-pill" />
       </div>
+      {/* Two bars in their own stack rather than two children of this one:
+          the description's lines sit on their own 22.75px line box, not on the
+          card's 14px group gap. */}
+      <div className="flex flex-col gap-1.5">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
       <Skeleton className={cn("w-full rounded-field", CHART_BOX)} />
       <div className="flex items-center gap-4">
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-3 w-24" />
       </div>
-      <Skeleton
-        className={cn("mt-auto w-full rounded-tile", SPEEDTEST_TILE_H)}
-      />
+      <Skeleton className={cn("mt-auto w-full rounded-pill", ROW.HEIGHT)} />
     </div>
   );
 }
@@ -486,9 +444,15 @@ const LiveLatencyComponent = ({
   // them arriving at the same pixels by a different route.
   const header = (
     <CardHeader className="px-0">
-      <CardTitle className="text-lg font-semibold">
-        {t("latency.title")}
-      </CardTitle>
+      <CardTitle className={CARD_TITLE}>{t("latency.title")}</CardTitle>
+      {/* An explicit ink class because the primitive hardcodes a retired one.
+          Unlike Device Metrics', this description IS skeletoned: that card
+          renders its header outside the crossfade, so its title and
+          description are on screen from the first frame; here the whole body
+          swaps, and a header line with no placeholder would pop in. */}
+      <CardDescription className={CARD_DESC}>
+        {t("latency.description")}
+      </CardDescription>
       <CardAction>
       {/* No `transition-colors` utility here on purpose: `Badge` writes its own
           two-clock transition longhand (fill + ink on `standard`, focus ring on
@@ -502,7 +466,7 @@ const LiveLatencyComponent = ({
             stable accessible label, not part of the statement that changes, and
             `popLayout` keeps the outgoing and incoming spans in the DOM together
             for the length of the crossfade — inside, a screen reader would meet
-            "Current latency" twice for 180ms on every tone change. */}
+            "Current latency" twice for a full `quick` (360ms) on every tone change. */}
         <span className="sr-only">{t("latency.current_label")}</span>
         {/* The chip's LABEL crossfades (Motion Guide recipe 05) and its numeric
             reading TICKS (recipe 06) — two different gestures for two different
@@ -510,7 +474,7 @@ const LiveLatencyComponent = ({
 
             Two bugs lived here. The block hand-rolled `AnimatePresence` +
             `motion.span`, duplicating `SwapLabel`; and the GLYPH sat outside it,
-            so it snapped in one frame while the fill morphed over 300ms — the
+            so it snapped in one frame while the fill morphed over `standard` — the
             motion half of the colour-blindness contract, since the glyph is the
             only channel separating these tones in greyscale. The key was also
             coarser than the tone it reports: `hasReading` cannot distinguish
@@ -630,7 +594,7 @@ const LiveLatencyComponent = ({
                         : name}
                     <div className="ml-auto flex items-baseline gap-0.5 font-medium tabular-nums text-foreground">
                       {value}
-                      <span className="font-normal text-muted-foreground">
+                      <span className="font-normal text-on-surface-variant">
                         {name === "latency" ? "ms" : "%"}
                       </span>
                     </div>
@@ -652,9 +616,9 @@ const LiveLatencyComponent = ({
 
               Switching it back on is safe now only because the entrance class
               retires itself (see `drawIn` above). What is NOT restored is
-              recharts' default timing: the 1500ms `ease` it ships is 3.75x the
-              project's 400ms motion ceiling on a curve from no design system,
-              so the hook pins `standard` (300ms) on `--ease-standard`. Reduced
+              recharts' default timing: the 1500ms `ease` it ships is almost 2x the
+              project's 800ms motion ceiling, on a curve from no design system,
+              so the hook pins `standard` (600ms) on `--ease-standard`. Reduced
               motion is handled in the hook too — recharts animates through
               react-smooth, a separate engine `MotionConfig` cannot reach.
 
@@ -662,7 +626,7 @@ const LiveLatencyComponent = ({
               `stroke-dasharray: 1` in `.chart-draw` is a single dash covering
               the whole line at any card width. The mock's hardcoded
               `stroke-dasharray="2400"` against a real ~400-700px path would
-              spend most of its 300ms invisible and then snap. */}
+              spend most of its 600ms invisible and then snap. */}
           <Area
             dataKey="packetloss"
             type="monotone"
@@ -713,172 +677,176 @@ const LiveLatencyComponent = ({
     </div>
   );
 
-  // --- Speed Test tile -------------------------------------------------------
+  // --- Speed Test row --------------------------------------------------------
   // Three states off one data source: running (a run is in flight, wherever it
-  // was started from), cached (a previous result to report), and idle (neither).
-  // They share a header row and a 34px action row so switching between them is
-  // a colour and content change, never a reflow of the card.
+  // was started from), cached (a previous result to report), and never-run.
+  // They share one 40px `PillRow`, so switching between them changes what the
+  // value cell says and never the height of the card.
 
   const reading = liveReading(phase, currentProgress);
   const phaseLabelKey = PHASE_LABEL_KEY[phase];
+  const runLabel = phaseLabelKey
+    ? t(phaseLabelKey)
+    : t("speedtest.tile_running_label");
   // 0–1 WITHIN the current phase, not across the run — the meter refills as
-  // each measurement starts, which is what the phase caption above it says is
+  // each measurement starts, which is what the phase caption beside it says is
   // happening. Clamped because the bar is drawn from it directly and a stray
   // value out of the CLI would otherwise overshoot its own track.
   const progressPct = Math.min(100, Math.max(0, progress * 100));
   const agoLabel = cachedResult ? timeAgo(cachedResult.timestamp, nowSec) : null;
 
-  const playButton = (
-    // Hover is one tone step plus a 1px lift on `quick` (Motion Guide recipe
-    // 08); the focus ring comes from the Button base and runs on its own
-    // `quick` clock. `size-[34px]` overrides the `icon` size's 36px so the disc
-    // matches the running state's spinner disc exactly — see SPEEDTEST_TILE_H.
-    <Button
-      variant="default"
-      size="icon"
-      className="size-[34px] shrink-0 rounded-pill duration-(--duration-quick) ease-out hover:-translate-y-px"
-      aria-label={t("speedtest.start_button_aria")}
-      onClick={handleSpeedtestOpen}
+  const speedtestRow = (
+    <PillRow
+      label={
+        <>
+          <span className="truncate">{t("speedtest.section_label")}</span>
+          {/* The play control lives in the LABEL cell, which is the whole
+              reason `PillRow.label` is a node rather than a string — Data Used
+              puts its counter reset in the same position, with the same
+              `size-5 rounded-pill` ghost treatment. The 34px filled disc the
+              tile used was the affordance for an 88px block; at row scale a
+              second filled disc would outweigh the reading beside it. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-5 rounded-pill text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            aria-label={t("speedtest.start_button_aria")}
+            onClick={handleSpeedtestOpen}
+          >
+            <MaterialSymbol name="play_arrow" size={14} filled />
+          </Button>
+        </>
+      }
     >
-      <MaterialSymbol name="play_arrow" size={20} filled />
-    </Button>
-  );
-
-  const speedtestTile = (
-    <div
-      className={cn(
-        // The container fill IS the state, so it moves on `emphasized` (400ms)
-        // like every other container morph in the product — a tile going blue
-        // is the same class of gesture as a chip changing tone, not a hover.
-        "mt-auto flex flex-col gap-2.5 rounded-tile px-4 py-3 transition-colors duration-(--duration-emphasized) ease-emphasized motion-reduce:transition-none",
-        SPEEDTEST_TILE_H,
-        isRunning
-          ? "bg-primary-container text-on-primary-container"
-          : "bg-surface-container",
-      )}
-    >
-      <div className="flex items-center gap-2">
-        {/* The mock sets this label and the two figures at 13px. That step is a
-            surface-scoped exception in DESIGN.md (banners), not part of the
-            ramp, so they take `text-sm` — the same call Recent Activities made
-            when it was retargeted from the same mock family. */}
-        <span className="text-sm font-semibold">
-          {t("speedtest.section_label")}
-        </span>
-        {/* The phase name is prose, not a numeric slot, so it snaps to the ramp
-            at `text-xs` rather than taking the comp's literal 11px — the same
-            call the label above made with the comp's 13px. The numeric slots
-            below are the documented exception, not this. */}
-        {isRunning ? (
-          <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold">
-            {/* The live dot is the sanctioned `animate-live-ping` idiom (a disc
-                expanding past its anchor and fading), not a fourth hand-rolled
-                loop. It is gated on a genuinely live run, which is the whole
-                condition the One-Loop Rule asks for. */}
+      {isRunning ? (
+        <>
+          {/* The live dot is the sanctioned `animate-live-ping` idiom (a disc
+              expanding past its anchor and fading), not a fourth hand-rolled
+              loop. It is gated on a genuinely live run, which is the whole
+              condition the One-Loop Rule asks for. */}
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant">
             <span aria-hidden className="relative inline-flex size-[7px] shrink-0">
               <span className="absolute inset-0 rounded-pill bg-primary animate-live-ping" />
               <span className="relative size-[7px] rounded-pill bg-primary" />
             </span>
-            {phaseLabelKey
-              ? t(phaseLabelKey)
-              : t("speedtest.tile_running_label")}
+            {/* The phase caption drops out at the same width the reading age
+                does, and for the same reason: below it the row would start
+                truncating "Speed Test" instead. The dot, the figure and the
+                meter still say a run is in flight, and the caption survives
+                for assistive tech as the meter's own label. */}
+            <span className="hidden @[350px]/card:inline">{runLabel}</span>
           </span>
-        ) : agoLabel ? (
-          <span className="ml-auto text-[11px] tabular-nums text-on-surface-variant">
-            {agoLabel}
-          </span>
-        ) : null}
-      </div>
+          {/* Machine voice, and deliberately NOT wrapped in `TickingValue`.
+              That tick is a 1.4s gesture tuned for the ~3s dashboard poll; at
+              the speedtest's 500ms live cadence it would never finish before
+              the next value arrived and would read as a strobe. The number
+              simply lands on the poll tick.
 
-      {isRunning ? (
-        <div className="flex min-h-[34px] items-center gap-2.5">
-          <span className="grid size-[34px] shrink-0 place-items-center rounded-pill bg-primary text-primary-foreground">
-            {/* `animate-spin` at the comp's 1.1s, the same explicit-duration
-                idiom the login button uses. A spinner is a busy signal rather
-                than decoration, which is why it is not gated on reduced
-                motion. */}
-            <MaterialSymbol
-              name="progress_activity"
-              size={19}
-              className="animate-spin [animation-duration:1100ms]"
+              `ABSENT` rather than a zero while the run has no measurement yet:
+              "0.00 Mbps" is a claim about the connection and "still
+              connecting" is not. */}
+          <span className={cn(VALUE_CLASS, "flex items-baseline gap-1")}>
+            {reading ? reading.value : ABSENT}
+            {reading ? (
+              <span className="text-xs font-semibold text-on-surface-variant">
+                {t(reading.unitKey)}
+              </span>
+            ) : null}
+          </span>
+          {/* The shared meter at the surface's inline-lane width. The bespoke
+              bar this replaces was 6px on a `bg-white/45` track — a hardcoded
+              white with an alpha, which does not theme and was compensating
+              for a mismatched pair rather than fixing it.
+
+              No thresholds: progress is not a quality reading, so there is no
+              value at which it should turn amber. `Infinity` says that
+              outright, where a 101 would read as a number someone chose. */}
+          <span
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progressPct)}
+            aria-label={runLabel}
+            className={LANE}
+          >
+            <MetricBar
+              value={progressPct}
+              max={100}
+              warnAt={Number.POSITIVE_INFINITY}
+              dangerAt={Number.POSITIVE_INFINITY}
+              track="surface-container-high"
             />
           </span>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            {/* Machine voice, and deliberately NOT wrapped in `TickingValue`.
-                That tick is a 700ms dip tuned for the ~3s dashboard poll; at
-                the speedtest's 500ms live cadence it would never finish before
-                the next value arrived and would read as a strobe. The number
-                simply lands on the poll tick. */}
-            {/* The 17px figure and its 11px unit are deliberately off the text
-                ramp: DESIGN.md's Numeric step is "600, sized to slot,
-                tabular-nums" for live values, and this slot is sized to the
-                34px action row so the tile keeps its height across all three
-                states. Do not "correct" these to text-base/text-xs — that
-                would reflow the tile and break the skeleton mirror. */}
-            <span className="flex items-baseline gap-1 leading-[22px]">
-              <span className="text-[17px] font-semibold tabular-nums">
-                {reading ? reading.value : "—"}
-              </span>
-              {reading ? (
-                <span className="text-[11px] font-semibold opacity-75">
-                  {t(reading.unitKey)}
-                </span>
-              ) : null}
-            </span>
-            {/* Bespoke rather than the shared Progress primitive: this bar is
-                6px on a coloured container with a translucent track, and it is
-                driven by `scaleX` rather than `width` because width animation
-                is reserved for the Carrier Aggregation strip, where the width
-                genuinely IS the data. */}
-            <span
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(progressPct)}
-              aria-label={
-                phaseLabelKey
-                  ? t(phaseLabelKey)
-                  : t("speedtest.tile_running_label")
-              }
-              className="block h-1.5 overflow-hidden rounded-pill bg-white/45"
+        </>
+      ) : cachedResult ? (
+        <>
+          <span className="sr-only">{t("speedtest.result_label")}</span>
+          {/* Provenance first, then the measurement. The age is metadata ABOUT
+              a reading rather than a verdict on one, so it is a `Tag` and not
+              a `Badge` (the Two-Form Rule). It is the first casualty when the
+              row runs out of width and it is the one thing that may not go:
+              a result with no age is a result claiming to be current.
+
+              350px is measured, not chosen: the full row needs 346px of the
+              card's content box, and a three-column card holds 389px at 1440
+              and 283px at 1120. So the Tag rides the three-column layout down
+              to about 1290px and drops out below it, where the alternative
+              would be squeezing the two figures. `h-5` pins it to the row's
+              own 20px line box — the Tag's natural 22px grew the row to 42 and
+              broke the skeleton's mirror. */}
+          {agoLabel ? (
+            <Tag
+              variant="neutral"
+              className="hidden h-5 @[350px]/card:inline-flex"
             >
-              <span
-                aria-hidden
-                className="block h-full origin-left rounded-pill bg-primary transition-transform duration-(--duration-standard) ease-standard motion-reduce:transition-none"
-                style={{ transform: `scaleX(${progressPct / 100})` }}
-              />
-            </span>
-          </div>
-        </div>
+              {agoLabel}
+            </Tag>
+          ) : null}
+          {/* The identical glyph-plus-ink pair Data Used draws, deliberately.
+              These are the only two down/up pairs on the surface, and the
+              direction hues are the axis they share — Downlink Rose and Uplink
+              Cyan on their `-on-surface` inks, on the row's own container.
+
+              The unit stays screen-reader-only, which is the tile's own
+              decision carried over: the two figures sit adjacent and share it
+              by eye, while each is still announced as its own reading. Printing
+              it twice was measured and costs 76px — with it visible the full
+              row needs 390px against the 389px a three-column card actually
+              has, so the age Tag beside it would be gated out at every desktop
+              width. Two words of duplicated unit are not worth a reading that
+              cannot say how old it is. */}
+          <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
+            <MaterialSymbol
+              name="arrow_circle_down"
+              size={20}
+              filled
+              className="shrink-0 text-downlink-on-surface"
+            />
+            <span className="sr-only">{t("speedtest.result_download")}</span>
+            {formatSpeed(cachedResult.download.bandwidth)}
+            <span className="sr-only"> {t("speedtest.unit_mbps")}</span>
+          </span>
+          <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
+            <MaterialSymbol
+              name="arrow_circle_up"
+              size={20}
+              filled
+              className="shrink-0 text-uplink-on-surface"
+            />
+            <span className="sr-only">{t("speedtest.result_upload")}</span>
+            {formatSpeed(cachedResult.upload.bandwidth)}
+            <span className="sr-only"> {t("speedtest.unit_mbps")}</span>
+          </span>
+        </>
       ) : (
-        <div className="flex min-h-[34px] items-center gap-2.5">
-          {playButton}
-          {cachedResult ? (
-            <span className="ml-auto inline-flex items-center gap-2.5">
-              <span className="sr-only">{t("speedtest.result_label")}</span>
-              <SpeedtestFigure
-                glyph="arrow_downward"
-                className="bg-downlink-container text-on-downlink-container"
-                srLabel={t("speedtest.result_download")}
-                value={formatSpeed(cachedResult.download.bandwidth)}
-                unit={t("speedtest.unit_mbps")}
-              />
-              <SpeedtestFigure
-                glyph="arrow_upward"
-                className="bg-uplink-container text-on-uplink-container"
-                srLabel={t("speedtest.result_upload")}
-                value={formatSpeed(cachedResult.upload.bandwidth)}
-                unit={t("speedtest.unit_mbps")}
-              />
-            </span>
-          ) : (
-            <p className="text-xs font-medium leading-[1.45] text-on-surface-variant text-pretty">
-              {t("speedtest.idle_description")}
-            </p>
-          )}
-        </div>
+        // Never run. The play control beside the label is the affordance, so
+        // the sentence the tile carried has no reader left — the row is
+        // self-evident at a glance in a way an 88px empty block was not.
+        <span className={cn(VALUE_CLASS, "text-on-surface-variant")}>
+          {ABSENT}
+        </span>
       )}
-    </div>
+    </PillRow>
   );
 
   const body = isLoading ? (
@@ -888,7 +856,7 @@ const LiveLatencyComponent = ({
       {header}
       {chart}
       {legend}
-      {speedtestTile}
+      {speedtestRow}
     </>
   );
 
