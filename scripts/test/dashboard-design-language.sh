@@ -2750,6 +2750,263 @@ for lang in en zh-CN zh-TW it id; do
     fi
 done
 
+# =============================================================================
+# SECTION 07 -- Recent Activity
+# =============================================================================
+#
+# The plan calls this step's headline "R1 -- let the list fill the card instead
+# of clipping at five rows", and prescribes making VISIBLE_ROWS
+# container-query-driven: 5 when the trio row is short, 6-7 when Device Metrics
+# makes it tall.
+#
+# THE DEFECT IS REAL AND THE PRESCRIPTION IS WRONG, and the difference is a
+# measurement. What follows is that measurement, because the assertions below
+# pin the conclusion rather than the plan.
+#
+# WHERE THE DEAD SPACE ACTUALLY COMES FROM
+# ----------------------------------------
+#
+# All three trio cards are `h-full`-locked, so the row height is whichever card
+# is tallest, and every pixel a shorter card cannot absorb is dead space at its
+# bottom. Device Metrics drives: 4 MeterRow + 3 PillRow = 340px of content
+# against Recent Activity's 332px list. That is an 8px difference, not a 53px
+# one.
+#
+# The other 45px is the HEADER. Device Metrics gained a `CardDescription` in
+# step 05; Recent Activity has none. A two-line description plus its header gap
+# is 45.5px, and 45.5 + 8 = 53.5 -- which is the dead space, exactly, with
+# nothing left over.
+#
+# Measured on the dev server against 9f9675c, all three cards in `BAND.TRIO`
+# inside `PAGE_GRID`, 3-column layout (the ONLY layout where this defect can
+# exist -- at 2 columns Recent Activity is alone in the second row and at 1
+# column nothing equalises, so in both cases its slack is 0 by construction):
+#
+#   viewport   Metrics header   Activity slack   Activity slack
+#                               (as shipped)     (with a description)
+#   --------   --------------   --------------   --------------------
+#   1040px     104.3 (3 lines)  76.3             8.0
+#   1120px      81.5 (2 lines)  76.3             0    (Metrics gets 14.8)
+#   1280px      81.5 (2 lines)  53.5             8.0
+#   1440px      81.5 (2 lines)  53.5             8.0
+#   1700px      81.5 (2 lines)  53.5             8.0
+#   1920px      58.8 (1 line)   30.8             8.0
+#
+# WHY A SIXTH ROW IS THE WRONG FIX, in one number: a row costs
+# ROW_H + ROW_GAP = 68px and the hole is 53.5px. Six rows OVERSHOOT it by
+# 14.5px, which does not remove the dead space -- it moves it onto Device
+# Metrics, the one card in the trio with nothing to absorb it (Live Latency has
+# `CHART_BOX`'s `flex-1`; Device Metrics has seven fixed-height rows). The
+# prescription trades a 53px hole under the shortest card for a 15px hole under
+# the tallest one, and adds a breakpoint to do it.
+#
+# That was verified rather than reasoned: raising the clip to six rows in the
+# live DOM at 1280px grew the trio from 486px to 500.3px and made Recent
+# Activity the driver.
+#
+# So [07-3] pins VISIBLE_ROWS AT FIVE. It is a guard, and it is the most
+# important assertion in this section: the change the plan asked for is the
+# change this section exists to prevent.
+#
+# WHAT CLOSES THE HOLE: the description, which finding 03 requires anyway. The
+# residual is at most one text line (0-14.8px) and it cannot be driven to zero
+# by any copy, because the two descriptions wrap independently -- Recent
+# Activity's `CardAction` chip takes a grid column, so its text column is
+# ~100px narrower than Device Metrics' at the same card width, and the packs
+# translate to five different lengths. A one-line residual is the same residual
+# every card pair on this surface carries.
+#
+# [07-1] through [07-5] run against comment-stripped source, same rationale as
+# R0-6, 00-5, 01-6, 02-3, 03-1, 04-1, 05-1 and 06-1: this file argues with
+# itself in prose at length, and a grep that reads a comment is a false green.
+
+RA_07="$DASHBOARD/recent-activities.tsx"
+SHAPES_07="$SHAPES_00"
+
+printf '\n=============================================================\n'
+printf 'SECTION 07 -- Recent Activity\n'
+printf '=============================================================\n'
+
+ra_stripped="$TMPD/recent-activities.stripped"
+if [ -f "$RA_07" ]; then
+    strip_comments "$RA_07" > "$ra_stripped"
+else
+    : > "$ra_stripped"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[07-1] the header carries a description, on the shared title size\n'
+# Findings 03 and 02. The seventh of nine cards to gain one -- and on this card
+# it is load-bearing rather than decorative: it is what closes R1.
+if [ ! -f "$RA_07" ]; then
+    bad "recent-activities.tsx is missing"
+else
+    if grep -q 'CardDescription' "$ra_stripped"; then
+        ok "the card carries a description"
+    else
+        bad "the card still has no CardDescription"
+    fi
+    if grep -q 'CARD_DESC' "$ra_stripped"; then
+        ok "the description speaks the surface's secondary ink"
+    else
+        bad "the description does not read CARD_DESC"
+    fi
+    if grep -q 'CARD_TITLE' "$ra_stripped"; then
+        ok "the title reads the shared card-title size"
+    else
+        bad "the title still spells its own size instead of importing CARD_TITLE"
+    fi
+    if grep -q 'text-lg font-semibold' "$ra_stripped"; then
+        bad "a hand-spelled card title survives in recent-activities.tsx"
+    else
+        ok "no hand-spelled title size is left on this card"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[07-2] all four states render ONE header, so all four carry the description\n'
+# This card returns four separate subtrees -- loading, error-with-nothing,
+# empty, and the list -- and they already share `renderHeader`. That is what
+# makes the description a one-line change instead of four, and it is also what
+# stops three of the four states from silently keeping the old header height
+# and reintroducing the dead space in exactly the states nobody screenshots.
+if [ -f "$RA_07" ]; then
+    hdr07=$(grep -c 'renderHeader(' "$ra_stripped" || true)
+    if [ "$hdr07" -eq 4 ]; then
+        ok "four states, four calls to one header helper"
+    else
+        bad "expected 4 renderHeader( call sites, found $hdr07"
+    fi
+    desc07=$(grep -c '<CardDescription' "$ra_stripped" || true)
+    if [ "$desc07" -eq 1 ]; then
+        ok "the description is written once, inside that helper"
+    else
+        bad "found $desc07 CardDescription call sites -- it belongs in renderHeader only"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[07-3] the row window stays at five, and its arithmetic stays derived\n'
+# THE GUARD, and the section's whole point. See the header for the measurement.
+# A sixth row is 68px into a 53.5px hole and makes this card the trio's driver.
+if [ -f "$RA_07" ]; then
+    if grep -q 'const VISIBLE_ROWS = 5;' "$ra_stripped"; then
+        ok "the list still shows five rows -- a sixth overshoots the hole by 14.5px"
+    else
+        bad "VISIBLE_ROWS moved off 5; re-read the measurement in this section's header"
+    fi
+    if grep -q 'const RENDER_COUNT = VISIBLE_ROWS + 1;' "$ra_stripped"; then
+        ok "exactly one spare row, so the push slides under the edge"
+    else
+        bad "RENDER_COUNT is no longer VISIBLE_ROWS + 1"
+    fi
+    if grep -q 'VISIBLE_ROWS \* ROW_H' "$ra_stripped"; then
+        ok "the clip edge is still derived from the row count, not restated"
+    else
+        bad "LIST_MAX_H no longer derives from VISIBLE_ROWS"
+    fi
+    if grep -q 'maxHeight: LIST_MAX_H' "$ra_stripped"; then
+        ok "the clip reads the derived height"
+    else
+        bad "the clip no longer reads LIST_MAX_H"
+    fi
+    if grep -q 'length: VISIBLE_ROWS' "$ra_stripped"; then
+        ok "the skeleton mirrors the row count off the same constant"
+    else
+        bad "the skeleton no longer derives its row count from VISIBLE_ROWS"
+    fi
+    for num in 'const ROW_H = 60;' 'const ROW_GAP = 8;' 'const ROW_ADVANCE = ROW_H + ROW_GAP;'; do
+        if grep -qF -- "$num" "$ra_stripped"; then
+            ok "row geometry intact: $num"
+        else
+            bad "row geometry moved: expected $num"
+        fi
+    done
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[07-4] the icon disc is on the role radius scale\n'
+# Finding 12. The last `rounded-full` on this file -- a 28px disc, so `pill`
+# and `full` render identically and this is a pure grammar fix. That is the
+# reason to do it rather than a reason to skip it: the next author reads the
+# class, not the pixel.
+if [ -f "$RA_07" ]; then
+    if grep -q 'rounded-full' "$ra_stripped"; then
+        bad "a legacy rounded-full survives in recent-activities.tsx"
+    else
+        ok "no rounded-full is left on this card"
+    fi
+    if grep -q 'size-7 shrink-0 place-items-center rounded-pill' "$ra_stripped"; then
+        ok "the disc draws the role radius"
+    else
+        bad "the disc is not on rounded-pill"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[07-5] the shell, the clock, and everything this card is known for survive\n'
+# CARD_SHELL and CLOCK_TICK_MS were hoisted in step 00 and are green BEFORE the
+# fix: the job here is that a step editing the header does not re-inline one.
+# The rest is the plan's DO-NOT list, made mechanical -- the age-gated tone
+# split, the glyph discriminator, the never-expiring disc, the spoken severity,
+# the two-clock reading, and the two entrances.
+if [ -f "$RA_07" ]; then
+    keep07=0
+    for sym in CARD_SHELL CLOCK_TICK_MS presentEvent computeUnresolved isFresh \
+               glyphFilled discClass containerClass srSeverityKey \
+               historyGroup staggerRowItem transitionEmphasized SwapLabel \
+               EmptyDescription 'role="alert"'; do
+        if ! grep -q -- "$sym" "$ra_stripped"; then
+            bad "recent-activities.tsx lost $sym"
+            keep07=1
+        fi
+    done
+    if [ "$keep07" -eq 0 ]; then
+        ok "the tone split, the disc, the spoken severity, both entrances and the error branch are intact"
+    fi
+    if grep -q 'className={CARD_SHELL}' "$ra_stripped"; then
+        ok "every state draws the hoisted shell"
+    else
+        bad "the card no longer draws CARD_SHELL"
+    fi
+    if grep -q 'rounded-card border-0' "$ra_stripped"; then
+        bad "a shell is spelled inline in recent-activities.tsx"
+    else
+        ok "no shell is spelled inline"
+    fi
+    if grep -q 'const CLOCK_TICK_MS' "$ra_stripped"; then
+        bad "CLOCK_TICK_MS was re-declared locally -- it lives in shapes.ts"
+    else
+        ok "the clock interval is still read from shapes.ts"
+    fi
+    # The clamp that stops a modem whose RTC never reached NTP printing
+    # "20454 d ago". types/modem-status.ts carries the same one.
+    if grep -q 'Math.max(0, nowSec - timestamp)' "$ra_stripped"; then
+        ok "the negative-clock clamp survives"
+    else
+        bad "useTimeAgo lost its Math.max(0, ...) clamp"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[07-6] the locale packs carry the new copy on every language\n'
+# Extract the `activities` object first, same reason as [04-6], [05-6] and
+# [06-8]: `"description"` appears in several unrelated objects in these packs
+# and a whole-file grep is how SECTION 01 nearly shipped a false green.
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block07=$(awk '/^  "activities": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    if printf '%s' "$block07" | grep -q '^    "description"'; then
+        ok "$lang carries activities.description"
+    else
+        bad "$lang is missing activities.description"
+    fi
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
