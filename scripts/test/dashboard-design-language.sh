@@ -3007,6 +3007,256 @@ for lang in en zh-CN zh-TW it id; do
     fi
 done
 
+# =============================================================================
+# SECTION 08 -- Signal History
+# =============================================================================
+#
+# The last card on the surface still spelling its own shell, its own title size
+# and no description at all. Three findings land here at once (02, 03, 04) and
+# they are the same finding wearing three hats: this file was written against
+# the mock directly, before there was a shapes module to write against.
+#
+# THE TITLE IS THE VISIBLE CHANGE, and it is the biggest single type change in
+# the pass. `text-2xl @[250px]/card:text-3xl` puts this card's heading at 30px
+# on any dashboard wider than a phone -- the SAME size as `HEADER.TITLE`, the
+# route's own h1, which sits a full scroll above it on the same page. Two
+# things at the top of a type ramp is no ramp: the card was reading as a second
+# page title rather than as the ninth card. `CARD_TITLE` (18px) is what the
+# other eight now speak, and after this step the surface has exactly one 30px
+# string on it.
+#
+# `tracking-[-0.02em]` goes with it. Tight tracking is a display-size
+# correction -- `HEADER.TITLE` carries it because 30px needs it. At 18px it is
+# a hand-tuned number sitting on a shared size, which is the whole category of
+# thing this pass removes, so [08-1] pins its absence rather than leaving it to
+# taste.
+#
+# THE SHELL: `px-7` -> `px-6`. This card is a PEER, not the hero. It sits alone
+# in a `BAND.FULL` row under the trio, in the same visual class as the eight
+# cards that take `CARD_SHELL`, and it took 28px padding only because it was
+# authored from the mock's hero measurements. `HERO_SHELL` and `CA_SHELL` keep
+# `px-7`; those two earned it.
+#
+# ONE SECOND-ORDER EFFECT, recorded because it is not obvious: `@container/card`
+# is `container-type: inline-size`, which measures the CONTENT box. Dropping 4px
+# of padding per side makes this card's queried width 8px LARGER at the same
+# rendered width, so the `@[540px]/card` ToggleGroup-vs-Select swap fires 8px
+# earlier in viewport terms. That is a shift of the threshold, not a change to
+# the mechanism, and 8px on a full-width card is under one column gutter. It is
+# pinned in [08-4] as a mechanism guard, not as a pixel.
+#
+# `h-full` also arrives with `CARD_SHELL`, and here it is inert: this card is
+# the only item in its grid row, so `h-full` resolves against a row height that
+# is itself content-derived. It is not inert on the trio cards, which is why
+# the constant carries it.
+#
+# THE DESCRIPTION AND THE FOOTER ARE NOT THE SAME LINE, which is the one real
+# judgement call in this step. This card already carries two strings under the
+# plot: `trend_heading`, which names the metric and unit CURRENTLY plotted and
+# changes with the switcher, and `fluctuation_note`, a caveat about reading the
+# numbers. Neither says what the card is FOR. The header description does, and
+# it is the only one of the three that is true before the chart has any data --
+# which matters, because it renders in the loading, error and empty branches
+# where the plot itself says nothing at all.
+#
+# [08-1] through [08-5] run against comment-stripped source, same rationale as
+# R0-6, 00-5, 01-6, 02-3, 03-1, 04-1, 05-1, 06-1 and 07-1: this file carries a
+# 17-line header comment quoting the very classes under test, and a grep that
+# reads a comment is a false green.
+
+SH_08="$DASHBOARD/signal-history.tsx"
+
+printf '\n=============================================================\n'
+printf 'SECTION 08 -- Signal History\n'
+printf '=============================================================\n'
+
+sh_stripped="$TMPD/signal-history.stripped"
+if [ -f "$SH_08" ]; then
+    strip_comments "$SH_08" > "$sh_stripped"
+else
+    : > "$sh_stripped"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[08-1] the title speaks the shared card size, not the page title size\n'
+# Finding 02, and the last of the three. See the header: 30px on a card under a
+# 30px h1 is not a ramp.
+if [ ! -f "$SH_08" ]; then
+    bad "signal-history.tsx is missing"
+else
+    if grep -q 'CARD_TITLE' "$sh_stripped"; then
+        ok "the title reads the shared card-title size"
+    else
+        bad "the title still spells its own size instead of importing CARD_TITLE"
+    fi
+    if grep -q 'text-2xl' "$sh_stripped"; then
+        bad "text-2xl survives on the card title"
+    else
+        ok "no text-2xl is left on this card"
+    fi
+    if grep -q 'text-3xl' "$sh_stripped"; then
+        bad "text-3xl survives -- the surface must carry exactly one, on the page h1"
+    else
+        ok "the page h1 is the only 30px string on the surface again"
+    fi
+    if grep -q 'tracking-\[-0.02em\]' "$sh_stripped"; then
+        bad "the display-size tracking correction survives on an 18px title"
+    else
+        ok "no hand-tuned tracking is left on a shared size"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[08-2] the header carries a description, written once for all four states\n'
+# Finding 03, the ninth and last card to gain one. This file already builds its
+# header into a single `const header` that all four branches render, which is
+# what makes the description a one-line change AND what stops three of the four
+# states from keeping the old header height.
+if [ -f "$SH_08" ]; then
+    if grep -q 'CardDescription' "$sh_stripped"; then
+        ok "the card carries a description"
+    else
+        bad "the card still has no CardDescription"
+    fi
+    if grep -q 'CARD_DESC' "$sh_stripped"; then
+        ok "the description speaks the surface's secondary ink"
+    else
+        bad "the description does not read CARD_DESC"
+    fi
+    desc08=$(grep -c '<CardDescription' "$sh_stripped" || true)
+    if [ "$desc08" -eq 1 ]; then
+        ok "the description is written once, inside the shared header"
+    else
+        bad "found $desc08 CardDescription call sites -- it belongs in the shared header only"
+    fi
+    hdr08=$(grep -c '{header}' "$sh_stripped" || true)
+    if [ "$hdr08" -eq 4 ]; then
+        ok "four states, four renders of that one header"
+    else
+        bad "expected 4 {header} render sites, found $hdr08"
+    fi
+    if grep -q 'signal_history.description' "$sh_stripped"; then
+        ok "the copy is a locale key, not a literal"
+    else
+        bad "the description does not read signal_history.description"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[08-3] the shell is the shared one, at peer padding\n'
+# Finding 04, the fifth and last copy of the card shell. `px-7` is the hero's
+# padding and this card is a peer -- it sits alone in a BAND.FULL row under the
+# trio, in the same visual class as the eight cards on CARD_SHELL.
+if [ -f "$SH_08" ]; then
+    if grep -q 'CARD_SHELL' "$sh_stripped"; then
+        ok "the card reads a shell constant"
+    else
+        bad "the card does not reference CARD_SHELL"
+    fi
+    if grep -q 'const CARD_SHELL' "$sh_stripped"; then
+        bad "CARD_SHELL is still declared locally -- it lives in shapes.ts"
+    else
+        ok "the shell is imported, not re-declared"
+    fi
+    if grep -q 'from "./shapes"' "$sh_stripped"; then
+        ok "the import points at the dashboard's shapes module"
+    else
+        bad "signal-history.tsx does not import from ./shapes"
+    fi
+    if grep -q 'px-7' "$sh_stripped"; then
+        bad "hero padding survives on a peer card"
+    else
+        ok "the card is on peer padding"
+    fi
+    if grep -q 'rounded-card border-0' "$sh_stripped"; then
+        bad "a shell is spelled inline in signal-history.tsx"
+    else
+        ok "no shell is spelled inline"
+    fi
+    shell08=$(grep -c 'className={CARD_SHELL}' "$sh_stripped" || true)
+    if [ "$shell08" -eq 4 ]; then
+        ok "all four states draw the same shell"
+    else
+        bad "expected 4 CARD_SHELL call sites, found $shell08"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[08-4] everything this card is known for survives\n'
+# The plan's DO-NOT list, made mechanical: the responsive control swap, the
+# travelling pill, the deselect guard, the axis geometry, the two-hue series
+# pairing, the fill-floor arithmetic, the pinned plot height, the keyboard
+# layer, the honest gaps, and the dash normalisation the entrance depends on.
+if [ -f "$SH_08" ]; then
+    keep08=0
+    for sym in '@\[540px\]/card' 'layoutId' 'value && setSignalType(value)' \
+               'const AXIS_W = 34;' 'const Y_AXIS_PAD = 5;' \
+               'const CHART_H = "h-\[250px\]";' \
+               'var(--chart-nr)' 'var(--chart-lte)' \
+               'baseValue={baseValue}' 'dataMin - ' \
+               'accessibilityLayer' 'connectNulls={false}' 'pathLength={1}' \
+               'useChartDrawIn' 'useChartSeriesMotion' 'newestDotRenderer'; do
+        if ! grep -q -- "$sym" "$sh_stripped"; then
+            bad "signal-history.tsx lost $sym"
+            keep08=1
+        fi
+    done
+    if [ "$keep08" -eq 0 ]; then
+        ok "the control swap, the travelling pill, the axis geometry, the series pairing and both chart clocks are intact"
+    fi
+    # The fill floor and the axis floor must be the SAME line -- see the long
+    # comment on getBaseValue. A mismatch reads as a thin line with a gap under
+    # it and produces no error of any kind.
+    if grep -q 'getBaseValue() - Y_AXIS_PAD' "$sh_stripped"; then
+        ok "the fill floor is still derived from the axis pad, not restated"
+    else
+        bad "baseValue no longer derives from Y_AXIS_PAD -- the fill floor will drift off the axis floor"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[08-5] the skeleton mirror and the radius scale hold\n'
+# The plan is explicit that the `rounded-inline` slivers STAY -- they are on the
+# role scale already, and this card's skeleton is the surface's cleanest mirror:
+# rail, plot, caption row, legend row, at the loaded height.
+if [ -f "$SH_08" ]; then
+    if grep -q 'rounded-full' "$sh_stripped"; then
+        bad "a legacy rounded-full survives in signal-history.tsx"
+    else
+        ok "no rounded-full is left on this card"
+    fi
+    if grep -q 'rounded-inline' "$sh_stripped"; then
+        ok "the skeleton slivers keep the inline radius"
+    else
+        bad "the skeleton lost its rounded-inline slivers"
+    fi
+    if grep -q 'className={CHART_H}' "$sh_stripped"; then
+        ok "the skeleton is pinned at the loaded plot height"
+    else
+        bad "the skeleton no longer reads CHART_H"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[08-6] the locale packs carry the new copy on every language\n'
+# Extract the `signal_history` object first, same reason as [04-6], [05-6],
+# [06-8] and [07-6]: `"description"` appears in several unrelated objects in
+# these packs and a whole-file grep is how SECTION 01 nearly shipped a false
+# green.
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block08=$(awk '/^  "signal_history": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    if printf '%s' "$block08" | grep -q '^    "description"'; then
+        ok "$lang carries signal_history.description"
+    else
+        bad "$lang is missing signal_history.description"
+    fi
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
