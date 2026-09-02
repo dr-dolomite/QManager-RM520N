@@ -240,6 +240,7 @@
   },
   "activities": {
     "title": "最近活動",
+    "description": "無線電模組的最新動態，並標註仍未解決的問題。",
     "empty_title": "無事件",
     "empty_description": "未檢測到近期網路事件。您的裝置狀態可能很穩定，網路狀況沒有顯著變化。",
     "error_title": "無法載入事件",

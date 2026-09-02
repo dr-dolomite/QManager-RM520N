@@ -240,6 +240,7 @@
   },
   "activities": {
     "title": "Attività recenti",
+    "description": "Cosa ha fatto la radio, dal più recente, e se qualcosa è ancora irrisolto.",
     "empty_title": "Nessun evento",
     "empty_description": "Nessun evento di rete recente rilevato. Probabilmente il tuo dispositivo è stabile e non presenta cambiamenti significativi nelle condizioni della rete.",
     "error_title": "Impossibile caricare gli eventi",

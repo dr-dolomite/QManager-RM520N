@@ -240,6 +240,7 @@
   },
   "activities": {
     "title": "Aktivitas Terkini",
+    "description": "Apa yang dilakukan radio, terbaru dulu, dan apakah ada yang belum teratasi.",
     "empty_title": "Tidak Ada Peristiwa",
     "empty_description": "Tidak ada peristiwa jaringan terkini yang terdeteksi. Perangkat Anda kemungkinan stabil dan tidak mengalami perubahan signifikan pada kondisi jaringan.",
     "error_title": "Tidak dapat memuat peristiwa",

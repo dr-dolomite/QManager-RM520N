@@ -240,6 +240,7 @@
   },
   "activities": {
     "title": "Recent Activities",
+    "description": "What the radio did, newest first, and whether anything is still unresolved.",
     "empty_title": "No Events",
     "empty_description": "No recent network events detected. Your device is likely stable and not experiencing any significant changes in network conditions.",
     "error_title": "Couldn't load events",

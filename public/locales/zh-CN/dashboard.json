@@ -240,6 +240,7 @@
   },
   "activities": {
     "title": "最近活动",
+    "description": "无线电模块的最新动态，并标注仍未解决的问题。",
     "empty_title": "无事件",
     "empty_description": "未检测到近期网络事件。您的设备状态可能很稳定，网络状况没有显著变化。",
     "error_title": "无法加载事件",

@@ -8,6 +8,7 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -40,7 +41,7 @@ import {
   transitionEmphasized,
   transitionStandard,
 } from "@/lib/motion";
-import { CARD_SHELL, CLOCK_TICK_MS } from "./shapes";
+import { CARD_DESC, CARD_SHELL, CARD_TITLE, CLOCK_TICK_MS } from "./shapes";
 import { cn } from "@/lib/utils";
 import type { NetworkEvent } from "@/types/modem-status";
 
@@ -106,7 +107,29 @@ const ROW_GAP = 8; // gap-2
 const ROW_ADVANCE = ROW_H + ROW_GAP; // 68
 
 /** How many rows the card actually shows. Everything below derives from it, so
- *  this is the only number to change if the count moves again. */
+ *  this is the only number to change if the count moves again.
+ *
+ *  AND IT IS FIVE ON PURPOSE. All three trio cards are `h-full`-locked, so the
+ *  row height is whichever card is tallest -- Device Metrics, whose four meter
+ *  rows and three pill rows come to 340px against this list's 332px. Every
+ *  pixel of the difference is dead space at the bottom of THIS card, because it
+ *  is the only one of the three with nothing to absorb slack: Live Latency has
+ *  `CHART_BOX`'s `flex-1`, and Device Metrics is the driver.
+ *
+ *  A sixth row does not fix that. Measured across the 3-column layout (the only
+ *  one where the three share a row) the gap runs 30.8-76.3px depending on where
+ *  Device Metrics' description wraps, and a row costs ROW_ADVANCE = 68px. Six
+ *  rows OVERSHOOT the hole and make this card the driver -- verified in the
+ *  live DOM at 1280px, where the trio grew 486 -> 500.3px and the dead space
+ *  moved onto Device Metrics, which cannot absorb it at all.
+ *
+ *  What actually closed the gap was the header description above: the 340-vs-332
+ *  content difference is only 8px, and the other ~45px was this card having no
+ *  `CardDescription` while its row-mate had one. The residual is now at most a
+ *  single text line, and it cannot be driven to zero by any copy -- the
+ *  `CardAction` chip takes a grid column, so this description's text column is
+ *  ~100px narrower than Device Metrics' at the same card width, and the five
+ *  packs translate to five different lengths. */
 const VISIBLE_ROWS = 5;
 /** Five rows and the four gaps between them. The sixth row rendered below sits
  *  under this edge on purpose. */
@@ -257,7 +280,7 @@ function EventRow({
       <span
         aria-hidden
         className={cn(
-          "grid size-7 shrink-0 place-items-center rounded-full",
+          "grid size-7 shrink-0 place-items-center rounded-pill",
           "transition-colors duration-(--duration-standard) ease-standard",
           presentation.discClass,
         )}
@@ -375,9 +398,15 @@ const RecentActivitiesComponent = () => {
   // because the alert below is already saying the true thing.
   const renderHeader = (action: React.ReactNode) => (
     <CardHeader className="px-0">
-      <CardTitle className="text-lg font-semibold">
-        {t("activities.title")}
-      </CardTitle>
+      <CardTitle className={CARD_TITLE}>{t("activities.title")}</CardTitle>
+      {/* An explicit ink class because the primitive hardcodes a retired one.
+          Written HERE rather than at the four call sites, which is what makes
+          every state carry it -- a description that only the loaded branch has
+          would leave the skeleton, the empty state and the error state each
+          one text line shorter than the card they hand off to. */}
+      <CardDescription className={CARD_DESC}>
+        {t("activities.description")}
+      </CardDescription>
       {action ? <CardAction>{action}</CardAction> : null}
     </CardHeader>
   );
