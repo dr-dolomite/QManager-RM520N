@@ -615,22 +615,31 @@ update_proc_metrics() {
 # System Health card consumes. Output flows into the top-level system_health
 # block of /tmp/qmanager_status.json so the CGI is a thin cache reader.
 #
-# Cheap reads only — no AT commands, no forks beyond awk/grep/df. Safe to run
-# every Tier 1 cycle.
+# Cheap reads only — no AT commands. EXACTLY TWO external calls survive, and
+# both are deliberate: `df` is the only source of the /usrdata figures, and `jq`
+# is the schema boundary on the crash log. Everything else is a builtin, because
+# this function ran every cycle and spent 78 ms (RM520N-GL) / 105 ms (RG501Q-EU)
+# per cycle on 37 fork+exec sites that computed almost nothing —
+# see docs/reference/poller-cpu-profile.md. scripts/test/poller-defork-forkcount.sh
+# pins the ceiling at 4 (each surviving substitution scores one cmd-sub plus one
+# applet). Do not add a third.
 update_system_health() {
     # --- subsys state + state_raw -------------------------------------------
     sh_state_raw=""
     if [ -r "${SH_SUBSYS_BASE}/state" ]; then
-        sh_state_raw=$(cat "${SH_SUBSYS_BASE}/state")
+        read -r sh_state_raw < "${SH_SUBSYS_BASE}/state" 2>/dev/null
     fi
     if [ -z "$sh_state_raw" ]; then
         sh_state="unknown"
     else
-        case "$(printf '%s' "$sh_state_raw" | tr '[:upper:]' '[:lower:]')" in
-            online)  sh_state="online"  ;;
-            offline) sh_state="offline" ;;
-            crashed) sh_state="crashed" ;;
-            *)       sh_state="unknown" ;;
+        # Bracket globs do the case folding the old `tr '[:upper:]' '[:lower:]'`
+        # did, with no fork. bash 3.2 (the RM520N-GL's shell) has no ${var,,}.
+        # The devices answer ONLINE in uppercase.
+        case "$sh_state_raw" in
+            [Oo][Nn][Ll][Ii][Nn][Ee])          sh_state="online"  ;;
+            [Oo][Ff][Ff][Ll][Ii][Nn][Ee])      sh_state="offline" ;;
+            [Cc][Rr][Aa][Ss][Hh][Ee][Dd])      sh_state="crashed" ;;
+            *)                                 sh_state="unknown" ;;
         esac
     fi
 
@@ -638,7 +647,8 @@ update_system_health() {
     sh_crash_count="null"
     if [ -r "${SH_SUBSYS_BASE}/crash_count" ]; then
         local _cc
-        _cc=$(cat "${SH_SUBSYS_BASE}/crash_count")
+        _cc=""
+        read -r _cc < "${SH_SUBSYS_BASE}/crash_count" 2>/dev/null
         case "$_cc" in
             *[!0-9]*) sh_crash_count="null" ;;
             "")       sh_crash_count="null" ;;
@@ -648,23 +658,58 @@ update_system_health() {
 
     # --- coredump_present ---------------------------------------------------
     # Match modem-subsys.sh CGI: exclude sysfs metadata pseudo-files.
+    # A glob loop replaces `find -maxdepth 1 -type f -size +0 ... | head -1`:
+    # -type f -size +0 becomes -f plus -s, the ! -name list becomes a case, and
+    # `head -1` becomes break. An unmatched glob stays literal, so the -f test
+    # rejects it.
     sh_coredump_present="false"
     if [ -d "$SH_RAMDUMP_DIR" ]; then
         local _dump
-        _dump=$(find "$SH_RAMDUMP_DIR" -maxdepth 1 -type f -size +0 \
-            ! -name dev ! -name name ! -name power \
-            ! -name subsystem ! -name uevent \
-            ! -name waiting_for_supplier \
-            2>/dev/null | head -1)
-        [ -n "$_dump" ] && sh_coredump_present="true"
+        for _dump in "$SH_RAMDUMP_DIR"/*; do
+            [ -f "$_dump" ] || continue
+            [ -s "$_dump" ] || continue
+            # One pattern per branch rather than a "dev|name|..." alternation:
+            # the fork-site scanner in scripts/test/poller-defork-forkcount.sh is
+            # lexical and reads a "|" in a case pattern as a pipeline. Same six
+            # exclusions the old find carried, same behaviour.
+            case "${_dump##*/}" in
+                dev)                  continue ;;
+                name)                 continue ;;
+                power)                continue ;;
+                subsystem)            continue ;;
+                uevent)               continue ;;
+                waiting_for_supplier) continue ;;
+            esac
+            sh_coredump_present="true"
+            break
+        done
     fi
 
     # --- crash log summary (last_crash_at + total_logged_crashes) ------------
+    # The log is the 3-byte literal "[]" on both devices in the normal case, so
+    # the first line is read with a builtin and the jq is skipped entirely. When
+    # there ARE crashes, ONE jq emits both values on one line; the old code paid
+    # for two (jq costs 11.10 ms on the RM520N-GL, 4.3x a normal applet).
+    # `last.ts|tojson` reproduces the old non-raw `jq 'last.ts'` output byte for
+    # byte, quotes included — sh_last_crash_at is embedded raw into the cache
+    # JSON, so it must stay JSON-encoded.
     sh_last_crash_at="null"
     sh_total_logged_crashes=0
     if [ -f "$SH_CRASH_LOG" ] && [ -s "$SH_CRASH_LOG" ]; then
-        sh_total_logged_crashes=$(jq 'length' "$SH_CRASH_LOG" 2>/dev/null) || sh_total_logged_crashes=0
-        sh_last_crash_at=$(jq 'if length > 0 then last.ts else null end' "$SH_CRASH_LOG" 2>/dev/null) || sh_last_crash_at="null"
+        local _cl_first _cl_out
+        _cl_first=""
+        read -r _cl_first < "$SH_CRASH_LOG" 2>/dev/null
+        if [ "$_cl_first" != "[]" ]; then
+            _cl_out=$(jq -r '[(length|tostring),
+                              (if length > 0
+                                 then (try (last.ts|tojson) catch "null")
+                                 else "null" end)]
+                             | join("|")' "$SH_CRASH_LOG" 2>/dev/null) || _cl_out=""
+            if [ -n "$_cl_out" ]; then
+                sh_total_logged_crashes="${_cl_out%%|*}"
+                sh_last_crash_at="${_cl_out#*|}"
+            fi
+        fi
     fi
 
     # --- load averages (1m / 5m / 15m) --------------------------------------
@@ -676,37 +721,53 @@ update_system_health() {
     fi
 
     # --- core_count (cache after first read — value never changes at runtime)
+    # Counting /proc/cpuinfo's "processor" lines with a read loop gives the same
+    # answer as nproc on both devices (cpuinfo lists online CPUs only) for zero
+    # forks, so the nproc/grep -c pair is gone.
     if [ "$sh_core_count" = "null" ]; then
-        if command -v nproc >/dev/null 2>&1; then
-            sh_core_count=$(nproc)
-        elif [ -r /proc/cpuinfo ]; then
-            sh_core_count=$(grep -c '^processor' /proc/cpuinfo)
-        fi
+        local _cpu_key _cpu_rest _cpu_n
+        _cpu_n=0
+        while read -r _cpu_key _cpu_rest; do
+            [ "$_cpu_key" = "processor" ] && _cpu_n=$((_cpu_n + 1))
+        done < /proc/cpuinfo 2>/dev/null
+        [ "$_cpu_n" -gt 0 ] && sh_core_count="$_cpu_n"
     fi
 
     # --- cpu frequency (current + max from cpufreq) -------------------------
     sh_freq_khz="null"
     if [ -r "${SH_CPUFREQ_BASE}/scaling_cur_freq" ]; then
-        sh_freq_khz=$(cat "${SH_CPUFREQ_BASE}/scaling_cur_freq")
+        read -r sh_freq_khz < "${SH_CPUFREQ_BASE}/scaling_cur_freq" 2>/dev/null
     fi
     sh_max_freq_khz="null"
     if [ -r "${SH_CPUFREQ_BASE}/scaling_max_freq" ]; then
-        sh_max_freq_khz=$(cat "${SH_CPUFREQ_BASE}/scaling_max_freq")
+        read -r sh_max_freq_khz < "${SH_CPUFREQ_BASE}/scaling_max_freq" 2>/dev/null
     fi
 
     # --- storage (/usrdata partition) ---------------------------------------
     sh_storage_total_kb="null"
     sh_storage_used_kb="null"
     sh_storage_avail_kb="null"
-    local _df_out
+    # NOTE: `df -P /usrdata` resolves to a tmpfs mount on BOTH devices, so these
+    # figures describe tmpfs and not the /usrdata volume. That is a pre-existing
+    # defect tracked separately and deliberately NOT fixed here — the de-fork
+    # pass must not change a single emitted value.
+    #
+    # The df substitution stays (it is the only source of these numbers), but its
+    # four awk calls do not: line 2 is taken with parameter expansion and split
+    # with `set --`, whose positional parameters are function-local.
+    local _df_out _df_line _df_rest
+    local _df_nl='
+'
     _df_out=$(df -P /usrdata 2>/dev/null)
     if [ $? -eq 0 ] && [ -n "$_df_out" ]; then
-        local _df_line
-        _df_line=$(printf '%s\n' "$_df_out" | awk 'NR==2{print}')
+        _df_line=""
+        _df_rest="${_df_out#*$_df_nl}"
+        [ "$_df_rest" != "$_df_out" ] && _df_line="${_df_rest%%$_df_nl*}"
         if [ -n "$_df_line" ]; then
-            sh_storage_total_kb=$(printf '%s\n' "$_df_line" | awk '{print $2}')
-            sh_storage_used_kb=$(printf '%s\n' "$_df_line"  | awk '{print $3}')
-            sh_storage_avail_kb=$(printf '%s\n' "$_df_line" | awk '{print $4}')
+            set -- $_df_line
+            sh_storage_total_kb="${2:-}"
+            sh_storage_used_kb="${3:-}"
+            sh_storage_avail_kb="${4:-}"
             [ -z "$sh_storage_total_kb" ] && sh_storage_total_kb="null"
             [ -z "$sh_storage_used_kb"  ] && sh_storage_used_kb="null"
             [ -z "$sh_storage_avail_kb" ] && sh_storage_avail_kb="null"
