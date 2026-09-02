@@ -45,26 +45,10 @@
 # ----------------
 # Two mechanisms keep a four-leg chain from outrunning its consumers:
 #
-#   * Per-leg deadline. Every leg runs under `qm_timeout $PROBE_DEADLINE ping
-#     -c1 -W $PROBE_TIMEOUT`, with PROBE_DEADLINE = PROBE_TIMEOUT + 1 (the +1
-#     is the resolution allowance -- ping's own -W bounds the ICMP wait but
-#     NOT name resolution, which is the whole reason a wrapper is needed).
+#   * Per-leg deadline: `qm_timeout $PROBE_DEADLINE ping -c1 -W $PROBE_TIMEOUT`
+#     (never a bare `timeout` -- the two devices take different CLI forms).
+#     Failure is NON-ZERO, never a literal code.
 #
-#     It MUST be qm_timeout, never a bare `timeout`. BusyBox changed the CLI
-#     in 1.30: SECS went from `-t SECS` to a positional first argument. The
-#     two target devices straddle that change -- RG501Q-EU ships 1.29.3
-#     (legacy -t only), RM520N-GL ships 1.31.1 (positional only) -- so NO
-#     single literal invocation works on both. See rg501q-bringup.md.
-#
-#     A bare call also resolves through PATH, and systemd hands a unit
-#     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin with
-#     no /opt/bin, so it never sees Entware's coreutils build. qm_timeout
-#     resolves by ABSOLUTE path, probes the accepted form by behaviour, and
-#     falls back to a pure-shell bound when neither binary is usable -- so
-#     the dependency floor here is POSIX shell, not a working `timeout`.
-#
-#     Exit status differs between the two devices (143 vs 124), so failure is
-#     tested as NON-ZERO and never as a literal code.
 #   * Fixed-rate loop. The tail sleep is (interval_sec − elapsed), floored at
 #     1 — not a flat `sleep interval` after the work. The cycle PERIOD
 #     therefore equals interval_sec whenever the chain fits inside it.
@@ -123,10 +107,8 @@
 # than merely not crashing.
 #
 # Install location: /usr/bin/qmanager_ping
-# Dependencies: iputils ping, jq, awk, grep, cut, date, tail, mv, and
-# /usr/lib/qmanager/platform.sh for qm_timeout. Every one of these resolves
-# inside the DAEMON's PATH on both devices -- verify against a daemon PATH,
-# never a login shell's, which carries /opt/bin and hides the difference.
+# Dependencies: iputils ping, jq, awk, grep, cut, date, tail, mv, plus
+# /usr/lib/qmanager/platform.sh for qm_timeout. All resolve under the DAEMON's PATH.
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
@@ -141,12 +123,8 @@
 qlog_init "ping"
 
 # --- Portable command bounding (qm_timeout) ----------------------------------
-# Same idiom qmanager_watchcat:46 uses. platform.sh is installed by the same
-# LIB_DIR glob as qlog.sh above, so its absence means a broken install rather
-# than an ordinary degraded mode; the guard below exists so that a broken
-# install degrades to "resolution is unbounded" instead of "every probe exits
-# 127 and the UI confidently reports no internet", which is what a missing
-# qm_timeout would otherwise produce.
+# Fallback keeps probes running unbounded rather than failing them outright,
+# which is what an undefined qm_timeout would do.
 [ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
 if ! command -v qm_timeout >/dev/null 2>&1; then
     qlog_error "platform.sh missing - probe legs run unbounded (broken install)"
@@ -357,13 +335,8 @@ load_config() {
 # --- Execute a single ICMP probe against one target --------------------------
 # $1 = target host or IPv4 literal.
 #
-# Runs `qm_timeout $PROBE_DEADLINE ping -c 1 -W $PROBE_TIMEOUT <target>`. It
-# MUST be qm_timeout: no single literal `timeout` form works on both devices
-# (see the qm_timeout note in the header), and a bare call resolves through a
-# systemd PATH that has no /opt/bin. The status reported on expiry also differs
-# between the devices, so nothing here tests for a specific exit code — a
-# non-zero status simply means no rtt was parsed, which is already the failure
-# path.
+# Runs `qm_timeout $PROBE_DEADLINE ping -c 1 -W $PROBE_TIMEOUT <target>`.
+# Non-zero just means no rtt was parsed, which is already the failure path.
 #
 # Parses the average RTT from the summary line ("min/avg/max[/mdev] = X/Y/Z[/W]",
 # avg = 2nd field), falling back to a per-packet "time=<n>" field. The rtt is
