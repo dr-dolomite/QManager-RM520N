@@ -764,7 +764,16 @@ update_system_health() {
         _df_rest="${_df_out#*$_df_nl}"
         [ "$_df_rest" != "$_df_out" ] && _df_line="${_df_rest%%$_df_nl*}"
         if [ -n "$_df_line" ]; then
+            # Unquoted `set --` does word splitting AND pathname expansion, but
+            # the awk it replaces only ever split. A df line carrying a glob
+            # metacharacter would therefore shift $2/$3/$4 in the new code and
+            # not the old, so globbing is disabled across the split to keep the
+            # port faithful. Restore only if it was not already set.
+            local _df_noglob=0
+            case $- in *f*) _df_noglob=1 ;; esac
+            set -f
             set -- $_df_line
+            [ "$_df_noglob" -eq 0 ] && set +f
             sh_storage_total_kb="${2:-}"
             sh_storage_used_kb="${3:-}"
             sh_storage_avail_kb="${4:-}"
