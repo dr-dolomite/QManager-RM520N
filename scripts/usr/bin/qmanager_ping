@@ -45,11 +45,26 @@
 # ----------------
 # Two mechanisms keep a four-leg chain from outrunning its consumers:
 #
-#   * Per-leg deadline. Every leg runs under `timeout $PROBE_DEADLINE ping -c1
-#     -W $PROBE_TIMEOUT`, with PROBE_DEADLINE = PROBE_TIMEOUT + 1 (the +1 is
-#     the resolution allowance). The POSITIONAL timeout form is the only one
-#     both devices have, and its exit status differs between them, so failure
-#     is tested as NON-ZERO and never as a literal code.
+#   * Per-leg deadline. Every leg runs under `qm_timeout $PROBE_DEADLINE ping
+#     -c1 -W $PROBE_TIMEOUT`, with PROBE_DEADLINE = PROBE_TIMEOUT + 1 (the +1
+#     is the resolution allowance -- ping's own -W bounds the ICMP wait but
+#     NOT name resolution, which is the whole reason a wrapper is needed).
+#
+#     It MUST be qm_timeout, never a bare `timeout`. BusyBox changed the CLI
+#     in 1.30: SECS went from `-t SECS` to a positional first argument. The
+#     two target devices straddle that change -- RG501Q-EU ships 1.29.3
+#     (legacy -t only), RM520N-GL ships 1.31.1 (positional only) -- so NO
+#     single literal invocation works on both. See rg501q-bringup.md.
+#
+#     A bare call also resolves through PATH, and systemd hands a unit
+#     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin with
+#     no /opt/bin, so it never sees Entware's coreutils build. qm_timeout
+#     resolves by ABSOLUTE path, probes the accepted form by behaviour, and
+#     falls back to a pure-shell bound when neither binary is usable -- so
+#     the dependency floor here is POSIX shell, not a working `timeout`.
+#
+#     Exit status differs between the two devices (143 vs 124), so failure is
+#     tested as NON-ZERO and never as a literal code.
 #   * Fixed-rate loop. The tail sleep is (interval_sec − elapsed), floored at
 #     1 — not a flat `sleep interval` after the work. The cycle PERIOD
 #     therefore equals interval_sec whenever the chain fits inside it.
@@ -108,7 +123,10 @@
 # than merely not crashing.
 #
 # Install location: /usr/bin/qmanager_ping
-# Dependencies: iputils ping, timeout, jq, awk, grep, cut, date, tail, mv
+# Dependencies: iputils ping, jq, awk, grep, cut, date, tail, mv, and
+# /usr/lib/qmanager/platform.sh for qm_timeout. Every one of these resolves
+# inside the DAEMON's PATH on both devices -- verify against a daemon PATH,
+# never a login shell's, which carries /opt/bin and hides the difference.
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
@@ -121,6 +139,22 @@
     qlog_state_change() { :; }
 }
 qlog_init "ping"
+
+# --- Portable command bounding (qm_timeout) ----------------------------------
+# Same idiom qmanager_watchcat:46 uses. platform.sh is installed by the same
+# LIB_DIR glob as qlog.sh above, so its absence means a broken install rather
+# than an ordinary degraded mode; the guard below exists so that a broken
+# install degrades to "resolution is unbounded" instead of "every probe exits
+# 127 and the UI confidently reports no internet", which is what a missing
+# qm_timeout would otherwise produce.
+[ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
+if ! command -v qm_timeout >/dev/null 2>&1; then
+    qlog_error "platform.sh missing - probe legs run unbounded (broken install)"
+    qm_timeout() {
+        shift
+        "$@"
+    }
+fi
 
 # mono_now() (boot-relative monotonic seconds from /proc/uptime) is not yet
 # part of RM520N-GL's qlog.sh — define a local fallback so this daemon can
@@ -346,7 +380,7 @@ do_ping_icmp() {
     PROBE_RTT=""
     PROBE_FAMILY="none"
 
-    out=$(timeout "$PROBE_DEADLINE" ping -c "$PROBE_COUNT" -W "$PROBE_TIMEOUT" "$target" 2>/dev/null)
+    out=$(qm_timeout "$PROBE_DEADLINE" ping -c "$PROBE_COUNT" -W "$PROBE_TIMEOUT" "$target" 2>/dev/null)
 
     # Preferred: average from the round-trip summary line (avg = 2nd of a/b/c).
     rtt=$(printf '%s\n' "$out" \
