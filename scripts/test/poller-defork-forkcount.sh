@@ -301,8 +301,22 @@ printf '\n'
 # pipe-delimited record, then a pure-bash suffix-trim walk over it.
 assert_ceiling "target 1" "$PARSE_AT" "parse_serving_cell" 3
 
-# Target 3 — update_system_health: sysfs reads become read builtins.
-assert_ceiling "target 3" "$POLLER" "update_system_health" 3
+# Target 3 — update_system_health: sysfs reads become read builtins, the
+# coredump find becomes a glob loop, the df output is split with `set --`
+# instead of four awk calls, core_count is counted with a read loop instead
+# of nproc/grep, and the two crash-log jq calls collapse to one that is
+# skipped entirely while the log is an empty array.
+#
+# The ceiling is 4, not 3, and the number is derived rather than chosen. Two
+# external calls survive the rewrite by design: `df` is the only source of
+# the /usrdata figures, and `jq` is the schema boundary on the crash log —
+# hand-parsing JSON there would trade a fork for a correctness risk. This
+# scanner sums cmd-subs, pipes and applets independently, so each of those
+# two command substitutions scores 2 (one cmd-sub + one applet). 2 + 2 = 4
+# is the floor. The plan said 3; that was set before this scanner existed
+# and was simply wrong arithmetic, corrected here by the orchestrator rather
+# than by the builder implementing against it.
+assert_ceiling "target 3" "$POLLER" "update_system_health" 4
 
 # Target 4 — update_proc_metrics: /proc/stat, /proc/meminfo and /proc/uptime
 # are all readable with the read builtin and suffix trimming. Zero forks.
