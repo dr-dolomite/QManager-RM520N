@@ -83,7 +83,7 @@ Probes: `cat /proc/cmdline`, `cat /proc/mounts`, `df -h`, `cat /proc/mtd`,
 | `openssl` | /usr/bin/openssl | stock |
 | `bash` | /bin/bash **4.4.23** | RM520N-GL: 3.2.57 (this is NEWER) |
 | `busybox` | /bin/busybox **v1.29.3** | RM520N-GL: 1.31.1 (this is OLDER) |
-| ⚠️ `timeout` | present, but **`-t SECS` form only** | BusyBox 1.29.3 predates the 1.30 CLI change. `timeout 2 echo hi` → `can't execute '2'`, exit **127**, command never runs. RM520N-GL (1.31.1) accepts *only* the positional form. See below |
+| ⚠️ `timeout` | `/usr/bin/timeout` present, but **`-t SECS` form only**. ⚠️ **Post-install there is a SECOND one:** `/opt/bin/timeout` → `/opt/libexec/timeout-coreutils`, real **GNU coreutils 9.9** (landed 2026-08-25), which takes the positional form. `qm_timeout` probes `/opt/bin` first by absolute path, so on a QManager device it dispatches positional here — the legacy applet is what a bare PATH lookup finds, and that is the trap | BusyBox 1.29.3 predates the 1.30 CLI change. `timeout 2 echo hi` → `can't execute '2'`, exit **127**, command never runs. RM520N-GL (1.31.1) accepts *only* the positional form. See below |
 | `mountpoint` | **MISSING** | present as `/bin/mountpoint` on RM520N-GL. Open defect **F6** — `install_speedtest_cli()` reads the resulting exit 127 as "not a mount" |
 | `getent` | **MISSING** | also missing on RM520N-GL — not a divergence, but it made `qmanager_health_check`'s getent DNS arm unreachable everywhere |
 | `tar` `gzip` `unzip` | present | |

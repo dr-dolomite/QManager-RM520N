@@ -357,11 +357,13 @@ load_config() {
 # --- Execute a single ICMP probe against one target --------------------------
 # $1 = target host or IPv4 literal.
 #
-# Runs `timeout $PROBE_DEADLINE ping -c 1 -W $PROBE_TIMEOUT <target>`. The
-# positional timeout form is the only one that exists on both devices, and the
-# status it reports on expiry differs between them, so nothing here tests for a
-# specific exit code — a non-zero status simply means no rtt was parsed, which
-# is already the failure path.
+# Runs `qm_timeout $PROBE_DEADLINE ping -c 1 -W $PROBE_TIMEOUT <target>`. It
+# MUST be qm_timeout: no single literal `timeout` form works on both devices
+# (see the qm_timeout note in the header), and a bare call resolves through a
+# systemd PATH that has no /opt/bin. The status reported on expiry also differs
+# between the devices, so nothing here tests for a specific exit code — a
+# non-zero status simply means no rtt was parsed, which is already the failure
+# path.
 #
 # Parses the average RTT from the summary line ("min/avg/max[/mdev] = X/Y/Z[/W]",
 # avg = 2nd field), falling back to a per-packet "time=<n>" field. The rtt is
