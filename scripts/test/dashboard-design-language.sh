@@ -3257,6 +3257,306 @@ for lang in en zh-CN zh-TW it id; do
     fi
 done
 
+# =============================================================================
+# SECTION 09 -- Speed test dialog
+# =============================================================================
+#
+# The last file in the pass, and the only one that is not on the grid: a modal.
+# Findings 10, 12 and 17 all land here, and the four things this section pins
+# are four different KINDS of defect wearing one heading.
+#
+# 1. THE METER'S CLOCK IS A COUPLING, NOT A TASTE CALL. `duration-500` is off
+#    the 360/600/800 scale, and the file's own comment claims it as a sanctioned
+#    exception -- correctly. The bar tracks a real throughput sample arriving on
+#    its own clock, so `linear` is right where the system's curves would read as
+#    easing the DATA, and the duration must equal the poll cadence rather than a
+#    step of the motion scale. Moving it to `--duration-standard` (600ms) would
+#    make the fill still travelling when the next sample lands, which is the one
+#    thing the bar must not do.
+#
+#    So the defect is NOT the number. It is that the number is RETYPED. The
+#    cadence is `LIVE_INTERVAL_MS` in `hooks/use-speedtest.ts`, and the two
+#    500s were coupled by nothing but a comment: retune the poll and the bar
+#    silently lags, with no error anywhere and no test that can see it. Same
+#    family as `CLOCK_TICK_MS` declared twice (finding 15), which step 00 fixed
+#    by hoisting rather than by re-picking a value.
+#
+#    [09-1] therefore pins the DERIVATION, not a duration: the literal is gone,
+#    the constant is exported, the dialog reads it, and `ease-linear` plus
+#    `motion-reduce:transition-none` both survive -- the exception is preserved
+#    on purpose, only its second copy is removed.
+#
+# 2. THE MODAL-EXIT RULE, AT THE CALL SITE. `components/ui/dialog.tsx` already
+#    gets this right in both halves: `data-[state=open]:` on `emphasized`,
+#    `data-[state=closed]:` on `quick`, and the overlay carries the identical
+#    pair so the scrim and the panel leave as one object. What the call site
+#    added was an UNQUALIFIED `duration-[var(--duration-emphasized)]
+#    ease-emphasized`, which applies to the closed state too.
+#
+#    Whether it actually wins is decided by CSS emission order between two
+#    candidates the tooling cannot see as conflicting -- `twMerge` does not
+#    read a variant-prefixed arbitrary duration as colliding with a bare one,
+#    so both survive into the class list and the cascade decides. That is the
+#    same alphabetical trap `lib/utils.ts` documents for radii and DESIGN.md
+#    documents for `bg-input` vs `bg-surface-*`. A rule that holds by accident
+#    of sort order is not held, and the cost if it flips is 800ms of dead
+#    clicks on every close of a dialog whose whole job is to be dismissed.
+#
+#    [09-2] pins it by COUNT: every `duration-[var(--duration-emphasized)]` in
+#    this file must be `data-[state=open]:`-qualified, so an unqualified one
+#    cannot be reintroduced. The primitive's own two halves are guarded beside
+#    it, because the call site being correct is worth nothing if the base is
+#    edited out from under it.
+#
+# 3. THE HARDCODED WHITE (finding 10). `bg-white/45` is the live meter's
+#    progress track, and it does not theme: a fixed white at 45% over
+#    `downlink-container` computes to L~0.62 in dark mode against a `downlink`
+#    fill at L 0.66 -- track and fill four hundredths apart, which is a
+#    progress bar that cannot be read at all in dark. `surface-container-high`
+#    (0.938 light / 0.235 dark) sits clear of both direction containers in both
+#    themes: lighter than `downlink-container` (0.875) and `uplink-container`
+#    (0.915) in light, darker than both (0.285 / 0.345) in dark, so it reads as
+#    a recessed groove rather than a veil. This is the same substitution step 06
+#    already made in `live-latency.tsx`, whose comment records the reasoning,
+#    and it puts this file's two `TrackBar` call sites on the same footing --
+#    the ping tile at :629 has always passed a real token.
+#
+# 4. THE RADIUS SCALE (finding 12). Four `rounded-full`, and after this step
+#    they are the last four on the whole surface: `network-status` (18),
+#    `device-status` (2) and `recent-activities` (1) went in steps 01, 03 and
+#    07. `--radius-pill` is `9999px`, so this is byte-for-byte the same circle;
+#    what it buys is that the role scale has no member the reader has to know
+#    is a synonym. [09-4] pins zero across `components/dashboard/**`, not just
+#    in this file, because "the last four" is only true once.
+#
+# -----------------------------------------------------------------------------
+# TWO ITEMS OF THE PLAN'S STEP ARE PINNED **UNCHANGED**, WITH REASONS
+# -----------------------------------------------------------------------------
+#
+# `bg-primary/90` x2 (:514, :870). The plan reads this as an opacity wash to be
+# replaced with "a real token". There is no such token: no `--primary-hover`
+# exists in `app/globals.css`, and `hover:bg-primary/90` is the string
+# `components/ui/button.tsx` ships as its own `default` variant, repeated
+# verbatim at six sites product-wide (`button.tsx`, `badge.tsx`, `banner.tsx`,
+# `login-component.tsx`, and these two). Changing two dashboard copies would
+# make the dashboard's primary CTA hover differ from every other primary CTA in
+# the product -- the exact divergence this pass exists to remove -- to fix a
+# convention that lives in a primitive. DESIGN.md's own /dashboard delta agrees
+# and says the surface has "no opacity washes on role colours"; its "don't
+# compensate with an alpha" rule is about a mismatched FILL pair, and a hover
+# step is not a pair. Retiring the pattern is a product-wide primitive change
+# with its own gate. [09-5] pins the count at 2 so a drive-by fix goes red.
+#
+# The `rounded-tile` boxes are NOT re-pointed at `shapes.ts`'s `TILE`. `TILE` is
+# minted at the system's pinned 104px horizontal geometry with a 52px disc
+# (`TILE.ROOT` = `flex h-[6.5rem] items-center gap-3.5 rounded-tile px-5 py-4`),
+# and shapes.ts's own header records that. Not one of this file's five
+# `rounded-tile` boxes is that shape: the live meter is a vertical column
+# holding a 52px display numeral, the result tile is a centred column, and the
+# server line is a horizontal row at `py-3`. They already carry the role-scale
+# radius token directly; there is no shared geometry here to hoist, only a
+# radius they and `TILE` both happen to use. Importing a grid module into a
+# modal to share one class name would be the coupling, not the fix.
+#
+# [09-1] through [09-5] run against comment-stripped source, same rationale as
+# R0-6, 00-5, 01-6, 02-3, 03-1, 04-1, 05-1, 06-1, 07-1 and 08-1 -- and this file
+# needs it more than any of them: it carries a 75-line header plus inline
+# comments that quote `transition-all`, `duration-500`, `bg-white/45` and
+# `rounded-full` while arguing about them. The audit that produced finding 17
+# read one of those comments as code (see the report), which is exactly the
+# false green a stripped read prevents.
+
+SD_09="$DASHBOARD/speedtest-dialog.tsx"
+HOOK_09="$REPO_ROOT/hooks/use-speedtest.ts"
+DLG_09="$COMPONENTS/ui/dialog.tsx"
+
+printf '\n=============================================================\n'
+printf 'SECTION 09 -- Speed test dialog\n'
+printf '=============================================================\n'
+
+sd_stripped="$TMPD/speedtest-dialog.stripped"
+if [ -f "$SD_09" ]; then
+    strip_comments "$SD_09" > "$sd_stripped"
+else
+    : > "$sd_stripped"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[09-1] the meter clock derives from the poll cadence instead of retyping it\n'
+if [ ! -f "$SD_09" ]; then
+    bad "speedtest-dialog.tsx is missing"
+else
+    if grep -q 'duration-500' "$sd_stripped"; then
+        bad "the retyped 500ms literal survives on the meter"
+    else
+        ok "no retyped poll cadence is left in the class list"
+    fi
+    if grep -q 'LIVE_INTERVAL_MS' "$sd_stripped"; then
+        ok "the dialog reads the poll cadence by name"
+    else
+        bad "the dialog does not reference LIVE_INTERVAL_MS"
+    fi
+    if grep -q 'transitionDuration' "$sd_stripped"; then
+        ok "the meter sets its duration from that constant"
+    else
+        bad "the meter does not set transitionDuration from the cadence"
+    fi
+    # The exception itself is preserved -- only its duplicated number goes.
+    if grep -q 'ease-linear' "$sd_stripped"; then
+        ok "the linear curve survives: the bar is data arriving, not a flourish"
+    else
+        bad "ease-linear was lost -- the fill would now ease the DATA"
+    fi
+    if grep -q 'motion-reduce:transition-none' "$sd_stripped"; then
+        ok "motion-reduce still drops the travel entirely"
+    else
+        bad "the motion-reduce escape was lost from the meter"
+    fi
+fi
+if [ -f "$HOOK_09" ]; then
+    if grep -q 'export const LIVE_INTERVAL_MS' "$HOOK_09"; then
+        ok "use-speedtest publishes the cadence as one exported constant"
+    else
+        bad "LIVE_INTERVAL_MS is not exported from hooks/use-speedtest.ts"
+    fi
+else
+    bad "hooks/use-speedtest.ts is missing"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[09-2] the modal-exit rule is state-qualified, at the call site and in the base\n'
+if [ -f "$SD_09" ]; then
+    emph_all=$(grep -o 'duration-\[var(--duration-emphasized)\]' "$sd_stripped" | wc -l | tr -d ' ')
+    emph_open=$(grep -o 'data-\[state=open\]:duration-\[var(--duration-emphasized)\]' "$sd_stripped" | wc -l | tr -d ' ')
+    if [ "$emph_all" -eq "$emph_open" ]; then
+        ok "every emphasized duration here is scoped to the OPEN state ($emph_open of $emph_all)"
+    else
+        bad "$((emph_all - emph_open)) unqualified emphasized duration(s) -- these also slow the CLOSE"
+    fi
+    if grep -q 'data-\[state=open\]:ease-emphasized' "$sd_stripped"; then
+        ok "the emphasized curve is scoped to the open state too"
+    else
+        bad "the emphasized curve is not scoped to data-[state=open]"
+    fi
+fi
+# Guard the primitive: the call site being right is worth nothing if the base
+# loses the closed-state half underneath it.
+if [ -f "$DLG_09" ]; then
+    dlg_closed=$(grep -o 'data-\[state=closed\]:duration-\[var(--duration-quick)\]' "$DLG_09" | wc -l | tr -d ' ')
+    if [ "$dlg_closed" -eq 2 ]; then
+        ok "the primitive still exits on quick for both the panel and the scrim"
+    else
+        bad "expected 2 closed-state quick durations in dialog.tsx, found $dlg_closed"
+    fi
+    if grep -q 'data-\[state=open\]:duration-\[var(--duration-emphasized)\].*data-\[state=closed\]' "$DLG_09"; then
+        ok "the primitive keeps both halves of the two-clock pair"
+    else
+        bad "dialog.tsx no longer pairs an emphasized open with a quick close"
+    fi
+else
+    bad "components/ui/dialog.tsx is missing"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[09-3] the progress track is a themed token, not a hardcoded white\n'
+if [ -f "$SD_09" ]; then
+    if grep -q 'bg-white' "$sd_stripped"; then
+        bad "a hardcoded white survives in speedtest-dialog.tsx"
+    else
+        ok "no hardcoded white is left in the dialog"
+    fi
+    if grep -q 'trackClassName="bg-surface-container-high"' "$sd_stripped"; then
+        ok "the live meter's track is the neutral step one in from the container"
+    else
+        bad "the live meter track is not bg-surface-container-high"
+    fi
+    track09=$(grep -c 'trackClassName="bg-surface-container' "$sd_stripped" || true)
+    if [ "$track09" -eq 2 ]; then
+        ok "both TrackBar call sites pass a real token"
+    else
+        bad "expected 2 tokenised TrackBar tracks, found $track09"
+    fi
+fi
+# Finding 10 named two files. live-latency went in step 06; this closes it.
+# Stripped, not raw: live-latency.tsx:757 still QUOTES `bg-white/45` in the
+# comment recording what its meter replaced, and a raw grep would read that
+# prose as code -- the same false green [09-1]'s header warns about, and the
+# reason this assertion was rewritten before the red commit.
+white09=0
+for f in "$DASHBOARD"/*.tsx; do
+    [ -f "$f" ] || continue
+    if strip_comments "$f" | grep -q 'bg-white'; then
+        white09=$((white09 + 1))
+    fi
+done
+if [ "$white09" -eq 0 ]; then
+    ok "no file under components/dashboard/ carries a hardcoded white"
+else
+    bad "$white09 dashboard file(s) still carry bg-white"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[09-4] the radius role scale is complete across the surface\n'
+if [ -f "$SD_09" ]; then
+    rf09=$(grep -c 'rounded-full' "$sd_stripped" || true)
+    if [ "$rf09" -eq 0 ]; then
+        ok "the dialog is on the role scale"
+    else
+        bad "$rf09 rounded-full survive in speedtest-dialog.tsx"
+    fi
+fi
+# The whole surface, not just this file: finding 12 counted 25 across four
+# files and this step retires the last four.
+rf_all=$(grep -rho 'rounded-full' "$DASHBOARD" --include=*.tsx 2>/dev/null | wc -l | tr -d ' ')
+if [ "$rf_all" -eq 0 ]; then
+    ok "zero rounded-full remain anywhere under components/dashboard/"
+else
+    bad "$rf_all rounded-full remain across the dashboard surface"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[09-5] the pipeline, the full result, and the two deliberate non-changes\n'
+# The plan's DO-NOT list plus the two items argued in this header. A modal that
+# is the DETAIL view is the whole reason step 06 could shrink the dashboard row
+# to 40px, so anything that shrinks the result here is a regression in step 06,
+# not a tidy-up here.
+if [ -f "$SD_09" ]; then
+    keep09=0
+    for sym in 'const ROLE: Record<SpeedtestStep, RoleTokens>' \
+               'const STEP_LABEL_KEY' 'const STEP_STATUS_KEY' \
+               'SPEEDTEST_STEPS' 'resolveStepStates' \
+               'function ResultTile' 'function MetricPill' 'function TrackBar' \
+               'text-\[44px\]' 'text-\[52px\]' 'text-\[26px\]' \
+               'bg-downlink-container' 'bg-uplink-container' \
+               'metric_jitter' 'metric_packet_loss' 'result_isp'; do
+        if ! grep -q -- "$sym" "$sd_stripped"; then
+            bad "speedtest-dialog.tsx lost $sym"
+            keep09=1
+        fi
+    done
+    if [ "$keep09" -eq 0 ]; then
+        ok "the phase machine, the colour contract and the full result display are intact"
+    fi
+    # Pinned UNCHANGED -- see the header. A drive-by "fix" of either goes red.
+    prim09=$(grep -c 'hover:bg-primary/90' "$sd_stripped" || true)
+    if [ "$prim09" -eq 2 ]; then
+        ok "the two primary CTAs still hover exactly as button.tsx does"
+    else
+        bad "expected 2 hover:bg-primary/90 (the primitive's own string), found $prim09"
+    fi
+    tile09=$(grep -c 'rounded-tile' "$sd_stripped" || true)
+    if [ "$tile09" -eq 5 ]; then
+        ok "all five tonal boxes keep the role radius, and none was re-pointed at TILE"
+    else
+        bad "expected 5 rounded-tile boxes, found $tile09"
+    fi
+    if grep -q 'from "./shapes"' "$sd_stripped"; then
+        bad "the modal imports the grid's shapes module -- it is off-grid by design"
+    else
+        ok "the off-grid modal does not reach into the grid's shapes module"
+    fi
+fi
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
