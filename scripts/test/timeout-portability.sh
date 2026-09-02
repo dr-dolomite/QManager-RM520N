@@ -34,6 +34,21 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PLATFORM="$REPO_ROOT/scripts/usr/lib/qmanager/platform.sh"
 HEALTH="$REPO_ROOT/scripts/usr/bin/qmanager_health_check"
 INSTALLER="$REPO_ROOT/scripts/install_rm520n.sh"
+DAEMON_DIR="$REPO_ROOT/scripts/usr/bin"
+
+# Every shipped daemon/helper under scripts/usr/bin. The [3] sweep below used
+# to scan only the three files above, which is how the bare call site in
+# qmanager_ping went unseen for a full release: the assertion was right, its
+# scope was wrong.
+# An ARRAY, not a string: the repo path contains a space, so a word-split
+# string silently expanded into non-existent paths and grep reported zero
+# hits -- a false PASS on a tree that was broken. A guard that cannot survive
+# its own repo's path is worse than no guard.
+DAEMONS=()
+for _d in "$DAEMON_DIR"/*; do
+    [ -f "$_d" ] || continue
+    DAEMONS+=("$_d")
+done
 
 pass_count=0
 fail_count=0
@@ -139,7 +154,12 @@ printf '\n[3] no bare timeout call sites may reappear\n'
 # Every call site must go through qm_timeout. Exclude the wrapper's own
 # internals (which legitimately invoke the resolved binary by variable) and
 # comments.
-bare=$(grep -nE '(^|[^-[:alnum:]_/$"])timeout[[:space:]]+[0-9]' "$PLATFORM" "$HEALTH" "$INSTALLER" \
+# The trailing class must accept a VARIABLE seconds argument, not just a
+# literal digit. The regression this step exists to catch was spelled
+#     timeout "$PROBE_DEADLINE" ping ...
+# so a digit-only pattern reported zero hits on a tree that was actively
+# broken on hardware. Widening the file list alone would still pass green.
+bare=$(grep -nE '(^|[^-[:alnum:]_/$"])timeout[[:space:]]+[0-9"$]' "$PLATFORM" "$HEALTH" "$INSTALLER" "${DAEMONS[@]}" \
     | grep -v '^[^:]*:[0-9]*:[[:space:]]*#' \
     | grep -v 'timeout 1 true' || true)
 if [ -n "$bare" ]; then
@@ -260,6 +280,47 @@ case "$out" in
     *RC=124*) ok "fail-open branch bounds an overrun and reports 124" ;;
     *) bad "fail-open branch did not bound/remap an overrun: $out" ;;
 esac
+
+printf '
+[7] qmanager_ping must bound its probe legs portably
+'
+
+# The 2026-09-01 four-leg rewrite added the daemon's first-ever `timeout`
+# call and spelled it bare, so it resolved through PATH. A systemd unit gets
+# no /opt/bin, so on the RG501Q-EU (BusyBox 1.29.3, legacy -t form only) the
+# seconds argument was read as the program name: exit 127, ping never ran,
+# and the dashboard reported a confident "no internet" over a working link.
+# Steps [1]-[3] are generic; this one names the daemon, because that is the
+# surface where the failure is SILENT -- nothing crashes, the cache is still
+# written on time, so the staleness gate never trips and every layer below
+# the probe reports the manufactured silence faithfully.
+PING="$REPO_ROOT/scripts/usr/bin/qmanager_ping"
+
+if [ -f "$PING" ]; then
+    if grep -qF '/usr/lib/qmanager/platform.sh' "$PING"; then
+        ok "qmanager_ping sources platform.sh"
+    else
+        bad "qmanager_ping does not source platform.sh (qm_timeout undefined)"
+    fi
+
+    if grep -qE '(^|[^-[:alnum:]_])qm_timeout[[:space:]]' "$PING"; then
+        ok "qmanager_ping routes its probe leg through qm_timeout"
+    else
+        bad "qmanager_ping does not call qm_timeout"
+    fi
+
+    # The daemon's own header asserted the inverse of the documented truth
+    # (docs/reference/rg501q-bringup.md: the two devices straddle the BusyBox
+    # 1.30 CLI change, so NO single literal form works on both). A stale
+    # comment contradicting the platform contract is how this comes back.
+    if grep -qF 'POSITIONAL timeout form is the only one' "$PING"; then
+        bad "qmanager_ping header still claims one timeout form works on both devices"
+    else
+        ok "qmanager_ping header no longer contradicts the platform contract"
+    fi
+else
+    bad "missing: $PING"
+fi
 
 printf '\n[timeout-portability] %d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ] || exit 1
