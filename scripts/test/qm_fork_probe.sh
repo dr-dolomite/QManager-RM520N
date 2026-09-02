@@ -40,8 +40,32 @@ PROBE_DIR=/tmp/qmprobe
 OUT=/tmp/qm_fork_attribution.txt
 FX="$PROBE_DIR/fx"
 
+# QMFP_KEEP_FX=1 carries the recorded AT fixtures across runs instead of
+# re-capturing them from the modem.
+#
+# This exists for before/after comparison. The qcmd stub records each AT
+# response once and replays it for the whole run, so the fixtures decide which
+# branch of the parser is exercised — and therefore what the run costs. A modem
+# that reselects between a baseline run and a candidate run silently changes the
+# workload, and the difference shows up as a speedup or a regression that is
+# really just a different response. Pinning the fixtures removes device state
+# from the comparison entirely rather than hoping it holds still.
+#
+# Default is unset, so a plain run still captures fresh and stays bit-identical
+# in behaviour to the published baseline.
+_keep_fx=""
+if [ "${QMFP_KEEP_FX:-0}" = "1" ] && [ -d "$FX" ]; then
+    _keep_fx=/tmp/qmprobe_fx_keep.$$
+    mv "$FX" "$_keep_fx" || exit 1
+fi
+
 rm -rf "$PROBE_DIR"
 mkdir -p "$FX" || exit 1
+
+if [ -n "$_keep_fx" ]; then
+    rm -rf "$FX"
+    mv "$_keep_fx" "$FX" || exit 1
+fi
 : > "$OUT" || exit 1
 
 log() { echo "$*" >> "$OUT"; }
@@ -60,6 +84,7 @@ log "busybox      : $(busybox 2>&1 | head -1)"
 log "nproc        : $(grep -c ^processor /proc/cpuinfo)"
 log "duration_req : ${DURATION}s"
 log "poller_src   : $POLLER_SRC"
+log "fixtures     : $([ -n "$_keep_fx" ] && echo 'REUSED (pinned across runs)' || echo 'captured fresh')"
 log "poller_md5   : $(md5sum "$POLLER_SRC" 2>/dev/null | cut -d' ' -f1)"
 log ""
 
