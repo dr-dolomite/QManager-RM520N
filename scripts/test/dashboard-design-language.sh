@@ -2440,6 +2440,316 @@ for lang in en zh-CN zh-TW it id; do
     fi
 done
 
+# =============================================================================
+# SECTION 06 -- Live Latency
+# =============================================================================
+#
+# The headline change: the 88px speedtest TILE becomes a 40px metric ROW, in the
+# same form as Device Metrics' Data Used row. User-directed 2026-09-01 -- the
+# tile "introduces a huge whitespace gap to other cards."
+#
+# WHY THE ROW IS THE RIGHT FORM, NOT MERELY THE SMALLER ONE
+# ---------------------------------------------------------
+#
+# Both values are a DOWN/UP PAIR, and they are the only two on the surface.
+# Drawing them in two different shapes -- one an 88px tile with tonal figure
+# chips, the other a 40px row with inline glyphs -- means a user who learns one
+# has not learned the other. That is Product Principle 4 inverted, and it is the
+# same argument step 05 made about a third spelling of absence, one level up.
+#
+# The row form invents nothing. Data Used already puts a CONTROL IN THE LABEL
+# CELL (the counter reset), which is why `PillRow.label` is a ReactNode and not
+# a string -- step 00 moved the component out of device-metrics.tsx for this
+# step specifically, and said so in its own header. The signal cards already put
+# a BAR INLINE IN A 40px ROW. The speedtest row wants exactly those two things.
+#
+# The big result is not lost, it moves to where it belongs: speedtest-dialog.tsx
+# is the detail view and already renders it in full. Row summarises, dialog
+# details -- progressive disclosure, Product Principle 2.
+#
+# WHAT THE ROW MAY NOT DROP
+# -------------------------
+#
+# The `agoLabel` is metadata ABOUT a reading, so it renders as a neutral Tag
+# rather than a Badge -- the Two-Form Rule's own answer, and the move
+# mtu-settings-card.tsx makes when it captions provenance rather than claiming a
+# measurement. It is the first thing at risk when the row runs out of width, and
+# it is the one thing that may not go: A RESULT WITH NO AGE IS A RESULT CLAIMING
+# TO BE CURRENT. [06-4] pins it for that reason and no other.
+#
+# [06-1] through [06-6] run against comment-stripped source, same rationale as
+# R0-6, 00-5, 01-6, 02-3, 03-1, 04-1 and 05-1. [06-7] is the exception and says
+# why.
+
+LL_06="$DASHBOARD/live-latency.tsx"
+SHAPES_06="$SHAPES_00"
+
+printf '\n=============================================================\n'
+printf 'SECTION 06 -- Live Latency\n'
+printf '=============================================================\n'
+
+ll_stripped="$TMPD/live-latency.stripped"
+if [ -f "$LL_06" ]; then
+    strip_comments "$LL_06" > "$ll_stripped"
+else
+    : > "$ll_stripped"
+fi
+
+shapes_stripped_06="$TMPD/shapes.06.stripped"
+if [ -f "$SHAPES_06" ]; then
+    strip_comments "$SHAPES_06" > "$shapes_stripped_06"
+else
+    : > "$shapes_stripped_06"
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-1] the header carries a description, and the title reads the ramp\n'
+# Findings 02, 03. The sixth of nine cards to gain one.
+if [ ! -f "$LL_06" ]; then
+    bad "live-latency.tsx is missing"
+else
+    if grep -q 'CardDescription' "$ll_stripped"; then
+        ok "the card carries a description"
+    else
+        bad "the card still has no CardDescription"
+    fi
+    if grep -q 'CARD_DESC' "$ll_stripped"; then
+        ok "the description speaks the shared secondary ink"
+    else
+        bad "the description does not read CARD_DESC"
+    fi
+    if grep -q 'CARD_TITLE' "$ll_stripped"; then
+        ok "the title reads the shared card-title size"
+    else
+        bad "the title still spells its own size instead of importing CARD_TITLE"
+    fi
+    if grep -q 'text-lg font-semibold' "$ll_stripped"; then
+        bad "a hand-spelled card title survives in live-latency.tsx"
+    else
+        ok "no hand-spelled title size is left on this card"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-2] the shell and the clock stay shared, and the plot box is untouched\n'
+# Green BEFORE the fix and required to be green after it. Step 00 hoisted
+# CARD_SHELL and CLOCK_TICK_MS (finding 15) out of this file; the job here is
+# that a step re-authoring a third of the card does not quietly re-inline one.
+#
+# CHART_BOX is the DO-NOT. Finding 06 was WITHDRAWN: `min-h-[150px] flex-1` is
+# correct as shipped. The floor guarantees recharts a measurable parent on frame
+# one (ResponsiveContainer renders NOTHING until it has measured), and the
+# flex-1 beside it is what absorbs the slack from Device Metrics being the
+# taller row-mate. Converting it to a pin breaks both, and neither failure shows
+# in a static screenshot -- which is exactly why it is pinned here instead.
+if [ -f "$LL_06" ]; then
+    if grep -q 'className={CARD_SHELL}' "$ll_stripped"; then
+        ok "the card draws the hoisted shell"
+    else
+        bad "the card no longer draws CARD_SHELL"
+    fi
+    if grep -q 'rounded-card border-0' "$ll_stripped"; then
+        bad "a shell is spelled inline in live-latency.tsx"
+    else
+        ok "no shell is spelled inline"
+    fi
+    if grep -qE 'const CLOCK_TICK_MS' "$ll_stripped"; then
+        bad "CLOCK_TICK_MS is declared locally again -- it lives in shapes.ts"
+    else
+        ok "the 30s clock is read from shapes.ts, declared once"
+    fi
+    if grep -q 'CLOCK_TICK_MS' "$ll_stripped"; then
+        ok "the relative-time clock still ticks"
+    else
+        bad "live-latency.tsx lost CLOCK_TICK_MS"
+    fi
+    if grep -qF 'min-h-[150px] flex-1' "$ll_stripped"; then
+        ok "CHART_BOX is untouched -- the first-frame floor and the slack absorber both survive"
+    else
+        bad "CHART_BOX moved; finding 06 was withdrawn and this must not change"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-3] the 88px tile is gone and the shared row stands in its place\n'
+# The headline change. Both directions: the tile must be GONE, and what replaced
+# it must be the SHARED PillRow rather than a second row that merely matches it.
+if [ -f "$LL_06" ]; then
+    gone06=0
+    for sym in SPEEDTEST_TILE_H 'min-h-[88px]' SpeedtestFigure rounded-tile; do
+        if grep -qF -- "$sym" "$ll_stripped"; then
+            bad "the speedtest tile survives: $sym is still in live-latency.tsx"
+            gone06=1
+        fi
+    done
+    if [ "$gone06" -eq 0 ]; then
+        ok "the tile, its pinned height and its bespoke figure chips are all gone"
+    fi
+    if grep -q 'from "./pill-row"' "$ll_stripped"; then
+        ok "the row is the SHARED PillRow, not a second copy of it"
+    else
+        bad "live-latency.tsx does not import PillRow"
+    fi
+    if grep -q '<PillRow' "$ll_stripped"; then
+        ok "the speed test renders as a metric row"
+    else
+        bad "no PillRow is rendered in live-latency.tsx"
+    fi
+    # The skeleton mirrors what it stands in for, or the crossfade becomes a
+    # jump (the Skeleton-Mirror Rule). A skeleton still reserving 88px for a
+    # 40px row is the exact failure the rule names.
+    if grep -q 'ROW.HEIGHT' "$ll_stripped"; then
+        ok "the skeleton reserves the row height from the same constant the row uses"
+    else
+        bad "the skeleton does not mirror the new row -- it must read ROW.HEIGHT"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-4] the value cell says what Data Used says, in the same words\n'
+# The whole reason the tile became a row. A down/up pair rendered two ways on
+# one page is the drift this pass exists to remove, so the treatment is asserted
+# to be Data Used spelling, not merely "a down/up pair".
+if [ -f "$LL_06" ]; then
+    pair06=0
+    for sym in arrow_circle_down arrow_circle_up \
+               text-downlink-on-surface text-uplink-on-surface; do
+        if ! grep -qF -- "$sym" "$ll_stripped"; then
+            bad "the result pair does not speak Data Used spelling: missing $sym"
+            pair06=1
+        fi
+    done
+    if [ "$pair06" -eq 0 ]; then
+        ok "the cached result is the same glyph-plus-ink pair Data Used draws"
+    fi
+    if grep -q 'VALUE_CLASS' "$ll_stripped"; then
+        ok "the figures take the shared row-value ink"
+    else
+        bad "the figures do not read VALUE_CLASS"
+    fi
+    # Provenance. See the section header: this is the one thing width pressure
+    # may not take.
+    if grep -q 'variant="neutral"' "$ll_stripped"; then
+        ok "the reading age renders as a neutral Tag -- a result with no age claims to be current"
+    else
+        bad "the agoLabel is gone or is not a neutral Tag"
+    fi
+    # Never run.
+    if grep -q 'ABSENT' "$ll_stripped"; then
+        ok "a card that has never run a test says so with the surface sentinel"
+    else
+        bad "the never-run state does not use ABSENT"
+    fi
+    # Running: the shared meter, not the bespoke one.
+    if grep -q '<MetricBar' "$ll_stripped"; then
+        ok "the running progress draws on the shared MetricBar"
+    else
+        bad "the running state has no MetricBar"
+    fi
+    if grep -q 'scaleX(' "$ll_stripped"; then
+        bad "the bespoke scaleX progress bar survives"
+    else
+        ok "the bespoke scaleX bar is gone with the tile"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-5] the alpha washes and the retired ink are gone\n'
+# Findings 10 and 11. `bg-white/45` is a hardcoded white that does not theme --
+# it was compensating for a mismatched pair rather than fixing the pair, and the
+# MetricBar track token replaces it outright. `opacity-75` washes a real ink to
+# fake a quieter one. `text-muted-foreground` is a retired token.
+if [ -f "$LL_06" ]; then
+    wash06=0
+    for sym in 'bg-white/45' 'opacity-75' 'text-muted-foreground'; do
+        if grep -qF -- "$sym" "$ll_stripped"; then
+            bad "a retired ink or alpha wash survives: $sym"
+            wash06=1
+        fi
+    done
+    if [ "$wash06" -eq 0 ]; then
+        ok "no hardcoded white, no opacity wash, no retired foreground token"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-6] everything this card is known for survives the step\n'
+# The DO-NOT list, made mechanical. The chart contract, the clocks, the crossfade
+# and the two guards that exist because of real device behaviour.
+if [ -f "$LL_06" ]; then
+    keep06=0
+    for sym in 'pathLength={1}' seriesMotion useChartDrawIn useChartSeriesMotion \
+               CHART_POINTS LOSS_WINDOW ABSURD_AGE_SEC animate-live-ping \
+               ca-content-in ca-skeleton-out SpeedtestDialog; do
+        if ! grep -qF -- "$sym" "$ll_stripped"; then
+            bad "live-latency.tsx lost $sym"
+            keep06=1
+        fi
+    done
+    if [ "$keep06" -eq 0 ]; then
+        ok "the chart contract, the broken-clock guard, the live dot and the crossfade are intact"
+    fi
+    # The live figure must NOT tick. TickingValue is a 1.4s gesture and the
+    # speedtest live cadence is 500ms -- it would strobe. Exactly one call site
+    # is legal here, the header chip.
+    ticks06=$(grep -c '<TickingValue' "$ll_stripped" || true)
+    if [ "$ticks06" -eq 1 ]; then
+        ok "one TickingValue -- the header chip ticks, the 500ms live figure does not"
+    else
+        bad "found $ticks06 TickingValue call sites; only the header chip may tick"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-7] no comment in this file quotes a duration the tokens no longer hold\n'
+# Finding 16, and the audit under-counted it by five. The tokens are quick
+# 360ms, standard 600ms, emphasized 800ms since the 2x retune; the file quotes
+# SIX figures from before it -- "emphasized (400ms)" on the tile container (the
+# one the finding names), "180ms" for a SwapLabel crossfade that runs `quick`,
+# "300ms" three times for a `standard` that is 600ms, and a "700ms dip" for a
+# TickingValue pair that is 1.4s. A comment quoting a retired number is worse
+# than one quoting none: the next reader trusts it and computes a ratio from it,
+# which is precisely what the "3.75x" in the chart-motion note did.
+#
+# Asserted against the RAW file, not the stripped one: comments are the subject.
+if [ -f "$LL_06" ]; then
+    stale06=0
+    for num in '400ms' '300ms' '180ms' '700ms'; do
+        if grep -qF -- "$num" "$LL_06"; then
+            bad "a retired duration is still quoted in live-latency.tsx: $num"
+            stale06=1
+        fi
+    done
+    if [ "$stale06" -eq 0 ]; then
+        ok "every duration this file names is one the tokens actually hold"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+printf '\n[06-8] the locale packs gained the description and lost the dead key\n'
+# `speedtest.idle_description` was the tile idle sentence. The row is
+# self-evident -- the play control IS the affordance -- so the sentence has no
+# reader left. Removing it in the same commit keeps the packs from carrying a
+# string no code can reach, which is the same drift one level down.
+for lang in en zh-CN zh-TW it id; do
+    lf="$REPO_ROOT/public/locales/$lang/dashboard.json"
+    if [ ! -f "$lf" ]; then
+        bad "missing locale pack: $lang/dashboard.json"
+        continue
+    fi
+    block06=$(awk '/^  "latency": \{/{f=1} f{print} f && /^  \},?\r?$/{exit}' "$lf")
+    if printf '%s' "$block06" | grep -q '"description"'; then
+        ok "$lang carries latency.description"
+    else
+        bad "$lang is missing latency.description"
+    fi
+    if grep -q '"idle_description"' "$lf"; then
+        bad "$lang still carries the dead speedtest.idle_description"
+    else
+        ok "$lang dropped the dead idle sentence"
+    fi
+done
+
 # -----------------------------------------------------------------------------
 printf '\n-------------------------------------------------------------\n'
 printf 'passed: %d   failed: %d\n' "$pass_count" "$fail_count"
