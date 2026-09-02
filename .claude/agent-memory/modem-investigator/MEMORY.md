@@ -60,3 +60,5 @@
 - [RM520N `su` hangs forever under a TTY; RG501Q does not](rm520n_loginpw_pam_su_hang.md) — RM520N common-auth uses proprietary `loginpw.so` (absent on RG501Q) which prints a base64 challenge and blocks with no timeout; root is exempt via pam_rootok, TTY-less fails fast with "must be run from a terminal". Includes the two probe traps: a `sleep|su` pipeline measures the sleep, and `pkill -f` kills your own session shell
 
 - [Live Latency chart plots 0, not null — a blackout looks like a healthy flat line](live_latency_chart_plots_zero_not_null.md) — `rtt ?? 0` plus an always-60-long history means the `length === 0` guard never fires; "the chart is plotting" is never evidence of connectivity, and DNS keeps resolving via the on-net carrier resolver during a total blackout
+
+- [systemd daemons get a PATH with NO /opt/bin; login shells put /opt/bin FIRST](daemon_path_lacks_opt_bin.md) — so an interactive probe of `timeout` on RG501Q measures Entware coreutils while the daemon gets BusyBox 1.29.3; includes the `env -i PATH=...` daemon-env repro
