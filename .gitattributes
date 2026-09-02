@@ -24,3 +24,10 @@ installer-gui/**/*.toml text eol=lf
 installer-gui/**/*.md text eol=lf
 installer-gui/.gitignore text eol=lf
 installer-gui/**/*.woff2 binary
+
+# Test fixtures are byte-compared. scripts/test/poller-defork-equivalence.sh
+# diffs a golden dump of parse_serving_cell against a fresh run over the raw
+# AT-response fixtures, so a CRLF checkout would change what the parser reads
+# and make the golden diff on a fresh clone. core.autocrlf=true does exactly
+# that without this line.
+scripts/test/fixtures/** text eol=lf

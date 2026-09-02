@@ -1,0 +1,5 @@
+# SYNTHETIC fixture — NOT captured from a live device.
+# 5G-SA with an unrecognised state token. service_status must survive unchanged.
++QENG: "servingcell","UNKNOWNST","NR5G-SA","TDD",515,03,12345AB,500,5A2B,627264,78,2,-90,-10,15,1,32
+
+OK

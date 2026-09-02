@@ -1,0 +1,9 @@
+# SYNTHETIC fixture — NOT captured from a live device.
+# 5G-SA carrying a FULL 36-bit NCI (0x2FCB04A0F). Pins the wide-integer split:
+#   nr_cell_id 12829346319, gNodeB 783041, sector 2575
+# — verified live on BOTH devices, identically via bash arithmetic and via an
+# awk base-16 loop. The value exceeds 32 bits; a rewrite that narrows it, or
+# that reaches for awk's absent strtonum, fails here.
++QENG: "servingcell","CONNECT","NR5G-SA","TDD",515,03,2FCB04A0F,500,5A2B,627264,78,2,-90,-10,15,1,32
+
+OK

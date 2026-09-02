@@ -1,0 +1,5 @@
+# SYNTHETIC fixture — NOT captured from a live device.
+# LTE-only, LIMSRV. service_status must become limited.
++QENG: "servingcell","LIMSRV","LTE","FDD",515,03,FCB04A0,222,1350,3,5,5,1A2B,-95,-12,-58,11,0
+
+OK

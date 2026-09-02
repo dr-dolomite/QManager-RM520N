@@ -1,0 +1,6 @@
+# SYNTHETIC fixture — NOT captured from a live device.
+# LTE-only, NOCONN. service_status must become idle, while lte_state is still
+# "connected". That asymmetry is the CURRENT behaviour and must be preserved.
++QENG: "servingcell","NOCONN","LTE","FDD",515,03,FCB04A0,222,1350,3,5,5,1A2B,-95,-12,-58,11,0
+
+OK

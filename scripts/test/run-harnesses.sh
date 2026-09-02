@@ -49,7 +49,13 @@ for h in scripts/test/*.sh; do
     # build-css-gate.sh is excluded on purpose: it runs a full production
     # build, so it belongs to `bun run package` (where the build happens
     # anyway) rather than to this suite, which is meant to stay text-only.
-    case "$name" in run-all.sh|run-harnesses.sh|build-css-gate.sh) continue ;; esac
+    # qm_fork_probe.sh is excluded for a different reason: it is not a harness
+    # at all, it is the CPU/fork profiler from docs/reference/poller-cpu-profile.md.
+    # Running it takes an hour by default and, on a device, drives the real
+    # modem through a recording qcmd stub. It lives here so the profile doc's
+    # "gate the launch on device_md5 == local_md5" rule has something to
+    # compare against. Launch it deliberately, never as part of a test sweep.
+    case "$name" in run-all.sh|run-harnesses.sh|build-css-gate.sh|qm_fork_probe.sh) continue ;; esac
     harness_count=$((harness_count + 1))
     printf '\n-- %s --\n' "$name"
     "$BASH" "$h" || fail "harness $name failed"
