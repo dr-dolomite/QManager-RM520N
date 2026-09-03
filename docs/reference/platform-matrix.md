@@ -179,7 +179,7 @@ The rules that fall out of it:
 | `OnCalendar` timer behavior | Every armed timer misfires **twice** per boot (~23s at 1970, ~29s post-step) | *unverified* | on-device, reproduced across 2 boots · `scheduled-timers.md` |
 | `crond` | Binary ships but daemon never runs; `/var/spool/cron/crontabs/` empty | *unverified* | on-device, re-confirmed twice · `scheduled-timers.md` |
 | `systemd-time-wait-sync` | Not shipped | *unverified* | on-device · `scheduled-timers.md` |
-| journald | Disabled device-wide — use `/var/log/messages` | *unverified* | on-device · `scheduled-timers.md` |
+| journald | Disabled device-wide — `systemd-journald.service` is symlinked to `/dev/null`, so `journalctl` is **always empty**. Use `/var/log/messages` for application logs and `dmesg` for systemd's own | **Same** — also symlinked to `/dev/null` | RM520N-GL: on-device · `scheduled-timers.md`. Both devices re-confirmed on-device 2026-09-03 (F11) |
 | systemd version | 244 (minimal build; `systemctl is-enabled` reads only `/etc/systemd/system/`) | Version *unverified*; the `is-enabled` behavior **reproduces** — 13 `qmanager-*.service` units report `disabled` yet start every boot | RM520N-GL: on-device · `qmanager-independence.md`. RG501Q-EU: adb 2026-08-25 (serial `b7e3d6f1`) — stock firmware behavior, observed via a post-reset install |
 
 > ℹ️ NOTE: **`disabled` does not mean "will not start."** QManager's units live in
@@ -191,6 +191,18 @@ The rules that fall out of it:
 > every boot. Confirmed on **both** devices; check the `.wants` symlink, not
 > `is-enabled`. Tracked as **F12** below, including why moving the symlinks into
 > `/etc/systemd/system/` is not the fix.
+
+> ⚠️ **`dmesg` is the only systemd log channel on these devices — never tell anyone
+> to run `journalctl`.** `systemd-journald.service` is symlinked to `/dev/null` on
+> both devices, so `journalctl` returns nothing on a healthy device and nothing on a
+> broken one, which is indistinguishable. PID 1 still writes to the kernel ring
+> buffer, so `dmesg` carries the `systemd[1]:` lines for every job start, mount
+> attempt and mount failure. **F11 below stayed misdiagnosed for months precisely
+> because nobody had a log to read** — the boot-time mount failure at its root prints
+> one line to `dmesg` and nowhere else, and it was found the first time anyone
+> looked there. Lines carrying a `systemd[1]:` prefix are systemd's; a bare printk
+> with no prefix is the kernel or a vendor driver, which is how the vendor
+> `/usrdata` mount was identified as **not** being a systemd unit.
 
 ## Filesystem & partitions
 
@@ -711,11 +723,16 @@ Post-reboot monotonic timeline (post-fix; compare against the pre-fix table abov
 
 Two figures from this boot are the ones to quote elsewhere:
 
-- **The `rc.unslung` vs `opt.mount` margin is 0.32 s** — `opt.mount` reached active
+- ~~**The `rc.unslung` vs `opt.mount` margin is 0.32 s** — `opt.mount` reached active
   at 28.404 s and `rc.unslung`'s `ExecStart` began at 28.721 s. That is *tighter*
   than the 0.5 s of the first boot, so **0.32 s is the worst measured margin** and
-  is the number to use wherever the docs quote one. It is the subject of
+  is the number to use wherever the docs quote one.~~ It is the subject of
   **[F14](#f14-open-deferred-on-measured-evidence--rcunslungservice-uses-execstartprebinsleep-5-where-it-needs-afteroptmount)**.
+
+  > ⚠️ **Struck 2026-09-03 (`fae95c0`).** Stop quoting 0.32 s. Post-F11 `opt.mount`
+  > reaches active at **3.94–4.87 s** while `rc.unslung`'s `ExecStart` still fires at
+  > ~28.6 s, so **the margin is now ~24 s**. The 0.32 s figure describes a boot
+  > sequence that no longer occurs.
 - **`lighttpd.service`'s `ExecStartPre` shield was 5.63 s here** versus 4.4 s on the
   first boot — the accidental shield the pre-fix device depended on is not a stable
   width.
@@ -725,6 +742,34 @@ Two figures from this boot are the ones to quote elsewhere:
 > pre-fix boot above. **Any future F14 fix perturbs the F8 timing narrative** — it
 > cannot reintroduce F8 (the exec bit is the guard, and it is timing-independent),
 > but it does invalidate the measured margins recorded here.
+
+##### The late `/opt` mount was an undocumented second shield — and F11's fix removed it
+
+**Short version: on the RM520N-GL the exec-bit clear was never the only thing
+stopping the Entware lighttpd. `rc.unslung` was also failing outright, so it never
+reached any `S*` script at all. F11 (2026-09-03) made `rc.unslung` succeed on every
+boot, so the exec-bit clear is now the SOLE remaining guard against F8.**
+
+Pre-F11, `rc.unslung.service` came up `ActiveState=failed` with
+`ExecMainStatus=203` — systemd's `EXIT_EXEC`, meaning it could not execute the
+program at all — because its `ExecStart` fired at 28.55 s while `/opt` did not mount
+until 30.30 s, so `/opt/etc/init.d/rc.unslung` did not yet exist. A script that is
+never reached cannot start the imposter, whatever its mode bits say. That masking
+was accidental, undocumented, and is now gone: post-F11 `rc.unslung` is `active` on
+all four measured RM520N-GL boots (see
+[F10](#f10-fixed-2026-09-03-fae95c0-via-f11--dropbearservice-fails-on-boot-intermittently)),
+and `S51dropbear` now fires on every boot where before it fired on none.
+
+The consequence is a change of degree, not of kind: the warning under **F11** that
+the exec-bit clear is the *load-bearing, deterministic* half of the F8 fix now reads
+as **sole**. Anything that clears, skips or "simplifies away"
+`neutralize_entware_lighttpd()` reintroduces F8 with nothing behind it.
+
+Mitigation already in place: `neutralize_entware_lighttpd()` is called
+**unconditionally** from `main()` in `scripts/install_rm520n.sh`, so every OTA
+re-clears the bit even after `opkg` has re-extracted the file. The residual exposure
+is narrow and specific — an `opkg upgrade lighttpd` performed *between* OTAs, which
+re-arms the exec bit with no QManager run to clear it again until the next update.
 
 #### Accepted tradeoff in the uninstaller
 
@@ -745,7 +790,7 @@ None of these block the fix; all of them bound how far it can be claimed.
 | ~~1~~ | ~~**Re-probe the RM520N-GL once reachable.**~~ | **DONE 2026-08-25.** All four preconditions confirmed present, the imposter proven never to have run, `/opt` proven to be the same `/usrdata/opt` bind as on the RG501Q-EU, and `opt.mount` present as a unit but unlinked. Answers folded into [RM520N-GL status](#rm520n-gl-status-confirmed-exposed-latent-now-fixed) above. |
 | ~~2~~ | ~~**Boot-verify the fix on the RM520N-GL.**~~ | **DONE 2026-08-25.** Rebooted after the hand-application; guard persisted, selector excludes `S80lighttpd`, imposter log mtime unchanged, QManager healthy on 80+443. See [Reboot validation](#reboot-validation--passed-2026-08-25-and-what-it-does-not-prove) — note what that result does *not* prove. |
 | 3 | **End-to-end installer run on hardware.** The fix was validated by applying, by hand, the two state changes the installer performs — not by running the installer itself on-device. | The plumbing is verified *statically*: 16 assertions in `scripts/test/installer-lighttpd-collision.sh` plus a CLEAR installer-safety audit. Static verification is not an execution. |
-| 4 | **Root-cause the `opt.mount` boot-timing jitter** (22.25s on one boot vs ~4.5s on the next two, identical device, identical config). | Unexplained. See F11 below. |
+| ~~4~~ | ~~**Root-cause the `opt.mount` boot-timing jitter** (22.25s on one boot vs ~4.5s on the next two, identical device, identical config).~~ | **DONE 2026-09-03 (`fae95c0`).** It was never jitter. The distribution is **bimodal** — a won-or-lost race against the vendor kernel's `/usrdata` mount, where a lost race costs ~25 s because the retry is a separate out-of-band job. Root cause, fix and post-fix measurements in [F11](#f11-fixed-2026-09-03-fae95c0--optmounts-first-attempt-loses-a-race-against-the-vendor-kernels-usrdata-mount) below. |
 
 ### F9 (open, deliberately not fixed) — `start-opt-mount.service` never reaches `active`
 
@@ -772,7 +817,25 @@ Entware, lighttpd **and** SSH simultaneously, with no remaining path in. Verifie
 harmless: no unit is ordered against it, and systemd coalesces duplicate start jobs,
 so there is one `mount(8)` per activation regardless of how many callers ask.
 
-### F10 (open, blocked on F11 — hardening shipped 2026-09-03, `7c139e4`) — `dropbear.service` fails on boot, intermittently
+> ℹ️ NOTE (2026-09-03, `fae95c0`): this wrapper is **no longer the path that actually
+> mounts `/opt`** on either device — F11 made `opt.mount`'s own first attempt succeed
+> at ~4 s, so by the time `start-opt-mount.service` runs at ~24 s the mount is
+> already active and its `systemctl start` is a no-op. It stays in place exactly as
+> described above: it is the fallback that keeps a failed-mount device reachable, and
+> F11 deliberately added **no** hard dependency that could take that away.
+
+### F10 (fixed 2026-09-03, `fae95c0` via F11) — `dropbear.service` fails on boot, intermittently
+
+**Short version: SSH restarted itself once on most boots because its binary lives on
+`/opt`, and `/opt` was not mounted yet when systemd first started it. Nothing further
+was wrong with the SSH unit — fixing the mount ([F11](#f11-fixed-2026-09-03-fae95c0--optmounts-first-attempt-loses-a-race-against-the-vendor-kernels-usrdata-mount))
+closed this with no additional code change.** `NRestarts` is **0** on all four
+post-F11 RM520N-GL reboots and both RG501Q-EU reboots, against a pre-fix baseline of
+`1`. The hardening shipped in `7c139e4` (start-limit widening, atomic write, mode
+0644) stands and is still worth having; it simply was not the cure.
+
+Everything below the lead is the original filing, kept because the mechanism and the
+two hardening lessons are still live. Read it in the past tense.
 
 `NRestarts` measured **1 / 0 / 0** across the three post-fix reboots, and **1** on
 the pre-fix boot. The unit declares `After=network.target` and nothing else — in
@@ -812,19 +875,69 @@ not bind on the RM520N-GL, and F10's intermittent restart is unchanged there.**
 | RM520N-GL A | 28.836s | 28.878s | 28.833s | **1** ❌ |
 | RM520N-GL B | 30.298s | 30.461s | 28.709s | **1** ❌ |
 
-`NRestarts=1` matches the pre-fix baseline exactly. **Why the ordering cannot bind:**
-`rc.unslung`'s job begins at **23.551s / 23.520s** across the two boots — constant,
-and wholly independent of dropbear — while `opt.mount`'s own job does not begin until
-**29.130s**, five seconds *after* `start-opt-mount.service` ran its out-of-band
-`systemctl start opt.mount` at 24.003s. systemd ordering only constrains units inside
-the same job transaction; F9's wrapper activates `opt.mount` outside the boot job set,
-so dropbear's `After=` and `Before=` have nothing to attach to. Both directives are
-present in the resolved dependency lists and are simply inert.
+`NRestarts=1` matched the pre-fix baseline exactly.
 
-> ⚠️ **F10 is blocked on F11, not on the SSH unit.** Any further attempt to fix F10 by
-> editing `dropbear.service` will fail the same way. The next move is F11 — make
+~~**Why the ordering cannot bind:** `rc.unslung`'s job begins at **23.551s /
+23.520s** across the two boots — constant, and wholly independent of dropbear — while
+`opt.mount`'s own job does not begin until **29.130s**, five seconds *after*
+`start-opt-mount.service` ran its out-of-band `systemctl start opt.mount` at 24.003s.
+systemd ordering only constrains units inside the same job transaction; F9's wrapper
+activates `opt.mount` outside the boot job set, so dropbear's `After=` and `Before=`
+have nothing to attach to. Both directives are present in the resolved dependency
+lists and are simply inert.~~
+
+~~> ⚠️ **F10 is blocked on F11, not on the SSH unit.** Any further attempt to fix F10
+> by editing `dropbear.service` will fail the same way. The next move is F11 — make
 > `opt.mount` activate inside the boot transaction — after which F10 should close on
-> its own. Do not re-derive the guard trace or re-measure `NRestarts`; both are done.
+> its own.~~
+
+> ⚠️ **Struck 2026-09-03 (`fae95c0`).** The 29.130s figure is the **second**
+> `opt.mount` job, not the first — `dmesg` shows the unit's real first attempt at
+> **2.54 s**, squarely inside the boot transaction, where it *failed*. `opt.mount` was
+> never activated outside the transaction, so "ordering against it is inert" is wrong
+> as stated, and it is wrong for every unit it was extended to, `lighttpd.service`
+> included. See [F11](#f11-fixed-2026-09-03-fae95c0--optmounts-first-attempt-loses-a-race-against-the-vendor-kernels-usrdata-mount).
+
+#### Why `After=opt.mount` still did not help — and what actually closed this
+
+**Be precise here, because the correction is subtle and the wrong reading will get
+someone to "strengthen" the dependency and take SSH down with it.**
+
+`After=` is satisfied by a job **reaching completion, not by that job succeeding**.
+Pre-fix, `opt.mount`'s job completed at **3.361 s** — by failing with mount exit 32.
+As far as `After=opt.mount` was concerned that ordering constraint was discharged,
+so `dropbear.service` was free to start at 22.228 s with `/opt` still absent, and it
+did. The directive was never inert; it was satisfied by a failure.
+
+`fae95c0` makes the mount **succeed** early (~4 s, before `basic.target` at ~21.9 s).
+That makes the ordering incidentally correct — dropbear now finds `/opt` present
+whenever it starts — but it does **not** make `After=` bind in the strong sense.
+
+> ⚠️ **The only construct that would bind is `Requires=opt.mount` or
+> `RequiresMountsFor=/opt` on the consumer, and that is deliberately NOT done.** With
+> either of those, a failed `/opt` mount would take SSH down *on purpose*, which is
+> the exact lockout this entry has spent three revisions avoiding. Ordering-only is
+> the intended end state.
+
+**The real acceptance criterion, and the one to re-check on any future change here,
+is therefore not `NRestarts` and not a property readback — it is: `opt.mount` reaches
+`active` inside the boot transaction, before `basic.target`.** Everything downstream
+of `/opt` follows from that one fact.
+
+**Post-F11 measurement, RM520N-GL (`61368cd2`), 4 reboots — no code change to
+`dropbear.service`:**
+
+| Boot | `opt.mount` ActiveEnter | `dropbear` `NRestarts` | `rc.unslung.service` |
+| --- | --- | --- | --- |
+| pre-fix | 30.299 s | 1 | failed (203) |
+| 1 | 4.871 s | **0** | active |
+| 2 | 4.701 s | **0** | active |
+| 3 | 4.046 s | **0** | active |
+| 4 | 3.941 s | **0** | active |
+
+`dropbear`'s `ExecMainStart` moved from **30.461 s** to **22.228 s** on boot 1.
+RG501Q-EU: `NRestarts=0`, unchanged — it was never affected, because its first mount
+attempt already won.
 
 **What did ship** (all measured on both devices; SSH survived all three reboots, no
 lockout at any point):
@@ -855,32 +968,274 @@ lockout at any point):
 > reports the 10s default while `LoadState` reads `loaded` throughout. Verify by
 > reading back the specific properties systemd parsed.
 
-**Two things found while measuring, not yet addressed:**
+#### The two sub-findings found while measuring — both now resolved
 
-- **`/opt/etc/init.d/S51dropbear` is still executable (`0755`) on both devices**, so
-  `rc.unslung` sources it every boot and it races QManager for port 22. F8 cleared the
-  exec bit on `S80lighttpd` and left this one armed. Its guard tests
-  `/opt/var/run/dropbear.pid`, which QManager's unit never writes (no `-P` flag), so it
-  is only *accidentally* correct — on the RG501Q-EU it passes because a stale pidfile
-  happens to name the live daemon by PID reuse. **Do not clear its exec bit**: it is a
-  genuine independent SSH fallback, and it is the reason `Before=rc.unslung.service`
-  was chosen over disabling it.
-- **`rc.unslung.service` came up `ActiveState=failed`** on RM520N-GL reboot B, with its
-  `ExecStart` at 28.709s while `/opt` was still mounting (active 30.298s) — it cannot
-  read `/opt/etc/init.d/rc.unslung` that early. Same F11 root cause; pre-existing, not
-  introduced by `7c139e4`.
+**1. `S51dropbear` racing for port 22 — resolved, but on a mechanism QManager does
+not own.**
 
-### F11 (open) — `opt.mount` early-start is probabilistic, not guaranteed
+`/opt/etc/init.d/S51dropbear` is still executable (`0755`) on both devices, and it
+**now fires on every boot** on the RM520N-GL rather than none, because F11 made
+`rc.unslung` succeed (see the
+[F8 second-shield note](#the-late-opt-mount-was-an-undocumented-second-shield--and-f11s-fix-removed-it)).
+It stands down correctly every time. Measured 2026-09-03:
+`/opt/var/run/dropbear.pid` contains a live PID whose `/proc/<pid>/cmdline` is
+`/opt/sbin/dropbear -F -E -p 22` — **QManager's own daemon**. So the guard sees a
+valid pidfile, short-circuits, and there is exactly one listener on `:22`.
+
+> ⚠️ **This is load-bearing, undocumented, and owned by a third-party build option —
+> not by QManager.** The pidfile exists because **Entware's dropbear writes its
+> compile-time default pidfile even with no `-P` flag and even under `-F`**
+> (foreground). Nothing in QManager asks for it. An Entware rebuild with a different
+> default path silently removes the guard's input.
+
+Residual window: if `dropbear.service` were late or failing at the moment
+`rc.unslung` execs, `S51dropbear` would fork an **unmanaged, non-systemd** dropbear
+holding port 22. QManager's unit would then fail to bind, restart-loop into
+`StartLimitBurst=40` and latch `failed`, leaving SSH served only by a daemon systemd
+cannot see or restart.
+
+> ℹ️ **The considered follow-up is adding `-P /opt/var/run/dropbear.pid` explicitly to
+> `dropbear.service`'s `ExecStart`**, so the guard depends on QManager's own unit
+> rather than on an Entware build default. It was **deliberately deferred out of
+> `fae95c0`** to avoid landing two SSH-affecting changes in one reboot cycle. Keep
+> `S51dropbear` armed — **do not clear its exec bit**; it is a genuine independent SSH
+> fallback, and it is why `Before=rc.unslung.service` was chosen over disabling it.
+
+**2. `rc.unslung.service` coming up failed — resolved.**
+
+It was `ActiveState=failed` with `ExecMainStatus=203` (`EXIT_EXEC`) on the
+RM520N-GL, missing `/opt` by 1.4 s: `ExecStart` at 28.55 s against a mount that only
+reached active at 30.30 s, so `/opt/etc/init.d/rc.unslung` did not exist to execute.
+Post-F11 it is `active` on all four boots. Note the second-order effect this has on
+F8, recorded
+[above](#the-late-opt-mount-was-an-undocumented-second-shield--and-f11s-fix-removed-it).
+
+### F11 (fixed 2026-09-03, `fae95c0`) — `opt.mount`'s first attempt loses a race against the vendor kernel's `/usrdata` mount
+
+**Short version: `/opt` is a bind mount of `/usrdata/opt`, so it cannot mount until
+`/usrdata` itself is mounted — and on the RM520N-GL the vendor kernel usually mounts
+`/usrdata` about 1.3 seconds *after* systemd has already tried and failed. The failed
+first attempt was invisible, and the `/opt` everyone measured at 29–30 s was a
+second, out-of-band retry. The fix is a small unit that waits for `/usrdata` and is
+ordered `Before=opt.mount`, so the first attempt succeeds.** `opt.mount` now reaches
+active at **3.94–4.87 s** across four RM520N-GL reboots, down from a 4.5–30.3 s
+spread, with no regression on the RG501Q-EU.
+
+Jargon, once: a **boot job transaction** is the set of start jobs systemd computes in
+one go at startup — ordering directives only constrain units *inside* the same set.
+**mountinfo** is `/proc/self/mountinfo`, the kernel's live list of what is mounted
+where. **UBI/UBIFS** is the flash volume layer and filesystem these modems use.
+Timestamps below are **monotonic** — seconds since kernel boot — because these
+devices boot at Jan 1970 and wall clock is meaningless.
+
+#### The original filing, and what was wrong with it
 
 Enabling `opt.mount` (symlinking it into `multi-user.target.wants/`) was the
 *secondary* half of the F8 change: before it, the unit was written with
 `WantedBy=multi-user.target` but never enabled, so it was never pulled into the boot
 transaction and `lighttpd.service`'s `After=opt.mount` was inert.
 
-Post-fix, across three reboots, `opt.mount` reached active at **22.25s, 4.64s, and
+Post-F8, across three reboots, `opt.mount` reached active at **22.25s, 4.64s, and
 4.52s**. On cycle 1 that was *after* `rc.unslung` had already started (19.34s) —
 reproducing the original timing window exactly. Nothing failed, because the exec bit
 was already cleared.
+
+~~The 22.25s-vs-4.5s spread across identical boots is unexplained — see F8
+follow-up 4.~~
+
+~~> ⚠️ **F11 now blocks F10, and the mechanism is sharper than "jitter".** Measured
+> 2026-09-03 on the RM520N-GL: `opt.mount`'s own job does not begin until **29.130s**,
+> five seconds *after* `start-opt-mount.service` ran its `systemctl start opt.mount` at
+> 24.003s. The mount is therefore activated **outside the boot job transaction**, and
+> systemd ordering only constrains units within one. That is why `After=opt.mount` on
+> `dropbear.service` is inert (F10) — and it applies to **any** unit that tries to
+> order against `opt.mount`, including `lighttpd.service`.~~
+
+> ⚠️ **Struck 2026-09-03 (`fae95c0`) — both claims above are refuted.**
+>
+> **The "outside the boot job transaction" diagnosis is wrong.** `opt.mount` *is*
+> inside the transaction and *does* run early. The 29.130 s job everyone measured is
+> the **second** job — `start-opt-mount.service`'s out-of-band retry at 24.0 s (F9) —
+> and mistaking it for the first is what produced the wrong conclusion. Ordering
+> against `opt.mount` was never inert; it was being *satisfied by a failure*.
+>
+> **The "unexplained spread" framing is wrong too.** The distribution is **bimodal**,
+> not jittery: ~4.5 s boots are the ones where the first attempt *won*, ~22–30 s boots
+> are the ones where it *lost* and paid for the retry. There is no continuum in
+> between and nothing random about the magnitude. Every boot on the RG501Q-EU is a
+> win, because `ubi2` attaches earlier there. Retire the word "jitter" for this.
+
+#### What `dmesg` actually shows — RM520N-GL, serial `61368cd2`
+
+This was found by reading `dmesg`, because `journalctl` is empty on these devices
+(see the note under **Boot & time**). It is one line, and it had been printing on
+every boot for months with nobody looking:
+
+```
+[ 2.540590] systemd[1]: Mounting Bind /usrdata/opt to /opt...
+[ 3.361477] systemd[1]: opt.mount: Mount process exited, code=exited, status=32/n/a
+[ 3.361510] systemd[1]: opt.mount: Failed with result 'exit-code'.
+[ 3.362638] systemd[1]: Failed to mount Bind /usrdata/opt to /opt.
+[ 3.517455] MTD : Detected block device : /usrdata for usrdata
+[ 3.692020] ubi2: attached mtd32 (name "usrdata", size 150 MiB)
+[ 3.857110] UBIFS (ubi2:0): UBIFS: mounted UBI device 2, volume 0, name "usrdata"
+[24.003870] systemd[1]: Starting Ensure opt.mount is started at boot...
+[29.130884] systemd[1]: Mounting Bind /usrdata/opt to /opt...
+[30.299047] systemd[1]: Mounted Bind /usrdata/opt to /opt.
+```
+
+Read it in order: systemd tries the bind at **2.54 s**, `mount(8)` exits **32**
+(mount failure) at 3.36 s because its *source* — `/usrdata` — does not exist yet, and
+`/usrdata` only becomes a filesystem at **3.857 s**. The 24.0 s line is F9's wrapper
+starting; the 29.130 s "Mounting" is its retry, and the 30.299 s "Mounted" is the
+success everyone had been quoting as *the* mount time.
+
+#### Why systemd could not order it on its own
+
+`/usrdata` is mounted by the **vendor kernel**, not by any unit. The tell is in the
+`dmesg` prefix: the `MTD :` / `ubi2:` / `UBIFS` lines carry **no `systemd[1]:`
+prefix**, so they are bare kernel printks. There is **no `/etc/fstab` on either
+device** and no unit mounts it either.
+
+systemd merely *adopts* a `usrdata.mount` unit at **3.864 s** by reading it out of
+mountinfo — confirmed on-device by its properties: `FragmentPath=` is **empty** and
+`SourcePath=/proc/self/mountinfo`. At transaction-build time (~1.8–2.5 s) that unit
+**did not exist**, so `opt.mount`'s implicit `RequiresMountsFor=/usrdata/opt` had
+nothing to resolve against and contributed no ordering edge.
+
+> ⚠️ **This is the trap, and it is why the defect survived inspection for months.**
+> The `After=usrdata.mount` and `After=` / `BindsTo=dev-ubi2_0.device` edges that
+> `systemctl show opt.mount` reports **today** were all derived *after the fact*, once
+> the mount existed. They read as perfectly correct on a running device and were
+> **absent at the only moment they mattered**. A property readback here answers a
+> question about 30 seconds ago, not about the transaction.
+
+#### The fix (`fae95c0`)
+
+A new unit, `/lib/systemd/system/qmanager-wait-usrdata.service`, ordered
+`Before=opt.mount`, polling the exact predicate `mount(8)` itself needs.
+**`opt.mount`'s own fragment is not touched at all.**
+
+```ini
+[Unit]
+Description=Wait for /usrdata before opt.mount
+DefaultDependencies=no
+Before=opt.mount shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'while ! grep -q " /usrdata " /proc/self/mountinfo || [ ! -d /usrdata/opt ]; do sleep 0.25; done'
+TimeoutStartSec=15
+
+[Install]
+WantedBy=multi-user.target
+```
+
+It is written by `_usrdata_wait_unit_body()` + `ensure_usrdata_wait_unit()` in
+`scripts/install_rm520n.sh`, called **unconditionally** from `main()` after
+`harden_entware_unit_modes`. The unconditional `main()` call is what gives it OTA
+reach: the updater runs the installer `--force --skip-packages --no-reboot`, which
+skips `install_dependencies` — the function where `opt.mount` is written — so
+anything placed there would never reach an already-installed device.
+
+**Design points, all load-bearing:**
+
+- **Ordering only — never `Requires=`.** A 15-second timeout releases `opt.mount` to
+  behave exactly as it does today, with `start-opt-mount.service` (F9) still the
+  fallback. The fix adds **no** new path to a locked-out device.
+- **`DefaultDependencies=no` is required, not cosmetic.** Without it systemd adds the
+  implicit `After=basic.target`, which forms an **ordering cycle** with `opt.mount`'s
+  own `Before=local-fs.target` — and systemd breaks a cycle by **silently deleting one
+  of the jobs**, so the failure would be a missing mount with no error anywhere.
+  Confirmed on-device: the shipped unit's resolved `After=` is only
+  `systemd-journald.socket system.slice`.
+- **The predicate reads mountinfo, not just `[ -d /usrdata/opt ]`.** Before the vendor
+  mount, `/usrdata` is a plain empty directory on the read-only rootfs, so a bare
+  `-d` test could pass instantly and bind the **wrong** directory. `mountpoint` does
+  not exist on these devices — that is **F6** — so the check is a `grep` of
+  `/proc/self/mountinfo`.
+- **No shell variables in `ExecStart`.** systemd expands `$VAR` in `ExecStart` itself,
+  so a loop counter would silently become an empty string. `TimeoutStartSec=15` does
+  the bounding instead of a counter.
+- **Verification greps the fragment bytes, never `systemctl show`.** See the warning
+  below — this is the inverse of the situation `_verify_dropbear_unit` is in.
+
+> ⚠️ **The verification trap anyone copying `_verify_dropbear_unit` will fall into.**
+> systemd **derives** `After=`, `BindsTo=` and `RequiresMountsFor=` for mount units
+> out of mountinfo. So a property readback against `opt.mount` reports the ordering as
+> already present **on a completely unmodified device**: it passes with no change
+> applied, and it also passes a write that silently failed. It is a check that cannot
+> fail, which is the worst kind. For units systemd derives properties for, assert on
+> the **fragment bytes on disk**. `_verify_dropbear_unit` (F10, `7c139e4`) faces the
+> exact opposite problem — there, a byte check would miss a directive in the wrong
+> `[Section]`, and only the parsed readback catches it. Pick per unit; there is no
+> universally right answer.
+
+#### Rejected alternative — `Wants=`/`After=dev-ubi2_0.device`, recorded so nobody retries it
+
+The obvious-looking fix is to order `opt.mount` against the UBI volume's device unit.
+**It would have regressed the healthy device.**
+
+- The RG501Q-EU mounts `/opt` successfully at **4.679 s**, which is **0.76 s before
+  `dev-ubi2_0.device` even exists (5.439 s)**. `opt.mount` is `Before=local-fs.target`,
+  so that added delay propagates straight into the rest of the boot.
+- The 2.1 s margin the RM520N-GL appears to have is **not causal**. It is udev queue
+  latency: `/dev/ubi2_0` reports `USEC_INITIALIZED=5735263` while
+  `ubi2: attached mtd32` printed at 3.692 s — and the kernel's own UBIFS mount branch
+  finished 0.05 s after that same attach. On firmware where udev happens to be fast,
+  the ordering silently stops doing anything.
+- Also measured on **both** devices: `dev-ubi2_0.device` carries
+  `JobTimeoutUSec=infinity` with `JobRunningTimeoutUSec=1min 30s`. So the failure mode
+  of that route was a **90-second stall** holding `local-fs` → `sysinit` → `basic`,
+  i.e. no SSH for 90 seconds — the worst available outcome on a headless modem.
+
+#### Validation — RM520N-GL (`61368cd2`), 4 reboots post-fix
+
+| Boot | `opt.mount` ActiveEnter | first attempt | `dropbear` `NRestarts` | `rc.unslung` |
+| --- | --- | --- | --- | --- |
+| pre-fix | 30.299 s | **failed, exit 32** | 1 | failed (203) |
+| 1 | 4.871 s | ok | 0 | active |
+| 2 | 4.701 s | ok | 0 | active |
+| 3 | 4.046 s | ok | 0 | active |
+| 4 | 3.941 s | ok | 0 | active |
+
+Spread narrowed from 4.5–30.3 s to **3.94–4.87 s**. The assertion run on each boot is
+`RESULT: NO MOUNT FAILURE` — no `Failed to mount Bind /usrdata/opt` line in `dmesg` —
+and it passed on all four.
+
+Boot 1 in detail, showing the handoff working exactly as designed:
+
+| Event | Monotonic |
+| --- | --- |
+| `qmanager-wait-usrdata.service` starts | 3.157 s |
+| `/usrdata` mounts (vendor kernel) | 3.816 s |
+| waiter exits `Succeeded` | 4.135 s |
+| `opt.mount` job begins | 4.373 s |
+| `/opt` **Mounted** | 4.871 s |
+| `local-fs.target` | 5.031 s |
+| `basic.target` | 21.931 s |
+| `dropbear.service` `ExecMainStart` | 22.228 s (was 30.461 s) |
+
+`local-fs.target` at 5.031 s is the load-bearing line: **`opt.mount`'s
+`Before=local-fs.target` now actually holds**, which it could not when the mount only
+completed at 30 s.
+
+#### Validation — RG501Q-EU (`b7e3d6f1`), 2 reboots
+
+`opt.mount` reached active at **5.153 s / 4.736 s** against a **4.679 s** pre-fix
+baseline — inside its own boot-to-boot variation, so **no regression**. `NRestarts=0`.
+systemd 239 parsed the new unit identically to the RM520N-GL's 244.
+
+#### On both devices, every boot, all six reboots — F8 unaffected
+
+| Assertion | Result |
+| --- | --- |
+| F8 canary `/opt/var/log/lighttpd` mtime | Unchanged — RM520N-GL `2026-03-16 09:22:24`, RG501Q-EU `2026-08-25 03:12:42`. The Entware lighttpd imposter still never ran |
+| `S80lighttpd` mode | Still `-rw-r--r--` |
+| `rc.unslung`'s own selector `find /opt/etc/init.d/ -perm '-u+x' -name 'S*'` | Returns only `S51dropbear` |
+| Port 22 | Exactly one listener |
+| Web health | `http` → `301`, `https` → `200` |
 
 > ⚠️ **Record this conclusion explicitly, because it is the one that matters for any
 > future change here: the exec-bit clear is the load-bearing, deterministic part of
@@ -889,16 +1244,14 @@ was already cleared.
 > away" the exec-bit clear on the grounds that the ordering now handles it would
 > reintroduce F8 in full.
 
-The 22.25s-vs-4.5s spread across identical boots is unexplained — see F8 follow-up 4.
-
-> ⚠️ **F11 now blocks F10, and the mechanism is sharper than "jitter".** Measured
-> 2026-09-03 on the RM520N-GL: `opt.mount`'s own job does not begin until **29.130s**,
-> five seconds *after* `start-opt-mount.service` ran its `systemctl start opt.mount` at
-> 24.003s. The mount is therefore activated **outside the boot job transaction**, and
-> systemd ordering only constrains units within one. That is why `After=opt.mount` on
-> `dropbear.service` is inert (F10) — and it applies to **any** unit that tries to
-> order against `opt.mount`, including `lighttpd.service`. Fixing F11 means getting
-> `opt.mount` activated inside the boot transaction; F10 should then close on its own.
+> ⚠️ **And as of this fix the exec-bit clear is not merely load-bearing — it is
+> now the SOLE guard against F8.** Pre-F11 the RM520N-GL had a second, accidental
+> shield: `rc.unslung`
+> failed with `EXIT_EXEC` because `/opt` was not mounted, so it never reached *any*
+> `S*` script and the imposter could not run even if `opkg upgrade lighttpd` re-armed
+> its exec bit. `rc.unslung` now succeeds on every boot, and that shield is gone. Full
+> statement of the exposure and the OTA mitigation is under
+> [F8](#the-late-opt-mount-was-an-undocumented-second-shield--and-f11s-fix-removed-it).
 
 ### F12 (open, cosmetic but load-bearing for anyone reading it) — `systemctl is-enabled` reads `disabled` for units QManager enables
 
@@ -1017,12 +1370,26 @@ mount with a hardcoded 5-second sleep instead of telling systemd about the
 dependency.** `rc.unslung.service` executes `/opt/etc/init.d/rc.unslung`, which does
 not exist until `opt.mount` is active. It declares **no `After=` at all**.
 
-**Worst measured margin: 0.32 s** — the 2026-08-25 RM520N-GL reboot, where
+~~**Worst measured margin: 0.32 s** — the 2026-08-25 RM520N-GL reboot, where
 `opt.mount` reached active at 28.404 s and `rc.unslung`'s `ExecStart` began at
 28.721 s. That is not a stable 0.32 s: **F11** already established that `opt.mount`
 timing is probabilistic on the RG501Q-EU, ranging **4.5 s to 22.25 s across
-identical boots**. A mount slower than the sleep makes `rc.unslung.service` fail
+identical boots**.~~ A mount slower than the sleep makes `rc.unslung.service` fail
 outright with `ENOENT`.
+
+> ⚠️ **Struck 2026-09-03 (`fae95c0`) — the timing premise is superseded, though the
+> defect is not.** F11's "probabilistic, 4.5 s to 22.25 s" framing was wrong (the
+> distribution was bimodal, a won-or-lost race) and is now fixed regardless:
+> `opt.mount` reaches active at **3.94–4.87 s** on every measured boot, while
+> `rc.unslung`'s `ExecStart` still fires at **~28.6 s**. **The new margin is ~24 s,
+> not 0.32 s** — so the `ENOENT` failure that this entry describes is no longer
+> reachable in practice on either device, and the pre-F11 `EXIT_EXEC` failures it
+> predicted are now recorded as closed under
+> [F10](#f10-fixed-2026-09-03-fae95c0-via-f11--dropbearservice-fails-on-boot-intermittently).
+> **F14 stays open anyway**: a hardcoded `sleep 5` standing in for a declared
+> dependency is still a latent fragility, and it is now the *only* thing between
+> `rc.unslung` and a mount it never waits for. What has changed is that nothing is
+> blocked on it and nothing is at imminent risk from it.
 
 **Blast radius, post-F8 — this is why it is deferred rather than fixed:**
 
@@ -1032,9 +1399,13 @@ outright with `ENOENT`.
 - **SSH survives.** The only other `S*` script present is `S51dropbear`, which is
   redundant with the independent systemd `dropbear.service`. ~~and that unit orders
   only on `network.target` (see F10), not on `rc.unslung`.~~ **Updated 2026-09-03
-  (`7c139e4`):** the unit now declares `Before=rc.unslung.service`, though F10 records
-  that the directive is inert on the RM520N-GL. `S51dropbear` is deliberately left
-  executable as an independent SSH fallback — do not clear its exec bit.
+  (`7c139e4`):** the unit now declares `Before=rc.unslung.service`. ~~though F10
+  records that the directive is inert on the RM520N-GL.~~ **Corrected 2026-09-03
+  (`fae95c0`):** the directive was never inert — F10's "inert" reading came from the
+  struck outside-the-transaction diagnosis. `S51dropbear` is deliberately left
+  executable as an independent SSH fallback — do not clear its exec bit — and note it
+  now fires on **every** RM520N-GL boot rather than none, because `rc.unslung`
+  succeeds post-F11.
 - **The blast radius is now measured, and it is nil.** This was the open question
   gating closure — whether any of the ~43 installed Entware packages ships another
   `S*` init script depending on `rc.unslung` succeeding. Full directory listing,
@@ -1067,9 +1438,15 @@ transaction is even built.
 Shipping it is the awkward part. `rc.unslung.service` is a **write-once** unit
 (the `if [ ! -f ]` guard from F13), so delivery needs an idempotent targeted patch
 called from `main()` — guarded on the string already being present — plus a
-`daemon-reload`, and it takes effect only on the *following* boot. That is the same
+`daemon-reload`, and it takes effect only on the *following* boot. ~~That is the same
 risk class as **F10**, and it should inherit F10's disposition rather than jump
-ahead of it.
+ahead of it.~~
+
+> ⚠️ **Struck 2026-09-03.** F10 is closed, so there is no longer a disposition to
+> inherit and **F10 is no longer the blocker**. F14's remaining rationale for staying
+> open is its own: low value (the margin is now ~24 s), against a write-once unit
+> rewrite that only takes effect on the next boot. Take it when something else is
+> already touching `rc.unslung.service`, not on its own.
 
 > ℹ️ **The delivery pattern F14 needs now exists** — `ensure_dropbear_unit_ordering()`
 > (`7c139e4`) solves exactly this shape: a write-once unit that must be upgraded on
@@ -1078,7 +1455,13 @@ ahead of it.
 > hand-edited file is never clobbered), the atomic temp-file + `rename(2)` write with
 > the mode set before the rename, the semantic property readback with auto-restore
 > from a `.qmbak`, and the unconditional `main()` call placed after the function that
-> creates the unit. Note F14 would face the same F11 problem if it relies on ordering.
+> creates the unit. ~~Note F14 would face the same F11 problem if it relies on
+> ordering.~~ **Struck 2026-09-03 (`fae95c0`):** there is no F11 problem left to face
+> — `opt.mount` now succeeds inside the boot transaction at ~4 s, so a plain
+> `After=opt.mount` on `rc.unslung.service` would behave as written. `ensure_usrdata_wait_unit()`
+> (`fae95c0`) is a second worked example of the same delivery shape, and a simpler
+> one: it *creates* a new unit rather than patching a write-once one, which sidesteps
+> the content gate entirely.
 
 > ℹ️ NOTE: the `sleep 5` this entry wants replaced is the same quantity that put
 > `rc.unslung`'s `pidof` sample inside `lighttpd.service`'s `ExecStartPre` shield on
