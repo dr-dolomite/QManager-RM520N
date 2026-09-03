@@ -345,6 +345,10 @@ fi
 # server on port 80 after uninstall — leaving it disabled would strand the
 # device with no web server at all. opt.mount's wants symlink is intentionally
 # left alone: Entware is preserved unconditionally and still needs /opt mounted.
+# qmanager-wait-usrdata.service (F11) IS removed, by the qmanager-*.service glob
+# above. That is correct: /opt then races /usrdata again exactly as it did
+# pre-QManager, with start-opt-mount.service — also left alone — still the
+# fallback that gets it mounted.
 if [ -f /opt/etc/init.d/S80lighttpd ] && [ ! -x /opt/etc/init.d/S80lighttpd ]; then
     # `a+x`, not a bare `+x`: a bare `+x` skips umask-set bits, so a masked u+x
     # would silently leave the device with no web server after uninstall.

@@ -670,6 +670,95 @@ harden_entware_unit_modes() {
     return 0
 }
 
+# --- F11: gate opt.mount on /usrdata actually being mounted -------------------
+
+# opt.mount binds /usrdata/opt -> /opt, but /usrdata is mounted by the vendor
+# kernel (no fstab, no unit), so systemd cannot order against it: measured on
+# RM520N-GL, opt.mount's boot-transaction job runs at 2.54s and fails with
+# mount exit 32 because /usrdata does not arrive until 3.86s. /opt then appears
+# only at ~30s via start-opt-mount.service's retry. See platform-matrix.md F11.
+#
+# Ordering only, never a Requires= of opt.mount: a timeout releases opt.mount to
+# behave exactly as it does today, with start-opt-mount.service still the
+# fallback. DefaultDependencies=no is load-bearing — the default After=
+# basic.target would form an ordering cycle with opt.mount's Before=
+# local-fs.target, which systemd breaks by silently deleting a job.
+_usrdata_wait_unit_body() {
+    cat << 'WAITEOF'
+[Unit]
+Description=Wait for /usrdata before opt.mount
+DefaultDependencies=no
+Before=opt.mount shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'while ! grep -q " /usrdata " /proc/self/mountinfo || [ ! -d /usrdata/opt ]; do sleep 0.25; done'
+TimeoutStartSec=15
+
+[Install]
+WantedBy=multi-user.target
+WAITEOF
+}
+
+# Runs unconditionally from main() so it reaches already-installed devices:
+# qmanager_update invokes this installer with --force --skip-packages
+# --no-reboot, which skips install_dependencies. Must never die() or return
+# non-zero — every failure path leaves today's working boot in place.
+ensure_usrdata_wait_unit() {
+    local _dest="$SYSTEMD_DIR/qmanager-wait-usrdata.service"
+    local _tmp="${_dest}.new"
+    local _link="$WANTS_DIR/qmanager-wait-usrdata.service"
+
+    # Nothing to gate. opt.mount is only written in the Entware bootstrap
+    # branch, so a device that had Entware before QManager never gets the file
+    # (same reason enable_services guards its symlink with [ -f ]).
+    [ -f "$SYSTEMD_DIR/opt.mount" ] || return 0
+
+    if [ -f "$_dest" ] && [ "$(cat "$_dest" 2>/dev/null)" = "$(_usrdata_wait_unit_body)" ]; then
+        info "qmanager-wait-usrdata.service already current"
+    else
+        mount -o remount,rw / 2>/dev/null || true
+
+        if ! _usrdata_wait_unit_body > "$_tmp" 2>/dev/null; then
+            rm -f "$_tmp" 2>/dev/null
+            warn "Could not stage $_tmp — opt.mount ordering left unchanged"
+            return 0
+        fi
+        # Mode before the rename: a heredoc into /lib inherits 0666 & ~umask,
+        # and the install shell's umask is 0 on both devices (F13).
+        chmod 0644 "$_tmp" 2>/dev/null || true
+        sync 2>/dev/null || true
+
+        if ! mv -f "$_tmp" "$_dest" 2>/dev/null; then
+            rm -f "$_tmp" 2>/dev/null
+            warn "Could not install $_dest — opt.mount ordering left unchanged"
+            return 0
+        fi
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+
+    ln -sf "$_dest" "$_link" 2>/dev/null || true
+
+    # Verify by reading the fragment bytes, NOT `systemctl show`: systemd
+    # derives After=/BindsTo=/RequiresMountsFor= for mount units from
+    # /proc/self/mountinfo, so a property readback reports the ordering as
+    # already present on an unmodified device and would pass with no change.
+    if grep -q '^Before=opt.mount shutdown.target$' "$_dest" 2>/dev/null \
+        && grep -q '^DefaultDependencies=no$' "$_dest" 2>/dev/null \
+        && [ -L "$_link" ]; then
+        info "opt.mount gated on /usrdata (qmanager-wait-usrdata.service)"
+    else
+        warn "qmanager-wait-usrdata.service did not verify — removing it"
+        rm -f "$_link" "$_dest" 2>/dev/null || true
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+
+    return 0
+}
+
 # --- Ensure Zoneinfo Packages -------------------------------------------------
 
 # Installs the zoneinfo-all Entware package (full IANA tzdata) into
@@ -4275,6 +4364,12 @@ main() {
     # after install_dependencies so the units already exist by the time it
     # chmods them on a fresh install.
     harden_entware_unit_modes
+
+    # F11 — same unconditional placement and OTA-reach reason. Must run after
+    # install_dependencies, which is where opt.mount is first written on a
+    # fresh install, and before setup_ssh_early so /opt's ordering is settled
+    # before anything reasons about the SSH unit.
+    ensure_usrdata_wait_unit
 
     # SSH bootstrap runs after install_dependencies so Entware + bundled
     # dropbear .ipk are available, and before stop_services so it never has
