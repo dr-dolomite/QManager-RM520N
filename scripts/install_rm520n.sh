@@ -650,9 +650,12 @@ neutralize_entware_lighttpd() {
 harden_entware_unit_modes() {
     local _unit
 
+    # dropbear.service is belt-and-braces here: it does not exist yet when this
+    # runs on a fresh install, so _write_dropbear_unit chmods 0644 itself.
     for _unit in /lib/systemd/system/opt.mount \
                  /lib/systemd/system/start-opt-mount.service \
-                 /lib/systemd/system/rc.unslung.service; do
+                 /lib/systemd/system/rc.unslung.service \
+                 /lib/systemd/system/dropbear.service; do
         [ -f "$_unit" ] || continue
         chmod 0644 "$_unit" 2>/dev/null \
             || warn "Could not chmod 0644 $_unit — it may remain world-writable"
@@ -3831,6 +3834,175 @@ at_stack_check() {
     fi
 }
 
+# --- Dropbear unit body (single source of truth) ------------------------------
+
+# The one place dropbear.service's content is spelled. setup_ssh_early (fresh
+# install) and ensure_dropbear_unit_ordering (OTA) both emit through it, so the
+# two paths cannot drift.
+_dropbear_unit_body() {
+    cat << 'DBUNITEOF'
+[Unit]
+Description=Dropbear SSH Server
+After=network.target opt.mount
+Before=rc.unslung.service
+StartLimitIntervalSec=60
+StartLimitBurst=40
+
+[Service]
+Type=simple
+ExecStart=/opt/sbin/dropbear -F -E -p 22
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target
+DBUNITEOF
+}
+
+# The old body, verbatim. ensure_dropbear_unit_ordering only rewrites a unit
+# byte-identical to this — anything else is someone's own file.
+_dropbear_unit_body_legacy() {
+    cat << 'DBOLDEOF'
+[Unit]
+Description=Dropbear SSH Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sbin/dropbear -F -E -p 22
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+DBOLDEOF
+}
+
+# Atomic write: temp file on the same filesystem, then rename(2), which UBIFS
+# makes atomic. A truncate-in-place `cat >` can leave a zero-length SSH unit on
+# flash if power is lost mid-write, and nothing at boot would recover it.
+_write_dropbear_unit() {
+    local _dest="$SYSTEMD_DIR/dropbear.service"
+    local _tmp="${_dest}.new"
+
+    mount -o remount,rw / 2>/dev/null || true
+
+    if ! _dropbear_unit_body > "$_tmp" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not stage $_tmp — dropbear.service left unchanged"
+        return 1
+    fi
+    # Mode is set on the temp file so the unit is never world-writable, not even
+    # for the instant between rename and chmod. `cat >` onto an existing file
+    # would otherwise preserve the old 0666 (F13's umask-0 heredoc mechanism).
+    chmod 0644 "$_tmp" 2>/dev/null || true
+    sync 2>/dev/null || true
+
+    if ! mv -f "$_tmp" "$_dest" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not install $_dest — dropbear.service left unchanged"
+        return 1
+    fi
+    sync 2>/dev/null || true
+
+    return 0
+}
+
+# --- F10: dropbear boot ordering ----------------------------------------------
+
+# dropbear.service shipped with `After=network.target` and nothing else, despite
+# ExecStart=/opt/sbin/dropbear living on the /opt bind mount, so it raced the
+# mount and was rescued only by Restart=on-failure. Two further hazards measured
+# 2026-09-03 on both devices: the stock 5-failures-in-10s start limit can latch
+# SSH permanently `failed`, and Entware's S51dropbear (still executable, unlike
+# S80lighttpd which F8 disabled) races us for port 22 from rc.unslung with a
+# guard keyed on a pidfile our unit never writes. Full diagnosis and timings:
+# docs/reference/platform-matrix.md, F10.
+#
+# Runs unconditionally from main() — the neutralize_entware_lighttpd /
+# harden_entware_unit_modes precedent — because setup_ssh_early returns early on
+# every OTA, so nothing inside it can reach an already-installed device.
+#
+# Never creates a unit (that stays exclusively in setup_ssh_early, fresh-install
+# only) and never rewrites one it did not write itself. Must never die() or
+# return non-zero: every failure path leaves today's working unit in place.
+ensure_dropbear_unit_ordering() {
+    local _dest="$SYSTEMD_DIR/dropbear.service"
+    local _bak="${_dest}.qmbak"
+    local _current
+
+    [ -f "$_dest" ] || return 0
+
+    # `|| true` is load-bearing: the installer runs under `set -e` (:42) and a
+    # bare assignment from a failed command substitution would abort the whole
+    # install, which this function must never do.
+    _current=$(cat "$_dest" 2>/dev/null) || true
+
+    if [ "$_current" = "$(_dropbear_unit_body)" ]; then
+        info "dropbear.service ordering already current"
+        return 0
+    fi
+
+    if [ "$_current" != "$(_dropbear_unit_body_legacy)" ]; then
+        warn "dropbear.service is not QManager's — leaving it untouched"
+        return 0
+    fi
+
+    # Written only when absent, so it always holds the true original even if a
+    # later OTA runs this again.
+    if [ ! -f "$_bak" ]; then
+        cp "$_dest" "$_bak" 2>/dev/null || true
+        chmod 0644 "$_bak" 2>/dev/null || true
+    fi
+
+    _write_dropbear_unit || return 0
+    systemctl daemon-reload 2>/dev/null || true
+
+    # Semantic readback, not LoadState: an unknown lvalue (a directive in the
+    # wrong section) still reads `loaded`, so LoadState cannot see the most
+    # likely authoring error here. Assert the properties systemd actually
+    # parsed. dropbear is deliberately NOT restarted — the running daemon keeps
+    # this session and the OTA alive, and the new unit governs from next boot.
+    if _verify_dropbear_unit; then
+        info "dropbear.service ordered after opt.mount, before rc.unslung"
+        return 0
+    fi
+
+    warn "dropbear.service did not verify — restoring the previous unit"
+    if [ -f "$_bak" ] && cp "$_bak" "$_dest" 2>/dev/null; then
+        chmod 0644 "$_dest" 2>/dev/null || true
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+        warn "Restored the previous dropbear.service — SSH ordering unchanged"
+    else
+        warn "Could not restore $_bak — inspect $_dest before rebooting"
+    fi
+
+    return 0
+}
+
+# Reads back what systemd parsed. Every assertion must hold or the caller rolls
+# back. `After`/`Before` are space-separated lists, hence the padded match.
+_verify_dropbear_unit() {
+    local _after _before _interval _burst _restart
+
+    _after=" $(systemctl show dropbear -p After --value 2>/dev/null) "
+    _before=" $(systemctl show dropbear -p Before --value 2>/dev/null) "
+    _interval=$(systemctl show dropbear -p StartLimitIntervalUSec --value 2>/dev/null)
+    _burst=$(systemctl show dropbear -p StartLimitBurst --value 2>/dev/null)
+    _restart=$(systemctl show dropbear -p RestartUSec --value 2>/dev/null)
+
+    case "$_after" in *" opt.mount "*) : ;; *) return 1 ;; esac
+    case "$_before" in *" rc.unslung.service "*) : ;; *) return 1 ;; esac
+    # systemd renders a duration in whatever unit it picks (244 says "1min",
+    # 239 has been seen to say "60s"), so accept either spelling rather than
+    # rolling back a correct unit over formatting.
+    case "$_interval" in 1min|60s) : ;; *) return 1 ;; esac
+    [ "$_burst" = "40" ] || return 1
+    [ "$_restart" = "2s" ] || return 1
+
+    return 0
+}
+
 # --- Early SSH Bootstrap (fresh installs only) -------------------------------
 # Runs once, right after install_dependencies (so Entware/dropbear are available)
 # and before the rest of the install. On fresh installs with no existing SSH,
@@ -3901,22 +4073,12 @@ setup_ssh_early() {
     #    ED25519 host keys in /opt/etc/dropbear/, which persists via the
     #    /usrdata/opt bind mount. dropbear finds them automatically.
     if [ ! -f "$SYSTEMD_DIR/dropbear.service" ]; then
-        mount -o remount,rw / 2>/dev/null || true
-        cat > "$SYSTEMD_DIR/dropbear.service" << 'SSHEOF'
-[Unit]
-Description=Dropbear SSH Server
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/opt/sbin/dropbear -F -E -p 22
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-SSHEOF
-        sync
-        info "Created dropbear.service"
+        if _write_dropbear_unit; then
+            info "Created dropbear.service"
+        else
+            SSH_BOOTSTRAP_STATUS="failed_start"
+            return 0
+        fi
     fi
 
     # systemctl enable does not work on RM520N-GL — direct symlink instead.
@@ -3925,9 +4087,17 @@ SSHEOF
 
     # 5. Start dropbear and verify it's active.
     systemctl start dropbear 2>/dev/null || true
-    sleep 1
+    # Poll rather than `sleep 1`: RestartSec=2s means a single transient failure
+    # (a late /opt) now takes longer to recover than one second, and the old
+    # probe would report a healthy install as failed.
+    local _tries=0
+    while [ "$_tries" -lt 8 ]; do
+        systemctl is-active dropbear >/dev/null 2>&1 && break
+        sleep 1
+        _tries=$((_tries + 1))
+    done
     if ! systemctl is-active dropbear >/dev/null 2>&1; then
-        warn "dropbear failed to start — check: journalctl -u dropbear"
+        warn "dropbear failed to start — check: systemctl status dropbear"
         SSH_BOOTSTRAP_STATUS="failed_start"
         return 0
     fi
@@ -4110,6 +4280,11 @@ main() {
     # dropbear .ipk are available, and before stop_services so it never has
     # to wait on QManager service teardown.
     setup_ssh_early
+
+    # F10 — must run AFTER setup_ssh_early (which creates the unit on a fresh
+    # install) and unconditionally, because that function returns early on every
+    # OTA, so this is the only path that reaches an already-installed device.
+    ensure_dropbear_unit_ordering
 
     stop_services
 
