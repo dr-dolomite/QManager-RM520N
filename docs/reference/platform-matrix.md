@@ -772,7 +772,7 @@ Entware, lighttpd **and** SSH simultaneously, with no remaining path in. Verifie
 harmless: no unit is ordered against it, and systemd coalesces duplicate start jobs,
 so there is one `mount(8)` per activation regardless of how many callers ask.
 
-### F10 (open) — `dropbear.service` fails on boot, intermittently
+### F10 (open, blocked on F11 — hardening shipped 2026-09-03, `7c139e4`) — `dropbear.service` fails on boot, intermittently
 
 `NRestarts` measured **1 / 0 / 0** across the three post-fix reboots, and **1** on
 the pre-fix boot. The unit declares `After=network.target` and nothing else — in
@@ -785,11 +785,90 @@ observation; the 2026-08-25 RM520N-GL reboot came up with **`NRestarts=2`**, the
 highest count seen on either device. So it is a shared platform defect, not a
 per-device quirk — consistent with the missing `After=opt.mount` being the cause.
 
-**Not resolved.** Two of three clean boots is not proof of anything, and the failure
+~~**Not resolved.** Two of three clean boots is not proof of anything, and the failure
 correlates with the `opt.mount` timing jitter in F11 rather than tracking the F8 fix.
 Fixing it means rewriting the SSH unit on an OTA upgrade — a lockout risk — so it was
 deliberately scoped out; the unit is also written under an `if [ ! -f ]` guard, so it
-cannot reach an existing device via OTA without converting that guard first.
+cannot reach an existing device via OTA without converting that guard first.~~
+
+> ⚠️ **Struck 2026-09-03.** The lockout risk was real but is now discharged, and the
+> guard count was wrong: `if [ ! -f ]` is the **third** of three blockers, not the
+> one. `setup_ssh_early()` returns early on every OTA at
+> [`install_rm520n.sh:3851`](../../scripts/install_rm520n.sh) (`[ -f "$CONF_DIR/VERSION" ]`)
+> and again on its port-22 / `pidof dropbear` check at `:3856`, both of which fire on
+> every already-installed device. None of the three can be loosened — they also gate
+> root-password seeding.
+
+#### Attempted 2026-09-03 (`7c139e4`) — hardening shipped, **root cause NOT fixed, F10 stays open**
+
+The unit was rewritten and given OTA reach via a new unconditional
+`ensure_dropbear_unit_ordering()` (the `neutralize_entware_lighttpd` /
+`harden_entware_unit_modes` precedent). **The prescribed `After=opt.mount` fix does
+not bind on the RM520N-GL, and F10's intermittent restart is unchanged there.**
+
+| Reboot | `opt.mount` active | `dropbear` active | `rc.unslung` ExecStart | `NRestarts` |
+| --- | --- | --- | --- | --- |
+| RG501Q-EU | 4.679s | 17.054s | 24.742s | **0** ✅ both orderings held |
+| RM520N-GL A | 28.836s | 28.878s | 28.833s | **1** ❌ |
+| RM520N-GL B | 30.298s | 30.461s | 28.709s | **1** ❌ |
+
+`NRestarts=1` matches the pre-fix baseline exactly. **Why the ordering cannot bind:**
+`rc.unslung`'s job begins at **23.551s / 23.520s** across the two boots — constant,
+and wholly independent of dropbear — while `opt.mount`'s own job does not begin until
+**29.130s**, five seconds *after* `start-opt-mount.service` ran its out-of-band
+`systemctl start opt.mount` at 24.003s. systemd ordering only constrains units inside
+the same job transaction; F9's wrapper activates `opt.mount` outside the boot job set,
+so dropbear's `After=` and `Before=` have nothing to attach to. Both directives are
+present in the resolved dependency lists and are simply inert.
+
+> ⚠️ **F10 is blocked on F11, not on the SSH unit.** Any further attempt to fix F10 by
+> editing `dropbear.service` will fail the same way. The next move is F11 — make
+> `opt.mount` activate inside the boot transaction — after which F10 should close on
+> its own. Do not re-derive the guard trace or re-measure `NRestarts`; both are done.
+
+**What did ship** (all measured on both devices; SSH survived all three reboots, no
+lockout at any point):
+
+- `StartLimitIntervalSec=60` / `StartLimitBurst=40` / `RestartSec=2s`. This closes a
+  latent **total-lockout** bug that was never in the original diagnosis: the stock
+  `StartLimitBurst=5` at the default `RestartUSec=100ms` inside a 10s window means
+  **five failures in ~0.5s**, after which dropbear latches `failed` with no SSH until
+  the next reboot. `StartLimitIntervalSec=0` was considered and **rejected** —
+  `systemd-journald.service` is symlinked to `/dev/null` on both devices, so
+  `NRestarts` and a `failed` state are the only remaining fault signal; infinite retry
+  would make a permanently broken SSH indistinguishable from a healthy one.
+- Mode **0666 → 0644**, closing F13 on a fourth unit. Set on the temp file before the
+  rename, because `cat >` onto an existing file preserves the old mode.
+- **Atomic write** (temp + `rename(2)`, atomic on UBIFS). The previous
+  truncate-in-place `cat >` could leave a zero-length SSH unit on flash after a power
+  loss, with nothing at boot able to recover it — the one path where physical access
+  was the only recovery.
+- Rollback: rewrites only a unit byte-identical to QManager's own
+  (`md5 4bfe89575b1bf8a7aba50817e5dda606`, confirmed on both devices), backs it up to
+  `dropbear.service.qmbak`, verifies by reading back what systemd *parsed*, and
+  restores on any failed assertion. **dropbear is never restarted**, so the live
+  session and the OTA survive the rewrite unconditionally.
+
+> ⚠️ **`LoadState` is not a unit verifier.** An unknown lvalue — a directive in the
+> wrong section — still reads `loaded`. Six shipped QManager units put
+> `StartLimitIntervalSec` in `[Service]`, where systemd ignores it; the RM520N-GL
+> reports the 10s default while `LoadState` reads `loaded` throughout. Verify by
+> reading back the specific properties systemd parsed.
+
+**Two things found while measuring, not yet addressed:**
+
+- **`/opt/etc/init.d/S51dropbear` is still executable (`0755`) on both devices**, so
+  `rc.unslung` sources it every boot and it races QManager for port 22. F8 cleared the
+  exec bit on `S80lighttpd` and left this one armed. Its guard tests
+  `/opt/var/run/dropbear.pid`, which QManager's unit never writes (no `-P` flag), so it
+  is only *accidentally* correct — on the RG501Q-EU it passes because a stale pidfile
+  happens to name the live daemon by PID reuse. **Do not clear its exec bit**: it is a
+  genuine independent SSH fallback, and it is the reason `Before=rc.unslung.service`
+  was chosen over disabling it.
+- **`rc.unslung.service` came up `ActiveState=failed`** on RM520N-GL reboot B, with its
+  `ExecStart` at 28.709s while `/opt` was still mounting (active 30.298s) — it cannot
+  read `/opt/etc/init.d/rc.unslung` that early. Same F11 root cause; pre-existing, not
+  introduced by `7c139e4`.
 
 ### F11 (open) — `opt.mount` early-start is probabilistic, not guaranteed
 
@@ -811,6 +890,15 @@ was already cleared.
 > reintroduce F8 in full.
 
 The 22.25s-vs-4.5s spread across identical boots is unexplained — see F8 follow-up 4.
+
+> ⚠️ **F11 now blocks F10, and the mechanism is sharper than "jitter".** Measured
+> 2026-09-03 on the RM520N-GL: `opt.mount`'s own job does not begin until **29.130s**,
+> five seconds *after* `start-opt-mount.service` ran its `systemctl start opt.mount` at
+> 24.003s. The mount is therefore activated **outside the boot job transaction**, and
+> systemd ordering only constrains units within one. That is why `After=opt.mount` on
+> `dropbear.service` is inert (F10) — and it applies to **any** unit that tries to
+> order against `opt.mount`, including `lighttpd.service`. Fixing F11 means getting
+> `opt.mount` activated inside the boot transaction; F10 should then close on its own.
 
 ### F12 (open, cosmetic but load-bearing for anyone reading it) — `systemctl is-enabled` reads `disabled` for units QManager enables
 
@@ -942,8 +1030,11 @@ outright with `ENOENT`.
   `rc.unslung`'s own `find` selection skips it whether `rc.unslung.service` runs or
   not. The F8 guard is timing-independent by construction.
 - **SSH survives.** The only other `S*` script present is `S51dropbear`, which is
-  redundant with the independent systemd `dropbear.service` — and that unit orders
-  only on `network.target` (see F10), not on `rc.unslung`.
+  redundant with the independent systemd `dropbear.service`. ~~and that unit orders
+  only on `network.target` (see F10), not on `rc.unslung`.~~ **Updated 2026-09-03
+  (`7c139e4`):** the unit now declares `Before=rc.unslung.service`, though F10 records
+  that the directive is inert on the RM520N-GL. `S51dropbear` is deliberately left
+  executable as an independent SSH fallback — do not clear its exec bit.
 - **The blast radius is now measured, and it is nil.** This was the open question
   gating closure — whether any of the ~43 installed Entware packages ships another
   `S*` init script depending on `rc.unslung` succeeding. Full directory listing,
@@ -979,6 +1070,15 @@ called from `main()` — guarded on the string already being present — plus a
 `daemon-reload`, and it takes effect only on the *following* boot. That is the same
 risk class as **F10**, and it should inherit F10's disposition rather than jump
 ahead of it.
+
+> ℹ️ **The delivery pattern F14 needs now exists** — `ensure_dropbear_unit_ordering()`
+> (`7c139e4`) solves exactly this shape: a write-once unit that must be upgraded on
+> already-installed devices. Copy it rather than re-inventing it. The reusable parts
+> are the content gate (rewrite only a body byte-identical to the one we shipped, so a
+> hand-edited file is never clobbered), the atomic temp-file + `rename(2)` write with
+> the mode set before the rename, the semantic property readback with auto-restore
+> from a `.qmbak`, and the unconditional `main()` call placed after the function that
+> creates the unit. Note F14 would face the same F11 problem if it relies on ordering.
 
 > ℹ️ NOTE: the `sleep 5` this entry wants replaced is the same quantity that put
 > `rc.unslung`'s `pidof` sample inside `lighttpd.service`'s `ExecStartPre` shield on
