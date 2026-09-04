@@ -779,5 +779,70 @@
       "failed_heading": "Pemasangan tidak selesai",
       "install": "Unduh & pasang"
     }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "Peristiwa Jaringan",
+      "description": "Semua yang dicatat poller tentang radio dan koneksi, terbaru dulu."
+    },
+    "actions": {
+      "auto_refresh_on": "Segarkan otomatis aktif",
+      "auto_refresh_off": "Segarkan otomatis nonaktif",
+      "refresh": "Segarkan"
+    },
+    "band": {
+      "ongoing": {
+        "eyebrow": "Berlangsung",
+        "caption_clear": "Tidak ada yang belum tuntas",
+        "caption_oldest": "Terlama: {{label}}, {{age}}"
+      },
+      "last24": {
+        "eyebrow": "24 jam terakhir",
+        "caption": "{{loud}} perlu perhatian"
+      },
+      "retained": {
+        "eyebrow": "Tersimpan",
+        "caption": "Terlama {{age}}, perangkat menyimpan {{cap}}",
+        "caption_empty": "Perangkat menyimpan hingga {{cap}}"
+      }
+    },
+    "log": {
+      "title": "Log peristiwa",
+      "description_loading": "Membaca buffer peristiwa modem.",
+      "description_unreadable": "Tidak ada hitungan yang ditampilkan selama log tidak terbaca.",
+      "description": "Menampilkan {{shown}} dari {{held}} peristiwa yang disajikan, dari {{cap}} yang disimpan modem di memori."
+    },
+    "filters": {
+      "all": "Semua",
+      "radio": "Radio",
+      "connectivity": "Konektivitas",
+      "mode": "Mode"
+    },
+    "sort": {
+      "label": "Urutkan",
+      "newest": "Terbaru dulu",
+      "oldest": "Terlama dulu"
+    },
+    "row": {
+      "ongoing": "Berlangsung"
+    },
+    "day": {
+      "today": "Hari ini",
+      "yesterday": "Kemarin"
+    },
+    "empty": {
+      "title": "Belum ada peristiwa",
+      "description": "Log tersimpan di memori dan dimulai ulang saat modem reboot. Entri muncul di sini saat poller mendeteksinya.",
+      "filtered_title": "Tidak ada apa pun di tampilan ini",
+      "filtered_description": "Saat ini tidak ada peristiwa jenis ini di log. Pilih Semua untuk melihat semua yang dicatat poller."
+    },
+    "error": {
+      "title": "Tidak dapat memuat peristiwa",
+      "description": "{{message}}",
+      "retry": "Coba lagi"
+    },
+    "notice": {
+      "stale": "Menampilkan peristiwa terakhir yang berhasil kami baca. {{message}}"
+    }
   }
 }

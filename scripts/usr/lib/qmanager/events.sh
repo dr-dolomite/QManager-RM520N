@@ -172,21 +172,19 @@ _ev_bands() {
         '[.[] | select(.technology == $t) | .band] | if length > 0 then join(" + ") else empty end' 2>/dev/null
 }
 
-# Get band summary with total bandwidth for a technology
-# Usage: summary=$(_ev_band_summary "LTE" "$t2_carrier_components") => "B3 + B7 + B28, 40 MHz"
-_ev_band_summary() {
-    local tech="$1" cc="$2"
-    [ -z "$cc" ] || [ "$cc" = "[]" ] && return
-    printf '%s' "$cc" | jq -r --arg t "$tech" '
-        [.[] | select(.technology == $t)] |
-        if length == 0 then empty
-        else
-            (map(.band) | join(" + ")) as $bands |
-            (map(.bandwidth_mhz) | add) as $bw |
-            if $bw > 0 then "\($bands), \($bw) MHz"
-            else $bands end
-        end
-    ' 2>/dev/null
+# Join identifier fragments into a trailing "( ... )" group for the UI chips.
+# Empty or "null" fragments are dropped, so a message never gains "()" or a
+# dangling comma; with nothing left it prints nothing at all.
+_ev_ids() {
+    local out=""
+    local frag
+    for frag in "$@"; do
+        [ -z "$frag" ] && continue
+        case "$frag" in *null*) continue ;; esac
+        [ -n "$out" ] && out="$out, "
+        out="$out$frag"
+    done
+    [ -n "$out" ] && printf ' (%s)' "$out"
 }
 
 # Compute added/removed bands between prev and current carrier_components.
@@ -207,29 +205,6 @@ _ev_ca_diff() {
 
     _diff_added=$(printf '%s\n' "$result" | head -n 1)
     _diff_removed=$(printf '%s\n' "$result" | tail -n 1)
-}
-
-# Round a latency value (e.g. "137.90286") to nearest integer ("138").
-# Returns input unchanged if "null", empty, or non-numeric.
-_ev_round_latency() {
-    case "$1" in
-        ""|null) printf '%s' "$1"; return 0 ;;
-    esac
-    awk -v v="$1" 'BEGIN { if (v+0 == v) printf "%.0f", v; else printf "%s", v }'
-}
-
-# Build a short network context string from current state
-# Output: "5G-NSA: B3 + N41" or "LTE: B3" or "5G-SA: N41"
-_ev_net_context() {
-    if [ -n "$lte_band" ] && [ "$nr_state" = "connected" ] && [ -n "$nr_band" ]; then
-        echo "${network_type}: ${lte_band} + ${nr_band}"
-    elif [ "$nr_state" = "connected" ] && [ -n "$nr_band" ]; then
-        echo "${network_type}: ${nr_band}"
-    elif [ -n "$lte_band" ]; then
-        echo "${network_type}: ${lte_band}"
-    elif [ -n "$network_type" ]; then
-        echo "$network_type"
-    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -543,7 +518,7 @@ detect_scc_pci_changes() {
         # If previous PCI exists and differs, emit event
         if [ -n "$p_pci" ] && [ "$p_pci" != "null" ] && [ "$p_pci" != "$c_pci" ]; then
             append_event "scc_pci_change" \
-                "$c_tech $c_band SCC cell handoff (PCI: $p_pci -> $c_pci)" "info"
+                "$c_tech SCC handoff${c_band:+ on $c_band}$(_ev_ids "${c_pci:+PCI $p_pci -> $c_pci}")" "info"
         fi
 
         i=$((i + 1))
@@ -572,17 +547,9 @@ detect_data_connection_events() {
     # --- Internet connectivity ---
     if [ "$conn_internet_available" != "$prev_ev_internet" ]; then
         if [ "$conn_internet_available" = "true" ] && [ "$prev_ev_internet" = "false" ]; then
-            local restore_ctx=""
-            if [ "$conn_latency" != "null" ] && [ -n "$conn_latency" ]; then
-                restore_ctx=" (latency: $(_ev_round_latency "$conn_latency")ms)"
-            fi
-            append_event "internet_restored" "Internet connectivity restored${restore_ctx}" "info"
+            append_event "internet_restored" "Internet restored" "info"
         elif [ "$conn_internet_available" = "false" ] && [ "$prev_ev_internet" = "true" ]; then
-            local net_ctx
-            net_ctx=$(_ev_net_context)
-            local lost_detail=""
-            [ -n "$net_ctx" ] && lost_detail=" ($net_ctx)"
-            append_event "internet_lost" "Internet connectivity lost${lost_detail}" "warning"
+            append_event "internet_lost" "Internet unreachable" "warning"
         fi
     fi
 
@@ -594,14 +561,14 @@ detect_data_connection_events() {
             ev_high_lat_streak=$((ev_high_lat_streak + 1))
             if [ "$ev_high_lat_streak" -ge "$_qt_lat_debounce" ] && [ "$ev_lat_alerted" = "false" ]; then
                 append_event "high_latency" \
-                    "High latency detected ($(_ev_round_latency "$conn_latency")ms, avg $(_ev_round_latency "$conn_avg_latency")ms)" "warning"
+                    "Latency above threshold" "warning"
                 ev_lat_alerted=true
             fi
         else
             # Latency below threshold — recover if previously alerted
             if [ "$ev_lat_alerted" = "true" ]; then
                 append_event "latency_recovered" \
-                    "Latency recovered ($(_ev_round_latency "$conn_latency")ms)" "info"
+                    "Latency recovered" "info"
             fi
             ev_high_lat_streak=0
             ev_lat_alerted=false
@@ -614,14 +581,14 @@ detect_data_connection_events() {
             ev_high_loss_streak=$((ev_high_loss_streak + 1))
             if [ "$ev_high_loss_streak" -ge "$_qt_loss_debounce" ] && [ "$ev_loss_alerted" = "false" ]; then
                 append_event "high_packet_loss" \
-                    "High packet loss detected (${conn_packet_loss}%)" "warning"
+                    "Packet loss above threshold" "warning"
                 ev_loss_alerted=true
             fi
         else
             # Packet loss below threshold — recover if previously alerted
             if [ "$ev_loss_alerted" = "true" ]; then
                 append_event "packet_loss_recovered" \
-                    "Packet loss recovered (${conn_packet_loss}%)" "info"
+                    "Packet loss recovered" "info"
             fi
             ev_high_loss_streak=0
             ev_loss_alerted=false
@@ -652,13 +619,9 @@ detect_events() {
     # --- Modem reachability ---
     if [ "$modem_reachable" != "$prev_ev_modem_reachable" ]; then
         if [ "$modem_reachable" = "true" ]; then
-            local net_ctx
-            net_ctx=$(_ev_net_context)
-            local restore_detail=""
-            [ -n "$net_ctx" ] && restore_detail=" — $net_ctx"
-            append_event "signal_restored" "Modem signal restored${restore_detail}" "info"
+            append_event "signal_restored" "Signal restored" "info"
         else
-            append_event "signal_lost" "Modem became unreachable" "warning"
+            append_event "signal_lost" "Modem unreachable" "warning"
             # Don't generate band/PCI events when modem goes away
             snapshot_event_state
             return
@@ -688,21 +651,15 @@ detect_events() {
         case "$prev_ev_network_type-$network_type" in
             5G-SA-5G-NSA|5G-SA-LTE|5G-NSA-LTE) mode_severity="warning" ;;
         esac
-        # Include current band context
-        local mode_detail=""
+        # Band context rides along as a chip tail, never as prose.
+        local mode_ids=""
         case "$network_type" in
-            5G-NSA)
-                [ -n "$lte_band" ] && [ -n "$nr_band" ] && mode_detail=" (${lte_band} + ${nr_band})"
-                ;;
-            5G-SA)
-                [ -n "$nr_band" ] && mode_detail=" (${nr_band})"
-                ;;
-            LTE)
-                [ -n "$lte_band" ] && mode_detail=" (${lte_band})"
-                ;;
+            5G-NSA) [ -n "$lte_band" ] && [ -n "$nr_band" ] && mode_ids="${lte_band} + ${nr_band}" ;;
+            5G-SA)  mode_ids="$nr_band" ;;
+            LTE)    mode_ids="$lte_band" ;;
         esac
         append_event "network_mode" \
-            "Network mode changed from $prev_ev_network_type to $network_type${mode_detail}" "$mode_severity"
+            "Network mode changed to ${network_type}$(_ev_ids "$mode_ids")" "$mode_severity"
     fi
 
     # =====================================================================
@@ -713,13 +670,11 @@ detect_events() {
     local _rc
     _ev_settle lte_band "$lte_band"; _rc=$?
     if [ "$_rc" -eq 0 ]; then
-        local lte_band_detail=""
-        [ -n "$lte_pci" ] && lte_band_detail=" (PCI $lte_pci)"
         append_event "band_change" \
-            "LTE band settled on ${_EV_SETTLED_TO} (was ${_EV_SETTLED_FROM})${lte_band_detail}" "info"
+            "LTE band settled on ${_EV_SETTLED_TO}$(_ev_ids "${_EV_SETTLED_FROM:+was ${_EV_SETTLED_FROM}}" "${lte_pci:+PCI ${lte_pci}}")" "info"
     elif [ "$_rc" -eq 2 ]; then
         append_event "band_change" \
-            "LTE band unstable — ${_EV_FLAP_N} changes in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
+            "LTE band churn detected" "warning"
     fi
 
     # --- LTE PCI change (PCC cell handoff, settle-debounced) ---
@@ -727,24 +682,23 @@ detect_events() {
     if [ "$_rc" -eq 0 ]; then
         local lte_pci_ctx=""
         [ -n "$lte_band" ] && lte_pci_ctx=" on $lte_band"
+        local lte_pci_ids=""
+        [ -n "${_EV_SETTLED_FROM}" ] && [ -n "${_EV_SETTLED_TO}" ] && \
+            lte_pci_ids="PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO}"
         append_event "pci_change" \
-            "LTE PCC cell handoff${lte_pci_ctx} (PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO})" "info"
+            "LTE cell handoff${lte_pci_ctx}$(_ev_ids "$lte_pci_ids")" "info"
     elif [ "$_rc" -eq 2 ]; then
         append_event "pci_change" \
-            "LTE cell unstable — ${_EV_FLAP_N} handoffs in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
+            "LTE cell churn detected" "warning"
     fi
 
     # --- NR state change (5G anchor gained/lost) ---
     if [ -n "$nr_state" ] && [ -n "$prev_ev_nr_state" ] && \
        [ "$nr_state" != "$prev_ev_nr_state" ]; then
         if [ "$nr_state" = "connected" ] && [ "$prev_ev_nr_state" != "connected" ]; then
-            local nr_anchor_detail="($nr_band)"
-            [ -n "$nr_pci" ] && nr_anchor_detail="($nr_band, PCI $nr_pci)"
-            append_event "nr_anchor" "5G NR anchor acquired $nr_anchor_detail" "info"
+            append_event "nr_anchor" "NR5G anchor acquired$(_ev_ids "$nr_band" "${nr_pci:+PCI $nr_pci}")" "info"
         elif [ "$nr_state" != "connected" ] && [ "$prev_ev_nr_state" = "connected" ]; then
-            local nr_lost_detail=""
-            [ -n "$prev_ev_nr_band" ] && nr_lost_detail=" (was $prev_ev_nr_band)"
-            append_event "nr_anchor" "5G NR anchor lost${nr_lost_detail}" "warning"
+            append_event "nr_anchor" "NR5G anchor lost$(_ev_ids "${prev_ev_nr_band:+was $prev_ev_nr_band}")" "warning"
         fi
     fi
 
@@ -761,42 +715,41 @@ detect_events() {
 
     _ev_settle nr_band "$_nr_band_obs"; _rc=$?
     if [ "$_rc" -eq 0 ]; then
-        local nr_band_detail=""
-        [ -n "$nr_pci" ] && nr_band_detail=" (PCI $nr_pci)"
         append_event "band_change" \
-            "NR band settled on ${_EV_SETTLED_TO} (was ${_EV_SETTLED_FROM})${nr_band_detail}" "info"
+            "NR band settled on ${_EV_SETTLED_TO}$(_ev_ids "${_EV_SETTLED_FROM:+was ${_EV_SETTLED_FROM}}" "${nr_pci:+PCI ${nr_pci}}")" "info"
     elif [ "$_rc" -eq 2 ]; then
         append_event "band_change" \
-            "NR band unstable — ${_EV_FLAP_N} changes in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
+            "NR band churn detected" "warning"
     fi
 
     _ev_settle nr_pci "$_nr_pci_obs"; _rc=$?
     if [ "$_rc" -eq 0 ]; then
         local nr_pci_ctx=""
         [ -n "$nr_band" ] && nr_pci_ctx=" on $nr_band"
+        local nr_pci_ids=""
+        [ -n "${_EV_SETTLED_FROM}" ] && [ -n "${_EV_SETTLED_TO}" ] && \
+            nr_pci_ids="PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO}"
         append_event "pci_change" \
-            "NR PCC cell handoff${nr_pci_ctx} (PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO})" "info"
+            "NR cell handoff${nr_pci_ctx}$(_ev_ids "$nr_pci_ids")" "info"
     elif [ "$_rc" -eq 2 ]; then
         append_event "pci_change" \
-            "NR cell unstable — ${_EV_FLAP_N} handoffs in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
+            "NR cell churn detected" "warning"
     fi
 
     # --- LTE CA changes ---
     if [ "$t2_ca_active" != "$prev_ev_ca_active" ]; then
         if [ "$t2_ca_active" = "true" ]; then
             local lte_ca_summary
-            lte_ca_summary=$(_ev_band_summary "LTE" "$t2_carrier_components")
+            lte_ca_summary=$(_ev_bands "LTE" "$t2_carrier_components")
             if [ -n "$lte_ca_summary" ]; then
                 append_event "ca_change" \
-                    "LTE CA activated: $lte_ca_summary ($((t2_ca_count + 1)) carriers)" "info"
+                    "LTE CA activated on $lte_ca_summary" "info"
             else
                 append_event "ca_change" \
-                    "LTE CA activated ($((t2_ca_count + 1)) carriers)" "info"
+                    "LTE CA activated" "info"
             fi
         elif [ "$prev_ev_ca_active" = "true" ]; then
-            local single_lte=""
-            [ -n "$lte_band" ] && single_lte=" — single carrier ($lte_band)"
-            append_event "ca_change" "LTE CA deactivated${single_lte}" "warning"
+            append_event "ca_change" "LTE CA deactivated" "warning"
         fi
     elif [ "$t2_ca_active" = "true" ] && [ "$t2_ca_count" != "$prev_ev_ca_count" ]; then
         local prev_total=$((prev_ev_ca_count + 1))
@@ -821,25 +774,23 @@ detect_events() {
             [ -n "$lte_bands" ] && ca_diff_detail=" (now $lte_bands)"
         fi
         append_event "ca_change" \
-            "LTE carriers changed from $prev_total to $new_total${ca_diff_detail}" "$ca_sev"
+            "LTE carriers changed${ca_diff_detail}" "$ca_sev"
     fi
 
     # --- NR CA changes ---
     if [ "$t2_nr_ca_active" != "$prev_ev_nr_ca_active" ]; then
         if [ "$t2_nr_ca_active" = "true" ]; then
             local nr_ca_summary
-            nr_ca_summary=$(_ev_band_summary "NR" "$t2_carrier_components")
+            nr_ca_summary=$(_ev_bands "NR" "$t2_carrier_components")
             if [ -n "$nr_ca_summary" ]; then
                 append_event "ca_change" \
-                    "NR CA activated: $nr_ca_summary ($((t2_nr_ca_count + 1)) NR carriers)" "info"
+                    "NR CA activated on $nr_ca_summary" "info"
             else
                 append_event "ca_change" \
-                    "NR CA activated ($((t2_nr_ca_count + 1)) NR carriers)" "info"
+                    "NR CA activated" "info"
             fi
         elif [ "$prev_ev_nr_ca_active" = "true" ]; then
-            local single_nr=""
-            [ -n "$nr_band" ] && single_nr=" — single carrier ($nr_band)"
-            append_event "ca_change" "NR CA deactivated${single_nr}" "warning"
+            append_event "ca_change" "NR CA deactivated" "warning"
         fi
     elif [ "$t2_nr_ca_active" = "true" ] && [ "$t2_nr_ca_count" != "$prev_ev_nr_ca_count" ]; then
         local prev_total=$((prev_ev_nr_ca_count + 1))
@@ -864,7 +815,7 @@ detect_events() {
             [ -n "$nr_bands" ] && nr_diff_detail=" (now $nr_bands)"
         fi
         append_event "ca_change" \
-            "NR carriers changed from $prev_total to $new_total${nr_diff_detail}" "$nr_ca_sev"
+            "NR carriers changed${nr_diff_detail}" "$nr_ca_sev"
     fi
 
     # --- SCC PCI changes (detected on Tier 2 refresh) ---

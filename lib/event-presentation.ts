@@ -190,6 +190,9 @@ export interface EventPresentation {
   containerClass: string;
   /** The icon disc: its fill and the glyph ink paired with it. Never empty. */
   discClass: string;
+  /** Whether the container is a chromatic fill that inks every line inside
+   *  it. The row must not set per-line colours when this is true. */
+  chromatic: boolean;
   /** Ink for the message line. Empty when the container supplies it. */
   messageClass: string;
   /** Ink for the timestamp caption. */
@@ -380,6 +383,18 @@ function glyphOf(event: NetworkEvent, tone: EventTone): EventGlyph {
   return FAMILY_GLYPHS[event.type] ?? "neutral";
 }
 
+/** Which ground the row rests on: the dashboard list settles onto
+ *  `surface-container`, the Monitoring log settles to fully transparent. */
+export type EventGround = "surface" | "card";
+
+/** Weighted fills for a row resting directly on a card. */
+const TONAL_FILL_ON_CARD: Record<EventTone, string> = {
+  error: TONAL_FILL.error,
+  warning: TONAL_FILL.warning,
+  success: TONAL_FILL.success,
+  routine: "bg-surface-container",
+};
+
 /**
  * Build the row's full visual description.
  *
@@ -393,6 +408,7 @@ export function presentEvent(
   event: NetworkEvent,
   unresolved: boolean,
   fresh: boolean,
+  ground: EventGround = "surface",
 ): EventPresentation {
   const tone = toneOf(event);
   const glyph = glyphOf(event, tone);
@@ -403,12 +419,40 @@ export function presentEvent(
   // reads as two statements rather than one.
   const chromatic = tonal && tone !== "routine";
 
-  const containerClass = tonal ? TONAL_FILL[tone] : "bg-surface-container";
+  const onCard = ground === "card";
+  const containerClass = onCard
+    ? tonal
+      ? TONAL_FILL_ON_CARD[tone]
+      : ""
+    : tonal
+      ? TONAL_FILL[tone]
+      : "bg-surface-container";
+
+  if (onCard) {
+    return {
+      glyph,
+      tone,
+      containerClass,
+      chromatic,
+      // One achromatic disc for every routine row on this ground: it must not
+      // step with the row, or it vanishes into one of the two grounds.
+      discClass:
+        tone === "routine"
+          ? "bg-surface-container-high text-on-surface-variant"
+          : DISC_FILL[tone],
+      messageClass: chromatic ? "" : "text-on-surface",
+      metaClass: chromatic ? "opacity-90" : "text-on-surface-variant",
+      srSeverityKey: unresolved
+        ? "activities.severity.unresolved"
+        : SR_KEY[tone],
+    };
+  }
 
   return {
     glyph,
     tone,
     containerClass,
+    chromatic,
     // The one slot that does NOT consult `tonal` for a chromatic tone. An aged
     // warning row goes grey and keeps a full-strength amber disc, which is the
     // age rule stated in one line: the row stops competing for attention, the
@@ -441,4 +485,31 @@ export function presentEvent(
  */
 export function eventKey(e: NetworkEvent): string {
   return `${e.timestamp}-${e.type}-${e.message}`;
+}
+
+// -----------------------------------------------------------------------------
+// Message / identifier split
+// -----------------------------------------------------------------------------
+
+/** A trailing parenthetical carrying only identifiers, e.g. "(n78, PCI 135)".
+ *  Anything with prose in it ("(2 carriers)", "(CFUN=4)") must not match. */
+const TRAILING_IDS =
+  /\s*\(((?:PCI|EARFCN|ARFCN)\s+\d+(?:\s*->\s*\d+)?|was\s+[A-Za-z]?\d{1,3}|[Bn]\d{1,3}(?:\s*[,+]\s*[Bn]\d{1,3})*)(?:,\s*(?:(?:PCI|EARFCN|ARFCN)\s+\d+(?:\s*->\s*\d+)?|[Bn]\d{1,3}))*\)$/;
+
+export interface SplitEventMessage {
+  /** The message with its identifier tail removed. Never empty. */
+  text: string;
+  /** Identifiers lifted out of the tail, in source order. */
+  identifiers: string[];
+}
+
+/** Lift a trailing identifier group out of a poller message. What becomes a
+ *  chip is removed from the sentence, so nothing is drawn twice. */
+export function splitEventMessage(message: string): SplitEventMessage {
+  const match = TRAILING_IDS.exec(message);
+  if (!match) return { text: message, identifiers: [] };
+  const text = message.slice(0, match.index).trimEnd();
+  if (text.length === 0) return { text: message, identifiers: [] };
+  const inner = match[0].trim().replace(/^\(|\)$/g, "");
+  return { text, identifiers: inner.split(/,\s*/).filter(Boolean) };
 }

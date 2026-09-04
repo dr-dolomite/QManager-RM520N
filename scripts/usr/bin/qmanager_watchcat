@@ -340,7 +340,7 @@ wait_for_modem() {
 
 execute_tier1() {
     qlog_info "TIER 1: Re-register to network (AT+COPS)"
-    append_event "watchcat_recovery" "Watchcat: re-register to network (Tier 1)" "warning"
+    append_event "watchcat_recovery" "Re-registering to network" "warning"
 
     # Raise the shared recovery flag WITH our PID, falling back to a bare
     # touch. Both halves are load-bearing:
@@ -381,7 +381,7 @@ execute_tier2() {
     fi
 
     qlog_info "TIER 2: Toggling radio (AT+CFUN=0/1)"
-    append_event "watchcat_recovery" "Watchcat: toggling radio (Tier 2)" "warning"
+    append_event "watchcat_recovery" "Toggling radio" "warning"
 
     # PID write + touch fallback — see execute_tier1 for why the fallback is
     # required, not decorative.
@@ -425,7 +425,7 @@ execute_tier3() {
     fi
 
     qlog_info "TIER 3: SIM failover from slot $current_slot to slot $CFG_BACKUP_SIM_SLOT"
-    append_event "sim_failover" "Watchcat: switching to SIM slot $CFG_BACKUP_SIM_SLOT (Tier 3)" "warning"
+    append_event "sim_failover" "Switching to SIM slot $CFG_BACKUP_SIM_SLOT" "warning"
 
     # PID write + touch fallback — see execute_tier1.
     printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
@@ -541,7 +541,7 @@ execute_tier3() {
 # Fallback: revert SIM to original slot
 sim_failover_fallback() {
     qlog_warn "SIM failover fallback: reverting to slot $original_sim_slot"
-    append_event "sim_failover" "Watchcat: backup SIM failed, reverting to slot $original_sim_slot" "warning"
+    append_event "sim_failover" "Backup SIM failed, reverting to slot $original_sim_slot" "warning"
 
     # Golden Rule sequence back to original
     qcmd 'AT+CFUN=0' >/dev/null 2>&1
@@ -552,7 +552,7 @@ sim_failover_fallback() {
 
     if ! wait_for_modem; then
         qlog_error "SIM failover fallback: modem unresponsive after revert to slot $original_sim_slot"
-        append_event "sim_failover" "Watchcat: SIM reverted but modem unresponsive — manual check needed" "error"
+        append_event "sim_failover" "SIM reverted but modem unresponsive" "error"
         current_sim_slot="$original_sim_slot"
         sim_failover_active="false"
         original_sim_slot="null"
@@ -567,7 +567,7 @@ sim_failover_fallback() {
     # case above (no second write-retry).
     if ! verify_quimslot "$original_sim_slot" >/dev/null 2>&1; then
         qlog_error "SIM failover fallback: QUIMSLOT read-back never confirmed revert to slot $original_sim_slot"
-        append_event "sim_failover" "Watchcat: SIM revert commanded but slot never confirmed — manual check needed" "error"
+        append_event "sim_failover" "SIM revert not confirmed" "error"
         current_sim_slot="$original_sim_slot"
         sim_failover_active="false"
         original_sim_slot="null"
@@ -596,7 +596,7 @@ execute_tier4() {
     if [ "$reboots_this_hour" -ge "$CFG_MAX_REBOOTS_PER_HOUR" ]; then
         qlog_error "TIER 4: Reboot limit reached (${reboots_this_hour}/${CFG_MAX_REBOOTS_PER_HOUR} per hour)"
         qlog_error "TIER 4: Auto-disabling watchcat"
-        append_event "watchcat_recovery" "Watchcat disabled: reboot limit exceeded (${reboots_this_hour} reboots/hour)" "error"
+        append_event "watchcat_recovery" "Watchdog disabled, reboot limit exceeded" "error"
 
         # Permanently disable via JSON config
         qm_config_set watchcat enabled 0
@@ -612,7 +612,7 @@ execute_tier4() {
     fi
 
     qlog_error "TIER 4: System reboot (recovery ${reboots_this_hour}/${CFG_MAX_REBOOTS_PER_HOUR})"
-    append_event "watchcat_recovery" "Watchcat: rebooting system (Tier 4)" "error"
+    append_event "watchcat_recovery" "Rebooting system" "error"
 
     # Log reboot to crash.log (persists across reboots)
     local ts
@@ -681,7 +681,7 @@ do_recovery() {
     # Tier-4 reboot.
     if [ "$action_result" -eq 2 ]; then
         qlog_error "Tier $current_tier misconfigured — recovery stopped (will not escalate to reboot)"
-        append_event "watchcat_recovery" "Watchcat: Tier $current_tier misconfigured, recovery ladder stopped" "error"
+        append_event "watchcat_recovery" "Tier $current_tier misconfigured, ladder stopped" "error"
         rm -f "$RECOVERY_FLAG"
         state="monitor"; current_tier=0; failure_counter=0
         return
@@ -786,7 +786,7 @@ finish_cooldown() {
                 > "${SIM_FAILOVER_FILE}.tmp" && mv "${SIM_FAILOVER_FILE}.tmp" "$SIM_FAILOVER_FILE"
 
             qlog_info "SIM failover state saved: slot $original_sim_slot → $current_sim_slot"
-            append_event "sim_failover" "Watchcat: SIM failover confirmed — running on slot $current_sim_slot" "info"
+            append_event "sim_failover" "SIM failover confirmed on slot $current_sim_slot" "info"
 
             # Persist the landed ICCID so the poller's boot-time swap
             # detector treats this SIM as expected, not a physical swap.
@@ -838,7 +838,7 @@ check_revert_request() {
     if [ -f "$REVERT_FLAG" ] && [ "$sim_failover_active" = "true" ]; then
         qlog_info "User requested SIM revert to slot $original_sim_slot"
         rm -f "$REVERT_FLAG"
-        append_event "sim_failover" "Watchcat: reverting to original SIM slot $original_sim_slot (user request)" "info"
+        append_event "sim_failover" "Reverting to SIM slot $original_sim_slot (user request)" "info"
 
         # PID write + touch fallback — see execute_tier1.
         printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"

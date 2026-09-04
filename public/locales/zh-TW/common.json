@@ -779,5 +779,70 @@
       "failed_heading": "安裝未能完成",
       "install": "下載並安裝"
     }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "網路事件",
+      "description": "輪詢服務觀察到的所有無線電與連線變化，最新優先。"
+    },
+    "actions": {
+      "auto_refresh_on": "自動重新整理已開",
+      "auto_refresh_off": "自動重新整理已關",
+      "refresh": "重新整理"
+    },
+    "band": {
+      "ongoing": {
+        "eyebrow": "進行中",
+        "caption_clear": "沒有仍未解決的事件",
+        "caption_oldest": "最早：{{label}}，{{age}}"
+      },
+      "last24": {
+        "eyebrow": "近 24 小時",
+        "caption": "{{loud}} 項需要關注"
+      },
+      "retained": {
+        "eyebrow": "已保留",
+        "caption": "最早 {{age}}，裝置保留 {{cap}} 筆",
+        "caption_empty": "裝置最多保留 {{cap}} 筆"
+      }
+    },
+    "log": {
+      "title": "事件記錄",
+      "description_loading": "正在讀取數據機的事件環形緩衝區。",
+      "description_unreadable": "記錄無法讀取時不顯示計數。",
+      "description": "顯示 {{shown}} 筆，共提供 {{held}} 筆，數據機記憶體中最多保留 {{cap}} 筆。"
+    },
+    "filters": {
+      "all": "全部",
+      "radio": "無線電",
+      "connectivity": "連線",
+      "mode": "模式"
+    },
+    "sort": {
+      "label": "排序",
+      "newest": "最新優先",
+      "oldest": "最早優先"
+    },
+    "row": {
+      "ongoing": "進行中"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天"
+    },
+    "empty": {
+      "title": "尚無事件",
+      "description": "記錄保存在記憶體中，數據機重新啟動後會重新開始。輪詢服務發現事件後會顯示在這裡。",
+      "filtered_title": "此檢視中沒有內容",
+      "filtered_description": "目前記錄中沒有這類事件。選擇「全部」可查看輪詢服務記錄的所有內容。"
+    },
+    "error": {
+      "title": "無法載入事件",
+      "description": "{{message}}",
+      "retry": "重試"
+    },
+    "notice": {
+      "stale": "顯示我們最後成功讀取到的事件。{{message}}"
+    }
   }
 }

@@ -1112,7 +1112,7 @@ collect_boot_data() {
                 --arg pname "$match_name" \
                 '{detected_at:$ts,previous_iccid:$prev,current_iccid:$curr,matching_profile_id:$pid,matching_profile_name:$pname,dismissed:false}' \
                 > "$SIM_SWAP_FLAG"
-            append_event "sim_swap_detected" "New SIM detected (ICCID: ...$(printf '%s' "$boot_iccid" | tail -c 4))" "info"
+            append_event "sim_swap_detected" "New SIM detected (ICCID ...$(printf '%s' "$boot_iccid" | tail -c 4))" "info"
 
             # Persistent registry record — this is the ONLY site that seeds a
             # fresh, undismissed record (first_seen=now). Gated on the SAME
@@ -1654,7 +1654,7 @@ read_ping_data() {
                 local stale_dur=$((now - _ping_stale_since))
                 if [ "$stale_dur" -ge "$PING_DAEMON_STALE_EVENT_THRESHOLD" ] 2>/dev/null; then
                     append_event "ping_daemon_stale" \
-                        "Ping daemon stale for ${stale_dur}s — alerts may be suppressed" \
+                        "Ping daemon stale, alerts may be missed" \
                         "warning"
                     # Restart the window from now so the next emission only
                     # fires after another full threshold has elapsed. Storing

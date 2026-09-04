@@ -779,5 +779,70 @@
       "failed_heading": "安装未能完成",
       "install": "下载并安装"
     }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "网络事件",
+      "description": "轮询服务观察到的所有无线电与链路变化，最新优先。"
+    },
+    "actions": {
+      "auto_refresh_on": "自动刷新已开",
+      "auto_refresh_off": "自动刷新已关",
+      "refresh": "刷新"
+    },
+    "band": {
+      "ongoing": {
+        "eyebrow": "进行中",
+        "caption_clear": "没有仍未解决的事件",
+        "caption_oldest": "最早：{{label}}，{{age}}"
+      },
+      "last24": {
+        "eyebrow": "近 24 小时",
+        "caption": "{{loud}} 项需要关注"
+      },
+      "retained": {
+        "eyebrow": "已保留",
+        "caption": "最早 {{age}}，设备保留 {{cap}} 条",
+        "caption_empty": "设备最多保留 {{cap}} 条"
+      }
+    },
+    "log": {
+      "title": "事件日志",
+      "description_loading": "正在读取调制解调器的事件环形缓冲区。",
+      "description_unreadable": "日志无法读取时不显示计数。",
+      "description": "显示 {{shown}} 条，共提供 {{held}} 条，调制解调器内存中最多保留 {{cap}} 条。"
+    },
+    "filters": {
+      "all": "全部",
+      "radio": "无线电",
+      "connectivity": "连接",
+      "mode": "模式"
+    },
+    "sort": {
+      "label": "排序",
+      "newest": "最新优先",
+      "oldest": "最早优先"
+    },
+    "row": {
+      "ongoing": "进行中"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天"
+    },
+    "empty": {
+      "title": "暂无事件",
+      "description": "日志保存在内存中，调制解调器重启后重新开始。轮询服务发现事件后会显示在这里。",
+      "filtered_title": "此视图中没有内容",
+      "filtered_description": "当前日志中没有此类事件。选择“全部”可查看轮询服务记录的所有内容。"
+    },
+    "error": {
+      "title": "无法加载事件",
+      "description": "{{message}}",
+      "retry": "重试"
+    },
+    "notice": {
+      "stale": "显示我们最后成功读取到的事件。{{message}}"
+    }
   }
 }

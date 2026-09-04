@@ -55,3 +55,13 @@ export const EVENT_TAB_CATEGORIES: Record<NetworkEventType, EventTabCategory> =
     profile_deactivated: "dataConnection",
     tower_failover: "dataConnection",
   };
+
+/** The filter rail on `/monitoring`, in render order. `all` is not a category. */
+export const EVENT_FILTERS = [
+  "all",
+  "bandChanges",
+  "dataConnection",
+  "networkMode",
+] as const;
+
+export type EventFilter = (typeof EVENT_FILTERS)[number];

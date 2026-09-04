@@ -217,7 +217,7 @@ while true; do
                 tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                 echo "activated" > "$FLAG_FILE"
                 qlog_warn "FAILOVER COMPLETE — locks cleared"
-                append_event "tower_failover" "Tower locks cleared — signal quality ${quality}% below ${threshold}% threshold" "warning"
+                append_event "tower_failover" "Tower locks cleared" "warning"
             else
                 qlog_error "FAILOVER FAILED — retrying in 5s"
                 sleep 5
@@ -251,7 +251,7 @@ while true; do
                     tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                     echo "activated" > "$FLAG_FILE"
                     qlog_warn "FAILOVER COMPLETE (retry)"
-                    append_event "tower_failover" "Tower locks cleared after retry — signal quality ${quality}% below ${threshold}% threshold" "warning"
+                    append_event "tower_failover" "Tower locks cleared after retry" "warning"
                 else
                     # Both attempts failed to confirm — do NOT write the
                     # activation flag or clear the config. The activation
@@ -269,7 +269,7 @@ while true; do
                     # enabled=false here would just be a second, equally
                     # unconfirmed guess layered on top.
                     qlog_error "FAILOVER retry: unlock command(s) still unconfirmed (lte_rc=$lte_retry_rc nr_rc=$nr_retry_rc) — giving up without claiming success"
-                    append_event "tower_failover" "Tower lock failover FAILED — could not confirm unlock after retry (signal quality ${quality}% below ${threshold}% threshold)" "error"
+                    append_event "tower_failover" "Tower failover failed, unlock unconfirmed" "error"
                 fi
             fi
 

@@ -437,7 +437,7 @@ apn_apply_write() {
     command -v apn_apply_on_bracket_start >/dev/null 2>&1 && apn_apply_on_bracket_start
 
     append_event "apn_apply_started" \
-        "Applying APN change (CID ${_cid}) — brief WAN interruption expected" "info"
+        "Applying APN change (CID ${_cid})" "info"
 
     # --- Step 1: write (write-first — nothing detached yet) -----------------
     if ! run_at "AT+CGDCONT=${_cid},\"${_pdp}\",\"${_apn}\"" >/dev/null; then
@@ -467,7 +467,7 @@ apn_apply_write() {
         APN_APPLY_DETAIL="AT+COPS=0 failed after ${APN_APPLY_ATTACH_RETRIES} attempts — modem may be DEREGISTERED"
         APN_APPLY_RC=3
         append_event "apn_apply_critical" \
-            "APN apply on CID ${_cid} left the modem deregistered after ${APN_APPLY_ATTACH_RETRIES} re-attach attempts" \
+            "Modem left deregistered after APN apply (CID ${_cid})" \
             "error"
         return 3
     fi
@@ -501,7 +501,7 @@ apn_apply_write() {
         APN_APPLY_STATUS="done_carrier_default"
         APN_APPLY_DETAIL="Reverted to carrier default; network negotiated ${_negotiated} (CID ${_cid})"
         APN_APPLY_RC=0
-        append_event "apn_apply_done" "CID ${_cid} reverted to carrier default (${_negotiated})" "info"
+        append_event "apn_apply_done" "CID ${_cid} reverted to carrier default" "info"
         return 0
     fi
 
@@ -527,6 +527,6 @@ apn_apply_write() {
     APN_APPLY_DETAIL="Requested ${_apn}, network negotiated ${_negotiated} — apply did not take"
     APN_APPLY_RC=4
     append_event "apn_apply_mismatch" \
-        "Requested APN ${_apn} on CID ${_cid} but network negotiated ${_negotiated}" "warning"
+        "CID ${_cid} requested ${_apn}, negotiated ${_negotiated}" "warning"
     return 4
 }

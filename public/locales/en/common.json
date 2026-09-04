@@ -779,5 +779,70 @@
       "failed_heading": "The install didn't finish",
       "install": "Download & install"
     }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "Network Events",
+      "description": "Everything the poller noticed about the radio and the link, newest first."
+    },
+    "actions": {
+      "auto_refresh_on": "Auto refresh on",
+      "auto_refresh_off": "Auto refresh off",
+      "refresh": "Refresh"
+    },
+    "band": {
+      "ongoing": {
+        "eyebrow": "Ongoing",
+        "caption_clear": "Nothing is still standing",
+        "caption_oldest": "Oldest {{label}}, {{age}}"
+      },
+      "last24": {
+        "eyebrow": "Last 24 h",
+        "caption": "{{loud}} needed attention"
+      },
+      "retained": {
+        "eyebrow": "Retained",
+        "caption": "Oldest {{age}}, device keeps {{cap}}",
+        "caption_empty": "Device keeps up to {{cap}}"
+      }
+    },
+    "log": {
+      "title": "Event log",
+      "description_loading": "Reading the modem's event ring.",
+      "description_unreadable": "No counts to show while the log cannot be read.",
+      "description": "Showing {{shown}} of the {{held}} events served, out of the {{cap}} the modem holds in memory."
+    },
+    "filters": {
+      "all": "All",
+      "radio": "Radio",
+      "connectivity": "Connectivity",
+      "mode": "Mode"
+    },
+    "sort": {
+      "label": "Sort by",
+      "newest": "Newest first",
+      "oldest": "Oldest first"
+    },
+    "row": {
+      "ongoing": "Ongoing"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "empty": {
+      "title": "No events yet",
+      "description": "The log lives in memory and starts over when the modem reboots. Entries appear here as the poller notices them.",
+      "filtered_title": "Nothing in this view",
+      "filtered_description": "No events of this kind are in the log right now. Pick All to see everything the poller recorded."
+    },
+    "error": {
+      "title": "Could not load events",
+      "description": "{{message}}",
+      "retry": "Try again"
+    },
+    "notice": {
+      "stale": "Showing the last events we managed to read. {{message}}"
+    }
   }
 }

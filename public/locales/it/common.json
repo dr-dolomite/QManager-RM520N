@@ -779,5 +779,70 @@
       "failed_heading": "L'installazione non è andata a buon fine",
       "install": "Scarica e installa"
     }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "Eventi di rete",
+      "description": "Tutto ciò che il poller ha rilevato su radio e connessione, dal più recente."
+    },
+    "actions": {
+      "auto_refresh_on": "Aggiornamento automatico attivo",
+      "auto_refresh_off": "Aggiornamento automatico disattivo",
+      "refresh": "Aggiorna"
+    },
+    "band": {
+      "ongoing": {
+        "eyebrow": "In corso",
+        "caption_clear": "Nulla in sospeso",
+        "caption_oldest": "Meno recente: {{label}}, {{age}}"
+      },
+      "last24": {
+        "eyebrow": "Ultime 24 h",
+        "caption": "{{loud}} da controllare"
+      },
+      "retained": {
+        "eyebrow": "Conservati",
+        "caption": "Meno recente {{age}}, il dispositivo ne conserva {{cap}}",
+        "caption_empty": "Il dispositivo ne conserva fino a {{cap}}"
+      }
+    },
+    "log": {
+      "title": "Registro eventi",
+      "description_loading": "Lettura del buffer eventi del modem.",
+      "description_unreadable": "Nessun conteggio da mostrare finché il registro non è leggibile.",
+      "description": "Mostrati {{shown}} dei {{held}} eventi forniti, sui {{cap}} che il modem tiene in memoria."
+    },
+    "filters": {
+      "all": "Tutti",
+      "radio": "Radio",
+      "connectivity": "Connettività",
+      "mode": "Modalità"
+    },
+    "sort": {
+      "label": "Ordina",
+      "newest": "Prima i più recenti",
+      "oldest": "Prima i meno recenti"
+    },
+    "row": {
+      "ongoing": "In corso"
+    },
+    "day": {
+      "today": "Oggi",
+      "yesterday": "Ieri"
+    },
+    "empty": {
+      "title": "Nessun evento",
+      "description": "Il registro vive in memoria e riparte da zero al riavvio del modem. Le voci compaiono qui man mano che il poller le rileva.",
+      "filtered_title": "Nulla in questa vista",
+      "filtered_description": "Al momento nel registro non ci sono eventi di questo tipo. Scegli Tutti per vedere tutto ciò che il poller ha registrato."
+    },
+    "error": {
+      "title": "Impossibile caricare gli eventi",
+      "description": "{{message}}",
+      "retry": "Riprova"
+    },
+    "notice": {
+      "stale": "Mostriamo gli ultimi eventi che siamo riusciti a leggere. {{message}}"
+    }
   }
 }

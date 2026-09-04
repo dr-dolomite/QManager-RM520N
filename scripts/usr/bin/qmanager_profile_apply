@@ -495,7 +495,7 @@ if ! _auto_sim_guard "pre-apply"; then
     apply_status="failed"
     apply_error="superseded_sim_changed"
     write_state
-    append_event "profile_failed" "Profile '$p_name' apply superseded — active SIM changed before apply" "warning"
+    append_event "profile_failed" "Profile '$p_name' superseded, SIM changed before apply" "warning"
     exit 0
 fi
 
@@ -1083,7 +1083,7 @@ if [ -n "$AUTO_MODE" ] && ! _auto_sim_guard "pre-finalize"; then
     apply_status="failed"
     apply_error="superseded_sim_changed"
     write_state
-    append_event "profile_failed" "Profile '$p_name' apply superseded — active SIM changed during apply" "warning"
+    append_event "profile_failed" "Profile '$p_name' superseded, SIM changed during apply" "warning"
     exit 0
 fi
 
@@ -1118,11 +1118,11 @@ fi
 
 # --- Emit network event ------------------------------------------------------
 if [ "$apply_status" = "complete" ]; then
-    append_event "profile_applied" "Profile '$p_name' applied successfully" "info"
+    append_event "profile_applied" "Profile '$p_name' applied" "info"
 elif [ "$apply_status" = "partial" ]; then
-    append_event "profile_applied" "Profile '$p_name' partially applied ($steps_failed step(s) failed)" "warning"
+    append_event "profile_applied" "Profile '$p_name' partially applied ($steps_failed failed)" "warning"
 else
-    append_event "profile_failed" "Profile '$p_name' failed to apply ($steps_failed step(s) failed)" "error"
+    append_event "profile_failed" "Profile '$p_name' apply failed ($steps_failed failed)" "error"
 fi
 
 qlog_info "Profile apply finished: status=$apply_status (done=$steps_done, failed=$steps_failed, skipped=$steps_skipped)"
