@@ -1167,7 +1167,7 @@ collect_boot_data() {
         boot_cmd="${boot_cmd}"';+QNWCFG="lte_mimo_layers"'
     fi
     # Remaining mode-independent reads
-    boot_cmd="${boot_cmd}"';+QMAP="MPDN_RULE";+QMAP="IPPT_NAT";+QCFG="usbnet";+QMAP="DHCPV4DNS"'
+    boot_cmd="${boot_cmd}"';+QMAP="MPDN_RULE";+QMAP="IPPT_NAT";+QCFG="usbnet"'
     result=$(qcmd "$boot_cmd" 2>/dev/null)
 
     if [ -n "$result" ]; then
@@ -1178,7 +1178,6 @@ collect_boot_data() {
         parse_ippt_mpdn_rule "$result"
         parse_ippt_nat "$result"
         parse_ippt_usbnet "$result"
-        parse_ippt_dhcpv4dns "$result"
     fi
 
     # =========================================================================
@@ -1191,6 +1190,20 @@ collect_boot_data() {
     result=$(qcmd 'AT+QMAP="LANIP"' 2>/dev/null)
     if [ -n "$result" ]; then
         parse_lan_ip "$result"
+    fi
+
+    # =========================================================================
+    # DHCPv4 DNS mode — separate qcmd call, isolated from Group B.
+    # AT+QMAP="DHCPV4DNS" does not exist on RG501Q-EU (SDX55): its own
+    # AT+QMAP=? capability list carries "DHCPV6DNS" but no "DHCPV4DNS" entry.
+    # Chained into Group B, this one unsupported member errored the whole
+    # compound, silently zeroing MIMO layers and IP-Passthrough MPDN/NAT/
+    # usbnet state on that device too. Isolating it here means a firmware
+    # that lacks it only loses this one field.
+    # =========================================================================
+    result=$(qcmd 'AT+QMAP="DHCPV4DNS"' 2>/dev/null)
+    if [ -n "$result" ]; then
+        parse_ippt_dhcpv4dns "$result"
     fi
 
     # =========================================================================
