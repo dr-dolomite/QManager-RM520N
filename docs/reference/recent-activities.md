@@ -15,9 +15,11 @@ The Recent Activities card is the dashboard's window onto the poller's network e
 | Settle debounce | `EV_SETTLE_SAMPLES=3`, `EV_FLAP_THRESHOLD=6`, `EV_FLAP_WINDOW=300` (`events.sh:242-249`, hard-coded) |
 | CGI endpoint | `GET /cgi-bin/quecmanager/at_cmd/fetch_events.sh` (zero modem contact, RAM read only) |
 | Served slice | `EVENTS_SERVE_LIMIT=50` (newest 50 lines of the 300-slot ring) |
-| Hook | `hooks/use-recent-activities.ts` (10s poll, reverses to newest-first, keeps 20) |
+| Hook | `hooks/use-recent-activities.ts` (10s poll, reverses to newest-first, keeps 20 by default; `/monitoring` passes `maxEvents: 50`) |
 | Presentation model | `lib/event-presentation.ts` (pure, no React) |
-| Card | `components/dashboard/recent-activities.tsx` |
+| Dashboard card | `components/dashboard/recent-activities.tsx` (5 rows, glance) |
+| Monitoring surface | `components/monitoring/network-events/` (the full log, `/monitoring`) |
+| Identifier contract | `splitEventMessage` / `TRAILING_IDS` in `lib/event-presentation.ts`, fed by `_ev_ids()` in `events.sh` |
 | Event types / severities | `types/modem-status.ts` (`NetworkEventType`, `EventSeverity`, `NetworkEvent`) |
 | English label fallback | `constants/network-events.ts` (`EVENT_LABELS`) |
 | i18n keys | `dashboard` namespace, `activities.*` subtree, all 5 locales |
@@ -110,14 +112,44 @@ The NR pair gets one extra guard. While the NR anchor is down there is nothing t
 This is not a copy preference, it is a correctness constraint. The messages are now:
 
 ```
-LTE band settled on B28 (was B41) (PCI 305)
-LTE PCC cell handoff on B41 (PCI 271 -> 305)
-NR band settled on N78 (was N41) (PCI 812)
+LTE band settled on B28 (was B41, PCI 305)
+LTE cell handoff on B41 (PCI 271 -> 305)
+NR band settled on n78 (was n41, PCI 812)
 ```
 
 The old wording was `LTE band changed from B41 to B28`. Under a debounce that is a **lie**: the radio really did pass through the intermediate rungs, and B41 → B28 asserts a direct hop that never happened. "Settled on X (was Y)" keeps both clauses true no matter how many rungs were skipped — X is where it is now, Y is where it was — while claiming nothing about the path between them.
 
 > ⚠️ WARNING: any future edit to these strings must preserve that property. If a debounced event names two values, it may only state them as endpoints, never as a transition.
+
+### The producer/UI identifier contract
+
+A message is `<short sentence> (<identifiers>)`. The UI **strips that trailing
+group out of the sentence** and redraws each identifier as a monospace chip
+(`splitEventMessage`), so one producer string feeds both halves of a row:
+
+```
+producer:  LTE band settled on B28 (was B41, PCI 305)
+row text:  LTE band settled on B28
+row chips: was B41   PCI 305
+```
+
+The tail is one comma-joined group and must come last. Two rules follow, and
+both are easy to break by accident:
+
+1. **The tail must match `TRAILING_IDS`** (`lib/event-presentation.ts`). A tail
+   that nearly matches is worse than none: it stays in the sentence AND produces
+   no chip. Check a new string against that regex; do not eyeball it.
+2. **Deleting a tail deletes data.** The 2026-09-04 refit that shortened these
+   messages stripped the tails for brevity, which silently removed the only
+   record of which PCI a modem handed off to. Shorten the *sentence*; keep the
+   identifiers.
+
+`_ev_ids()` in `events.sh` builds the group. It drops empty and literal `null`
+fragments, so a missing PCI yields `(was B41)` rather than `(was B41, PCI )`,
+and an all-empty set yields no parentheses at all.
+
+Parentheticals that are prose rather than identifiers (`(CFUN=4)`, `(2 failed)`,
+`(CID 1)`, `(user request)`) deliberately do not match, and stay in the sentence.
 
 ### The instability event
 
@@ -296,7 +328,10 @@ The pairing lives in the client rather than in `events.sh` because it is a *read
 
 ### The presentation contract
 
-`presentEvent(event, unresolved, fresh)` returns exactly this, and nothing the caller already knows:
+`presentEvent(event, unresolved, fresh, ground = "surface")` returns exactly this,
+and nothing the caller already knows. `ground` is `"surface"` for the dashboard card
+and `"card"` for the `/monitoring` log, which rests directly on a card and needs its
+own weighted fills:
 
 ```ts
 interface EventPresentation {
@@ -306,6 +341,7 @@ interface EventPresentation {
   discClass: string;        // disc fill + its paired glyph ink. never ""
   messageClass: string;     // "" when the container supplies the ink
   metaClass: string;        // ink (or `opacity-90`) for the timestamp caption
+  chromatic: boolean;       // container supplies the ink. read it, never infer it
   srSeverityKey: string;    // i18n key under the `dashboard` namespace
 }
 ```
