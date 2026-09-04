@@ -285,3 +285,28 @@ NOTE: the first screenshot came back BLANK because the tab was backgrounded and 
 was frozen at `initial` (rAF throttled). tabs_select first, then screenshot.
 
 | W9 | 1 | gp@sonnet | rev1 | DISPATCHED | 14 keys x 4 locales |
+| W9 | 1 | gp@sonnet | rev1 | DONE | 14 keys x 4 locales, back-translations given |
+| W10| 1 | conductor | rev1 | DONE | deltas applied; all 5 packs 183 leaves, key sets match en |
+
+## RUN CLOSED 2026-09-05
+COMMIT bd8225b on feat/alerts-design-canon-refit, merged --no-ff as 1877da0 into development.
+First-parent history verified intact (1877da0 -> 4cfb49a -> 7bef685 -> ...), bd8225b and 4cfb49a
+both ancestors of HEAD, nothing displaced.
+
+FINAL GATES on the merged tree: tsc --noEmit EXIT 0 | eslint components/monitoring/alerts/ EXIT 0
+| i18n:check 0 errors, 16 warnings (baseline 12; the 4 added are the deliberate
+`xxxx xxxx xxxx xxxx` password placeholder, one per non-en pack) | bun run build success, all
+routes static, out/qm-preview absent, both redirects present at 232 bytes.
+
+CLEANUP DONE: app/qm-preview/ deleted (all three fixtures), dev server stopped via preview_stop,
+.next and out cleared, next typegen re-run. `.orchestra/scratch/` deliberately left untracked --
+it holds the recon captures (before-measurements.json, tokens-verbatim.css) and the merged i18n
+fragments, and is working state, not product.
+
+CARRIED FORWARD, NOT DONE (out of scope, recorded so they are not rediscovered as bugs):
+- Heading levels skip H1 -> H3 on this page; app-wide via CardTitle, not introduced here.
+- components/ui/input.tsx contributes a 0.15s transition and button/switch contribute
+  `transition-all` to 5 nodes on this surface. Product-wide One-Scale leak, already tracked as a
+  DESIGN.md delta row; worked around at call sites, not fixed here.
+- PHONE_REGEX still duplicated verbatim between use-alerts-form.ts and sms-forwarding-card.tsx.
+- Repo-wide `bunx eslint` has PRE-EXISTING errors (app/not-found.tsx and others). Untouched.
