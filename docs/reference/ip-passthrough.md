@@ -21,7 +21,6 @@
 | Persisted config | `/etc/qmanager/ippt_config.json` (written by our own POST) |
 | Poller fallback | `/tmp/qmanager_status.json` → `.device.ippt_*` |
 | i18n root | `ipPassthrough.*` (79 leaves × 5 locales) |
-| Harness | `scripts/test/local-network-settings-design-language.sh` |
 | Apply semantics | **write all five settings, then reboot immediately** — there is no separate reboot action |
 
 ## The AT contract
@@ -117,7 +116,7 @@ document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
 window.location.href = "/reboot/";
 ```
 
-The harness asserts all three tokens, and here is why each one exists.
+All three tokens are required, and here is why each one exists.
 
 `cgi_base.sh:216-235` (`cgi_reboot_response`) returns `{"success":true}` **immediately** and then, in a backgrounded subshell, polls for `/tmp/qmanager_reboot_ack` before actually rebooting — up to `QM_REBOOT_ACK_TIMEOUT` (default 20 s), then a `QM_REBOOT_POST_ACK_DELAY` (default 1 s) grace, then `reboot`. The `/reboot/` page writes that marker on mount (via `update.sh action=reboot_ack`).
 
@@ -131,7 +130,7 @@ So:
 | clearing `qm_logged_in` | a stale login cookie survives a device that is about to come back with a fresh session |
 | `window.location.href = "/reboot/"` | nothing ever writes the ack marker, so the reboot is **delayed to the full `QM_REBOOT_ACK_TIMEOUT`** — silently. Everything reports success; the modem just sits there for 20 seconds |
 
-Each failure is quiet. A re-author that keeps the confirm dialog and drops one of these ships green with a broken reboot, which is exactly why the harness pins the tokens rather than the dialog.
+Each failure is quiet. A re-author that keeps the confirm dialog and drops one of these ships green with a broken reboot — which is why the review rule on this surface is **the three tokens, not the dialog**. Nothing checks them automatically: read the handoff line by line against the table above before approving any change to `ip-passthrough-card.tsx`.
 
 ### The confirm dialog stays (approved veto A)
 

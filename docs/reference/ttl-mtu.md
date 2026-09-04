@@ -22,7 +22,6 @@
 | Persisted TTL state | `/etc/qmanager/ttl_state` (plain `TTL=`/`HL=` key-value, www-data-writable) |
 | Persisted MTU state | `/etc/firewall.user.mtu` (a list of `ip link set …` commands) |
 | i18n root | `ttlMtu.*` in `public/locales/<loc>/common.json` (62 leaves × 5 locales) |
-| Harness | `scripts/test/local-network-settings-design-language.sh` |
 
 ## Where each value comes from
 
@@ -86,9 +85,9 @@ Tile bodies are neutral; the only colour is the 52 px disc, tinted `success` whe
 
 Two whole-band substitutes replace the grid rather than repeating a message three times: an `unavailable` `NoticeTile` with a Retry action when neither endpoint answered, and an `idle` `NoticeTile` when both endpoints answered and nothing is in force.
 
-### The three-tile decision: `autostart` is deliberately NOT rendered, and the harness bans it
+### The three-tile decision: `autostart` is deliberately NOT rendered, and rendering it is banned
 
-`ttl.sh` returns a fourth field, `autostart`, and the approved design drew it as an "ON REBOOT → Reapplied / Nothing set" tile. It was measured and dropped. **Rendering it is now a test failure**, not merely discouraged.
+`ttl.sh` returns a fourth field, `autostart`, and the approved design drew it as an "ON REBOOT → Reapplied / Nothing set" tile. It was measured and dropped. **Rendering it is banned**, not merely discouraged — and the ban is upheld by review alone, so the reasoning below is what a reviewer has to know.
 
 The chain:
 
@@ -150,13 +149,13 @@ The delta chip renders unconditionally and `invisible` when clean, so promoting 
 
 `use-ttl-settings.ts` returns `refresh: fetchTtl`, and `fetchTtl` is `useCallback(async (silent = false) => …)`. The `silent` flag suppresses the loading state for a background poll.
 
-So `onClick={refresh}` hands React's `MouseEvent` straight to `silent` as a truthy value: a user-initiated refresh runs with its own spinner suppressed, and the button looks inert for the whole request. That form was live in the tree before this pass. The shell now wires `onClick={() => refreshBoth()}`, and the harness bans the bare form.
+So `onClick={refresh}` hands React's `MouseEvent` straight to `silent` as a truthy value: a user-initiated refresh runs with its own spinner suppressed, and the button looks inert for the whole request. That form was live in the tree before this pass. The shell now wires `onClick={() => refreshBoth()}`; the bare form is banned, and on this surface only review catches it — see the admonition below for why the compiler does not.
 
-> ⚠️ **The compiler does not catch this here.** `UseTtlSettingsReturn.refresh` and `UseMtuSettingsReturn.refresh` are both still declared `() => void` (`use-ttl-settings.ts:41`, `use-mtu-settings.ts:39`), which is what makes the bare spelling type-check. Only `hooks/use-custom-dns.ts:104` took the fix — it declares `(silent?: boolean) => Promise<void>`, so on that surface the bare form is a build error rather than a lint-adjacent convention. **Open item:** widening the two TTL/MTU declarations (and `use-ip-passthrough.ts:60`) to match would make all four enforced by `tsc` instead of by one harness assertion.
+> ⚠️ **The compiler does not catch this here.** `UseTtlSettingsReturn.refresh` and `UseMtuSettingsReturn.refresh` are both still declared `() => void` (`use-ttl-settings.ts:41`, `use-mtu-settings.ts:39`), which is what makes the bare spelling type-check. Only `hooks/use-custom-dns.ts:104` took the fix — it declares `(silent?: boolean) => Promise<void>`, so on that surface the bare form is a build error rather than a lint-adjacent convention. **Open item:** widening the two TTL/MTU declarations (and `use-ip-passthrough.ts:60`) to match would make all four enforced by `tsc` instead of by reviewer attention — which is the only thing holding the other three today.
 
 ### The silent no-op is gone
 
-The retired card contained `if (isEnabled && ttl === 0 && hl === 0) return;` — the form was dirty so the Save button was live, the click did nothing, and the only feedback was a field error already on screen before the press. The harness bans **every spelling** that preserves the behaviour (`!ttl && !hl` included), not one literal string.
+The retired card contained `if (isEnabled && ttl === 0 && hl === 0) return;` — the form was dirty so the Save button was live, the click did nothing, and the only feedback was a field error already on screen before the press. **Every spelling** that preserves the behaviour is banned (`!ttl && !hl` included), not one literal string — so this is a rule about the shape of the guard, which is exactly the kind of thing only a reader catches.
 
 ### The SIM-profile override banner
 
