@@ -1154,29 +1154,48 @@ collect_boot_data() {
     sleep "$SIP_DELAY"
 
     # =========================================================================
-    # Group B: Enables + post-enable reads
-    # Enable commands (,1) are unconditional — idempotent, safe in any mode.
-    # MIMO reads are gated by network_type (lte_mimo_layers crashes in SA,
-    # nr5g_mimo_layers crashes in LTE/NSA).
+    # Group B: Enables + post-enable reads — split into 4 independent qcmd
+    # calls (was 1 seven-command line). qcmd fails the ENTIRE response if the
+    # word ERROR appears ANYWHERE in it (qcmd:175), so one transient failure
+    # in a single chained command used to blank every field in the chain.
+    # Measured live on RG501Q-EU: this exact 7-command line errored once,
+    # right at boot, then succeeded when re-run seconds later — a startup
+    # race (radio subsystem not fully up yet), not a missing command. The
+    # sub-groups below cost the same commands and locks, just fewer eggs
+    # per basket: a race in B1/B2 is masked anyway by the Tier 2 MIMO
+    # refresh (poller:1441+), and a race in B3/B4 now only blanks its own
+    # small group instead of all of IP Passthrough + MIMO.
     # =========================================================================
-    local boot_cmd='AT+QCAINFO=1;+QNWCFG="lte_mimo_layers",1;+QNWCFG="nr5g_mimo_layers",1;+QNWCFG="lte_time_advance",1;+QNWCFG="nr5g_time_advance",1'
-    # Append mode-appropriate MIMO read
-    if [ "$network_type" = "5G-SA" ]; then
-        boot_cmd="${boot_cmd}"';+QNWCFG="nr5g_mimo_layers"'
-    elif [ "$network_type" = "LTE" ] || [ "$network_type" = "5G-NSA" ]; then
-        boot_cmd="${boot_cmd}"';+QNWCFG="lte_mimo_layers"'
-    fi
-    # Remaining mode-independent reads
-    boot_cmd="${boot_cmd}"';+QMAP="MPDN_RULE";+QMAP="IPPT_NAT";+QCFG="usbnet"'
-    result=$(qcmd "$boot_cmd" 2>/dev/null)
 
+    # --- B1: CA info + MIMO/timing enables (idempotent ",1" writes) ---
+    result=$(qcmd 'AT+QCAINFO=1;+QNWCFG="lte_mimo_layers",1;+QNWCFG="nr5g_mimo_layers",1;+QNWCFG="lte_time_advance",1;+QNWCFG="nr5g_time_advance",1' 2>/dev/null)
     if [ -n "$result" ]; then
-        # MIMO layers (parser greps for each prefix independently)
         parse_mimo "$result" "$result"
+    fi
+    sleep "$SIP_DELAY"
 
-        # IP Passthrough settings (all parsers grep for their specific keywords)
+    # --- B2: mode-appropriate MIMO read (lte_mimo_layers crashes in SA,
+    # nr5g_mimo_layers crashes in LTE/NSA — same gate as before) ---
+    if [ "$network_type" = "5G-SA" ]; then
+        result=$(qcmd 'AT+QNWCFG="nr5g_mimo_layers"' 2>/dev/null)
+        [ -n "$result" ] && parse_mimo "" "$result"
+    elif [ "$network_type" = "LTE" ] || [ "$network_type" = "5G-NSA" ]; then
+        result=$(qcmd 'AT+QNWCFG="lte_mimo_layers"' 2>/dev/null)
+        [ -n "$result" ] && parse_mimo "$result" ""
+    fi
+    sleep "$SIP_DELAY"
+
+    # --- B3: IP Passthrough MPDN rule + NAT ---
+    result=$(qcmd 'AT+QMAP="MPDN_RULE";+QMAP="IPPT_NAT"' 2>/dev/null)
+    if [ -n "$result" ]; then
         parse_ippt_mpdn_rule "$result"
         parse_ippt_nat "$result"
+    fi
+    sleep "$SIP_DELAY"
+
+    # --- B4: IP Passthrough usbnet mode (own AT+QCFG subsystem, own call) ---
+    result=$(qcmd 'AT+QCFG="usbnet"' 2>/dev/null)
+    if [ -n "$result" ]; then
         parse_ippt_usbnet "$result"
     fi
 
