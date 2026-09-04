@@ -75,11 +75,18 @@ const STATUS_POLL_MS = 5000;
  *  would stamp every sample at the same ms and collide the React keys. */
 const FALLBACK_INTERVAL_MS = 5000;
 
-const BUCKET_MS: Record<Exclude<ViewMode, "realtime">, number> = {
-  hourly: 3_600_000,
-  twelvehour: 43_200_000,
-  daily: 86_400_000,
-};
+/** Cut in LOCAL time: the labels beside these buckets are local, and an
+ *  epoch-modulo cut lands the day boundary on UTC midnight instead. */
+function bucketStart(
+  tsMs: number,
+  mode: Exclude<ViewMode, "realtime">,
+): number {
+  const d = new Date(tsMs);
+  d.setMinutes(0, 0, 0);
+  if (mode === "hourly") return d.getTime();
+  d.setHours(mode === "daily" ? 0 : d.getHours() < 12 ? 0 : 12);
+  return d.getTime();
+}
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -150,14 +157,14 @@ interface BucketAcc {
 
 function aggregateByBucket(
   entries: PingHistoryEntry[],
-  bucketMs: number,
+  mode: Exclude<ViewMode, "realtime">,
 ): LatencySample[] {
   if (entries.length === 0) return [];
 
   const buckets = new Map<number, BucketAcc>();
 
   for (const entry of entries) {
-    const start = Math.floor((entry.ts * 1000) / bucketMs) * bucketMs;
+    const start = bucketStart(entry.ts * 1000, mode);
     let acc = buckets.get(start);
     if (!acc) {
       acc = {
@@ -274,7 +281,7 @@ export function useLatencyMonitoring(): UseLatencyMonitoringReturn {
 
   const aggregateSamples = useMemo<LatencySample[]>(() => {
     if (isRealtime) return [];
-    return aggregateByBucket(pingHistory, BUCKET_MS[viewMode]);
+    return aggregateByBucket(pingHistory, viewMode);
   }, [isRealtime, viewMode, pingHistory]);
 
   const samples = isRealtime ? realtimeSamples : aggregateSamples;
