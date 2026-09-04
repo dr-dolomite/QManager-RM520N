@@ -108,6 +108,11 @@ fi
 # =============================================================================
 # 3GPP release is the only live AT call here. LAN IP/gateway moved to the
 # poller's collect_boot_data() and is read from the cache above.
+#
+# AT+QNWCFG="3gpp_rel" does not exist on RG501Q-EU (SDX55): its own
+# AT+QNWCFG=? capability list has no "3gpp_rel" entry, confirmed on 3
+# retries. Expect a qcmd ERROR log line on every About-page load on that
+# device — the empty rel_lte/rel_nr5g fallback below is correct, not a bug.
 rel_lte=""
 rel_nr5g=""
 
