@@ -211,6 +211,7 @@ The rules that fall out of it:
 | Rootfs | `ubi0:rootfs`, boots **`ro`** — proof is `ro` in `/proc/cmdline`, not `/proc/mounts` | **Same** — `/proc/cmdline` carries `ro`, `root=ubi0:rootfs`, `rootfstype=ubifs`, `ubi.mtd=30 ubi.mtd=25` | RM520N-GL: on-device · `qmanager-independence.md`. RG501Q-EU: adb 2026-08-25 (`b7e3d6f1`) — stock firmware |
 | `/etc` + `/usrdata` + `/opt` | Same UBIFS volume `ubi2_0`, always rw, no remount needed. `/opt` is **not** a volume of its own — it is a bind of `/usrdata/opt` (`opt.mount`: `What=/usrdata/opt`, `Type=none`, `Options=bind`), so `/proc/mounts` shows `/dev/ubi2_0` on both `/usrdata` and `/opt` | **Same** — `/dev/ubi2_0` backs `/usrdata`, `/etc` **and** `/opt`, all `ubifs rw,relatime,bulk_read`, with `/opt` bound from `/usrdata/opt` exactly as on the RM520N-GL. **No `/opt`-shaped divergence between the two devices** | RM520N-GL: reboot-proven 2026-08-10; `/opt` bind measured 2026-08-25 (`/proc/mounts`, the `opt.mount` unit, and byte-identical `ls -la /usrdata/opt/etc/init.d/` vs `/opt/etc/init.d/`). RG501Q-EU: adb 2026-08-25 `/proc/mounts` — stock firmware |
 | `/tmp` | tmpfs, `root:root 1777`, ~89 MB, cleared every boot | `tmpfs rw,nosuid,nodev` and **exec-capable** (a `chmod +x` script in `/tmp` ran); mode and size *unverified* | RM520N-GL: on-device · `tmp-file-ownership.md`. RG501Q-EU: adb 2026-08-25, probe file removed — stock firmware |
+| ⚠️ `/run/resolv.conf` | **Present**, carrying the carrier-assigned resolvers; `/etc/resolv.conf` is present too and holds identical contents | ⚠️ **Does not exist.** `/etc/resolv.conf` is the only copy. A reader of the carrier resolvers must try both paths and take the first that yields a `nameserver` line — see [`custom-dns.md`](./custom-dns.md) | on-device 2026-09-04, both devices (`61368cd2` / `b7e3d6f1`) |
 | adb shell UID | n/a (SSH) | `uid=0(root)` | adb 2026-08-25 — stock firmware |
 | ⚠️ `/etc/passwd` mode | `-rw-r--r-- root:root` (**0644**) — any user can resolve a name to a uid | ⚠️ **`-rw------- root:root` (0600)** — a genuine divergence. A **non-root** caller cannot resolve identities in either direction: `id -u www-data` returns `id: unknown user www-data` (exit 1) and `id -un` returns `id: unknown ID 33` (exit 1, after printing the bare uid). Argumentless `id -u` is a bare `getuid()` and works everywhere | Both, over SSH 2026-08-31 (serials `61368cd2` / `b7e3d6f1`), while fixing F7 |
 | ⚠️ `fs.protected_regular` | **`=1`** — blocks **root** (not www-data) from write-opening another UID's file in a sticky dir | ⚠️ **`=0`** — a genuine divergence. The whole cross-UID `/tmp` contract in [`tmp-file-ownership.md`](./tmp-file-ownership.md) **does not engage on this device**: root can write a www-data-owned file in `/tmp` freely. The `root:root 0666` seeding in `qmanager_setup` is therefore *redundant* here rather than load-bearing — do not read a working RG501Q-EU as evidence that a seeding mistake is harmless, because the same code on the RM520N-GL will fail silently | RM520N-GL: on-device · `tmp-file-ownership.md`. RG501Q-EU: adb 2026-08-25 · `rg501q-bringup.md`, re-confirmed over SSH 2026-08-26 (`sysctl fs.protected_regular`, serial `b7e3d6f1`) |
@@ -1577,6 +1578,7 @@ it is a real bug on the new target, not a cosmetic difference.
 | LAN / bridge mode | n/a — `eth0` carrier board | **Router mode, not passthrough** — `bridge0` is `192.168.225.1/24` with `MASQUERADE` on `rmnet_data0` | RG501Q-EU: adb 2026-08-25 — device state (see the identity warning at the top) |
 | `bridge0` interface presence | **Present, UP** | **Present, UP** (ifindex 10) | SSH 2026-08-31, both devices (`61368cd2` / `b7e3d6f1`) — `ip link show bridge0`. Matters because every Traffic Engine iptables rule is anchored on `-i bridge0` (`dpi.md`); the row above inferred `bridge0` on the RG501Q-EU from its address, this measured it directly |
 | LAN gateway config (`/etc/data/mobileap_cfg.xml`) | Present; `<APIPAddr>192.168.225.1</APIPAddr>`, `<GatewayURL>` node also present (see `LAN_settings.sh`) | **Present, same schema** — `radio:radio 0755`, 6910 bytes; `<APIPAddr>192.168.225.1</APIPAddr>`, `<GatewayURL>mobileap.qualcomm.com</GatewayURL>` | RG501Q-EU: adb 2026-08-25 (`b7e3d6f1`) — post-reset state |
+| ⚠️ `<DNSMode>` in `/etc/data/mobileap_cfg.xml` | **Present** — `<DNSMode>PROXY</DNSMode>`. Its `<DHCPCfg>` carries `StartIP`, `EndIP`, `LeaseTime`, **plus** `MTU`, `DNSMode`, `IPv4PrimaryAddress`, `IPv4SecondaryAddress` | ⚠️ **Absent — zero `DNSMode` hits in the whole file.** Its `<DHCPCfg>` holds only `StartIP`, `EndIP`, `LeaseTime`. This firmware ships **no DNS-mode selector**, so proxy is its only mode; absent is "the question does not exist here", not "unknown" | on-device 2026-09-04, both devices (`61368cd2` / `b7e3d6f1`) — see the section below and [`custom-dns.md`](./custom-dns.md) |
 | Outbound IP reachability | n/a | DNS resolves (`10.151.151.44`, `10.151.151.48`); **TCP connects but payloads are reset** — `1.1.1.1:443` connects in 88 ms then `gnutls_handshake() failed: Error in the pull function`; `http://example.com/` → `curl (56) Recv failure: Connection reset by peer`. Cause *unverified* | RG501Q-EU: adb 2026-08-25 — device state |
 | Counter orientation (`/proc/net/dev`) | normal (rx=DL, tx=UL) | *unverified* — see the orientation note below | `data-counter-platform-matrix.md` — already per-SoC |
 
@@ -1603,6 +1605,27 @@ reversed map. Two reasons that is not a measurement: it was established on a
 different model, and `Branch Name` for RG501Q-EU is itself `*unverified*` (see
 the header table) — it is a map lookup on an unmeasured key. Treat as a Phase-B
 hypothesis to test, never as a known value.
+
+### Custom DNS is verified on both devices as of 2026-09-04
+
+**Short version: the whole Custom DNS apply pipeline already worked on the SDX55. The only thing stopping it was a read-time gate that treated a missing `<DNSMode>` element as "I cannot tell" and refused to write.** With that gate taught to distinguish *absent* from *unreadable*, the feature came up on the RG501Q-EU with no other change, and the RM520N-GL's payload is byte-identical to before.
+
+Both devices ran the patched CGI from `/tmp`; the installed copy was left untouched.
+
+| Check | RG501Q-EU (`b7e3d6f1`) | RM520N-GL (`61368cd2`) |
+| --- | --- | --- |
+| `GET` before | `dnsMode:"UNKNOWN"`, `available:false`, `currentUpstream:[]`, `currentSource:"unknown"` | `dnsMode:"PROXY"`, `available:true`, two carrier resolvers, `currentSource:"carrier"` |
+| `GET` after | `dnsMode:"ABSENT"`, `available:true`, `["10.151.151.44","10.151.151.48"]`, `currentSource:"carrier"` | **byte-identical to before** — no regression |
+| `POST action=save` | `ok:true`; block at line 307 of `/etc/data/dnsmasq.conf`, file back to `radio:radio`; dnsmasq PIDs unchanged across the `killall -HUP` (reload, not restart); resolution through `192.168.120.1` kept working | not re-run |
+| `POST action=clear` | `ok:true`; `diff` against the pre-test file clean — restored byte-identically | not re-run |
+| Pipeline prerequisites | sudoers fragment at `/opt/etc/sudoers.d/qmanager` (**no `/etc/sudoers.d` on this device**), staging dir `/etc/data/qmanager` at `0700 www-data`, `dnsmasq --test` passes on dnsmasq **2.79** | as previously recorded |
+
+> ⚠️ **This did not measure which upstream answered a query.** The `SIGHUP` was observed to leave dnsmasq's PIDs intact and to leave name resolution working — a liveness result, not proof that queries switched to `1.1.1.1`. Do not cite this run as evidence of upstream switching.
+
+Two portability notes fall out of it, both already rows above:
+
+- **The presence test is a `grep`, not an XML parse.** `xmlstarlet` is absent on **both** devices (see the toolchain table), so any code branching on `command -v xmlstarlet` runs its fallback on every device that exists. Deciding element *presence* inside the `xmlstarlet` branch would have been a decision made by a command nobody has installed.
+- **"Absent" and "unreadable" are different answers.** This is a cousin of [the recurring mistake](#️-the-recurring-mistake-does-the-name-resolve-vs-does-the-thing-behave) at the top: a guard collapsed two distinct device states into one verdict, and the collapse was invisible on the single device where only one of them ever occurred.
 
 ## `/etc/qmanager/platform.json` — advisory hardware profile
 

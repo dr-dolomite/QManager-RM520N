@@ -435,7 +435,8 @@
         "value_custom": "Personalizzata",
         "value_carrier": "Operatore",
         "value_unknown": "Sconosciuta",
-        "caption": "dnsmasq, modalità {{mode}}"
+        "caption": "dnsmasq, modalità {{mode}}",
+        "caption_implicit": "dnsmasq, modalità proxy"
       },
       "fallback": {
         "label": "Fallback all'operatore",

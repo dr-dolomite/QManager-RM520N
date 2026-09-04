@@ -258,6 +258,12 @@ export function DnsStrip({
   const upstream = settings?.currentUpstream ?? [];
   const source = settings?.currentSource ?? "unknown";
   const dnsMode = settings?.dnsMode ?? "";
+  // "ABSENT" means the XML carries no <DNSMode> element at all (SDX55 firmware);
+  // dnsmasq is still proxying, so name the mode rather than print the sentinel.
+  const sourceCaption =
+    dnsMode === "ABSENT"
+      ? t(`${K}.tiles.source.caption_implicit`)
+      : t(`${K}.tiles.source.caption`, { mode: dnsMode || "?" });
   // `ignoreCarrier` is "do not fall back", so the tile's reading is its inverse.
   // Naming it here rather than at the call site keeps the double negative from
   // reaching the JSX, where it reads backwards every single time.
@@ -328,7 +334,7 @@ export function DnsStrip({
             <Tile
               glyph={RouteIcon}
               eyebrow={t(`${K}.tiles.source.label`)}
-              caption={t(`${K}.tiles.source.caption`, { mode: dnsMode || "?" })}
+              caption={sourceCaption}
             >
               <span className={VALUE_TEXT}>
                 {t(`${K}.tiles.source.value_${source}`)}

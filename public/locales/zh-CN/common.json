@@ -435,7 +435,8 @@
         "value_custom": "自定义",
         "value_carrier": "运营商",
         "value_unknown": "未知",
-        "caption": "dnsmasq，{{mode}} 模式"
+        "caption": "dnsmasq，{{mode}} 模式",
+        "caption_implicit": "dnsmasq，代理模式"
       },
       "fallback": {
         "label": "运营商回退",

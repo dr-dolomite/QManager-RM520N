@@ -435,7 +435,8 @@
         "value_custom": "Custom",
         "value_carrier": "Carrier",
         "value_unknown": "Unknown",
-        "caption": "dnsmasq, {{mode}} mode"
+        "caption": "dnsmasq, {{mode}} mode",
+        "caption_implicit": "dnsmasq, proxy mode"
       },
       "fallback": {
         "label": "Carrier fallback",

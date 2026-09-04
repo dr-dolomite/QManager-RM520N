@@ -46,11 +46,25 @@ MAX_SERVERS=4
 # Helpers
 # =============================================================================
 
-# get_dns_mode — extract <DNSMode> from mobileap_cfg.xml.
-# Tries xmlstarlet first; falls back to grep+sed.
+# get_dns_mode — read <DNSMode> from mobileap_cfg.xml as a tri-state: the value
+# verbatim, ABSENT when the element is not present, UNKNOWN when it cannot be read.
 get_dns_mode() {
-    if [ ! -f "$MOBILEAP_XML" ]; then
+    if [ ! -f "$MOBILEAP_XML" ] || [ ! -r "$MOBILEAP_XML" ]; then
         printf "UNKNOWN"
+        return
+    fi
+    # Presence must not depend on xmlstarlet — it is absent on both live devices.
+    local rc
+    grep -qE '<DNSMode([[:space:]]|>|/>)' "$MOBILEAP_XML" 2>/dev/null
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        # ABSENT needs a clean no-match (1, not a grep error) AND the <DHCPCfg>
+        # container in view — otherwise the file is truncated and we fail closed.
+        if [ "$rc" -eq 1 ] && grep -q '<DHCPCfg' "$MOBILEAP_XML" 2>/dev/null; then
+            printf "ABSENT"
+        else
+            printf "UNKNOWN"
+        fi
         return
     fi
     local val
@@ -61,6 +75,15 @@ get_dns_mode() {
               | sed 's/<[^>]*>//g')
     fi
     printf '%s' "${val:-UNKNOWN}"
+}
+
+# dns_mode_available — writes are permitted when the mode reads PROXY, or when
+# the firmware has no DNSMode selector at all (SDX55: absent means proxy-only).
+dns_mode_available() {
+    case "$1" in
+        PROXY|ABSENT) return 0 ;;
+    esac
+    return 1
 }
 
 # get_passthrough_bypass — true when IP passthrough is active AND DNS proxy is
@@ -194,7 +217,7 @@ build_get_payload() {
 
     # --- DNS mode from XML ---
     dns_mode=$(get_dns_mode)
-    if [ "$dns_mode" = "PROXY" ]; then
+    if dns_mode_available "$dns_mode"; then
         available=true
     fi
 
@@ -204,16 +227,22 @@ build_get_payload() {
         current_upstream_json="$servers_json"
         current_source="custom"
     else
-        # Read from /run/resolv.conf (carrier-assigned)
-        if [ -f "/run/resolv.conf" ]; then
-            current_upstream_json=$(grep '^nameserver ' /run/resolv.conf \
+        # Carrier-assigned upstream: /run/resolv.conf, else /etc/resolv.conf
+        # (SDX55 has only the latter). First candidate with nameservers wins.
+        local resolv_file
+        local resolv_json
+        for resolv_file in /run/resolv.conf /etc/resolv.conf; do
+            [ -f "$resolv_file" ] || continue
+            resolv_json=$(grep '^nameserver ' "$resolv_file" \
                 | awk '{print $2}' \
                 | jq -R . \
                 | jq -s .)
-            if [ "$current_upstream_json" != "[]" ] && [ -n "$current_upstream_json" ]; then
+            if [ -n "$resolv_json" ] && [ "$resolv_json" != "[]" ]; then
+                current_upstream_json="$resolv_json"
                 current_source="carrier"
+                break
             fi
-        fi
+        done
     fi
 
     # --- Passthrough bypass ---
@@ -314,7 +343,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         # --- Gate: dnsMode must be PROXY ---
         dns_mode=$(get_dns_mode)
-        if [ "$dns_mode" != "PROXY" ]; then
+        if ! dns_mode_available "$dns_mode"; then
             jq -n --arg mode "$dns_mode" \
                 '{"ok":false,"error":"Custom DNS is unavailable while DNS Mode is \($mode)"}'
             # HTTP 409 body; lighttpd reads status from Status: header if present

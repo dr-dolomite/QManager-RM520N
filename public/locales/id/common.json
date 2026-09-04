@@ -435,7 +435,8 @@
         "value_custom": "Kustom",
         "value_carrier": "Operator",
         "value_unknown": "Tidak diketahui",
-        "caption": "dnsmasq, mode {{mode}}"
+        "caption": "dnsmasq, mode {{mode}}",
+        "caption_implicit": "dnsmasq, mode proxy"
       },
       "fallback": {
         "label": "Cadangan operator",
