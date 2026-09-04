@@ -102,23 +102,23 @@ export const CROSSFADE_STACK =
   "grid grid-cols-1 grid-rows-1 *:col-start-1 *:row-start-1";
 
 /**
- * PINNED at 44px, which is what lets the skeleton mirror it exactly: 10px of
- * padding over an 18.2px message line, a 1px gap and a 14px meta line.
+ * PINNED at 52px, which is what lets the skeleton mirror it exactly: 8px of
+ * padding over an 18.9px message line, a 2px gap and a 16px meta line.
  */
-const ROW_HEIGHT = "h-11";
+const ROW_HEIGHT = "h-[3.25rem]";
 
 export const ROW = {
   HEIGHT: ROW_HEIGHT,
-  ROOT: `flex ${ROW_HEIGHT} items-center gap-[0.6875rem] rounded-tile px-[0.8125rem] py-[0.3125rem]`,
+  ROOT: `flex ${ROW_HEIGHT} items-center gap-3 rounded-tile px-4 py-2`,
   /** The settle from weighted to quiet. It must read as a row going quiet. */
   TRANSITION: "transition-colors duration-(--duration-standard) ease-standard",
-  DISC: "grid size-[1.625rem] flex-none place-items-center rounded-pill",
-  GLYPH: "size-3.5",
-  BODY: "flex min-w-0 flex-1 flex-col gap-px",
-  MESSAGE: "truncate text-[0.84375rem] leading-[1.35] font-medium",
-  META: "flex h-3.5 min-w-0 items-center gap-1.5",
+  DISC: "grid size-8 flex-none place-items-center rounded-pill",
+  GLYPH: "size-4",
+  BODY: "flex min-w-0 flex-1 flex-col gap-[2px]",
+  MESSAGE: "truncate text-sm leading-[1.35] font-medium",
+  META: "flex h-4 min-w-0 items-center gap-1.5",
   /** Size overrides only; the role stays the `Tag` variant's job. */
-  META_CHIP: "h-3.5 shrink-0 px-1.5 py-0 text-[0.6875rem] leading-none",
+  META_CHIP: "h-4 shrink-0 px-1.5 py-0 text-[0.6875rem] leading-none",
   /** On a tinted row the chip takes the container's OWN ink; a neutral-ramp
    *  stroke on a chromatic surface is a crossed pair. */
   META_CHIP_ON_TONAL: "border-current/45 text-current",
@@ -132,8 +132,8 @@ export const ROW = {
   /** Inherit the container's `on-` ink on a chromatic row. */
   META_ID_ON_TONAL: "truncate font-mono text-[0.6875rem] leading-none opacity-90",
   WHEN: "flex flex-none flex-col items-end pl-2",
-  RELATIVE: "text-[0.78125rem] leading-none font-semibold tabular-nums",
-  ABSOLUTE: "text-[0.65625rem] leading-none tabular-nums pt-[3px]",
+  RELATIVE: "text-[0.8125rem] leading-none font-semibold tabular-nums",
+  ABSOLUTE: "text-[0.6875rem] leading-none tabular-nums pt-[4px]",
 } as const;
 
 /** Ink for the absolute time on a row that has no chromatic container. */
