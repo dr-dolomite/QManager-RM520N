@@ -844,5 +844,252 @@
     "notice": {
       "stale": "Menampilkan peristiwa terakhir yang berhasil kami baca. {{message}}"
     }
+  },
+  "alerts": {
+    "activity": {
+      "cause": {
+        "planned": "Direncanakan",
+        "unexpected": "Tidak terduga",
+        "watchdog": "Watchdog"
+      },
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "day": {
+        "today": "Hari ini",
+        "undated": "Waktu tidak tercatat",
+        "yesterday": "Kemarin"
+      },
+      "description": "Peringatan yang dikirim dan reboot yang tercatat, terbaru dulu.",
+      "empty": {
+        "description": "Peringatan muncul di sini setelah salurannya mengirim satu, dan reboot dicatat otomatis beserta penyebabnya.",
+        "title": "Belum ada yang terjadi"
+      },
+      "error": {
+        "retry": "Coba lagi",
+        "title": "Tidak dapat memuat aktivitas"
+      },
+      "event": {
+        "reboot": "Modem reboot"
+      },
+      "notice": {
+        "stale": "Menampilkan aktivitas terakhir yang berhasil kami baca. {{message}}"
+      },
+      "refresh": "Segarkan aktivitas",
+      "sr": {
+        "failed": "Peringatan gagal",
+        "reboot": "Reboot tercatat",
+        "sent": "Peringatan terkirim"
+      },
+      "time": {
+        "days_one": "{{count}}h lalu",
+        "days_other": "{{count}}h lalu",
+        "hours_one": "{{count}}j lalu",
+        "hours_other": "{{count}}j lalu",
+        "just_now": "Baru saja",
+        "minutes_one": "{{count}}m lalu",
+        "minutes_other": "{{count}}m lalu",
+        "unknown": "Tidak diketahui"
+      },
+      "title": "Aktivitas",
+      "transcript_label": "Riwayat peringatan dan reboot"
+    },
+    "band": {
+      "armedAll": "Setiap peristiwa punya saluran",
+      "armedEyebrow": "Siaga",
+      "armedGap": "Tidak semua peristiwa tercakup",
+      "armedIncomplete": "{{channels}} masih perlu disiapkan",
+      "armedSilent": "Tidak ada saluran yang bisa mengirim apa pun",
+      "armedValue": "{{covered}} dari {{total}}",
+      "daysAgo": "{{n}} hari lalu",
+      "hoursAgo": "{{n}} jam lalu",
+      "justNow": "Baru saja",
+      "lastEyebrow": "Peringatan terakhir",
+      "lastFailedCaption": "{{trigger}} gagal di {{channel}}",
+      "lastNever": "Belum pernah",
+      "lastNeverCaption": "Belum ada yang dikirim",
+      "lastSentCaption": "{{trigger}}, lewat {{channel}}",
+      "minutesAgo": "{{n}} menit lalu",
+      "outageCovered": "Tetap menjangkau Anda saat internet mati",
+      "outageEyebrow": "Cakupan gangguan",
+      "outageGap": "Gangguan akan berlalu tanpa pemberitahuan",
+      "outageNone": "Tidak ada",
+      "lastUnknown": "Tidak diketahui",
+      "lastUnknownCaption": "Tidak dapat membaca aktivitas",
+      "lastLoading": "Memuat peringatan terakhir"
+    },
+    "channels": {
+      "description": "Atur bagaimana masing-masing menjangkau Anda.",
+      "discord": {
+        "id_error": "Masukkan ID pengguna Discord berupa angka 17 hingga 20 digit.",
+        "id_hint": "Aktifkan Developer Mode, klik kanan nama Anda, lalu pilih Copy User ID.",
+        "id_label": "ID Discord pemilik",
+        "id_missing": "ID Discord pemilik diperlukan.",
+        "switch_off": "Peringatan Discord mati.",
+        "switch_on": "Dikirim sebagai pesan langsung dari bot Anda setelah koneksi kembali.",
+        "switch_title": "Kirim peringatan Discord",
+        "test": "Kirim pesan tes",
+        "token_hide": "Sembunyikan token bot",
+        "token_hint": "Buat bot dan salin tokennya di Discord Developer Portal.",
+        "token_keep": "Biarkan kosong untuk tetap memakai token tersimpan",
+        "token_label": "Token bot",
+        "token_link": "Buka Discord Developer Portal",
+        "token_missing": "Token bot diperlukan untuk mengirim peringatan Discord.",
+        "token_placeholder": "Tempel token bot Anda",
+        "token_show": "Tampilkan token bot"
+      },
+      "email": {
+        "address_error": "Masukkan alamat email yang valid.",
+        "mailer_install": "Instal msmtp",
+        "mailer_installing": "Menginstal…",
+        "mailer_missing": "Mailer msmtp belum terinstal, jadi email belum bisa dikirim. SMS dan Discord tetap tersimpan.",
+        "mailer_recheck": "Periksa lagi",
+        "password_hide": "Sembunyikan kata sandi aplikasi",
+        "password_hint": "Buat kata sandi aplikasi untuk perangkat ini di Akun Google Anda.",
+        "password_keep": "Biarkan kosong untuk tetap memakai kata sandi tersimpan",
+        "password_label": "Kata sandi aplikasi Gmail",
+        "password_link": "Buka kata sandi aplikasi Google",
+        "password_missing": "Kata sandi aplikasi diperlukan untuk mengirim email.",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_show": "Tampilkan kata sandi aplikasi",
+        "recipient_hint": "Tujuan pengiriman peringatan.",
+        "recipient_label": "Email penerima",
+        "recipient_missing": "Alamat penerima diperlukan.",
+        "sender_hint": "Akun Gmail yang mengirim peringatan.",
+        "sender_label": "Email pengirim",
+        "sender_missing": "Alamat pengirim diperlukan.",
+        "switch_off": "Peringatan email mati.",
+        "switch_on": "Dikirim lewat Gmail setelah koneksi kembali.",
+        "switch_title": "Kirim peringatan email",
+        "test": "Kirim email tes"
+      },
+      "empty": {
+        "description": "Perangkat ini tidak mengembalikan saluran peringatan apa pun, sehingga belum ada yang dapat dikonfigurasi.",
+        "title": "Tidak ada saluran yang dilaporkan"
+      },
+      "error": {
+        "retry": "Coba lagi",
+        "title": "Saluran tidak dapat dimuat"
+      },
+      "loading": "Memuat saluran peringatan",
+      "name": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "rail_label": "Saluran peringatan",
+      "save": {
+        "action": "Simpan Pengaturan",
+        "blocked": "Perbaiki kolom yang ditandai",
+        "blocked_in": "Perbaiki kesalahan di {{channels}}",
+        "clean": "Semua perubahan tersimpan",
+        "dirty": "Perubahan belum tersimpan",
+        "discard": "Buang",
+        "failed": "Pengaturan tidak dapat disimpan.",
+        "saved": "Tersimpan",
+        "succeeded": "Pengaturan peringatan tersimpan"
+      },
+      "secret_saved": "Tersimpan",
+      "sms": {
+        "phone_error": "Masukkan nomor beserta kode negaranya, seperti +14155551234.",
+        "phone_hint": "Sertakan kode negara dengan tanda plus di depan.",
+        "phone_label": "Telepon penerima",
+        "phone_missing": "Nomor telepon penerima diperlukan.",
+        "switch_off": "Peringatan SMS mati.",
+        "switch_on": "Dikirim sebagai SMS lewat jaringan seluler, sehingga tetap sampai saat terjadi gangguan.",
+        "switch_title": "Kirim peringatan SMS",
+        "test": "Kirim SMS tes"
+      },
+      "status": {
+        "incomplete": "Perlu disiapkan",
+        "needs_fixing": "Ada kesalahan yang belum disimpan",
+        "off": "Mati",
+        "ready": "Siap",
+        "unused": "Tidak ada peristiwa yang dirutekan"
+      },
+      "test": {
+        "blocked_busy": "Tes lain masih berjalan.",
+        "blocked_dirty": "Simpan perubahan Anda dahulu. Tes berjalan berdasarkan pengaturan yang tersimpan.",
+        "blocked_incomplete": "Selesaikan penyiapan saluran ini, lalu simpan, untuk mengirim tes.",
+        "blocked_mailer": "Instal mailer msmtp untuk mengirim email tes.",
+        "blocked_off": "Aktifkan saluran ini, lalu simpan, untuk mengirim tes.",
+        "blocked_offline": "Bot Discord belum terhubung.",
+        "failed": "Tes tidak dapat dikirim.",
+        "sending": "Mengirim…",
+        "sent": "Terkirim",
+        "succeeded": "Tes {{channel}} terkirim"
+      },
+      "threshold_error": "Masukkan bilangan bulat menit dari 1 hingga 60.",
+      "threshold_hint": "Saluran ini hanya mengirim jika gangguan berlangsung setidaknya selama ini. Setiap saluran mengukur gangguan yang sama terhadap jedanya masing-masing.",
+      "threshold_label": "Tunggu sebelum memberi peringatan",
+      "threshold_unit": "menit",
+      "title": "Saluran"
+    },
+    "coverage": {
+      "cell": {
+        "fires": "Terkirim",
+        "incapable": "Tidak didukung",
+        "pendingNote": "Menunggu disimpan",
+        "quiet": "Dibisukan",
+        "quietNote": "Saluran mati",
+        "unrouted": "Tidak dikirim",
+        "attempt": "Akan dicoba",
+        "attemptNote": "Saluran belum selesai disiapkan",
+        "unroutedNote": "Tidak dicentang untuk peristiwa ini"
+      },
+      "cellAction": "{{event}} lewat {{channel}}: {{state}}",
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "channelStatus": {
+        "incomplete": "Perlu disiapkan",
+        "off": "Mati",
+        "ready": "Siap",
+        "unused": "Tidak dipakai"
+      },
+      "description": "Yang benar-benar terpicu. Satu sel aktif hanya jika salurannya nyala, sudah disiapkan, dan mampu mengirim peristiwa itu.",
+      "emptyDesc": "Perangkat tidak melaporkan kemampuan peringatan apa pun, sehingga tidak ada yang dapat diaktifkan di sini.",
+      "emptyTitle": "Tidak ada yang dapat dirutekan",
+      "errorDesc": "Perangkat tidak menjawab, sehingga kami tidak dapat menunjukkan apa yang akan terpicu.",
+      "errorRetry": "Coba lagi",
+      "errorTitle": "Tidak dapat memuat cakupan",
+      "event": {
+        "connection_lost": {
+          "desc": "Saat internet mati",
+          "name": "Koneksi terputus"
+        },
+        "connection_restored": {
+          "desc": "Setelah tautan kembali",
+          "name": "Koneksi pulih"
+        },
+        "reboot": {
+          "desc": "Dikirim begitu modem kembali, disertai penyebabnya",
+          "name": "Modem reboot"
+        }
+      },
+      "loading": "Memuat cakupan",
+      "outageNoticeNone": "Gangguan akan berlalu tanpa pemberitahuan. Tidak ada saluran di perangkat ini yang dapat melaporkannya.",
+      "outageNoticeWith": "Gangguan akan berlalu tanpa pemberitahuan. Aktifkan {{channels}} agar Anda diberi tahu.",
+      "reason": {
+        "discord_needs_internet": "Perlu internet",
+        "email_needs_internet": "Perlu internet",
+        "not_supported": "Saluran ini tidak dapat mengirim peristiwa ini"
+      },
+      "silentNotice": "Tidak ada yang akan dikirim. Tidak ada sel pada matriks ini yang aktif.",
+      "staleNotice": "Menampilkan pengaturan terakhir yang berhasil kami baca dari perangkat.",
+      "title": "Cakupan",
+      "unsavedNotice": "Centang ini belum disimpan. Simpan di Saluran di bawah.",
+      "blockedNotice": "Tidak ada yang dapat disimpan di sini sampai kesalahan di {{channels}} diperbaiki."
+    },
+    "page": {
+      "description": "Siapa yang diberi tahu saat koneksi terputus, kembali, atau modem reboot.",
+      "refresh": "Segarkan",
+      "title": "Peringatan",
+      "unreadable": "Perangkat tidak menjawab."
+    }
   }
 }

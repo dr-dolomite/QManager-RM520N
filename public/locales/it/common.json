@@ -844,5 +844,252 @@
     "notice": {
       "stale": "Mostriamo gli ultimi eventi che siamo riusciti a leggere. {{message}}"
     }
+  },
+  "alerts": {
+    "activity": {
+      "cause": {
+        "planned": "Pianificato",
+        "unexpected": "Imprevisto",
+        "watchdog": "Watchdog"
+      },
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "day": {
+        "today": "Oggi",
+        "undated": "Nessun orario registrato",
+        "yesterday": "Ieri"
+      },
+      "description": "Avvisi inviati e riavvii registrati, dal più recente.",
+      "empty": {
+        "description": "Gli avvisi compaiono qui non appena un canale ne invia uno, e i riavvii vengono registrati automaticamente con la loro causa.",
+        "title": "Non è ancora successo nulla"
+      },
+      "error": {
+        "retry": "Riprova",
+        "title": "Impossibile caricare l'attività"
+      },
+      "event": {
+        "reboot": "Modem riavviato"
+      },
+      "notice": {
+        "stale": "Mostriamo l'ultima attività che siamo riusciti a leggere. {{message}}"
+      },
+      "refresh": "Aggiorna l'attività",
+      "sr": {
+        "failed": "Avviso non riuscito",
+        "reboot": "Riavvio registrato",
+        "sent": "Avviso inviato"
+      },
+      "time": {
+        "days_one": "{{count}}d fa",
+        "days_other": "{{count}}d fa",
+        "hours_one": "{{count}}h fa",
+        "hours_other": "{{count}}h fa",
+        "just_now": "Proprio adesso",
+        "minutes_one": "{{count}}m fa",
+        "minutes_other": "{{count}}m fa",
+        "unknown": "Sconosciuto"
+      },
+      "title": "Attività",
+      "transcript_label": "Cronologia di avvisi e riavvii"
+    },
+    "band": {
+      "armedAll": "Ogni evento ha un canale",
+      "armedEyebrow": "Armati",
+      "armedGap": "Non tutti gli eventi sono coperti",
+      "armedIncomplete": "Configurazione ancora necessaria per {{channels}}",
+      "armedSilent": "Nessun canale può inviare nulla",
+      "armedValue": "{{covered}} di {{total}}",
+      "daysAgo": "{{n}} d fa",
+      "hoursAgo": "{{n}} h fa",
+      "justNow": "Proprio adesso",
+      "lastEyebrow": "Ultimo avviso",
+      "lastFailedCaption": "{{trigger}} non riuscito su {{channel}}",
+      "lastNever": "Mai",
+      "lastNeverCaption": "Non è stato ancora inviato nulla",
+      "lastSentCaption": "{{trigger}}, via {{channel}}",
+      "minutesAgo": "{{n}} min fa",
+      "outageCovered": "Ti raggiunge anche quando internet è assente",
+      "outageEyebrow": "Copertura interruzioni",
+      "outageGap": "Un'interruzione passerebbe inosservata",
+      "outageNone": "Nessuna",
+      "lastUnknown": "Sconosciuto",
+      "lastUnknownCaption": "Impossibile leggere l'attività",
+      "lastLoading": "Caricamento dell'ultimo avviso"
+    },
+    "channels": {
+      "description": "Configura come ciascuno ti raggiunge.",
+      "discord": {
+        "id_error": "Inserisci un ID utente Discord numerico da 17 a 20 cifre.",
+        "id_hint": "Attiva la Modalità sviluppatore, fai clic destro sul tuo nome, poi scegli Copia ID utente.",
+        "id_label": "ID Discord del proprietario",
+        "id_missing": "È necessario l'ID Discord del proprietario.",
+        "switch_off": "Gli avvisi via Discord sono disattivi.",
+        "switch_on": "Inviati come messaggio diretto dal tuo bot non appena la connessione torna.",
+        "switch_title": "Invia avvisi via Discord",
+        "test": "Invia un messaggio di prova",
+        "token_hide": "Nascondi il token del bot",
+        "token_hint": "Crea un bot e copia il suo token nel Discord Developer Portal.",
+        "token_keep": "Lascia vuoto per mantenere il token salvato",
+        "token_label": "Token del bot",
+        "token_link": "Apri il Discord Developer Portal",
+        "token_missing": "Per inviare avvisi via Discord è necessario un token del bot.",
+        "token_placeholder": "Incolla il token del tuo bot",
+        "token_show": "Mostra il token del bot"
+      },
+      "email": {
+        "address_error": "Inserisci un indirizzo email valido.",
+        "mailer_install": "Installa msmtp",
+        "mailer_installing": "Installazione",
+        "mailer_missing": "Il client di posta msmtp non è installato, quindi le email non possono ancora essere inviate. SMS e Discord vengono comunque salvati.",
+        "mailer_recheck": "Controlla di nuovo",
+        "password_hide": "Nascondi la password per le app",
+        "password_hint": "Genera una password per le app per questo dispositivo nel tuo Account Google.",
+        "password_keep": "Lascia vuoto per mantenere la password salvata",
+        "password_label": "Password per le app di Gmail",
+        "password_link": "Apri le password per le app di Google",
+        "password_missing": "Per inviare email è necessaria una password per le app.",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_show": "Mostra la password per le app",
+        "recipient_hint": "Dove vengono recapitati gli avvisi.",
+        "recipient_label": "Email del destinatario",
+        "recipient_missing": "È necessario un indirizzo del destinatario.",
+        "sender_hint": "L'account Gmail che invia l'avviso.",
+        "sender_label": "Email del mittente",
+        "sender_missing": "È necessario un indirizzo del mittente.",
+        "switch_off": "Gli avvisi via email sono disattivi.",
+        "switch_on": "Inviati via email tramite Gmail non appena la connessione torna.",
+        "switch_title": "Invia avvisi via email",
+        "test": "Invia un'email di prova"
+      },
+      "empty": {
+        "description": "Questo dispositivo non ha restituito alcun canale di avviso, quindi per ora non c'è nulla da configurare.",
+        "title": "Nessun canale segnalato"
+      },
+      "error": {
+        "retry": "Riprova",
+        "title": "Impossibile caricare i canali"
+      },
+      "loading": "Caricamento dei canali di avviso…",
+      "name": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "rail_label": "Canale di avviso",
+      "save": {
+        "action": "Salva impostazioni",
+        "blocked": "Correggi i campi evidenziati",
+        "blocked_in": "Correggi gli errori in {{channels}}",
+        "clean": "Tutte le modifiche sono state salvate",
+        "dirty": "Modifiche non salvate",
+        "discard": "Scarta",
+        "failed": "Non è stato possibile salvare le impostazioni.",
+        "saved": "Salvato",
+        "succeeded": "Impostazioni di avviso salvate"
+      },
+      "secret_saved": "Salvato",
+      "sms": {
+        "phone_error": "Inserisci un numero con il prefisso internazionale, ad esempio +14155551234.",
+        "phone_hint": "Includi il prefisso internazionale con il segno più iniziale.",
+        "phone_label": "Telefono del destinatario",
+        "phone_missing": "È necessario un numero di telefono del destinatario.",
+        "switch_off": "Gli avvisi via SMS sono disattivi.",
+        "switch_on": "Inviati via SMS sulla rete cellulare, quindi arrivano anche durante un'interruzione.",
+        "switch_title": "Invia avvisi via SMS",
+        "test": "Invia un SMS di prova"
+      },
+      "status": {
+        "incomplete": "Richiede configurazione",
+        "needs_fixing": "Ha errori non salvati",
+        "off": "Disattivo",
+        "ready": "Pronto",
+        "unused": "Nessun evento instradato"
+      },
+      "test": {
+        "blocked_busy": "Un altro test è ancora in corso.",
+        "blocked_dirty": "Salva prima le modifiche. Un test viene eseguito sulle impostazioni salvate.",
+        "blocked_incomplete": "Completa la configurazione di questo canale, poi salva, per inviare un test.",
+        "blocked_mailer": "Installa il client di posta msmtp per inviare un'email di prova.",
+        "blocked_off": "Attiva questo canale, poi salva, per inviare un test.",
+        "blocked_offline": "Il bot Discord non è ancora connesso.",
+        "failed": "Non è stato possibile inviare il test.",
+        "sending": "Invio in corso",
+        "sent": "Inviato",
+        "succeeded": "Test {{channel}} inviato"
+      },
+      "threshold_error": "Inserisci un numero intero di minuti da 1 a 60.",
+      "threshold_hint": "Questo canale invia solo se l'intera interruzione è durata almeno questo tempo. Ogni canale misura la stessa interruzione rispetto alla propria attesa.",
+      "threshold_label": "Attesa prima di avvisare",
+      "threshold_unit": "minuti",
+      "title": "Canali"
+    },
+    "coverage": {
+      "cell": {
+        "fires": "Invia",
+        "incapable": "Non supportato",
+        "pendingNote": "In attesa di salvataggio",
+        "quiet": "Silenziato",
+        "quietNote": "Il canale è disattivo",
+        "unrouted": "Non invia",
+        "attempt": "Proverà",
+        "attemptNote": "Canale non ancora configurato",
+        "unroutedNote": "Non spuntato per questo evento"
+      },
+      "cellAction": "{{event}} via {{channel}}: {{state}}",
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "channelStatus": {
+        "incomplete": "Richiede configurazione",
+        "off": "Disattivo",
+        "ready": "Pronto",
+        "unused": "Non utilizzato"
+      },
+      "description": "Cosa scatta davvero. Una cella è attiva solo quando il canale è acceso, configurato e in grado di inviare quell'evento.",
+      "emptyDesc": "Il dispositivo non ha segnalato alcuna capacità di avviso, quindi qui non c'è nulla da attivare.",
+      "emptyTitle": "Non è possibile instradare nulla",
+      "errorDesc": "Il dispositivo non ha risposto, quindi non possiamo mostrare cosa scatterà.",
+      "errorRetry": "Riprova",
+      "errorTitle": "Impossibile caricare la copertura",
+      "event": {
+        "connection_lost": {
+          "desc": "Quando internet non funziona",
+          "name": "Connessione persa"
+        },
+        "connection_restored": {
+          "desc": "Non appena il collegamento torna",
+          "name": "Connessione ripristinata"
+        },
+        "reboot": {
+          "desc": "Inviato non appena torna, con la causa",
+          "name": "Modem riavviato"
+        }
+      },
+      "loading": "Caricamento della copertura…",
+      "outageNoticeNone": "Un'interruzione passerebbe inosservata. Nessun canale su questo dispositivo può segnalarla.",
+      "outageNoticeWith": "Un'interruzione passerebbe inosservata. Attiva {{channels}} per esserne informato.",
+      "reason": {
+        "discord_needs_internet": "Richiede internet",
+        "email_needs_internet": "Richiede internet",
+        "not_supported": "Questo canale non può inviare questo evento"
+      },
+      "silentNotice": "Non verrà inviato nulla. Nessuna cella di questa matrice è attiva.",
+      "staleNotice": "Mostriamo le ultime impostazioni lette dal dispositivo.",
+      "title": "Copertura",
+      "unsavedNotice": "Queste selezioni non sono ancora salvate. Salvale in Canali qui sotto.",
+      "blockedNotice": "Qui non può essere salvato nulla finché gli errori in {{channels}} non vengono corretti."
+    },
+    "page": {
+      "description": "Chi viene avvisato quando la connessione cade, torna, o il modem si riavvia.",
+      "refresh": "Aggiorna",
+      "title": "Avvisi",
+      "unreadable": "Il dispositivo non ha risposto."
+    }
   }
 }

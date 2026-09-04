@@ -844,5 +844,252 @@
     "notice": {
       "stale": "顯示我們最後成功讀取到的事件。{{message}}"
     }
+  },
+  "alerts": {
+    "activity": {
+      "cause": {
+        "planned": "計畫內",
+        "unexpected": "非預期",
+        "watchdog": "看門狗"
+      },
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "day": {
+        "today": "今天",
+        "undated": "沒有記錄時間",
+        "yesterday": "昨天"
+      },
+      "description": "已傳送的警示與記錄到的重新啟動，最新優先。",
+      "empty": {
+        "description": "管道傳送警示後會顯示在這裡，重新啟動也會自動記錄並附上原因。",
+        "title": "目前尚無記錄"
+      },
+      "error": {
+        "retry": "重試",
+        "title": "無法載入活動記錄"
+      },
+      "event": {
+        "reboot": "數據機已重新啟動"
+      },
+      "notice": {
+        "stale": "顯示我們最後成功讀取到的活動記錄。{{message}}"
+      },
+      "refresh": "重新整理活動記錄",
+      "sr": {
+        "failed": "警示傳送失敗",
+        "reboot": "已記錄重新啟動",
+        "sent": "警示已傳送"
+      },
+      "time": {
+        "days_one": "{{count}} 天前",
+        "days_other": "{{count}} 天前",
+        "hours_one": "{{count}} 小時前",
+        "hours_other": "{{count}} 小時前",
+        "just_now": "剛剛",
+        "minutes_one": "{{count}} 分鐘前",
+        "minutes_other": "{{count}} 分鐘前",
+        "unknown": "未知"
+      },
+      "title": "活動記錄",
+      "transcript_label": "警示與重新啟動記錄"
+    },
+    "band": {
+      "armedAll": "每個事件都已有管道",
+      "armedEyebrow": "已啟用",
+      "armedGap": "並非所有事件都已涵蓋",
+      "armedIncomplete": "{{channels}} 仍待設定",
+      "armedSilent": "沒有任何管道可以傳送",
+      "armedValue": "{{covered}} / {{total}}",
+      "daysAgo": "{{n}} 天前",
+      "hoursAgo": "{{n}} 小時前",
+      "justNow": "剛剛",
+      "lastEyebrow": "最近警示",
+      "lastFailedCaption": "{{trigger}} 透過 {{channel}} 傳送失敗",
+      "lastNever": "從未",
+      "lastNeverCaption": "尚未傳送過任何內容",
+      "lastSentCaption": "{{trigger}}，透過 {{channel}}",
+      "minutesAgo": "{{n}} 分鐘前",
+      "outageCovered": "網路中斷時仍能通知您",
+      "outageEyebrow": "斷線涵蓋",
+      "outageGap": "斷線將不會通知您",
+      "outageNone": "無",
+      "lastUnknown": "未知",
+      "lastUnknownCaption": "無法讀取活動記錄",
+      "lastLoading": "正在載入最近一次警示"
+    },
+    "channels": {
+      "description": "設定每種管道如何通知您。",
+      "discord": {
+        "id_error": "請輸入 17 到 20 位數字的 Discord 使用者 ID。",
+        "id_hint": "開啟開發者模式，在您的名稱上按右鍵，再選擇「複製使用者 ID」。",
+        "id_label": "擁有者 Discord ID",
+        "id_missing": "需要填寫擁有者 Discord ID。",
+        "switch_off": "Discord 警示已關閉。",
+        "switch_on": "連線恢復後，由您的機器人以私訊傳送。",
+        "switch_title": "傳送 Discord 警示",
+        "test": "傳送測試訊息",
+        "token_hide": "隱藏機器人權杖",
+        "token_hint": "在 Discord 開發者入口網站建立機器人並複製其權杖。",
+        "token_keep": "留空以保留已儲存的權杖",
+        "token_label": "機器人權杖",
+        "token_link": "開啟 Discord 開發者入口網站",
+        "token_missing": "需要機器人權杖才能傳送 Discord 警示。",
+        "token_placeholder": "貼上您的機器人權杖",
+        "token_show": "顯示機器人權杖"
+      },
+      "email": {
+        "address_error": "請輸入有效的電子郵件地址。",
+        "mailer_install": "安裝 msmtp",
+        "mailer_installing": "安裝中",
+        "mailer_missing": "尚未安裝 msmtp 郵件程式，因此目前無法傳送 Email。SMS 與 Discord 仍可正常儲存。",
+        "mailer_recheck": "重新檢查",
+        "password_hide": "隱藏應用程式密碼",
+        "password_hint": "請在您的 Google 帳戶中為此裝置產生一組應用程式密碼。",
+        "password_keep": "留空以保留已儲存的密碼",
+        "password_label": "Gmail 應用程式密碼",
+        "password_link": "開啟 Google 應用程式密碼頁面",
+        "password_missing": "需要應用程式密碼才能傳送 Email。",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_show": "顯示應用程式密碼",
+        "recipient_hint": "警示會送達的地址。",
+        "recipient_label": "收件人 Email",
+        "recipient_missing": "需要填寫收件人地址。",
+        "sender_hint": "用來寄送警示的 Gmail 帳號。",
+        "sender_label": "寄件人 Email",
+        "sender_missing": "需要填寫寄件人地址。",
+        "switch_off": "Email 警示已關閉。",
+        "switch_on": "連線恢復後，透過 Gmail 寄送電子郵件。",
+        "switch_title": "傳送 Email 警示",
+        "test": "傳送測試 Email"
+      },
+      "empty": {
+        "description": "此裝置未回傳任何警示管道，因此目前沒有可設定的項目。",
+        "title": "沒有回報任何管道"
+      },
+      "error": {
+        "retry": "重試",
+        "title": "無法載入管道"
+      },
+      "loading": "正在載入警示管道",
+      "name": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "rail_label": "警示管道",
+      "save": {
+        "action": "儲存設定",
+        "blocked": "請修正標示的欄位",
+        "blocked_in": "請修正 {{channels}} 中的錯誤",
+        "clean": "所有變更已儲存",
+        "dirty": "未儲存的變更",
+        "discard": "捨棄",
+        "failed": "設定無法儲存。",
+        "saved": "已儲存",
+        "succeeded": "警示設定已儲存"
+      },
+      "secret_saved": "已儲存",
+      "sms": {
+        "phone_error": "請輸入含國碼的號碼，例如 +14155551234。",
+        "phone_hint": "請加上國碼，並以加號開頭。",
+        "phone_label": "收件人電話",
+        "phone_missing": "需要填寫收件人電話號碼。",
+        "switch_off": "SMS 警示已關閉。",
+        "switch_on": "透過行動網路以簡訊傳送，因此斷線期間仍能送達。",
+        "switch_title": "傳送 SMS 警示",
+        "test": "傳送測試 SMS"
+      },
+      "status": {
+        "incomplete": "尚待設定",
+        "needs_fixing": "有未儲存的錯誤",
+        "off": "已關閉",
+        "ready": "已就緒",
+        "unused": "沒有已路由的事件"
+      },
+      "test": {
+        "blocked_busy": "另一項測試仍在執行中。",
+        "blocked_dirty": "請先儲存變更。測試會依照已儲存的設定執行。",
+        "blocked_incomplete": "請先完成此管道的設定並儲存，才能傳送測試。",
+        "blocked_mailer": "請安裝 msmtp 郵件程式才能傳送測試 Email。",
+        "blocked_off": "請先開啟此管道並儲存，才能傳送測試。",
+        "blocked_offline": "Discord 機器人尚未連線。",
+        "failed": "測試無法傳送。",
+        "sending": "傳送中",
+        "sent": "已傳送",
+        "succeeded": "測試 {{channel}} 已傳送"
+      },
+      "threshold_error": "請輸入 1 到 60 之間的整數分鐘數。",
+      "threshold_hint": "只有當整段斷線時間達到這個長度，此管道才會傳送。每個管道都會用自己的等待時間來衡量同一段斷線。",
+      "threshold_label": "警示前等待時間",
+      "threshold_unit": "分鐘",
+      "title": "管道"
+    },
+    "coverage": {
+      "cell": {
+        "fires": "傳送",
+        "incapable": "無法支援",
+        "pendingNote": "待儲存",
+        "quiet": "已靜音",
+        "quietNote": "管道已關閉",
+        "unrouted": "不傳送",
+        "attempt": "將嘗試",
+        "attemptNote": "管道尚未設定完成",
+        "unroutedNote": "未勾選此事件"
+      },
+      "cellAction": "{{event}}（透過 {{channel}}）：{{state}}",
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "channelStatus": {
+        "incomplete": "尚待設定",
+        "off": "已關閉",
+        "ready": "已就緒",
+        "unused": "未使用"
+      },
+      "description": "實際會觸發的內容。只有在管道已開啟、已設定完成，且能傳送該事件時，該格才算生效。",
+      "emptyDesc": "裝置未回報任何警示功能，因此這裡沒有可開啟的項目。",
+      "emptyTitle": "沒有可路由的項目",
+      "errorDesc": "裝置沒有回應，因此無法顯示會觸發的項目。",
+      "errorRetry": "重試",
+      "errorTitle": "無法載入涵蓋範圍",
+      "event": {
+        "connection_lost": {
+          "desc": "當網路中斷時",
+          "name": "連線中斷"
+        },
+        "connection_restored": {
+          "desc": "連線恢復後",
+          "name": "連線已恢復"
+        },
+        "reboot": {
+          "desc": "連線恢復後傳送，並附上原因",
+          "name": "數據機已重新啟動"
+        }
+      },
+      "loading": "正在載入涵蓋範圍",
+      "outageNoticeNone": "斷線將不會通知您。此裝置上沒有任何管道能回報斷線。",
+      "outageNoticeWith": "斷線將不會通知您。請啟用 {{channels}} 才能收到通知。",
+      "reason": {
+        "discord_needs_internet": "需要網路連線",
+        "email_needs_internet": "需要網路連線",
+        "not_supported": "此管道無法傳送此事件"
+      },
+      "silentNotice": "不會傳送任何內容。此矩陣中沒有生效的項目。",
+      "staleNotice": "顯示我們上次從裝置讀取到的設定。",
+      "title": "涵蓋範圍",
+      "unsavedNotice": "這些勾選項目尚未儲存，請在下方的管道中儲存。",
+      "blockedNotice": "在修正 {{channels}} 中的錯誤之前，這裡的任何內容都無法儲存。"
+    },
+    "page": {
+      "description": "連線中斷、恢復或數據機重新啟動時，會通知哪些對象。",
+      "refresh": "重新整理",
+      "title": "警示",
+      "unreadable": "裝置沒有回應。"
+    }
   }
 }

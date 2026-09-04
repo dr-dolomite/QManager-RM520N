@@ -409,3 +409,38 @@ export function useAlertsForm({
     discard,
   };
 }
+
+/**
+ * Which channels the form cannot save, and why the Save button early-returns.
+ * The coverage hero and the channels card must agree on this, so it is derived
+ * once here rather than restated on either surface.
+ */
+export function blockedChannelMap(
+  form: AlertsForm,
+): Record<AlertChannel, boolean> {
+  const { errors, missing } = form;
+  return {
+    sms:
+      (form.smsEnabled && (!!errors.smsPhone || !!errors.smsThreshold)) ||
+      missing.smsPhone,
+    email:
+      (form.emailEnabled &&
+        (!!errors.senderEmail ||
+          !!errors.recipientEmail ||
+          !!errors.emailThreshold)) ||
+      missing.senderEmail ||
+      missing.recipientEmail ||
+      missing.appPassword,
+    discord:
+      (form.discordEnabled &&
+        (!!errors.discordId || !!errors.discordThreshold)) ||
+      missing.discordId ||
+      missing.botToken,
+  };
+}
+
+/** The same verdict as a list, in `ALERT_CHANNEL_ORDER`. */
+export function blockedChannels(form: AlertsForm): AlertChannel[] {
+  const map = blockedChannelMap(form);
+  return ALERT_CHANNEL_ORDER.filter((channel) => map[channel]);
+}

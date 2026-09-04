@@ -844,5 +844,252 @@
     "notice": {
       "stale": "显示我们最后成功读取到的事件。{{message}}"
     }
+  },
+  "alerts": {
+    "activity": {
+      "cause": {
+        "planned": "计划内",
+        "unexpected": "意外",
+        "watchdog": "看门狗"
+      },
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "day": {
+        "today": "今天",
+        "undated": "没有记录时间",
+        "yesterday": "昨天"
+      },
+      "description": "已发送的提醒和已记录的重启，最新优先。",
+      "empty": {
+        "description": "一旦渠道发送提醒，就会显示在这里；重启也会连同原因自动记录。",
+        "title": "尚未发生任何事情"
+      },
+      "error": {
+        "retry": "重试",
+        "title": "无法加载活动记录"
+      },
+      "event": {
+        "reboot": "调制解调器已重启"
+      },
+      "notice": {
+        "stale": "显示我们最后成功读取到的活动记录。{{message}}"
+      },
+      "refresh": "刷新活动记录",
+      "sr": {
+        "failed": "提醒发送失败",
+        "reboot": "重启已记录",
+        "sent": "提醒已发送"
+      },
+      "time": {
+        "days_one": "{{count}} 天前",
+        "days_other": "{{count}} 天前",
+        "hours_one": "{{count}} 小时前",
+        "hours_other": "{{count}} 小时前",
+        "just_now": "刚刚",
+        "minutes_one": "{{count}} 分钟前",
+        "minutes_other": "{{count}} 分钟前",
+        "unknown": "未知"
+      },
+      "title": "活动记录",
+      "transcript_label": "提醒与重启记录"
+    },
+    "band": {
+      "armedAll": "每个事件都已配置渠道",
+      "armedEyebrow": "布防",
+      "armedGap": "并非所有事件都已覆盖",
+      "armedIncomplete": "{{channels}} 仍需设置",
+      "armedSilent": "没有渠道可以发送任何内容",
+      "armedValue": "{{covered}} / {{total}}",
+      "daysAgo": "{{n}} 天前",
+      "hoursAgo": "{{n}} 小时前",
+      "justNow": "刚刚",
+      "lastEyebrow": "最近一次提醒",
+      "lastFailedCaption": "{{trigger}} 在 {{channel}} 上发送失败",
+      "lastNever": "从未",
+      "lastNeverCaption": "尚未发送过任何内容",
+      "lastSentCaption": "{{trigger}}，通过 {{channel}}",
+      "minutesAgo": "{{n}} 分钟前",
+      "outageCovered": "断网期间仍能联系到你",
+      "outageEyebrow": "断网保障",
+      "outageGap": "断网将不会被察觉",
+      "outageNone": "无",
+      "lastUnknown": "未知",
+      "lastUnknownCaption": "无法读取活动记录",
+      "lastLoading": "正在加载最近一次提醒"
+    },
+    "channels": {
+      "description": "设置每种渠道如何联系到你。",
+      "discord": {
+        "id_error": "请输入 17 到 20 位数字的 Discord 用户 ID。",
+        "id_hint": "开启开发者模式，右键点击你的用户名，然后选择“复制用户 ID”。",
+        "id_label": "所有者 Discord ID",
+        "id_missing": "需要填写所有者 Discord ID。",
+        "switch_off": "Discord 提醒已关闭。",
+        "switch_on": "连接恢复后，由你的机器人以私信形式发送。",
+        "switch_title": "发送 Discord 提醒",
+        "test": "发送测试消息",
+        "token_hide": "隐藏机器人令牌",
+        "token_hint": "在 Discord 开发者门户中创建一个机器人，并复制其令牌。",
+        "token_keep": "留空以保留已保存的令牌",
+        "token_label": "机器人令牌",
+        "token_link": "打开 Discord 开发者门户",
+        "token_missing": "需要机器人令牌才能发送 Discord 提醒。",
+        "token_placeholder": "粘贴你的机器人令牌",
+        "token_show": "显示机器人令牌"
+      },
+      "email": {
+        "address_error": "请输入有效的邮箱地址。",
+        "mailer_install": "安装 msmtp",
+        "mailer_installing": "正在安装…",
+        "mailer_missing": "尚未安装 msmtp 邮件程序，因此暂时无法发送邮件提醒。SMS 和 Discord 仍可正常保存。",
+        "mailer_recheck": "重新检查",
+        "password_hide": "隐藏应用专用密码",
+        "password_hint": "在你的 Google 账号中为此设备生成一个应用专用密码。",
+        "password_keep": "留空以保留已保存的密码",
+        "password_label": "Gmail 应用专用密码",
+        "password_link": "打开 Google 应用专用密码",
+        "password_missing": "需要应用专用密码才能发送邮件提醒。",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_show": "显示应用专用密码",
+        "recipient_hint": "提醒的送达地址。",
+        "recipient_label": "收件人邮箱",
+        "recipient_missing": "需要填写收件人地址。",
+        "sender_hint": "发送提醒所使用的 Gmail 账号。",
+        "sender_label": "发件人邮箱",
+        "sender_missing": "需要填写发件人地址。",
+        "switch_off": "Email 提醒已关闭。",
+        "switch_on": "连接恢复后，通过 Gmail 发送提醒邮件。",
+        "switch_title": "发送 Email 提醒",
+        "test": "发送测试 Email"
+      },
+      "empty": {
+        "description": "此设备未返回任何提醒渠道，因此暂时没有可配置的内容。",
+        "title": "未上报任何渠道"
+      },
+      "error": {
+        "retry": "重试",
+        "title": "无法加载渠道"
+      },
+      "loading": "正在加载提醒渠道",
+      "name": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "rail_label": "提醒渠道",
+      "save": {
+        "action": "保存设置",
+        "blocked": "请修正高亮的字段",
+        "blocked_in": "修正 {{channels}} 中的错误",
+        "clean": "所有更改已保存",
+        "dirty": "未保存的更改",
+        "discard": "放弃",
+        "failed": "设置未能保存。",
+        "saved": "已保存",
+        "succeeded": "提醒设置已保存"
+      },
+      "secret_saved": "已保存",
+      "sms": {
+        "phone_error": "请输入包含国家/地区代码的号码，例如 +14155551234。",
+        "phone_hint": "请包含国家/地区代码，并以加号开头。",
+        "phone_label": "收件人手机号码",
+        "phone_missing": "需要填写收件人手机号码。",
+        "switch_off": "SMS 提醒已关闭。",
+        "switch_on": "通过蜂窝网络以短信发送，因此断网期间仍可送达。",
+        "switch_title": "发送 SMS 提醒",
+        "test": "发送测试 SMS"
+      },
+      "status": {
+        "incomplete": "需要设置",
+        "needs_fixing": "存在未保存的错误",
+        "off": "已关闭",
+        "ready": "已就绪",
+        "unused": "未路由任何事件"
+      },
+      "test": {
+        "blocked_busy": "另一项测试仍在进行中。",
+        "blocked_dirty": "请先保存更改。测试将基于已保存的设置运行。",
+        "blocked_incomplete": "请先完成此渠道的设置并保存，才能发送测试。",
+        "blocked_mailer": "安装 msmtp 邮件程序才能发送测试邮件。",
+        "blocked_off": "请先开启此渠道并保存，才能发送测试。",
+        "blocked_offline": "Discord 机器人尚未连接。",
+        "failed": "测试未能发送。",
+        "sending": "发送中…",
+        "sent": "已发送",
+        "succeeded": "测试 {{channel}} 已发送"
+      },
+      "threshold_error": "请输入 1 到 60 之间的整数分钟数。",
+      "threshold_hint": "只有当整次断网时长达到该等待时间时，此渠道才会发送。所有渠道都针对同一次断网，分别按各自的等待时间计算。",
+      "threshold_label": "提醒前等待时间",
+      "threshold_unit": "分钟",
+      "title": "渠道"
+    },
+    "coverage": {
+      "cell": {
+        "fires": "发送",
+        "incapable": "不支持",
+        "pendingNote": "待保存",
+        "quiet": "已静音",
+        "quietNote": "渠道已关闭",
+        "unrouted": "不发送",
+        "attempt": "将尝试",
+        "attemptNote": "渠道尚未设置完成",
+        "unroutedNote": "未勾选此事件"
+      },
+      "cellAction": "{{channel}} 的 {{event}}：{{state}}",
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "channelStatus": {
+        "incomplete": "需要设置",
+        "off": "已关闭",
+        "ready": "已就绪",
+        "unused": "未使用"
+      },
+      "description": "实际会触发的内容。只有当渠道已开启、已完成设置，且能够发送该事件时，对应单元格才会生效。",
+      "emptyDesc": "此设备未上报任何提醒能力，因此这里没有可开启的内容。",
+      "emptyTitle": "没有可路由的内容",
+      "errorDesc": "设备没有应答，因此无法显示将会触发的内容。",
+      "errorRetry": "重试",
+      "errorTitle": "无法加载覆盖范围",
+      "event": {
+        "connection_lost": {
+          "desc": "网络中断期间",
+          "name": "连接中断"
+        },
+        "connection_restored": {
+          "desc": "链路恢复后",
+          "name": "连接恢复"
+        },
+        "reboot": {
+          "desc": "重启后发送，并附带原因",
+          "name": "调制解调器已重启"
+        }
+      },
+      "loading": "正在加载覆盖范围",
+      "outageNoticeNone": "断网将不会被察觉。此设备上没有渠道可以报告断网。",
+      "outageNoticeWith": "断网将不会被察觉。启用 {{channels}} 才能收到提醒。",
+      "reason": {
+        "discord_needs_internet": "需要网络",
+        "email_needs_internet": "需要网络",
+        "not_supported": "此渠道无法发送该事件"
+      },
+      "silentNotice": "不会发送任何内容。此矩阵中没有生效的单元格。",
+      "staleNotice": "显示我们上一次从设备读取到的设置。",
+      "title": "覆盖范围",
+      "unsavedNotice": "这些勾选尚未保存，请在下方的渠道中保存。",
+      "blockedNotice": "在修正 {{channels}} 中的错误之前，这里的任何内容都无法保存。"
+    },
+    "page": {
+      "description": "连接中断、恢复或调制解调器重启时，通知对象是谁。",
+      "refresh": "刷新",
+      "title": "提醒",
+      "unreadable": "设备没有应答。"
+    }
   }
 }

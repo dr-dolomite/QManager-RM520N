@@ -1,148 +1,217 @@
 "use client";
 
-import { MinusCircleIcon } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { useTranslation } from "react-i18next";
+import { TriangleAlertIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  ALERT_EVENT_ORDER,
   ALERT_CHANNEL_ORDER,
-  type AlertCapabilities,
-  type AlertCapabilityCell,
+  ALERT_EVENT_ORDER,
   type AlertChannel,
+  type AlertEventKey,
 } from "@/types/alerts";
-import { EVENT_META, CHANNEL_META, reasonText } from "./constants";
-import { InfoTip } from "./info-tip";
-import type { AlertsForm } from "./use-alerts-form";
+import { CELL_PENDING_RING, CELL_TONE, MATRIX, SKELETON } from "./shapes";
+import {
+  CHANNEL_STATUS_BADGE,
+  type AlertCell,
+  type AlertsCoverage,
+} from "./derive";
+import {
+  CELL_DISPLAY_TONE,
+  CELL_STATE_GLYPH,
+  CELL_STATE_LABEL_KEY,
+  CELL_STATE_NOTE_KEY,
+  CHANNEL_GLYPH,
+  CHANNEL_STATUS_GLYPH,
+  cellDisplay,
+  channelNameKey,
+  channelStatusKey,
+  eventDescKey,
+  eventNameKey,
+  reasonKey,
+} from "./coverage-labels";
 
-// -----------------------------------------------------------------------------
-// AlertRoutingGrid — the trigger × channel matrix.
-// Rows are events, columns are channels (SMS / Email / Discord). A capable cell
-// is a Switch; an INCAPABLE cell (e.g. email or Discord during an outage) is
-// never a dead toggle — it renders an explained "Unavailable" chip so color is
-// always paired with an icon + text (WCAG 2.2). Capability is read from the
-// backend, never hard-coded.
-// -----------------------------------------------------------------------------
-export function AlertRoutingGrid({
-  form,
-  capabilities,
-}: {
-  form: AlertsForm;
-  capabilities: AlertCapabilities;
-}) {
-  const channelEnabled: Record<AlertChannel, boolean> = {
-    sms: form.smsEnabled,
-    email: form.emailEnabled,
-    discord: form.discordEnabled,
-  };
+// The coverage matrix: three events by three channels. It EDITS routing and
+// REPORTS what will fire, and `deriveCoverage` is the only thing that decides
+// which — no cell re-reads a payload.
 
-  const anyChannelOff = ALERT_CHANNEL_ORDER.some((ch) => !channelEnabled[ch]);
+export interface CoverageMatrixProps {
+  /** Draft-resolved coverage. Pending cells are already marked. */
+  coverage: AlertsCoverage;
+  onToggle: (
+    event: AlertEventKey,
+    channel: AlertChannel,
+    next: boolean,
+  ) => void;
+  /** Channels whose form cannot be saved. The column chip reports SAVED truth,
+   *  so an unsaved fault needs its own marker beside it. */
+  blockedChannels?: readonly AlertChannel[];
+}
+
+export function CoverageMatrix({
+  coverage,
+  onToggle,
+  blockedChannels = [],
+}: CoverageMatrixProps) {
+  const { t } = useTranslation("common");
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-separate border-spacing-0">
-        <caption className="sr-only">Alert routing by event and channel</caption>
-        <thead>
-          <tr>
-            <th scope="col" className="w-full p-0" />
-            {ALERT_CHANNEL_ORDER.map((ch) => {
-              const Icon = CHANNEL_META[ch].icon;
-              return (
-                <th
-                  key={ch}
-                  scope="col"
-                  className="text-muted-foreground w-20 px-1 pb-3 text-center align-bottom text-xs font-medium"
-                >
-                  <span className="inline-flex flex-col items-center gap-1">
-                    <Icon className="size-4" aria-hidden />
-                    {CHANNEL_META[ch].short}
+    <div className={MATRIX.GRID}>
+      <div className={MATRIX.CORNER} />
+
+      {ALERT_CHANNEL_ORDER.map((channel) => {
+        const Glyph = CHANNEL_GLYPH[channel];
+        const status = coverage.channels[channel].status;
+        const StatusGlyph = CHANNEL_STATUS_GLYPH[status];
+        return (
+          <div key={channel} className={MATRIX.COLHEAD}>
+            <span className={MATRIX.COLHEAD_NAME}>
+              <Glyph className={MATRIX.COLHEAD_GLYPH} aria-hidden />
+              {t(channelNameKey(channel))}
+            </span>
+            <span className={MATRIX.COLHEAD_CHIPS}>
+              <Badge variant={CHANNEL_STATUS_BADGE[status]}>
+                <StatusGlyph className="size-3" />
+                {t(channelStatusKey(status))}
+              </Badge>
+              {blockedChannels.includes(channel) ? (
+                <Badge variant="warning" className="px-1.5">
+                  <TriangleAlertIcon className="size-3" />
+                  <span className="sr-only">
+                    {t("alerts.channels.status.needs_fixing")}
                   </span>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {ALERT_EVENT_ORDER.map((ev, rowIdx) => {
-            const EventIcon = EVENT_META[ev].icon;
-            const isLast = rowIdx === ALERT_EVENT_ORDER.length - 1;
-            return (
-              <tr key={ev} className="group">
-                <th
-                  scope="row"
-                  className={cn(
-                    "py-3.5 pr-3 text-left align-middle font-normal",
-                    !isLast && "border-b",
-                  )}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <span
-                      className="text-muted-foreground mt-0.5 flex size-5 shrink-0 items-center justify-center"
-                      aria-hidden
-                    >
-                      <EventIcon className="size-4" />
-                    </span>
-                    <span className="grid min-w-0 gap-0.5">
-                      <span className="text-sm font-medium">
-                        {EVENT_META[ev].name}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {EVENT_META[ev].desc}
-                      </span>
-                    </span>
-                  </div>
-                </th>
+                </Badge>
+              ) : null}
+            </span>
+          </div>
+        );
+      })}
 
-                {ALERT_CHANNEL_ORDER.map((ch) => {
-                  const cell = capabilities[ev]?.[ch] ?? false;
-                  const reasonKey = capabilities[ev]?.[
-                    `${ch}_reason` as keyof AlertCapabilityCell
-                  ] as string | undefined;
-                  const masterOff = !channelEnabled[ch];
-                  return (
-                    <td
-                      key={ch}
-                      className={cn(
-                        "px-1 py-3.5 text-center align-middle",
-                        !isLast && "border-b",
-                      )}
-                    >
-                      {cell ? (
-                        <span className="inline-flex items-center justify-center">
-                          <Switch
-                            checked={form.getRoute(ev, ch)}
-                            onCheckedChange={(v) => form.setRoute(ev, ch, v)}
-                            disabled={masterOff}
-                            aria-label={`Send ${EVENT_META[ev].name} alerts via ${CHANNEL_META[ch].name}`}
-                          />
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center justify-center gap-1">
-                          <span className="text-muted-foreground/70 inline-flex items-center gap-1 text-xs">
-                            <MinusCircleIcon className="size-3.5" aria-hidden />
-                            <span className="hidden @xs/card:inline">
-                              Unavailable
-                            </span>
-                          </span>
-                          <InfoTip
-                            text={reasonText(reasonKey)}
-                            aria={`Why ${CHANNEL_META[ch].name} can't send ${EVENT_META[ev].name}`}
-                          />
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {ALERT_EVENT_ORDER.map((event) => (
+        <div key={event} className={MATRIX.GROUP}>
+          <div className={MATRIX.ROWHEAD}>
+            <span className={MATRIX.ROWHEAD_TITLE}>{t(eventNameKey(event))}</span>
+            <span className={MATRIX.ROWHEAD_DESC}>{t(eventDescKey(event))}</span>
+          </div>
+          {ALERT_CHANNEL_ORDER.map((channel) => (
+            <CoverageCell
+              key={channel}
+              cell={coverage.cells[event][channel]}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
-      {anyChannelOff && (
-        <p className="text-muted-foreground mt-3 text-xs">
-          Turn a channel on in its tab to route events to it.
-        </p>
+function CoverageCell({
+  cell,
+  onToggle,
+}: {
+  cell: AlertCell;
+  onToggle: CoverageMatrixProps["onToggle"];
+}) {
+  const { t } = useTranslation("common");
+
+  const display = cellDisplay(cell);
+  const tone = CELL_TONE[CELL_DISPLAY_TONE[display]];
+  const Glyph = CELL_STATE_GLYPH[display];
+  const channelName = t(channelNameKey(cell.channel));
+  const eventName = t(eventNameKey(cell.event));
+  const label = t(CELL_STATE_LABEL_KEY[display]);
+
+  // `pending` never occupies the note slot: the ring already says "unsaved",
+  // and the note is the only place a cell explains WHY it will not send.
+  const noteKey = CELL_STATE_NOTE_KEY[display];
+  const note =
+    display === "incapable"
+      ? t(reasonKey(cell.reason))
+      : noteKey
+        ? t(noteKey)
+        : null;
+
+  const body = (
+    <>
+      <span className={MATRIX.CHANNEL_LABEL}>{channelName}</span>
+      <span className={cn(MATRIX.DISC, tone.DISC)}>
+        <Glyph className={MATRIX.GLYPH} aria-hidden />
+      </span>
+      <span className={MATRIX.LABEL}>{label}</span>
+      {note ? <span className={MATRIX.NOTE}>{note}</span> : null}
+    </>
+  );
+
+  const sentence = t("alerts.coverage.cellAction", {
+    event: eventName,
+    channel: channelName,
+    state: label,
+  });
+
+  if (!cell.interactive) {
+    // Not operable, so it stays out of the tab order — but it carries the most
+    // important fact on the page, so it must still have an accessible name.
+    return (
+      <div
+        role="img"
+        aria-label={note ? `${sentence}. ${note}` : sentence}
+        className={cn(MATRIX.CELL, MATRIX.CELL_TRANSITION, tone.ROOT)}
+      >
+        {/* `contents` keeps the flex column intact while the label above is
+            the element's ONE accessible name. */}
+        <span aria-hidden className="contents">
+          {body}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-pressed={cell.routed}
+      aria-label={sentence}
+      onClick={() => onToggle(cell.event, cell.channel, !cell.routed)}
+      className={cn(
+        MATRIX.CELL,
+        MATRIX.CELL_TRANSITION,
+        tone.ROOT,
+        "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        cell.pending && CELL_PENDING_RING,
       )}
+    >
+      {body}
+      {cell.pending ? (
+        <span className="sr-only">{t("alerts.coverage.cell.pendingNote")}</span>
+      ) : null}
+    </button>
+  );
+}
+
+/** Mirrors the loaded grid: same columns, same pinned cell height. */
+export function CoverageMatrixSkeleton() {
+  return (
+    <div className={MATRIX.GRID} aria-hidden>
+      <div className={MATRIX.CORNER} />
+      {ALERT_CHANNEL_ORDER.map((channel) => (
+        <div key={channel} className={MATRIX.COLHEAD}>
+          <Skeleton className={cn(SKELETON.LINE, "h-4 w-20")} />
+          <Skeleton className={cn(SKELETON.LINE, "h-[1.375rem] w-16")} />
+        </div>
+      ))}
+      {ALERT_EVENT_ORDER.map((event) => (
+        <div key={event} className={MATRIX.GROUP}>
+          <div className={MATRIX.ROWHEAD}>
+            <Skeleton className={cn(SKELETON.LINE, "h-4 w-36")} />
+            <Skeleton className={cn(SKELETON.LINE, "mt-1.5 h-3 w-44")} />
+          </div>
+          {ALERT_CHANNEL_ORDER.map((channel) => (
+            <Skeleton key={channel} className={cn(SKELETON.CELL, "w-full")} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

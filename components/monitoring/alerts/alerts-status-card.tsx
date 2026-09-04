@@ -1,277 +1,255 @@
 "use client";
 
-import React from "react";
+import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
-import {
-  CheckCircle2Icon,
-  MinusCircleIcon,
-  TriangleAlertIcon,
-  PackageXIcon,
-  PlugZapIcon,
+  ClockIcon,
+  RadioTowerIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  ShieldOffIcon,
+  BellOffIcon,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { ALERT_CHANNEL_ORDER, type AlertChannel } from "@/types/alerts";
 import {
-  ALERT_EVENT_ORDER,
-  ALERT_CHANNEL_ORDER,
-  type AlertsState,
-  type AlertChannel,
-  type AlertEventKey,
-} from "@/types/alerts";
-import {
-  CHANNEL_META,
-  EVENT_META,
-  maskPhone,
-  maskEmail,
-  maskDiscordId,
-} from "./constants";
+  DISC_TONE,
+  DISC_TRANSITION,
+  EYEBROW,
+  SKELETON,
+  TILE,
+  TILE_CAPTION,
+  TILE_VALUE,
+  TILE_VALUE_TONE,
+  type DiscTone,
+  type TileValueTone,
+} from "./shapes";
+import { COVERAGE_VALUE_TONE, type AlertsCoverage } from "./derive";
+import { channelNameKey } from "./coverage-labels";
 
-type Tone = "success" | "warning" | "muted";
+// The band reports SAVED truth while the matrix below shows the draft. That
+// split is the whole defence against a derived control drifting from the click.
 
-const TONE_RING: Record<Tone, string> = {
-  success: "bg-success/15 text-success border-success/30",
-  warning: "bg-warning/15 text-warning border-warning/30",
-  muted: "bg-muted/50 text-muted-foreground border-muted-foreground/25",
-};
-
-const TONE_TILE: Record<Tone, string> = {
-  success: "border-success/25 bg-success/5",
-  warning: "border-warning/25 bg-warning/5",
-  muted: "border-border bg-muted/20",
-};
-
-// TONE_RING and TONE_TILE above stay on the opacity washes: they are an icon
-// disc and a tile surface, not status chips. Only the chip flips here.
-const TONE_BADGE: Record<Tone, BadgeVariant> = {
-  success: "success",
-  warning: "warning",
-  muted: "muted",
-};
-
-interface Readiness {
-  tone: Tone;
-  icon: React.ReactNode;
-  label: string;
-  /** Masked recipient or a short hint about what's missing. */
-  detail: string;
-  /** True when the detail is a real (masked) contact — render it as machine voice. */
-  isContact: boolean;
+/** What the activity log knows about the most recent delivery attempt. */
+export interface LastAlertSummary {
+  /** Milliseconds since epoch. */
+  atMs: number;
+  /** Already-localized trigger label. */
+  trigger: string;
+  channel: AlertChannel;
+  status: "sent" | "failed";
 }
 
-function readinessFor(channel: AlertChannel, state: AlertsState): Readiness {
-  if (channel === "sms") {
-    const c = state.channels.sms;
-    if (!c.enabled)
-      return {
-        tone: "muted",
-        icon: <MinusCircleIcon className="size-3" />,
-        label: "Off",
-        detail: "This channel is turned off.",
-        isContact: false,
-      };
-    if (!c.configured)
-      return {
-        tone: "warning",
-        icon: <TriangleAlertIcon className="size-3" />,
-        label: "Needs setup",
-        detail: "Add a recipient phone number to arm this channel.",
-        isContact: false,
-      };
-    return {
-      tone: "success",
-      icon: <CheckCircle2Icon className="size-3" />,
-      label: "Ready",
-      detail: maskPhone(c.recipient_phone),
-      isContact: true,
-    };
+export interface AlertsStatusBandProps {
+  /** Derived from CONFIRMED server state, never from the form draft. */
+  coverage: AlertsCoverage;
+  /** `undefined` while activity is still loading; `null` once known to be empty. */
+  lastAlert?: LastAlertSummary | null;
+  /** The activity read failed: the tile reports "Unknown", never a skeleton. */
+  unreadable?: boolean;
+}
+
+export function AlertsStatusBand({
+  coverage,
+  lastAlert,
+  unreadable,
+}: AlertsStatusBandProps) {
+  const { t } = useTranslation("common");
+
+  const ArmedGlyph = coverage.silent
+    ? ShieldOffIcon
+    : coverage.tone === "good"
+      ? ShieldCheckIcon
+      : ShieldAlertIcon;
+
+  const incomplete = ALERT_CHANNEL_ORDER.filter(
+    (c) => coverage.channels[c].status === "incomplete",
+  );
+
+  const armedCaption = coverage.silent
+    ? t("alerts.band.armedSilent")
+    : coverage.uncovered.length > 0
+      ? t("alerts.band.armedGap")
+      : incomplete.length > 0
+        ? t("alerts.band.armedIncomplete", {
+            channels: incomplete.map((c) => t(channelNameKey(c))).join(", "),
+          })
+        : t("alerts.band.armedAll");
+
+  // Both states in this slot must not be negations, or a healthy tile wears a
+  // crossed-out glyph on green.
+  const OutageGlyph = coverage.outageGap ? BellOffIcon : RadioTowerIcon;
+  const outageValue =
+    coverage.outageChannels.length > 0
+      ? coverage.outageChannels.map((c) => t(channelNameKey(c))).join(", ")
+      : t("alerts.band.outageNone");
+
+  return (
+    <div className={TILE.GRID}>
+      <Tile
+        tone={coverage.tone}
+        glyph={<ArmedGlyph className={TILE.GLYPH} />}
+        eyebrow={t("alerts.band.armedEyebrow")}
+        value={t("alerts.band.armedValue", {
+          covered: coverage.coveredCount,
+          total: coverage.eventCount,
+        })}
+        valueTone={COVERAGE_VALUE_TONE[coverage.tone]}
+        caption={armedCaption}
+      />
+      <Tile
+        tone={coverage.outageGap ? "bad" : "good"}
+        glyph={<OutageGlyph className={TILE.GLYPH} />}
+        eyebrow={t("alerts.band.outageEyebrow")}
+        value={outageValue}
+        valueTone={coverage.outageGap ? "bad" : "neutral"}
+        caption={
+          coverage.outageGap
+            ? t("alerts.band.outageGap")
+            : t("alerts.band.outageCovered")
+        }
+      />
+      <LastAlertTile lastAlert={lastAlert} unreadable={unreadable} />
+    </div>
+  );
+}
+
+function LastAlertTile({
+  lastAlert,
+  unreadable,
+}: {
+  lastAlert?: LastAlertSummary | null;
+  unreadable?: boolean;
+}) {
+  const { t } = useTranslation("common");
+  const relative = relativeLabel(lastAlert?.atMs);
+
+  // Unknown is its own answer. The Activity card beside this one already says
+  // the read failed, and a tile that pulses forever contradicts it.
+  if (unreadable) {
+    return (
+      <Tile
+        tone="neutral"
+        glyph={<ClockIcon className={TILE.GLYPH} />}
+        eyebrow={t("alerts.band.lastEyebrow")}
+        value={t("alerts.band.lastUnknown")}
+        valueTone="neutral"
+        caption={t("alerts.band.lastUnknownCaption")}
+      />
+    );
   }
 
-  if (channel === "email") {
-    const c = state.channels.email;
-    if (!c.enabled)
-      return {
-        tone: "muted",
-        icon: <MinusCircleIcon className="size-3" />,
-        label: "Off",
-        detail: "This channel is turned off.",
-        isContact: false,
-      };
-    if (!c.msmtp_installed)
-      return {
-        tone: "warning",
-        icon: <PackageXIcon className="size-3" />,
-        label: "Mailer not installed",
-        detail: "Install the msmtp mailer to send email alerts.",
-        isContact: false,
-      };
-    if (!c.configured)
-      return {
-        tone: "warning",
-        icon: <TriangleAlertIcon className="size-3" />,
-        label: "Needs setup",
-        detail: "Finish the email fields to arm this channel.",
-        isContact: false,
-      };
-    return {
-      tone: "success",
-      icon: <CheckCircle2Icon className="size-3" />,
-      label: "Ready",
-      detail: maskEmail(c.recipient_email),
-      isContact: true,
-    };
+  if (lastAlert === undefined) {
+    return (
+      <div
+        className={TILE.ROOT}
+        role="status"
+        aria-busy="true"
+        aria-label={t("alerts.band.lastLoading")}
+      >
+        <span className={cn(TILE.DISC, DISC_TONE.neutral)} aria-hidden>
+          <ClockIcon className={TILE.GLYPH} />
+        </span>
+        <div className={TILE.TEXT}>
+          <span className={EYEBROW}>{t("alerts.band.lastEyebrow")}</span>
+          <Skeleton className={cn(SKELETON.LINE, "h-[1.375rem] w-24")} />
+          <Skeleton className={cn(SKELETON.LINE, "h-3.5 w-36")} />
+        </div>
+      </div>
+    );
   }
 
-  // discord
-  const c = state.channels.discord;
-  if (!c.enabled)
-    return {
-      tone: "muted",
-      icon: <MinusCircleIcon className="size-3" />,
-      label: "Off",
-      detail: "This channel is turned off.",
-      isContact: false,
-    };
-  if (!c.configured)
-    return {
-      tone: "warning",
-      icon: <TriangleAlertIcon className="size-3" />,
-      label: "Needs setup",
-      detail: "Add your Discord ID and bot token to arm this channel.",
-      isContact: false,
-    };
-  if (!c.connected)
-    return {
-      tone: "warning",
-      icon: <PlugZapIcon className="size-3" />,
-      label: "Not connected",
-      detail: "The bot isn't reachable — check the bot token.",
-      isContact: false,
-    };
+  return (
+    <Tile
+      tone="neutral"
+      glyph={<ClockIcon className={TILE.GLYPH} />}
+      eyebrow={t("alerts.band.lastEyebrow")}
+      value={t(relative.key, { n: relative.n })}
+      valueTone="neutral"
+      caption={
+        lastAlert
+          ? t(
+              lastAlert.status === "failed"
+                ? "alerts.band.lastFailedCaption"
+                : "alerts.band.lastSentCaption",
+              {
+                trigger: lastAlert.trigger,
+                channel: t(channelNameKey(lastAlert.channel)),
+              },
+            )
+          : t("alerts.band.lastNeverCaption")
+      }
+    />
+  );
+}
+
+function Tile({
+  tone,
+  glyph,
+  eyebrow,
+  value,
+  valueTone,
+  caption,
+}: {
+  tone: DiscTone;
+  glyph: ReactNode;
+  eyebrow: string;
+  value: string;
+  valueTone: TileValueTone;
+  caption: string;
+}) {
+  return (
+    <div className={TILE.ROOT}>
+      <span
+        className={cn(TILE.DISC, DISC_TONE[tone], DISC_TRANSITION)}
+        aria-hidden
+      >
+        {glyph}
+      </span>
+      <div className={TILE.TEXT}>
+        <span className={EYEBROW}>{eyebrow}</span>
+        <span className={cn(TILE_VALUE, TILE_VALUE_TONE[valueTone])}>
+          {value}
+        </span>
+        <span className={TILE_CAPTION}>{caption}</span>
+      </div>
+    </div>
+  );
+}
+
+const MINUTE = 60_000;
+
+/** Returns a key + `n`, never `count`: i18next reads `count` as a plural selector. */
+function relativeLabel(atMs?: number): { key: string; n: number } {
+  if (atMs === undefined || !Number.isFinite(atMs) || atMs <= 0)
+    return { key: "alerts.band.lastNever", n: 0 };
+  const delta = Math.max(0, Date.now() - atMs);
+  if (delta < MINUTE) return { key: "alerts.band.justNow", n: 0 };
+  if (delta < 60 * MINUTE)
+    return { key: "alerts.band.minutesAgo", n: Math.floor(delta / MINUTE) };
+  if (delta < 48 * 60 * MINUTE)
+    return { key: "alerts.band.hoursAgo", n: Math.floor(delta / (60 * MINUTE)) };
   return {
-    tone: "success",
-    icon: <CheckCircle2Icon className="size-3" />,
-    label: "Ready",
-    detail: maskDiscordId(c.owner_discord_id),
-    isContact: true,
+    key: "alerts.band.daysAgo",
+    n: Math.floor(delta / (24 * 60 * MINUTE)),
   };
 }
 
-export function AlertsStatusCard({ state }: { state: AlertsState }) {
-  // What actually fires per event, from SAVED truth: routed ∩ capable ∩ enabled.
-  const firesFor = (event: AlertEventKey): AlertChannel[] =>
-    ALERT_CHANNEL_ORDER.filter(
-      (ch) =>
-        (state.capabilities[event]?.[ch] ?? false) &&
-        (state.routing.events[event]?.[ch] ?? false) &&
-        state.channels[ch].enabled,
-    );
-
+/** Three tiles at the pinned 104px height, so the band never reflows on load. */
+export function AlertsStatusBandSkeleton() {
   return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardTitle>Alert channels</CardTitle>
-        <CardDescription>
-          Where QManager will reach you when the connection changes.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-5">
-        {/* Channel readiness tiles */}
-        <div className="grid gap-3 @md/card:grid-cols-2 @2xl/card:grid-cols-3">
-          {ALERT_CHANNEL_ORDER.map((ch) => {
-            const r = readinessFor(ch, state);
-            const Icon = CHANNEL_META[ch].icon;
-            return (
-              <div
-                key={ch}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl border p-3.5",
-                  TONE_TILE[r.tone],
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-full border",
-                    TONE_RING[r.tone],
-                  )}
-                  aria-hidden
-                >
-                  <Icon className="size-5" />
-                </span>
-                <div className="grid min-w-0 gap-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-sm font-semibold">
-                      {CHANNEL_META[ch].name}
-                    </span>
-                    <Badge variant={TONE_BADGE[r.tone]} className="gap-1">
-                      {r.icon}
-                      {r.label}
-                    </Badge>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-muted-foreground text-xs",
-                      r.isContact ? "truncate font-mono" : "line-clamp-2",
-                    )}
-                  >
-                    {r.detail}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+    <div className={TILE.GRID} aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className={TILE.ROOT}>
+          <Skeleton className={TILE.DISC} />
+          <div className={TILE.TEXT}>
+            <Skeleton className={cn(SKELETON.LINE, "h-3 w-20")} />
+            <Skeleton className={cn(SKELETON.LINE, "h-[1.375rem] w-24")} />
+            <Skeleton className={cn(SKELETON.LINE, "h-3.5 w-36")} />
+          </div>
         </div>
-
-        {/* Routing summary — what fires where, from saved state. */}
-        <div className="border-t pt-5">
-          <span className="text-muted-foreground text-xs font-medium">
-            What fires where
-          </span>
-          <dl className="mt-3 grid gap-3">
-            {ALERT_EVENT_ORDER.map((ev) => {
-              const fires = firesFor(ev);
-              const EventIcon = EVENT_META[ev].icon;
-              return (
-                <div
-                  key={ev}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <dt className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm">
-                    <EventIcon className="size-4 shrink-0" aria-hidden />
-                    <span className="truncate">{EVENT_META[ev].name}</span>
-                  </dt>
-                  <dd className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                    {fires.length === 0 ? (
-                      <span className="text-muted-foreground/70 text-xs">
-                        Not alerting
-                      </span>
-                    ) : (
-                      fires.map((ch) => {
-                        const Icon = CHANNEL_META[ch].icon;
-                        return (
-                          <Badge
-                            key={ch}
-                            variant="outline"
-                            className="border-primary/30 bg-primary/10 text-primary gap-1"
-                          >
-                            <Icon className="size-3" />
-                            {CHANNEL_META[ch].short}
-                          </Badge>
-                        );
-                      })
-                    )}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-        </div>
-      </CardContent>
-    </Card>
+      ))}
+    </div>
   );
 }

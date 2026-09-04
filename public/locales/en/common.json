@@ -844,5 +844,252 @@
     "notice": {
       "stale": "Showing the last events we managed to read. {{message}}"
     }
+  },
+  "alerts": {
+    "band": {
+      "armedEyebrow": "Armed",
+      "armedValue": "{{covered}} of {{total}}",
+      "armedSilent": "No channel can send anything",
+      "armedGap": "Not every event is covered",
+      "armedIncomplete": "{{channels}} still needs setup",
+      "armedAll": "Every event has a channel",
+      "outageEyebrow": "Outage cover",
+      "outageNone": "None",
+      "outageCovered": "Reaches you while the internet is down",
+      "outageGap": "An outage will pass silently",
+      "lastEyebrow": "Last alert",
+      "lastNever": "Never",
+      "lastNeverCaption": "Nothing has been sent",
+      "lastSentCaption": "{{trigger}}, by {{channel}}",
+      "lastFailedCaption": "{{trigger}} failed on {{channel}}",
+      "justNow": "Just now",
+      "minutesAgo": "{{n}} min ago",
+      "hoursAgo": "{{n}} h ago",
+      "daysAgo": "{{n}} d ago",
+      "lastUnknown": "Unknown",
+      "lastUnknownCaption": "Could not read activity",
+      "lastLoading": "Loading the last alert"
+    },
+    "coverage": {
+      "title": "Coverage",
+      "description": "What actually fires. A cell is live only when the channel is on, set up, and able to send that event.",
+      "loading": "Loading coverage",
+      "channel": {
+        "sms": "SMS",
+        "email": "Email",
+        "discord": "Discord"
+      },
+      "channelStatus": {
+        "ready": "Ready",
+        "incomplete": "Needs setup",
+        "unused": "Not used",
+        "off": "Off"
+      },
+      "event": {
+        "connection_lost": {
+          "name": "Connection lost",
+          "desc": "While the internet is down"
+        },
+        "connection_restored": {
+          "name": "Connection restored",
+          "desc": "Once the link is back"
+        },
+        "reboot": {
+          "name": "Modem rebooted",
+          "desc": "Sent once it is back, with the cause"
+        }
+      },
+      "cell": {
+        "fires": "Sends",
+        "quiet": "Silenced",
+        "quietNote": "Channel is off",
+        "unrouted": "Not sending",
+        "incapable": "Can't send",
+        "pendingNote": "Pending save",
+        "attempt": "Will try",
+        "attemptNote": "Channel is not set up yet",
+        "unroutedNote": "Not ticked for this event"
+      },
+      "cellAction": "{{event}} by {{channel}}: {{state}}",
+      "reason": {
+        "email_needs_internet": "Needs the internet",
+        "discord_needs_internet": "Needs the internet",
+        "not_supported": "This channel cannot send this event"
+      },
+      "silentNotice": "Nothing will be sent. No cell on this matrix is live.",
+      "outageNoticeWith": "An outage would pass silently. Make {{channels}} live to be told.",
+      "outageNoticeNone": "An outage would pass silently. No channel on this device can report one.",
+      "staleNotice": "Showing the settings we last read from the device.",
+      "errorTitle": "Could not load coverage",
+      "errorDesc": "The device did not answer, so we cannot show what will fire.",
+      "errorRetry": "Try again",
+      "emptyTitle": "Nothing can be routed",
+      "emptyDesc": "The device did not report any alert capabilities, so there is nothing to switch on here.",
+      "unsavedNotice": "These ticks are not saved yet. Save them in Channels below.",
+      "blockedNotice": "Nothing here can be saved until the errors in {{channels}} are fixed."
+    },
+    "channels": {
+      "title": "Channels",
+      "description": "Set up how each one reaches you.",
+      "rail_label": "Alert channel",
+      "loading": "Loading alert channels",
+      "secret_saved": "Saved",
+      "name": {
+        "sms": "SMS",
+        "email": "Email",
+        "discord": "Discord"
+      },
+      "status": {
+        "ready": "Ready",
+        "incomplete": "Needs setup",
+        "unused": "No events routed",
+        "off": "Off",
+        "needs_fixing": "Has unsaved errors"
+      },
+      "sms": {
+        "switch_title": "Send SMS alerts",
+        "switch_on": "Texted over the cellular network, so they still arrive during an outage.",
+        "switch_off": "SMS alerts are off.",
+        "phone_label": "Recipient phone",
+        "phone_hint": "Include the country code with a leading plus.",
+        "phone_error": "Enter a number with its country code, like +14155551234.",
+        "phone_missing": "A recipient phone number is required.",
+        "test": "Send a test SMS"
+      },
+      "email": {
+        "switch_title": "Send email alerts",
+        "switch_on": "Emailed through Gmail once the connection is back.",
+        "switch_off": "Email alerts are off.",
+        "sender_label": "Sender email",
+        "sender_hint": "The Gmail account that sends the alert.",
+        "sender_missing": "A sender address is required.",
+        "recipient_label": "Recipient email",
+        "recipient_hint": "Where alerts are delivered.",
+        "recipient_missing": "A recipient address is required.",
+        "address_error": "Enter a valid email address.",
+        "password_label": "Gmail app password",
+        "password_hint": "Generate an app password for this device in your Google Account.",
+        "password_link": "Open Google app passwords",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_keep": "Leave blank to keep the saved password",
+        "password_missing": "An app password is required to send email.",
+        "password_show": "Show app password",
+        "password_hide": "Hide app password",
+        "mailer_missing": "The msmtp mailer is not installed, so email cannot be sent yet. SMS and Discord still save.",
+        "mailer_install": "Install msmtp",
+        "mailer_installing": "Installing",
+        "mailer_recheck": "Check again",
+        "test": "Send a test email"
+      },
+      "discord": {
+        "switch_title": "Send Discord alerts",
+        "switch_on": "Sent as a direct message from your bot once the connection is back.",
+        "switch_off": "Discord alerts are off.",
+        "id_label": "Owner Discord ID",
+        "id_hint": "Turn on Developer Mode, right-click your name, then choose Copy User ID.",
+        "id_error": "Enter a numeric Discord user ID of 17 to 20 digits.",
+        "id_missing": "An owner Discord ID is required.",
+        "token_label": "Bot token",
+        "token_hint": "Create a bot and copy its token in the Discord Developer Portal.",
+        "token_link": "Open the Discord Developer Portal",
+        "token_placeholder": "Paste your bot token",
+        "token_keep": "Leave blank to keep the saved token",
+        "token_missing": "A bot token is required to send Discord alerts.",
+        "token_show": "Show bot token",
+        "token_hide": "Hide bot token",
+        "test": "Send a test message"
+      },
+      "threshold_label": "Wait before alerting",
+      "threshold_hint": "This channel sends only when the whole outage lasted at least this long. Every channel measures the same outage against its own wait.",
+      "threshold_error": "Enter a whole number of minutes from 1 to 60.",
+      "threshold_unit": "minutes",
+      "test": {
+        "sending": "Sending",
+        "sent": "Sent",
+        "succeeded": "Test {{channel}} sent",
+        "failed": "The test could not be sent.",
+        "blocked_off": "Turn this channel on, then save, to send a test.",
+        "blocked_incomplete": "Finish setting this channel up, then save, to send a test.",
+        "blocked_mailer": "Install the msmtp mailer to send a test email.",
+        "blocked_offline": "The Discord bot is not connected yet.",
+        "blocked_dirty": "Save your changes first. A test runs against the saved settings.",
+        "blocked_busy": "Another test is still running."
+      },
+      "save": {
+        "clean": "All changes saved",
+        "dirty": "Unsaved changes",
+        "saved": "Saved",
+        "blocked": "Fix the highlighted fields",
+        "blocked_in": "Fix the errors in {{channels}}",
+        "discard": "Discard",
+        "action": "Save settings",
+        "succeeded": "Alert settings saved",
+        "failed": "The settings could not be saved."
+      },
+      "empty": {
+        "title": "No channels reported",
+        "description": "This device did not return any alert channels, so there is nothing to configure yet."
+      },
+      "error": {
+        "title": "Channels could not be loaded",
+        "retry": "Try again"
+      }
+    },
+    "activity": {
+      "title": "Activity",
+      "description": "Alerts sent and reboots recorded, newest first.",
+      "refresh": "Refresh activity",
+      "event": {
+        "reboot": "Modem rebooted"
+      },
+      "cause": {
+        "unexpected": "Unexpected",
+        "watchdog": "Watchdog",
+        "planned": "Planned"
+      },
+      "channel": {
+        "sms": "SMS",
+        "email": "Email",
+        "discord": "Discord"
+      },
+      "sr": {
+        "sent": "Alert sent",
+        "failed": "Alert failed",
+        "reboot": "Reboot recorded"
+      },
+      "day": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "undated": "No recorded time"
+      },
+      "time": {
+        "just_now": "Just now",
+        "unknown": "Unknown",
+        "minutes_one": "{{count}}m ago",
+        "minutes_other": "{{count}}m ago",
+        "hours_one": "{{count}}h ago",
+        "hours_other": "{{count}}h ago",
+        "days_one": "{{count}}d ago",
+        "days_other": "{{count}}d ago"
+      },
+      "empty": {
+        "title": "Nothing has happened yet",
+        "description": "Alerts appear here once a channel sends one, and reboots are recorded automatically with their cause."
+      },
+      "error": {
+        "title": "Could not load activity",
+        "retry": "Try again"
+      },
+      "notice": {
+        "stale": "Showing the last activity we managed to read. {{message}}"
+      },
+      "transcript_label": "Alert and reboot history"
+    },
+    "page": {
+      "title": "Alerts",
+      "description": "Who gets told when the connection drops, comes back, or the modem restarts.",
+      "refresh": "Refresh",
+      "unreadable": "The device did not answer."
+    }
   }
 }

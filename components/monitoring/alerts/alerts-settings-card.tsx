@@ -1,8 +1,22 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useReducedMotion } from "motion/react";
+import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  DownloadIcon,
+  ExternalLinkIcon,
+  Loader2Icon,
+  RefreshCcwIcon,
+  MinusCircleIcon,
+  SendIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,60 +24,59 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { SaveButton } from "@/components/ui/save-button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CopyableCommand } from "@/components/ui/copyable-command";
-import {
-  Loader2,
-  EyeIcon,
-  EyeOffIcon,
-  SendIcon,
-  PackageIcon,
-  RefreshCcwIcon,
-  CheckIcon,
-  AlertCircle,
-} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { AlertsState, AlertChannel } from "@/types/alerts";
 import type { UseAlertsReturn } from "@/hooks/use-alerts";
-import type { AlertsForm } from "./use-alerts-form";
-import { AlertRoutingGrid } from "./alert-routing-grid";
+import type { AlertChannel, AlertsState } from "@/types/alerts";
+import { ALERT_CHANNEL_ORDER } from "@/types/alerts";
 
-type SettingsTab = "routing" | "sms" | "email" | "discord";
+import {
+  CHANNEL_BUTTON,
+  ChannelField,
+  ChannelNotice,
+  ChannelSecretField,
+  ChannelSwitchRow,
+} from "./channel-field";
+import { ChannelRail, panelId, tabId, type ChannelRailItem } from "./channel-rail";
+import { maskDiscordId, maskEmail, maskPhone } from "./constants";
+import { deriveCoverage } from "./derive";
+import {
+  CARD_DESC,
+  CARD_FILL,
+  CARD_FILL_REGION,
+  CARD_HEAD,
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  CONDITION,
+  CONDITION_TONE,
+  FIELD,
+  RAIL,
+  SAVEBAR,
+  SKELETON,
+  type ConditionTone,
+} from "./shapes";
+import { blockedChannelMap, type AlertsForm } from "./use-alerts-form";
 
-const TAB_LABEL: Record<SettingsTab, string> = {
-  routing: "Routing",
-  sms: "SMS",
-  email: "Email",
-  discord: "Discord",
-};
+const ID_BASE = "alert-channel";
 
-interface AlertsSettingsCardProps {
+/** What went wrong last, and where it belongs on screen. */
+type ActionFault =
+  | { scope: "save"; message: string }
+  | { scope: "test"; channel: AlertChannel; message: string };
+
+export interface AlertsSettingsCardProps {
   form: AlertsForm;
   state: AlertsState;
   hook: UseAlertsReturn;
-  /** Bumped after a successful test so the log card silently refreshes. */
+  /** Bumped after a successful test so the activity card silently refreshes. */
   onTested: () => void;
 }
 
 // -----------------------------------------------------------------------------
-// AlertsSettingsCard — one card, four tabs (Routing / SMS / Email / Discord),
-// one atomic Save. The sticky bar commits every pending change on the page
-// regardless of the visible tab; each tab shows a destructive dot when a field
-// on it is invalid, and a blocked Save jumps to the first offending tab + focuses
-// it.
+// AlertsSettingsCard — the three-channel write surface. Routing lives on the
+// coverage hero; this card owns transports, credentials and one atomic Save.
 // -----------------------------------------------------------------------------
 export function AlertsSettingsCard({
   form,
@@ -71,907 +84,811 @@ export function AlertsSettingsCard({
   hook,
   onTested,
 }: AlertsSettingsCardProps) {
-  const reduceMotion = useReducedMotion();
-  const [tab, setTab] = useState<SettingsTab>("routing");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showToken, setShowToken] = useState(false);
+  const { t } = useTranslation("common");
+  const [channel, setChannel] = useState<AlertChannel>("sms");
+  const [fault, setFault] = useState<ActionFault | null>(null);
+  const [tested, setTested] = useState<AlertChannel | null>(null);
 
-  const { errors, missing, smsEnabled, emailEnabled, discordEnabled } = form;
+  // The rail reports SAVED truth, never the half-edited form (State-Honesty).
+  const coverage = useMemo(
+    () =>
+      deriveCoverage({
+        channels: state.channels,
+        routing: state.routing?.events ?? ({} as AlertsState["routing"]["events"]),
+        capabilities: state.capabilities,
+      }),
+    [state],
+  );
 
-  // ── Per-tab error state ────────────────────────────────────────────────────
-  const smsHasError =
-    (smsEnabled && (!!errors.smsPhone || !!errors.smsThreshold)) ||
-    missing.smsPhone;
-  const emailHasError =
-    (emailEnabled &&
-      (!!errors.senderEmail ||
-        !!errors.recipientEmail ||
-        !!errors.emailThreshold)) ||
-    missing.senderEmail ||
-    missing.recipientEmail ||
-    missing.appPassword;
-  const discordHasError =
-    (discordEnabled && (!!errors.discordId || !!errors.discordThreshold)) ||
-    missing.discordId ||
-    missing.botToken;
+  const channelsUsable =
+    !!state.channels?.sms && !!state.channels?.email && !!state.channels?.discord;
 
-  const tabErrors: Record<SettingsTab, boolean> = {
-    routing: false,
-    sms: smsHasError,
-    email: emailHasError,
-    discord: discordHasError,
+  // Per-channel form faults, shared with the coverage hero so the two surfaces
+  // cannot disagree about which channel is holding the save back.
+  const channelBlocked = blockedChannelMap(form);
+
+  const channelName: Record<AlertChannel, string> = {
+    sms: t("alerts.channels.name.sms"),
+    email: t("alerts.channels.name.email"),
+    discord: t("alerts.channels.name.discord"),
   };
 
-  // ── Focus-first-invalid on a blocked save ──────────────────────────────────
-  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
-  const registerField = useCallback(
-    (id: string) => (el: HTMLElement | null) => {
-      fieldRefs.current[id] = el;
-    },
-    [],
-  );
-  const [focusReq, setFocusReq] = useState<{ id: string; n: number } | null>(
-    null,
-  );
-  useEffect(() => {
-    if (!focusReq) return;
-    const raf = requestAnimationFrame(() => {
-      const el = fieldRefs.current[focusReq.id];
-      if (el) {
-        el.focus({ preventScroll: true });
-        el.scrollIntoView({
-          block: "center",
-          behavior: reduceMotion ? "auto" : "smooth",
-        });
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [focusReq, reduceMotion]);
+  // A channel holding an unsaved fault borrows `incomplete`, so the dot asks for
+  // attention from a tab you are not standing on. No new tone is invented.
+  const railItems: ChannelRailItem[] = ALERT_CHANNEL_ORDER.map((ch) => ({
+    channel: ch,
+    label: channelName[ch],
+    status: channelBlocked[ch] ? "incomplete" : coverage.channels[ch].status,
+    statusLabel: channelBlocked[ch]
+      ? t("alerts.channels.status.needs_fixing")
+      : t(`alerts.channels.status.${coverage.channels[ch].status}`),
+  }));
 
-  const orderedErrors: { tab: SettingsTab; id: string; present: boolean }[] = [
-    {
-      tab: "sms",
-      id: "sms-phone",
-      present: (smsEnabled && !!errors.smsPhone) || missing.smsPhone,
-    },
-    { tab: "sms", id: "sms-threshold", present: smsEnabled && !!errors.smsThreshold },
-    {
-      tab: "email",
-      id: "sender-email",
-      present: (emailEnabled && !!errors.senderEmail) || missing.senderEmail,
-    },
-    {
-      tab: "email",
-      id: "recipient-email",
-      present:
-        (emailEnabled && !!errors.recipientEmail) || missing.recipientEmail,
-    },
-    { tab: "email", id: "app-password", present: missing.appPassword },
-    {
-      tab: "email",
-      id: "email-threshold",
-      present: emailEnabled && !!errors.emailThreshold,
-    },
-    {
-      tab: "discord",
-      id: "discord-id",
-      present: (discordEnabled && !!errors.discordId) || missing.discordId,
-    },
-    { tab: "discord", id: "bot-token", present: missing.botToken },
-    {
-      tab: "discord",
-      id: "discord-threshold",
-      present: discordEnabled && !!errors.discordThreshold,
-    },
-  ];
+  const blockedNames = ALERT_CHANNEL_ORDER.filter((ch) => channelBlocked[ch]).map(
+    (ch) => channelName[ch],
+  );
 
+  // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (form.blocked) {
-      const first = orderedErrors.find((f) => f.present);
-      if (first) {
-        setTab(first.tab);
-        setFocusReq((prev) => ({ id: first.id, n: (prev?.n ?? 0) + 1 }));
-      }
+    if (form.blocked) return;
+    setFault(null);
+    setTested(null);
+    const ok = await hook.saveSettings(form.buildPayload());
+    if (!ok) {
+      const message = hook.error || t("alerts.channels.save.failed");
+      setFault({ scope: "save", message });
+      toast.error(message);
       return;
     }
-    const ok = await hook.saveSettings(form.buildPayload());
-    if (ok) {
-      // The secrets are write-only: the backend reports `*_set` booleans, never
-      // the values, so rotating an already-set secret doesn't move the settings
-      // signature and won't trigger the form's re-seed. Clear them here so the
-      // committed value leaves the box and `isDirty` (true while either is
-      // non-empty) settles back to false on every save path.
-      form.setAppPassword("");
-      form.setBotToken("");
-      form.markSaved();
-      toast.success("Alert settings saved");
-    } else {
-      toast.error(hook.error || "Failed to save alert settings");
-    }
+    // Load-bearing: GET never returns a secret, so a rotation moves no value the
+    // form watches. Clearing here is what lets `isDirty` settle after a save.
+    form.setAppPassword("");
+    form.setBotToken("");
+    form.markSaved();
+    toast.success(t("alerts.channels.save.succeeded"));
   };
 
-  const erroredTabNames = (["routing", "sms", "email", "discord"] as const)
-    .filter((tk) => tabErrors[tk])
-    .map((tk) => TAB_LABEL[tk]);
-
-  // ── Test gating (tests run against SAVED config on the device) ─────────────
-  const canTestSms =
-    state.channels.sms.enabled &&
-    state.channels.sms.configured &&
-    !form.isDirty &&
-    hook.testingChannel === null;
-  const canTestEmail =
-    state.channels.email.enabled &&
-    state.channels.email.configured &&
-    state.channels.email.msmtp_installed &&
-    !form.isDirty &&
-    hook.testingChannel === null;
-  const canTestDiscord =
-    state.channels.discord.enabled &&
-    state.channels.discord.configured &&
-    state.channels.discord.connected &&
-    !form.isDirty &&
-    hook.testingChannel === null;
-
-  const handleTest = async (channel: AlertChannel) => {
-    const ok = await hook.sendTest(channel);
-    const label =
-      channel === "sms" ? "SMS" : channel === "email" ? "email" : "Discord";
-    if (ok) toast.success(`Test ${label} sent successfully`);
-    else
-      toast.error(
-        hook.error || `Failed to send test ${label} — check your configuration`,
-      );
+  // ── Test (runs against SAVED config on the device) ─────────────────────────
+  const handleTest = async (ch: AlertChannel) => {
+    setFault(null);
+    setTested(null);
+    const ok = await hook.sendTest(ch);
+    if (ok) {
+      setTested(ch);
+      toast.success(t("alerts.channels.test.succeeded", { channel: channelName[ch] }));
+    } else {
+      const message = hook.error || t("alerts.channels.test.failed");
+      setFault({ scope: "test", channel: ch, message });
+      toast.error(message);
+    }
     onTested();
   };
 
-  const msmtpInstalled = state.channels.email.msmtp_installed;
+  /** `null` when the test is takeable; otherwise the stated reason it is not. */
+  const testBlockedReason = (ch: AlertChannel): string | null => {
+    const saved = state.channels[ch];
+    if (!saved.enabled) return t("alerts.channels.test.blocked_off");
+    if (!saved.configured) return t("alerts.channels.test.blocked_incomplete");
+    if (ch === "email" && !state.channels.email.msmtp_installed)
+      return t("alerts.channels.test.blocked_mailer");
+    if (ch === "discord" && !state.channels.discord.connected)
+      return t("alerts.channels.test.blocked_offline");
+    if (form.isDirty) return t("alerts.channels.test.blocked_dirty");
+    if (hook.testingChannel !== null) return t("alerts.channels.test.blocked_busy");
+    return null;
+  };
+
+  // Guarded: a partial payload reaches this line before the condition below.
+  const testRecipient: Record<AlertChannel, string> = {
+    sms: maskPhone(state.channels?.sms?.recipient_phone ?? ""),
+    email: maskEmail(state.channels?.email?.recipient_email ?? ""),
+    discord: maskDiscordId(state.channels?.discord?.owner_discord_id ?? ""),
+  };
+
+  // Only while dirty: a not-dirty Save is `disabled`, and a disabled button
+  // takes no pointer events, so a reason attached there would be unreachable.
+  const saveBlockedReason =
+    form.isDirty && form.blocked
+      ? blockedNames.length > 0
+        ? t("alerts.channels.save.blocked_in", {
+            channels: blockedNames.join(", "),
+          })
+        : t("alerts.channels.save.blocked")
+      : null;
 
   return (
-    <Card className="@container/card min-h-0 flex-1">
-      <CardHeader>
-        <CardTitle>Alert Settings</CardTitle>
-        <CardDescription>
-          Choose which events reach each channel, then configure SMS, email, and
-          Discord.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="flex min-h-0 flex-1 flex-col">
-        <Tabs
-          value={tab}
-          onValueChange={(v) => setTab(v as SettingsTab)}
-          className="min-h-0 flex-1"
-        >
-          <TabsList className="w-full">
-            {(["routing", "sms", "email", "discord"] as const).map((tk) => (
-              <TabsTrigger key={tk} value={tk} className="gap-1.5">
-                {TAB_LABEL[tk]}
-                {tabErrors[tk] && (
-                  <span
-                    aria-label="This tab has fields that need attention"
-                    className="bg-destructive size-1.5 rounded-full"
-                  />
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          {/* ================= ROUTING ================= */}
-          <TabsContent
-            value="routing"
-            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
-          >
-            <p className="text-muted-foreground mb-4 text-sm">
-              Pick which events go to which channel. Some combinations aren&apos;t
-              possible and are shown as unavailable.
-            </p>
-            <div className="rounded-lg border p-4">
-              <AlertRoutingGrid form={form} capabilities={state.capabilities} />
-            </div>
-          </TabsContent>
-
-          {/* ================= SMS ================= */}
-          <TabsContent
-            value="sms"
-            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
-          >
-            <FieldSet>
-              <FieldGroup>
-                <ChannelEnableRow
-                  id="sms-enabled"
-                  label="Enable SMS alerts"
-                  onHint="Alerts will be texted to your phone over the cellular network."
-                  offHint="SMS alerts are off."
-                  checked={smsEnabled}
-                  onChange={form.setSmsEnabled}
-                />
-
-                <Field>
-                  <FieldLabel htmlFor="sms-phone">Recipient phone</FieldLabel>
-                  <Input
-                    ref={registerField("sms-phone")}
-                    id="sms-phone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="+14155551234"
-                    className="max-w-sm font-mono"
-                    value={form.smsPhone}
-                    onChange={(e) => form.setSmsPhone(e.target.value)}
-                    disabled={!smsEnabled}
-                    aria-invalid={smsEnabled && !!errors.smsPhone}
-                    aria-describedby={
-                      errors.smsPhone ? "sms-phone-error" : "sms-phone-desc"
-                    }
-                  />
-                  {smsEnabled && errors.smsPhone ? (
-                    <FieldError id="sms-phone-error">
-                      Include country code, e.g. +14155551234
-                    </FieldError>
-                  ) : (
-                    <FieldDescription id="sms-phone-desc">
-                      Include the country code with a leading +, e.g.
-                      +14155551234.
-                    </FieldDescription>
-                  )}
-                </Field>
-
-                <ThresholdField
-                  id="sms-threshold"
-                  registerField={registerField}
-                  value={form.smsThreshold}
-                  onChange={form.setSmsThreshold}
-                  disabled={!smsEnabled}
-                  invalid={smsEnabled && !!errors.smsThreshold}
-                />
-
-                <TestRow
-                  label="Send Test SMS"
-                  isSending={hook.testingChannel === "sms"}
-                  canSend={canTestSms}
-                  showHint={form.isDirty && smsEnabled}
-                  onSend={() => handleTest("sms")}
-                />
-              </FieldGroup>
-            </FieldSet>
-          </TabsContent>
-
-          {/* ================= EMAIL ================= */}
-          <TabsContent
-            value="email"
-            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
-          >
-            {!msmtpInstalled && (
-              <MsmtpInstallBanner
-                installResult={hook.installResult}
-                onInstall={hook.runInstall}
-                onRefresh={hook.refresh}
-              />
-            )}
-
-            <FieldSet>
-              <FieldGroup>
-                <ChannelEnableRow
-                  id="email-enabled"
-                  label="Enable email alerts"
-                  onHint="Alerts will be emailed via Gmail once the connection is back."
-                  offHint="Email alerts are off."
-                  checked={emailEnabled}
-                  onChange={form.setEmailEnabled}
-                />
-
-                <Field>
-                  <FieldLabel htmlFor="sender-email">Sender email</FieldLabel>
-                  <Input
-                    ref={registerField("sender-email")}
-                    id="sender-email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="alerts@gmail.com"
-                    className="max-w-sm"
-                    value={form.senderEmail}
-                    onChange={(e) => form.setSenderEmail(e.target.value)}
-                    disabled={!emailEnabled}
-                    aria-invalid={emailEnabled && !!errors.senderEmail}
-                    aria-describedby={
-                      errors.senderEmail
-                        ? "sender-email-error"
-                        : "sender-email-desc"
-                    }
-                  />
-                  {emailEnabled && errors.senderEmail ? (
-                    <FieldError id="sender-email-error">
-                      Enter a valid email address.
-                    </FieldError>
-                  ) : (
-                    <FieldDescription id="sender-email-desc">
-                      The Gmail account that will send the alert.
-                    </FieldDescription>
-                  )}
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="recipient-email">
-                    Recipient email
-                  </FieldLabel>
-                  <Input
-                    ref={registerField("recipient-email")}
-                    id="recipient-email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    className="max-w-sm"
-                    value={form.recipientEmail}
-                    onChange={(e) => form.setRecipientEmail(e.target.value)}
-                    disabled={!emailEnabled}
-                    aria-invalid={emailEnabled && !!errors.recipientEmail}
-                    aria-describedby={
-                      errors.recipientEmail
-                        ? "recipient-email-error"
-                        : "recipient-email-desc"
-                    }
-                  />
-                  {emailEnabled && errors.recipientEmail ? (
-                    <FieldError id="recipient-email-error">
-                      Enter a valid email address.
-                    </FieldError>
-                  ) : (
-                    <FieldDescription id="recipient-email-desc">
-                      Where alerts will be delivered.
-                    </FieldDescription>
-                  )}
-                </Field>
-
-                <SecretField
-                  id="app-password"
-                  registerField={registerField}
-                  label="Gmail app password"
-                  value={form.appPassword}
-                  onChange={form.setAppPassword}
-                  disabled={!emailEnabled}
-                  isSet={form.appPasswordSet}
-                  missing={missing.appPassword}
-                  missingText="An app password is required to send email."
-                  savedPlaceholder="Leave blank to keep the saved password"
-                  freshPlaceholder="xxxx xxxx xxxx xxxx"
-                  autoComplete="new-password"
-                  show={showPassword}
-                  onToggleShow={() => setShowPassword((v) => !v)}
-                  showAria={showPassword ? "Hide password" : "Show password"}
-                  description={
-                    <>
-                      Generate an{" "}
-                      <a
-                        href="https://myaccount.google.com/apppasswords"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-info hover:text-info/80 underline underline-offset-2"
-                      >
-                        App Password
-                      </a>{" "}
-                      in your Google Account.
-                    </>
-                  }
-                />
-
-                <ThresholdField
-                  id="email-threshold"
-                  registerField={registerField}
-                  value={form.emailThreshold}
-                  onChange={form.setEmailThreshold}
-                  disabled={!emailEnabled}
-                  invalid={emailEnabled && !!errors.emailThreshold}
-                />
-
-                <TestRow
-                  label="Send Test Email"
-                  isSending={hook.testingChannel === "email"}
-                  canSend={canTestEmail}
-                  showHint={form.isDirty && emailEnabled}
-                  onSend={() => handleTest("email")}
-                />
-              </FieldGroup>
-            </FieldSet>
-          </TabsContent>
-
-          {/* ================= DISCORD ================= */}
-          <TabsContent
-            value="discord"
-            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
-          >
-            <FieldSet>
-              <FieldGroup>
-                <ChannelEnableRow
-                  id="discord-enabled"
-                  label="Enable Discord alerts"
-                  onHint="Alerts will be sent as a direct message from your bot on Discord."
-                  offHint="Discord alerts are off."
-                  checked={discordEnabled}
-                  onChange={form.setDiscordEnabled}
-                />
-
-                <Field>
-                  <FieldLabel htmlFor="discord-id">Owner Discord ID</FieldLabel>
-                  <Input
-                    ref={registerField("discord-id")}
-                    id="discord-id"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    placeholder="123456789012345678"
-                    className="max-w-sm font-mono"
-                    value={form.discordId}
-                    onChange={(e) => form.setDiscordId(e.target.value)}
-                    disabled={!discordEnabled}
-                    aria-invalid={discordEnabled && !!errors.discordId}
-                    aria-describedby={
-                      errors.discordId ? "discord-id-error" : "discord-id-desc"
-                    }
-                  />
-                  {discordEnabled && errors.discordId ? (
-                    <FieldError id="discord-id-error">
-                      Enter your numeric Discord user ID (17–20 digits).
-                    </FieldError>
-                  ) : (
-                    <FieldDescription id="discord-id-desc">
-                      Your numeric Discord user ID — enable Developer Mode, then
-                      right-click your name and Copy User ID.
-                    </FieldDescription>
-                  )}
-                </Field>
-
-                <SecretField
-                  id="bot-token"
-                  registerField={registerField}
-                  label="Bot token"
-                  value={form.botToken}
-                  onChange={form.setBotToken}
-                  disabled={!discordEnabled}
-                  isSet={form.botTokenSet}
-                  missing={missing.botToken}
-                  missingText="A bot token is required to send Discord alerts."
-                  savedPlaceholder="Leave blank to keep the saved token"
-                  freshPlaceholder="Paste your bot token"
-                  autoComplete="off"
-                  show={showToken}
-                  onToggleShow={() => setShowToken((v) => !v)}
-                  showAria={showToken ? "Hide bot token" : "Show bot token"}
-                  description={
-                    <>
-                      Create a bot and copy its token in the{" "}
-                      <a
-                        href="https://discord.com/developers/applications"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-info hover:text-info/80 underline underline-offset-2"
-                      >
-                        Discord Developer Portal
-                      </a>
-                      .
-                    </>
-                  }
-                />
-
-                <ThresholdField
-                  id="discord-threshold"
-                  registerField={registerField}
-                  value={form.discordThreshold}
-                  onChange={form.setDiscordThreshold}
-                  disabled={!discordEnabled}
-                  invalid={discordEnabled && !!errors.discordThreshold}
-                />
-
-                <TestRow
-                  label="Send Test Message"
-                  isSending={hook.testingChannel === "discord"}
-                  canSend={canTestDiscord}
-                  showHint={form.isDirty && discordEnabled}
-                  onSend={() => handleTest("discord")}
-                />
-              </FieldGroup>
-            </FieldSet>
-          </TabsContent>
-        </Tabs>
-
-        {/* ---- Sticky save bar — commits every pending change on the page. ---- */}
-        <div className="bg-card/95 supports-[backdrop-filter]:bg-card/80 sticky bottom-0 z-10 -mx-6 -mb-6 mt-6 flex shrink-0 items-center justify-between gap-3 rounded-b-xl border-t px-6 py-4 backdrop-blur">
-          <SaveStatus
-            isDirty={form.isDirty}
-            blocked={form.blocked}
-            saved={form.saved}
-            erroredTabNames={erroredTabNames}
-          />
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={form.discard}
-              disabled={!form.isDirty || form.isSaving}
-            >
-              Discard
-            </Button>
-            <SaveButton
-              type="button"
-              size="sm"
-              isSaving={form.isSaving}
-              saved={form.saved}
-              disabled={!form.isDirty || form.isSaving}
-              onClick={handleSave}
-            />
+    <Card className={cn(CARD_SHELL, CARD_FILL)}>
+      <CardHeader className={CARD_PAD}>
+        <div className={CARD_HEAD}>
+          <div className="min-w-0 space-y-1">
+            <CardTitle className={CARD_TITLE}>
+              {t("alerts.channels.title")}
+            </CardTitle>
+            <CardDescription className={CARD_DESC}>
+              {t("alerts.channels.description")}
+            </CardDescription>
           </div>
         </div>
+      </CardHeader>
+
+      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col gap-5")}>
+        {!channelsUsable ? (
+          <ChannelsCondition
+            tone={hook.error ? "destructive" : "muted"}
+            title={
+              hook.error
+                ? t("alerts.channels.error.title")
+                : t("alerts.channels.empty.title")
+            }
+            description={
+              hook.error
+                ? hook.error
+                : t("alerts.channels.empty.description")
+            }
+            actionLabel={hook.error ? t("alerts.channels.error.retry") : undefined}
+            onAction={hook.error ? hook.refresh : undefined}
+          />
+        ) : (
+          <>
+            <ChannelRail
+              label={t("alerts.channels.rail_label")}
+              items={railItems}
+              value={channel}
+              onValueChange={setChannel}
+              idBase={ID_BASE}
+            />
+
+            {/* THE FILL REGION. Everything above and below it is content-height,
+                so this is the one place the pair's slack can land. */}
+            {/* No entrance keyframe: a panel that is invisible until a frame
+                runs is not correct at rest. The rail pill's fill carries the
+                swap instead. */}
+            <div
+              role="tabpanel"
+              id={panelId(ID_BASE, channel)}
+              aria-labelledby={tabId(ID_BASE, channel)}
+              className={cn(CARD_FILL_REGION, "flex flex-col gap-5")}
+            >
+              {channel === "sms" ? (
+                <SmsPanel form={form} />
+              ) : channel === "email" ? (
+                <EmailPanel form={form} state={state} hook={hook} />
+              ) : (
+                <DiscordPanel form={form} />
+              )}
+
+              <TestAction
+                label={t(`alerts.channels.${channel}.test`)}
+                blockedReason={testBlockedReason(channel)}
+                isSending={hook.testingChannel === channel}
+                sendingLabel={t("alerts.channels.test.sending")}
+                sentLabel={t("alerts.channels.test.sent")}
+                sentTo={tested === channel ? testRecipient[channel] : null}
+                fault={
+                  fault?.scope === "test" && fault.channel === channel
+                    ? fault.message
+                    : null
+                }
+                onSend={() => handleTest(channel)}
+              />
+            </div>
+
+            {fault?.scope === "save" ? (
+              <ChannelNotice tone="destructive" icon={AlertCircleIcon} live>
+                {fault.message}
+              </ChannelNotice>
+            ) : null}
+
+            <div className={SAVEBAR.ROOT}>
+              <SaveStatus
+                isDirty={form.isDirty}
+                blocked={form.blocked}
+                saved={form.saved}
+                blockedNames={blockedNames}
+              />
+              <div className={SAVEBAR.ACTIONS}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(CHANNEL_BUTTON, "text-on-surface-variant")}
+                  onClick={form.discard}
+                  disabled={!form.isDirty || form.isSaving}
+                >
+                  {t("alerts.channels.save.discard")}
+                </Button>
+                <SaveButton
+                  type="button"
+                  className={CHANNEL_BUTTON}
+                  label={t("alerts.channels.save.action")}
+                  isSaving={form.isSaving}
+                  saved={form.saved}
+                  blockedReason={saveBlockedReason}
+                  disabled={!form.isDirty || form.isSaving}
+                  onClick={handleSave}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
 }
 
 // -----------------------------------------------------------------------------
-// ChannelEnableRow — the state-tinted master toggle at the top of a channel tab.
+// Panels
 // -----------------------------------------------------------------------------
-function ChannelEnableRow({
-  id,
-  label,
-  onHint,
-  offHint,
-  checked,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  onHint: string;
-  offHint: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
+function SmsPanel({ form }: { form: AlertsForm }) {
+  const { t } = useTranslation("common");
+  const on = form.smsEnabled;
   return (
-    <div
-      className={cn(
-        "rounded-lg border p-4 transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
-        checked ? "border-primary/30 bg-primary/5" : "bg-muted/20",
-      )}
-    >
-      <Field orientation="horizontal" className="justify-between">
-        <div className="grid min-w-0 gap-1">
-          <FieldLabel htmlFor={id} className="m-0">
-            {label}
-          </FieldLabel>
-          <FieldDescription>{checked ? onHint : offHint}</FieldDescription>
-        </div>
-        <Switch
-          id={id}
-          checked={checked}
-          onCheckedChange={onChange}
-          aria-label={label}
-        />
-      </Field>
-    </div>
+    <>
+      <ChannelSwitchRow
+        id="sms-enabled"
+        title={t("alerts.channels.sms.switch_title")}
+        description={t(
+          on ? "alerts.channels.sms.switch_on" : "alerts.channels.sms.switch_off",
+        )}
+        checked={on}
+        onCheckedChange={form.setSmsEnabled}
+      />
+      <ChannelField
+        id="sms-phone"
+        label={t("alerts.channels.sms.phone_label")}
+        hint={t("alerts.channels.sms.phone_hint")}
+        error={
+          form.missing.smsPhone
+            ? t("alerts.channels.sms.phone_missing")
+            : on && form.errors.smsPhone
+              ? t("alerts.channels.sms.phone_error")
+              : undefined
+        }
+        value={form.smsPhone}
+        onChange={form.setSmsPhone}
+        disabled={!on}
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        placeholder="+14155551234"
+        mono
+      />
+      <ThresholdField
+        id="sms-threshold"
+        value={form.smsThreshold}
+        onChange={form.setSmsThreshold}
+        disabled={!on}
+        invalid={on && !!form.errors.smsThreshold}
+      />
+    </>
+  );
+}
+
+function EmailPanel({
+  form,
+  state,
+  hook,
+}: {
+  form: AlertsForm;
+  state: AlertsState;
+  hook: UseAlertsReturn;
+}) {
+  const { t } = useTranslation("common");
+  const on = form.emailEnabled;
+  return (
+    <>
+      {!state.channels.email.msmtp_installed ? (
+        <MailerInstall hook={hook} />
+      ) : null}
+      <ChannelSwitchRow
+        id="email-enabled"
+        title={t("alerts.channels.email.switch_title")}
+        description={t(
+          on
+            ? "alerts.channels.email.switch_on"
+            : "alerts.channels.email.switch_off",
+        )}
+        checked={on}
+        onCheckedChange={form.setEmailEnabled}
+      />
+      <ChannelField
+        id="sender-email"
+        label={t("alerts.channels.email.sender_label")}
+        hint={t("alerts.channels.email.sender_hint")}
+        error={
+          form.missing.senderEmail
+            ? t("alerts.channels.email.sender_missing")
+            : on && form.errors.senderEmail
+              ? t("alerts.channels.email.address_error")
+              : undefined
+        }
+        value={form.senderEmail}
+        onChange={form.setSenderEmail}
+        disabled={!on}
+        type="email"
+        autoComplete="email"
+        placeholder="alerts@gmail.com"
+        mono
+      />
+      <ChannelField
+        id="recipient-email"
+        label={t("alerts.channels.email.recipient_label")}
+        hint={t("alerts.channels.email.recipient_hint")}
+        error={
+          form.missing.recipientEmail
+            ? t("alerts.channels.email.recipient_missing")
+            : on && form.errors.recipientEmail
+              ? t("alerts.channels.email.address_error")
+              : undefined
+        }
+        value={form.recipientEmail}
+        onChange={form.setRecipientEmail}
+        disabled={!on}
+        type="email"
+        autoComplete="email"
+        placeholder="you@example.com"
+        mono
+      />
+      <ChannelSecretField
+        id="app-password"
+        label={t("alerts.channels.email.password_label")}
+        hint={
+          <ExternalHint
+            text={t("alerts.channels.email.password_hint")}
+            href="https://myaccount.google.com/apppasswords"
+            linkLabel={t("alerts.channels.email.password_link")}
+          />
+        }
+        error={
+          form.missing.appPassword
+            ? t("alerts.channels.email.password_missing")
+            : undefined
+        }
+        value={form.appPassword}
+        onChange={form.setAppPassword}
+        disabled={!on}
+        isSet={form.appPasswordSet}
+        savedLabel={t("alerts.channels.secret_saved")}
+        placeholder={
+          form.appPasswordSet
+            ? t("alerts.channels.email.password_keep")
+            : t("alerts.channels.email.password_placeholder")
+        }
+        autoComplete="new-password"
+        showLabel={t("alerts.channels.email.password_show")}
+        hideLabel={t("alerts.channels.email.password_hide")}
+      />
+      <ThresholdField
+        id="email-threshold"
+        value={form.emailThreshold}
+        onChange={form.setEmailThreshold}
+        disabled={!on}
+        invalid={on && !!form.errors.emailThreshold}
+      />
+    </>
+  );
+}
+
+function DiscordPanel({ form }: { form: AlertsForm }) {
+  const { t } = useTranslation("common");
+  const on = form.discordEnabled;
+  return (
+    <>
+      <ChannelSwitchRow
+        id="discord-enabled"
+        title={t("alerts.channels.discord.switch_title")}
+        description={t(
+          on
+            ? "alerts.channels.discord.switch_on"
+            : "alerts.channels.discord.switch_off",
+        )}
+        checked={on}
+        onCheckedChange={form.setDiscordEnabled}
+      />
+      <ChannelField
+        id="discord-id"
+        label={t("alerts.channels.discord.id_label")}
+        hint={t("alerts.channels.discord.id_hint")}
+        error={
+          form.missing.discordId
+            ? t("alerts.channels.discord.id_missing")
+            : on && form.errors.discordId
+              ? t("alerts.channels.discord.id_error")
+              : undefined
+        }
+        value={form.discordId}
+        onChange={form.setDiscordId}
+        disabled={!on}
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="123456789012345678"
+        mono
+      />
+      <ChannelSecretField
+        id="bot-token"
+        label={t("alerts.channels.discord.token_label")}
+        hint={
+          <ExternalHint
+            text={t("alerts.channels.discord.token_hint")}
+            href="https://discord.com/developers/applications"
+            linkLabel={t("alerts.channels.discord.token_link")}
+          />
+        }
+        error={
+          form.missing.botToken
+            ? t("alerts.channels.discord.token_missing")
+            : undefined
+        }
+        value={form.botToken}
+        onChange={form.setBotToken}
+        disabled={!on}
+        isSet={form.botTokenSet}
+        savedLabel={t("alerts.channels.secret_saved")}
+        placeholder={
+          form.botTokenSet
+            ? t("alerts.channels.discord.token_keep")
+            : t("alerts.channels.discord.token_placeholder")
+        }
+        autoComplete="off"
+        showLabel={t("alerts.channels.discord.token_show")}
+        hideLabel={t("alerts.channels.discord.token_hide")}
+      />
+      <ThresholdField
+        id="discord-threshold"
+        value={form.discordThreshold}
+        onChange={form.setDiscordThreshold}
+        disabled={!on}
+        invalid={on && !!form.errors.discordThreshold}
+      />
+    </>
   );
 }
 
 // -----------------------------------------------------------------------------
-// ThresholdField — the shared "Alert After (minutes)" numeric input.
+// Shared rows
 // -----------------------------------------------------------------------------
+
+/** Each channel counts the SAME outage against its OWN wait; say only that. */
 function ThresholdField({
   id,
-  registerField,
   value,
   onChange,
   disabled,
   invalid,
 }: {
   id: string;
-  registerField: (id: string) => (el: HTMLElement | null) => void;
   value: string;
   onChange: (v: string) => void;
   disabled: boolean;
   invalid: boolean;
 }) {
+  const { t } = useTranslation("common");
   return (
-    <Field className="@sm/card:max-w-[18rem]">
-      <FieldLabel htmlFor={id}>Alert After (minutes)</FieldLabel>
-      <Input
-        ref={registerField(id)}
-        id={id}
-        type="number"
-        inputMode="numeric"
-        min="1"
-        max="60"
-        placeholder="5"
-        className="tabular-nums"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? `${id}-error` : `${id}-desc`}
-      />
-      {invalid ? (
-        <FieldError id={`${id}-error`}>
-          Duration must be 1–60 minutes.
-        </FieldError>
-      ) : (
-        <FieldDescription id={`${id}-desc`}>
-          How long the connection must be down before an alert is sent. Prevents
-          alerts for brief, transient outages.
-        </FieldDescription>
-      )}
-    </Field>
+    <ChannelField
+      id={id}
+      label={t("alerts.channels.threshold_label")}
+      hint={t("alerts.channels.threshold_hint")}
+      error={invalid ? t("alerts.channels.threshold_error") : undefined}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      type="number"
+      inputMode="numeric"
+      min="1"
+      max="60"
+      placeholder="5"
+      numeric
+      narrow
+      unit={t("alerts.channels.threshold_unit")}
+    />
   );
 }
 
-// -----------------------------------------------------------------------------
-// SecretField — a masked, write-only credential input (Gmail app password / bot
-// token). Never pre-filled; when a secret is already stored the field shows a
-// "Saved · leave blank to keep" affordance and only overwrites if you type.
-// -----------------------------------------------------------------------------
-function SecretField({
-  id,
-  registerField,
-  label,
-  value,
-  onChange,
-  disabled,
-  isSet,
-  missing,
-  missingText,
-  savedPlaceholder,
-  freshPlaceholder,
-  autoComplete,
-  show,
-  onToggleShow,
-  showAria,
-  description,
+function ExternalHint({
+  text,
+  href,
+  linkLabel,
 }: {
-  id: string;
-  registerField: (id: string) => (el: HTMLElement | null) => void;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled: boolean;
-  isSet: boolean;
-  missing: boolean;
-  missingText: string;
-  savedPlaceholder: string;
-  freshPlaceholder: string;
-  autoComplete: string;
-  show: boolean;
-  onToggleShow: () => void;
-  showAria: string;
-  description: React.ReactNode;
+  text: string;
+  href: string;
+  linkLabel: string;
 }) {
   return (
-    <Field>
-      <div className="flex items-center gap-2">
-        <FieldLabel htmlFor={id} className="m-0">
-          {label}
-        </FieldLabel>
-        {isSet && (
-          <span className="bg-success-container text-on-success-container inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[0.65rem] font-medium">
-            <CheckIcon className="size-2.5" />
-            Saved
-          </span>
-        )}
-      </div>
-      <div className="relative max-w-sm">
-        <Input
-          ref={registerField(id)}
-          id={id}
-          type={show ? "text" : "password"}
-          autoComplete={autoComplete}
-          placeholder={isSet ? savedPlaceholder : freshPlaceholder}
-          className="pr-10 font-mono"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          aria-invalid={missing}
-          aria-describedby={`${id}-desc`}
-        />
-        <button
-          type="button"
-          aria-label={showAria}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1/2 right-2.5 -translate-y-1/2 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-          onClick={onToggleShow}
-        >
-          {show ? (
-            <EyeOffIcon className="size-4" />
-          ) : (
-            <EyeIcon className="size-4" />
-          )}
-        </button>
-      </div>
-      {missing ? (
-        <FieldError id={`${id}-desc`}>{missingText}</FieldError>
-      ) : (
-        <FieldDescription id={`${id}-desc`}>{description}</FieldDescription>
-      )}
-    </Field>
+    <>
+      {text}{" "}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+      >
+        {linkLabel}
+        <ExternalLinkIcon className="size-3" aria-hidden />
+      </a>
+    </>
   );
 }
 
-// -----------------------------------------------------------------------------
-// TestRow — per-channel "send a real test" action, gated on a saved config.
-// -----------------------------------------------------------------------------
-function TestRow({
+function TestAction({
   label,
+  blockedReason,
   isSending,
-  canSend,
-  showHint,
+  sendingLabel,
+  sentLabel,
+  sentTo,
+  fault,
   onSend,
 }: {
   label: string;
+  blockedReason: string | null;
   isSending: boolean;
-  canSend: boolean;
-  showHint: boolean;
+  sendingLabel: string;
+  sentLabel: string;
+  sentTo: string | null;
+  fault: string | null;
   onSend: () => void;
 }) {
   return (
-    <div className="grid gap-1.5">
-      <Button
-        type="button"
-        variant="outline"
-        className="w-fit"
-        disabled={!canSend}
-        onClick={onSend}
-      >
-        {isSending ? (
-          <>
-            <Loader2 className="size-4 animate-spin" />
-            Sending…
-          </>
-        ) : (
-          <>
-            <SendIcon className="size-4" />
-            {label}
-          </>
-        )}
-      </Button>
-      {showHint && !canSend && (
-        <p className="text-muted-foreground text-xs">
-          Save your changes before sending a test.
-        </p>
-      )}
+    // No `mt-auto`: the slack belongs AFTER the channel's own block, not wedged
+    // between its fields and its action.
+    <div className="flex flex-col gap-2.5 pt-1">
+      {fault ? (
+        <ChannelNotice tone="destructive" icon={AlertCircleIcon} live>
+          {fault}
+        </ChannelNotice>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="tonal-neutral"
+          className={CHANNEL_BUTTON}
+          disabled={!!blockedReason || isSending}
+          onClick={onSend}
+        >
+          {isSending ? (
+            <>
+              <Loader2Icon className="size-4 animate-spin motion-reduce:animate-none" />
+              {sendingLabel}
+            </>
+          ) : (
+            <>
+              <SendIcon className="size-4" />
+              {label}
+            </>
+          )}
+        </Button>
+        {sentTo && !isSending ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <Badge variant="success">
+              <CheckCircle2Icon className="size-3" />
+              {sentLabel}
+            </Badge>
+            <span className="text-on-surface-variant truncate font-mono text-xs">
+              {sentTo}
+            </span>
+          </span>
+        ) : null}
+      </div>
+      {blockedReason && !isSending ? (
+        <p className={FIELD.HINT}>{blockedReason}</p>
+      ) : null}
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// MsmtpInstallBanner — inline "mailer not installed" affordance. Unlike the old
-// email page, this does NOT block the form: SMS, Discord + routing still save
-// while the mailer is missing; only email delivery waits on the install.
+// MailerInstall — email delivery waits on msmtp; SMS and Discord still save.
 // -----------------------------------------------------------------------------
-function MsmtpInstallBanner({
-  installResult,
-  onInstall,
-  onRefresh,
-}: {
-  installResult: UseAlertsReturn["installResult"];
-  onInstall: () => void;
-  onRefresh: () => void;
-}) {
+function MailerInstall({ hook }: { hook: UseAlertsReturn }) {
+  const { t } = useTranslation("common");
+  const { installResult } = hook;
   const running = installResult.status === "running";
   return (
-    <div className="border-warning/30 bg-warning/5 mb-5 grid gap-3 rounded-lg border p-4">
-      <div className="flex items-start gap-3">
-        <PackageIcon className="text-warning mt-0.5 size-5 shrink-0" />
-        <div className="grid gap-0.5">
-          <p className="text-sm font-medium">
-            msmtp is not installed on this device.
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Install it to send email alerts. SMS, Discord and routing still save
-            without it.
-          </p>
-        </div>
-      </div>
-
-      {installResult.status === "complete" && (
-        <Alert className="border-success/30 bg-success/5">
-          <AlertCircle className="text-success" />
-          <AlertDescription className="text-success">
-            <p>{installResult.message}</p>
-          </AlertDescription>
-        </Alert>
-      )}
-      {installResult.status === "error" && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>
-            <p>
-              {installResult.message}
-              {installResult.detail && (
-                <span className="mt-1 block text-xs opacity-80">
-                  {installResult.detail}
-                </span>
-              )}
-            </p>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={onInstall} disabled={running}>
+    <div className="flex flex-col gap-2.5">
+      <ChannelNotice tone="warning" icon={TriangleAlertIcon}>
+        {t("alerts.channels.email.mailer_missing")}
+      </ChannelNotice>
+      {installResult.status === "error" ? (
+        <ChannelNotice tone="destructive" icon={AlertCircleIcon} live>
+          {installResult.detail || installResult.message}
+        </ChannelNotice>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Button
+          type="button"
+          className={CHANNEL_BUTTON}
+          onClick={hook.runInstall}
+          disabled={running}
+        >
           {running ? (
             <>
-              <Loader2 className="size-4 animate-spin" />
-              {installResult.message || "Installing…"}
+              <Loader2Icon className="size-4 animate-spin motion-reduce:animate-none" />
+              {t("alerts.channels.email.mailer_installing")}
             </>
           ) : (
             <>
-              <PackageIcon className="size-4" />
-              Install msmtp
+              <DownloadIcon className="size-4" />
+              {t("alerts.channels.email.mailer_install")}
             </>
           )}
         </Button>
         <Button
-          variant="outline"
-          size="sm"
-          onClick={onRefresh}
+          type="button"
+          variant="tonal-neutral"
+          className={CHANNEL_BUTTON}
+          onClick={hook.refresh}
           disabled={running}
         >
-          <RefreshCcwIcon className="size-3.5" />
-          Check Again
+          <RefreshCcwIcon className="size-4" />
+          {t("alerts.channels.email.mailer_recheck")}
         </Button>
-      </div>
-
-      <div className="grid gap-1.5">
-        <span className="text-muted-foreground text-xs">
-          Or install it manually:
-        </span>
-        <CopyableCommand command="opkg update && opkg install msmtp" />
       </div>
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// SaveStatus — the four-state truthful save line (shared shape with Watchdog).
+// SaveStatus — the four truthful states of the bar's left half.
 // -----------------------------------------------------------------------------
 function SaveStatus({
   isDirty,
   blocked,
   saved,
-  erroredTabNames,
+  blockedNames,
 }: {
   isDirty: boolean;
   blocked: boolean;
   saved: boolean;
-  erroredTabNames: string[];
+  blockedNames: string[];
 }) {
+  const { t } = useTranslation("common");
+
   if (isDirty && blocked) {
     return (
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span
-          className="bg-destructive size-2 shrink-0 rounded-full"
-          aria-hidden
-        />
-        <p className="text-destructive truncate text-xs font-medium">
-          {erroredTabNames.length > 0
-            ? `Fix the errors in ${erroredTabNames.join(", ")}`
-            : "Fix the highlighted fields"}
-        </p>
-      </div>
+      <p className={cn(SAVEBAR.STATUS, "text-destructive-on-surface min-w-0")}>
+        <AlertCircleIcon className="size-3.5 flex-none" aria-hidden />
+        <span className="truncate font-medium">
+          {blockedNames.length > 0
+            ? t("alerts.channels.save.blocked_in", {
+                channels: blockedNames.join(", "),
+              })
+            : t("alerts.channels.save.blocked")}
+        </span>
+      </p>
     );
   }
   if (isDirty) {
     return (
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="relative flex size-2 shrink-0" aria-hidden>
-          <span className="bg-primary/50 absolute inline-flex size-full animate-ping rounded-full motion-reduce:hidden" />
-          <span className="bg-primary relative inline-flex size-2 rounded-full" />
+      <p className={cn(SAVEBAR.STATUS, "min-w-0")}>
+        <span className={SAVEBAR.PULSE} aria-hidden />
+        <span className="text-on-surface truncate font-medium">
+          {t("alerts.channels.save.dirty")}
         </span>
-        <p className="truncate text-xs font-medium">Unsaved changes</p>
-      </div>
+      </p>
     );
   }
   if (saved) {
     return (
-      <div className="text-success flex min-w-0 items-center gap-1.5">
-        <CheckIcon className="size-3.5 shrink-0" aria-hidden />
-        <p className="truncate text-xs font-medium">Saved!</p>
-      </div>
+      <p className={cn(SAVEBAR.STATUS, "text-success-on-surface min-w-0")}>
+        <CheckCircle2Icon className="size-3.5 flex-none" aria-hidden />
+        <span className="truncate font-medium">
+          {t("alerts.channels.save.saved")}
+        </span>
+      </p>
     );
   }
   return (
-    <p className="text-muted-foreground truncate text-xs">All changes saved</p>
+    <p className={cn(SAVEBAR.STATUS, "min-w-0")}>
+      <span className="truncate">{t("alerts.channels.save.clean")}</span>
+    </p>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// The empty / error condition. It IS the state, so it takes the fill region.
+// -----------------------------------------------------------------------------
+function ChannelsCondition({
+  tone,
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  tone: ConditionTone;
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  const skin = CONDITION_TONE[tone];
+  return (
+    <div
+      role="status"
+      className={cn(
+        CONDITION.ROOT,
+        skin.ROOT,
+        CARD_FILL_REGION,
+        "justify-center",
+      )}
+    >
+      <span aria-hidden className={cn(CONDITION.DISC, skin.DISC)}>
+        {tone === "destructive" ? (
+          <AlertCircleIcon className={CONDITION.GLYPH} />
+        ) : (
+          <MinusCircleIcon className={CONDITION.GLYPH} />
+        )}
+      </span>
+      <span className={CONDITION.TITLE}>{title}</span>
+      <p className={CONDITION.DESC}>{description}</p>
+      {actionLabel && onAction ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onAction}
+          className={cn(CONDITION.ACTION, skin.ACTION)}
+        >
+          <RefreshCcwIcon className="size-4" />
+          {actionLabel}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// The loading state. Geometry comes from the same constants the loaded view
+// reads, and the fill region is in the same place (Skeleton-Mirror).
+// -----------------------------------------------------------------------------
+export function AlertsSettingsCardSkeleton() {
+  const { t } = useTranslation("common");
+  return (
+    <Card
+      className={cn(CARD_SHELL, CARD_FILL)}
+      role="status"
+      aria-busy="true"
+      aria-label={t("alerts.channels.loading")}
+    >
+      <CardHeader className={CARD_PAD}>
+        <div className={CARD_HEAD}>
+          <div className="min-w-0 space-y-1">
+            <CardTitle className={CARD_TITLE}>
+              {t("alerts.channels.title")}
+            </CardTitle>
+            <CardDescription className={CARD_DESC}>
+              {t("alerts.channels.description")}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col gap-5")}>
+        <div className={RAIL.ROOT} aria-hidden>
+          {ALERT_CHANNEL_ORDER.map((ch) => (
+            <Skeleton key={ch} className={cn(RAIL.PILL, "w-[5.5rem]")} />
+          ))}
+        </div>
+
+        <div className={cn(CARD_FILL_REGION, "flex flex-col gap-5")} aria-hidden>
+          <Skeleton className={cn(SKELETON.SWITCH, "w-full")} />
+          {[0, 1].map((i) => (
+            <div key={i} className={FIELD.ROW}>
+              <Skeleton className={cn(SKELETON.LINE, "h-4 w-32")} />
+              <Skeleton className={cn(SKELETON.FIELD, "w-full")} />
+              <Skeleton className={cn(SKELETON.LINE, "h-3.5 w-56")} />
+            </div>
+          ))}
+          <div className="pt-1">
+            <Skeleton className={cn(CHANNEL_BUTTON, "w-44")} />
+          </div>
+        </div>
+
+        <div className={SAVEBAR.ROOT} aria-hidden>
+          <Skeleton className={cn(SKELETON.LINE, "h-4 w-36")} />
+          <div className={SAVEBAR.ACTIONS}>
+            <Skeleton className={cn(CHANNEL_BUTTON, "w-24")} />
+            <Skeleton className={cn(CHANNEL_BUTTON, "w-36")} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
