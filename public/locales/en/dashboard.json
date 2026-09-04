@@ -157,6 +157,88 @@
     "no_reading": "No reading",
     "empty_description": "Waiting for the first latency samples."
   },
+  "latencyMonitor": {
+    "page": {
+      "title": "Latency Monitor",
+      "description": "Round-trip time, jitter and packet loss, measured by the modem's own probes."
+    },
+    "status": {
+      "aria": "Connection status",
+      "connected": "Connected",
+      "degraded": "Degraded",
+      "disconnected": "Disconnected",
+      "recovery": "Recovering",
+      "unknown": "Not reporting"
+    },
+    "band": {
+      "average_eyebrow": "Average RTT",
+      "average_min": "Min {{value}}",
+      "average_max": "Max {{value}}",
+      "average_unmeasured": "No window to average",
+      "jitter_eyebrow": "Jitter",
+      "jitter_samples_one": "{{count}} sample in the window",
+      "jitter_samples_other": "{{count}} samples in the window",
+      "jitter_unmeasured": "Window too short",
+      "loss_eyebrow": "Packet loss",
+      "loss_counted": "{{lost}} of {{total}} lost",
+      "loss_unmeasured": "Window too short",
+      "target_eyebrow": "Probe target",
+      "target_unknown": "No target reported"
+    },
+    "range": {
+      "aria": "Time range",
+      "realtime": "Live",
+      "hourly": "Hourly",
+      "twelvehour": "12 h",
+      "daily": "Daily"
+    },
+    "chart": {
+      "title": "Round-trip time",
+      "legend_latency": "Round-trip time",
+      "legend_loss": "Packet loss",
+      "legend_spread": "Min to max",
+      "legend_threshold": "Good, up to {{value}}",
+      "loss_label": "Packet loss",
+      "description_realtime": "The last {{count}} probes, {{seconds}} s apart.",
+      "description_hourly": "Hourly averages, {{count}} buckets from {{from}} to {{to}}.",
+      "description_twelvehour": "12-hour averages, {{count}} buckets from {{from}} to {{to}}.",
+      "description_daily": "Daily averages, {{count}} buckets from {{from}} to {{to}}.",
+      "description_loading": "Reading the probe history.",
+      "description_unreadable": "No window to describe while the history cannot be read.",
+      "description_empty": "Nothing measured in this range yet."
+    },
+    "samples": {
+      "title": "Samples",
+      "description": "Showing {{shown}} of {{total}} in this window.",
+      "description_loading": "Reading the probe history.",
+      "description_unreadable": "No samples to count while the history cannot be read.",
+      "col_time": "Time",
+      "col_rtt": "RTT",
+      "col_jitter": "Jitter",
+      "col_loss": "Loss",
+      "timeout": "Timeout",
+      "sort_label": "Sort by",
+      "sort_newest": "Newest first",
+      "sort_oldest": "Oldest first",
+      "day_today": "Today",
+      "day_yesterday": "Yesterday"
+    },
+    "empty": {
+      "title": "No samples yet",
+      "description": "The probe history fills as the modem measures the link. Nothing has been recorded for this range."
+    },
+    "error": {
+      "title": "Could not read the probe history",
+      "description": "{{message}}",
+      "retry": "Try again"
+    },
+    "notice": {
+      "stale": "Showing the last samples we managed to read. {{message}}"
+    },
+    "unit_ms": "ms",
+    "unit_pct": "%",
+    "unmeasured": "—"
+  },
   "speedtest": {
     "section_label": "Speed Test",
     "start_button_aria": "Start speed test",

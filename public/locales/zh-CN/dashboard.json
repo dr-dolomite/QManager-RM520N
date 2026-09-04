@@ -157,6 +157,88 @@
     "no_reading": "无读数",
     "empty_description": "正在等待首批延迟采样。"
   },
+  "latencyMonitor": {
+    "page": {
+      "title": "延迟监控",
+      "description": "往返时延（RTT）、抖动与丢包率，由调制解调器自身的探测测得。"
+    },
+    "status": {
+      "aria": "连接状态",
+      "connected": "已连接",
+      "degraded": "不稳定",
+      "disconnected": "已断开",
+      "recovery": "恢复中",
+      "unknown": "未上报"
+    },
+    "band": {
+      "average_eyebrow": "平均 RTT",
+      "average_min": "最小 {{value}}",
+      "average_max": "最大 {{value}}",
+      "average_unmeasured": "没有可用于平均的窗口",
+      "jitter_eyebrow": "抖动",
+      "jitter_samples_one": "窗口内 {{count}} 个样本",
+      "jitter_samples_other": "窗口内 {{count}} 个样本",
+      "jitter_unmeasured": "窗口太短",
+      "loss_eyebrow": "丢包率",
+      "loss_counted": "丢失 {{lost}}（共 {{total}}）",
+      "loss_unmeasured": "窗口太短",
+      "target_eyebrow": "探测目标",
+      "target_unknown": "未报告目标"
+    },
+    "range": {
+      "aria": "时间范围",
+      "realtime": "实时",
+      "hourly": "每小时",
+      "twelvehour": "12 小时",
+      "daily": "每日"
+    },
+    "chart": {
+      "title": "往返时延",
+      "legend_latency": "往返时延",
+      "legend_loss": "丢包率",
+      "legend_spread": "最小至最大",
+      "legend_threshold": "良好，至多 {{value}}",
+      "loss_label": "丢包率",
+      "description_realtime": "最近 {{count}} 次探测，间隔 {{seconds}} 秒。",
+      "description_hourly": "每小时平均值，{{count}} 个区间，自 {{from}} 至 {{to}}。",
+      "description_twelvehour": "12 小时平均值，{{count}} 个区间，自 {{from}} 至 {{to}}。",
+      "description_daily": "每日平均值，{{count}} 个区间，自 {{from}} 至 {{to}}。",
+      "description_loading": "正在读取探测历史记录。",
+      "description_unreadable": "历史记录无法读取，暂无窗口可供描述。",
+      "description_empty": "此范围内尚无测量数据。"
+    },
+    "samples": {
+      "title": "样本",
+      "description": "此窗口内显示 {{shown}} / {{total}}。",
+      "description_loading": "正在读取探测历史记录。",
+      "description_unreadable": "历史记录无法读取，暂无样本可供统计。",
+      "col_time": "时间",
+      "col_rtt": "RTT",
+      "col_jitter": "抖动",
+      "col_loss": "丢包",
+      "timeout": "超时",
+      "sort_label": "排序方式",
+      "sort_newest": "最新优先",
+      "sort_oldest": "最早优先",
+      "day_today": "今天",
+      "day_yesterday": "昨天"
+    },
+    "empty": {
+      "title": "暂无样本",
+      "description": "调制解调器测量链路后，探测历史记录会逐步填充。此范围内尚无记录。"
+    },
+    "error": {
+      "title": "无法读取探测历史记录",
+      "description": "{{message}}",
+      "retry": "重试"
+    },
+    "notice": {
+      "stale": "正在显示我们成功读取到的最后样本。{{message}}"
+    },
+    "unit_ms": "ms",
+    "unit_pct": "%",
+    "unmeasured": "—"
+  },
   "speedtest": {
     "section_label": "速度测试",
     "start_button_aria": "开始速度测试",

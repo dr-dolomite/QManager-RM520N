@@ -448,12 +448,11 @@
   --chart-threshold: oklch(0.525 0.11 72);
   /* LEGACY --chart-1..6. Do not use in new work: they are shadcn-starter
      inheritance, they sit in one hue family, and 1/2/4/5 are byte-identical in
-     both themes so a chart built on them does not theme at all. They survive
-     only because --chart-3 and --chart-6 still have live consumers
-     (latency-monitoring-card.tsx, signal-storm-game.tsx). Those two are
-     retargeted onto the new palette AND given real dark values so the surfaces
-     that read them theme correctly; delete the whole block once both callers
-     move to --chart-nr / a quality stop. */
+     both themes so a chart built on them does not theme at all. The Latency
+     Monitor moved onto --primary / --destructive / --chart-threshold, so the
+     block now stands on ONE consumer: --chart-6, read by signal-storm-game.tsx.
+     --chart-3 has no caller left at all. Both keep their real dark values while
+     the block stands; delete it outright once that last caller moves. */
   --chart-1: oklch(0.809 0.097 251.813);
   --chart-2: oklch(0.623 0.201 259.815);
   --chart-3: oklch(0.535 0.22 262);
@@ -611,7 +610,7 @@
   --chart-lte: oklch(0.74 0.149 296);
   --chart-threshold: oklch(0.815 0.151 72);
   /* See the light block: 1/2/4/5 are legacy and deliberately do not theme.
-     3 and 6 do, because they still have live consumers. */
+     3 and 6 do, but only --chart-6 still has a caller (signal-storm-game.tsx). */
   --chart-1: oklch(0.809 0.097 251.813);
   --chart-2: oklch(0.623 0.201 259.815);
   --chart-3: oklch(0.65 0.183 262);

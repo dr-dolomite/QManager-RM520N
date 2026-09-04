@@ -157,6 +157,88 @@
     "no_reading": "無讀數",
     "empty_description": "正在等待首批延遲取樣。"
   },
+  "latencyMonitor": {
+    "page": {
+      "title": "延遲監控",
+      "description": "往返時延（RTT）、抖動與封包遺失率，由調變解調器自身的探測測得。"
+    },
+    "status": {
+      "aria": "連線狀態",
+      "connected": "已連線",
+      "degraded": "不穩定",
+      "disconnected": "已斷開",
+      "recovery": "恢復中",
+      "unknown": "未回報"
+    },
+    "band": {
+      "average_eyebrow": "平均 RTT",
+      "average_min": "最小 {{value}}",
+      "average_max": "最大 {{value}}",
+      "average_unmeasured": "沒有可用於平均的窗口",
+      "jitter_eyebrow": "抖動",
+      "jitter_samples_one": "窗口內 {{count}} 個樣本",
+      "jitter_samples_other": "窗口內 {{count}} 個樣本",
+      "jitter_unmeasured": "窗口太短",
+      "loss_eyebrow": "封包遺失率",
+      "loss_counted": "遺失 {{lost}}（共 {{total}}）",
+      "loss_unmeasured": "窗口太短",
+      "target_eyebrow": "探測目標",
+      "target_unknown": "未回報目標"
+    },
+    "range": {
+      "aria": "時間範圍",
+      "realtime": "即時",
+      "hourly": "每小時",
+      "twelvehour": "12 小時",
+      "daily": "每日"
+    },
+    "chart": {
+      "title": "往返時延",
+      "legend_latency": "往返時延",
+      "legend_loss": "封包遺失率",
+      "legend_spread": "最小至最大",
+      "legend_threshold": "良好，至多 {{value}}",
+      "loss_label": "封包遺失率",
+      "description_realtime": "最近 {{count}} 次探測，間隔 {{seconds}} 秒。",
+      "description_hourly": "每小時平均值，{{count}} 個區間，自 {{from}} 至 {{to}}。",
+      "description_twelvehour": "12 小時平均值，{{count}} 個區間，自 {{from}} 至 {{to}}。",
+      "description_daily": "每日平均值，{{count}} 個區間，自 {{from}} 至 {{to}}。",
+      "description_loading": "正在讀取探測歷史記錄。",
+      "description_unreadable": "歷史記錄無法讀取，暫無窗口可供描述。",
+      "description_empty": "此範圍內尚無測量資料。"
+    },
+    "samples": {
+      "title": "樣本",
+      "description": "此窗口內顯示 {{shown}} / {{total}}。",
+      "description_loading": "正在讀取探測歷史記錄。",
+      "description_unreadable": "歷史記錄無法讀取，暫無樣本可供統計。",
+      "col_time": "時間",
+      "col_rtt": "RTT",
+      "col_jitter": "抖動",
+      "col_loss": "遺失",
+      "timeout": "逾時",
+      "sort_label": "排序方式",
+      "sort_newest": "最新優先",
+      "sort_oldest": "最早優先",
+      "day_today": "今天",
+      "day_yesterday": "昨天"
+    },
+    "empty": {
+      "title": "尚無樣本",
+      "description": "調變解調器測量連線後，探測歷史記錄會逐步填入。此範圍內尚無記錄。"
+    },
+    "error": {
+      "title": "無法讀取探測歷史記錄",
+      "description": "{{message}}",
+      "retry": "重試"
+    },
+    "notice": {
+      "stale": "正在顯示我們成功讀取到的最後樣本。{{message}}"
+    },
+    "unit_ms": "ms",
+    "unit_pct": "%",
+    "unmeasured": "—"
+  },
   "speedtest": {
     "section_label": "速度測試",
     "start_button_aria": "開始速度測試",

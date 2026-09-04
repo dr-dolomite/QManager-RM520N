@@ -157,6 +157,88 @@
     "no_reading": "Tidak ada pembacaan",
     "empty_description": "Menunggu sampel latensi pertama."
   },
+  "latencyMonitor": {
+    "page": {
+      "title": "Monitor Latensi",
+      "description": "Round-trip time (RTT), jitter, dan packet loss, diukur langsung oleh probe modem."
+    },
+    "status": {
+      "aria": "Status koneksi",
+      "connected": "Terhubung",
+      "degraded": "Tidak Stabil",
+      "disconnected": "Terputus",
+      "recovery": "Memulihkan",
+      "unknown": "Tidak Melapor"
+    },
+    "band": {
+      "average_eyebrow": "RTT Rata-Rata",
+      "average_min": "Min {{value}}",
+      "average_max": "Maks {{value}}",
+      "average_unmeasured": "Tidak ada jendela untuk dirata-ratakan",
+      "jitter_eyebrow": "Jitter",
+      "jitter_samples_one": "{{count}} sampel dalam jendela ini",
+      "jitter_samples_other": "{{count}} sampel dalam jendela ini",
+      "jitter_unmeasured": "Jendela terlalu pendek",
+      "loss_eyebrow": "Packet Loss",
+      "loss_counted": "{{lost}} dari {{total}} hilang",
+      "loss_unmeasured": "Jendela terlalu pendek",
+      "target_eyebrow": "Target Probe",
+      "target_unknown": "Tidak ada target yang dilaporkan"
+    },
+    "range": {
+      "aria": "Rentang waktu",
+      "realtime": "Langsung",
+      "hourly": "Per Jam",
+      "twelvehour": "12 Jam",
+      "daily": "Harian"
+    },
+    "chart": {
+      "title": "Waktu Bolak-Balik",
+      "legend_latency": "Waktu Bolak-Balik",
+      "legend_loss": "Packet Loss",
+      "legend_spread": "Min ke Maks",
+      "legend_threshold": "Baik, hingga {{value}}",
+      "loss_label": "Packet Loss",
+      "description_realtime": "{{count}} probe terakhir, berjarak {{seconds}} dtk.",
+      "description_hourly": "Rata-rata per jam, {{count}} kelompok dari {{from}} hingga {{to}}.",
+      "description_twelvehour": "Rata-rata 12 jam, {{count}} kelompok dari {{from}} hingga {{to}}.",
+      "description_daily": "Rata-rata harian, {{count}} kelompok dari {{from}} hingga {{to}}.",
+      "description_loading": "Membaca riwayat probe.",
+      "description_unreadable": "Tidak ada jendela untuk dijelaskan selagi riwayat tidak dapat dibaca.",
+      "description_empty": "Belum ada yang terukur dalam rentang ini."
+    },
+    "samples": {
+      "title": "Sampel",
+      "description": "Menampilkan {{shown}} dari {{total}} dalam jendela ini.",
+      "description_loading": "Membaca riwayat probe.",
+      "description_unreadable": "Tidak ada sampel untuk dihitung selagi riwayat tidak dapat dibaca.",
+      "col_time": "Waktu",
+      "col_rtt": "RTT",
+      "col_jitter": "Jitter",
+      "col_loss": "Hilang",
+      "timeout": "Waktu Habis",
+      "sort_label": "Urutkan Berdasarkan",
+      "sort_newest": "Terbaru Dahulu",
+      "sort_oldest": "Terlama Dahulu",
+      "day_today": "Hari Ini",
+      "day_yesterday": "Kemarin"
+    },
+    "empty": {
+      "title": "Belum Ada Sampel",
+      "description": "Riwayat probe akan terisi seiring modem mengukur tautan. Belum ada yang tercatat untuk rentang ini."
+    },
+    "error": {
+      "title": "Riwayat Probe Tidak Dapat Dibaca",
+      "description": "{{message}}",
+      "retry": "Coba Lagi"
+    },
+    "notice": {
+      "stale": "Menampilkan sampel terakhir yang berhasil kami baca. {{message}}"
+    },
+    "unit_ms": "ms",
+    "unit_pct": "%",
+    "unmeasured": "—"
+  },
   "speedtest": {
     "section_label": "Tes Kecepatan",
     "start_button_aria": "Mulai tes kecepatan",

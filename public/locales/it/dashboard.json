@@ -157,6 +157,88 @@
     "no_reading": "Nessuna lettura",
     "empty_description": "In attesa dei primi campioni di latenza."
   },
+  "latencyMonitor": {
+    "page": {
+      "title": "Monitoraggio della latenza",
+      "description": "Tempo di andata e ritorno (RTT), jitter e perdita di pacchetti, misurati dalle sonde del modem."
+    },
+    "status": {
+      "aria": "Stato della connessione",
+      "connected": "Connesso",
+      "degraded": "Instabile",
+      "disconnected": "Disconnesso",
+      "recovery": "In ripristino",
+      "unknown": "Nessuna segnalazione"
+    },
+    "band": {
+      "average_eyebrow": "RTT medio",
+      "average_min": "Min {{value}}",
+      "average_max": "Max {{value}}",
+      "average_unmeasured": "Nessuna finestra da mediare",
+      "jitter_eyebrow": "Jitter",
+      "jitter_samples_one": "{{count}} campione nella finestra",
+      "jitter_samples_other": "{{count}} campioni nella finestra",
+      "jitter_unmeasured": "Finestra troppo breve",
+      "loss_eyebrow": "Perdita di pacchetti",
+      "loss_counted": "{{lost}} persi su {{total}}",
+      "loss_unmeasured": "Finestra troppo breve",
+      "target_eyebrow": "Target della sonda",
+      "target_unknown": "Nessun target segnalato"
+    },
+    "range": {
+      "aria": "Intervallo di tempo",
+      "realtime": "Tempo reale",
+      "hourly": "Oraria",
+      "twelvehour": "12 h",
+      "daily": "Giornaliera"
+    },
+    "chart": {
+      "title": "Tempo di andata e ritorno",
+      "legend_latency": "Tempo di andata e ritorno",
+      "legend_loss": "Perdita di pacchetti",
+      "legend_spread": "Da min a max",
+      "legend_threshold": "Buono, fino a {{value}}",
+      "loss_label": "Perdita di pacchetti",
+      "description_realtime": "Le ultime {{count}} sonde, a {{seconds}} s di distanza.",
+      "description_hourly": "Medie orarie, {{count}} intervalli da {{from}} a {{to}}.",
+      "description_twelvehour": "Medie di 12 ore, {{count}} intervalli da {{from}} a {{to}}.",
+      "description_daily": "Medie giornaliere, {{count}} intervalli da {{from}} a {{to}}.",
+      "description_loading": "Lettura della cronologia delle sonde in corso.",
+      "description_unreadable": "Nessuna finestra da descrivere finché la cronologia non può essere letta.",
+      "description_empty": "Ancora nulla misurato in questo intervallo."
+    },
+    "samples": {
+      "title": "Campioni",
+      "description": "Mostrando {{shown}} di {{total}} in questa finestra.",
+      "description_loading": "Lettura della cronologia delle sonde in corso.",
+      "description_unreadable": "Nessun campione da contare finché la cronologia non può essere letta.",
+      "col_time": "Ora",
+      "col_rtt": "RTT",
+      "col_jitter": "Jitter",
+      "col_loss": "Perdita",
+      "timeout": "Scaduto",
+      "sort_label": "Ordina per",
+      "sort_newest": "Più recenti prima",
+      "sort_oldest": "Meno recenti prima",
+      "day_today": "Oggi",
+      "day_yesterday": "Ieri"
+    },
+    "empty": {
+      "title": "Ancora nessun campione",
+      "description": "La cronologia delle sonde si riempie man mano che il modem misura il collegamento. Non è stato registrato nulla per questo intervallo."
+    },
+    "error": {
+      "title": "Impossibile leggere la cronologia delle sonde",
+      "description": "{{message}}",
+      "retry": "Riprova"
+    },
+    "notice": {
+      "stale": "Vengono mostrati gli ultimi campioni che siamo riusciti a leggere. {{message}}"
+    },
+    "unit_ms": "ms",
+    "unit_pct": "%",
+    "unmeasured": "—"
+  },
   "speedtest": {
     "section_label": "Prova di velocità",
     "start_button_aria": "Avvia il test di velocità",
