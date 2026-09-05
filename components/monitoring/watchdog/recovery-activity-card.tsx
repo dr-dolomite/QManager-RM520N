@@ -43,7 +43,6 @@ import { useTimeAgo } from "./derive";
 import {
   ABSOLUTE_INK,
   CARD_DESC,
-  CARD_FILL_REGION,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
@@ -123,9 +122,8 @@ interface DayGroup {
 
 /**
  * Recovery activity — the same 52px event row the dashboard and the Monitoring
- * log render, because it is the same feed. This card is the SLACK ABSORBER of
- * the `COLS` pair: its list scrolls inside `CARD_FILL_REGION` so its intrinsic
- * height contributes nothing to the grid track.
+ * log render, because it is the same feed. A full-width band, so the list runs
+ * its own length exactly as the Network Events log does.
  */
 export function RecoveryActivityCard() {
   const { t, i18n } = useTranslation("common");
@@ -223,7 +221,7 @@ export function RecoveryActivityCard() {
         </CardAction>
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col")}>
+      <CardContent className={cn(CARD_PAD, "flex flex-col")}>
         {isLoading ? (
           <ActivityRows aria-hidden>
             {[0, 1, 2, 3].map((i) => (
@@ -247,16 +245,7 @@ export function RecoveryActivityCard() {
             description={t("watchdog.activity.empty.description")}
           />
         ) : (
-          <div
-            className={cn(
-              LOG_STACK,
-              CARD_FILL_REGION,
-              "overflow-y-auto rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            )}
-            tabIndex={0}
-            role="region"
-            aria-label={t("watchdog.activity.title")}
-          >
+          <div className={LOG_STACK}>
             {groups.map((group, gi) => (
               <div key={group.key} className={LOG}>
                 <div className={DAY.ROOT}>
@@ -288,7 +277,7 @@ function ActivityRows({
   ...rest
 }: React.ComponentProps<"div">) {
   return (
-    <div className={cn(LOG_STACK, CARD_FILL_REGION)} {...rest}>
+    <div className={LOG_STACK} {...rest}>
       <div className={LOG}>{children}</div>
     </div>
   );
@@ -351,7 +340,7 @@ function ActivityRow({ row }: { row: RowView }) {
   );
 }
 
-/** The condition IS the state, so it takes the fill region and centres in it. */
+/** The condition IS the state, so it replaces the list rather than emptying it. */
 function ActivityCondition({
   tone,
   glyph: Glyph,
@@ -369,7 +358,7 @@ function ActivityCondition({
 }) {
   const skin = CONDITION_TONE[tone];
   return (
-    <div className={cn(CONDITION.ROOT, skin.ROOT, CARD_FILL_REGION)}>
+    <div className={cn(CONDITION.ROOT, skin.ROOT)}>
       <span aria-hidden className={cn(CONDITION.DISC, skin.DISC)}>
         <Glyph className={CONDITION.GLYPH} />
       </span>

@@ -29,7 +29,6 @@ import { LadderCard, LadderCardSkeleton } from "./ladder-card";
 import { RecoveryActivityCard } from "./recovery-activity-card";
 import { SaveBar, SaveBarSkeleton } from "./save-bar";
 import {
-  COLS,
   CONDITION,
   CONDITION_TONE,
   HEADER_PILL,
@@ -114,20 +113,21 @@ const WatchdogComponent = () => {
           <motion.div variants={staggerItem}>
             <LadderCardSkeleton />
           </motion.div>
-          <motion.div variants={staggerItem} className={COLS}>
+          <motion.div variants={staggerItem}>
             <DetectionCardSkeleton />
-            <RecoveryActivityCard />
           </motion.div>
           <motion.div variants={staggerItem}>
             <SaveBarSkeleton />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <RecoveryActivityCard />
           </motion.div>
         </>
       ) : (
         <>
           {/* Nothing readable came back, so the settings surface reports the
               failure outright rather than drawing "-"-shaped optimism.
-              Activity is a separate read and may well have succeeded, so it
-              keeps its full width instead of a ragged pair. */}
+              Activity is a separate read and may well have succeeded. */}
           <motion.div variants={staggerItem}>
             <SettingsUnreadable
               message={error ?? t("watchdog.page.unreadable")}
@@ -229,13 +229,18 @@ function WatchdogSurface({
         />
       </motion.div>
 
-      <motion.div variants={staggerItem} className={COLS}>
+      <motion.div variants={staggerItem}>
         <DetectionCard form={form} registerField={form.registerField} />
-        <RecoveryActivityCard />
+      </motion.div>
+
+      {/* The commit control sits directly under the form it commits, so a long
+          history cannot push Save away from the fields that filled it. */}
+      <motion.div variants={staggerItem}>
+        <SaveBar form={form} />
       </motion.div>
 
       <motion.div variants={staggerItem}>
-        <SaveBar form={form} />
+        <RecoveryActivityCard />
       </motion.div>
     </>
   );

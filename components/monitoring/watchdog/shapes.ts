@@ -23,22 +23,14 @@ export const PILL_GLYPH = "size-4";
 export const HEADER_PILL =
   "bg-surface-container text-on-surface-variant hover:bg-surface-container-high";
 
-/**
- * The side-by-side region: Detection beside Recovery activity.
- *
- * `items-stretch` plus `*:data-[slot=card]:h-full` is the whole lock — a
- * stretched cell holding a content-height card looks exactly like no change, so
- * each card here nominates ONE region to absorb the slack (`CARD_FILL_REGION`)
- * in every one of its three states.
- */
-export const COLS =
-  "grid grid-cols-1 items-stretch gap-5 *:data-[slot=card]:h-full @4xl/main:grid-cols-2";
-
-/** Put on the `Card` itself when it is not reached by `COLS`'s child selector. */
-export const CARD_FILL = "h-full";
-
-/** The ONE region inside a stretched card that absorbs the slack. */
-export const CARD_FILL_REGION = "flex-1 min-h-0";
+// THERE IS NO `COLS` ON THIS SURFACE, DELIBERATELY. Detection and Recovery
+// activity were built as a symmetric pair and measured at 1280px: with an empty
+// feed both cards resolve to 491px, but at 25 events — one real incident —
+// Activity drives the track to 1614px and strands 1123px of dead space in
+// Detection, which is three fixed-height fields and cannot fill. Which card
+// drives flips with the event count, which is the Radio Information failure
+// DESIGN.md already records. Split by cadence, not by symmetry: both are
+// full-width bands.
 
 // -----------------------------------------------------------------------------
 // The status band
