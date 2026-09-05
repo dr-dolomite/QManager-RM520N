@@ -4,6 +4,16 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { SaveButton } from "@/components/ui/save-button";
 import { cn } from "@/lib/utils";
@@ -32,7 +42,17 @@ export function SaveBar({ form }: { form: WatchdogForm }) {
     }
   }, [names, i18n.language]);
 
+  const [confirmReboot, setConfirmReboot] = React.useState(false);
+  const saveWrapRef = React.useRef<HTMLSpanElement | null>(null);
+
+  // The gate is here, not on the tier-4 switch: a stock device seeds tier 4
+  // armed under a master that is off, so on the default path the tier switch is
+  // never touched and a switch-level intercept would never fire.
   const handleSave = React.useCallback(() => {
+    if (form.grantsRebootAuthority) {
+      setConfirmReboot(true);
+      return;
+    }
     void form.submit();
   }, [form]);
 
@@ -62,7 +82,7 @@ export function SaveBar({ form }: { form: WatchdogForm }) {
         >
           {t("watchdog.save.discard")}
         </Button>
-        <span className="contents" onClickCapture={jumpToBlocked}>
+        <span ref={saveWrapRef} className="contents" onClickCapture={jumpToBlocked}>
           <SaveButton
             type="button"
             className={PILL_ACTION}
@@ -79,6 +99,48 @@ export function SaveBar({ form }: { form: WatchdogForm }) {
           />
         </span>
       </div>
+
+      {/* Nothing renders an AlertDialogTrigger, so Radix has no element to
+          restore focus to and would drop it on <body>. Hand it the Save pill. */}
+      <AlertDialog open={confirmReboot} onOpenChange={setConfirmReboot}>
+        <AlertDialogContent
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            saveWrapRef.current?.querySelector("button")?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("watchdog.save.confirmReboot.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {/* The cost sentence is the rung's own key, not a second copy of
+                  the same claim written here. */}
+              {t("watchdog.save.confirmReboot.body")}{" "}
+              {t("watchdog.ladder.tier4.consequence")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <p className="text-on-surface-variant text-sm leading-relaxed text-pretty">
+            {/* Interpolated, never pluralised: a `_one`/`_other` split would
+                need matching key sets in five packs the parity gate compares. */}
+            {t("watchdog.save.confirmReboot.cap", {
+              cap: Number(form.maxRebootsPerHour) || 3,
+            })}
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("watchdog.save.confirmReboot.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void form.submit();
+              }}
+            >
+              {t("watchdog.save.confirmReboot.action")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -94,6 +94,13 @@ export interface WatchdogForm {
   tierDirty: Record<TierIndex, boolean>;
   /** Fields blocking the save, in reading order. Empty when nothing blocks. */
   blockedFields: (keyof WatchdogFormErrors)[];
+  /**
+   * This save would newly let the watchdog reboot the modem unattended. Keyed
+   * on both flags, not on the tier switch: a stock device ships tier 4 already
+   * armed under a master that is off, so the master is the gesture that grants
+   * the authority.
+   */
+  grantsRebootAuthority: boolean;
 
   // Focus
   registerField: RegisterField;
@@ -225,6 +232,10 @@ export function useWatchdogForm({
   const savedBackupSlot =
     settings.backup_sim_slot != null ? String(settings.backup_sim_slot) : "";
   const masterDirty = isEnabled !== settings.enabled;
+  // Reboot authority is the AND of both flags, so the transition to confirm is
+  // the pair going true — whichever switch moved.
+  const grantsRebootAuthority =
+    isEnabled && tier4Enabled && !(settings.enabled && settings.tier4_enabled);
   const tierDirty: Record<TierIndex, boolean> = {
     1: tier1Enabled !== settings.tier1_enabled,
     2: tier2Enabled !== settings.tier2_enabled,
@@ -406,6 +417,7 @@ export function useWatchdogForm({
     masterDirty,
     tierDirty,
     blockedFields,
+    grantsRebootAuthority,
     registerField,
     focusFirstBlocked,
     isSaving,

@@ -1426,7 +1426,14 @@
       "saved": "Saved",
       "blockedIn": "Check {{fields}} before saving",
       "toastOk": "Watchdog settings saved",
-      "toastFail": "Could not save the watchdog settings"
+      "toastFail": "Could not save the watchdog settings",
+      "confirmReboot": {
+        "title": "Let the watchdog reboot the modem?",
+        "body": "Saving this lets the watchdog restart the modem on its own when every gentler step has failed.",
+        "cap": "Reboots are capped at {{cap}} per hour. If it reaches that cap it switches the whole watchdog off — monitoring included — until you turn it back on.",
+        "cancel": "Cancel",
+        "action": "Allow reboots"
+      }
     },
     "errors": {
       "failThreshold": "Must be between 1 and 20",

@@ -1426,7 +1426,14 @@
       "saved": "Salvato",
       "blockedIn": "Controlla {{fields}} prima di salvare",
       "toastOk": "Impostazioni del watchdog salvate",
-      "toastFail": "Impossibile salvare le impostazioni del watchdog"
+      "toastFail": "Impossibile salvare le impostazioni del watchdog",
+      "confirmReboot": {
+        "title": "Consentire al watchdog di riavviare il modem?",
+        "body": "Salvando, il watchdog potrà riavviare il modem da solo quando tutti i passaggi più leggeri hanno fallito.",
+        "cap": "I riavvii sono limitati a {{cap}} all'ora. Al raggiungimento del limite il watchdog si disattiva del tutto — monitoraggio compreso — finché non lo riattivi.",
+        "cancel": "Annulla",
+        "action": "Consenti i riavvii"
+      }
     },
     "errors": {
       "failThreshold": "Deve essere compreso tra 1 e 20",

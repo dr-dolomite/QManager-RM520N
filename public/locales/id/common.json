@@ -1426,7 +1426,14 @@
       "saved": "Tersimpan",
       "blockedIn": "Periksa {{fields}} sebelum menyimpan",
       "toastOk": "Pengaturan watchdog tersimpan",
-      "toastFail": "Tidak dapat menyimpan pengaturan watchdog"
+      "toastFail": "Tidak dapat menyimpan pengaturan watchdog",
+      "confirmReboot": {
+        "title": "Izinkan watchdog me-reboot modem?",
+        "body": "Setelah disimpan, watchdog dapat memulai ulang modem sendiri ketika semua langkah yang lebih ringan telah gagal.",
+        "cap": "Reboot dibatasi {{cap}} kali per jam. Saat batas itu tercapai, watchdog mematikan dirinya sepenuhnya — termasuk pemantauan — sampai Anda menyalakannya lagi.",
+        "cancel": "Batal",
+        "action": "Izinkan reboot"
+      }
     },
     "errors": {
       "failThreshold": "Harus antara 1 dan 20",
