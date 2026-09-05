@@ -476,3 +476,12 @@ script is bare `eslint` with only .next/out/build in globalIgnores, so it lints 
 .claude/worktrees/**/.next/** bundles and simpleadmin-source/**. Proven independently:
 `bunx eslint app/not-found.tsx` — a file untouched by this change — errors. The Alerts run
 recorded the same pre-existing condition when it closed.
+
+## COMMIT
+13608db on feat/tailscale-design-canon-refit — 18 files, +3044 / -1273.
+Base SHA e91806f verified an ancestor of HEAD; branch is 1 commit ahead.
+NOT merged and NOT pushed — the parent session integrates after a separate critique pass.
+Out-of-scope files confirmed byte-unchanged vs the base SHA: hooks/use-tailscale.ts,
+app/monitoring/tailscale/page.tsx, scripts/www/cgi-bin/quecmanager/vpn/tailscale.sh.
+.orchestra/scratch/ deliberately left untracked (working state, not product) — same call the
+Alerts run made.
