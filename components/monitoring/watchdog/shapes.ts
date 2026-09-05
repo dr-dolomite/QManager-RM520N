@@ -69,6 +69,13 @@ export const DISC_TONE = {
 
 export type DiscTone = keyof typeof DISC_TONE;
 
+/**
+ * The surface's ONE ambient loop (One-Loop Rule), spent on the state disc and
+ * only while the daemon is actually working through the ladder. An unsaved
+ * edit is a marker, not a live thing, so the save bar's dot does not loop.
+ */
+export const DISC_LIVE = "animate-pulse-ring";
+
 /** Scoped to two properties, and every custom property takes `var()`. */
 export const DISC_TRANSITION =
   "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)] motion-reduce:transition-none";
@@ -335,8 +342,8 @@ export const SAVEBAR = {
   ROOT: "flex flex-wrap items-center gap-3 pt-1",
   STATUS: "text-on-surface-variant flex items-center gap-2 text-[0.8125rem]",
   ACTIONS: "ml-auto flex gap-2.5",
-  /** The product's own ambient dot, not Tailwind's `animate-ping`. */
-  PULSE: "animate-pulse-ring size-[7px] flex-none rounded-pill bg-primary",
+  /** A static marker: nothing is happening, so nothing loops here. */
+  PULSE: "size-[7px] flex-none rounded-pill bg-primary",
 } as const;
 
 // -----------------------------------------------------------------------------

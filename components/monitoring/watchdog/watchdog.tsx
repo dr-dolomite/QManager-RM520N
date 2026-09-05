@@ -89,7 +89,10 @@ const WatchdogComponent = () => {
               className={cn(PILL_ACTION, HEADER_PILL)}
             >
               <RefreshCcwIcon
-                className={cn(PILL_GLYPH, isLoading && "animate-spin")}
+                className={cn(
+                  PILL_GLYPH,
+                  isLoading && "animate-spin motion-reduce:animate-none",
+                )}
               />
               {t("watchdog.page.refresh")}
             </Button>

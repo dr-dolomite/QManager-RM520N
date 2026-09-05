@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 import type { BandTile } from "./derive";
 import {
+  DISC_LIVE,
   DISC_TONE,
   DISC_TRANSITION,
   EYEBROW,
@@ -31,7 +32,12 @@ function StatusTile({ tile }: { tile: BandTile }) {
     <div className={TILE.ROOT}>
       <span
         aria-hidden
-        className={cn(TILE.DISC, DISC_TRANSITION, DISC_TONE[tile.disc])}
+        className={cn(
+          TILE.DISC,
+          DISC_TRANSITION,
+          DISC_TONE[tile.disc],
+          tile.live && DISC_LIVE,
+        )}
       >
         <Glyph className={TILE.GLYPH} />
       </span>

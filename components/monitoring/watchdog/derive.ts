@@ -288,6 +288,8 @@ export interface BandTile {
   glyph: LucideIcon;
   /** The caption carries a live figure and must not jitter. */
   captionNumeric?: boolean;
+  /** The device is acting right now. Carries the surface's one ambient loop. */
+  live?: boolean;
 }
 
 export interface BandInput {
@@ -334,6 +336,7 @@ export function deriveBand({
       disc: PHASE_DISC[phase],
       valueTone: PHASE_VALUE_TONE[phase],
       glyph: PHASE_GLYPH[phase],
+      live: isLive(phase),
     },
     {
       key: "checks",

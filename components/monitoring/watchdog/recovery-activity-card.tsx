@@ -213,7 +213,10 @@ export function RecoveryActivityCard() {
             )}
           >
             <RefreshCcwIcon
-              className={cn(PILL_GLYPH, isRefreshing && "animate-spin")}
+              className={cn(
+                PILL_GLYPH,
+                isRefreshing && "animate-spin motion-reduce:animate-none",
+              )}
             />
             {t("watchdog.activity.refresh")}
           </Button>
