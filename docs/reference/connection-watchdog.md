@@ -358,27 +358,64 @@ Returns the saved config plus a snapshot of daemon/failover/swap state:
 
 ## Frontend anatomy
 
-Page: `/monitoring/watchdog` — `components/monitoring/watchdog/watchdog.tsx`. A **status-first, two-column** layout (single column on narrow viewports): live status reads down the left, the one write surface (settings) holds the right.
+> Re-authored to the design canon 2026-09-05. The previous two-column, tabbed, table-driven layout is gone; so are `watchdog-status-card.tsx`, `watchdog-settings-card.tsx` and `watchdog-recovery-activity-card.tsx`.
+
+Page: `/monitoring/watchdog` — `components/monitoring/watchdog/watchdog.tsx`. A **single column of full-width bands ordered by cadence**, matching `/monitoring/alerts` and `/monitoring/latency-monitoring`: the band moves every poll, the hero moves on a tier change, Detection never moves, Activity moves rarely.
+
+```
+MonitoringPageHeader          title + description + Refresh pill
+banners (conditional)         SIM failover · auto-disabled
+BAND A  status band           4 × 104px tiles — State · Failed checks · Recoveries · Reboots
+BAND B  hero card             "Recovery ladder": master switch + 4 rungs
+BAND C  pair (COLS)           "Detection"  |  "Recovery activity"
+BAND D  save bar              status line + Discard + Save
+```
+
+**The family's two contract modules.** `components/monitoring/watchdog/shapes.ts` owns every geometry string, control height and tone map on the surface, and the skeletons import the loaded views' own constants (Skeleton-Mirror). `derive.ts` owns the one derived model — the phase, the four tiles, the per-rung state and the tier copy keys. No component re-infers a state from a payload, and no component exports a shape constant. Geometry is restated from the sibling `/monitoring/` families rather than imported.
 
 **Data sources (three hooks):**
-- `useWatchdogSettings` (`hooks/use-watchdog-settings.ts`) — the CGI above. Owns settings, `auto_disabled`, and the `save`/`revert_sim`/`dismiss_sim_swap` actions. Polls every 30s (silent) so `auto_disabled` surfaces live without flashing the skeleton.
-- `useModemStatus` — the poller's `/tmp/qmanager_status.json` (`watchcat` + `sim_failover` blocks), polled every 5s. Feeds the **live** hero (state tile, counter strip, ladder highlight, failover banner).
-- `useRecentActivities` — the shared Network Events feed, filtered client-side to `watchcat_recovery` + `sim_failover`. The watchdog writes its lifecycle to that feed using existing event types — no new event types were added.
+- `useWatchdogSettings` (`hooks/use-watchdog-settings.ts`) — the CGI above. Owns settings, `auto_disabled`, and the `save`/`revert_sim` actions. Polls every 30s (silent) so `auto_disabled` surfaces live without flashing the skeleton. It no longer keeps the CGI's `status` / `sim_failover` blocks: nothing read them, and the page takes the same numbers from the poller, which is fresher.
+- `useModemStatus` — the poller's `/tmp/qmanager_status.json` (`watchcat` + `sim_failover` blocks), polled every 5s. Feeds the status band, the running-tier highlight and the failover banner.
+- `useRecentActivities` — the shared Network Events feed, filtered client-side to `watchcat_recovery` + `sim_failover`.
 
-**Left column:**
-- **Watchdog Status** (`watchdog-status-card.tsx`) — a read-only Live Status hero: a `StateTile` (Monitoring / Detecting Issue / Recovering / Cooldown / Locked / Disabled), a wrap-flow counter strip (Current Step, Failed Checks, Cooldown remaining, Total Recoveries, Reboots This Hour, Last Recovery), a read-only `HeroLadder` stepper highlighting the running tier, an auto-disabled alert, and — when a failover is active — a "Running on backup SIM" alert with a **Revert to Original SIM** confirm dialog. The master enable **Switch** lives in this card's header and is *save-gated* (it applies on Save, not on toggle); the hero itself reflects **saved** state, never form drafts.
-- **Recovery Activity** (`watchdog-recovery-activity-card.tsx`) — a paginated table of recent `watchcat_recovery` + `sim_failover` events.
+### `WatchdogPhase` — what the surface may claim
 
-**Right column:**
-- **Watchdog Settings** (`watchdog-settings-card.tsx`) — tabbed **Detection** (**probe interval**, **failure threshold**, cooldown, plus a live "declares down after ~Ns" derivation computed as `probeInterval × failThreshold`) and **Recovery** (the four-rung ladder with per-tier switches, each showing its AT sequence; the backup-slot selector under Tier 3 and the reboot cap under Tier 4). One sticky save bar commits the whole form (the backend save is atomic). Each tab shows an error dot when a field on it is invalid, and a blocked save jumps to the first offending field. `check_interval` is no longer a user-facing field — the form carries it through read-only (`use-watchdog-form.ts`) so it round-trips unchanged.
+`derive.ts` resolves one total, ordered union: `auto_disabled` → `off` → `unknown` → the live `watchcat.state` → `starting` → `not_running`. A standing config fact outranks a live reading, and not knowing outranks guessing.
 
-**Backup-slot save gating:** enabling Tier 3 without choosing a backup slot **blocks the save** in the form (`use-watchdog-form.ts`) — the frontend guard that keeps you out of the misconfig-stops-ladder state described above. The form validation mirrors the CGI ranges exactly.
+- **`starting` / `not_running`** replace the incumbent's unconditional "Starting Up" tile, which a dead service could sit behind forever. The grace window is **60s**, anchored on the poll's own `receivedAtMs` and re-anchored when the saved master switch flips. It is 60 and not 30 because the poller refreshes the watchcat block on its Tier-1.5 branch (`TIER1_5_EVERY=5`) at a ~3.7-4.0s cycle — so that block is ~20s stale by construction, and a save additionally backgrounds the unit restart.
+- ⚠️ **`not_running` means "has not reported since boot", not "died".** The poller does **not** carry `watchcat.timestamp` into `status.json` (`qmanager_poller:1969-1979` reads nine fields and that is not one of them), so the page cannot distinguish a live daemon from a stale state file. What it detects is the poller's own absent-file path, which sets `enabled=false, state="disabled"`. Propagating the timestamp would make the stronger claim true; that is a poller change, i.e. a different tier.
+- **`unknown` does not key on `isStale` alone.** `useModemStatus` computes staleness by subtracting the modem's clock from the browser's, and this platform has no battery RTC — without a registered SIM the modem sits at Jan 1970 forever, which would pin the page at `unknown` permanently. The modem clock is admitted as evidence only past a plausibility floor; an unreachable read is the clock-independent signal underneath it.
+- **`locked` and `disabled` were factually swapped in the old copy and are now correct.** `locked` is a maintenance hold (`check_locked()` — the lock file, `/tmp/qmanager_long_running`, or a live profile-apply pid). The reboot limit is `auto_disabled`.
 
-**Form re-seeding vs. the 30s poll:** `use-watchdog-form.ts` seeds its fields from `settings` and re-seeds **in place** when a *value fingerprint* of `settings` changes (`settingsSignature`, a render-phase sync that reuses the hook's own `discard()`). The fingerprint — not an object-identity check — is required here: `use-watchdog-settings.ts:114` does `setSettings({ ...json.settings, … })`, so the silent 30s refetch allocates a **fresh object every tick** even when nothing moved, and an identity comparison would wipe in-progress edits twice a minute. The page previously forced the same re-seed by keying `WatchdogForm` on that signature; that remount also destroyed the "Saved!" flash, the active Detection/Recovery tab, and the Recovery Activity table's pagination on every save. The key is gone (`watchdog.tsx` renders the form unkeyed) and any comment claiming the keying is intentional is stale. See [dashboard-state-motion.md](dashboard-state-motion.md) > Part 3.
+### The bands
 
-> ℹ️ NOTE: The 30s poll can still re-seed the form mid-edit if the *server values genuinely change* (e.g. the daemon auto-disables itself). That was equally true under the old key, so it is not a regression — but a narrower sync that only refreshes fields the user has not touched is now possible, where a remount made it unreachable.
+- **Status band** (`status-band.tsx`) — four `TILE`s, neutral bodies, colour only on the 52px disc, one distinct glyph per phase. Every tile is honest about absence: under `unknown` the figures are `null` and render an em dash with an `sr-only` word, never a zero. The State caption becomes the live cooldown countdown while one is running.
+  > ⚠️ The Reboots tile does **not** say "this hour". `count_recent_reboots` runs at daemon start and inside `execute_tier4` only, never in the main loop, so `reboots_this_hour` is frozen between daemon starts — a device that took a tier-4 reboot reads "2 / 3" for days. The caption says "since the watchdog started", and when tier 4 is off it says the cap cannot fire.
 
-> ℹ️ NOTE: All copy is inline English — the RM520N build has no i18n on this page.
+- **Recovery ladder** (`ladder-card.tsx`) — the surface's one `rounded-hero` anchor card, and the merge of what used to be a read-only stepper *and* a settings tab. The master enable is a `SWITCH_ROW` (`primary-container` when on, save-gated). Each rung carries its number, name, effect, **consequence sentence**, the AT sequence as a machine-voice `Tag`, a status chip and its switch. Tier 3's slot `Select` and tier 4's cap `Input` render **inside their own rung** and only while that tier is on, taking `FIELD.SHELL_ON_CONTAINER` because a field is one tonal step above its host.
+  - The running tier is a `primary-container` row (Highlight-by-Container) and carries a **marker**, not a chip: the four rung states are chips (`muted`/`success`/`warning`), but `info` resolves to `primary-container`, which on a promoted row is the same surface twice.
+  - Machine voice is what the device actually issues. Tier 4 is **not** an AT command (`run_reboot` shells out to `/sbin/reboot`) and tier 3 is the three-command Golden Rule, not a bare `AT+QUIMSLOT=N`.
+
+- **Detection** (`detection-card.tsx`) — probe interval, failure threshold, cooldown, then the derived "declares the connection down after about Ns" line as a `primary-container` notice.
+
+- **Recovery activity** (`recovery-activity-card.tsx`) — the `/monitoring` 52px day-grouped event row, tone from the shared `presentEvent(…, "card")` so the Age-Gated Tone Rule applies. Resolution is computed over the whole feed *before* filtering, or every recovery would read as permanently ongoing. The row's `message` is producer text from `qmanager_watchcat` and stays untranslated, as on every event feed in the product.
+  - **The event record carries no tier** (`events.sh` emits `timestamp`/`type`/`message`/`severity` only), so the row's `Tag` is the event type. Inferring a tier by matching the daemon's English prose would be a fabricated reading.
+
+- **The D3 pair.** Detection and Activity sit in `COLS` (`items-stretch` + `*:data-[slot=card]:h-full`). **Detection is the height driver and declares no fill region** — three fixed-height fields cannot stretch, and a `flex-1` over them distributes nothing. **Activity is the sole slack absorber**, and its list scrolls (`CARD_FILL_REGION` + `overflow-y-auto`, `min-h-0` on the ancestor chain) so its intrinsic height stays out of the grid track; without that, one real incident's worth of rows would strand hundreds of pixels in Detection. Both conditions (empty and error) take the same region and centre in it. In the page's error branch the pair is deliberately un-paired and Activity runs full-width, the same relief valve `alerts.tsx` uses.
+
+- **Save bar** (`save-bar.tsx`) — page-level and **not sticky**. Four states: clean, unsaved, blocked, saved. Blocked names the offending **controls** (there are no tabs) and clicking Save focuses and reveals the first one; the field list is joined with `Intl.ListFormat` for the active locale.
+
+**Backup-slot save gating:** enabling Tier 3 without choosing a backup slot **blocks the save** in the form (`use-watchdog-form.ts`) — the frontend guard that keeps you out of the misconfig-stops-ladder state described above. The form validation mirrors the CGI ranges exactly, and its messages are i18n keys the rendering component translates.
+
+**`check_interval` is no longer sent.** The form used to hold it in a setter-less `useState` seeded at mount while `settingsSignature` included the key, so a server-side change flipped the signature, `discard()` could not re-seed a field with no setter, and the stale mount-time value was written back over the newer one. The CGI validates and writes the key only when it is present (`watchdog.sh:229,284`), so omitting it preserves the server's value.
+
+**Form re-seeding vs. the 30s poll:** `use-watchdog-form.ts` seeds its fields from `settings` and re-seeds **in place** when a *value fingerprint* of `settings` changes (`settingsSignature`, a render-phase sync that reuses the hook's own `discard()`). The fingerprint — not an object-identity check — is required here: the hook does `setSettings({ ...json.settings, … })`, so the silent 30s refetch allocates a **fresh object every tick** even when nothing moved, and an identity comparison would wipe in-progress edits twice a minute. See [dashboard-state-motion.md](dashboard-state-motion.md) > Part 3.
+
+> ℹ️ NOTE: The 30s poll can still re-seed the form mid-edit if the *server values genuinely change* (e.g. the daemon auto-disables itself).
+
+**i18n:** the surface is fully keyed under the top-level `watchdog` key of `public/locales/{en,zh-CN,zh-TW,it,id}/common.json` (122 keys), including screen-reader copy. The only untranslated text is the activity rows' producer-authored `message`.
+
+**Motion:** one `staggerContainer` on the page root with every band a `staggerItem` (120ms), `rowCascadeDelay` for the log rows (80ms), and exactly one ambient loop — the state disc while the phase is `recovery`. The save bar's unsaved dot is static, because an unsaved edit is not a live thing.
 
 ---
 

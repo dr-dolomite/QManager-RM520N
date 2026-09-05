@@ -522,3 +522,58 @@ CARRIED FORWARD, NOT DONE (recorded so they are not rediscovered as bugs):
   i18n will make it more visible in longer languages.
 - Not exercised on hardware. Every state was driven through a fetch shim on the dev server;
   the RM520N-GL was not probed. This is a frontend-only change with no backend surface.
+
+---
+
+# Orchestra ledger — watchdog canon refit
+
+Baseline commit: e91806f (branch worktree-wt+watchdog-canon-refit, == development)
+Mode: Full (Agent tool + real shell). Codex: not probed, not used — the brief specifies Claude
+tiers (Sonnet legwork / Opus judgment), which is also this project's convention.
+LEAD seat: Opus (frontier).
+
+## Commit plan (10, build-safe order; plan step in parentheses)
+
+| # | Commit | Plan step | Write set |
+|---|---|---|---|
+| 1 | shapes.ts + derive.ts | 1 | components/monitoring/watchdog/{shapes.ts,derive.ts} |
+| 2 | status-band.tsx | 3 | components/monitoring/watchdog/status-band.tsx |
+| 3 | ladder-card.tsx | 5 | components/monitoring/watchdog/ladder-card.tsx |
+| 4 | detection-card.tsx | 6a | components/monitoring/watchdog/detection-card.tsx |
+| 5 | recovery-activity-card.tsx | 6b | components/monitoring/watchdog/recovery-activity-card.tsx |
+| 6 | save-bar.tsx | 7 | components/monitoring/watchdog/save-bar.tsx |
+| 7 | shell re-author + honesty wiring | 2 + 4 | watchdog.tsx, use-watchdog-form.ts |
+| 8 | motion sweep | 8 | components/monitoring/watchdog/** |
+| 9 | i18n namespace | 9 | public/locales/*/common.json |
+| 10 | deletions + cleanup | 10 | old cards, hooks/use-watchdog-settings.ts |
+
+Rationale for the reorder: the plan numbers steps by topic, but a shell that imports cards which do
+not exist yet does not typecheck. Leaves land first, the shell wires them, so every commit builds.
+
+## Tasks
+
+| id | task | seat | status | attempts |
+|----|------|------|--------|----------|
+| R1 | incumbent inventory | sonnet/general-purpose | DONE | 1 |
+| R2 | reference impl distillation | sonnet/general-purpose | DONE | 1 |
+| R3 | contracts + primitives + i18n plumbing | sonnet/general-purpose | DONE | 1 |
+| DA | devil's advocate vs plan | opus/general-purpose | DONE_WITH_CONCERNS | 1 |
+
+## Advocate adjudication (all findings accepted; three re-verified by the lead)
+
+| # | Finding | Ruling | Re-verified against |
+|---|---|---|---|
+| B1 | SIM-failover banner + Revert action deleted with no home in the anatomy | ACCEPT — add a band and a commit | `watchdog.sh:342` handles `revert_sim`; no other renderer |
+| M1 | `not_running` cannot see a *dead* daemon — the poller strips `timestamp` | ACCEPT — narrow the claim and the caption | `qmanager_poller:1969-1979`, `:2303-2312`: 9 fields, no timestamp |
+| M2 | 30s grace is shorter than the settle path | ACCEPT — 60s | `qmanager_poller:51` `TIER1_5_EVERY=5` × ~3.7-4.0s ≈ 20s |
+| M3 | grace must not read a clock in render | ACCEPT — anchor on `receivedAtMs`, render-phase state | `use-modem-status.ts:96-102` |
+| M4 | D3: Detection is the height DRIVER, not the absorber | ACCEPT — Activity absorbs, `overflow-y-auto` | `alerts-log-card.tsx:382-387` |
+| M5 | `derive.ts` cannot own `isDirty` — draft state lives in the form hook | ACCEPT — `use-watchdog-form.ts` stays | `use-watchdog-form.ts:196-225` |
+| M6 | Event records carry no tier, and messages are backend English | ACCEPT — type label, not tier | `events.sh:123-128` |
+| M7 | `reboots_this_hour` is frozen between daemon starts | ACCEPT — honest caption | `qmanager_watchcat`: `count_recent_reboots` only at `:595`, `:892` |
+| M8 | No docs step; the change falsifies a whole doc section | ACCEPT — add a docs commit | `connection-watchdog.md:359-381` |
+| N1 | Omitting `check_interval` beats round-tripping it | ACCEPT | `watchdog.sh:229-231`, `:284` — optional on both passes |
+| N8 | `isStale` pins to true forever on a 1970 clock | ACCEPT — gate on clock plausibility | CLAUDE.md: no battery RTC |
+| N2-N7, N9 | wording / scope clarifications | ACCEPT | — |
+
+Commit count moves 10 → 12: +1 for the failover band (B1), +1 for docs (M8).
