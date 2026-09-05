@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSaveFlash } from "@/components/ui/save-button";
 import type {
@@ -30,6 +30,33 @@ export const PROBE_INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30] as const;
 
 /** A callback-ref factory: the form owns the map, a card registers into it. */
 export type RegisterField = (id: string) => (el: HTMLElement | null) => void;
+
+/** The five controls, by the id they register under. */
+export const FIELD_ID = {
+  probeInterval: "watchdog-probe-interval",
+  failThreshold: "watchdog-fail-threshold",
+  cooldown: "watchdog-cooldown",
+  backupSim: "watchdog-backup-slot",
+  maxReboots: "watchdog-max-reboots",
+} as const;
+
+/** Reading order, which is also the order a blocked save walks them in. */
+const FIELD_ORDER = [
+  "probeInterval",
+  "failThreshold",
+  "cooldown",
+  "backupSim",
+  "maxReboots",
+] as const;
+
+/** The blocked save bar names the FIELD, not a tab. There are no tabs now. */
+export const FIELD_LABEL_KEY: Record<keyof WatchdogFormErrors, string> = {
+  probeInterval: "watchdog.detection.probe.label",
+  failThreshold: "watchdog.detection.threshold.label",
+  cooldown: "watchdog.detection.cooldown.label",
+  backupSim: "watchdog.ladder.tier3.slotLabel",
+  maxReboots: "watchdog.ladder.tier4.capLabel",
+};
 
 export interface WatchdogFormErrors {
   failThreshold: string | null;
@@ -73,6 +100,13 @@ export interface WatchdogForm {
   hasValidationErrors: boolean;
   isDirty: boolean;
   canSave: boolean;
+  /** Fields blocking the save, in reading order. Empty when nothing blocks. */
+  blockedFields: (keyof WatchdogFormErrors)[];
+
+  // Focus
+  registerField: RegisterField;
+  /** Focus and reveal the first blocking control. No-op when nothing blocks. */
+  focusFirstBlocked: () => void;
 
   // Flow
   isSaving: boolean;
@@ -230,6 +264,44 @@ export function useWatchdogForm({
   const canSave =
     !hasValidationErrors && !hasEmptyRequired && isDirty && !isSaving;
 
+  // An empty required field is not a range error but still blocks, so the two
+  // sets are merged here rather than in each consumer.
+  const emptyRequired: Partial<Record<keyof WatchdogFormErrors, boolean>> = {
+    probeInterval: probeInterval.trim() === "",
+    failThreshold: failThreshold.trim() === "",
+    cooldown: cooldown.trim() === "",
+    maxReboots: tier4Enabled && maxRebootsPerHour.trim() === "",
+  };
+
+  const blockedFields = FIELD_ORDER.filter(
+    (key) => errors[key] !== null || emptyRequired[key] === true,
+  );
+
+  // The map is a ref because a card mounts and unmounts its tier-3/tier-4
+  // controls with the switch; nothing renders off it.
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const registerField = useCallback<RegisterField>(
+    (id) => (el) => {
+      fieldRefs.current[id] = el;
+    },
+    [],
+  );
+
+  // A DOM side effect in a handler, never a setState in an effect. With the
+  // tabs gone there is nothing to switch to first, so no rAF is needed.
+  const focusFirstBlocked = useCallback(() => {
+    const first = blockedFields[0];
+    if (!first) return;
+    const el = fieldRefs.current[FIELD_ID[first]];
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }, [blockedFields]);
+
   const submit = useCallback(async () => {
     if (hasValidationErrors || hasEmptyRequired || !isDirty || isSaving) return;
 
@@ -330,6 +402,9 @@ export function useWatchdogForm({
     hasValidationErrors,
     isDirty,
     canSave,
+    blockedFields,
+    registerField,
+    focusFirstBlocked,
     isSaving,
     saved,
     submit,

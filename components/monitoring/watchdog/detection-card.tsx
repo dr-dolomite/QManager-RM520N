@@ -36,14 +36,11 @@ import {
   SKELETON,
 } from "./shapes";
 import {
+  FIELD_ID,
   PROBE_INTERVAL_OPTIONS,
   type RegisterField,
   type WatchdogForm,
 } from "./use-watchdog-form";
-
-export const PROBE_INTERVAL_FIELD = "watchdog-probe-interval";
-export const FAIL_THRESHOLD_FIELD = "watchdog-fail-threshold";
-export const COOLDOWN_FIELD = "watchdog-cooldown";
 
 export interface DetectionCardProps {
   form: WatchdogForm;
@@ -71,7 +68,7 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
       <CardContent className={cn(CARD_PAD, "flex flex-col gap-5")}>
         <div className={FIELD_STACK}>
           <div className={FIELD.ROW}>
-            <label className={FIELD.LABEL} htmlFor={PROBE_INTERVAL_FIELD}>
+            <label className={FIELD.LABEL} htmlFor={FIELD_ID.probeInterval}>
               {t("watchdog.detection.probe.label")}
             </label>
             <Select
@@ -79,8 +76,8 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
               onValueChange={form.setProbeInterval}
             >
               <SelectTrigger
-                id={PROBE_INTERVAL_FIELD}
-                ref={registerField(PROBE_INTERVAL_FIELD)}
+                id={FIELD_ID.probeInterval}
+                ref={registerField(FIELD_ID.probeInterval)}
                 aria-invalid={form.errors.probeInterval !== null}
                 className={cn(FIELD.SHELL, FIELD.INVALID)}
               >
@@ -103,12 +100,12 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
           </div>
 
           <div className={FIELD.ROW}>
-            <label className={FIELD.LABEL} htmlFor={FAIL_THRESHOLD_FIELD}>
+            <label className={FIELD.LABEL} htmlFor={FIELD_ID.failThreshold}>
               {t("watchdog.detection.threshold.label")}
             </label>
             <Input
-              id={FAIL_THRESHOLD_FIELD}
-              ref={registerField(FAIL_THRESHOLD_FIELD)}
+              id={FIELD_ID.failThreshold}
+              ref={registerField(FIELD_ID.failThreshold)}
               type="number"
               inputMode="numeric"
               min={1}
@@ -127,12 +124,12 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
           </div>
 
           <div className={FIELD.ROW}>
-            <label className={FIELD.LABEL} htmlFor={COOLDOWN_FIELD}>
+            <label className={FIELD.LABEL} htmlFor={FIELD_ID.cooldown}>
               {t("watchdog.detection.cooldown.label")}
             </label>
             <Input
-              id={COOLDOWN_FIELD}
-              ref={registerField(COOLDOWN_FIELD)}
+              id={FIELD_ID.cooldown}
+              ref={registerField(FIELD_ID.cooldown)}
               type="number"
               inputMode="numeric"
               min={10}

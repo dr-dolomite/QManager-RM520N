@@ -45,12 +45,13 @@ import {
   SWITCH_ROW,
   SWITCH_TARGET,
 } from "./shapes";
-import type { RegisterField, WatchdogForm } from "./use-watchdog-form";
+import {
+  FIELD_ID,
+  type RegisterField,
+  type WatchdogForm,
+} from "./use-watchdog-form";
 
 import { Skeleton } from "@/components/ui/skeleton";
-
-export const BACKUP_SLOT_FIELD = "watchdog-backup-slot";
-export const MAX_REBOOTS_FIELD = "watchdog-max-reboots";
 
 export interface LadderCardProps {
   form: WatchdogForm;
@@ -193,8 +194,8 @@ function Rung({
               onValueChange={form.setBackupSimSlot}
             >
               <SelectTrigger
-                id={BACKUP_SLOT_FIELD}
-                ref={registerField(BACKUP_SLOT_FIELD)}
+                id={FIELD_ID.backupSim}
+                ref={registerField(FIELD_ID.backupSim)}
                 aria-label={t("watchdog.ladder.tier3.slotLabel")}
                 aria-invalid={form.errors.backupSim !== null}
                 className={cn(
@@ -227,8 +228,8 @@ function Rung({
         {rung.tier === 4 && rung.enabled ? (
           <div className={RUNG.FIELD_SLOT}>
             <Input
-              id={MAX_REBOOTS_FIELD}
-              ref={registerField(MAX_REBOOTS_FIELD)}
+              id={FIELD_ID.maxReboots}
+              ref={registerField(FIELD_ID.maxReboots)}
               type="number"
               inputMode="numeric"
               min={1}
