@@ -17,6 +17,9 @@ export interface ConditionBlockProps {
   description: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** Navigation, not a command: renders a real anchor, which a popup blocker
+   *  cannot silently swallow the way `window.open` can. */
+  actionHref?: string;
   actionIcon?: LucideIcon;
   actionDisabled?: boolean;
   /** One line beneath the action — on this surface, only the auth wait. */
@@ -31,12 +34,19 @@ export function ConditionBlock({
   description,
   actionLabel,
   onAction,
+  actionHref,
   actionIcon: ActionIcon,
   actionDisabled = false,
   footer,
   className,
 }: ConditionBlockProps) {
   const skin = CONDITION_TONE[tone];
+  const actionBody = (
+    <>
+      {ActionIcon ? <ActionIcon className="size-4" /> : null}
+      {actionLabel}
+    </>
+  );
   return (
     <div className={cn(CONDITION.ROOT, skin.ROOT, className)} role="status">
       <span aria-hidden className={cn(CONDITION.DISC, skin.DISC)}>
@@ -44,7 +54,13 @@ export function ConditionBlock({
       </span>
       <span className={CONDITION.TITLE}>{title}</span>
       <p className={CONDITION.DESC}>{description}</p>
-      {actionLabel && onAction ? (
+      {actionLabel && actionHref ? (
+        <Button asChild variant="ghost" className={cn(CONDITION.ACTION, skin.ACTION)}>
+          <a href={actionHref} target="_blank" rel="noopener noreferrer">
+            {actionBody}
+          </a>
+        </Button>
+      ) : actionLabel && onAction ? (
         <Button
           type="button"
           variant="ghost"
@@ -52,8 +68,7 @@ export function ConditionBlock({
           disabled={actionDisabled}
           className={cn(CONDITION.ACTION, skin.ACTION)}
         >
-          {ActionIcon ? <ActionIcon className="size-4" /> : null}
-          {actionLabel}
+          {actionBody}
         </Button>
       ) : null}
       {footer ? <div className={CONDITION.FOOT}>{footer}</div> : null}

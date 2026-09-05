@@ -39,6 +39,7 @@ import {
   CARD_DESC,
   CARD_HEAD,
   CARD_HEAD_ACTIONS,
+  CARD_HEAD_TEXT,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
@@ -185,7 +186,7 @@ export function PeersCard({
             </TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody aria-live="polite">
+        <TableBody>
           {peers.map((peer, i) => (
             <MotionTableRow
               key={`${peer.hostname}-${peer.tailscale_ips?.[0] ?? i}`}
@@ -249,7 +250,7 @@ export function PeersCard({
   return (
     <Card className={CARD_SHELL}>
       <CardHeader className={cn(CARD_PAD, CARD_HEAD)}>
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className={CARD_HEAD_TEXT}>
           <CardTitle className={CARD_TITLE}>
             {t("tailscale.peers.title")}
           </CardTitle>
@@ -284,13 +285,16 @@ export function PeersCard({
   );
 }
 
-/** Placeholder rows read the SAME pinned height constant the real rows do. */
+/** Placeholder rows read the SAME pinned heights the real rows do, and take
+ *  the table's own zero row gap, so the swap costs no height. */
 function PeersSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="flex flex-col gap-1.5" aria-hidden>
+    <div className={SKELETON.TABLE_STACK} aria-hidden>
       <Skeleton className={SKELETON.HEAD} />
       {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className={SKELETON.ROW} />
+        <div key={i} className={SKELETON.ROW_SLOT}>
+          <Skeleton className={SKELETON.ROW} />
+        </div>
       ))}
     </div>
   );

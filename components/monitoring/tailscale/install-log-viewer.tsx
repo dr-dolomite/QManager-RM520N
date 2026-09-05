@@ -34,7 +34,17 @@ export function InstallLogViewer({ log, isRunning }: InstallLogViewerProps) {
           />
         ) : null}
       </div>
-      <pre ref={preRef} className={LOG_PANEL.BODY} aria-live="polite">
+      {/* A scroll container is a tab stop, and `additions` keeps the reader on
+          the new lines instead of re-reading the whole transcript each poll. */}
+      <pre
+        ref={preRef}
+        tabIndex={0}
+        role="region"
+        aria-label={t("tailscale.install.logTitle")}
+        aria-live="polite"
+        aria-relevant="additions"
+        className={LOG_PANEL.BODY}
+      >
         {showPlaceholder ? (
           <span className={LOG_PANEL.PLACEHOLDER}>
             {t("tailscale.install.logWaiting")}

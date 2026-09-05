@@ -47,6 +47,7 @@ import {
   CARD_DESC,
   CARD_HEAD,
   CARD_HEAD_ACTIONS,
+  CARD_HEAD_TEXT,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
@@ -235,6 +236,7 @@ export function ConnectionCard({
         <AlertDialogFooter>
           <AlertDialogCancel>{t("tailscale.actions.cancel")}</AlertDialogCancel>
           <AlertDialogAction
+            variant="destructive"
             onClick={() =>
               run(
                 logout,
@@ -369,7 +371,7 @@ export function ConnectionCard({
   return (
     <Card className={CARD_SHELL}>
       <CardHeader className={cn(CARD_PAD, CARD_HEAD)}>
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className={CARD_HEAD_TEXT}>
           <CardTitle className={CARD_TITLE}>
             {t("tailscale.connection.title")}
           </CardTitle>
@@ -386,7 +388,9 @@ export function ConnectionCard({
         ) : null}
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, CARD_BODY)} aria-live="polite">
+      {/* No card-level `aria-live`: the health notice and the auth condition
+          below are already live regions, and nesting them announces twice. */}
+      <CardContent className={cn(CARD_PAD, CARD_BODY)}>
         {health.length > 0 ? (
           <div role="alert" className={cn(NOTICE, NOTICE_TONE.warning)}>
             <TriangleAlertIcon className={NOTICE_GLYPH} />
@@ -406,9 +410,7 @@ export function ConnectionCard({
             description={t("tailscale.connection.authDescription")}
             actionLabel={t("tailscale.connection.openLogin")}
             actionIcon={ExternalLinkIcon}
-            onAction={() =>
-              window.open(authUrl, "_blank", "noopener,noreferrer")
-            }
+            actionHref={authUrl}
             footer={
               <>
                 {/* The surface's one ambient loop, and only while it waits. */}
@@ -438,8 +440,15 @@ export function ConnectionCard({
             sshLocked && !isTogglingSsh ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* The Switch is disabled, so the tooltip needs its own target. */}
-                  <span tabIndex={0} className={SWITCH_ROW.CONTROL}>
+                  {/* The Switch is disabled, so the tooltip needs its own
+                      target — a real tab stop, so it carries a name and a ring. */}
+                  <span
+                    tabIndex={0}
+                    role="button"
+                    aria-disabled
+                    aria-label={t("tailscale.connection.sshTitle")}
+                    className={SWITCH_ROW.CONTROL_WRAP}
+                  >
                     <Switch
                       id="tailscale-ssh"
                       checked={sshEnabled}
@@ -482,18 +491,21 @@ export function ConnectionCard({
   );
 }
 
-/** Mirrors the loaded card's switch tiles from the same floor constant. */
+/** Mirrors the loaded card's header structure and its switch tiles, both from
+ *  the same constants, so the swap moves nothing. */
 export function ConnectionCardSkeleton() {
   const { t } = useTranslation("common");
   return (
     <Card className={CARD_SHELL}>
-      <CardHeader className={CARD_PAD}>
-        <CardTitle className={CARD_TITLE}>
-          {t("tailscale.connection.title")}
-        </CardTitle>
-        <CardDescription className={CARD_DESC}>
-          {t("tailscale.connection.description")}
-        </CardDescription>
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD)}>
+        <div className={CARD_HEAD_TEXT}>
+          <CardTitle className={CARD_TITLE}>
+            {t("tailscale.connection.title")}
+          </CardTitle>
+          <CardDescription className={CARD_DESC}>
+            {t("tailscale.connection.description")}
+          </CardDescription>
+        </div>
       </CardHeader>
       <CardContent className={cn(CARD_PAD, CARD_BODY)} aria-hidden>
         <Skeleton className={SKELETON.SWITCH} />

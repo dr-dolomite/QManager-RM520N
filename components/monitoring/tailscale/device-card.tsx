@@ -21,6 +21,8 @@ import { ConditionBlock } from "./condition-block";
 import {
   CARD_BODY,
   CARD_DESC,
+  CARD_HEAD,
+  CARD_HEAD_TEXT,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
@@ -106,13 +108,15 @@ export function DeviceCard({
 
   return (
     <Card className={CARD_SHELL}>
-      <CardHeader className={CARD_PAD}>
-        <CardTitle className={CARD_TITLE}>
-          {t("tailscale.device.title")}
-        </CardTitle>
-        <CardDescription className={CARD_DESC}>
-          {t("tailscale.device.description")}
-        </CardDescription>
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD)}>
+        <div className={CARD_HEAD_TEXT}>
+          <CardTitle className={CARD_TITLE}>
+            {t("tailscale.device.title")}
+          </CardTitle>
+          <CardDescription className={CARD_DESC}>
+            {t("tailscale.device.description")}
+          </CardDescription>
+        </div>
       </CardHeader>
 
       <CardContent className={cn(CARD_PAD, CARD_BODY)}>
@@ -150,13 +154,15 @@ export function DeviceCardSkeleton() {
   const { t } = useTranslation("common");
   return (
     <Card className={CARD_SHELL}>
-      <CardHeader className={CARD_PAD}>
-        <CardTitle className={CARD_TITLE}>
-          {t("tailscale.device.title")}
-        </CardTitle>
-        <CardDescription className={CARD_DESC}>
-          {t("tailscale.device.description")}
-        </CardDescription>
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD)}>
+        <div className={CARD_HEAD_TEXT}>
+          <CardTitle className={CARD_TITLE}>
+            {t("tailscale.device.title")}
+          </CardTitle>
+          <CardDescription className={CARD_DESC}>
+            {t("tailscale.device.description")}
+          </CardDescription>
+        </div>
       </CardHeader>
       <CardContent className={cn(CARD_PAD, CARD_BODY)} aria-hidden>
         <div className={METRIC.STACK}>

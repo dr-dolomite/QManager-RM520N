@@ -67,6 +67,7 @@ function StatusTile({
         <span className={EYEBROW}>{eyebrow}</span>
         {/* Colour goes on the figure and the disc, never on the tile body. */}
         <span
+          title={value}
           className={cn(
             mono ? TILE_VALUE_MONO : TILE_VALUE,
             TILE_VALUE_TONE[valueTone],
@@ -122,7 +123,7 @@ export function ConnectionChip({ view }: { view: TailscaleView }) {
   const Glyph = STATUS_GLYPH[view];
 
   return (
-    <Badge variant={variant}>
+    <Badge variant={variant} role="status">
       {/* The accessible name stays OUTSIDE the swap so it is not remounted. */}
       <span className="sr-only">{t("tailscale.status.aria")}</span>
       <SwapLabel swapKey={`${variant}-${view}`} className="gap-1">

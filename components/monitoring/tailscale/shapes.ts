@@ -26,8 +26,9 @@ export const PILL_REST =
 /** The lucide glyph inside a pill. */
 export const PILL_GLYPH = "size-4";
 
-/** 42px, extracted so the rail's skeleton mirrors the action it stands in for. */
-const ACTION_HEIGHT = "h-[2.625rem]";
+/** 42px, extracted so the rail's skeleton mirrors the action it stands in for.
+ *  The coarse bump is what reaches the 44px floor, as `PILL_ACTION` does. */
+const ACTION_HEIGHT = "h-[2.625rem] pointer-coarse:h-11";
 
 /** A 42px primary or secondary action in a card's rail. */
 export const ACTION = `${ACTION_HEIGHT} gap-2 rounded-pill px-5 text-sm font-semibold`;
@@ -44,7 +45,10 @@ export const RAIL = "flex flex-wrap items-center gap-2.5";
  * ladder, so the band is correct at every sidebar state without a query.
  */
 export const TILE = {
-  GRID: "grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(190px,1fr))]",
+  /** 248px floor, not the sibling's 190px: a tile's text column is its width
+   *  minus 106px of disc, gap and padding, so 190px leaves 84px for a 15-char
+   *  address. Measured — every figure below fits 142px. */
+  GRID: "grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(15.5rem,1fr))]",
   /** 104px PINNED, never floored: a floor cannot mirror a skeleton. */
   ROOT: "flex h-[6.5rem] items-center gap-3.5 rounded-tile bg-card px-5 py-4 shadow-[var(--shadow-whisper)]!",
   HEIGHT: "h-[6.5rem]",
@@ -70,14 +74,17 @@ export const DISC_TRANSITION =
 export const EYEBROW =
   "text-on-surface-variant truncate text-[0.6875rem] font-semibold tracking-[0.02em] uppercase";
 
-/** A live figure — a count, a verdict. `tabular-nums` in the UI face, never mono. */
+/** A live figure — a count, a verdict. `tabular-nums` in the UI face, never mono.
+ *  18px, one step under the sibling's 22px: this band carries word verdicts
+ *  ("Service stopped", it "Richiede accesso" = 167px at 22px) where the sibling
+ *  carries two-digit numerals. */
 export const TILE_VALUE =
-  "truncate text-[1.375rem] leading-[1.1] font-bold tracking-[-0.015em] tabular-nums";
+  "truncate text-[1.125rem] leading-[1.2] font-bold tracking-[-0.015em] tabular-nums";
 
 /** An identifier the device emitted — an address, a tailnet name. Machine voice,
- *  one step down so a full address still fits the tile. */
+ *  one step down so a full IPv4 and a 17-char tailnet still fit the tile. */
 export const TILE_VALUE_MONO =
-  "truncate font-mono text-[1.0625rem] leading-[1.2] font-semibold tracking-[-0.01em]";
+  "truncate font-mono text-sm leading-[1.35] font-semibold tracking-[-0.01em]";
 
 /** Ink for a figure reporting something standing. */
 export const TILE_VALUE_TONE = {
@@ -148,8 +155,11 @@ export const CARD_TITLE = "min-w-0 text-lg leading-tight";
 /** `CardDescription` hardcodes a retired ink token, so every call site re-inks it. */
 export const CARD_DESC = "text-on-surface-variant text-sm";
 
-/** Title block on the left, tags or actions pinned right, both able to shrink. */
+/** Title block on the left, tags or actions pinned right, both able to shrink.
+ *  Every card header on the surface takes both, so the paired cards' titles and
+ *  descriptions sit on one baseline whether or not a card carries a tag. */
 export const CARD_HEAD = "flex items-start gap-4";
+export const CARD_HEAD_TEXT = "flex min-w-0 flex-col gap-1.5";
 export const CARD_HEAD_ACTIONS = "ml-auto flex flex-none flex-wrap justify-end gap-2";
 
 /** The one region inside a stretched card that absorbs the slack. */
@@ -170,12 +180,15 @@ export const METRIC = {
   HEIGHT: METRIC_HEIGHT,
   STACK: "flex flex-col gap-1.5",
   ROW: `flex ${METRIC_HEIGHT} items-center gap-3 rounded-pill bg-surface-container px-4`,
-  /** The label recedes; the value is the answer. */
-  LABEL: "text-on-surface-variant flex-none text-[0.78125rem] font-semibold",
-  VALUE: "text-on-surface ml-auto min-w-0 truncate text-right text-[0.8125rem] font-medium",
+  /** The label recedes; the value is the answer. Both carry the row step's
+   *  20px line box explicitly, so neither depends on a default leading. */
+  LABEL:
+    "text-on-surface-variant flex-none text-[0.78125rem] leading-5 font-semibold",
+  VALUE:
+    "text-on-surface ml-auto min-w-0 truncate text-right text-[0.8125rem] leading-5 font-medium",
   /** Machine voice: an address, a hostname, a relay name, a tailnet. */
   VALUE_MONO:
-    "text-on-surface ml-auto min-w-0 truncate text-right font-mono text-[0.8125rem]",
+    "text-on-surface ml-auto min-w-0 truncate text-right font-mono text-[0.8125rem] leading-5",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -202,27 +215,39 @@ export const SWITCH_ROW = {
   /** The pseudo-element target reaches 44px without a layout box. */
   CONTROL:
     "relative flex-none before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-['']",
+  /** A disabled switch cannot hold focus, so a tooltip needs its own target.
+   *  That target is a real tab stop and therefore needs its own ring. */
+  CONTROL_WRAP:
+    "relative flex-none rounded-pill outline-none before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-[''] focus-visible:ring-ring/50 focus-visible:ring-[3px]",
 } as const;
 
 // -----------------------------------------------------------------------------
 // The peer table
 // -----------------------------------------------------------------------------
 
+/** One measurement, one literal: the head row and its skeleton read this. */
+const HEAD_HEIGHT = "h-9";
+
 /** A genuine data table, so it keeps hairline rules where a pill list would not. */
 export const TABLE = {
-  /** PINNED at 44px so the skeleton mirrors the loaded row exactly. */
-  ROW_HEIGHT: "h-11",
+  /** PINNED at 52px so the skeleton mirrors the loaded row exactly: the device
+   *  cell is two lines (20px name + 16px DNS name) inside 16px of cell padding,
+   *  so a 44px pin was inert and every row overshot it. */
+  ROW_HEIGHT: "h-13",
   /** PINNED at 36px, for the same reason the row height is. */
-  HEAD_HEIGHT: "h-9",
-  HEAD: "text-on-surface-variant h-9 px-3 text-[0.6875rem] font-semibold tracking-[0.02em] uppercase",
+  HEAD_HEIGHT: HEAD_HEIGHT,
+  HEAD: `text-on-surface-variant ${HEAD_HEIGHT} px-3 text-[0.6875rem] font-semibold tracking-[0.02em] uppercase`,
   ROW: "border-border border-b last:border-b-0",
   CELL: "px-3 text-sm",
   /** Machine voice: an address the device emitted. */
   CELL_MONO: "px-3 font-mono text-xs",
   CELL_MUTED: "text-on-surface-variant px-3 text-xs",
-  NAME: "truncate text-sm font-medium",
+  /** Both line boxes are explicit, so the row's pinned height is arithmetic
+   *  rather than whatever the two default leadings happen to add up to. */
+  NAME: "truncate text-sm leading-5 font-medium",
   /** A DNS name under the hostname. Machine voice, one step down. */
-  SUBNAME: "text-on-surface-variant block truncate font-mono text-[0.6875rem]",
+  SUBNAME:
+    "text-on-surface-variant block truncate font-mono text-[0.6875rem] leading-4",
   /** Size overrides only; the role stays the `Tag` variant's job. */
   TAG: "h-[1.125rem] shrink-0 px-1.5 py-0 text-[0.6875rem] leading-none",
 } as const;
@@ -238,7 +263,7 @@ export const LOG_PANEL = {
   TITLE:
     "text-on-surface-variant text-[0.6875rem] font-semibold tracking-[0.02em] uppercase",
   GLYPH: "text-on-surface-variant size-3.5",
-  BODY: "h-56 overflow-y-auto px-4 pb-3 text-left font-mono text-xs leading-relaxed whitespace-pre",
+  BODY: "h-56 overflow-y-auto px-4 pb-3 text-left font-mono text-xs leading-relaxed whitespace-pre outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]",
   PLACEHOLDER: "text-on-surface-variant",
 } as const;
 
@@ -249,7 +274,7 @@ export const COMMAND = {
     "text-on-surface-variant text-[0.6875rem] font-semibold tracking-[0.02em] uppercase",
   BOX: "flex items-center gap-2 rounded-tile bg-surface-container px-4 py-2.5",
   TEXT: "text-on-surface min-w-0 flex-1 overflow-x-auto font-mono text-xs select-all",
-  COPY: "text-on-surface-variant hover:bg-surface-container-high grid size-9 flex-none place-items-center rounded-pill",
+  COPY: "text-on-surface-variant hover:bg-surface-container-high grid size-9 flex-none place-items-center rounded-pill pointer-coarse:size-11",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -356,8 +381,15 @@ export const SKELETON = {
   METRIC: `${METRIC_HEIGHT} rounded-pill`,
   SWITCH: `${SWITCH_MIN_HEIGHT} rounded-tile`,
   ACTION: `${ACTION_HEIGHT} rounded-pill`,
-  HEAD: `${TABLE.HEAD_HEIGHT} rounded-inline`,
-  ROW: `${TABLE.ROW_HEIGHT} rounded-inline`,
+  HEAD: `${HEAD_HEIGHT} rounded-inline`,
+  /** Table rows are hairline-separated with NO gap between them, so the
+   *  placeholder stack takes none either — a gap would make the skeleton
+   *  taller than the table it stands in for, and the swap would shift. */
+  TABLE_STACK: "flex flex-col",
+  /** The row's pinned box AND its hairline, so the stack measures exactly what
+   *  the table does. The bar inside is what the eye reads. */
+  ROW_SLOT: `flex ${TABLE.ROW_HEIGHT} items-center ${TABLE.ROW}`,
+  ROW: "h-5 w-full rounded-inline",
   /** A text placeholder takes the small role radius, not the row's. */
   LINE: "rounded-inline",
 } as const;

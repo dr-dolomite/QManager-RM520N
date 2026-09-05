@@ -28,6 +28,8 @@ import {
   ACTION,
   CARD_BODY,
   CARD_DESC,
+  CARD_HEAD,
+  CARD_HEAD_TEXT,
   CARD_TITLE,
   COMMAND,
   HERO_PAD,
@@ -105,16 +107,20 @@ export function InstallCard({
 
   return (
     <Card className={HERO_SHELL}>
-      <CardHeader className={HERO_PAD}>
-        <CardTitle className={CARD_TITLE}>
-          {t("tailscale.install.title")}
-        </CardTitle>
-        <CardDescription className={CARD_DESC}>
-          {t("tailscale.install.description")}
-        </CardDescription>
+      <CardHeader className={cn(HERO_PAD, CARD_HEAD)}>
+        <div className={CARD_HEAD_TEXT}>
+          <CardTitle className={CARD_TITLE}>
+            {t("tailscale.install.title")}
+          </CardTitle>
+          <CardDescription className={CARD_DESC}>
+            {t("tailscale.install.description")}
+          </CardDescription>
+        </div>
       </CardHeader>
 
-      <CardContent className={cn(HERO_PAD, CARD_BODY)} aria-live="polite">
+      {/* No card-level `aria-live`: the notices below and the transcript are
+          already live regions, and nesting them announces twice. */}
+      <CardContent className={cn(HERO_PAD, CARD_BODY)}>
         <ConditionBlock
           tone="muted"
           icon={PackageIcon}
@@ -155,8 +161,10 @@ export function InstallCard({
             ) : (
               <PackageIcon className="size-4" />
             )}
+            {/* Never the backend's own message: a control's label has a width
+                contract, and this surface ships in five locales. */}
             {running
-              ? installResult.message || t("tailscale.install.installing")
+              ? t("tailscale.install.installing")
               : t("tailscale.install.install")}
           </Button>
           <Button
