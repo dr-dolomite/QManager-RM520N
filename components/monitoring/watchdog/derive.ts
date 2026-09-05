@@ -291,6 +291,8 @@ export interface BandTile {
 
 export interface BandInput {
   phase: WatchdogPhase;
+  /** Already translated: derive owns the key, the caller owns the language. */
+  phaseLabel: string;
   settings: WatchdogSettings;
   watchcat: WatchcatStatus | null;
   /** Translated tier name for the "last recovery" caption, when there is one. */
@@ -305,6 +307,7 @@ export interface BandInput {
  */
 export function deriveBand({
   phase,
+  phaseLabel,
   settings,
   watchcat,
   lastTierName,
@@ -319,7 +322,7 @@ export function deriveBand({
     {
       key: "state",
       eyebrowKey: "watchdog.band.state",
-      value: null, // The component renders the translated phase label here.
+      value: phaseLabel,
       captionKey: cooling
         ? "watchdog.band.cooldownCaption"
         : PHASE_BLURB_KEY[phase],
