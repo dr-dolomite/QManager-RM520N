@@ -3,9 +3,10 @@
 > **Applies to:** RM520N-GL · re-authored onto the design canon 2026-09-05
 > Family: `components/system-settings/**` · namespace `public/locales/*/system-settings.json`
 
-The route's **index only**. The seven sub-routes (AT Terminal, Connection Quality,
-Languages, Logs, Software Update, System Health Check, Web Console) have their own
-components and have **not** taken the canon pass.
+The route's **index only**. Six of the seven sub-routes (AT Terminal, Connection
+Quality, Languages, Software Update, System Health Check, Web Console) have their own
+components and have **not** taken the canon pass. **Logs has** — see
+[logs.md](logs.md).
 
 ---
 

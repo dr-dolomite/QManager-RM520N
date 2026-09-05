@@ -199,5 +199,118 @@
         "unit_absent": "本裝置尚未安裝排程服務——請更新至最新韌體以啟用該功能"
       }
     }
+  },
+  "logs": {
+    "page": {
+      "title": "系統日誌",
+      "description": "QManager 將日誌保存在數據機的記憶體中，因此每次重啟後都會清空，也不會磨損快閃記憶體。在這裡篩選日誌，查看各元件的運作情況。",
+      "refresh": "重新整理",
+      "clear": "清除日誌"
+    },
+    "band": {
+      "head": "日誌健康",
+      "severity": {
+        "eyebrow": "嚴重程度",
+        "errors_one": "{{count}} 個錯誤",
+        "errors_other": "{{count}} 個錯誤",
+        "warnings_one": "{{count}} 個警告",
+        "warnings_other": "{{count}} 個警告",
+        "clean": "無異常",
+        "caption_unread": "尚無讀取結果",
+        "caption_errors_one": "在已讀取的 {{lines}} 行中有 {{count}} 條警告",
+        "caption_errors_other": "在已讀取的 {{lines}} 行中有 {{count}} 條警告",
+        "caption_warnings_one": "已讀取的 {{count}} 行中沒有錯誤",
+        "caption_warnings_other": "已讀取的 {{count}} 行中沒有錯誤",
+        "caption_clean_one": "已讀取的 {{count}} 行中沒有警告",
+        "caption_clean_other": "已讀取的 {{count}} 行中沒有警告"
+      },
+      "feed": {
+        "eyebrow": "日誌串流",
+        "live": "即時",
+        "paused": "已暫停",
+        "stopped": "已停止",
+        "caption_unread": "等待首次讀取",
+        "caption_live": "已於 {{age}} 重新整理，每 10 秒一次",
+        "caption_paused": "自動重新整理已暫停，上次讀取於 {{age}}",
+        "caption_stopped": "上次讀取失敗，{{age}}"
+      },
+      "file": {
+        "eyebrow": "日誌檔案",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} 行，{{rotated}} 份已封存",
+        "caption_other": "{{count}} 行，{{rotated}} 份已封存",
+        "caption_unread": "未回報大小"
+      }
+    },
+    "card": {
+      "title": "日誌內容",
+      "description": "正在顯示 {{shown}} 行。目前日誌共有 {{held}} 行。",
+      "description_loading": "正在讀取日誌…",
+      "description_unreadable": "QManager 無法讀取日誌。"
+    },
+    "rail": {
+      "label": "依等級篩選",
+      "all": "全部",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Error"
+    },
+    "filters": {
+      "search_label": "搜尋日誌",
+      "search_placeholder": "搜尋訊息",
+      "component_label": "依元件篩選",
+      "component_all": "所有元件",
+      "lines_label": "讀取行數",
+      "lines_option": "{{lines}} 行",
+      "archived": "包含已封存日誌"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "unknown": "無日期"
+    },
+    "time": {
+      "now": "剛剛",
+      "seconds": "{{value}} 秒前",
+      "minutes": "{{value}} 分鐘前",
+      "hours": "{{value}} 小時前",
+      "days": "{{value}} 天前"
+    },
+    "severity": {
+      "DEBUG": "偵錯",
+      "INFO": "資訊",
+      "WARN": "警告",
+      "ERROR": "錯誤"
+    },
+    "notice": {
+      "stale": "QManager 在重新整理時失去了聯繫。這些是它上次從裝置讀取到的行。"
+    },
+    "empty": {
+      "title": "日誌為空",
+      "description": "QManager 將日誌保存在記憶體中，並在每次重啟時清空，因此自本裝置上次啟動以來還沒有寫入任何內容。"
+    },
+    "empty_filtered": {
+      "title": "沒有符合這些篩選條件的內容",
+      "description": "日誌中有內容，但沒有一條符合您選擇的等級、元件或搜尋條件。",
+      "action": "清除篩選條件"
+    },
+    "error": {
+      "title": "無法讀取日誌",
+      "description": "QManager 無法連接到本裝置上的日誌讀取程式。日誌本身並未受到影響，這只是讀取失敗，並非日誌遺失。",
+      "retry": "重試"
+    },
+    "clear_dialog": {
+      "title": "清除系統日誌？",
+      "description": "此操作將清空目前日誌，並刪除兩個封存檔案。已寫入的內容將永久消失，新日誌會立即開始寫入。",
+      "cancel": "取消",
+      "confirm": "清除日誌",
+      "clearing": "正在清除…"
+    },
+    "toast": {
+      "cleared": "系統日誌已清除",
+      "clear_failed": "無法清除系統日誌",
+      "refresh_failed": "無法讀取系統日誌"
+    }
   }
 }

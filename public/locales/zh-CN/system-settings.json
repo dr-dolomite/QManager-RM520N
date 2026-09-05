@@ -199,5 +199,118 @@
         "unit_absent": "本设备尚未安装计划任务服务——请更新到最新固件以启用该功能"
       }
     }
+  },
+  "logs": {
+    "page": {
+      "title": "系统日志",
+      "description": "QManager 将日志保存在调制解调器的内存中，因此每次重启后都会清空，也不会磨损闪存。在这里筛选日志，查看各个组件的运行情况。",
+      "refresh": "刷新",
+      "clear": "清除日志"
+    },
+    "band": {
+      "head": "日志健康",
+      "severity": {
+        "eyebrow": "严重程度",
+        "errors_one": "{{count}} 个错误",
+        "errors_other": "{{count}} 个错误",
+        "warnings_one": "{{count}} 个警告",
+        "warnings_other": "{{count}} 个警告",
+        "clean": "无异常",
+        "caption_unread": "尚无读取结果",
+        "caption_errors_one": "在已读取的 {{lines}} 行中有 {{count}} 条警告",
+        "caption_errors_other": "在已读取的 {{lines}} 行中有 {{count}} 条警告",
+        "caption_warnings_one": "已读取的 {{count}} 行中没有错误",
+        "caption_warnings_other": "已读取的 {{count}} 行中没有错误",
+        "caption_clean_one": "已读取的 {{count}} 行中没有警告",
+        "caption_clean_other": "已读取的 {{count}} 行中没有警告"
+      },
+      "feed": {
+        "eyebrow": "日志流",
+        "live": "实时",
+        "paused": "已暂停",
+        "stopped": "已停止",
+        "caption_unread": "等待首次读取",
+        "caption_live": "已刷新于 {{age}}，每 10 秒一次",
+        "caption_paused": "自动刷新已暂停，上次读取于 {{age}}",
+        "caption_stopped": "上次读取失败，{{age}}"
+      },
+      "file": {
+        "eyebrow": "日志文件",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} 行，{{rotated}} 份已归档",
+        "caption_other": "{{count}} 行，{{rotated}} 份已归档",
+        "caption_unread": "未上报大小"
+      }
+    },
+    "card": {
+      "title": "日志内容",
+      "description": "正在显示 {{shown}} 行。当前日志共有 {{held}} 行。",
+      "description_loading": "正在读取日志…",
+      "description_unreadable": "QManager 无法读取日志。"
+    },
+    "rail": {
+      "label": "按级别筛选",
+      "all": "全部",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Error"
+    },
+    "filters": {
+      "search_label": "搜索日志",
+      "search_placeholder": "搜索消息",
+      "component_label": "按组件筛选",
+      "component_all": "所有组件",
+      "lines_label": "读取行数",
+      "lines_option": "{{lines}} 行",
+      "archived": "包含已归档日志"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "unknown": "日期未知"
+    },
+    "time": {
+      "now": "刚刚",
+      "seconds": "{{value}} 秒前",
+      "minutes": "{{value}} 分钟前",
+      "hours": "{{value}} 小时前",
+      "days": "{{value}} 天前"
+    },
+    "severity": {
+      "DEBUG": "调试",
+      "INFO": "信息",
+      "WARN": "警告",
+      "ERROR": "错误"
+    },
+    "notice": {
+      "stale": "QManager 在刷新时失去了联系。这些是它上次从设备读取到的行。"
+    },
+    "empty": {
+      "title": "日志为空",
+      "description": "QManager 将日志保存在内存中，并在每次重启时清空，因此自本设备上次启动以来还没有写入任何内容。"
+    },
+    "empty_filtered": {
+      "title": "没有匹配这些筛选条件的内容",
+      "description": "日志中有内容，但没有一条符合您选择的级别、组件或搜索条件。",
+      "action": "清除筛选条件"
+    },
+    "error": {
+      "title": "无法读取日志",
+      "description": "QManager 无法连接到本设备上的日志读取程序。日志本身并未受到影响，这只是读取失败，并非日志丢失。",
+      "retry": "重试"
+    },
+    "clear_dialog": {
+      "title": "清除系统日志？",
+      "description": "此操作将清空当前日志，并删除两个归档文件。已写入的内容将永久消失，新日志会立即开始写入。",
+      "cancel": "取消",
+      "confirm": "清除日志",
+      "clearing": "正在清除…"
+    },
+    "toast": {
+      "cleared": "系统日志已清除",
+      "clear_failed": "无法清除系统日志",
+      "refresh_failed": "无法读取系统日志"
+    }
   }
 }

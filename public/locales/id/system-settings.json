@@ -199,5 +199,118 @@
         "unit_absent": "layanan penjadwalan belum terpasang di perangkat ini — perbarui ke firmware terbaru untuk mengaktifkannya"
       }
     }
+  },
+  "logs": {
+    "page": {
+      "title": "Log Sistem",
+      "description": "QManager menyimpan lognya di memori modem, sehingga log ini kosong lagi setelah setiap reboot dan tidak menggerus flash. Saring di sini untuk melihat aktivitas masing-masing komponen.",
+      "refresh": "Segarkan",
+      "clear": "Hapus log"
+    },
+    "band": {
+      "head": "Kondisi log",
+      "severity": {
+        "eyebrow": "Tingkat keparahan",
+        "errors_one": "{{count}} kesalahan",
+        "errors_other": "{{count}} kesalahan",
+        "warnings_one": "{{count}} peringatan",
+        "warnings_other": "{{count}} peringatan",
+        "clean": "Bersih",
+        "caption_unread": "Belum ada pembacaan yang masuk",
+        "caption_errors_one": "{{count}} peringatan dari {{lines}} baris yang dibaca",
+        "caption_errors_other": "{{count}} peringatan dari {{lines}} baris yang dibaca",
+        "caption_warnings_one": "Tidak ada kesalahan dari {{count}} baris yang dibaca",
+        "caption_warnings_other": "Tidak ada kesalahan dari {{count}} baris yang dibaca",
+        "caption_clean_one": "Tidak ada peringatan dari {{count}} baris yang dibaca",
+        "caption_clean_other": "Tidak ada peringatan dari {{count}} baris yang dibaca"
+      },
+      "feed": {
+        "eyebrow": "Aliran",
+        "live": "Langsung",
+        "paused": "Dijeda",
+        "stopped": "Terhenti",
+        "caption_unread": "Menunggu pembacaan pertama",
+        "caption_live": "Disegarkan {{age}}, setiap 10 detik",
+        "caption_paused": "Penyegaran otomatis dijeda, dibaca {{age}}",
+        "caption_stopped": "Pembacaan terakhir gagal, {{age}}"
+      },
+      "file": {
+        "eyebrow": "File log",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} baris, {{rotated}} diarsipkan",
+        "caption_other": "{{count}} baris, {{rotated}} diarsipkan",
+        "caption_unread": "Ukuran tidak dilaporkan"
+      }
+    },
+    "card": {
+      "title": "Transkrip",
+      "description": "Menampilkan {{shown}} baris. Log aktif menyimpan {{held}}.",
+      "description_loading": "Membaca log…",
+      "description_unreadable": "QManager tidak dapat membaca log."
+    },
+    "rail": {
+      "label": "Saring berdasarkan tingkat",
+      "all": "Semua",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Error"
+    },
+    "filters": {
+      "search_label": "Cari di log",
+      "search_placeholder": "Cari pesan",
+      "component_label": "Saring berdasarkan komponen",
+      "component_all": "Semua komponen",
+      "lines_label": "Baris yang dibaca",
+      "lines_option": "{{lines}} baris",
+      "archived": "Sertakan yang diarsipkan"
+    },
+    "day": {
+      "today": "Hari ini",
+      "yesterday": "Kemarin",
+      "unknown": "Tanpa tanggal"
+    },
+    "time": {
+      "now": "baru saja",
+      "seconds": "{{value}} dtk lalu",
+      "minutes": "{{value}} mnt lalu",
+      "hours": "{{value}} jam lalu",
+      "days": "{{value}} hr lalu"
+    },
+    "severity": {
+      "DEBUG": "Debug",
+      "INFO": "Informasi",
+      "WARN": "Peringatan",
+      "ERROR": "Kesalahan"
+    },
+    "notice": {
+      "stale": "QManager kehilangan kontak saat menyegarkan. Ini adalah baris terakhir yang dibacanya dari perangkat."
+    },
+    "empty": {
+      "title": "Log ini kosong",
+      "description": "QManager menyimpan lognya di memori dan mengosongkannya setiap kali reboot, sehingga belum ada yang tertulis sejak perangkat ini terakhir kali dinyalakan."
+    },
+    "empty_filtered": {
+      "title": "Tidak ada yang cocok dengan filter ini",
+      "description": "Log ini memiliki baris, tetapi tidak satu pun cocok dengan level, komponen, atau pencarian yang Anda pilih.",
+      "action": "Hapus filter"
+    },
+    "error": {
+      "title": "Tidak dapat membaca log",
+      "description": "QManager tidak dapat menjangkau pembaca log di perangkat ini. Log itu sendiri tidak tersentuh — ini kegagalan pembacaan, bukan kehilangan data.",
+      "retry": "Coba lagi"
+    },
+    "clear_dialog": {
+      "title": "Hapus log sistem?",
+      "description": "Ini akan mengosongkan log aktif dan menghapus kedua file arsip. Semua yang sudah tertulis akan hilang selamanya, dan baris baru akan langsung mulai masuk.",
+      "cancel": "Batal",
+      "confirm": "Hapus log",
+      "clearing": "Menghapus…"
+    },
+    "toast": {
+      "cleared": "Log sistem telah dihapus",
+      "clear_failed": "Gagal menghapus log sistem",
+      "refresh_failed": "Gagal membaca log sistem"
+    }
   }
 }

@@ -199,5 +199,118 @@
         "unit_absent": "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it"
       }
     }
+  },
+  "logs": {
+    "page": {
+      "title": "System Logs",
+      "description": "QManager keeps its log in memory on the modem, so it starts empty after every reboot and never wears the flash. Filter it here to see what each component has been doing.",
+      "refresh": "Refresh",
+      "clear": "Clear log"
+    },
+    "band": {
+      "head": "Log health",
+      "severity": {
+        "eyebrow": "Severity",
+        "errors_one": "{{count}} error",
+        "errors_other": "{{count}} errors",
+        "warnings_one": "{{count}} warning",
+        "warnings_other": "{{count}} warnings",
+        "clean": "Clean",
+        "caption_unread": "No read has landed yet",
+        "caption_errors_one": "{{count}} warning in {{lines}} lines read",
+        "caption_errors_other": "{{count}} warnings in {{lines}} lines read",
+        "caption_warnings_one": "No errors in {{count}} line read",
+        "caption_warnings_other": "No errors in {{count}} lines read",
+        "caption_clean_one": "No warnings in {{count}} line read",
+        "caption_clean_other": "No warnings in {{count}} lines read"
+      },
+      "feed": {
+        "eyebrow": "Feed",
+        "live": "Live",
+        "paused": "Paused",
+        "stopped": "Stopped",
+        "caption_unread": "Waiting for the first read",
+        "caption_live": "Refreshed {{age}}, every 10s",
+        "caption_paused": "Auto-refresh paused, read {{age}}",
+        "caption_stopped": "Last read failed, {{age}}"
+      },
+      "file": {
+        "eyebrow": "Log file",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} line, {{rotated}} archived",
+        "caption_other": "{{count}} lines, {{rotated}} archived",
+        "caption_unread": "Size not reported"
+      }
+    },
+    "card": {
+      "title": "Transcript",
+      "description": "Showing {{shown}} lines. The live log holds {{held}}.",
+      "description_loading": "Reading the log...",
+      "description_unreadable": "QManager couldn't read the log."
+    },
+    "rail": {
+      "label": "Filter by level",
+      "all": "All",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Error"
+    },
+    "filters": {
+      "search_label": "Search the log",
+      "search_placeholder": "Search messages",
+      "component_label": "Filter by component",
+      "component_all": "All components",
+      "lines_label": "Lines to read",
+      "lines_option": "{{lines}} lines",
+      "archived": "Include archived"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "unknown": "Undated"
+    },
+    "time": {
+      "now": "just now",
+      "seconds": "{{value}}s ago",
+      "minutes": "{{value}}m ago",
+      "hours": "{{value}}h ago",
+      "days": "{{value}}d ago"
+    },
+    "severity": {
+      "DEBUG": "Debug",
+      "INFO": "Information",
+      "WARN": "Warning",
+      "ERROR": "Error"
+    },
+    "notice": {
+      "stale": "QManager lost contact while refreshing. These are the last lines it read from the device."
+    },
+    "empty": {
+      "title": "The log is empty",
+      "description": "QManager keeps its log in memory and clears it on every reboot, so nothing has been written since this device last started."
+    },
+    "empty_filtered": {
+      "title": "Nothing matches these filters",
+      "description": "The log has lines in it, but none of them match the level, component or search you picked.",
+      "action": "Clear filters"
+    },
+    "error": {
+      "title": "Can't read the log",
+      "description": "QManager couldn't reach the log reader on this device. The log itself is untouched, so this is a read failure and not a loss.",
+      "retry": "Retry"
+    },
+    "clear_dialog": {
+      "title": "Clear the system log?",
+      "description": "This empties the live log and deletes both archived files. Anything already written is gone for good, and new lines start arriving immediately.",
+      "cancel": "Cancel",
+      "confirm": "Clear log",
+      "clearing": "Clearing..."
+    },
+    "toast": {
+      "cleared": "System log cleared",
+      "clear_failed": "Couldn't clear the system log",
+      "refresh_failed": "Couldn't read the system log"
+    }
   }
 }
