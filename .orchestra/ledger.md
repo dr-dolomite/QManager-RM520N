@@ -752,3 +752,36 @@ warnings (re-run after the docs edit, since Tailwind scans docs prose).
 defect found and NOT fixed (reported to the user): the `no_days` path fires a generic
 toast that discards the backend's actionable sentence, then paints a false
 "lost contact" banner.
+
+---
+
+# Addendum — /monitoring/tailscale docs + integration (2026-09-06)
+
+Follows the run recorded above, which closed at `0bd51d2` unmerged by design.
+
+**Critique pass.** The `/impeccable critique` agent died mid-run on an Opus session
+limit, but its edits were already complete on disk, not half-applied — reviewed file
+by file, verified, and committed as `58b5975`. Its one genuinely new finding:
+`TABLE.ROW_HEIGHT` was pinned at 44px while every row rendered 52 (a 20px name over a
+16px DNS name inside 16px of cell padding), so the pin was inert and the
+Skeleton-Mirror Rule was failing with nothing looking wrong.
+
+**Integration.** `development` had advanced with the watchdog refit, which appends a
+sibling top-level block to the same five `common.json` packs. Resolved semantically —
+a real three-way merge at the JSON level off `:1:`/`:2:`/`:3:`, after confirming the
+packs serialize byte-exactly as `JSON.stringify(obj, null, 2)` with NO trailing
+newline. Zero real key collisions; both blocks survive in all five. Merged at
+`c8eb7bb`.
+
+**Docs.** `44c1a97` — the DESIGN.md delta row, `docs/reference/tailscale.md` (new), and
+one CLAUDE.md routing row. The row above it claims watchdog was "the last unmigrated
+/monitoring/ surface"; it was not, and the new row says so. Tailscale was missed for
+the same reason it went unmigrated: no feature doc and no routing row, so nothing
+pointed at it. Both gaps now closed.
+
+**Verified at `e91806f` rather than asserted:** the old surface had zero
+`useTranslation` calls, and `install-log-viewer.tsx` was the only component file in the
+product hardcoding raw Tailwind palette colours.
+
+**Open:** `RELEASE_NOTES.md`'s Unreleased block still has no bullet for either the
+Alerts or the Tailscale refit. Left deliberately — out of the scope the user set.

@@ -79,3 +79,7 @@ discord-bot/*.exe
 
 # Rescue directory
 /scripts-dev/rescue/
+
+# Orchestration scratch (run plans, recon dumps, token/i18n captures).
+# The ledger beside it IS tracked; only the working files are local.
+/.orchestra/scratch/
