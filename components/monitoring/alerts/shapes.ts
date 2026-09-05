@@ -226,8 +226,13 @@ export type RailDotTone = keyof typeof RAIL_DOT_TONE;
 // Fields and the channel switch
 // -----------------------------------------------------------------------------
 
-/** 42px. Named once so `SHELL` and the skeleton box cannot drift apart. */
-const FIELD_HEIGHT = "h-[2.625rem]";
+/**
+ * 42px. Named once so `SHELL` and the skeleton box cannot drift apart.
+ *
+ * The `!` lives INSIDE the constant: Tailwind scans raw source text, so a marker
+ * appended to the interpolation would never appear as a literal candidate here.
+ */
+const FIELD_HEIGHT = "h-[2.625rem]!";
 
 export const FIELD = {
   ROW: "flex flex-col gap-[7px]",
@@ -240,7 +245,7 @@ export const FIELD = {
    * whenever the utility names sort ahead of ours, and its `dark:bg-input/30`
    * is a (0,2,0) rule that beats an unprefixed fill outright.
    */
-  SHELL: `${FIELD_HEIGHT}! w-full rounded-field! border-0! bg-surface-container dark:bg-surface-container! px-4 text-sm text-on-surface shadow-none! placeholder:text-on-surface-variant`,
+  SHELL: `${FIELD_HEIGHT} w-full rounded-field! border-0! bg-surface-container dark:bg-surface-container! px-4 text-sm text-on-surface shadow-none! placeholder:text-on-surface-variant`,
   /** `SHELL` drops the rest border, so the ring alone has to carry invalid. */
   INVALID: "aria-invalid:ring-[3px] aria-invalid:ring-destructive/50",
   /** Machine voice: a phone number, an address, a Discord id. */
