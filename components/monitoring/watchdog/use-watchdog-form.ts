@@ -28,6 +28,9 @@ import type {
 /** Probe cadence options (seconds) offered by the Probe Interval Select. */
 export const PROBE_INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30] as const;
 
+/** A callback-ref factory: the form owns the map, a card registers into it. */
+export type RegisterField = (id: string) => (el: HTMLElement | null) => void;
+
 export interface WatchdogFormErrors {
   failThreshold: string | null;
   probeInterval: string | null;

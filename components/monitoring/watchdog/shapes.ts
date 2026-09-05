@@ -177,7 +177,8 @@ export const RUNG = {
   MARKER:
     "flex shrink-0 items-center gap-1 text-[0.6875rem] leading-none font-semibold",
   MARKER_DOT: "size-1.5 flex-none rounded-pill bg-current",
-  ACTIONS: "flex flex-none items-start gap-2.5 self-start",
+  /** Stacked, not inline: a chip beside a switch eats a phone-width rung. */
+  ACTIONS: "flex flex-none flex-col items-end gap-2.5 self-start",
   /** Tier 3's slot select and tier 4's cap live INSIDE their own rung. */
   FIELD_SLOT: "pt-1.5",
 } as const;
