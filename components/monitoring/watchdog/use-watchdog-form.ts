@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useSaveFlash } from "@/components/ui/save-button";
 import type {
   WatchdogSettings,
@@ -138,6 +139,7 @@ export function useWatchdogForm({
   error,
   saveSettings,
 }: UseWatchdogFormArgs): WatchdogForm {
+  const { t } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
 
   const [isEnabled, setIsEnabled] = useState(settings.enabled);
@@ -168,28 +170,29 @@ export function useWatchdogForm({
   }, [probeInterval, failThreshold]);
 
   // --- Validation (mirrors the CGI field ranges) ---
+  // Values are i18n KEYS; the rendering component translates them.
   const errors = useMemo<WatchdogFormErrors>(() => {
     const failThresholdErr =
       failThreshold && !isIntInRange(failThreshold, 1, 20)
-        ? "Must be 1–20"
+        ? "watchdog.errors.failThreshold"
         : null;
     const probeIntervalErr =
       probeInterval && !isIntInRange(probeInterval, 1, 60)
-        ? "Must be 1–60 seconds"
+        ? "watchdog.errors.probeInterval"
         : null;
     const cooldownErr =
       cooldown && !isIntInRange(cooldown, 10, 300)
-        ? "Must be 10–300 seconds"
+        ? "watchdog.errors.cooldown"
         : null;
     const maxRebootsErr =
       tier4Enabled && maxRebootsPerHour && !isIntInRange(maxRebootsPerHour, 1, 10)
-        ? "Must be 1–10"
+        ? "watchdog.errors.maxReboots"
         : null;
     // Backup slot is required whenever Tier 3 (SIM failover) is enabled — an
     // unset slot leaves the ladder unable to fail over, so block the save.
     const backupSimErr =
       tier3Enabled && !backupSimSlot
-        ? "Choose a backup SIM slot to enable failover."
+        ? "watchdog.errors.backupSim"
         : null;
 
     return {
@@ -304,9 +307,9 @@ export function useWatchdogForm({
     const ok = await saveSettings(payload);
     if (ok) {
       markSaved();
-      toast.success("Watchdog settings saved");
+      toast.success(t("watchdog.save.toastOk"));
     } else {
-      toast.error(error || "Failed to save watchdog settings");
+      toast.error(error || t("watchdog.save.toastFail"));
     }
   }, [
     hasValidationErrors,
@@ -326,6 +329,7 @@ export function useWatchdogForm({
     saveSettings,
     markSaved,
     error,
+    t,
   ]);
 
   // Discard resets every field to the server-truth in `settings`.

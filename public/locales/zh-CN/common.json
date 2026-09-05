@@ -1250,5 +1250,201 @@
       "copied": "命令已复制",
       "copyFailed": "无法复制命令"
     }
+  },
+  "watchdog": {
+    "page": {
+      "title": "看门狗",
+      "description": "监控互联网链路，在中断时按恢复阶梯逐步处理。",
+      "refresh": "刷新",
+      "unreadableTitle": "无法读取看门狗设置",
+      "unreadable": "调制解调器没有响应。",
+      "retry": "重试"
+    },
+    "band": {
+      "state": "状态",
+      "checks": "失败检测",
+      "recoveries": "恢复",
+      "reboots": "重启",
+      "absent": "未上报",
+      "checksCaption": "开始恢复前",
+      "cooldownCaption": "{{seconds}} 秒后重新检测",
+      "recoveriesLast": "上次：{{tier}}，{{ago}}",
+      "recoveriesNone": "尚无记录",
+      "rebootsCaption": "安全上限，自看门狗启动起计数",
+      "rebootsOff": "重启步骤已关闭，因此该上限不会触发"
+    },
+    "phase": {
+      "off": {
+        "label": "已关闭",
+        "blurb": "看门狗未监控连接。"
+      },
+      "unknown": {
+        "label": "未知",
+        "blurb": "调制解调器没有响应，因此无法确定看门狗目前的状态。"
+      },
+      "starting": {
+        "label": "启动中",
+        "blurb": "服务刚刚启用，尚未上报状态。"
+      },
+      "not_running": {
+        "label": "未上报",
+        "blurb": "已启用，但服务自启动以来尚未上报。"
+      },
+      "auto_disabled": {
+        "label": "已自动关闭",
+        "blurb": "已达到重启次数上限，看门狗因此自动关闭。"
+      },
+      "monitor": {
+        "label": "监控中",
+        "blurb": "连接状况良好，正在监控是否发生断网。"
+      },
+      "suspect": {
+        "label": "检测中",
+        "blurb": "刚刚有一次连接检测失败，正在确认后再采取行动。"
+      },
+      "recovery": {
+        "label": "恢复中",
+        "blurb": "正在依次执行恢复步骤，以恢复连接。"
+      },
+      "cooldown": {
+        "label": "冷却中",
+        "blurb": "正在等待上一步恢复操作生效，然后再重新检测。"
+      },
+      "locked": {
+        "label": "已暂停",
+        "blurb": "有维护操作正在进行，看门狗暂时不会采取行动。"
+      },
+      "disabled": {
+        "label": "已禁用",
+        "blurb": "服务正在运行，但功能已关闭。"
+      }
+    },
+    "master": {
+      "title": "连接看门狗",
+      "description": "监控链路并自动恢复连接。保存后生效。",
+      "aria": "启用连接看门狗"
+    },
+    "ladder": {
+      "title": "恢复阶梯",
+      "description": "按顺序依次尝试，从最温和的方式开始。只有在上一步未能恢复连接时，才会执行下一步。",
+      "aria": "恢复阶梯",
+      "status": {
+        "on": "开",
+        "off": "关",
+        "blocked": "需要插槽",
+        "running": "正在运行"
+      },
+      "tier1": {
+        "name": "重新注册到网络",
+        "effect": "从运营商分离后再重新附着。",
+        "consequence": "链路会中断几秒钟，不会影响其他功能。"
+      },
+      "tier2": {
+        "name": "重启无线电",
+        "effect": "关闭无线电后再重新开启。",
+        "consequence": "锁定基站时会自动跳过此步骤，以确保锁定的基站不受影响。"
+      },
+      "tier3": {
+        "name": "切换到备用 SIM 卡",
+        "effect": "故障转移到另一插槽的 SIM 卡，并使用该卡运行。",
+        "consequence": "若未设置备用插槽，恢复流程将止步于此，不会进入重启步骤。",
+        "slotLabel": "备用 SIM 卡插槽",
+        "slotPlaceholder": "选择插槽",
+        "slot": "插槽 {{slot}}"
+      },
+      "tier4": {
+        "name": "重启设备",
+        "effect": "作为最后手段重启调制解调器。",
+        "consequence": "此页面会消失约一分钟，等待调制解调器恢复。",
+        "capLabel": "每小时最大重启次数"
+      }
+    },
+    "detection": {
+      "title": "检测",
+      "description": "静默链路多久后会被判定为断网。",
+      "probe": {
+        "label": "探测间隔",
+        "placeholder": "选择间隔",
+        "option_one": "{{count}} 秒",
+        "option_other": "{{count}} 秒",
+        "hint": "调制解调器探测互联网连通性的频率。"
+      },
+      "threshold": {
+        "label": "失败阈值",
+        "hint": "连续多少次探测失败后开始执行恢复。"
+      },
+      "cooldown": {
+        "label": "冷却时间（秒）",
+        "hint": "每次恢复步骤后，等待多久再重新检测连接。"
+      },
+      "derived": {
+        "ready": "约 {{seconds}} 秒的探测失败后，将判定连接已断开。",
+        "unavailable": "输入有效的检测数值，即可预览连接何时会被判定为断开。"
+      }
+    },
+    "activity": {
+      "title": "恢复活动",
+      "description": "看门狗执行过的操作，最新优先。",
+      "refresh": "刷新",
+      "type": {
+        "recovery": "恢复",
+        "failover": "SIM 卡故障转移"
+      },
+      "day": {
+        "today": "今天",
+        "yesterday": "昨天"
+      },
+      "time": {
+        "just_now": "刚刚",
+        "minutes_one": "{{count}} 分钟前",
+        "minutes_other": "{{count}} 分钟前",
+        "hours_one": "{{count}} 小时前",
+        "hours_other": "{{count}} 小时前",
+        "days_one": "{{count}} 天前",
+        "days_other": "{{count}} 天前"
+      },
+      "empty": {
+        "title": "尚无恢复活动",
+        "description": "看门狗处理断网时，恢复步骤和 SIM 卡故障转移会显示在这里。"
+      },
+      "error": {
+        "title": "无法加载恢复活动",
+        "retry": "重试"
+      }
+    },
+    "save": {
+      "discard": "放弃",
+      "action": "保存",
+      "clean": "所有更改已保存",
+      "dirty": "您有未保存的更改",
+      "saved": "已保存",
+      "blockedIn": "保存前请检查 {{fields}}",
+      "toastOk": "看门狗设置已保存",
+      "toastFail": "无法保存看门狗设置"
+    },
+    "errors": {
+      "failThreshold": "必须介于 1 到 20 之间",
+      "probeInterval": "必须介于 1 到 60 秒之间",
+      "cooldown": "必须介于 10 到 300 秒之间",
+      "maxReboots": "必须介于 1 到 10 之间",
+      "backupSim": "选择备用 SIM 卡插槽以启用故障转移"
+    },
+    "autoDisabled": {
+      "title": "看门狗已自动关闭",
+      "description": "已达到本小时的重启上限。请在连接稳定后重新启用。"
+    },
+    "failover": {
+      "title": "正在使用备用 SIM 卡",
+      "body": "已切换到插槽 {{current}}，{{since}}。原始 SIM 卡位于插槽 {{original}}。",
+      "recently": "最近",
+      "revert": "恢复原始 SIM 卡",
+      "reverting": "正在恢复…",
+      "confirmTitle": "恢复原始 SIM 卡？",
+      "confirmBody": "这将切换回 SIM 卡插槽 {{original}}。调制解调器重新连接期间，网络会短暂中断。",
+      "cancel": "取消",
+      "confirm": "恢复 SIM 卡",
+      "requested": "已请求恢复 SIM 卡。看门狗将很快处理。",
+      "failed": "无法请求恢复 SIM 卡"
+    }
   }
 }
