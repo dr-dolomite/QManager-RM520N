@@ -11,7 +11,8 @@
     "clear_dialog_confirm": "清除",
     "clear_dialog_clearing": "正在清除…",
     "toast_cleared": "已清除已知 SIM 卡",
-    "toast_clear_failed": "清除已知 SIM 卡失败"
+    "toast_clear_failed": "清除已知 SIM 卡失败",
+    "remembered_unknown": "无法读取已记住的数量"
   },
   "sim_registry": {
     "title": "已跟踪的 SIM 卡",
@@ -35,6 +36,167 @@
     "remembered_count_one": "已记住 {{count}} 张 SIM 卡",
     "remembered_count_other": "已记住 {{count}} 张 SIM 卡",
     "toast_cleared_partial": "已清除，但列表可能不是最新的",
-    "toast_cleared_partial_detail": "设备已忘记这些 SIM 卡，但未能更新此列表。请重新加载页面查看。"
+    "toast_cleared_partial_detail": "设备已忘记这些 SIM 卡，但未能更新此列表。请重新加载页面查看。",
+    "error_title": "无法读取已跟踪的 SIM 卡",
+    "error_description": "设备未响应。没有任何记录被删除——这只是读取失败，列表仍保存在调制解调器上。"
+  },
+  "ssh": {
+    "card": {
+      "title": "SSH 访问",
+      "description": "通过 SSH 登录本调制解调器的 root 密码。它与您登录 QManager 所用的密码是分开的。",
+      "save": "更新 SSH 密码"
+    },
+    "fields": {
+      "current": {
+        "label": "您的 QManager 密码",
+        "consequence": "用于验证是您本人。这是您登录网页时使用的密码，不是 SSH 密码。"
+      },
+      "new": {
+        "label": "新的 SSH 密码",
+        "consequence": "至少六个字符。立即生效——已建立的 SSH 会话不会中断。"
+      },
+      "confirm": {
+        "label": "确认新密码"
+      }
+    },
+    "toggle": {
+      "show": "显示密码",
+      "hide": "隐藏密码"
+    },
+    "errors": {
+      "too_short": "SSH 密码至少需要 6 个字符。",
+      "mismatch": "两次输入的密码不一致。",
+      "failed": "SSH 密码修改失败。"
+    },
+    "toast_saved": "SSH 密码已更新。"
+  },
+  "page": {
+    "title": "系统设置",
+    "description": "本设备如何计时、谁可以访问它，以及它记住了哪些 SIM 卡。",
+    "refresh": "刷新"
+  },
+  "band": {
+    "head": "当前生效",
+    "unreachable": "无法连接",
+    "clock": {
+      "eyebrow": "设备时钟",
+      "caption_applied": "{{zone}}，已应用",
+      "caption_drifted": "已保存为 {{zone}}，但时钟没有变化",
+      "caption_unread": "无法读取时钟",
+      "caption_unreported": "已保存 {{zone}}，设备时钟未知"
+    },
+    "reboot": {
+      "eyebrow": "下次重启",
+      "off": "已关闭",
+      "day_separator": "、",
+      "caption_repeats": "重复：{{days}}",
+      "caption_off": "未设置自动重启",
+      "caption_no_day": "已启用，但未选择任何日期",
+      "caption_unread": "无法读取计划",
+      "never": "从不"
+    },
+    "sims": {
+      "eyebrow": "已跟踪的 SIM 卡",
+      "caption_none": "尚未记录任何内容",
+      "caption_all_alerting": "全部会触发新卡提醒",
+      "caption_muted_one": "{{count}} 张已关闭新卡提醒",
+      "caption_muted_other": "{{count}} 张已关闭新卡提醒"
+    },
+    "stale": "上次确认的读数"
+  },
+  "preferences": {
+    "card": {
+      "title": "时间与单位",
+      "description": "本调制解调器如何计时，以及各项读数所使用的单位。",
+      "save": "保存偏好设置"
+    },
+    "rows": {
+      "unsaved": "未保存",
+      "timezone": {
+        "label": "时区",
+        "consequence": "本调制解调器没有电池时钟。每一条日志、每一个事件和每一项计划都以此为基准。",
+        "placeholder": "选择时区",
+        "search": "搜索时区…",
+        "empty": "没有匹配的时区。"
+      },
+      "temperature": {
+        "label": "温度",
+        "consequence": "适用于 QManager 中的所有温度读数。",
+        "celsius": "摄氏度（°C）",
+        "fahrenheit": "华氏度（°F）"
+      },
+      "distance": {
+        "label": "距离",
+        "consequence": "适用于小区扫描和天线页面上的基站距离。",
+        "km": "千米（km）",
+        "miles": "英里（mi）"
+      }
+    },
+    "states": {
+      "error_title": "无法读取您的偏好设置",
+      "error_body": "调制解调器未响应。{{detail}}",
+      "stale": "调制解调器未响应最近一次请求。此处显示的是它最后确认的状态。",
+      "tz_not_applied_chip": "时钟未更新",
+      "tz_not_applied_body": "已保存为 {{zone}}，但设备时钟仍运行在 {{offset}}。它可能稍后会跟上，也可能是此固件缺少该时区的数据。"
+    },
+    "toast": {
+      "saved": "偏好设置已保存",
+      "failed": "无法保存偏好设置"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "定时重启",
+      "description": "按固定的每周计划自动重启调制解调器。"
+    },
+    "rows": {
+      "enabled": {
+        "label": "自动重启",
+        "armed": "已启用",
+        "off": "已关闭",
+        "consequence": "调制解调器将按此计划重启。您的会话会中断约九十秒，随后自动恢复。",
+        "no_day": "永不触发"
+      },
+      "time": {
+        "label": "时间",
+        "consequence": "使用设备本地时间，而非浏览器时间。"
+      },
+      "days": {
+        "label": "重复于",
+        "consequence": "未选择任何日期时，该计划永远不会触发。",
+        "rail": "每周重启日"
+      }
+    },
+    "days": {
+      "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六"
+    },
+    "states": {
+      "error": {
+        "title": "无法读取重启计划",
+        "description": "QManager 无法加载本设备的重启计划。已保存的计划仍在调制解调器上生效——这只是读取失败，并非已被停用。"
+      },
+      "stale": "QManager 在刷新时失去了联系。这些是它上次从设备读取到的值。",
+      "autosave": "自动保存",
+      "saving": "保存中…",
+      "saved": "已保存"
+    },
+    "toast": {
+      "enabled": "已启用定时重启",
+      "disabled": "已关闭定时重启",
+      "saved": "重启计划已保存",
+      "save_failed": "保存重启计划失败",
+      "update_failed": "更新重启计划失败",
+      "not_armed": "重启计划已保存，但无法在本设备上启用——{{detail}}",
+      "reason_unknown": "原因未知",
+      "reasons": {
+        "unit_absent": "本设备尚未安装计划任务服务——请更新到最新固件以启用该功能"
+      }
+    }
   }
 }

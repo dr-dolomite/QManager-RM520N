@@ -11,7 +11,8 @@
     "clear_dialog_confirm": "Clear",
     "clear_dialog_clearing": "Clearing…",
     "toast_cleared": "Known SIMs cleared",
-    "toast_clear_failed": "Failed to clear known SIMs"
+    "toast_clear_failed": "Failed to clear known SIMs",
+    "remembered_unknown": "Couldn't read the remembered count"
   },
   "sim_registry": {
     "title": "Tracked SIMs",
@@ -35,6 +36,167 @@
     "remembered_count_one": "{{count}} SIM remembered",
     "remembered_count_other": "{{count}} SIMs remembered",
     "toast_cleared_partial": "Cleared, but the list may be stale",
-    "toast_cleared_partial_detail": "The device forgot the SIMs but couldn't update this list. Reload the page to check."
+    "toast_cleared_partial_detail": "The device forgot the SIMs but couldn't update this list. Reload the page to check.",
+    "error_title": "Couldn't read the tracked SIMs",
+    "error_description": "The device didn't answer. Nothing has been forgotten — this is a read failure, and the list is still on the modem."
+  },
+  "ssh": {
+    "card": {
+      "title": "SSH Access",
+      "description": "The root password for SSH sessions into this modem. It is separate from the password you sign in to QManager with.",
+      "save": "Update SSH Password"
+    },
+    "fields": {
+      "current": {
+        "label": "Your QManager password",
+        "consequence": "Proves it is you. This is the web password you signed in with, not the SSH one."
+      },
+      "new": {
+        "label": "New SSH password",
+        "consequence": "At least six characters. Takes effect immediately — existing SSH sessions stay open."
+      },
+      "confirm": {
+        "label": "Confirm new password"
+      }
+    },
+    "toggle": {
+      "show": "Show password",
+      "hide": "Hide password"
+    },
+    "errors": {
+      "too_short": "SSH password must be at least 6 characters.",
+      "mismatch": "Passwords do not match.",
+      "failed": "SSH password change failed."
+    },
+    "toast_saved": "SSH password updated successfully."
+  },
+  "page": {
+    "title": "System Settings",
+    "description": "How this device keeps time, who can reach it, and which SIMs it remembers.",
+    "refresh": "Refresh"
+  },
+  "band": {
+    "head": "In force right now",
+    "unreachable": "Unreachable",
+    "clock": {
+      "eyebrow": "Device clock",
+      "caption_applied": "{{zone}}, applied",
+      "caption_drifted": "{{zone}} saved — clock has not moved",
+      "caption_unread": "Could not read the clock",
+      "caption_unreported": "{{zone}} saved, live clock unknown"
+    },
+    "reboot": {
+      "eyebrow": "Next reboot",
+      "off": "Off",
+      "day_separator": ", ",
+      "caption_repeats": "Repeats on {{days}}",
+      "caption_off": "No automatic reboot",
+      "caption_no_day": "Enabled, but no day is selected",
+      "caption_unread": "Could not read the schedule",
+      "never": "Never"
+    },
+    "sims": {
+      "eyebrow": "Tracked SIMs",
+      "caption_none": "Nothing recorded yet",
+      "caption_all_alerting": "All raising new-SIM alerts",
+      "caption_muted_one": "{{count}} muted from new-SIM alerts",
+      "caption_muted_other": "{{count}} muted from new-SIM alerts"
+    },
+    "stale": "Last confirmed read"
+  },
+  "preferences": {
+    "card": {
+      "title": "Time & Units",
+      "description": "How this modem keeps time, and the units every reading is shown in.",
+      "save": "Save Preferences"
+    },
+    "rows": {
+      "unsaved": "Unsaved",
+      "timezone": {
+        "label": "Time zone",
+        "consequence": "The modem has no battery clock. This is what every log line, event and schedule is measured against.",
+        "placeholder": "Select a time zone",
+        "search": "Search time zones…",
+        "empty": "No time zone matches that."
+      },
+      "temperature": {
+        "label": "Temperature",
+        "consequence": "Applies to every temperature reading in QManager.",
+        "celsius": "Celsius (°C)",
+        "fahrenheit": "Fahrenheit (°F)"
+      },
+      "distance": {
+        "label": "Distance",
+        "consequence": "Applies to tower distance on the cell scanner and antenna pages.",
+        "km": "Kilometers (km)",
+        "miles": "Miles (mi)"
+      }
+    },
+    "states": {
+      "error_title": "Couldn't read your preferences",
+      "error_body": "The modem didn't answer. {{detail}}",
+      "stale": "The modem didn't answer the last request. What's shown is the last state it confirmed.",
+      "tz_not_applied_chip": "Clock not updated",
+      "tz_not_applied_body": "Saved as {{zone}}, but the device clock is still running at {{offset}}. It may catch up shortly, or this firmware may be missing that zone's data."
+    },
+    "toast": {
+      "saved": "Preferences saved",
+      "failed": "Couldn't save preferences"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "Scheduled Reboot",
+      "description": "Restart the modem automatically on a fixed weekly schedule."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Automatic reboot",
+        "armed": "Armed",
+        "off": "Off",
+        "consequence": "The modem restarts on this schedule. Your session drops for about ninety seconds and comes back on its own.",
+        "no_day": "Never fires"
+      },
+      "time": {
+        "label": "Time",
+        "consequence": "Local device time, not your browser's."
+      },
+      "days": {
+        "label": "Repeat on",
+        "consequence": "With no day selected the schedule never fires.",
+        "rail": "Reboot days of the week"
+      }
+    },
+    "days": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "states": {
+      "error": {
+        "title": "Can't read the reboot schedule",
+        "description": "QManager couldn't load this device's reboot schedule. Any schedule already saved is still armed on the modem — this is a read failure, not a disarm."
+      },
+      "stale": "QManager lost contact while refreshing. These are the last values it read from the device.",
+      "autosave": "Saves automatically",
+      "saving": "Saving…",
+      "saved": "Saved"
+    },
+    "toast": {
+      "enabled": "Scheduled reboot enabled",
+      "disabled": "Scheduled reboot disabled",
+      "saved": "Reboot schedule saved",
+      "save_failed": "Failed to save reboot schedule",
+      "update_failed": "Failed to update reboot schedule",
+      "not_armed": "Reboot schedule saved, but it couldn't be armed on this device — {{detail}}",
+      "reason_unknown": "reason unknown",
+      "reasons": {
+        "unit_absent": "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it"
+      }
+    }
   }
 }

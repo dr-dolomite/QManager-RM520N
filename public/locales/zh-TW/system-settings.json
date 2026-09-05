@@ -11,7 +11,8 @@
     "clear_dialog_confirm": "清除",
     "clear_dialog_clearing": "正在清除…",
     "toast_cleared": "已清除已知 SIM 卡",
-    "toast_clear_failed": "清除已知 SIM 卡失敗"
+    "toast_clear_failed": "清除已知 SIM 卡失敗",
+    "remembered_unknown": "無法讀取已記住的數量"
   },
   "sim_registry": {
     "title": "已追蹤的 SIM 卡",
@@ -35,6 +36,167 @@
     "remembered_count_one": "已記住 {{count}} 張 SIM 卡",
     "remembered_count_other": "已記住 {{count}} 張 SIM 卡",
     "toast_cleared_partial": "已清除，但列表可能不是最新的",
-    "toast_cleared_partial_detail": "裝置已忘記這些 SIM 卡，但未能更新此列表。請重新載入頁面查看。"
+    "toast_cleared_partial_detail": "裝置已忘記這些 SIM 卡，但未能更新此列表。請重新載入頁面查看。",
+    "error_title": "無法讀取已追蹤的 SIM 卡",
+    "error_description": "裝置未回應。沒有任何記錄被刪除——這只是讀取失敗，清單仍保存在數據機上。"
+  },
+  "ssh": {
+    "card": {
+      "title": "SSH 存取",
+      "description": "透過 SSH 登入本數據機的 root 密碼。它與您登入 QManager 所使用的密碼是分開的。",
+      "save": "更新 SSH 密碼"
+    },
+    "fields": {
+      "current": {
+        "label": "您的 QManager 密碼",
+        "consequence": "用於驗證是您本人。這是您登入網頁時使用的密碼，不是 SSH 密碼。"
+      },
+      "new": {
+        "label": "新的 SSH 密碼",
+        "consequence": "至少六個字元。立即生效——已建立的 SSH 工作階段不會中斷。"
+      },
+      "confirm": {
+        "label": "確認新密碼"
+      }
+    },
+    "toggle": {
+      "show": "顯示密碼",
+      "hide": "隱藏密碼"
+    },
+    "errors": {
+      "too_short": "SSH 密碼至少需要 6 個字元。",
+      "mismatch": "兩次輸入的密碼不一致。",
+      "failed": "SSH 密碼變更失敗。"
+    },
+    "toast_saved": "SSH 密碼已更新。"
+  },
+  "page": {
+    "title": "系統設定",
+    "description": "本裝置如何計時、誰可以存取它，以及它記住了哪些 SIM 卡。",
+    "refresh": "重新整理"
+  },
+  "band": {
+    "head": "目前生效",
+    "unreachable": "無法連線",
+    "clock": {
+      "eyebrow": "裝置時鐘",
+      "caption_applied": "{{zone}}，已套用",
+      "caption_drifted": "已儲存為 {{zone}}，但時鐘沒有變化",
+      "caption_unread": "無法讀取時鐘",
+      "caption_unreported": "已儲存 {{zone}}，裝置時鐘未知"
+    },
+    "reboot": {
+      "eyebrow": "下次重啟",
+      "off": "已關閉",
+      "day_separator": "、",
+      "caption_repeats": "重複：{{days}}",
+      "caption_off": "未設定自動重啟",
+      "caption_no_day": "已啟用，但未選取任何日期",
+      "caption_unread": "無法讀取排程",
+      "never": "從不"
+    },
+    "sims": {
+      "eyebrow": "已追蹤的 SIM 卡",
+      "caption_none": "尚未記錄任何內容",
+      "caption_all_alerting": "全部會觸發新卡提醒",
+      "caption_muted_one": "{{count}} 張已關閉新卡提醒",
+      "caption_muted_other": "{{count}} 張已關閉新卡提醒"
+    },
+    "stale": "上次確認的讀數"
+  },
+  "preferences": {
+    "card": {
+      "title": "時間與單位",
+      "description": "本數據機如何計時，以及各項讀數所使用的單位。",
+      "save": "儲存偏好設定"
+    },
+    "rows": {
+      "unsaved": "未儲存",
+      "timezone": {
+        "label": "時區",
+        "consequence": "本數據機沒有電池時鐘。每一條日誌、每一個事件和每一項排程都以此為基準。",
+        "placeholder": "選擇時區",
+        "search": "搜尋時區…",
+        "empty": "沒有相符的時區。"
+      },
+      "temperature": {
+        "label": "溫度",
+        "consequence": "適用於 QManager 中的所有溫度讀數。",
+        "celsius": "攝氏度（°C）",
+        "fahrenheit": "華氏度（°F）"
+      },
+      "distance": {
+        "label": "距離",
+        "consequence": "適用於基地台掃描與天線頁面上的基地台距離。",
+        "km": "公里（km）",
+        "miles": "英里（mi）"
+      }
+    },
+    "states": {
+      "error_title": "無法讀取您的偏好設定",
+      "error_body": "數據機未回應。{{detail}}",
+      "stale": "數據機未回應最近一次請求。此處顯示的是它最後確認的狀態。",
+      "tz_not_applied_chip": "時鐘未更新",
+      "tz_not_applied_body": "已儲存為 {{zone}}，但裝置時鐘仍執行在 {{offset}}。它可能稍後會跟上，也可能是此韌體缺少該時區的資料。"
+    },
+    "toast": {
+      "saved": "偏好設定已儲存",
+      "failed": "無法儲存偏好設定"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "定時重啟",
+      "description": "依固定的每週排程自動重啟數據機。"
+    },
+    "rows": {
+      "enabled": {
+        "label": "自動重啟",
+        "armed": "已啟用",
+        "off": "已關閉",
+        "consequence": "數據機將依此排程重啟。您的工作階段會中斷約九十秒，隨後自動恢復。",
+        "no_day": "永不觸發"
+      },
+      "time": {
+        "label": "時間",
+        "consequence": "使用裝置本地時間，而非瀏覽器時間。"
+      },
+      "days": {
+        "label": "重複於",
+        "consequence": "未選取任何日期時，該排程永遠不會觸發。",
+        "rail": "每週重啟日"
+      }
+    },
+    "days": {
+      "sun": "週日",
+      "mon": "週一",
+      "tue": "週二",
+      "wed": "週三",
+      "thu": "週四",
+      "fri": "週五",
+      "sat": "週六"
+    },
+    "states": {
+      "error": {
+        "title": "無法讀取重啟排程",
+        "description": "QManager 無法載入本裝置的重啟排程。已儲存的排程仍在數據機上生效——這只是讀取失敗，並非已被停用。"
+      },
+      "stale": "QManager 在重新整理時失去了聯繫。這些是它上次從裝置讀取到的值。",
+      "autosave": "自動儲存",
+      "saving": "儲存中…",
+      "saved": "已儲存"
+    },
+    "toast": {
+      "enabled": "已啟用定時重啟",
+      "disabled": "已關閉定時重啟",
+      "saved": "重啟排程已儲存",
+      "save_failed": "儲存重啟排程失敗",
+      "update_failed": "更新重啟排程失敗",
+      "not_armed": "重啟排程已儲存，但無法在本裝置上啟用——{{detail}}",
+      "reason_unknown": "原因不明",
+      "reasons": {
+        "unit_absent": "本裝置尚未安裝排程服務——請更新至最新韌體以啟用該功能"
+      }
+    }
   }
 }

@@ -28,8 +28,12 @@ export interface ClearKnownSimsResult {
 }
 
 export interface UseKnownSimsReturn {
-  /** How many SIMs the device will not flag as new. */
-  count: number;
+  /**
+   * How many SIMs the device will not flag as new, or `null` when no read has
+   * succeeded. A failed GET is silent here, so without the null a swallowed
+   * failure is indistinguishable from a genuine zero.
+   */
+  count: number | null;
   isLoading: boolean;
   isClearing: boolean;
   refresh: () => Promise<void>;
@@ -49,7 +53,7 @@ export interface UseKnownSimsReturn {
  * so this fetches on mount rather than polling.
  */
 export function useKnownSims(): UseKnownSimsReturn {
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
 
@@ -67,11 +71,11 @@ export function useKnownSims(): UseKnownSimsReturn {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json: KnownSimsResponse = await resp.json();
       if (!mountedRef.current) return;
-      if (json.success) setCount(json.count ?? 0);
+      setCount(json.success ? (json.count ?? null) : null);
     } catch {
-      // Silent by design: the count is supporting information next to the
-      // list, and clearing still works without it. The list's own error
-      // handling owns the visible failure state for this card.
+      // Still silent — the list owns this card's visible failure state — but a
+      // failed re-read drops to unknown rather than stranding a stale number.
+      if (mountedRef.current) setCount(null);
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -97,7 +101,7 @@ export function useKnownSims(): UseKnownSimsReturn {
         return { ok: false, registryCleared: false, detail: json.detail };
       }
 
-      setCount(json.count ?? 0);
+      setCount(json.count ?? null);
       return {
         ok: true,
         // A backend without the field predates the two-store clear; treat it

@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { toast } from "sonner";
-import { EyeIcon, EyeOffIcon, TerminalIcon } from "lucide-react";
+import { CircleAlertIcon, EyeIcon, EyeOffIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
 import { changeSSHPassword } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,28 +15,125 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
+import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
+import { cn } from "@/lib/utils";
+
+import {
+  CARD_DESC,
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  COARSE_TARGET,
+  FIELD,
+  NOTICE,
+  PILL_ACTION,
+  ROW,
+  ROW_GROUP,
+} from "./shapes";
+
+const K = "ssh";
+
+// The row, restated WITHOUT `ROW.ROOT`'s side-by-side flip: these controls are
+// full-width password fields, so label and field stack at every width.
+const STACK_ROW = "flex flex-col gap-2.5 rounded-field px-4 py-4";
+
+// The field fills its row rather than collapsing to `FIELD`'s side-by-side
+// width, and reserves the lane the eye toggle rides in.
+const FIELD_FULL = "@2xl/card:w-full pr-11";
+
+// The toggle sits INSIDE the 42px pill, so it paints 32px and cannot grow.
+// `COARSE_TARGET` reaches the 44px floor with a pseudo-element instead.
+const FIELD_TOGGLE = `absolute top-1/2 right-1.5 -translate-y-1/2 rounded-pill text-on-surface-variant hover:text-on-surface ${COARSE_TARGET}`;
+
+interface PasswordFieldProps {
+  id: string;
+  label: string;
+  /** Omitted on the confirm row, which restates rather than decides. */
+  consequence?: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  autoComplete: string;
+}
+
+/**
+ * One password row. It owns its own show/hide state, which is the whole point
+ * of the extraction — three near-identical blocks and three `showX` flags
+ * collapse into one component the card never has to think about.
+ */
+function PasswordField({
+  id,
+  label,
+  consequence,
+  value,
+  onChange,
+  disabled,
+  autoComplete,
+}: PasswordFieldProps) {
+  const { t } = useTranslation("system-settings");
+  const [visible, setVisible] = useState(false);
+  const Glyph = visible ? EyeOffIcon : EyeIcon;
+
+  return (
+    <div className={STACK_ROW}>
+      <div className={ROW.TEXT}>
+        <label htmlFor={id} className={ROW.LABEL}>
+          {label}
+        </label>
+        {consequence ? (
+          <span className={ROW.CONSEQUENCE}>{consequence}</span>
+        ) : null}
+      </div>
+
+      <div className="relative">
+        <Input
+          id={id}
+          type={visible ? "text" : "password"}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            onChange(e.target.value)
+          }
+          required
+          disabled={disabled}
+          className={cn(FIELD, FIELD_FULL)}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={FIELD_TOGGLE}
+          onClick={() => setVisible((v) => !v)}
+          aria-pressed={visible}
+          aria-label={t(visible ? `${K}.toggle.hide` : `${K}.toggle.show`)}
+        >
+          <Glyph className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function SSHPasswordCard() {
+  const { t } = useTranslation("system-settings");
+  const { saved, markSaved } = useSaveFlash();
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Bumped on a successful change to remount the group, which re-hides any
+  // field the user had revealed.
+  const [formKey, setFormKey] = useState(0);
 
   const reset = useCallback(() => {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setShowCurrentPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmPassword(false);
     setError("");
+    setFormKey((k) => k + 1);
   }, []);
 
   const canSubmit =
@@ -43,17 +143,17 @@ export default function SSHPasswordCard() {
     !isSubmitting;
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       setError("");
 
       if (newPassword.length < 6) {
-        setError("SSH password must be at least 6 characters.");
+        setError(t(`${K}.errors.too_short`));
         return;
       }
 
       if (newPassword !== confirmPassword) {
-        setError("Passwords do not match.");
+        setError(t(`${K}.errors.mismatch`));
         return;
       }
 
@@ -62,153 +162,84 @@ export default function SSHPasswordCard() {
         const result = await changeSSHPassword(
           currentPassword,
           newPassword,
-          confirmPassword
+          confirmPassword,
         );
         if (result.success) {
-          toast.success("SSH password updated successfully.");
+          toast.success(t(`${K}.toast_saved`));
+          markSaved();
           reset();
         } else {
-          setError(result.error || "SSH password change failed.");
+          setError(result.error || t(`${K}.errors.failed`));
         }
       } finally {
         setIsSubmitting(false);
       }
     },
-    [currentPassword, newPassword, confirmPassword, reset]
+    [currentPassword, newPassword, confirmPassword, reset, markSaved, t],
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>SSH Password</CardTitle>
-        <CardDescription>
-          Set the root password used for SSH access to the modem.
+    <Card className={CARD_SHELL}>
+      <CardHeader className={CARD_PAD}>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
+        <CardDescription className={CARD_DESC}>
+          {t(`${K}.card.description`)}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-          <Field>
-            <FieldLabel htmlFor="ssh-current-password">
-              Current Web UI Password
-            </FieldLabel>
-            <div className="relative">
-              <Input
-                id="ssh-current-password"
-                type={showCurrentPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                disabled={isSubmitting}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowCurrentPassword((v) => !v)}
-                tabIndex={-1}
-                aria-label={
-                  showCurrentPassword ? "Hide password" : "Show password"
-                }
-              >
-                {showCurrentPassword ? (
-                  <EyeOffIcon className="size-4" />
-                ) : (
-                  <EyeIcon className="size-4" />
-                )}
-              </Button>
+      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col")}>
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col gap-4"
+        >
+          {/* The row group is this card's slack absorber: the page grid locks
+              every cell to `h-full`, and the group is what grows to fill it. */}
+          <div key={formKey} className={cn(ROW_GROUP, "min-h-0 flex-1")}>
+            <PasswordField
+              id="ssh-current-password"
+              label={t(`${K}.fields.current.label`)}
+              consequence={t(`${K}.fields.current.consequence`)}
+              value={currentPassword}
+              onChange={setCurrentPassword}
+              disabled={isSubmitting}
+              autoComplete="current-password"
+            />
+            <PasswordField
+              id="ssh-new-password"
+              label={t(`${K}.fields.new.label`)}
+              consequence={t(`${K}.fields.new.consequence`)}
+              value={newPassword}
+              onChange={setNewPassword}
+              disabled={isSubmitting}
+              autoComplete="new-password"
+            />
+            <PasswordField
+              id="ssh-confirm-password"
+              label={t(`${K}.fields.confirm.label`)}
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              disabled={isSubmitting}
+              autoComplete="new-password"
+            />
+          </div>
+
+          {error ? (
+            <div role="alert" className={cn(NOTICE.BOX, NOTICE.FAILED)}>
+              <CircleAlertIcon className={NOTICE.GLYPH} aria-hidden="true" />
+              <span className={NOTICE.TEXT}>{error}</span>
             </div>
-          </Field>
+          ) : null}
 
-          <Field>
-            <FieldLabel htmlFor="ssh-new-password">
-              New SSH Password
-            </FieldLabel>
-            <div className="relative">
-              <Input
-                id="ssh-new-password"
-                type={showNewPassword ? "text" : "password"}
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                disabled={isSubmitting}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowNewPassword((v) => !v)}
-                tabIndex={-1}
-                aria-label={
-                  showNewPassword ? "Hide password" : "Show password"
-                }
-              >
-                {showNewPassword ? (
-                  <EyeOffIcon className="size-4" />
-                ) : (
-                  <EyeIcon className="size-4" />
-                )}
-              </Button>
-            </div>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="ssh-confirm-password">
-              Confirm SSH Password
-            </FieldLabel>
-            <div className="relative">
-              <Input
-                id="ssh-confirm-password"
-                type={showConfirmPassword ? "text" : "password"}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={isSubmitting}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowConfirmPassword((v) => !v)}
-                tabIndex={-1}
-                aria-label={
-                  showConfirmPassword ? "Hide password" : "Show password"
-                }
-              >
-                {showConfirmPassword ? (
-                  <EyeOffIcon className="size-4" />
-                ) : (
-                  <EyeIcon className="size-4" />
-                )}
-              </Button>
-            </div>
-          </Field>
-
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" disabled={!canSubmit} className="w-full">
-            {isSubmitting ? (
-              <>
-                <Spinner className="mr-2" />
-                Updating...
-              </>
-            ) : (
-              "Update SSH Password"
-            )}
-          </Button>
+          <div className="flex justify-end">
+            <SaveButton
+              type="submit"
+              isSaving={isSubmitting}
+              saved={saved}
+              label={t(`${K}.card.save`)}
+              disabled={!canSubmit}
+              className={PILL_ACTION}
+            />
+          </div>
         </form>
       </CardContent>
     </Card>

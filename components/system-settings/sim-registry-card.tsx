@@ -2,12 +2,13 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { motion } from "motion/react";
+import { motion, type Variants } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   BellIcon,
   CardSimIcon,
   CheckCircle2Icon,
+  CircleAlertIcon,
   InfoIcon,
   Loader2Icon,
   MinusCircleIcon,
@@ -25,7 +26,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,40 +36,70 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { staggerContainer, staggerItem } from "@/lib/motion";
-import { useKnownSims } from "@/hooks/use-known-sims";
-import { useSimRegistry } from "@/hooks/use-sim-registry";
+import { rowCascadeDelay, transitionStandard } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import type { ClearKnownSimsResult } from "@/hooks/use-known-sims";
+import type { UseSimRegistryReturn } from "@/hooks/use-sim-registry";
 import type { SimRegistryEntry } from "@/types/sim-registry";
 
-// =============================================================================
-// SimRegistryCard — every SIM QManager remembers, and its alert state.
-// =============================================================================
-// The read side of the persistent SIM registry. The SIM-swap banner writes the
-// "stop alerting for this SIM" flag; this card is where a user takes it back.
-// Dismissing is deliberately NOT offered here — silencing an alert belongs to
-// the alert itself, so this surface only ever re-enables.
+import { ConditionBlock } from "./condition-block";
+import {
+  CARD_DESC,
+  CARD_PAD,
+  CHIP_ON_TONAL,
+  META_INK_ON_TONAL,
+  CARD_SHELL,
+  CARD_TITLE,
+  CONDITION_PANEL,
+  FOCUS_RING,
+  NOTICE,
+  PILL_ACTION,
+  PILL_GLYPH,
+  ROW_GROUP,
+  SIM_LIST,
+  SIM_ROW,
+  SKELETON,
+} from "./shapes";
+
+// The read side of the persistent SIM registry — the SIM-swap banner silences a
+// SIM, and this card is where a user takes that back. Dismissing is deliberately
+// not offered here: silencing an alert belongs to the alert itself.
 //
-// The card also owns Clear (previously a row inside the System Settings card,
-// where a destructive SIM action sat oddly on top of display preferences).
-// Colocating matters beyond tidiness: Clear acts on the known-SIMs SET while
-// this list renders the registry SIDECAR, two separate stores. With one owner,
-// a clear necessarily refreshes the list, so the count and the list cannot
-// drift apart the way they did when the control lived on another card.
-// =============================================================================
+// Clear acts on the known-SIMs SET while the list renders the registry SIDECAR,
+// two separate stores. One owner means a clear necessarily refreshes the list,
+// so the count and the list cannot drift apart.
+
+/** Row cascade, capped by `rowCascadeDelay` so a long registry does not
+ *  choreograph for seconds. */
+const rowItem: Variants = {
+  hidden: { opacity: 0, y: 5 },
+  visible: (index: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { ...transitionStandard, delay: rowCascadeDelay(index) },
+  }),
+};
+
+// Supporting ink inside a row. On the promoted row it INHERITS the container's
+// `on-primary-container` and steps back by opacity — a token measured for the
+// card ground is not legible on a `primary-container` fill.
+const META = "text-xs leading-relaxed";
+const META_INK = "text-on-surface-variant";
+// The in-row affordance: pill geometry at row scale, not the 42px page action.
+const ROW_ACTION = `inline-flex h-9 flex-none items-center gap-1.5 rounded-pill px-3.5 text-[0.8125rem] font-semibold transition-colors duration-[var(--duration-quick)] ease-out ${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-50`;
+// Hover steps the fill UP the neutral ramp. The `/70` it replaces stepped it
+// DOWN — an alpha over `surface-container` resolves lighter than the resting
+// `-high`, so pointing at the control made it recede.
+const ROW_ACTION_TONE =
+  "bg-surface-container-high text-on-surface hover:bg-on-surface/10";
+const ROW_ACTION_ON_TONAL =
+  "bg-on-primary-container/10 text-on-primary-container hover:bg-on-primary-container/20";
 
 function formatFirstSeen(iso: string | null, locale: string): string | null {
   if (!iso) return null;
@@ -84,104 +114,117 @@ function formatFirstSeen(iso: string | null, locale: string): string | null {
 
 function SimRegistryRow({
   sim,
+  index,
   isPending,
   onShowAlert,
 }: {
   sim: SimRegistryEntry;
+  index: number;
   isPending: boolean;
   onShowAlert: (sim: SimRegistryEntry) => void;
 }) {
   const { t, i18n } = useTranslation("system-settings");
   const addedOn = formatFirstSeen(sim.first_seen, i18n.language);
+  const dim = sim.active ? META_INK_ON_TONAL : META_INK;
 
   return (
     <motion.div
-      variants={staggerItem}
-      className={
-        "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg px-2 py-1.5 " +
-        (sim.active ? "border border-primary/30 bg-primary/5" : "border border-transparent")
-      }
+      variants={rowItem}
+      custom={index}
+      className={cn(
+        SIM_ROW.ROOT,
+        SIM_ROW.TRANSITION,
+        sim.active && SIM_ROW.ACTIVE,
+      )}
     >
-      <div className="min-w-0 space-y-0.5">
+      <div className={SIM_ROW.TEXT}>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold break-words">
+          <span className={SIM_ROW.LABEL}>
             {sim.carrier || t("sim_registry.carrier_unknown")}
-          </p>
+          </span>
           {sim.active && (
             <Badge variant="success">
-              <CheckCircle2Icon className="size-3" />
+              <CheckCircle2Icon className="size-3" aria-hidden="true" />
               {t("sim_registry.badge_active")}
             </Badge>
           )}
         </div>
 
-        <p className="text-sm">
-          {sim.phone_number ? (
-            <span className="font-mono tabular-nums">{sim.phone_number}</span>
-          ) : (
-            <span className="text-muted-foreground">
-              {t("sim_registry.no_phone_number")}
-            </span>
-          )}
-        </p>
+        {sim.phone_number ? (
+          <span className={SIM_ROW.ID}>{sim.phone_number}</span>
+        ) : (
+          <span className={cn(META, dim)}>
+            {t("sim_registry.no_phone_number")}
+          </span>
+        )}
 
-        <p className="text-xs text-muted-foreground">
-          <span className="font-mono break-all">{sim.iccid}</span>
-          <span aria-hidden="true"> · </span>
-          {addedOn
-            ? t("sim_registry.added_on", { date: addedOn })
-            : t("sim_registry.added_unknown")}
-        </p>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          {/* `min-w-0` is what lets `SIM_ROW.ID`'s truncate fire; without a
+              `flex-1` the date stays beside the ICCID rather than floating. */}
+          <span className={cn(SIM_ROW.ID, dim, "min-w-0")}>{sim.iccid}</span>
+          <span className={cn(META, dim, "shrink-0")}>
+            {addedOn
+              ? t("sim_registry.added_on", { date: addedOn })
+              : t("sim_registry.added_unknown")}
+          </span>
+        </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex flex-none flex-wrap items-center gap-2">
         {sim.dismissed ? (
           <Badge variant="muted">
-            <MinusCircleIcon className="size-3" />
+            <MinusCircleIcon className="size-3" aria-hidden="true" />
             {t("sim_registry.badge_alerts_off")}
           </Badge>
         ) : (
-          <Badge variant="info">
-            <BellIcon className="size-3" />
+          <Badge variant="info" className={cn(sim.active && CHIP_ON_TONAL)}>
+            <BellIcon className="size-3" aria-hidden="true" />
             {t("sim_registry.badge_alerts_on")}
           </Badge>
         )}
 
         {sim.dismissed && (
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             disabled={isPending}
             onClick={() => onShowAlert(sim)}
+            className={cn(
+              ROW_ACTION,
+              sim.active ? ROW_ACTION_ON_TONAL : ROW_ACTION_TONE,
+            )}
           >
             {isPending ? (
               <>
-                <Loader2Icon className="size-4 animate-spin" />
+                <Loader2Icon
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
                 {t("sim_registry.restoring")}
               </>
             ) : (
               <>
-                <BellIcon className="size-4" />
+                <BellIcon className="size-4" aria-hidden="true" />
                 {t("sim_registry.show_alert")}
               </>
             )}
-          </Button>
+          </button>
         )}
       </div>
     </motion.div>
   );
 }
 
-// --- Footer: how many SIMs are remembered, and the control that forgets them --
-// Rendered whenever EITHER store has something in it, so a divergence between
-// them (list empty, count non-zero) still leaves the user a way to reset.
+// How many SIMs are remembered, and the control that forgets them. Rendered
+// whenever EITHER store has something in it, so a divergence between them
+// still leaves the user a way to reset.
 function ClearKnownSimsFooter({
   count,
   isLoading,
   isClearing,
   onConfirm,
 }: {
-  count: number;
+  /** `null` = the count was never read. Rendering it as 0 asserts a fact. */
+  count: number | null;
   isLoading: boolean;
   isClearing: boolean;
   onConfirm: () => Promise<void>;
@@ -196,8 +239,13 @@ function ClearKnownSimsFooter({
 
   return (
     <>
-      <CardFooter className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t">
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <CardFooter
+        className={cn(
+          CARD_PAD,
+          "flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
+        )}
+      >
+        <div className="text-on-surface-variant flex items-center gap-1.5 text-sm">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -205,12 +253,11 @@ function ClearKnownSimsFooter({
                 variant="ghost"
                 size="icon-xs"
                 // -ml-1.5 cancels the icon button's own box inset so the glyph
-                // sits on the card's content column, flush with the title and
-                // description above it rather than 6px inboard of them.
-                className="-ml-1.5 text-info hover:text-info"
+                // sits on the card's content column, flush with the title above.
+                className="text-on-surface-variant hover:text-on-surface -ml-1.5 rounded-pill"
                 aria-label={t("known_sims.info_aria")}
               >
-                <InfoIcon className="size-4" />
+                <InfoIcon className="size-4" aria-hidden="true" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -219,21 +266,23 @@ function ClearKnownSimsFooter({
           </Tooltip>
 
           {isLoading ? (
-            <Skeleton className="h-4 w-28" />
+            <Skeleton className={cn(SKELETON.SIMS.LABEL, "w-28")} />
           ) : (
             <span className="tabular-nums">
-              {t("sim_registry.remembered_count", { count })}
+              {count === null
+                ? t("known_sims.remembered_unknown")
+                : t("sim_registry.remembered_count", { count })}
             </span>
           )}
         </div>
 
         <Button
           variant="destructive"
-          size="sm"
+          className={PILL_ACTION}
           onClick={() => setOpen(true)}
           disabled={isLoading || isClearing}
         >
-          <Trash2Icon className="size-4" />
+          <Trash2Icon className={PILL_GLYPH} aria-hidden="true" />
           {t("known_sims.clear_button")}
         </Button>
       </CardFooter>
@@ -249,10 +298,12 @@ function ClearKnownSimsFooter({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isClearing}>
+            <AlertDialogCancel disabled={isClearing} className={PILL_ACTION}>
               {t("actions.cancel", { ns: "common" })}
             </AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
+              className={PILL_ACTION}
               disabled={isClearing}
               onClick={(e) => {
                 // Keep the dialog mounted through the request so the button can
@@ -260,11 +311,13 @@ function ClearKnownSimsFooter({
                 e.preventDefault();
                 void handleConfirm();
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isClearing ? (
                 <>
-                  <Loader2Icon className="size-4 animate-spin" />
+                  <Loader2Icon
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
                   {t("known_sims.clear_dialog_clearing")}
                 </>
               ) : (
@@ -278,17 +331,32 @@ function ClearKnownSimsFooter({
   );
 }
 
-export default function SimRegistryCard() {
+// The shell owns the registry fetch, so the status band above can read the same
+// rows. One `useSimRegistry` instance on the page, never two.
+export type SimRegistryCardProps = Pick<
+  UseSimRegistryReturn,
+  "sims" | "isLoading" | "error" | "pendingIccid" | "refresh" | "setDismissed"
+> & {
+  /** `null` when the known-SIMs read produced no answer. Never render it as 0. */
+  knownCount: number | null;
+  knownIsLoading: boolean;
+  isClearingKnown: boolean;
+  clearKnownSims: () => Promise<ClearKnownSimsResult>;
+};
+
+export default function SimRegistryCard({
+  sims,
+  isLoading,
+  error,
+  pendingIccid,
+  refresh,
+  setDismissed,
+  knownCount,
+  knownIsLoading,
+  isClearingKnown,
+  clearKnownSims,
+}: SimRegistryCardProps) {
   const { t } = useTranslation("system-settings");
-  const { sims, isLoading, error, pendingIccid, refresh, setDismissed } =
-    useSimRegistry();
-  const {
-    count: knownCount,
-    isLoading: isKnownLoading,
-    isClearing,
-    clear: clearKnownSims,
-  } = useKnownSims();
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const handleShowAlert = useCallback(
     async (sim: SimRegistryEntry) => {
@@ -305,12 +373,6 @@ export default function SimRegistryCard() {
     },
     [setDismissed, t],
   );
-
-  const handleRetry = useCallback(async () => {
-    setIsRetrying(true);
-    await refresh();
-    setIsRetrying(false);
-  }, [refresh]);
 
   const handleClear = useCallback(async () => {
     const result = await clearKnownSims();
@@ -336,133 +398,125 @@ export default function SimRegistryCard() {
   }, [clearKnownSims, refresh, t]);
 
   const header = (
-    <CardHeader>
-      <CardTitle>{t("sim_registry.title")}</CardTitle>
-      <CardDescription>{t("sim_registry.description")}</CardDescription>
+    <CardHeader className={CARD_PAD}>
+      <CardTitle className={CARD_TITLE}>{t("sim_registry.title")}</CardTitle>
+      <CardDescription className={CARD_DESC}>
+        {t("sim_registry.description")}
+      </CardDescription>
     </CardHeader>
   );
 
   // Only offer Clear when there is something to forget. Either store counts:
   // if they ever disagree, the reset is exactly what resolves it.
   const footer =
-    knownCount > 0 || sims.length > 0 ? (
+    knownCount === null || knownCount > 0 || sims.length > 0 ? (
       <ClearKnownSimsFooter
         count={knownCount}
-        isLoading={isKnownLoading}
-        isClearing={isClearing}
+        isLoading={knownIsLoading}
+        isClearing={isClearingKnown}
         onConfirm={handleClear}
       />
     ) : null;
 
-  // --- Loading skeleton (mirrors three data rows) ---
+  // --- Loading: three rows wearing the real row box, so the height resolves ---
   if (isLoading) {
     return (
-      <Card className="@container/card">
+      <Card className={CARD_SHELL}>
         {header}
-        <CardContent>
-          <div className="grid gap-2">
+        <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col")}>
+          <div className={cn(ROW_GROUP, "min-h-0 flex-1")}>
             {[0, 1, 2].map((i) => (
-              <div key={i}>
-                <Separator className="mb-2" />
-                <div className="flex items-center justify-between gap-4 px-2 py-1.5">
-                  <div className="space-y-1.5">
-                    <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-3 w-48" />
-                  </div>
-                  <Skeleton className="h-6 w-24" />
+              <div key={i} className={SIM_ROW.ROOT}>
+                <div className={SIM_ROW.TEXT}>
+                  <Skeleton className={cn(SKELETON.SIMS.LABEL, "w-32")} />
+                  <Skeleton className={cn(SKELETON.SIMS.ID, "w-28")} />
+                  <Skeleton className={cn(SKELETON.SIMS.ID, "w-48")} />
                 </div>
+                <Skeleton className={SKELETON.SIMS.CHIP} />
               </div>
             ))}
           </div>
         </CardContent>
-        <CardFooter className="flex items-center justify-between border-t">
-          <Skeleton className="h-5 w-36" />
-          <Skeleton className="h-8 w-20" />
+        <CardFooter
+          className={cn(CARD_PAD, "flex items-center justify-between gap-4")}
+        >
+          <Skeleton className={cn(SKELETON.SIMS.LABEL, "w-36")} />
+          <Skeleton className={cn(PILL_ACTION, "w-28")} />
         </CardFooter>
       </Card>
     );
   }
 
-  // --- Error state (only when there is nothing to show) ---
+  // --- Read failure with nothing cached to fall back on ---
   if (error && sims.length === 0) {
     return (
-      <Card className="@container/card">
+      <Card className={CARD_SHELL}>
         {header}
-        <CardContent className="flex flex-col gap-3">
-          <Alert variant="destructive">
-            <TriangleAlertIcon className="size-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRetry}
-            disabled={isRetrying}
-            className="self-start"
-          >
-            {isRetrying && <Loader2Icon className="size-4 animate-spin" />}
-            {t("sim_registry.retry")}
-          </Button>
+        <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT)}>
+          <ConditionBlock
+            tone="destructive"
+            glyph={CircleAlertIcon}
+            ariaRole="alert"
+            title={t("sim_registry.error_title")}
+            description={t("sim_registry.error_description")}
+            onRetry={() => void refresh()}
+            retryLabel={t("sim_registry.retry")}
+            className={CONDITION_PANEL.SCREEN}
+          />
         </CardContent>
         {footer}
       </Card>
     );
   }
 
-  // --- Empty state ---
+  // --- Empty ---
   if (sims.length === 0) {
     return (
-      <Card className="@container/card">
+      <Card className={CARD_SHELL}>
         {header}
-        <CardContent>
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <CardSimIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("sim_registry.empty_title")}</EmptyTitle>
-              <EmptyDescription>
-                {t("sim_registry.empty_description")}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT)}>
+          <ConditionBlock
+            tone="neutral"
+            glyph={CardSimIcon}
+            ariaRole="status"
+            title={t("sim_registry.empty_title")}
+            description={t("sim_registry.empty_description")}
+            className={CONDITION_PANEL.SCREEN}
+          />
         </CardContent>
         {footer}
       </Card>
     );
   }
 
-  // --- Data state ---
+  // --- Data ---
   return (
-    <Card className="@container/card">
+    <Card className={CARD_SHELL}>
       {header}
-      <CardContent>
+      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col gap-3")}>
         <motion.div
-          // Keeps a long registry from stretching the settings grid; short
-          // lists (the normal case) never reach the cap.
-          className="grid max-h-96 gap-2 overflow-y-auto"
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
+          tabIndex={0}
+          role="region"
+          aria-label={t("sim_registry.title")}
+          className={cn(ROW_GROUP, SIM_LIST, FOCUS_RING)}
         >
-          {sims.map((sim) => (
-            <div key={sim.iccid} className="grid gap-2">
-              <Separator />
-              <SimRegistryRow
-                sim={sim}
-                isPending={pendingIccid === sim.iccid}
-                onShowAlert={handleShowAlert}
-              />
-            </div>
+          {sims.map((sim, index) => (
+            <SimRegistryRow
+              key={sim.iccid}
+              sim={sim}
+              index={index}
+              isPending={pendingIccid === sim.iccid}
+              onShowAlert={handleShowAlert}
+            />
           ))}
         </motion.div>
 
         {/* A stale read shouldn't blank the list; say so instead. */}
         {error && (
-          <p role="status" className="mt-3 text-xs text-muted-foreground">
-            {t("sim_registry.stale_notice")}
-          </p>
+          <div role="status" className={cn(NOTICE.BOX, NOTICE.STALE)}>
+            <TriangleAlertIcon className={NOTICE.GLYPH} aria-hidden="true" />
+            <span className={NOTICE.TEXT}>{t("sim_registry.stale_notice")}</span>
+          </div>
         )}
       </CardContent>
       {footer}

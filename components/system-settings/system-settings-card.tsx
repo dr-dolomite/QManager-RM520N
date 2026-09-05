@@ -1,7 +1,18 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type * as React from "react";
+import { motion } from "motion/react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import {
+  CheckIcon,
+  ChevronsUpDownIcon,
+  CircleAlertIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -10,18 +21,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -29,37 +28,80 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  AlertTriangleIcon,
-  Check,
-  ChevronsUpDown,
-  TriangleAlertIcon,
-} from "lucide-react";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { motion, type Variants } from "motion/react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { staggerRowItem, staggerRows } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 import type {
-  UseSystemSettingsReturn,
   SaveSettingsPayload,
+  UseSystemSettingsReturn,
 } from "@/hooks/use-system-settings";
 import { TIMEZONES } from "@/types/system-settings";
-import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem } from "@/lib/motion";
 
-// ─── Animation variants ────────────────────────────────────────────────────
+import { ConditionBlock } from "./condition-block";
+import { formatOffset } from "./derive";
+import {
+  CARD_DESC,
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  CONDITION_PANEL,
+  DELTA,
+  FIELD,
+  FIELD_GLYPH,
+  NOTICE,
+  PILL_ACTION,
+  ROW,
+  ROW_GROUP,
+  SKELETON,
+  VALUE_NONE,
+} from "./shapes";
 
+// =============================================================================
+// Time & Units — the writable half of /system-settings' preferences
+// =============================================================================
+// Three decisions in one tonal group: the zone the whole device measures time
+// against, and the two units every reading is rendered in. The zone leads
+// because it is the only one of the three with a consequence beyond display.
+//
+// The always-visible clock readout lives on the page's status band, not here.
+// What this card keeps is the FAILURE case — the zone was saved but never
+// reached the live clock — which is a fact about this card's own write.
+// =============================================================================
 
+const K = "preferences";
 
-// ─── Component ──────────────────────────────────────────────────────────────
+const TZ_LABEL_ID = "preferences-timezone-label";
+const TEMP_LABEL_ID = "preferences-temperature-label";
+const DISTANCE_LABEL_ID = "preferences-distance-label";
+
+/** Label and its unsaved marker, paired tighter than the row's own gap. */
+const LABEL_LINE = "flex items-center gap-2";
+
+/** The timezone-apply warning, hanging under the row that caused it. */
+const TZ_NOTICE = "flex flex-col items-start gap-2 rounded-field px-4 pb-4";
+
+/** The group is this card's slack absorber; the page grid locks the cell. */
+const GROUP_FILL = "min-h-0 flex-1";
+
+// -----------------------------------------------------------------------------
 
 type SystemSettingsCardProps = Pick<
   UseSystemSettingsReturn,
-  "settings" | "isLoading" | "isSaving" | "error" | "saveSettings"
+  "settings" | "isLoading" | "isSaving" | "error" | "saveSettings" | "refresh"
 >;
 
 export default function SystemSettingsCard({
@@ -68,94 +110,100 @@ export default function SystemSettingsCard({
   isSaving,
   error,
   saveSettings,
+  refresh,
 }: SystemSettingsCardProps) {
-  // --- Loading skeleton ---
-  if (isLoading) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>System Settings</CardTitle>
-          <CardDescription>
-            Configure device preferences and display options.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Mirrors the loaded geometry exactly: three setting rows and the
-              save action, so the card does not reflow when data lands. */}
-          <div className="grid gap-2">
-            <Separator />
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-9 w-36" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-5 w-28" />
-              <Skeleton className="h-9 w-36" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-5 w-24" />
-              <Skeleton className="h-9 w-52" />
-            </div>
-            <Separator />
-            <div className="flex justify-end">
-              <Skeleton className="h-9 w-32" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // --- Error state ---
-  if (error && !settings) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>System Settings</CardTitle>
-          <CardDescription>
-            Configure device preferences and display options.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertTriangleIcon className="size-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+  const { t } = useTranslation("system-settings");
 
   return (
-    <SystemSettingsForm
-      settings={settings}
-      isSaving={isSaving}
-      error={error}
-      saveSettings={saveSettings}
-    />
+    <Card className={CARD_SHELL}>
+      <CardHeader className={CARD_PAD}>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
+        <CardDescription className={CARD_DESC}>
+          {t(`${K}.card.description`)}
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT, "gap-4")}>
+        {isLoading ? (
+          <PreferencesSkeleton />
+        ) : !settings ? (
+          // No settings to show — a failed read, or an envelope carrying none.
+          // The form would otherwise fill itself with its own fallbacks.
+          <ConditionBlock
+            tone="destructive"
+            glyph={CircleAlertIcon}
+            ariaRole="alert"
+            title={t(`${K}.states.error_title`)}
+            description={t(`${K}.states.error_body`, { detail: error ?? "" })}
+            onRetry={() => refresh()}
+            retryLabel={t("actions.retry", { ns: "common" })}
+            className={CONDITION_PANEL.SCREEN}
+          />
+        ) : (
+          <PreferencesForm
+            settings={settings}
+            isSaving={isSaving}
+            error={error}
+            saveSettings={saveSettings}
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
-// ─── Form (re-seeds from settings via render-phase sync, never remounts) ────
+// ─── Loading ────────────────────────────────────────────────────────────────
 
-interface SystemSettingsFormProps {
+/**
+ * Real `ROW_GROUP` / `ROW.ROOT` boxes wearing slivers, so the skeleton's height
+ * RESOLVES to the loaded row's rather than being asserted against it.
+ */
+function PreferencesSkeleton(): React.JSX.Element {
+  return (
+    <>
+      <div className={cn(ROW_GROUP, GROUP_FILL)}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={ROW.ROOT}>
+            <div className={ROW.TEXT}>
+              <Skeleton className={cn(SKELETON.TIME.LABEL, "w-28")} />
+              <Skeleton className={cn(SKELETON.TIME.CONSEQUENCE, "w-full")} />
+              {/* The zone row's consequence wraps to two lines at real widths. */}
+              {i === 0 ? (
+                <Skeleton className={cn(SKELETON.TIME.CONSEQUENCE_2, "w-2/3")} />
+              ) : null}
+            </div>
+            <div className={cn(ROW.CONTROL, "w-full @2xl/card:w-auto")}>
+              <Skeleton className={SKELETON.TIME.FIELD} />
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* The Save row. Absent, the card grows by its height plus the gap. */}
+      <div className="flex justify-end">
+        <Skeleton className={SKELETON.TIME.ACTION} />
+      </div>
+    </>
+  );
+}
+
+// ─── Form ───────────────────────────────────────────────────────────────────
+
+interface PreferencesFormProps {
   settings: UseSystemSettingsReturn["settings"];
   isSaving: boolean;
   error: string | null;
   saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
 }
 
-function SystemSettingsForm({
+function PreferencesForm({
   settings,
   isSaving,
   error,
   saveSettings,
-}: SystemSettingsFormProps) {
+}: PreferencesFormProps): React.JSX.Element {
+  const { t } = useTranslation("system-settings");
   const { saved, markSaved } = useSaveFlash();
 
-  // --- Local form state (initialized from settings prop) ---
   const [prevSettings, setPrevSettings] = useState(settings);
   const [tempUnit, setTempUnit] = useState<"celsius" | "fahrenheit">(
     settings?.temp_unit ?? "celsius",
@@ -167,10 +215,9 @@ function SystemSettingsForm({
   const [timezone, setTimezone] = useState(settings?.timezone ?? "UTC0");
   const [tzOpen, setTzOpen] = useState(false);
 
-  // Sync server → local during render (no setState-in-effect; React-Compiler safe).
-  // Replaces the former data-derived `key` remount, which killed the pending
-  // `saved` flash because the refetch and markSaved() land in one React batch.
-  // `tzOpen` is popover UI state, not server data — deliberately not synced.
+  // Server → local during render, never in an effect: a data-derived remount
+  // would kill the pending `saved` flash, since the refetch and markSaved()
+  // land in one React batch. `tzOpen` is popover state, deliberately not synced.
   if (settings !== prevSettings) {
     setPrevSettings(settings);
     setTempUnit(settings?.temp_unit ?? "celsius");
@@ -179,29 +226,28 @@ function SystemSettingsForm({
     setTimezone(settings?.timezone ?? "UTC0");
   }
 
-  // --- Dirty check ---
-  const isDirty = useMemo(() => {
-    if (!settings) return false;
-    return (
-      tempUnit !== settings.temp_unit ||
-      distanceUnit !== settings.distance_unit ||
-      zonename !== settings.zonename ||
-      timezone !== settings.timezone
-    );
-  }, [settings, tempUnit, distanceUnit, zonename, timezone]);
+  const tzDirty = Boolean(
+    settings &&
+      (zonename !== settings.zonename || timezone !== settings.timezone),
+  );
+  const tempDirty = Boolean(settings && tempUnit !== settings.temp_unit);
+  const distanceDirty = Boolean(
+    settings && distanceUnit !== settings.distance_unit,
+  );
+  const canSave = (tzDirty || tempDirty || distanceDirty) && !isSaving;
 
-  const canSave = isDirty && !isSaving;
+  const tzLabel = useMemo(
+    () => TIMEZONES.find((tz) => tz.zonename === zonename)?.label,
+    [zonename],
+  );
 
-  // --- Timezone change handler ---
-  const handleTimezoneChange = useCallback((selectedZonename: string) => {
-    const entry = TIMEZONES.find((tz) => tz.zonename === selectedZonename);
-    if (entry) {
-      setZonename(entry.zonename);
-      setTimezone(entry.timezone);
-    }
+  const handleTimezoneChange = useCallback((selected: string) => {
+    const entry = TIMEZONES.find((tz) => tz.zonename === selected);
+    if (!entry) return;
+    setZonename(entry.zonename);
+    setTimezone(entry.timezone);
   }, []);
 
-  // --- Save handler (items 2-4) ---
   const handleSave = useCallback(async () => {
     if (!canSave) return;
 
@@ -215,9 +261,9 @@ function SystemSettingsForm({
 
     if (success) {
       markSaved();
-      toast.success("Settings saved");
+      toast.success(t(`${K}.toast.saved`));
     } else {
-      toast.error(error || "Failed to save settings");
+      toast.error(t(`${K}.toast.failed`));
     }
   }, [
     canSave,
@@ -226,169 +272,210 @@ function SystemSettingsForm({
     distanceUnit,
     timezone,
     zonename,
-    error,
     markSaved,
+    t,
   ]);
 
-  return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardTitle>System Settings</CardTitle>
-        <CardDescription>
-          Configure device preferences and display options.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangleIcon className="size-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+  const unsaved = t(`${K}.rows.unsaved`);
 
-        <motion.div
-          className="grid gap-2"
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-        >
-          {/* ── Temperature Unit ──────────────────────────────────── */}
-          <Separator />
-          <motion.div variants={staggerItem} className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              Temperature Unit
-            </p>
+  return (
+    <>
+      {/* A failed refresh over live data says so and steps aside; it does not
+          take the card down. */}
+      {error ? (
+        <div role="status" className={cn(NOTICE.BOX, NOTICE.STALE)}>
+          <TriangleAlertIcon className={NOTICE.GLYPH} aria-hidden="true" />
+          <span className={NOTICE.TEXT}>{t(`${K}.states.stale`)}</span>
+        </div>
+      ) : null}
+
+      {/* No `initial`/`animate`: this container is a child of the page cascade
+          and must stay on the parent's clock. */}
+      <motion.div
+        className={cn(ROW_GROUP, GROUP_FILL)}
+        variants={staggerRows}
+      >
+        {/* ── Time zone ───────────────────────────────────────────────── */}
+        <motion.div variants={staggerRowItem} className={ROW.ROOT}>
+          <div className={ROW.TEXT}>
+            <span className={LABEL_LINE}>
+              <span id={TZ_LABEL_ID} className={ROW.LABEL}>
+                {t(`${K}.rows.timezone.label`)}
+              </span>
+              <span className={cn(DELTA.ROOT, !tzDirty && DELTA.CLEAN)}>
+                {unsaved}
+              </span>
+            </span>
+            <span className={ROW.CONSEQUENCE}>
+              {t(`${K}.rows.timezone.consequence`)}
+            </span>
+          </div>
+          <div className={ROW.CONTROL}>
+            <Popover open={tzOpen} onOpenChange={setTzOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  role="combobox"
+                  aria-expanded={tzOpen}
+                  aria-labelledby={TZ_LABEL_ID}
+                  className={cn(FIELD, "flex items-center justify-between gap-2")}
+                >
+                  <span className="truncate">
+                    {tzLabel ?? t(`${K}.rows.timezone.placeholder`)}
+                  </span>
+                  <ChevronsUpDownIcon
+                    className={cn(FIELD_GLYPH, "flex-none opacity-60")}
+                    aria-hidden="true"
+                  />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-(--radix-popover-trigger-width) min-w-64 rounded-field p-0"
+              >
+                <Command>
+                  <CommandInput
+                    placeholder={t(`${K}.rows.timezone.search`)}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {t(`${K}.rows.timezone.empty`)}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {TIMEZONES.map((tz) => (
+                        <CommandItem
+                          key={tz.zonename}
+                          value={tz.label}
+                          onSelect={() => {
+                            handleTimezoneChange(tz.zonename);
+                            setTzOpen(false);
+                          }}
+                        >
+                          <CheckIcon
+                            className={cn(
+                              "mr-2 size-4",
+                              zonename === tz.zonename
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                            aria-hidden="true"
+                          />
+                          {tz.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </motion.div>
+
+        {/* The field is tri-state: an older backend omits it, and absent means
+            applied. Only an explicit `false` is a failure. */}
+        {settings?.timezone_applied === false ? (
+          <motion.div variants={staggerRowItem} className={TZ_NOTICE}>
+            <Badge variant="warning">
+              <TriangleAlertIcon className="size-3" aria-hidden="true" />
+              {t(`${K}.states.tz_not_applied_chip`)}
+            </Badge>
+            <span className={ROW.CONSEQUENCE}>
+              {t(`${K}.states.tz_not_applied_body`, {
+                zone: settings.zonename,
+                // `effective_offset` is optional and nothing couples it to
+                // `timezone_applied`, so this branch is reachable with no
+                // offset — and i18next substitutes an EMPTY string, leaving
+                // "…still running at ." on screen.
+                offset: formatOffset(settings.effective_offset) || VALUE_NONE,
+              })}
+            </span>
+          </motion.div>
+        ) : null}
+
+        {/* ── Temperature ─────────────────────────────────────────────── */}
+        <motion.div variants={staggerRowItem} className={ROW.ROOT}>
+          <div className={ROW.TEXT}>
+            <span className={LABEL_LINE}>
+              <span id={TEMP_LABEL_ID} className={ROW.LABEL}>
+                {t(`${K}.rows.temperature.label`)}
+              </span>
+              <span className={cn(DELTA.ROOT, !tempDirty && DELTA.CLEAN)}>
+                {unsaved}
+              </span>
+            </span>
+            <span className={ROW.CONSEQUENCE}>
+              {t(`${K}.rows.temperature.consequence`)}
+            </span>
+          </div>
+          <div className={ROW.CONTROL}>
             <Select
               value={tempUnit}
               onValueChange={(v) => setTempUnit(v as "celsius" | "fahrenheit")}
             >
-              <SelectTrigger className="w-36" aria-label="Temperature unit">
+              <SelectTrigger aria-labelledby={TEMP_LABEL_ID} className={FIELD}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="celsius">Celsius</SelectItem>
-                <SelectItem value="fahrenheit">Fahrenheit</SelectItem>
+                <SelectItem value="celsius">
+                  {t(`${K}.rows.temperature.celsius`)}
+                </SelectItem>
+                <SelectItem value="fahrenheit">
+                  {t(`${K}.rows.temperature.fahrenheit`)}
+                </SelectItem>
               </SelectContent>
             </Select>
-          </motion.div>
+          </div>
+        </motion.div>
 
-          {/* ── Distance Unit ─────────────────────────────────────── */}
-          <Separator />
-          <motion.div variants={staggerItem} className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              Distance Unit
-            </p>
+        {/* ── Distance ────────────────────────────────────────────────── */}
+        <motion.div variants={staggerRowItem} className={ROW.ROOT}>
+          <div className={ROW.TEXT}>
+            <span className={LABEL_LINE}>
+              <span id={DISTANCE_LABEL_ID} className={ROW.LABEL}>
+                {t(`${K}.rows.distance.label`)}
+              </span>
+              <span className={cn(DELTA.ROOT, !distanceDirty && DELTA.CLEAN)}>
+                {unsaved}
+              </span>
+            </span>
+            <span className={ROW.CONSEQUENCE}>
+              {t(`${K}.rows.distance.consequence`)}
+            </span>
+          </div>
+          <div className={ROW.CONTROL}>
             <Select
               value={distanceUnit}
               onValueChange={(v) => setDistanceUnit(v as "km" | "miles")}
             >
-              <SelectTrigger className="w-36" aria-label="Distance unit">
+              <SelectTrigger
+                aria-labelledby={DISTANCE_LABEL_ID}
+                className={FIELD}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="km">Kilometers</SelectItem>
-                <SelectItem value="miles">Miles</SelectItem>
+                <SelectItem value="km">
+                  {t(`${K}.rows.distance.km`)}
+                </SelectItem>
+                <SelectItem value="miles">
+                  {t(`${K}.rows.distance.miles`)}
+                </SelectItem>
               </SelectContent>
             </Select>
-          </motion.div>
-
-          {/* ── Timezone ──────────────────────────────────────────── */}
-          <Separator />
-          <motion.div variants={staggerItem} className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground text-sm">
-                Timezone
-              </p>
-              <Popover open={tzOpen} onOpenChange={setTzOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={tzOpen}
-                    className="w-52 @sm/card:w-64 justify-between font-normal"
-                  >
-                    <span className="truncate">
-                      {TIMEZONES.find((tz) => tz.zonename === zonename)?.label ??
-                        "Select timezone"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-0" align="end">
-                  <Command>
-                    <CommandInput placeholder="Search timezone..." />
-                    <CommandList>
-                      <CommandEmpty>No timezone found.</CommandEmpty>
-                      <CommandGroup>
-                        {TIMEZONES.map((tz) => (
-                          <CommandItem
-                            key={tz.zonename}
-                            value={tz.label}
-                            onSelect={() => {
-                              handleTimezoneChange(tz.zonename);
-                              setTzOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 size-4",
-                                zonename === tz.zonename
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-                            {tz.label}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Timezone ground-truth: warn when the configured zone did not
-                reach the live device clock. Only render when the backend
-                explicitly reports the state (older backends omit the field). */}
-            {settings?.timezone_applied === false && (
-              <div className="flex flex-col items-start gap-1.5">
-                <Badge variant="warning">
-                  <TriangleAlertIcon className="size-3" />
-                  Not applied — clock shows {settings.effective_offset}
-                </Badge>
-                <p className="text-muted-foreground text-sm">
-                  Saved as {settings.zonename} ({settings.timezone}) but the
-                  device clock is still {settings.effective_offset}. It may
-                  apply shortly, or the timezone data may be missing.
-                </p>
-              </div>
-            )}
-
-            {settings?.timezone_applied === true &&
-              settings.effective_zone_abbr &&
-              settings.effective_offset && (
-                <p className="text-muted-foreground text-sm">
-                  Clock:{" "}
-                  <span className="font-mono">
-                    {settings.effective_zone_abbr} {settings.effective_offset}
-                  </span>
-                </p>
-              )}
-          </motion.div>
-
-          {/* ── Save Button ───────────────────────────────────────── */}
-          <Separator />
-          <motion.div variants={staggerItem} className="flex justify-end">
-            <SaveButton
-              onClick={handleSave}
-              isSaving={isSaving}
-              saved={saved}
-              disabled={!canSave}
-            />
-          </motion.div>
+          </div>
         </motion.div>
-      </CardContent>
+      </motion.div>
 
-    </Card>
+      <div className="flex justify-end">
+        <SaveButton
+          onClick={handleSave}
+          isSaving={isSaving}
+          saved={saved}
+          label={t(`${K}.card.save`)}
+          disabled={!canSave}
+          className={PILL_ACTION}
+        />
+      </div>
+    </>
   );
 }

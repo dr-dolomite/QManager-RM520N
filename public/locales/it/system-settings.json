@@ -11,7 +11,8 @@
     "clear_dialog_confirm": "Cancella",
     "clear_dialog_clearing": "Cancellazione…",
     "toast_cleared": "SIM note cancellate",
-    "toast_clear_failed": "Impossibile cancellare le SIM note"
+    "toast_clear_failed": "Impossibile cancellare le SIM note",
+    "remembered_unknown": "Impossibile leggere il numero memorizzato"
   },
   "sim_registry": {
     "title": "SIM registrate",
@@ -35,6 +36,167 @@
     "remembered_count_one": "{{count}} SIM memorizzata",
     "remembered_count_other": "{{count}} SIM memorizzate",
     "toast_cleared_partial": "Cancellate, ma l'elenco potrebbe non essere aggiornato",
-    "toast_cleared_partial_detail": "Il dispositivo ha dimenticato le SIM ma non è riuscito ad aggiornare questo elenco. Ricarica la pagina per verificare."
+    "toast_cleared_partial_detail": "Il dispositivo ha dimenticato le SIM ma non è riuscito ad aggiornare questo elenco. Ricarica la pagina per verificare.",
+    "error_title": "Impossibile leggere le SIM registrate",
+    "error_description": "Il dispositivo non ha risposto. Non è stato dimenticato nulla: è un errore di lettura, l'elenco è ancora sul modem."
+  },
+  "ssh": {
+    "card": {
+      "title": "Accesso SSH",
+      "description": "La password root per le sessioni SSH su questo modem. È separata dalla password con cui accedi a QManager.",
+      "save": "Aggiorna password SSH"
+    },
+    "fields": {
+      "current": {
+        "label": "La tua password QManager",
+        "consequence": "Serve a confermare che sei tu. È la password web con cui hai effettuato l'accesso, non quella SSH."
+      },
+      "new": {
+        "label": "Nuova password SSH",
+        "consequence": "Almeno sei caratteri. Ha effetto immediato: le sessioni SSH già aperte restano attive."
+      },
+      "confirm": {
+        "label": "Conferma la nuova password"
+      }
+    },
+    "toggle": {
+      "show": "Mostra password",
+      "hide": "Nascondi password"
+    },
+    "errors": {
+      "too_short": "La password SSH deve avere almeno 6 caratteri.",
+      "mismatch": "Le password non coincidono.",
+      "failed": "Modifica della password SSH non riuscita."
+    },
+    "toast_saved": "Password SSH aggiornata correttamente."
+  },
+  "page": {
+    "title": "Impostazioni di sistema",
+    "description": "Come questo dispositivo tiene l'ora, chi può raggiungerlo e quali SIM ricorda.",
+    "refresh": "Aggiorna"
+  },
+  "band": {
+    "head": "Attivo in questo momento",
+    "unreachable": "Irraggiungibile",
+    "clock": {
+      "eyebrow": "Orologio del dispositivo",
+      "caption_applied": "{{zone}}, applicato",
+      "caption_drifted": "{{zone}} salvato — l'orologio non si è spostato",
+      "caption_unread": "Impossibile leggere l'orologio",
+      "caption_unreported": "{{zone}} salvato, orologio del dispositivo sconosciuto"
+    },
+    "reboot": {
+      "eyebrow": "Prossimo riavvio",
+      "off": "Disattivato",
+      "day_separator": ", ",
+      "caption_repeats": "Si ripete: {{days}}",
+      "caption_off": "Nessun riavvio automatico",
+      "caption_no_day": "Attivo, ma non è selezionato nessun giorno",
+      "caption_unread": "Impossibile leggere la pianificazione",
+      "never": "Mai"
+    },
+    "sims": {
+      "eyebrow": "SIM registrate",
+      "caption_none": "Ancora nessuna registrazione",
+      "caption_all_alerting": "Tutte generano l'avviso di nuova SIM",
+      "caption_muted_one": "{{count}} esclusa dagli avvisi di nuova SIM",
+      "caption_muted_other": "{{count}} escluse dagli avvisi di nuova SIM"
+    },
+    "stale": "Ultima lettura confermata"
+  },
+  "preferences": {
+    "card": {
+      "title": "Ora e unità",
+      "description": "Come questo modem tiene l'ora e in quali unità viene mostrata ogni lettura.",
+      "save": "Salva preferenze"
+    },
+    "rows": {
+      "unsaved": "Non salvato",
+      "timezone": {
+        "label": "Fuso orario",
+        "consequence": "Il modem non ha un orologio a batteria. È il riferimento di ogni riga di log, di ogni evento e di ogni pianificazione.",
+        "placeholder": "Seleziona un fuso orario",
+        "search": "Cerca fusi orari…",
+        "empty": "Nessun fuso orario corrisponde."
+      },
+      "temperature": {
+        "label": "Temperatura",
+        "consequence": "Vale per ogni lettura di temperatura in QManager.",
+        "celsius": "Celsius (°C)",
+        "fahrenheit": "Fahrenheit (°F)"
+      },
+      "distance": {
+        "label": "Distanza",
+        "consequence": "Vale per la distanza dalla cella nelle pagine dello scanner delle celle e delle antenne.",
+        "km": "Chilometri (km)",
+        "miles": "Miglia (mi)"
+      }
+    },
+    "states": {
+      "error_title": "Impossibile leggere le tue preferenze",
+      "error_body": "Il modem non ha risposto. {{detail}}",
+      "stale": "Il modem non ha risposto all'ultima richiesta. Quello che vedi è l'ultimo stato che ha confermato.",
+      "tz_not_applied_chip": "Orologio non aggiornato",
+      "tz_not_applied_body": "Salvato come {{zone}}, ma l'orologio del dispositivo è ancora su {{offset}}. Potrebbe allinearsi a breve, oppure questo firmware non ha i dati di quel fuso."
+    },
+    "toast": {
+      "saved": "Preferenze salvate",
+      "failed": "Impossibile salvare le preferenze"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "Riavvio pianificato",
+      "description": "Riavvia automaticamente il modem secondo una pianificazione settimanale fissa."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Riavvio automatico",
+        "armed": "Attivo",
+        "off": "Disattivato",
+        "consequence": "Il modem si riavvia secondo questa pianificazione. La tua sessione cade per circa novanta secondi e torna da sola.",
+        "no_day": "Non si attiva mai"
+      },
+      "time": {
+        "label": "Ora",
+        "consequence": "Ora locale del dispositivo, non quella del browser."
+      },
+      "days": {
+        "label": "Ripeti il",
+        "consequence": "Senza nessun giorno selezionato la pianificazione non parte mai.",
+        "rail": "Giorni della settimana del riavvio"
+      }
+    },
+    "days": {
+      "sun": "Dom",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Gio",
+      "fri": "Ven",
+      "sat": "Sab"
+    },
+    "states": {
+      "error": {
+        "title": "Impossibile leggere la pianificazione dei riavvii",
+        "description": "QManager non è riuscito a caricare la pianificazione dei riavvii di questo dispositivo. Una pianificazione già salvata resta attiva sul modem: questo è un errore di lettura, non una disattivazione."
+      },
+      "stale": "QManager ha perso il contatto durante l'aggiornamento. Questi sono gli ultimi valori letti dal dispositivo.",
+      "autosave": "Salva automaticamente",
+      "saving": "Salvataggio…",
+      "saved": "Salvato"
+    },
+    "toast": {
+      "enabled": "Riavvio pianificato attivato",
+      "disabled": "Riavvio pianificato disattivato",
+      "saved": "Pianificazione dei riavvii salvata",
+      "save_failed": "Impossibile salvare la pianificazione dei riavvii",
+      "update_failed": "Impossibile aggiornare la pianificazione dei riavvii",
+      "not_armed": "Pianificazione dei riavvii salvata, ma non è stato possibile attivarla su questo dispositivo — {{detail}}",
+      "reason_unknown": "motivo sconosciuto",
+      "reasons": {
+        "unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo: aggiorna all'ultimo firmware per abilitarlo"
+      }
+    }
   }
 }
