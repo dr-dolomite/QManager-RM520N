@@ -485,3 +485,40 @@ Out-of-scope files confirmed byte-unchanged vs the base SHA: hooks/use-tailscale
 app/monitoring/tailscale/page.tsx, scripts/www/cgi-bin/quecmanager/vpn/tailscale.sh.
 .orchestra/scratch/ deliberately left untracked (working state, not product) — same call the
 Alerts run made.
+
+## T5 — blind verification (orchestra-verifier, given the plan verbatim)
+VERDICT: PASS_WITH_NOTES.
+All 24 numbered changes Verified, none "Not done". All seven states confirmed reachable and
+mapped to the right shape. §7 constraints all Verified except one, §5 motion Verified
+(no bare-var arbitrary anywhere; exactly one ambient loop, mounted only under needsLogin).
+
+DEFECT FOUND (low, real, FIXED in d85415a): two skeletons restated geometry instead of
+importing it — connection-card's rail placeholder hardcoded the 42px action height, peers-card's
+head placeholder hardcoded the 36px head height and double-applied rounded-inline. Values
+matched, so nothing was visibly wrong; the risk was silent drift on a future retune of
+shapes.ts. Fixed by extracting ACTION_HEIGHT / TABLE.HEAD_HEIGHT and adding SKELETON.ACTION /
+SKELETON.HEAD. Every <Skeleton> on the surface now reads a SKELETON.* constant.
+The conductor's own sweep MISSED this — it checked that skeletons use shape constants without
+checking every one. This is the dispatch that earned its cost.
+
+Verifier's second note (header chip reads "Unknown" on first paint) was assessed by the verifier
+itself as within spec — the plan's skeleton row does not specify chip behaviour. Not changed.
+
+## RUN CLOSED 2026-09-05
+Branch feat/tailscale-design-canon-refit, 3 commits: 13608db (refit), efa40df (ledger),
+d85415a (skeleton-mirror fix). NOT merged, NOT pushed — the parent session integrates.
+
+CARRIED FORWARD, NOT DONE (recorded so they are not rediscovered as bugs):
+- 6 new i18n:check WARNINGS (not errors): zh-CN/zh-TW passthroughs of the bare product names
+  "Tailnet" and "MagicDNS". Correct as-is. Silencing them means adding to
+  lib/i18n/passthrough-allowlist.json, which is outside this plan's file list.
+- No docs were written. There is no DESIGN.md Migration Deltas row and no
+  docs/reference/tailscale.md for this surface, and the plan's file list excludes docs. This is
+  a refit of an existing surface, not a new feature with new invariants.
+- public/locales/*/common.json is a write-set collision with the parallel watchdog refit in
+  wt+watchdog-canon-refit. Both append a sibling top-level block; expect a merge conflict there.
+- The longest status label ("Needs login") truncates in the narrowest 190px band tile. This is
+  the canon's own `truncate` behaviour restated from the Latency band, not a regression, but
+  i18n will make it more visible in longer languages.
+- Not exercised on hardware. Every state was driven through a fetch shim on the dev server;
+  the RM520N-GL was not probed. This is a frontend-only change with no backend surface.
