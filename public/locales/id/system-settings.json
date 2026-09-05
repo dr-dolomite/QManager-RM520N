@@ -134,7 +134,8 @@
     },
     "states": {
       "error_title": "Tidak dapat membaca preferensi Anda",
-      "error_body": "Modem tidak menjawab. {{detail}}",
+      "error_body": "QManager gagal membaca preferensi perangkat ini. Tidak ada yang diubah — zona waktu dan satuan yang sudah tersimpan tetap berlaku di modem.",
+      "error_body_detail": "QManager gagal membaca preferensi perangkat ini. Tidak ada yang diubah — zona waktu dan satuan yang sudah tersimpan tetap berlaku di modem. Perangkat menjawab: {{detail}}",
       "stale": "Modem tidak menjawab permintaan terakhir. Yang ditampilkan adalah kondisi terakhir yang dikonfirmasinya.",
       "tz_not_applied_chip": "Jam belum diperbarui",
       "tz_not_applied_body": "Tersimpan sebagai {{zone}}, tetapi jam perangkat masih berjalan pada {{offset}}. Mungkin akan menyusul sebentar lagi, atau firmware ini tidak memiliki data zona tersebut."

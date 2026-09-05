@@ -36,18 +36,24 @@ import type { ScheduleConfig } from "@/types/system-settings";
 
 import { ConditionBlock } from "./condition-block";
 import {
+  CARD_BODY,
   CARD_DESC,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
   COARSE_TARGET,
+  CONTROL_FILL,
   CONDITION_PANEL,
   DAY_PILL,
   FIELD,
   FOCUS_RING,
+  GROUP_FILL,
+  LABEL_LINE,
   NOTICE,
+  RECEIPT_ROW,
   ROW,
   ROW_GROUP,
+  SAVE_LAYER,
   SKELETON,
 } from "./shapes";
 
@@ -58,10 +64,8 @@ const K = "reboot";
     reads the same keys, so the two cannot ship rival weekday names. */
 export const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
-// The autosave receipt's three layers share one grid cell, so the strip's width
-// is max(idle, saving, saved) per locale and nothing reflows on a save.
-const SAVE_LAYER =
-  "col-start-1 row-start-1 flex items-center justify-end gap-1.5 text-on-surface-variant text-xs font-medium transition-opacity duration-[var(--duration-quick)] ease-out";
+/** The sr-only line that says this card saves without a Save button. */
+const AUTOSAVE_HINT_ID = "reboot-autosave-hint";
 
 type ScheduledRebootCardProps = Pick<
   UseSystemSettingsReturn,
@@ -105,10 +109,17 @@ const ScheduledRebootCard = ({
 
   const armWarning = useCallback(
     (reason?: string) => {
-      const detail = reason
-        ? t(`${K}.toast.reasons.${reason}`, { defaultValue: reason })
-        : t(`${K}.toast.reason_unknown`);
-      return t(`${K}.toast.not_armed`, { detail });
+      // An unmapped backend reason would splice a raw token into a translated
+      // sentence, so it goes to the console and the user gets the generic line.
+      const mapped = reason
+        ? t(`${K}.toast.reasons.${reason}`, { defaultValue: "" })
+        : "";
+      if (reason && !mapped) {
+        console.warn(`[system-settings] unmapped reboot arm reason: ${reason}`);
+      }
+      return t(`${K}.toast.not_armed`, {
+        detail: mapped || t(`${K}.toast.reason_unknown`),
+      });
     },
     [t],
   );
@@ -219,12 +230,10 @@ const ScheduledRebootCard = ({
     return (
       <Card className={CARD_SHELL}>
         {head}
-        <CardContent
-          className={cn(CARD_PAD, CONDITION_PANEL.CONTENT, "gap-3.5")}
-        >
+        <CardContent className={cn(CARD_PAD, CARD_BODY, "gap-3.5")}>
           {/* The skeleton wears the real row boxes, so its height RESOLVES to
               the loaded view's rather than being asserted against a floor. */}
-          <div className={cn(ROW_GROUP, "min-h-0 flex-1")}>
+          <div className={cn(ROW_GROUP, GROUP_FILL)}>
             <div className={ROW.ROOT}>
               <div className={ROW.TEXT}>
                 <Skeleton className={cn(SKELETON.REBOOT.LABEL, "w-40")} />
@@ -253,7 +262,7 @@ const ScheduledRebootCard = ({
                 <Skeleton className={cn(SKELETON.REBOOT.LABEL, "w-24")} />
                 <Skeleton className={cn(SKELETON.REBOOT.CONSEQUENCE, "w-4/5")} />
               </div>
-              <div className={cn(ROW.CONTROL, "w-full @2xl/card:w-auto")}>
+              <div className={cn(ROW.CONTROL, CONTROL_FILL)}>
                 <div className={cn(DAY_PILL.RAIL, "w-full")}>
                   {DAY_KEYS.map((key) => (
                     <Skeleton key={key} className={SKELETON.REBOOT.DAY} />
@@ -264,7 +273,7 @@ const ScheduledRebootCard = ({
           </div>
           {/* The autosave receipt strip. Absent, the card grows by the strip
               and its gap the moment the data lands. */}
-          <div className="flex justify-end px-1">
+          <div className={RECEIPT_ROW}>
             <Skeleton className={SKELETON.REBOOT.RECEIPT} />
           </div>
         </CardContent>
@@ -278,7 +287,7 @@ const ScheduledRebootCard = ({
     return (
       <Card className={CARD_SHELL}>
         {head}
-        <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT)}>
+        <CardContent className={cn(CARD_PAD, CARD_BODY)}>
           <ConditionBlock
             tone="destructive"
             glyph={CircleAlertIcon}
@@ -297,7 +306,7 @@ const ScheduledRebootCard = ({
   return (
     <Card className={CARD_SHELL}>
       {head}
-      <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT, "gap-3.5")}>
+      <CardContent className={cn(CARD_PAD, CARD_BODY, "gap-3.5")}>
         {/* A refresh failed but a schedule is still cached: non-blocking, so
             the card stays usable. */}
         {error ? (
@@ -307,14 +316,20 @@ const ScheduledRebootCard = ({
           </div>
         ) : null}
 
+        {/* Nothing else tells AT that this card autosaves — there is no Save
+            button, and the receipt strip that says so on screen is decorative. */}
+        <span id={AUTOSAVE_HINT_ID} className="sr-only">
+          {t(`${K}.states.autosave`)}
+        </span>
+
         <motion.div
           variants={staggerRows}
-          className={cn(ROW_GROUP, "min-h-0 flex-1")}
+          className={cn(ROW_GROUP, GROUP_FILL)}
         >
           {/* Row 1 — the switch the whole card hangs off. */}
           <motion.div variants={staggerRowItem} className={ROW.ROOT}>
             <div className={ROW.TEXT}>
-              <div className="flex items-center gap-2">
+              <div className={LABEL_LINE}>
                 <label htmlFor="scheduled-reboot" className={ROW.LABEL}>
                   {t(`${K}.rows.enabled.label`)}
                 </label>
@@ -342,6 +357,7 @@ const ScheduledRebootCard = ({
             <div className={ROW.CONTROL}>
               <Switch
                 id="scheduled-reboot"
+                aria-describedby={AUTOSAVE_HINT_ID}
                 checked={rebootEnabled}
                 onCheckedChange={handleRebootEnabledChange}
                 className={COARSE_TARGET}
@@ -381,7 +397,7 @@ const ScheduledRebootCard = ({
             </div>
             {/* The rail stretches while the row is stacked so its seven pills
                 divide a real width; side by side it sizes to content. */}
-            <div className={cn(ROW.CONTROL, "w-full @2xl/card:w-auto")}>
+            <div className={cn(ROW.CONTROL, CONTROL_FILL)}>
               <div
                 className={cn(DAY_PILL.RAIL, "w-full")}
                 role="group"
@@ -413,7 +429,7 @@ const ScheduledRebootCard = ({
 
         {/* The autosave receipt. Announcing the result is the toast's job, so
             the strip itself is decorative. */}
-        <div className="flex justify-end px-1" aria-hidden="true">
+        <div className={RECEIPT_ROW} aria-hidden="true">
           <span className="grid">
             <span
               className={cn(

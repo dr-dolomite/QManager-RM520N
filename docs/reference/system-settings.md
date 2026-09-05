@@ -48,6 +48,17 @@ byte-for-byte across two files within a day of being written.
 | `COARSE_TARGET` | A pseudo-element overlay, not a layout box, so a 44px touch target does not move the row's baseline. Applied to the reboot `Switch` (paints 18.4×32) and the password reveal toggles. |
 | `CHIP_ON_TONAL` | `Badge variant="info"` resolves to `bg-primary-container` — byte-identical to `SIM_ROW.ACTIVE` — so a stock chip dissolves into a promoted row. Re-grounded on the row's own ink. Same technique as `CONDITION_TONE.action`. |
 
+**`CARD_BODY`, not `CONDITION_PANEL.CONTENT`.** The box that fills a height-locked
+cell is used on loaded content as often as on a state screen, so the old name
+understated its scope and four call sites had drifted to restating its literal
+instead. `CONDITION_PANEL` is now `{ SCREEN }` only. Gaps stay composed at the call
+site (`cn(CARD_BODY, "gap-4")`) — the module never bakes a gap into these boxes.
+
+**Geometry lives here even when only one file uses it.** `SAVE_LAYER`, `LABEL_LINE`
+and `TZ_NOTICE` were file-local until 2026-09-06; `SAVE_LAYER`'s own skeleton mirror
+was already in this module while the thing it mirrored was not. A constant with one
+consumer today is still the contract its skeleton must import.
+
 ---
 
 ## Invariants
@@ -122,6 +133,20 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
   third state for *enabled with no day selected*; they were allowed to disagree
   once, and a green "Armed" chip 200px from an amber "Never fires" tile is the
   result.
+- **The autosave receipt's `aria-hidden="true"` is CORRECT — do not "fix" it.** A
+  critique pass reported it as denying screen-reader users a write confirmation. It
+  does not. `toast.success` fires on every successful save path, and Sonner mounts a
+  global `<section aria-live="polite">` that announces it — measured in the rendered
+  DOM, not inferred. Removing the attribute would *regress*: the strip's three layers
+  are all unconditionally mounted and cross-faded by `opacity` alone, and `opacity-0`
+  does not remove content from the accessibility tree, so AT would read
+  "Saves automatically Saving… Saved" as one permanent string. Per-layer `aria-hidden`
+  does not rescue it either — without a live region nothing announces, and with one it
+  double-announces against the toast. `components/ui/save-button.tsx:162-165` already
+  documents this exact decision for the identical construction. The card instead
+  carries an `sr-only` hint wired by `aria-describedby`, reusing the *existing*
+  `reboot.states.autosave` leaf so the spoken and visible text cannot drift.
+
 - **`modem-subsystem-card.tsx` stays parked** — commented out of the grid, 447 lines,
   no consumers. **Open question for the user:** parking is the most expensive of the
   three options, because Tailwind v4 scans every non-gitignored file, so its
@@ -140,6 +165,18 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
   roughly fifteen sites repo-wide — `about-device`, `network-events`,
   `latency-monitoring`, `overview-card`, both antenna surfaces. Three families
   already carry a code comment warning about it. Worth a sweep.
+- **`error` is one channel carrying two unrelated facts — and it misreports one of
+  them.** `useSystemSettings().error` is set both by a failed *read* and by a rejected
+  *write* (`hooks/use-system-settings.ts:172`). Both cards render the amber
+  `states.stale` notice — "QManager lost contact while refreshing" — whenever it is
+  non-null. So: enable the schedule, deselect every day, and `settings.sh:216-219`
+  returns `{success:false, error:"no_days", detail:"At least one day must be
+  selected"}` at HTTP 200. The card fires the generic `reboot.toast.save_failed`
+  toast, **discarding the one sentence that says how to fix it**, then paints a
+  lost-contact banner although contact was never lost. One click to reproduce. Open:
+  the fix is to split the read and write error channels, which is a hook-contract
+  change, not a copy change.
+
 - **`components/ui/empty.tsx:10`** ends its base class with `md:p-12` — a viewport
   breakpoint inside a content-level primitive. This surface stopped consuming it;
   the product-wide sweep is still open.

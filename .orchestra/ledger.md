@@ -577,3 +577,178 @@ not exist yet does not typecheck. Leaves land first, the shell wires them, so ev
 | N2-N7, N9 | wording / scope clarifications | ACCEPT | — |
 
 Commit count moves 10 → 12: +1 for the failover band (B1), +1 for docs (M8).
+
+---
+
+# Run: /system-settings critique residue (2026-09-06)
+
+**Baseline:** 44c1a9722b81dc4efdace89c4e24f65db9bf4ead on `fix/system-settings-critique-residue`
+**Mode:** Full (Agent tool + real shell). Tier 2, Frontend-Only Lite Path.
+**Worktree:** deliberately NOT used. Browser verification is required here and
+`preview_start` serves the repo root, not a worktree, so a worktree would make the
+one check that matters impossible to run. Main checkout, feature branch.
+
+**Origin:** three items the 2026-09-05 `/impeccable critique` pass reported but did
+not fix before hitting a session rate limit. Recorded in
+`docs/reference/system-settings.md`. None are shipping defects.
+
+## Tasks
+
+| # | Task | Seat | Status |
+|---|---|---|---|
+| T1 | Attack all three premises + the conductor's item-2 counter-finding | advocate (Opus) | PENDING |
+| T2 | Implement whatever survives T1 | ui-builder | PENDING |
+| T3 | Blind verify | orchestra-verifier | PENDING |
+| T4 | Load the page, read the rendered node | conductor | PENDING |
+
+## Conductor's pre-dispatch reading (to be attacked by T1)
+
+- **I1 `GROUP_FILL` — CONFIRMED, wider than reported.** Two distinct idioms, not one:
+  `cn(ROW_GROUP, "min-h-0 flex-1")` at 4 literal sites plus a file-local const in
+  `system-settings-card.tsx:98` used twice; and `"flex min-h-0 flex-1 flex-col"` on
+  `CardContent` at 3 sites. Sub-route files (`web-console/`, `at-terminal/`,
+  `system-health-check/`) also carry the idiom but have NOT taken the canon pass and
+  are out of scope.
+
+- **I2 receipt `aria-hidden` — BELIEVED FALSE.** The critique claimed a screen reader
+  gets no write confirmation. But `scheduled-operations-card.tsx:141` and `:177` both
+  fire `toast.success`, and Sonner renders toasts inside its own `aria-live` region.
+  Removing `aria-hidden` would be a REGRESSION: the strip's three layers all coexist
+  in the DOM cross-faded by opacity, and `opacity-0` does not remove content from the
+  accessibility tree, so AT would read "Saves automatically Saving Saved" as one
+  permanent string. The genuine residual gap is smaller and different: the idle layer
+  is ambient affordance text telling a sighted user this card has no Save button, and
+  AT users never receive that.
+
+- **I3 `{{detail}}` splice — CONFIRMED, two sites.**
+  `scheduled-operations-card.tsx:108` falls back to `defaultValue: reason`, splicing a
+  raw snake_case backend token into a translated sentence in all five locales.
+  `system-settings-card.tsx:137` splices `error ?? ""` — which per
+  `hooks/use-system-settings.ts:176` can be `json.detail` straight off the backend, or
+  a hardcoded English string — into a localized sentence, and yields a dangling
+  trailing space when null.
+
+## Attempts (append-only)
+
+### T1 — devil's advocate (Opus) — DONE
+
+Adjudicated all three premises and overturned part of BOTH the critique's reading and
+the conductor's.
+
+- **C1 RE-SCOPED.** Idiom A (`GROUP_FILL`) upheld: six sites, one contract, and two
+  independent authors had written the same rationale as a comment, which is the
+  opposite of coincidence. Idiom B **OVERTURNED** — `"flex min-h-0 flex-1 flex-col"`
+  is already `CONDITION_PANEL.CONTENT` (`shapes.ts:434`), byte-identical, and four
+  sites already import it for that exact slot. A second export would have created the
+  rival copy this module exists to prevent. Ruling: rename to a top-level `CARD_BODY`
+  and point the four literals at it.
+  Conductor also **mis-keyed** `sim-registry-card.tsx:427` — its loaded counterpart
+  wears `SIM_LIST`, which already contains `min-h-0 flex-1`, so the skeleton was
+  restating two of four classes and dropping the scroll cap. Skeleton-Mirror
+  violation, not a `GROUP_FILL` site.
+  Found three more file-local geometry constants the conductor missed: `SAVE_LAYER`,
+  `LABEL_LINE`, `TZ_NOTICE` — and noted `SAVE_LAYER`'s own mirror
+  (`SKELETON.REBOOT.RECEIPT`) is already in `shapes.ts` while the thing it mirrors is
+  not.
+
+- **C2 UPHELD.** The critique's finding is false and acting on it would regress.
+  Traced every branch of the two save paths for a silent-success case: none exists,
+  and the only silent path (a throw) skips `markSaved()` too, so there is no
+  AT-vs-sighted asymmetry. Better citation than the conductor had:
+  `components/ui/save-button.tsx:162-165` already documents this exact decision for
+  the identical three-layer construction, and all three of its layers carry
+  `aria-hidden` for the same reason. Per-layer `aria-hidden` does not rescue it
+  either. Residual gap re-scoped to low value with a cheaper shape: `aria-describedby`
+  at an `sr-only` span reusing the EXISTING `reboot.states.autosave` leaf — no new key
+  in five packs, and the accessible text cannot drift from the visible one.
+
+- **C3 RE-SCOPED.** Corrected the conductor's DESIGN.md citation: the Machine-Voice
+  Rule is purely typographic and does not forbid this; the argument is State-Honesty.
+  Site 1 **downgraded to a latent latch** — the backend's reason vocabulary is closed
+  to three values and `no_schedule` is provably unreachable through the CGI
+  (`settings.sh:216-219` rejects an empty day list first), so `defaultValue: reason`
+  is dead code today. Fix as a one-line latch, not five locale-pack edits.
+  Site 2 **upheld and worse than reported**: the dangling-space case is the PRIMARY
+  path, not a side effect — the documented partial-envelope case leaves `error` null
+  and `settings` undefined, so the user reads "The modem didn't answer. " which is
+  factually false at HTTP 200.
+
+- **ALSO FOUND (3).** (1) Deselecting the last day yields `no_days` at HTTP 200; the
+  card fires the generic `save_failed` toast, DISCARDING the one sentence that says
+  what to do, then paints a "lost contact" stale banner that is wrong — one click to
+  reproduce. (2) The `SIM_LIST` skeleton drift above. (3) `ssh-password-card.tsx:229`
+  renders raw `{error}` inside a `role="alert"` — untranslated backend text or one of
+  two hardcoded English literals, announced assertively on a zh-TW device.
+
+**Conductor's scoping call:** implement C1 (re-scoped), C2's cheap residual, and C3 at
+ALL THREE sites — ALSO FOUND (3) is the same named defect on the same surface, so it
+completes the user's item rather than widening it. ALSO FOUND (1) is a DIFFERENT
+defect (wrong tone + discarded actionable detail) and changes user-visible error
+behaviour; it is reported to the user, not silently folded in.
+
+### T2 — ui-builder — DISPATCHED
+
+Write set: `shapes.ts`, the four index cards, the five locale packs. Sequential (write
+sets overlap heavily; no fan-out).
+
+### T2 — ui-builder — DONE
+
+All items implemented. Gates green. Two residuals self-reported: an `aria-describedby`
+on a role-less div it flagged as possibly unexposed, and one byte-identical
+`LABEL_LINE` literal it declined to touch because the ticket had not enumerated it.
+Conductor fixed the latter inline (one line, below the dispatch gate).
+
+### T3 — orchestra-verifier (blind) — FAIL, adjudicated
+
+Returned FAIL on A, C, D. Conductor adjudicated each against evidence:
+
+- **A (redesign) — REJECTED.** The verifier read `sim-registry-card.tsx:428`'s move to
+  `SIM_LIST` as introducing a 153px void, measuring new-skeleton against OLD-skeleton.
+  The contract's comparator is the LOADED list, which the verifier states it could not
+  render. Measured directly in the real cell: baseline skeleton `max-height:none`;
+  new skeleton `max-height:384px, overflow-y:auto`; loaded list `max-height:384px,
+  overflow-y:auto`. New skeleton is now byte-identical to what it mirrors, so the
+  change REMOVES a Skeleton-Mirror violation rather than adding a redesign.
+  Pair height lock re-measured in the LOADED state at 1440px: Time & Units 611 =
+  Scheduled Reboot 611; SSH Access 677 = Tracked SIMs 677.
+
+- **C (a11y) — UPHELD, fixed.** Verifier's AX probe showed `aria-describedby` on a
+  role-less `motion.div` is not exposed as an AX object at all; the ui-builder had
+  independently flagged the same risk. Moved onto the `Switch`. Re-measured on the
+  rendered node with the loaded state forced: `<button role="switch"
+  id="scheduled-reboot" aria-describedby="reboot-autosave-hint">`, hint present,
+  `sr-only`, `closest('[aria-hidden=true]') === null`, ids match.
+
+- **D (machine text) — UPHELD, fixed.** `sim-registry-card.tsx:382` rendered
+  `result.detail` as the ENTIRE toast body, so a non-English device got raw backend
+  text with no translated sentence. Now the translated sentence is the toast and the
+  detail rides the description slot, matching the SSH card's treatment.
+
+- **Defect 1 (opacity wash) — HALF-REJECTED.** The verifier proposed
+  `text-on-surface-variant`. That is wrong here: `NOTICE.FAILED` is
+  `bg-destructive-container text-on-destructive-container`, so a surface-variant token
+  would be "a fill role's ink with nothing under it" — the exact failure this module's
+  own comment warns about. Opacity is the correct tool on a tonal fill. But the
+  verifier was right that the VALUE was restated: `NOTICE.DETAIL` now composes
+  `META_INK_ON_TONAL` (moved above `NOTICE` to clear the TDZ) instead of repeating
+  `opacity-90`. Conductor's earlier call to keep them separate was wrong — both are
+  "step back inherited ink on a tonal fill", one contract.
+
+- **B residue — ADOPTED.** Verifier found call-site-to-call-site duplication the
+  ticket had not asked about but which is the same defect class:
+  `"w-full @2xl/card:w-auto"` x3 and `"flex justify-end px-1"` x2. Hoisted as
+  `CONTROL_FILL` and `RECEIPT_ROW`. A literal sweep across the four index cards now
+  returns ZERO restated geometry.
+
+### T4 — conductor browser verification — DONE
+
+Loaded state forced via a fetch shim (dev server on :3019 is another session's; not
+stopped). Measurements above. Gates after all fixes: `tsc --noEmit` exit 0;
+`i18n:check` 0 errors, 100% (3361/3361); `next build` compiled, NO CSS optimizer
+warnings (re-run after the docs edit, since Tailwind scans docs prose).
+
+**Outcome:** the critique's item 2 was a false finding and is now documented in
+`docs/reference/system-settings.md` so a future pass does not re-report it. One live
+defect found and NOT fixed (reported to the user): the `no_days` path fires a generic
+toast that discards the backend's actionable sentence, then paints a false
+"lost contact" banner.

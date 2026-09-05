@@ -134,7 +134,8 @@
     },
     "states": {
       "error_title": "無法讀取您的偏好設定",
-      "error_body": "數據機未回應。{{detail}}",
+      "error_body": "QManager 無法讀取本裝置的偏好設定。沒有任何設定被變更——已儲存的時區和單位仍在數據機上生效。",
+      "error_body_detail": "QManager 無法讀取本裝置的偏好設定。沒有任何設定被變更——已儲存的時區和單位仍在數據機上生效。裝置回應：{{detail}}",
       "stale": "數據機未回應最近一次請求。此處顯示的是它最後確認的狀態。",
       "tz_not_applied_chip": "時鐘未更新",
       "tz_not_applied_body": "已儲存為 {{zone}}，但裝置時鐘仍執行在 {{offset}}。它可能稍後會跟上，也可能是此韌體缺少該時區的資料。"

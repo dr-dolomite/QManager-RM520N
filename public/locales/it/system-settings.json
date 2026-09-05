@@ -134,7 +134,8 @@
     },
     "states": {
       "error_title": "Impossibile leggere le tue preferenze",
-      "error_body": "Il modem non ha risposto. {{detail}}",
+      "error_body": "QManager non è riuscito a leggere le preferenze di questo dispositivo. Non è stato modificato nulla: il fuso orario e le unità già salvate restano attivi sul modem.",
+      "error_body_detail": "QManager non è riuscito a leggere le preferenze di questo dispositivo. Non è stato modificato nulla: il fuso orario e le unità già salvate restano attivi sul modem. Il dispositivo ha risposto: {{detail}}",
       "stale": "Il modem non ha risposto all'ultima richiesta. Quello che vedi è l'ultimo stato che ha confermato.",
       "tz_not_applied_chip": "Orologio non aggiornato",
       "tz_not_applied_body": "Salvato come {{zone}}, ma l'orologio del dispositivo è ancora su {{offset}}. Potrebbe allinearsi a breve, oppure questo firmware non ha i dati di quel fuso."

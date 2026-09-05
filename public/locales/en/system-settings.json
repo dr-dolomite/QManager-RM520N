@@ -134,7 +134,8 @@
     },
     "states": {
       "error_title": "Couldn't read your preferences",
-      "error_body": "The modem didn't answer. {{detail}}",
+      "error_body": "QManager couldn't read this device's preferences. Nothing has been changed — the zone and units already saved are still in force on the modem.",
+      "error_body_detail": "QManager couldn't read this device's preferences. Nothing has been changed — the zone and units already saved are still in force on the modem. The device said: {{detail}}",
       "stale": "The modem didn't answer the last request. What's shown is the last state it confirmed.",
       "tz_not_applied_chip": "Clock not updated",
       "tz_not_applied_body": "Saved as {{zone}}, but the device clock is still running at {{offset}}. It may catch up shortly, or this firmware may be missing that zone's data."

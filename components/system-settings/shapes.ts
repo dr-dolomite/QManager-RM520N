@@ -67,8 +67,9 @@ export const PILL_GLYPH = "size-4";
 
 /**
  * The card grid. `items-stretch` plus the child height lock is what lets a card
- * absorb its row-mate's slack — and it is why `CONDITION_PANEL` exists: a
- * stretched cell holding a content-height state screen is a symmetric void.
+ * absorb its row-mate's slack — and it is why `CARD_BODY` and
+ * `CONDITION_PANEL.SCREEN` exist: a stretched cell holding a content-height
+ * state screen is a symmetric void.
  */
 export const CARD_GRID =
   "grid grid-cols-1 items-stretch gap-5 *:h-full *:*:data-[slot=card]:h-full @3xl/main:grid-cols-2";
@@ -207,6 +208,12 @@ export const CARD_SHELL =
 export const CARD_PAD = "px-7";
 
 /**
+ * The content box that fills a height-locked cell. `CARD_GRID` stretches every
+ * cell, so a content-height body buys its symmetry with a void underneath.
+ */
+export const CARD_BODY = "flex min-h-0 flex-1 flex-col";
+
+/**
  * The card's title. `CardTitle` takes its size from the call site, so an unsized
  * one inherits 16px and flattens the type ramp. It WRAPS rather than truncating,
  * which is why `leading-tight` travels with the size.
@@ -226,6 +233,12 @@ export const CARD_DESC = "text-on-surface-variant text-sm";
  * kept a private copy of `text-[0.8125rem] leading-relaxed text-pretty`, a size
  * this module already speaks.
  */
+/**
+ * Dim ink on a tonal fill: inherit the container's `on-` ink, then step it back.
+ * A role token here would be a fill role's ink with nothing under it.
+ */
+export const META_INK_ON_TONAL = "opacity-90";
+
 export const NOTICE = {
   BOX: "flex items-start gap-2.5 rounded-field px-4 py-3",
   STALE: "bg-warning-container text-on-warning-container",
@@ -233,7 +246,15 @@ export const NOTICE = {
   /** The leading glyph, nudged onto the first line's optical baseline. */
   GLYPH: "mt-0.5 size-4 flex-none",
   TEXT: "text-[0.8125rem] leading-relaxed text-pretty",
+  /** A two-line notice: the sentence, then the machine text under it. */
+  STACK: "flex min-w-0 flex-col gap-1",
+  /** Backend text quoted inside a notice — machine voice, ink stepped back. */
+  DETAIL: `font-mono text-xs leading-relaxed break-words ${META_INK_ON_TONAL}`,
 } as const;
+
+/** The timezone-apply warning, hanging under the row that caused it. */
+export const TZ_NOTICE =
+  "flex flex-col items-start gap-2 rounded-field px-4 pb-4";
 
 /**
  * One tonal group holding a card's setting rows.
@@ -244,6 +265,9 @@ export const NOTICE = {
  */
 export const ROW_GROUP =
   "flex flex-col gap-0.5 rounded-tile bg-surface-container p-1.5";
+
+/** A card's slack absorber: the page grid locks the cell, the group grows. */
+export const GROUP_FILL = "min-h-0 flex-1";
 
 /**
  * One setting row.
@@ -274,6 +298,9 @@ export const ROW = {
   CONTROL: "flex flex-none items-center @2xl/card:ml-auto",
 } as const;
 
+/** A row's label and its unsaved marker, paired tighter than the row's gap. */
+export const LABEL_LINE = "flex items-center gap-2";
+
 /**
  * The 42px control height, IMPORTANT-MARKED and written exactly once so the
  * field and its skeleton placeholder cannot drift.
@@ -290,6 +317,15 @@ const FIELD_HEIGHT = "h-[2.625rem]!";
  * because `ROW.CONTROL` is `flex-none` and a bare `w-full` placeholder there
  * resolves to zero.
  */
+/**
+ * A control that spans its row until the card is wide enough to sit it beside the
+ * label. `ROW.CONTROL` is `flex-none`, so the fill has to be asked for.
+ */
+export const CONTROL_FILL = "w-full @2xl/card:w-auto";
+
+/** The receipt strip under a card's rows, and its skeleton. */
+export const RECEIPT_ROW = "flex justify-end px-1";
+
 export const FIELD_WIDTH = "@2xl/card:w-auto @2xl/card:min-w-[13.5rem]";
 
 /**
@@ -377,6 +413,13 @@ export const DELTA = {
 } as const;
 
 /**
+ * One layer of the autosave receipt. The three share a grid cell, so the strip
+ * is max(idle, saving, saved) wide per locale and a save reflows nothing.
+ */
+export const SAVE_LAYER =
+  "col-start-1 row-start-1 flex items-center justify-end gap-1.5 text-on-surface-variant text-xs font-medium transition-opacity duration-[var(--duration-quick)] ease-out";
+
+/**
  * One row in Tracked SIMs.
  *
  * `ACTIVE` is Highlight-by-Container: the active SIM's row becomes a
@@ -395,9 +438,6 @@ export const DELTA = {
  * plain card (1.39:1). Same technique as `CONDITION_TONE.action`.
  */
 export const CHIP_ON_TONAL = "bg-on-primary-container/20";
-
-/** Dim ink on a promoted row: inherit the container's ink, then step it back. */
-export const META_INK_ON_TONAL = "opacity-90";
 
 /**
  * The registry list's own box. The scroll cap stops a long registry from
@@ -423,15 +463,11 @@ export const SIM_ROW = {
 // -----------------------------------------------------------------------------
 
 /**
- * The wrapper that lets a `ConditionScreen` fill a height-locked card.
- *
- * `CARD_GRID` stretches the cell, so a card whose body is a content-height
- * state screen buys symmetry with a void underneath it. `CONTENT` goes on the
- * `CardContent` and `SCREEN` on the screen's own `className`; `min-h-0` is what
- * lets the flex child actually absorb rather than overflow.
+ * What lets a `ConditionScreen` fill a height-locked card: `SCREEN` on the
+ * screen's own `className`, alongside `CARD_BODY` on the `CardContent`.
+ * `min-h-0` is what lets the flex child absorb rather than overflow.
  */
 export const CONDITION_PANEL = {
-  CONTENT: "flex min-h-0 flex-1 flex-col",
   SCREEN: "min-h-0 flex-1 justify-center",
 } as const;
 

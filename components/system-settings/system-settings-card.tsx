@@ -54,19 +54,24 @@ import { TIMEZONES } from "@/types/system-settings";
 import { ConditionBlock } from "./condition-block";
 import { formatOffset } from "./derive";
 import {
+  CARD_BODY,
   CARD_DESC,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
   CONDITION_PANEL,
+  CONTROL_FILL,
   DELTA,
   FIELD,
   FIELD_GLYPH,
+  GROUP_FILL,
+  LABEL_LINE,
   NOTICE,
   PILL_ACTION,
   ROW,
   ROW_GROUP,
   SKELETON,
+  TZ_NOTICE,
   VALUE_NONE,
 } from "./shapes";
 
@@ -87,15 +92,6 @@ const K = "preferences";
 const TZ_LABEL_ID = "preferences-timezone-label";
 const TEMP_LABEL_ID = "preferences-temperature-label";
 const DISTANCE_LABEL_ID = "preferences-distance-label";
-
-/** Label and its unsaved marker, paired tighter than the row's own gap. */
-const LABEL_LINE = "flex items-center gap-2";
-
-/** The timezone-apply warning, hanging under the row that caused it. */
-const TZ_NOTICE = "flex flex-col items-start gap-2 rounded-field px-4 pb-4";
-
-/** The group is this card's slack absorber; the page grid locks the cell. */
-const GROUP_FILL = "min-h-0 flex-1";
 
 // -----------------------------------------------------------------------------
 
@@ -123,7 +119,7 @@ export default function SystemSettingsCard({
         </CardDescription>
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT, "gap-4")}>
+      <CardContent className={cn(CARD_PAD, CARD_BODY, "gap-4")}>
         {isLoading ? (
           <PreferencesSkeleton />
         ) : !settings ? (
@@ -134,7 +130,11 @@ export default function SystemSettingsCard({
             glyph={CircleAlertIcon}
             ariaRole="alert"
             title={t(`${K}.states.error_title`)}
-            description={t(`${K}.states.error_body`, { detail: error ?? "" })}
+            description={
+              error
+                ? t(`${K}.states.error_body_detail`, { detail: error })
+                : t(`${K}.states.error_body`)
+            }
             onRetry={() => refresh()}
             retryLabel={t("actions.retry", { ns: "common" })}
             className={CONDITION_PANEL.SCREEN}
@@ -172,7 +172,7 @@ function PreferencesSkeleton(): React.JSX.Element {
                 <Skeleton className={cn(SKELETON.TIME.CONSEQUENCE_2, "w-2/3")} />
               ) : null}
             </div>
-            <div className={cn(ROW.CONTROL, "w-full @2xl/card:w-auto")}>
+            <div className={cn(ROW.CONTROL, CONTROL_FILL)}>
               <Skeleton className={SKELETON.TIME.FIELD} />
             </div>
           </div>

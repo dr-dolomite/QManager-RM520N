@@ -20,12 +20,14 @@ import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { cn } from "@/lib/utils";
 
 import {
+  CARD_BODY,
   CARD_DESC,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
   COARSE_TARGET,
   FIELD,
+  GROUP_FILL,
   NOTICE,
   PILL_ACTION,
   ROW,
@@ -123,6 +125,8 @@ export default function SSHPasswordCard() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  // Backend text is machine voice: quoted under the sentence, never spliced in.
+  const [errorDetail, setErrorDetail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Bumped on a successful change to remount the group, which re-hides any
   // field the user had revealed.
@@ -133,6 +137,7 @@ export default function SSHPasswordCard() {
     setNewPassword("");
     setConfirmPassword("");
     setError("");
+    setErrorDetail("");
     setFormKey((k) => k + 1);
   }, []);
 
@@ -146,6 +151,7 @@ export default function SSHPasswordCard() {
     async (e: FormEvent) => {
       e.preventDefault();
       setError("");
+      setErrorDetail("");
 
       if (newPassword.length < 6) {
         setError(t(`${K}.errors.too_short`));
@@ -169,7 +175,8 @@ export default function SSHPasswordCard() {
           markSaved();
           reset();
         } else {
-          setError(result.error || t(`${K}.errors.failed`));
+          setError(t(`${K}.errors.failed`));
+          setErrorDetail(result.error ?? "");
         }
       } finally {
         setIsSubmitting(false);
@@ -187,14 +194,14 @@ export default function SSHPasswordCard() {
         </CardDescription>
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col")}>
+      <CardContent className={cn(CARD_PAD, CARD_BODY)}>
         <form
           onSubmit={handleSubmit}
-          className="flex min-h-0 flex-1 flex-col gap-4"
+          className={cn(CARD_BODY, "gap-4")}
         >
           {/* The row group is this card's slack absorber: the page grid locks
               every cell to `h-full`, and the group is what grows to fill it. */}
-          <div key={formKey} className={cn(ROW_GROUP, "min-h-0 flex-1")}>
+          <div key={formKey} className={cn(ROW_GROUP, GROUP_FILL)}>
             <PasswordField
               id="ssh-current-password"
               label={t(`${K}.fields.current.label`)}
@@ -226,7 +233,12 @@ export default function SSHPasswordCard() {
           {error ? (
             <div role="alert" className={cn(NOTICE.BOX, NOTICE.FAILED)}>
               <CircleAlertIcon className={NOTICE.GLYPH} aria-hidden="true" />
-              <span className={NOTICE.TEXT}>{error}</span>
+              <span className={NOTICE.STACK}>
+                <span className={NOTICE.TEXT}>{error}</span>
+                {errorDetail ? (
+                  <span className={NOTICE.DETAIL}>{errorDetail}</span>
+                ) : null}
+              </span>
             </div>
           ) : null}
 

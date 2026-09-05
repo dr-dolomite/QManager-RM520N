@@ -50,6 +50,7 @@ import type { SimRegistryEntry } from "@/types/sim-registry";
 
 import { ConditionBlock } from "./condition-block";
 import {
+  CARD_BODY,
   CARD_DESC,
   CARD_PAD,
   CHIP_ON_TONAL,
@@ -378,7 +379,11 @@ export default function SimRegistryCard({
     const result = await clearKnownSims();
 
     if (!result.ok) {
-      toast.error(result.detail || t("known_sims.toast_clear_failed"));
+      // The backend detail is machine text: it rides the description slot,
+      // never the sentence, so a non-English device still gets its own words.
+      toast.error(t("known_sims.toast_clear_failed"), {
+        description: result.detail || undefined,
+      });
       return;
     }
 
@@ -423,8 +428,8 @@ export default function SimRegistryCard({
     return (
       <Card className={CARD_SHELL}>
         {header}
-        <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col")}>
-          <div className={cn(ROW_GROUP, "min-h-0 flex-1")}>
+        <CardContent className={cn(CARD_PAD, CARD_BODY)}>
+          <div className={cn(ROW_GROUP, SIM_LIST)}>
             {[0, 1, 2].map((i) => (
               <div key={i} className={SIM_ROW.ROOT}>
                 <div className={SIM_ROW.TEXT}>
@@ -452,7 +457,7 @@ export default function SimRegistryCard({
     return (
       <Card className={CARD_SHELL}>
         {header}
-        <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT)}>
+        <CardContent className={cn(CARD_PAD, CARD_BODY)}>
           <ConditionBlock
             tone="destructive"
             glyph={CircleAlertIcon}
@@ -474,7 +479,7 @@ export default function SimRegistryCard({
     return (
       <Card className={CARD_SHELL}>
         {header}
-        <CardContent className={cn(CARD_PAD, CONDITION_PANEL.CONTENT)}>
+        <CardContent className={cn(CARD_PAD, CARD_BODY)}>
           <ConditionBlock
             tone="neutral"
             glyph={CardSimIcon}
@@ -493,7 +498,7 @@ export default function SimRegistryCard({
   return (
     <Card className={CARD_SHELL}>
       {header}
-      <CardContent className={cn(CARD_PAD, "flex min-h-0 flex-1 flex-col gap-3")}>
+      <CardContent className={cn(CARD_PAD, CARD_BODY, "gap-3")}>
         <motion.div
           tabIndex={0}
           role="region"
