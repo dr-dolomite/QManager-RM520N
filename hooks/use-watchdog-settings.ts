@@ -30,28 +30,8 @@ export type WatchdogSavePayload = Omit<WatchdogSettings, "check_interval"> & {
   check_interval?: number;
 };
 
-export interface WatchdogLiveStatus {
-  timestamp: number;
-  enabled: boolean;
-  state: string;
-  current_tier: number;
-  failure_count: number;
-  last_recovery_time: number | null;
-  last_recovery_tier: number | null;
-  total_recoveries: number;
-  cooldown_remaining: number;
-  sim_failover_active: boolean;
-  original_sim_slot: number | null;
-  current_sim_slot: number | null;
-  reboots_this_hour: number;
-}
-
-export interface SimFailoverInfo {
-  active: boolean;
-  original_slot?: number;
-  current_slot?: number;
-  switched_at?: number;
-}
+// The CGI also returns `status` and `sim_failover`. Neither is read here: the
+// page takes both from the poller snapshot, which is the fresher source.
 
 // NOTE: SIM-swap state is NOT surfaced here. It lives in the persistent SIM
 // registry (`system/sim_registry.sh` + `hooks/use-sim-registry.ts`) and is read
@@ -60,8 +40,6 @@ export interface SimFailoverInfo {
 
 export interface UseWatchdogSettingsReturn {
   settings: WatchdogSettings | null;
-  status: WatchdogLiveStatus | null;
-  simFailover: SimFailoverInfo | null;
   autoDisabled: boolean;
   isLoading: boolean;
   isSaving: boolean;
@@ -75,8 +53,6 @@ export interface UseWatchdogSettingsReturn {
 
 export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   const [settings, setSettings] = useState<WatchdogSettings | null>(null);
-  const [status, setStatus] = useState<WatchdogLiveStatus | null>(null);
-  const [simFailover, setSimFailover] = useState<SimFailoverInfo | null>(null);
   const [autoDisabled, setAutoDisabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -119,8 +95,6 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         fail_threshold: json.settings?.fail_threshold ?? 5,
         probe_interval: json.settings?.probe_interval ?? 5,
       });
-      setStatus(json.status && json.status.timestamp ? json.status : null);
-      setSimFailover(json.sim_failover || null);
       setAutoDisabled(json.auto_disabled === true);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -211,8 +185,6 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
 
   return {
     settings,
-    status,
-    simFailover,
     autoDisabled,
     isLoading,
     isSaving,
