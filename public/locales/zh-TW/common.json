@@ -1332,7 +1332,8 @@
         "on": "開",
         "off": "關",
         "blocked": "需要插槽",
-        "running": "正在執行"
+        "running": "正在執行",
+        "inactive": "看門狗已關閉"
       },
       "tier1": {
         "name": "重新註冊到網路",
@@ -1350,14 +1351,18 @@
         "consequence": "若未設定備用插槽，恢復流程將止步於此，不會進入重啟步驟。",
         "slotLabel": "備用 SIM 卡插槽",
         "slotPlaceholder": "選擇插槽",
-        "slot": "插槽 {{slot}}"
+        "slot": "插槽 {{slot}}",
+        "slotHint": "看門狗切換到的插槽。主 SIM 卡仍留在另一個插槽中。"
       },
       "tier4": {
         "name": "重啟裝置",
         "effect": "作為最後手段重新啟動數據機。",
         "consequence": "此頁面會消失約一分鐘，等待數據機恢復。",
-        "capLabel": "每小時最大重啟次數"
-      }
+        "capLabel": "每小時最大重啟次數",
+        "capHint": "一小時內允許的重啟次數。達到上限後，看門狗會自行關閉。"
+      },
+      "unsaved": "未儲存",
+      "tierAria": "啟用此恢復步驟：{{name}}"
     },
     "detection": {
       "title": "偵測",
@@ -1405,12 +1410,13 @@
       },
       "empty": {
         "title": "尚無恢復活動",
-        "description": "看門狗處理斷線時，恢復步驟與 SIM 卡故障轉移會顯示在這裡。"
+        "description": "當看門狗處理斷線時，恢復步驟和 SIM 卡切換會顯示在這裡。較早的活動會從數據機事件記錄中滾出。"
       },
       "error": {
         "title": "無法載入恢復活動",
         "retry": "重試"
-      }
+      },
+      "refreshAria": "重新整理恢復活動"
     },
     "save": {
       "discard": "捨棄",

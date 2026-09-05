@@ -62,11 +62,15 @@ const WatchdogComponent = () => {
   const modemStatus = useModemStatus({ pollInterval: 5000 });
   const { settings, isLoading, error, refresh } = hook;
 
+  const modemRefresh = modemStatus.refresh;
   const reload = React.useCallback(() => {
     // `refresh` is the hook's `fetchSettings(silent?)`; a click event must
     // never reach that argument, or a user-triggered reload goes silent.
     refresh();
-  }, [refresh]);
+    // The band and the ladder's live tier come from the POLLER, not from
+    // settings, so refreshing only the config left the visible half untouched.
+    modemRefresh();
+  }, [refresh, modemRefresh]);
 
   return (
     <motion.div
@@ -163,7 +167,6 @@ function WatchdogSurface({
   const form = useWatchdogForm({
     settings,
     isSaving: hook.isSaving,
-    error: hook.error,
     saveSettings: hook.saveSettings,
   });
 
@@ -222,9 +225,14 @@ function WatchdogSurface({
       </motion.div>
 
       <motion.div variants={staggerItem}>
+        {/* Not knowing outranks guessing: the same gate the band applies. */}
         <LadderCard
           form={form}
-          runningTier={watchcat?.current_tier ?? 0}
+          runningTier={
+            phase === "unknown" || phase === "off"
+              ? 0
+              : (watchcat?.current_tier ?? 0)
+          }
           registerField={form.registerField}
         />
       </motion.div>
@@ -257,7 +265,7 @@ function SettingsUnreadable({
   const { t } = useTranslation("common");
   const skin = CONDITION_TONE.destructive;
   return (
-    <div className={cn(CONDITION.ROOT, skin.ROOT)}>
+    <div role="status" className={cn(CONDITION.ROOT, skin.ROOT)}>
       <span aria-hidden className={cn(CONDITION.DISC, skin.DISC)}>
         <WifiOffIcon className={CONDITION.GLYPH} />
       </span>

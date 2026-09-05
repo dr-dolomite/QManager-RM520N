@@ -33,15 +33,19 @@ export function SaveBar({ form }: { form: WatchdogForm }) {
   }, [names, i18n.language]);
 
   const handleSave = React.useCallback(() => {
-    if (blocked) {
-      form.focusFirstBlocked();
-      return;
-    }
     void form.submit();
+  }, [form]);
+
+  // `SaveButton` stops the event when `blockedReason` is set, so its `onClick`
+  // never fires while blocked. The jump to the offending field has to run in
+  // the capture phase to survive that guard — Enter on the button included.
+  const jumpToBlocked = React.useCallback(() => {
+    if (blocked) form.focusFirstBlocked();
   }, [blocked, form]);
 
   return (
     <div className={SAVEBAR.ROOT}>
+      {/* The bar is the only account of why Save will not take. */}
       <SaveStatus
         isDirty={form.isDirty}
         blocked={blocked}
@@ -58,20 +62,22 @@ export function SaveBar({ form }: { form: WatchdogForm }) {
         >
           {t("watchdog.save.discard")}
         </Button>
-        <SaveButton
-          type="button"
-          className={PILL_ACTION}
-          label={t("watchdog.save.action")}
-          isSaving={form.isSaving}
-          saved={form.saved}
-          blockedReason={
-            form.isDirty && blocked
-              ? t("watchdog.save.blockedIn", { fields: nameList })
-              : null
-          }
-          disabled={!form.isDirty || form.isSaving}
-          onClick={handleSave}
-        />
+        <span className="contents" onClickCapture={jumpToBlocked}>
+          <SaveButton
+            type="button"
+            className={PILL_ACTION}
+            label={t("watchdog.save.action")}
+            isSaving={form.isSaving}
+            saved={form.saved}
+            blockedReason={
+              form.isDirty && blocked
+                ? t("watchdog.save.blockedIn", { fields: nameList })
+                : null
+            }
+            disabled={!form.isDirty || form.isSaving}
+            onClick={handleSave}
+          />
+        </span>
       </div>
     </div>
   );
@@ -93,7 +99,7 @@ function SaveStatus({
 
   if (isDirty && blocked) {
     return (
-      <p className={cn(SAVEBAR.STATUS, "text-destructive-on-surface min-w-0")}>
+      <p role="status" className={cn(SAVEBAR.STATUS, "text-destructive-on-surface min-w-0")}>
         <AlertCircleIcon className="size-3.5 flex-none" aria-hidden />
         <span className="truncate font-medium">
           {t("watchdog.save.blockedIn", { fields: nameList })}
@@ -103,7 +109,7 @@ function SaveStatus({
   }
   if (isDirty) {
     return (
-      <p className={cn(SAVEBAR.STATUS, "min-w-0")}>
+      <p role="status" className={cn(SAVEBAR.STATUS, "min-w-0")}>
         <span className={SAVEBAR.PULSE} aria-hidden />
         <span className="text-on-surface truncate font-medium">
           {t("watchdog.save.dirty")}
@@ -113,14 +119,14 @@ function SaveStatus({
   }
   if (saved) {
     return (
-      <p className={cn(SAVEBAR.STATUS, "text-success-on-surface min-w-0")}>
+      <p role="status" className={cn(SAVEBAR.STATUS, "text-success-on-surface min-w-0")}>
         <CheckCircle2Icon className="size-3.5 flex-none" aria-hidden />
         <span className="truncate font-medium">{t("watchdog.save.saved")}</span>
       </p>
     );
   }
   return (
-    <p className={cn(SAVEBAR.STATUS, "min-w-0")}>
+    <p role="status" className={cn(SAVEBAR.STATUS, "min-w-0")}>
       <span className="truncate">{t("watchdog.save.clean")}</span>
     </p>
   );

@@ -86,7 +86,9 @@ export function LadderCard({
       3: form.tier3Enabled,
       4: form.tier4Enabled,
     },
+    masterEnabled: form.isEnabled,
     backupSlot: form.backupSimSlot,
+    dirtyTiers: form.tierDirty,
     runningTier,
   });
 
@@ -107,7 +109,12 @@ export function LadderCard({
           )}
         >
           <div className={SWITCH_ROW.TEXT}>
-            <p className={SWITCH_ROW.TITLE}>{t("watchdog.master.title")}</p>
+            <p className={SWITCH_ROW.TITLE}>
+              <span className="min-w-0">{t("watchdog.master.title")}</span>
+              {form.masterDirty ? (
+                <UnsavedMarker onTonal={form.isEnabled} />
+              ) : null}
+            </p>
             <p className={SWITCH_ROW.DESC}>{t("watchdog.master.description")}</p>
           </div>
           <Switch
@@ -185,10 +192,16 @@ function Rung({
           >
             {rung.command}
           </Tag>
+          {rung.dirty ? <UnsavedMarker onTonal={running} /> : null}
         </div>
 
+        {/* A rung's own field carries the same label + hint + error a Detection
+            field does — the blocked save bar names it, so it must be findable. */}
         {rung.tier === 3 && rung.enabled ? (
-          <div className={RUNG.FIELD_SLOT}>
+          <div className={cn(RUNG.FIELD_SLOT, FIELD.ROW)}>
+            <label className={FIELD.LABEL} htmlFor={FIELD_ID.backupSim}>
+              {t("watchdog.ladder.tier3.slotLabel")}
+            </label>
             <Select
               value={form.backupSimSlot}
               onValueChange={form.setBackupSimSlot}
@@ -196,8 +209,12 @@ function Rung({
               <SelectTrigger
                 id={FIELD_ID.backupSim}
                 ref={registerField(FIELD_ID.backupSim)}
-                aria-label={t("watchdog.ladder.tier3.slotLabel")}
                 aria-invalid={form.errors.backupSim !== null}
+                aria-describedby={
+                  form.errors.backupSim
+                    ? `${FIELD_ID.backupSim}-hint ${FIELD_ID.backupSim}-error`
+                    : `${FIELD_ID.backupSim}-hint`
+                }
                 className={cn(
                   FIELD.SHELL_ON_CONTAINER,
                   FIELD.INVALID,
@@ -217,8 +234,11 @@ function Rung({
                 </SelectItem>
               </SelectContent>
             </Select>
+            <p id={`${FIELD_ID.backupSim}-hint`} className={RUNG.FIELD_HINT}>
+              {t("watchdog.ladder.tier3.slotHint")}
+            </p>
             {form.errors.backupSim ? (
-              <p className={cn(FIELD.ERROR, "pt-1.5")}>
+              <p id={`${FIELD_ID.backupSim}-error`} className={FIELD.ERROR}>
                 {t(form.errors.backupSim)}
               </p>
             ) : null}
@@ -226,7 +246,10 @@ function Rung({
         ) : null}
 
         {rung.tier === 4 && rung.enabled ? (
-          <div className={RUNG.FIELD_SLOT}>
+          <div className={cn(RUNG.FIELD_SLOT, FIELD.ROW)}>
+            <label className={FIELD.LABEL} htmlFor={FIELD_ID.maxReboots}>
+              {t("watchdog.ladder.tier4.capLabel")}
+            </label>
             <Input
               id={FIELD_ID.maxReboots}
               ref={registerField(FIELD_ID.maxReboots)}
@@ -236,8 +259,12 @@ function Rung({
               max={10}
               value={form.maxRebootsPerHour}
               onChange={(e) => form.setMaxRebootsPerHour(e.target.value)}
-              aria-label={t("watchdog.ladder.tier4.capLabel")}
               aria-invalid={form.errors.maxReboots !== null}
+              aria-describedby={
+                form.errors.maxReboots
+                  ? `${FIELD_ID.maxReboots}-hint ${FIELD_ID.maxReboots}-error`
+                  : `${FIELD_ID.maxReboots}-hint`
+              }
               className={cn(
                 FIELD.SHELL_ON_CONTAINER,
                 FIELD.INVALID,
@@ -245,8 +272,11 @@ function Rung({
                 FIELD.NARROW,
               )}
             />
+            <p id={`${FIELD_ID.maxReboots}-hint`} className={RUNG.FIELD_HINT}>
+              {t("watchdog.ladder.tier4.capHint")}
+            </p>
             {form.errors.maxReboots ? (
-              <p className={cn(FIELD.ERROR, "pt-1.5")}>
+              <p id={`${FIELD_ID.maxReboots}-error`} className={FIELD.ERROR}>
                 {t(form.errors.maxReboots)}
               </p>
             ) : null}
@@ -265,15 +295,31 @@ function Rung({
         ) : (
           <RungChip state={rung.state} />
         )}
+        {/* Not the rung's name alone: "Reboot the device, switch, on" reads as a
+            control that reboots now, rather than one that arms a policy. */}
         <Switch
           checked={rung.enabled}
           onCheckedChange={onToggle}
           disabled={masterOff}
-          aria-label={name}
+          aria-label={t("watchdog.ladder.tierAria", { name })}
           className={SWITCH_TARGET}
         />
       </div>
     </li>
+  );
+}
+
+/** The draft differs from what the device was told. Never a status chip. */
+function UnsavedMarker({ onTonal }: { onTonal: boolean }) {
+  const { t } = useTranslation("common");
+  return (
+    <span className={RUNG.DELTA}>
+      <span
+        aria-hidden
+        className={onTonal ? RUNG.DELTA_DOT_ON_TONAL : RUNG.DELTA_DOT}
+      />
+      {t("watchdog.ladder.unsaved")}
+    </span>
   );
 }
 

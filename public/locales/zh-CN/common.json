@@ -1332,7 +1332,8 @@
         "on": "开",
         "off": "关",
         "blocked": "需要插槽",
-        "running": "正在运行"
+        "running": "正在运行",
+        "inactive": "看门狗已关闭"
       },
       "tier1": {
         "name": "重新注册到网络",
@@ -1350,14 +1351,18 @@
         "consequence": "若未设置备用插槽，恢复流程将止步于此，不会进入重启步骤。",
         "slotLabel": "备用 SIM 卡插槽",
         "slotPlaceholder": "选择插槽",
-        "slot": "插槽 {{slot}}"
+        "slot": "插槽 {{slot}}",
+        "slotHint": "看门狗切换到的插槽。主 SIM 卡仍留在另一个插槽中。"
       },
       "tier4": {
         "name": "重启设备",
         "effect": "作为最后手段重启调制解调器。",
         "consequence": "此页面会消失约一分钟，等待调制解调器恢复。",
-        "capLabel": "每小时最大重启次数"
-      }
+        "capLabel": "每小时最大重启次数",
+        "capHint": "一小时内允许的重启次数。达到上限后，看门狗会自行关闭。"
+      },
+      "unsaved": "未保存",
+      "tierAria": "启用此恢复步骤：{{name}}"
     },
     "detection": {
       "title": "检测",
@@ -1405,12 +1410,13 @@
       },
       "empty": {
         "title": "尚无恢复活动",
-        "description": "看门狗处理断网时，恢复步骤和 SIM 卡故障转移会显示在这里。"
+        "description": "当看门狗处理断网时，恢复步骤和 SIM 卡切换会显示在这里。较早的活动会从调制解调器事件日志中滚出。"
       },
       "error": {
         "title": "无法加载恢复活动",
         "retry": "重试"
-      }
+      },
+      "refreshAria": "刷新恢复活动"
     },
     "save": {
       "discard": "放弃",

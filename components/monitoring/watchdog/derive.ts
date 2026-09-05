@@ -74,12 +74,13 @@ export const TIER_CONSEQUENCE_KEY: Record<TierIndex, string> = {
  * already reports it and a `primary-container` chip on a `primary-container`
  * row is the same surface twice.
  */
-export type RungState = "off" | "on" | "running" | "blocked";
+export type RungState = "off" | "on" | "running" | "blocked" | "inactive";
 
 export const RUNG_BADGE = {
   off: "muted",
   on: "success",
   blocked: "warning",
+  inactive: "muted",
 } satisfies Record<Exclude<RungState, "running">, BadgeVariant>;
 
 /** One glyph per rung state. Two states in this slot never share one. */
@@ -87,12 +88,14 @@ export const RUNG_GLYPH = {
   off: MinusCircleIcon,
   on: CheckCircle2Icon,
   blocked: TriangleAlertIcon,
+  inactive: PowerOffIcon,
 } satisfies Record<Exclude<RungState, "running">, LucideIcon>;
 
 export const RUNG_STATUS_KEY = {
   off: "watchdog.ladder.status.off",
   on: "watchdog.ladder.status.on",
   blocked: "watchdog.ladder.status.blocked",
+  inactive: "watchdog.ladder.status.inactive",
 } satisfies Record<Exclude<RungState, "running">, string>;
 
 export interface RungView {
@@ -100,30 +103,47 @@ export interface RungView {
   state: RungState;
   /** Draft truth: what the switch shows and what a save would write. */
   enabled: boolean;
+  /** The draft for this rung differs from saved truth, so it is not in force. */
+  dirty: boolean;
   command: string;
 }
 
 export interface RungInput {
   tiers: Record<TierIndex, boolean>;
+  /** Draft master switch. With it off no rung can run, whatever its own flag. */
+  masterEnabled: boolean;
   /** Draft backup slot. Tier 3 without one stops the ladder, so it blocks. */
   backupSlot: string;
+  /** Which rungs carry an unsaved edit — the switch or the rung's own field. */
+  dirtyTiers: Record<TierIndex, boolean>;
   /** Live truth: the tier the daemon is executing right now, 0 for none. */
   runningTier: number;
 }
 
 export function deriveRungs({
   tiers,
+  masterEnabled,
   backupSlot,
+  dirtyTiers,
   runningTier,
 }: RungInput): RungView[] {
   return TIERS.map((tier) => {
     const enabled = tiers[tier];
     let state: RungState;
+    // Live truth first: a rung the daemon is executing IS running, even if the
+    // draft above it has since been switched off.
     if (runningTier === tier) state = "running";
+    else if (!masterEnabled) state = "inactive";
     else if (!enabled) state = "off";
     else if (tier === 3 && !backupSlot) state = "blocked";
     else state = "on";
-    return { tier, state, enabled, command: TIER_COMMAND[tier] };
+    return {
+      tier,
+      state,
+      enabled,
+      dirty: dirtyTiers[tier],
+      command: TIER_COMMAND[tier],
+    };
   });
 }
 

@@ -38,13 +38,26 @@ export type WatchdogSavePayload = Omit<WatchdogSettings, "check_interval"> & {
 // for display through `status.json.sim_swap`; the watchdog endpoint no longer
 // owns a dismiss action.
 
+/**
+ * The save outcome, RETURNED rather than only stored. `error` state is set in
+ * the same tick, so a caller's closure still holds the pre-call value and the
+ * backend's reason was being dropped on every failure.
+ */
+export interface WatchdogSaveResult {
+  ok: boolean;
+  /** The backend's own sentence when it sent one. Already human-readable. */
+  message: string | null;
+  /** The rejected field's backend name, when the failure names one. */
+  field: string | null;
+}
+
 export interface UseWatchdogSettingsReturn {
   settings: WatchdogSettings | null;
   autoDisabled: boolean;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  saveSettings: (payload: WatchdogSavePayload) => Promise<boolean>;
+  saveSettings: (payload: WatchdogSavePayload) => Promise<WatchdogSaveResult>;
   revertSim: () => Promise<boolean>;
   refresh: () => void;
 }
@@ -122,7 +135,7 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   // Save settings
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    async (payload: WatchdogSavePayload): Promise<boolean> => {
+    async (payload: WatchdogSavePayload): Promise<WatchdogSaveResult> => {
       setError(null);
       setIsSaving(true);
 
@@ -138,22 +151,34 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         }
 
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, message: null, field: null };
 
         if (!json.success) {
-          setError(json.error || "Failed to save watchdog settings");
-          return false;
+          // `error` is a machine token ("invalid_field"); `reason` is the
+          // sentence the two-pass validator wrote. Prefer the sentence.
+          const message =
+            typeof json.reason === "string" && json.reason
+              ? json.reason
+              : typeof json.error === "string" && json.error
+                ? json.error
+                : null;
+          setError(message ?? "Failed to save watchdog settings");
+          return {
+            ok: false,
+            message,
+            field: typeof json.field === "string" ? json.field : null,
+          };
         }
 
         // Silent re-fetch to sync state
         await fetchSettings(true);
-        return true;
+        return { ok: true, message: null, field: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(
-          err instanceof Error ? err.message : "Failed to save settings"
-        );
-        return false;
+        if (!mountedRef.current) return { ok: false, message: null, field: null };
+        const message =
+          err instanceof Error ? err.message : "Failed to save settings";
+        setError(message);
+        return { ok: false, message, field: null };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);

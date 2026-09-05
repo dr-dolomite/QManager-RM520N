@@ -132,7 +132,7 @@ export const SWITCH_ROW = {
   TRANSITION:
     "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)] motion-reduce:transition-none",
   TEXT: "min-w-0 flex-1",
-  TITLE: "text-sm font-semibold",
+  TITLE: "flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold",
   DESC: "mt-0.5 text-xs opacity-85",
 } as const;
 
@@ -163,23 +163,39 @@ export const RUNG = {
   DISC_RUNNING: "bg-primary text-primary-foreground",
   BODY: "flex min-w-0 flex-1 flex-col gap-1",
   HEAD: "flex min-w-0 items-center gap-2",
-  NAME: "min-w-0 truncate text-sm font-semibold",
+  /** Wraps rather than truncates: half the name of a rung you are arming is worse than two lines. */
+  NAME: "min-w-0 text-sm font-semibold text-pretty",
   EFFECT: "text-[0.8125rem] leading-[1.4]",
   /** What this rung costs the user. Never a tooltip: it is part of the choice. */
   CONSEQUENCE: "text-xs leading-[1.45] opacity-85",
-  META: "flex flex-wrap items-center gap-1.5 pt-0.5",
-  /** Machine voice: the AT sequence the device actually issues. */
+  META: "flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5",
+  /**
+   * Machine voice: the AT sequence the device actually issues. `Tag` ships
+   * `whitespace-nowrap shrink-0`, which at 375px pushed tier 3's sequence
+   * 16px past the viewport — so both are overridden and the chip wraps.
+   */
   META_CHIP:
-    "h-4 shrink-0 px-1.5 py-0 font-mono text-[0.6875rem] leading-none",
+    "min-h-4 min-w-0 shrink px-1.5 py-0 font-mono text-[0.6875rem] leading-[1.45] whitespace-normal break-words justify-start text-left",
   META_CHIP_ON_TONAL: "border-current/45 text-current",
   /** "Running now" on the promoted rung: the container already reports state. */
   MARKER:
     "flex shrink-0 items-center gap-1 text-[0.6875rem] leading-none font-semibold",
   MARKER_DOT: "size-1.5 flex-none rounded-pill bg-current",
+  /**
+   * An unsaved edit on this rung. A marker, not a status: the chip beside it
+   * still reports the draft, and this says the device has not been told yet.
+   * Restated here rather than imported from the settings family (shapes.ts:5).
+   */
+  DELTA:
+    "flex shrink-0 items-center gap-1 text-[0.6875rem] leading-none font-semibold",
+  DELTA_DOT: "size-1.5 flex-none rounded-pill bg-primary",
+  DELTA_DOT_ON_TONAL: "size-1.5 flex-none rounded-pill bg-current",
   /** Stacked, not inline: a chip beside a switch eats a phone-width rung. */
   ACTIONS: "flex flex-none flex-col items-end gap-2.5 self-start",
   /** Tier 3's slot select and tier 4's cap live INSIDE their own rung. */
   FIELD_SLOT: "pt-1.5",
+  /** A rung's field hint takes the CONTAINER's ink, since a running rung is tonal. */
+  FIELD_HINT: "text-xs leading-[1.5] opacity-85",
 } as const;
 
 // -----------------------------------------------------------------------------

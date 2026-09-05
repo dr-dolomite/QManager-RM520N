@@ -1332,7 +1332,8 @@
         "on": "Attivo",
         "off": "Disattivo",
         "blocked": "Serve uno slot",
-        "running": "In esecuzione"
+        "running": "In esecuzione",
+        "inactive": "Watchdog disattivo"
       },
       "tier1": {
         "name": "Ripeti la registrazione alla rete",
@@ -1350,14 +1351,18 @@
         "consequence": "Senza uno slot di backup, la sequenza si ferma qui e non arriva mai al passaggio di riavvio.",
         "slotLabel": "Slot SIM di backup",
         "slotPlaceholder": "Scegli uno slot",
-        "slot": "Slot {{slot}}"
+        "slot": "Slot {{slot}}",
+        "slotHint": "Lo slot verso cui passa il watchdog. La SIM principale resta nell'altro."
       },
       "tier4": {
         "name": "Riavvia il dispositivo",
         "effect": "Riavvia il modem come ultima risorsa.",
         "consequence": "Questa pagina non sarà raggiungibile per circa un minuto, mentre il modem si riavvia.",
-        "capLabel": "Numero massimo di riavvii all'ora"
-      }
+        "capLabel": "Numero massimo di riavvii all'ora",
+        "capHint": "Quanti riavvii sono consentiti in un'ora. Al raggiungimento del limite il watchdog si disattiva da solo."
+      },
+      "unsaved": "Non salvato",
+      "tierAria": "Attiva questo passaggio di ripristino: {{name}}"
     },
     "detection": {
       "title": "Rilevamento",
@@ -1405,12 +1410,13 @@
       },
       "empty": {
         "title": "Nessuna attività di ripristino",
-        "description": "I passaggi di ripristino e i failover SIM compaiono qui quando il watchdog interviene su un'interruzione."
+        "description": "I passaggi di ripristino e i failover SIM compaiono qui quando il watchdog interviene su un'interruzione. Le attività più vecchie escono dal registro eventi del modem."
       },
       "error": {
         "title": "Impossibile caricare l'attività di ripristino",
         "retry": "Riprova"
-      }
+      },
+      "refreshAria": "Aggiorna attività di ripristino"
     },
     "save": {
       "discard": "Scarta",

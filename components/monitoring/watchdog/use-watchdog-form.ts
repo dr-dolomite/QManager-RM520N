@@ -7,7 +7,9 @@ import { useSaveFlash } from "@/components/ui/save-button";
 import type {
   WatchdogSettings,
   WatchdogSavePayload,
+  WatchdogSaveResult,
 } from "@/hooks/use-watchdog-settings";
+import type { TierIndex } from "./derive";
 
 // The backend save is ATOMIC — one POST carrying every field — so one hook owns
 // the whole draft, its validation, the blocking set and the focus map.
@@ -86,7 +88,10 @@ export interface WatchdogForm {
   errors: WatchdogFormErrors;
   hasValidationErrors: boolean;
   isDirty: boolean;
-  canSave: boolean;
+  /** The master switch carries an unsaved edit. */
+  masterDirty: boolean;
+  /** Per rung: the switch or the rung's own field carries an unsaved edit. */
+  tierDirty: Record<TierIndex, boolean>;
   /** Fields blocking the save, in reading order. Empty when nothing blocks. */
   blockedFields: (keyof WatchdogFormErrors)[];
 
@@ -105,8 +110,7 @@ export interface WatchdogForm {
 interface UseWatchdogFormArgs {
   settings: WatchdogSettings;
   isSaving: boolean;
-  error: string | null;
-  saveSettings: (payload: WatchdogSavePayload) => Promise<boolean>;
+  saveSettings: (payload: WatchdogSavePayload) => Promise<WatchdogSaveResult>;
 }
 
 // Value fingerprint of every field the form mirrors. A change means server
@@ -136,7 +140,6 @@ const isIntInRange = (raw: string, min: number, max: number) => {
 export function useWatchdogForm({
   settings,
   isSaving,
-  error,
   saveSettings,
 }: UseWatchdogFormArgs): WatchdogForm {
   const { t } = useTranslation("common");
@@ -216,6 +219,23 @@ export function useWatchdogForm({
     cooldown.trim() === "" ||
     (tier4Enabled && maxRebootsPerHour.trim() === "");
 
+  // Per-control dirty state. A chip that reads "On" for an unsaved draft is the
+  // page reporting a policy the device has not been told about, so each rung
+  // carries its own marker rather than relying on the save bar far below it.
+  const savedBackupSlot =
+    settings.backup_sim_slot != null ? String(settings.backup_sim_slot) : "";
+  const masterDirty = isEnabled !== settings.enabled;
+  const tierDirty: Record<TierIndex, boolean> = {
+    1: tier1Enabled !== settings.tier1_enabled,
+    2: tier2Enabled !== settings.tier2_enabled,
+    3:
+      tier3Enabled !== settings.tier3_enabled ||
+      backupSimSlot !== savedBackupSlot,
+    4:
+      tier4Enabled !== settings.tier4_enabled ||
+      maxRebootsPerHour !== String(settings.max_reboots_per_hour),
+  };
+
   const isDirty = useMemo(
     () =>
       isEnabled !== settings.enabled ||
@@ -245,9 +265,6 @@ export function useWatchdogForm({
       maxRebootsPerHour,
     ],
   );
-
-  const canSave =
-    !hasValidationErrors && !hasEmptyRequired && isDirty && !isSaving;
 
   // An empty required field is not a range error but still blocks, so the two
   // sets are merged here rather than in each consumer.
@@ -304,12 +321,16 @@ export function useWatchdogForm({
       max_reboots_per_hour: parseInt(maxRebootsPerHour || "3", 10),
     };
 
-    const ok = await saveSettings(payload);
-    if (ok) {
+    // The RESULT carries the backend's reason; the hook's `error` state is set
+    // in the same tick, so this closure would only ever see the previous value.
+    const result = await saveSettings(payload);
+    if (result.ok) {
       markSaved();
       toast.success(t("watchdog.save.toastOk"));
     } else {
-      toast.error(error || t("watchdog.save.toastFail"));
+      toast.error(t("watchdog.save.toastFail"), {
+        description: result.message ?? undefined,
+      });
     }
   }, [
     hasValidationErrors,
@@ -328,7 +349,6 @@ export function useWatchdogForm({
     maxRebootsPerHour,
     saveSettings,
     markSaved,
-    error,
     t,
   ]);
 
@@ -383,7 +403,8 @@ export function useWatchdogForm({
     errors,
     hasValidationErrors,
     isDirty,
-    canSave,
+    masterDirty,
+    tierDirty,
     blockedFields,
     registerField,
     focusFirstBlocked,

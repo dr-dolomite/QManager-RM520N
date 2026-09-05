@@ -48,9 +48,8 @@ export interface DetectionCardProps {
 }
 
 /**
- * Detection — the cadence half of the form. It is the HEIGHT DRIVER of the
- * `COLS` pair: three fixed-height fields plus a notice, with nothing that can
- * stretch, so it declares no fill region and Activity absorbs the slack.
+ * Detection — the cadence half of the form: three fixed-height fields over the
+ * one derived reading. A full-width band, not half of a pair (shapes.ts).
  */
 export function DetectionCard({ form, registerField }: DetectionCardProps) {
   const { t } = useTranslation("common");
@@ -79,7 +78,12 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
                 id={FIELD_ID.probeInterval}
                 ref={registerField(FIELD_ID.probeInterval)}
                 aria-invalid={form.errors.probeInterval !== null}
-                className={cn(FIELD.SHELL, FIELD.INVALID)}
+                aria-describedby={
+                  form.errors.probeInterval
+                    ? `${FIELD_ID.probeInterval}-hint ${FIELD_ID.probeInterval}-error`
+                    : `${FIELD_ID.probeInterval}-hint`
+                }
+                className={cn(FIELD.SHELL, FIELD.INVALID, FIELD.NARROW)}
               >
                 <SelectValue
                   placeholder={t("watchdog.detection.probe.placeholder")}
@@ -93,9 +97,13 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
                 ))}
               </SelectContent>
             </Select>
-            <p className={FIELD.HINT}>{t("watchdog.detection.probe.hint")}</p>
+            <p id={`${FIELD_ID.probeInterval}-hint`} className={FIELD.HINT}>
+              {t("watchdog.detection.probe.hint")}
+            </p>
             {form.errors.probeInterval ? (
-              <p className={FIELD.ERROR}>{t(form.errors.probeInterval)}</p>
+              <p id={`${FIELD_ID.probeInterval}-error`} className={FIELD.ERROR}>
+                {t(form.errors.probeInterval)}
+              </p>
             ) : null}
           </div>
 
@@ -113,13 +121,20 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
               value={form.failThreshold}
               onChange={(e) => form.setFailThreshold(e.target.value)}
               aria-invalid={form.errors.failThreshold !== null}
-              className={cn(FIELD.SHELL, FIELD.INVALID, FIELD.NUM)}
+              aria-describedby={
+                form.errors.failThreshold
+                  ? `${FIELD_ID.failThreshold}-hint ${FIELD_ID.failThreshold}-error`
+                  : `${FIELD_ID.failThreshold}-hint`
+              }
+              className={cn(FIELD.SHELL, FIELD.INVALID, FIELD.NUM, FIELD.NARROW)}
             />
-            <p className={FIELD.HINT}>
+            <p id={`${FIELD_ID.failThreshold}-hint`} className={FIELD.HINT}>
               {t("watchdog.detection.threshold.hint")}
             </p>
             {form.errors.failThreshold ? (
-              <p className={FIELD.ERROR}>{t(form.errors.failThreshold)}</p>
+              <p id={`${FIELD_ID.failThreshold}-error`} className={FIELD.ERROR}>
+                {t(form.errors.failThreshold)}
+              </p>
             ) : null}
           </div>
 
@@ -137,17 +152,26 @@ export function DetectionCard({ form, registerField }: DetectionCardProps) {
               value={form.cooldown}
               onChange={(e) => form.setCooldown(e.target.value)}
               aria-invalid={form.errors.cooldown !== null}
-              className={cn(FIELD.SHELL, FIELD.INVALID, FIELD.NUM)}
+              aria-describedby={
+                form.errors.cooldown
+                  ? `${FIELD_ID.cooldown}-hint ${FIELD_ID.cooldown}-error`
+                  : `${FIELD_ID.cooldown}-hint`
+              }
+              className={cn(FIELD.SHELL, FIELD.INVALID, FIELD.NUM, FIELD.NARROW)}
             />
-            <p className={FIELD.HINT}>{t("watchdog.detection.cooldown.hint")}</p>
+            <p id={`${FIELD_ID.cooldown}-hint`} className={FIELD.HINT}>
+              {t("watchdog.detection.cooldown.hint")}
+            </p>
             {form.errors.cooldown ? (
-              <p className={FIELD.ERROR}>{t(form.errors.cooldown)}</p>
+              <p id={`${FIELD_ID.cooldown}-error`} className={FIELD.ERROR}>
+                {t(form.errors.cooldown)}
+              </p>
             ) : null}
           </div>
         </div>
 
         {/* The one derived reading on the form: probe cadence x threshold. */}
-        <p className={cn(NOTICE, NOTICE_TONE.info)}>
+        <p role="status" className={cn(NOTICE, NOTICE_TONE.info)}>
           <InfoIcon className={NOTICE_GLYPH} aria-hidden />
           {/* The figure inside this sentence retargets on every keystroke. */}
           <span className={NOTICE_NUM}>
@@ -176,7 +200,7 @@ export function DetectionCardSkeleton() {
           {[0, 1, 2].map((i) => (
             <div key={i} className={FIELD.ROW}>
               <Skeleton className={cn(SKELETON.LINE, "h-3.5 w-28")} />
-              <Skeleton className={SKELETON.FIELD} />
+              <Skeleton className={cn(SKELETON.FIELD, FIELD.NARROW)} />
               <Skeleton className={cn(SKELETON.LINE, "h-3 w-44")} />
             </div>
           ))}

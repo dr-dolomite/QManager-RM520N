@@ -154,8 +154,17 @@ export function RecoveryActivityCard() {
     const unresolved = computeUnresolved(events);
     const out: DayGroup[] = [];
 
-    events.forEach((event, index) => {
-      if (!WATCHDOG_TYPES.has(event.type)) return;
+    // The hook only REVERSES the file, and file order is not timestamp order on
+    // this platform: with no RTC the modem boots at Jan 1970, so rows appended
+    // after a SIM-less reboot pre-date the ones already in the ring. Sort, or
+    // the card contradicts its own "newest first" description. Indices are
+    // carried through because `unresolved` keys into the unfiltered array.
+    const kept = events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => WATCHDOG_TYPES.has(event.type))
+      .sort((a, b) => b.event.timestamp - a.event.timestamp);
+
+    kept.forEach(({ event, index }) => {
       const ms = event.timestamp * 1000;
       const isUnresolved = unresolved.has(index);
       const presentation = presentEvent(
@@ -188,11 +197,19 @@ export function RecoveryActivityCard() {
   }, [events, nowSec, t, i18n.language, timeAgo, dayLabel]);
 
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  // One counter across every day block: assuming three rows per group ran the
+  // cascade backwards the moment a day held more than three.
+  const order = React.useMemo(() => {
+    const map = new Map<string, number>();
+    let i = 0;
+    for (const g of groups) for (const r of g.rows) map.set(r.key, i++);
+    return map;
+  }, [groups]);
   const unreadable = !isLoading && error !== null && total === 0;
 
   return (
     <Card className={CARD_SHELL}>
-      <CardHeader>
+      <CardHeader className={CARD_PAD}>
         <CardTitle className={CARD_TITLE}>
           {t("watchdog.activity.title")}
         </CardTitle>
@@ -205,6 +222,7 @@ export function RecoveryActivityCard() {
             variant="ghost"
             onClick={() => refresh()}
             disabled={isLoading || isRefreshing}
+            aria-label={t("watchdog.activity.refreshAria")}
             className={cn(
               PILL_ACTION,
               "bg-surface-container text-on-surface-variant hover:bg-surface-container-high",
@@ -246,16 +264,16 @@ export function RecoveryActivityCard() {
           />
         ) : (
           <div className={LOG_STACK}>
-            {groups.map((group, gi) => (
+            {groups.map((group) => (
               <div key={group.key} className={LOG}>
                 <div className={DAY.ROOT}>
                   <span className={DAY.LABEL}>{group.label}</span>
                   <span aria-hidden className={DAY.RULE} />
                 </div>
-                {group.rows.map((row, ri) => (
+                {group.rows.map((row) => (
                   <motion.div
                     key={row.key}
-                    custom={gi * 3 + ri}
+                    custom={order.get(row.key) ?? 0}
                     variants={rowItem}
                     initial="hidden"
                     animate="visible"
@@ -358,7 +376,7 @@ function ActivityCondition({
 }) {
   const skin = CONDITION_TONE[tone];
   return (
-    <div className={cn(CONDITION.ROOT, skin.ROOT)}>
+    <div role="status" className={cn(CONDITION.ROOT, skin.ROOT)}>
       <span aria-hidden className={cn(CONDITION.DISC, skin.DISC)}>
         <Glyph className={CONDITION.GLYPH} />
       </span>

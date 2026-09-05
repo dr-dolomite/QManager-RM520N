@@ -1268,7 +1268,7 @@
       "absent": "Not reported",
       "checksCaption": "Before recovery starts",
       "cooldownCaption": "Rechecking in {{seconds}}s",
-      "recoveriesLast": "Last {{tier}}, {{ago}}",
+      "recoveriesLast": "Last: {{tier}}, {{ago}}",
       "recoveriesNone": "None yet",
       "rebootsCaption": "Safety cap, counted since the watchdog started",
       "rebootsOff": "The reboot step is off, so the cap cannot fire"
@@ -1332,7 +1332,8 @@
         "on": "On",
         "off": "Off",
         "blocked": "Needs a slot",
-        "running": "Running now"
+        "running": "Running now",
+        "inactive": "Watchdog off"
       },
       "tier1": {
         "name": "Re-register to the network",
@@ -1350,14 +1351,18 @@
         "consequence": "Without a backup slot the ladder stops here and never reaches the reboot step.",
         "slotLabel": "Backup SIM slot",
         "slotPlaceholder": "Choose a slot",
-        "slot": "Slot {{slot}}"
+        "slot": "Slot {{slot}}",
+        "slotHint": "The slot the watchdog switches to. Your primary SIM stays in the other one."
       },
       "tier4": {
         "name": "Reboot the device",
         "effect": "Restarts the modem as a last resort.",
         "consequence": "This page goes away for about a minute while the modem comes back.",
-        "capLabel": "Maximum reboots per hour"
-      }
+        "capLabel": "Maximum reboots per hour",
+        "capHint": "How many reboots are allowed in an hour. At the cap the watchdog switches itself off."
+      },
+      "unsaved": "Unsaved",
+      "tierAria": "Arm this recovery step: {{name}}"
     },
     "detection": {
       "title": "Detection",
@@ -1405,12 +1410,13 @@
       },
       "empty": {
         "title": "No recovery activity yet",
-        "description": "Recovery steps and SIM failovers appear here when the watchdog acts on an outage."
+        "description": "Recovery steps and SIM failovers appear here when the watchdog acts on an outage. Older activity ages out of the modem event log."
       },
       "error": {
         "title": "Could not load recovery activity",
         "retry": "Try again"
-      }
+      },
+      "refreshAria": "Refresh recovery activity"
     },
     "save": {
       "discard": "Discard",

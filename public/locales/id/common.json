@@ -1332,7 +1332,8 @@
         "on": "Aktif",
         "off": "Nonaktif",
         "blocked": "Perlu slot",
-        "running": "Sedang berjalan"
+        "running": "Sedang berjalan",
+        "inactive": "Watchdog mati"
       },
       "tier1": {
         "name": "Daftar ulang ke jaringan",
@@ -1350,14 +1351,18 @@
         "consequence": "Tanpa slot cadangan, urutan ini berhenti di sini dan tidak akan sampai ke langkah reboot.",
         "slotLabel": "Slot SIM cadangan",
         "slotPlaceholder": "Pilih slot",
-        "slot": "Slot {{slot}}"
+        "slot": "Slot {{slot}}",
+        "slotHint": "Slot yang dituju watchdog. SIM utama Anda tetap berada di slot satunya."
       },
       "tier4": {
         "name": "Reboot Perangkat",
         "effect": "Me-reboot modem sebagai upaya terakhir.",
         "consequence": "Halaman ini akan hilang sekitar satu menit selama modem kembali aktif.",
-        "capLabel": "Maksimum reboot per jam"
-      }
+        "capLabel": "Maksimum reboot per jam",
+        "capHint": "Berapa kali reboot yang diizinkan dalam satu jam. Saat batas tercapai, watchdog mematikan dirinya sendiri."
+      },
+      "unsaved": "Belum disimpan",
+      "tierAria": "Aktifkan langkah pemulihan ini: {{name}}"
     },
     "detection": {
       "title": "Deteksi",
@@ -1405,12 +1410,13 @@
       },
       "empty": {
         "title": "Belum ada aktivitas pemulihan",
-        "description": "Langkah pemulihan dan failover SIM akan muncul di sini saat watchdog menangani gangguan."
+        "description": "Langkah pemulihan dan failover SIM muncul di sini saat watchdog menangani gangguan. Aktivitas lama akan tergeser keluar dari log peristiwa modem."
       },
       "error": {
         "title": "Tidak dapat memuat aktivitas pemulihan",
         "retry": "Coba lagi"
-      }
+      },
+      "refreshAria": "Muat ulang aktivitas pemulihan"
     },
     "save": {
       "discard": "Buang",
