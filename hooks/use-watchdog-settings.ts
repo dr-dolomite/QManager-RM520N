@@ -23,8 +23,11 @@ export interface WatchdogSettings {
   max_reboots_per_hour: number;
 }
 
-export type WatchdogSavePayload = WatchdogSettings & {
+export type WatchdogSavePayload = Omit<WatchdogSettings, "check_interval"> & {
   action: "save_settings";
+  /** Optional on the wire. The CGI writes the key only when it is present, so
+   *  omitting it preserves the server's value instead of clobbering it. */
+  check_interval?: number;
 };
 
 export interface WatchdogLiveStatus {

@@ -39,6 +39,7 @@ import { rowCascadeDelay, transitionStandard } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { NetworkEvent, NetworkEventType } from "@/types/modem-status";
 
+import { useTimeAgo } from "./derive";
 import {
   ABSOLUTE_INK,
   CARD_DESC,
@@ -131,25 +132,7 @@ export function RecoveryActivityCard() {
   const { events, isLoading, isRefreshing, error, refresh } =
     useRecentActivities({ maxEvents: 50 });
   const nowSec = useNowSec();
-
-  const timeAgo = React.useCallback(
-    (sec: number): string => {
-      const diff = Math.max(0, nowSec - sec);
-      if (diff < 60) return t("watchdog.activity.time.just_now");
-      if (diff < 3600)
-        return t("watchdog.activity.time.minutes", {
-          count: Math.floor(diff / 60),
-        });
-      if (diff < DAY_SEC)
-        return t("watchdog.activity.time.hours", {
-          count: Math.floor(diff / 3600),
-        });
-      return t("watchdog.activity.time.days", {
-        count: Math.floor(diff / DAY_SEC),
-      });
-    },
-    [nowSec, t],
-  );
+  const timeAgo = useTimeAgo();
 
   const dayLabel = React.useCallback(
     (ms: number): string => {

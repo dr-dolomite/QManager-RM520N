@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircleIcon,
   CheckCircle2Icon,
@@ -376,6 +377,49 @@ export function deriveBand({
       glyph: PowerOffIcon,
     },
   ];
+}
+
+// -----------------------------------------------------------------------------
+// Relative time
+// -----------------------------------------------------------------------------
+
+const DAY_SEC = 86_400;
+
+/**
+ * One relative-time formatter for the whole surface, so the band's "last
+ * recovery" and the log's rows cannot drift apart. The shared
+ * `formatTimeAgo` in types/modem-status.ts is English-only.
+ */
+export function useTimeAgo(): (epochSec: number) => string {
+  const { t } = useTranslation("common");
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setNowSec(Math.floor(Date.now() / 1000)),
+      30_000,
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  return useCallback(
+    (epochSec: number) => {
+      const diff = Math.max(0, nowSec - epochSec);
+      if (diff < 60) return t("watchdog.activity.time.just_now");
+      if (diff < 3600)
+        return t("watchdog.activity.time.minutes", {
+          count: Math.floor(diff / 60),
+        });
+      if (diff < DAY_SEC)
+        return t("watchdog.activity.time.hours", {
+          count: Math.floor(diff / 3600),
+        });
+      return t("watchdog.activity.time.days", {
+        count: Math.floor(diff / DAY_SEC),
+      });
+    },
+    [nowSec, t],
+  );
 }
 
 // -----------------------------------------------------------------------------

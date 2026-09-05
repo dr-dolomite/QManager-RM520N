@@ -8,22 +8,8 @@ import type {
   WatchdogSavePayload,
 } from "@/hooks/use-watchdog-settings";
 
-// -----------------------------------------------------------------------------
-// useWatchdogForm — the single form-state coordinator for the watchdog page.
-// -----------------------------------------------------------------------------
-// The page splits the surface into a status hero + a tabbed settings card, but
-// the backend save is ATOMIC: one `save_settings` POST carrying every field. So
-// one hook owns the whole form — every value, every validation rule, the dirty
-// check, the submit, and the discard — and each card consumes the slice it
-// renders.
-//
-// The form seeds from `settings` and re-seeds itself in place whenever a value
-// fingerprint of `settings` changes, via a render-phase sync (NOT a
-// setState-in-effect, which the project's React-Compiler lint rules forbid).
-// The page used to force that re-seed by keying the consuming subtree on the
-// same signature, but a remount also destroyed the save flash, the active
-// settings tab, the recovery table's pagination, and the sibling cards' fetch
-// state — so the sync lives here now and the page renders unkeyed.
+// The backend save is ATOMIC — one POST carrying every field — so one hook owns
+// the whole draft, its validation, the blocking set and the focus map.
 
 /** Probe cadence options (seconds) offered by the Probe Interval Select. */
 export const PROBE_INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30] as const;
@@ -155,10 +141,6 @@ export function useWatchdogForm({
   const { saved, markSaved } = useSaveFlash();
 
   const [isEnabled, setIsEnabled] = useState(settings.enabled);
-  // check_interval is the watchdog's internal sampling loop. It no longer has a
-  // user-facing control (probe_interval is the meaningful cadence now), but we
-  // still round-trip its saved value through the atomic save so it's preserved.
-  const [checkInterval] = useState(String(settings.check_interval));
   const [probeInterval, setProbeInterval] = useState(
     String(settings.probe_interval),
   );
@@ -310,8 +292,6 @@ export function useWatchdogForm({
       enabled: isEnabled,
       fail_threshold: parseInt(failThreshold, 10),
       probe_interval: parseInt(probeInterval, 10),
-      // Preserved untouched: no user-facing control, round-tripped at its saved value.
-      check_interval: parseInt(checkInterval, 10),
       cooldown: parseInt(cooldown, 10),
       tier1_enabled: tier1Enabled,
       tier2_enabled: tier2Enabled,
@@ -336,7 +316,6 @@ export function useWatchdogForm({
     isEnabled,
     failThreshold,
     probeInterval,
-    checkInterval,
     cooldown,
     tier1Enabled,
     tier2Enabled,
@@ -350,7 +329,6 @@ export function useWatchdogForm({
   ]);
 
   // Discard resets every field to the server-truth in `settings`.
-  // check_interval has no control, so it never diverges — nothing to reset.
   const discard = useCallback(() => {
     setIsEnabled(settings.enabled);
     setProbeInterval(String(settings.probe_interval));
