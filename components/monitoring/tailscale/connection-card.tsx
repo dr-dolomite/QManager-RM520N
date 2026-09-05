@@ -498,7 +498,7 @@ export function ConnectionCardSkeleton() {
       <CardContent className={cn(CARD_PAD, CARD_BODY)} aria-hidden>
         <Skeleton className={SKELETON.SWITCH} />
         <Skeleton className={SKELETON.SWITCH} />
-        <Skeleton className="h-[2.625rem] w-40 rounded-pill" />
+        <Skeleton className={cn(SKELETON.ACTION, "w-40")} />
       </CardContent>
     </Card>
   );

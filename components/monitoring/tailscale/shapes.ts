@@ -26,8 +26,11 @@ export const PILL_REST =
 /** The lucide glyph inside a pill. */
 export const PILL_GLYPH = "size-4";
 
+/** 42px, extracted so the rail's skeleton mirrors the action it stands in for. */
+const ACTION_HEIGHT = "h-[2.625rem]";
+
 /** A 42px primary or secondary action in a card's rail. */
-export const ACTION = "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
+export const ACTION = `${ACTION_HEIGHT} gap-2 rounded-pill px-5 text-sm font-semibold`;
 
 /** The control rail. Wraps rather than scrolling. */
 export const RAIL = "flex flex-wrap items-center gap-2.5";
@@ -209,6 +212,8 @@ export const SWITCH_ROW = {
 export const TABLE = {
   /** PINNED at 44px so the skeleton mirrors the loaded row exactly. */
   ROW_HEIGHT: "h-11",
+  /** PINNED at 36px, for the same reason the row height is. */
+  HEAD_HEIGHT: "h-9",
   HEAD: "text-on-surface-variant h-9 px-3 text-[0.6875rem] font-semibold tracking-[0.02em] uppercase",
   ROW: "border-border border-b last:border-b-0",
   CELL: "px-3 text-sm",
@@ -350,6 +355,8 @@ export const SKELETON = {
   TILE: `${TILE.HEIGHT} rounded-tile`,
   METRIC: `${METRIC_HEIGHT} rounded-pill`,
   SWITCH: `${SWITCH_MIN_HEIGHT} rounded-tile`,
+  ACTION: `${ACTION_HEIGHT} rounded-pill`,
+  HEAD: `${TABLE.HEAD_HEIGHT} rounded-inline`,
   ROW: `${TABLE.ROW_HEIGHT} rounded-inline`,
   /** A text placeholder takes the small role radius, not the row's. */
   LINE: "rounded-inline",

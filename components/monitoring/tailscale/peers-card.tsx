@@ -288,7 +288,7 @@ export function PeersCard({
 function PeersSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-1.5" aria-hidden>
-      <Skeleton className={cn("h-9 rounded-inline", SKELETON.LINE)} />
+      <Skeleton className={SKELETON.HEAD} />
       {Array.from({ length: rows }).map((_, i) => (
         <Skeleton key={i} className={SKELETON.ROW} />
       ))}
