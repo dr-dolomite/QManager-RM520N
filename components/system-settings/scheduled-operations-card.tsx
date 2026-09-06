@@ -185,11 +185,13 @@ const ScheduledRebootCard = ({
         // reporting its result, so narrate nothing rather than claim a failure.
         if (!isMountedRef.current) return;
         if (!result.success) {
-          // The rejected write left the rail disagreeing with the band, so
-          // revert both to the server's last-known values.
-          const server = latestRef.current.server;
-          setRebootDays(server?.days ?? []);
-          setRebootTime(server?.time ?? "04:00");
+          // Revert to the server's values so the rail stops disagreeing with the
+          // band, but not when a newer edit is already queued to replace them.
+          if (saveSeqRef.current === seq) {
+            const server = latestRef.current.server;
+            setRebootDays(server?.days ?? []);
+            setRebootTime(server?.time ?? "04:00");
+          }
           rejectionToast(`${K}.toast.save_failed`, result.rejection, result.rejectionDetail);
           return;
         }
