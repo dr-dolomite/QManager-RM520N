@@ -1,0 +1,179 @@
+{
+  "page": {
+    "title": "Controllo integrità del sistema",
+    "description": "Verifica ogni sottosistema QManager su questo dispositivo — binari, permessi, trasporto AT, servizi e configurazione — poi scarica un pacchetto diagnostico redatto da condividere con il supporto."
+  },
+  "actions": {
+    "run": "Esegui diagnostica",
+    "running": "Esecuzione…",
+    "download": "Scarica pacchetto",
+    "downloading": "Scaricamento…",
+    "clear": "Cancella",
+    "clearing": "Cancellazione…",
+    "retry": "Riprova"
+  },
+  "clear_dialog": {
+    "title": "Cancellare i risultati della diagnostica?",
+    "description": "Questa operazione elimina l'ultima esecuzione, tutti i file di output per singolo test e il pacchetto diagnostico scaricabile dal dispositivo. La pagina torna al suo stato vuoto.",
+    "cancel": "Annulla",
+    "confirm": "Cancella risultati"
+  },
+  "band": {
+    "head": "Ultima diagnostica",
+    "unreachable": "Il dispositivo non ha risposto",
+    "stale": "Mostra l'ultima lettura",
+    "result": {
+      "eyebrow": "Risultato",
+      "unreachable": "Non raggiungibile",
+      "none": "Non eseguita",
+      "running": "{{done}} / {{total}}",
+      "failed_one": "{{count}} errore",
+      "failed_other": "{{count}} errori",
+      "warned_one": "{{count}} avviso",
+      "warned_other": "{{count}} avvisi",
+      "passed": "Tutto superato",
+      "errored": "Esecuzione non riuscita",
+      "caption_errored": "Interrotto prima di finire",
+      "caption_unreachable": "Il dispositivo non risponde",
+      "caption_none": "Non ancora controllato",
+      "caption_running": "Avviata {{when}}",
+      "caption_finished": "Completata {{when}}",
+      "caption_warnings_one": "{{count}} avviso · completata {{when}}",
+      "caption_warnings_other": "{{count}} avvisi · completata {{when}}"
+    },
+    "checks": {
+      "eyebrow": "Controlli",
+      "value": "{{passed}} / {{total}} superati",
+      "caption_one": "{{count}} sottosistema",
+      "caption_other": "{{count}} sottosistemi",
+      "caption_skipped_one": "{{count}} ignorato · {{subsystems}}",
+      "caption_skipped_other": "{{count}} ignorati · {{subsystems}}",
+      "caption_none": "Ancora nessuna misurazione"
+    },
+    "bundle": {
+      "eyebrow": "Pacchetto diagnostico",
+      "value_ready": "Pronto",
+      "value_building": "Creazione…",
+      "caption_ready": "Pronto per il download",
+      "caption_building": "Creato al termine dell'esecuzione",
+      "caption_absent": "Creato dopo un'esecuzione",
+      "caption_unavailable": "Nessun pacchetto prodotto"
+    }
+  },
+  "status": {
+    "pass": "Superato",
+    "fail": "Non superato",
+    "warn": "Avviso",
+    "skip": "Ignorato",
+    "running": "In corso",
+    "pending": "In attesa"
+  },
+  "attention": {
+    "title": "Richiede attenzione",
+    "description": "Tutti i controlli che sono falliti o hanno generato un avviso nell'ultima esecuzione. Inizia da qui."
+  },
+  "all_checks": {
+    "title": "Tutti i controlli",
+    "description": "Ogni controllo eseguito dalla diagnostica, raggruppato per il sottosistema a cui appartiene."
+  },
+  "tally": {
+    "failed_one": "{{count}} errore",
+    "failed_other": "{{count}} errori",
+    "warnings_one": "{{count}} avviso",
+    "warnings_other": "{{count}} avvisi",
+    "passed_one": "{{count}} superato",
+    "passed_other": "{{count}} superati"
+  },
+  "states": {
+    "empty": {
+      "title": "Non è stata ancora eseguita alcuna diagnostica",
+      "description": "QManager analizza ogni sottosistema su questo dispositivo e raggruppa i risultati in un pacchetto diagnostico redatto che puoi inviare al supporto.",
+      "checks_one": "{{count}} controllo",
+      "checks_other": "{{count}} controlli"
+    },
+    "running": {
+      "title": "Ancora nessun errore",
+      "description": "La diagnostica sta ancora eseguendo i controlli. Tutto ciò che fallisce o genera un avviso comparirà qui."
+    },
+    "incomplete": {
+      "title": "Questa diagnostica non è stata completata",
+      "description": "Il processo si è interrotto prima che tutti i controlli riportassero un esito, quindi quelli che non ha raggiunto non hanno alcun risultato. Nulla qui dice che questo dispositivo sia integro: esegui di nuovo la diagnostica."
+    },
+    "all_clear": {
+      "title_one": "{{count}} controllo superato",
+      "title_other": "Tutti i {{count}} controlli superati",
+      "description": "Niente è fallito e nessun avviso è stato generato. Ogni sottosistema ha risposto come previsto."
+    },
+    "all_clear_skipped": {
+      "title_one": "{{count}} controllo eseguito e superato",
+      "title_other": "Tutti i {{count}} controlli eseguiti sono stati superati",
+      "description_one": "Niente è fallito e nessun avviso è stato generato. {{count}} controllo è stato ignorato, quindi questa esecuzione non dice nulla al riguardo.",
+      "description_other": "Niente è fallito e nessun avviso è stato generato. {{count}} controlli sono stati ignorati, quindi questa esecuzione non dice nulla al loro riguardo."
+    },
+    "error": {
+      "title": "Impossibile leggere la diagnostica",
+      "description": "QManager ha chiesto al dispositivo l'ultima esecuzione del controllo di integrità, ma non ha ricevuto risposta."
+    }
+  },
+  "notice": {
+    "run_error": "Il processo ha segnalato un problema durante l'esecuzione di questa diagnostica."
+  },
+  "loading": {
+    "status": "Caricamento dei risultati della diagnostica",
+    "output": "Caricamento…"
+  },
+  "output": {
+    "show": "Mostra l'output acquisito di {{label}}",
+    "hide": "Nascondi l'output acquisito di {{label}}",
+    "truncated": "Vengono mostrati solo gli ultimi 4 KB dell'output acquisito.",
+    "empty": "(nessun output acquisito)",
+    "failed": "Impossibile caricare l'output: {{error}}"
+  },
+  "time": {
+    "just_now": "Proprio adesso",
+    "seconds": "{{count}}s fa",
+    "minutes": "{{count}}m fa",
+    "hours": "{{count}}h fa",
+    "days": "{{count}}d fa"
+  },
+  "toast": {
+    "run_failed": "Impossibile avviare la diagnostica",
+    "cleared": "Risultati della diagnostica cancellati",
+    "clear_failed": "Impossibile cancellare i risultati",
+    "download_failed": "Impossibile scaricare il pacchetto diagnostico"
+  },
+  "category": {
+    "binaries": {
+      "label": "Binari e versioni",
+      "description": "Controlli sui binari richiesti e sulle versioni"
+    },
+    "permissions": {
+      "label": "Filesystem e permessi",
+      "description": "Proprietà, modalità e appartenenza ai gruppi del filesystem"
+    },
+    "at_transport": {
+      "label": "Trasporto AT",
+      "description": "Controlli di andata e ritorno qcmd / atcli_smd11 verso il modem"
+    },
+    "sms": {
+      "label": "Sottosistema SMS",
+      "description": "Prontezza di sms_tool e presenza della SIM"
+    },
+    "sudoers": {
+      "label": "Sudoers",
+      "description": "Visibilità dell'helper sudoers per www-data"
+    },
+    "services": {
+      "label": "Servizi Systemd",
+      "description": "Presenza, abilitazione e stato attivo delle unit Systemd"
+    },
+    "network": {
+      "label": "Rete",
+      "description": "DNS, IPv4, percorso dati del modem, lighttpd, firewall"
+    },
+    "configuration": {
+      "label": "Configurazione",
+      "description": "File di configurazione di QManager e aggiornamento della cache del poller"
+    }
+  }
+}

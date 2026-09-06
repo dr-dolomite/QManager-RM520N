@@ -1,0 +1,179 @@
+{
+  "page": {
+    "title": "System Health Check",
+    "description": "Probe every QManager subsystem on this device — binaries, permissions, AT transport, services and configuration — then download a redacted bundle to share with support."
+  },
+  "actions": {
+    "run": "Run diagnostics",
+    "running": "Running…",
+    "download": "Download bundle",
+    "downloading": "Downloading…",
+    "clear": "Clear",
+    "clearing": "Clearing…",
+    "retry": "Retry"
+  },
+  "clear_dialog": {
+    "title": "Clear diagnostic results?",
+    "description": "This deletes the last run, every per-test output file, and the downloadable bundle from the device. The page returns to its empty state.",
+    "cancel": "Cancel",
+    "confirm": "Clear results"
+  },
+  "band": {
+    "head": "Last diagnostic",
+    "unreachable": "Device didn't answer",
+    "stale": "Showing the last read",
+    "result": {
+      "eyebrow": "Result",
+      "unreachable": "Unreachable",
+      "none": "Not run",
+      "running": "{{done}} / {{total}}",
+      "failed_one": "{{count}} failed",
+      "failed_other": "{{count}} failed",
+      "warned_one": "{{count}} warning",
+      "warned_other": "{{count}} warnings",
+      "passed": "All passed",
+      "errored": "Run failed",
+      "caption_errored": "Runner stopped early",
+      "caption_unreachable": "Device didn't answer",
+      "caption_none": "Not checked yet",
+      "caption_running": "Started {{when}}",
+      "caption_finished": "Finished {{when}}",
+      "caption_warnings_one": "{{count}} warning · finished {{when}}",
+      "caption_warnings_other": "{{count}} warnings · finished {{when}}"
+    },
+    "checks": {
+      "eyebrow": "Checks",
+      "value": "{{passed}} / {{total}} passed",
+      "caption_one": "{{count}} subsystem",
+      "caption_other": "{{count}} subsystems",
+      "caption_skipped_one": "{{count}} skipped · {{subsystems}}",
+      "caption_skipped_other": "{{count}} skipped · {{subsystems}}",
+      "caption_none": "Nothing measured yet"
+    },
+    "bundle": {
+      "eyebrow": "Support bundle",
+      "value_ready": "Ready",
+      "value_building": "Building…",
+      "caption_ready": "Ready to download",
+      "caption_building": "Built when the run finishes",
+      "caption_absent": "Built after a run",
+      "caption_unavailable": "No bundle from this run"
+    }
+  },
+  "status": {
+    "pass": "Pass",
+    "fail": "Fail",
+    "warn": "Warning",
+    "skip": "Skipped",
+    "running": "Running",
+    "pending": "Pending"
+  },
+  "attention": {
+    "title": "Needs attention",
+    "description": "Every check that failed or raised a warning on the last run. Start here."
+  },
+  "all_checks": {
+    "title": "All checks",
+    "description": "Every probe the diagnostic ran, grouped by the subsystem it belongs to."
+  },
+  "tally": {
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed",
+    "warnings_one": "{{count}} warning",
+    "warnings_other": "{{count}} warnings",
+    "passed_one": "{{count}} passed",
+    "passed_other": "{{count}} passed"
+  },
+  "states": {
+    "empty": {
+      "title": "No diagnostic has been run",
+      "description": "QManager probes every subsystem on this device and packages the results into a redacted bundle you can send to support.",
+      "checks_one": "{{count}} check",
+      "checks_other": "{{count}} checks"
+    },
+    "running": {
+      "title": "Nothing has failed yet",
+      "description": "The diagnostic is still working through its checks. Anything that fails or raises a warning appears here."
+    },
+    "incomplete": {
+      "title": "This diagnostic didn't finish",
+      "description": "The runner stopped before every check reported, so the checks it never reached have no result at all. Nothing here says this device is healthy — run the diagnostic again."
+    },
+    "all_clear": {
+      "title_one": "All {{count}} check passed",
+      "title_other": "All {{count}} checks passed",
+      "description": "Nothing failed and nothing raised a warning. Every subsystem answered the way it should."
+    },
+    "all_clear_skipped": {
+      "title_one": "The {{count}} check that ran passed",
+      "title_other": "All {{count}} checks that ran passed",
+      "description_one": "Nothing failed and nothing raised a warning. {{count}} check was skipped, so this run says nothing about it.",
+      "description_other": "Nothing failed and nothing raised a warning. {{count}} checks were skipped, so this run says nothing about them."
+    },
+    "error": {
+      "title": "Couldn't read the diagnostic",
+      "description": "QManager asked the device for the last health-check run and didn't get an answer."
+    }
+  },
+  "notice": {
+    "run_error": "The runner reported a problem while this diagnostic ran."
+  },
+  "loading": {
+    "status": "Loading diagnostic results",
+    "output": "Loading…"
+  },
+  "output": {
+    "show": "Show captured output for {{label}}",
+    "hide": "Hide captured output for {{label}}",
+    "truncated": "Showing the last 4 KB of captured output.",
+    "empty": "(no output captured)",
+    "failed": "Failed to load output: {{error}}"
+  },
+  "time": {
+    "just_now": "just now",
+    "seconds": "{{count}}s ago",
+    "minutes": "{{count}}m ago",
+    "hours": "{{count}}h ago",
+    "days": "{{count}}d ago"
+  },
+  "toast": {
+    "run_failed": "Couldn't start the diagnostic",
+    "cleared": "Diagnostic results cleared",
+    "clear_failed": "Couldn't clear the results",
+    "download_failed": "Couldn't download the bundle"
+  },
+  "category": {
+    "binaries": {
+      "label": "Binaries & Versions",
+      "description": "Required binaries and version checks"
+    },
+    "permissions": {
+      "label": "Filesystem & Permissions",
+      "description": "Filesystem ownership, modes, and group membership"
+    },
+    "at_transport": {
+      "label": "AT Transport",
+      "description": "qcmd / atcli_smd11 round-trip checks against the modem"
+    },
+    "sms": {
+      "label": "SMS Subsystem",
+      "description": "sms_tool readiness and SIM presence"
+    },
+    "sudoers": {
+      "label": "Sudoers",
+      "description": "www-data sudoers helper visibility"
+    },
+    "services": {
+      "label": "Systemd Services",
+      "description": "Systemd unit presence, enablement, and active state"
+    },
+    "network": {
+      "label": "Network",
+      "description": "DNS, IPv4, modem data path, lighttpd, firewall"
+    },
+    "configuration": {
+      "label": "Configuration",
+      "description": "QManager config files and poller cache freshness"
+    }
+  }
+}

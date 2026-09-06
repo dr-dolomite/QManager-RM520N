@@ -1,0 +1,179 @@
+{
+  "page": {
+    "title": "系統健康檢查",
+    "description": "探測本裝置上的每個 QManager 子系統——二進位檔案、權限、AT 傳輸、服務和配置——然後下載一份經過遮蔽處理的診斷包分享給支援團隊。"
+  },
+  "actions": {
+    "run": "執行診斷",
+    "running": "執行中…",
+    "download": "下載診斷包",
+    "downloading": "下載中…",
+    "clear": "清除",
+    "clearing": "正在清除…",
+    "retry": "重試"
+  },
+  "clear_dialog": {
+    "title": "清除診斷結果？",
+    "description": "這會刪除上一次執行的結果、每項測試的輸出檔案，以及裝置上可供下載的診斷包。頁面將恢復為空白狀態。",
+    "cancel": "取消",
+    "confirm": "清除結果"
+  },
+  "band": {
+    "head": "上次診斷",
+    "unreachable": "裝置沒有回應",
+    "stale": "顯示上次讀取的結果",
+    "result": {
+      "eyebrow": "結果",
+      "unreachable": "無法連線",
+      "none": "未執行",
+      "running": "{{done}} / {{total}}",
+      "failed_one": "{{count}} 項失敗",
+      "failed_other": "{{count}} 項失敗",
+      "warned_one": "{{count}} 項警告",
+      "warned_other": "{{count}} 項警告",
+      "passed": "全部通過",
+      "errored": "執行失敗",
+      "caption_errored": "執行提前中止",
+      "caption_unreachable": "裝置未回應",
+      "caption_none": "尚未檢查",
+      "caption_running": "開始於 {{when}}",
+      "caption_finished": "完成於 {{when}}",
+      "caption_warnings_one": "{{count}} 項警告 · 完成於 {{when}}",
+      "caption_warnings_other": "{{count}} 項警告 · 完成於 {{when}}"
+    },
+    "checks": {
+      "eyebrow": "檢查項",
+      "value": "{{passed}} / {{total}} 項通過",
+      "caption_one": "{{count}} 個子系統",
+      "caption_other": "{{count}} 個子系統",
+      "caption_skipped_one": "{{count}} 項已跳過 · {{subsystems}}",
+      "caption_skipped_other": "{{count}} 項已跳過 · {{subsystems}}",
+      "caption_none": "尚未量測任何內容"
+    },
+    "bundle": {
+      "eyebrow": "診斷包",
+      "value_ready": "已就緒",
+      "value_building": "產生中…",
+      "caption_ready": "可以下載",
+      "caption_building": "執行結束後產生",
+      "caption_absent": "執行後產生",
+      "caption_unavailable": "本次執行未產生封裝檔"
+    }
+  },
+  "status": {
+    "pass": "通過",
+    "fail": "失敗",
+    "warn": "警告",
+    "skip": "已跳過",
+    "running": "執行中",
+    "pending": "待處理"
+  },
+  "attention": {
+    "title": "需要注意",
+    "description": "上一次執行中失敗或發出警告的所有檢查項。從這裡開始處理。"
+  },
+  "all_checks": {
+    "title": "所有檢查項",
+    "description": "診斷執行的每一項探測，依所屬子系統分組。"
+  },
+  "tally": {
+    "failed_one": "{{count}} 項失敗",
+    "failed_other": "{{count}} 項失敗",
+    "warnings_one": "{{count}} 項警告",
+    "warnings_other": "{{count}} 項警告",
+    "passed_one": "{{count}} 項通過",
+    "passed_other": "{{count}} 項通過"
+  },
+  "states": {
+    "empty": {
+      "title": "尚未執行過診斷",
+      "description": "QManager 會探測本裝置上的每個子系統，並將結果封裝成一份可傳送給支援團隊的遮蔽版診斷包。",
+      "checks_one": "{{count}} 項檢查",
+      "checks_other": "{{count}} 項檢查"
+    },
+    "running": {
+      "title": "目前還沒有失敗項",
+      "description": "診斷仍在逐項檢查中。任何失敗或發出警告的項目都會顯示在這裡。"
+    },
+    "incomplete": {
+      "title": "本次診斷沒有完成",
+      "description": "執行程式在所有檢查項回報結果之前就已停止，未執行到的檢查項沒有任何結果。這裡的內容並不代表本裝置狀態正常——請重新執行診斷。"
+    },
+    "all_clear": {
+      "title_one": "全部 {{count}} 項檢查通過",
+      "title_other": "全部 {{count}} 項檢查通過",
+      "description": "沒有失敗項，也沒有發出警告。每個子系統都如預期般作出了回應。"
+    },
+    "all_clear_skipped": {
+      "title_one": "已執行的 {{count}} 項檢查全部通過",
+      "title_other": "已執行的 {{count}} 項檢查全部通過",
+      "description_one": "沒有失敗項，也沒有發出警告。有 {{count}} 項檢查被跳過，本次執行無法說明它的狀態。",
+      "description_other": "沒有失敗項，也沒有發出警告。有 {{count}} 項檢查被跳過，本次執行無法說明它們的狀態。"
+    },
+    "error": {
+      "title": "無法讀取診斷結果",
+      "description": "QManager 向裝置請求上一次健康檢查的執行結果，但沒有得到回應。"
+    }
+  },
+  "notice": {
+    "run_error": "診斷執行期間，執行程式回報了一個問題。"
+  },
+  "loading": {
+    "status": "正在載入診斷結果",
+    "output": "載入中…"
+  },
+  "output": {
+    "show": "顯示 {{label}} 的擷取輸出",
+    "hide": "隱藏 {{label}} 的擷取輸出",
+    "truncated": "僅顯示擷取輸出的最後 4 KB。",
+    "empty": "（未擷取到輸出）",
+    "failed": "載入輸出失敗：{{error}}"
+  },
+  "time": {
+    "just_now": "剛剛",
+    "seconds": "{{count}} 秒前",
+    "minutes": "{{count}} 分鐘前",
+    "hours": "{{count}} 小時前",
+    "days": "{{count}} 天前"
+  },
+  "toast": {
+    "run_failed": "無法啟動診斷",
+    "cleared": "診斷結果已清除",
+    "clear_failed": "無法清除結果",
+    "download_failed": "無法下載診斷包"
+  },
+  "category": {
+    "binaries": {
+      "label": "二進位檔案與版本",
+      "description": "必要的二進位檔案與版本檢查"
+    },
+    "permissions": {
+      "label": "檔案系統與權限",
+      "description": "檔案系統的擁有者、權限模式與群組成員資格"
+    },
+    "at_transport": {
+      "label": "AT 傳輸",
+      "description": "qcmd / atcli_smd11 與數據機之間的往返檢查"
+    },
+    "sms": {
+      "label": "SMS 子系統",
+      "description": "sms_tool 就緒狀態與 SIM 卡存在情況"
+    },
+    "sudoers": {
+      "label": "Sudoers",
+      "description": "www-data 的 sudoers 輔助程式可見性"
+    },
+    "services": {
+      "label": "Systemd 服務",
+      "description": "Systemd 單元的存在、啟用狀態與運作狀態"
+    },
+    "network": {
+      "label": "網路",
+      "description": "DNS、IPv4、數據機資料路徑、lighttpd、防火牆"
+    },
+    "configuration": {
+      "label": "配置",
+      "description": "QManager 配置檔案與輪詢快取新鮮度"
+    }
+  }
+}

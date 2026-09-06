@@ -1,0 +1,179 @@
+{
+  "page": {
+    "title": "系统健康检查",
+    "description": "探测本设备上的每个 QManager 子系统——二进制文件、权限、AT 传输、服务和配置——然后下载一份脱敏诊断包分享给支持团队。"
+  },
+  "actions": {
+    "run": "运行诊断",
+    "running": "运行中…",
+    "download": "下载诊断包",
+    "downloading": "下载中…",
+    "clear": "清除",
+    "clearing": "正在清除…",
+    "retry": "重试"
+  },
+  "clear_dialog": {
+    "title": "清除诊断结果？",
+    "description": "这将删除上一次运行的结果、每项测试的输出文件，以及设备上的可下载诊断包。页面将恢复为空状态。",
+    "cancel": "取消",
+    "confirm": "清除结果"
+  },
+  "band": {
+    "head": "上次诊断",
+    "unreachable": "设备没有应答",
+    "stale": "显示上次读取的结果",
+    "result": {
+      "eyebrow": "结果",
+      "unreachable": "无法连接",
+      "none": "未运行",
+      "running": "{{done}} / {{total}}",
+      "failed_one": "{{count}} 项失败",
+      "failed_other": "{{count}} 项失败",
+      "warned_one": "{{count}} 项警告",
+      "warned_other": "{{count}} 项警告",
+      "passed": "全部通过",
+      "errored": "运行失败",
+      "caption_errored": "运行提前中止",
+      "caption_unreachable": "设备未响应",
+      "caption_none": "尚未检查",
+      "caption_running": "开始于 {{when}}",
+      "caption_finished": "完成于 {{when}}",
+      "caption_warnings_one": "{{count}} 项警告 · 完成于 {{when}}",
+      "caption_warnings_other": "{{count}} 项警告 · 完成于 {{when}}"
+    },
+    "checks": {
+      "eyebrow": "检查项",
+      "value": "{{passed}} / {{total}} 项通过",
+      "caption_one": "{{count}} 个子系统",
+      "caption_other": "{{count}} 个子系统",
+      "caption_skipped_one": "{{count}} 项已跳过 · {{subsystems}}",
+      "caption_skipped_other": "{{count}} 项已跳过 · {{subsystems}}",
+      "caption_none": "尚未测量任何内容"
+    },
+    "bundle": {
+      "eyebrow": "诊断包",
+      "value_ready": "已就绪",
+      "value_building": "生成中…",
+      "caption_ready": "可以下载",
+      "caption_building": "运行结束后生成",
+      "caption_absent": "运行后生成",
+      "caption_unavailable": "本次运行未生成打包文件"
+    }
+  },
+  "status": {
+    "pass": "通过",
+    "fail": "失败",
+    "warn": "警告",
+    "skip": "已跳过",
+    "running": "运行中",
+    "pending": "待处理"
+  },
+  "attention": {
+    "title": "需要关注",
+    "description": "上一次运行中失败或发出警告的所有检查项。从这里开始处理。"
+  },
+  "all_checks": {
+    "title": "全部检查项",
+    "description": "诊断运行的每一项探测，按所属子系统分组。"
+  },
+  "tally": {
+    "failed_one": "{{count}} 项失败",
+    "failed_other": "{{count}} 项失败",
+    "warnings_one": "{{count}} 项警告",
+    "warnings_other": "{{count}} 项警告",
+    "passed_one": "{{count}} 项通过",
+    "passed_other": "{{count}} 项通过"
+  },
+  "states": {
+    "empty": {
+      "title": "尚未运行过诊断",
+      "description": "QManager 会探测本设备上的每个子系统，并将结果打包成一份可发送给支持团队的脱敏诊断包。",
+      "checks_one": "{{count}} 项检查",
+      "checks_other": "{{count}} 项检查"
+    },
+    "running": {
+      "title": "目前还没有失败项",
+      "description": "诊断仍在逐项检查中。任何失败或发出警告的项目都会显示在这里。"
+    },
+    "incomplete": {
+      "title": "本次诊断没有完成",
+      "description": "运行程序在所有检查项报告结果之前就已停止，未执行到的检查项没有任何结果。这里的内容并不代表本设备状态正常——请重新运行诊断。"
+    },
+    "all_clear": {
+      "title_one": "全部 {{count}} 项检查通过",
+      "title_other": "全部 {{count}} 项检查通过",
+      "description": "没有失败项，也没有发出警告。每个子系统都如预期般作出了应答。"
+    },
+    "all_clear_skipped": {
+      "title_one": "已运行的 {{count}} 项检查全部通过",
+      "title_other": "已运行的 {{count}} 项检查全部通过",
+      "description_one": "没有失败项，也没有发出警告。有 {{count}} 项检查被跳过，本次运行无法说明它的状态。",
+      "description_other": "没有失败项，也没有发出警告。有 {{count}} 项检查被跳过，本次运行无法说明它们的状态。"
+    },
+    "error": {
+      "title": "无法读取诊断结果",
+      "description": "QManager 向设备请求上一次健康检查的运行结果，但没有得到应答。"
+    }
+  },
+  "notice": {
+    "run_error": "诊断运行期间，运行程序报告了一个问题。"
+  },
+  "loading": {
+    "status": "正在加载诊断结果",
+    "output": "加载中…"
+  },
+  "output": {
+    "show": "显示 {{label}} 的捕获输出",
+    "hide": "隐藏 {{label}} 的捕获输出",
+    "truncated": "仅显示捕获输出的最后 4 KB。",
+    "empty": "（未捕获到输出）",
+    "failed": "加载输出失败：{{error}}"
+  },
+  "time": {
+    "just_now": "刚刚",
+    "seconds": "{{count}} 秒前",
+    "minutes": "{{count}} 分钟前",
+    "hours": "{{count}} 小时前",
+    "days": "{{count}} 天前"
+  },
+  "toast": {
+    "run_failed": "无法启动诊断",
+    "cleared": "诊断结果已清除",
+    "clear_failed": "无法清除结果",
+    "download_failed": "无法下载诊断包"
+  },
+  "category": {
+    "binaries": {
+      "label": "二进制文件与版本",
+      "description": "必需的二进制文件与版本检查"
+    },
+    "permissions": {
+      "label": "文件系统与权限",
+      "description": "文件系统的属主、权限模式与用户组归属"
+    },
+    "at_transport": {
+      "label": "AT 传输",
+      "description": "qcmd / atcli_smd11 与调制解调器之间的往返检查"
+    },
+    "sms": {
+      "label": "SMS 子系统",
+      "description": "sms_tool 就绪状态与 SIM 卡存在情况"
+    },
+    "sudoers": {
+      "label": "Sudoers",
+      "description": "www-data 的 sudoers 辅助程序可见性"
+    },
+    "services": {
+      "label": "Systemd 服务",
+      "description": "Systemd 单元的存在、启用状态与运行状态"
+    },
+    "network": {
+      "label": "网络",
+      "description": "DNS、IPv4、调制解调器数据通路、lighttpd、防火墙"
+    },
+    "configuration": {
+      "label": "配置",
+      "description": "QManager 配置文件与轮询缓存的新鲜度"
+    }
+  }
+}

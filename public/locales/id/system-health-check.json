@@ -1,0 +1,179 @@
+{
+  "page": {
+    "title": "Pemeriksaan Kesehatan Sistem",
+    "description": "Periksa setiap subsistem QManager di perangkat ini — biner, izin, transport AT, layanan, dan konfigurasi — lalu unduh paket diagnostik yang sudah disamarkan untuk dibagikan ke dukungan."
+  },
+  "actions": {
+    "run": "Jalankan diagnostik",
+    "running": "Menjalankan…",
+    "download": "Unduh paket",
+    "downloading": "Mengunduh…",
+    "clear": "Hapus",
+    "clearing": "Menghapus…",
+    "retry": "Coba Lagi"
+  },
+  "clear_dialog": {
+    "title": "Hapus hasil diagnostik?",
+    "description": "Ini akan menghapus proses terakhir, setiap berkas output per pemeriksaan, dan paket diagnostik yang dapat diunduh dari perangkat. Halaman akan kembali ke kondisi kosongnya.",
+    "cancel": "Batal",
+    "confirm": "Hapus hasil"
+  },
+  "band": {
+    "head": "Diagnostik terakhir",
+    "unreachable": "Perangkat tidak merespons",
+    "stale": "Menampilkan hasil baca terakhir",
+    "result": {
+      "eyebrow": "Hasil",
+      "unreachable": "Tidak dapat dijangkau",
+      "none": "Belum dijalankan",
+      "running": "{{done}} / {{total}}",
+      "failed_one": "{{count}} gagal",
+      "failed_other": "{{count}} gagal",
+      "warned_one": "{{count}} peringatan",
+      "warned_other": "{{count}} peringatan",
+      "passed": "Semua lolos",
+      "errored": "Gagal dijalankan",
+      "caption_errored": "Proses berhenti lebih awal",
+      "caption_unreachable": "Perangkat tidak menjawab",
+      "caption_none": "Belum diperiksa",
+      "caption_running": "Dimulai {{when}}",
+      "caption_finished": "Selesai {{when}}",
+      "caption_warnings_one": "{{count}} peringatan · selesai {{when}}",
+      "caption_warnings_other": "{{count}} peringatan · selesai {{when}}"
+    },
+    "checks": {
+      "eyebrow": "Pemeriksaan",
+      "value": "{{passed}} / {{total}} lolos",
+      "caption_one": "{{count}} subsistem",
+      "caption_other": "{{count}} subsistem",
+      "caption_skipped_one": "{{count}} dilewati · {{subsystems}}",
+      "caption_skipped_other": "{{count}} dilewati · {{subsystems}}",
+      "caption_none": "Belum ada yang diukur"
+    },
+    "bundle": {
+      "eyebrow": "Paket diagnostik",
+      "value_ready": "Siap",
+      "value_building": "Membuat…",
+      "caption_ready": "Siap diunduh",
+      "caption_building": "Dibuat setelah proses selesai",
+      "caption_absent": "Dibuat setelah dijalankan",
+      "caption_unavailable": "Tidak ada paket dari proses ini"
+    }
+  },
+  "status": {
+    "pass": "Lolos",
+    "fail": "Gagal",
+    "warn": "Peringatan",
+    "skip": "Dilewati",
+    "running": "Berjalan",
+    "pending": "Menunggu"
+  },
+  "attention": {
+    "title": "Perlu perhatian",
+    "description": "Semua pemeriksaan yang gagal atau memicu peringatan pada proses terakhir. Mulai dari sini."
+  },
+  "all_checks": {
+    "title": "Semua pemeriksaan",
+    "description": "Setiap pemeriksaan yang dijalankan diagnostik, dikelompokkan menurut subsistem yang bersangkutan."
+  },
+  "tally": {
+    "failed_one": "{{count}} gagal",
+    "failed_other": "{{count}} gagal",
+    "warnings_one": "{{count}} peringatan",
+    "warnings_other": "{{count}} peringatan",
+    "passed_one": "{{count}} lolos",
+    "passed_other": "{{count}} lolos"
+  },
+  "states": {
+    "empty": {
+      "title": "Diagnostik belum pernah dijalankan",
+      "description": "QManager memeriksa setiap subsistem di perangkat ini dan mengemas hasilnya menjadi paket diagnostik yang sudah disamarkan, siap dikirim ke dukungan.",
+      "checks_one": "{{count}} pemeriksaan",
+      "checks_other": "{{count}} pemeriksaan"
+    },
+    "running": {
+      "title": "Belum ada yang gagal",
+      "description": "Diagnostik masih memproses pemeriksaannya. Apa pun yang gagal atau memicu peringatan akan muncul di sini."
+    },
+    "incomplete": {
+      "title": "Diagnostik ini tidak selesai",
+      "description": "Proses berhenti sebelum semua pemeriksaan melaporkan hasilnya, sehingga pemeriksaan yang belum terjangkau tidak punya hasil sama sekali. Tidak ada di sini yang menyatakan perangkat ini sehat — jalankan diagnostik lagi."
+    },
+    "all_clear": {
+      "title_one": "Semua {{count}} pemeriksaan lolos",
+      "title_other": "Semua {{count}} pemeriksaan lolos",
+      "description": "Tidak ada yang gagal dan tidak ada peringatan yang muncul. Setiap subsistem merespons sebagaimana mestinya."
+    },
+    "all_clear_skipped": {
+      "title_one": "Semua {{count}} pemeriksaan yang dijalankan lolos",
+      "title_other": "Semua {{count}} pemeriksaan yang dijalankan lolos",
+      "description_one": "Tidak ada yang gagal dan tidak ada peringatan yang muncul. {{count}} pemeriksaan dilewati, jadi proses ini tidak menyatakan apa pun tentangnya.",
+      "description_other": "Tidak ada yang gagal dan tidak ada peringatan yang muncul. {{count}} pemeriksaan dilewati, jadi proses ini tidak menyatakan apa pun tentangnya."
+    },
+    "error": {
+      "title": "Tidak dapat membaca diagnostik",
+      "description": "QManager meminta hasil health check terakhir dari perangkat, tetapi tidak mendapatkan respons."
+    }
+  },
+  "notice": {
+    "run_error": "Proses melaporkan masalah saat diagnostik ini berjalan."
+  },
+  "loading": {
+    "status": "Memuat hasil diagnostik",
+    "output": "Memuat…"
+  },
+  "output": {
+    "show": "Tampilkan output yang direkam untuk {{label}}",
+    "hide": "Sembunyikan output yang direkam untuk {{label}}",
+    "truncated": "Menampilkan 4 KB terakhir dari output yang direkam.",
+    "empty": "(tidak ada output yang direkam)",
+    "failed": "Gagal memuat output: {{error}}"
+  },
+  "time": {
+    "just_now": "Baru saja",
+    "seconds": "{{count}}dtk lalu",
+    "minutes": "{{count}}m lalu",
+    "hours": "{{count}}j lalu",
+    "days": "{{count}}h lalu"
+  },
+  "toast": {
+    "run_failed": "Tidak dapat memulai diagnostik",
+    "cleared": "Hasil diagnostik telah dihapus",
+    "clear_failed": "Tidak dapat menghapus hasil",
+    "download_failed": "Tidak dapat mengunduh paket diagnostik"
+  },
+  "category": {
+    "binaries": {
+      "label": "Biner & Versi",
+      "description": "Pemeriksaan biner yang diperlukan dan versinya"
+    },
+    "permissions": {
+      "label": "Filesystem & Izin",
+      "description": "Kepemilikan, mode, dan keanggotaan grup filesystem"
+    },
+    "at_transport": {
+      "label": "Transport AT",
+      "description": "Pemeriksaan bolak-balik qcmd / atcli_smd11 terhadap modem"
+    },
+    "sms": {
+      "label": "Subsistem SMS",
+      "description": "Kesiapan sms_tool dan keberadaan SIM"
+    },
+    "sudoers": {
+      "label": "Sudoers",
+      "description": "Visibilitas helper sudoers untuk www-data"
+    },
+    "services": {
+      "label": "Layanan Systemd",
+      "description": "Keberadaan unit Systemd, status pengaktifan, dan status aktif"
+    },
+    "network": {
+      "label": "Jaringan",
+      "description": "DNS, IPv4, jalur data modem, lighttpd, firewall"
+    },
+    "configuration": {
+      "label": "Konfigurasi",
+      "description": "Berkas konfigurasi QManager dan kesegaran cache poller"
+    }
+  }
+}
