@@ -319,5 +319,142 @@
       "clear_failed": "无法清除系统日志",
       "refresh_failed": "无法读取系统日志"
     }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "连接质量",
+      "description": "调制解调器按固定顺序 ping 四个目标，并在第一个响应的目标处停止。另有两条独立的阈值，决定何时把缓慢或丢包上报为网络事件。"
+    },
+    "band": {
+      "head": "当前生效",
+      "internet": {
+        "eyebrow": "互联网",
+        "connected": "已连接",
+        "degraded": "已降级",
+        "disconnected": "已断开",
+        "recovery": "正在恢复",
+        "unknown": "未知",
+        "caption_cadence": "每 {{seconds}} 秒探测一次",
+        "caption_unknown": "探测守护进程没有上报数据"
+      },
+      "latency": {
+        "eyebrow": "往返时延",
+        "value": "{{ms}} 毫秒",
+        "caption": "平均 {{avg}} 毫秒，最低 {{min}} 毫秒，最高 {{max}} 毫秒",
+        "caption_none": "尚无读数"
+      },
+      "loss": {
+        "eyebrow": "丢包率",
+        "value": "{{pct}}%",
+        "caption": "基于 {{samples}} 个样本测得",
+        "caption_none": "窗口内样本不足 10 个，因此尚未测得丢包率"
+      },
+      "leg": {
+        "eyebrow": "响应目标",
+        "value": "第 {{n}} 个目标",
+        "none": "无",
+        "caption_hostname": "由主机名目标响应，属于正常情况",
+        "caption_fallback": "探测链回落到了 IPv4 字面地址，说明本设备的 DNS 解析已经失效",
+        "caption_none": "没有任何目标响应",
+        "family_ipv4": "IPv4",
+        "family_ipv6": "IPv6",
+        "family_none": "无"
+      }
+    },
+    "targets": {
+      "title": "探测目标",
+      "description": "本调制解调器用来判断互联网是否可达的四个目标。它按顺序逐个尝试，并在第一个响应处停止。",
+      "group_head": "探测链",
+      "restore": "恢复默认值",
+      "answered": "已响应",
+      "unsaved": "未保存",
+      "save": "保存探测目标",
+      "save_failed": "无法保存探测目标",
+      "note_fallback": "后两个目标是 IPv4 字面地址，无需 DNS，因此解析器故障不会被误判为断网。这两个位置不接受主机名。",
+      "note_watchdog": "探测频率以及构成断网的失败次数，请在以下页面设置：",
+      "note_watchdog_link": "连接看门狗",
+      "leg": {
+        "host_1": "主机名目标 1",
+        "host_2": "主机名目标 2",
+        "ip_1": "IPv4 目标 1",
+        "ip_2": "IPv4 目标 2"
+      },
+      "kind": {
+        "host": "这是一个主机名，由解析器决定使用哪种地址族。",
+        "ip": "这是一个 IPv4 字面地址，无需 DNS 查询。"
+      },
+      "error": {
+        "title": "无法读取探测目标",
+        "body": "QManager 无法读取本设备的探测目标。没有任何内容被更改——已保存的目标仍在调制解调器上生效。",
+        "body_detail": "QManager 无法读取本设备的探测目标。没有任何内容被更改——已保存的目标仍在调制解调器上生效。设备返回：{{detail}}",
+        "retry": "重试"
+      },
+      "empty": {
+        "title": "尚未保存探测链",
+        "body": "本设备还没有记录任何探测目标。恢复默认值，为它设定一条可用的探测链。",
+        "action": "恢复默认值"
+      },
+      "toast": {
+        "saved": "探测目标已保存"
+      },
+      "validation": {
+        "empty": "请输入一个目标。",
+        "too_long": "最多 {{max}} 个字符。",
+        "spaces": "不允许包含空格。",
+        "disallowed": "包含不允许使用的字符。",
+        "host_invalid": "不是有效的主机名。",
+        "ipv4_required": "此位置需要一个 IPv4 地址，不接受主机名。",
+        "ipv4_invalid": "不是有效的 IPv4 地址。"
+      }
+    },
+    "thresholds": {
+      "title": "质量阈值",
+      "description": "这两条阈值决定何时把缓慢或丢包的连接上报为网络事件。",
+      "latency": {
+        "title": "时延"
+      },
+      "loss": {
+        "title": "丢包率"
+      },
+      "preset": {
+        "standard": "标准",
+        "tolerant": "宽松",
+        "very_tolerant": "非常宽松"
+      },
+      "blurb": {
+        "latency_standard": "适用于信号良好的蜂窝网络。持续高于 150 毫秒时标记。",
+        "latency_tolerant": "适用于一般的蜂窝网络。允许偶尔的尖峰，不会立即标记。",
+        "latency_very_tolerant": "适用于信号较差的区域。只有时延长期居高不下时才标记。",
+        "loss_standard": "严格的质量标准。丢包超过 15% 时标记。",
+        "loss_tolerant": "适合负载较高的蜂窝网络。短暂的突发丢包不会触发。",
+        "loss_very_tolerant": "仅针对严重掉线。适用于信号较差的区域。"
+      },
+      "readout": {
+        "threshold": "阈值",
+        "now": "当前",
+        "debounce": "确认次数",
+        "debounce_value_one": "{{count}} 个样本",
+        "debounce_value_other": "{{count}} 个样本",
+        "latency_value": "{{ms}} 毫秒",
+        "loss_value": "{{pct}}%"
+      },
+      "state": {
+        "under": "低于",
+        "over": "高于"
+      },
+      "footer": "这两条都只是告警阈值。此处的设置不会重启调制解调器——恢复连接由连接看门狗负责。",
+      "default_note": "本设备尚未保存任何设置，这里显示的是内置默认值。保存后即写入调制解调器。",
+      "unsaved": "未保存",
+      "save": "保存阈值",
+      "save_failed": "无法保存阈值",
+      "error": {
+        "title": "无法读取质量阈值",
+        "body": "QManager 无法读取本设备的阈值。没有任何内容被更改——已保存的阈值仍在调制解调器上生效。",
+        "retry": "重试"
+      },
+      "toast": {
+        "saved": "质量阈值已保存"
+      }
+    }
   }
 }

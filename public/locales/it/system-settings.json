@@ -319,5 +319,142 @@
       "clear_failed": "Impossibile cancellare il log di sistema",
       "refresh_failed": "Impossibile leggere il log di sistema"
     }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "Qualità della connessione",
+      "description": "Il modem esegue il ping di quattro endpoint in un ordine fisso e si ferma al primo che risponde. Due soglie distinte decidono quando una connessione lenta o con perdita di pacchetti viene segnalata come evento di rete."
+    },
+    "band": {
+      "head": "Attivo in questo momento",
+      "internet": {
+        "eyebrow": "Internet",
+        "connected": "Connesso",
+        "degraded": "Degradato",
+        "disconnected": "Disconnesso",
+        "recovery": "In ripristino",
+        "unknown": "Sconosciuto",
+        "caption_cadence": "Sondato ogni {{seconds}} secondi",
+        "caption_unknown": "Il servizio di sonda non sta riportando dati"
+      },
+      "latency": {
+        "eyebrow": "Andata e ritorno",
+        "value": "{{ms}} ms",
+        "caption": "Media {{avg}} ms, minimo {{min}} ms, massimo {{max}} ms",
+        "caption_none": "Ancora nessuna lettura"
+      },
+      "loss": {
+        "eyebrow": "Perdita pacchetti",
+        "value": "{{pct}}%",
+        "caption": "Misurata su {{samples}} campioni",
+        "caption_none": "Meno di 10 campioni nella finestra, quindi la perdita non è ancora misurata"
+      },
+      "leg": {
+        "eyebrow": "Tratta attiva",
+        "value": "Tratta {{n}}",
+        "none": "Nessuna",
+        "caption_hostname": "Ha risposto una tratta con nome host, come previsto",
+        "caption_fallback": "La catena è arrivata a un indirizzo IPv4 letterale, quindi il DNS di questo dispositivo non risolve",
+        "caption_none": "Non ha risposto nessuna tratta",
+        "family_ipv4": "IPv4",
+        "family_ipv6": "IPv6",
+        "family_none": "Nessuna"
+      }
+    },
+    "targets": {
+      "title": "Destinazioni delle sonde",
+      "description": "I quattro endpoint a cui questo modem invia un ping per stabilire se internet è raggiungibile. Li prova in ordine e si ferma alla prima risposta.",
+      "group_head": "Catena di sonde",
+      "restore": "Ripristina i valori predefiniti",
+      "answered": "Ha risposto",
+      "unsaved": "Non salvato",
+      "save": "Salva le destinazioni",
+      "save_failed": "Impossibile salvare le destinazioni delle sonde",
+      "note_fallback": "Le ultime due tratte sono indirizzi IPv4 letterali: non richiedono DNS, quindi un resolver guasto non viene mai letto come connessione persa. In quei due campi i nomi host vengono rifiutati.",
+      "note_watchdog": "La frequenza dei sondaggi e il numero di errori che contano come interruzione si impostano in",
+      "note_watchdog_link": "Watchdog della connessione",
+      "leg": {
+        "host_1": "Tratta con nome host 1",
+        "host_2": "Tratta con nome host 2",
+        "ip_1": "Tratta IPv4 1",
+        "ip_2": "Tratta IPv4 2"
+      },
+      "kind": {
+        "host": "Un nome host: è il resolver a scegliere la famiglia di indirizzi.",
+        "ip": "Un indirizzo IPv4 letterale: non serve alcuna risoluzione DNS."
+      },
+      "error": {
+        "title": "Impossibile leggere le destinazioni delle sonde",
+        "body": "QManager non è riuscito a leggere le destinazioni delle sonde di questo dispositivo. Non è stato modificato nulla: quelle già salvate sono ancora attive sul modem.",
+        "body_detail": "QManager non è riuscito a leggere le destinazioni delle sonde di questo dispositivo. Non è stato modificato nulla: quelle già salvate sono ancora attive sul modem. Il dispositivo ha risposto: {{detail}}",
+        "retry": "Riprova"
+      },
+      "empty": {
+        "title": "Nessuna catena di sonde salvata",
+        "body": "Questo dispositivo non ha ancora nessuna destinazione registrata. Ripristina i valori predefiniti per dargli una catena da sondare.",
+        "action": "Ripristina i valori predefiniti"
+      },
+      "toast": {
+        "saved": "Destinazioni delle sonde salvate"
+      },
+      "validation": {
+        "empty": "Inserisci una destinazione.",
+        "too_long": "Usa al massimo {{max}} caratteri.",
+        "spaces": "Gli spazi non sono ammessi.",
+        "disallowed": "Contiene caratteri non ammessi.",
+        "host_invalid": "Non è un nome host valido.",
+        "ipv4_required": "Questo campo richiede un indirizzo IPv4. Qui un nome host non è accettato.",
+        "ipv4_invalid": "Non è un indirizzo IPv4 valido."
+      }
+    },
+    "thresholds": {
+      "title": "Soglie di qualità",
+      "description": "Le due soglie che decidono quando una connessione lenta o con perdita di pacchetti viene segnalata come evento di rete.",
+      "latency": {
+        "title": "Latenza"
+      },
+      "loss": {
+        "title": "Perdita pacchetti"
+      },
+      "preset": {
+        "standard": "Standard",
+        "tolerant": "Tollerante",
+        "very_tolerant": "Molto tollerante"
+      },
+      "blurb": {
+        "latency_standard": "Per una buona copertura cellulare. Segnala la latenza che resta sopra i 150 ms.",
+        "latency_tolerant": "Per una copertura cellulare media. Tollera qualche picco occasionale prima di segnalare.",
+        "latency_very_tolerant": "Per zone con segnale scarso. Segnala solo quando la latenza resta alta a lungo.",
+        "loss_standard": "Un criterio di qualità severo. Segnala una perdita oltre il 15 percento.",
+        "loss_tolerant": "Accettabile su rete cellulare sotto carico. Non scatta per brevi raffiche.",
+        "loss_very_tolerant": "Solo cadute gravi. Utile nelle zone con segnale scarso."
+      },
+      "readout": {
+        "threshold": "Soglia",
+        "now": "Adesso",
+        "debounce": "Conferme",
+        "debounce_value_one": "{{count}} campione",
+        "debounce_value_other": "{{count}} campioni",
+        "latency_value": "{{ms}} ms",
+        "loss_value": "{{pct}}%"
+      },
+      "state": {
+        "under": "Sotto",
+        "over": "Sopra"
+      },
+      "footer": "Entrambe sono soglie di avviso. Nulla di quanto impostato qui riavvia il modem: il ripristino è compito del Watchdog della connessione.",
+      "default_note": "Questo dispositivo non ha ancora nulla di salvato, quindi vengono mostrati i valori predefiniti. Salvando li si scrive sul modem.",
+      "unsaved": "Non salvato",
+      "save": "Salva le soglie",
+      "save_failed": "Impossibile salvare le soglie",
+      "error": {
+        "title": "Impossibile leggere le soglie di qualità",
+        "body": "QManager non è riuscito a leggere le soglie di questo dispositivo. Non è stato modificato nulla: quelle già salvate sono ancora attive sul modem.",
+        "retry": "Riprova"
+      },
+      "toast": {
+        "saved": "Soglie di qualità salvate"
+      }
+    }
   }
 }

@@ -319,5 +319,142 @@
       "clear_failed": "Gagal menghapus log sistem",
       "refresh_failed": "Gagal membaca log sistem"
     }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "Kualitas Koneksi",
+      "description": "Modem melakukan ping ke empat endpoint dengan urutan tetap dan berhenti pada yang pertama menjawab. Dua ambang terpisah menentukan kapan koneksi yang lambat atau kehilangan paket dilaporkan sebagai peristiwa jaringan."
+    },
+    "band": {
+      "head": "Berlaku saat ini",
+      "internet": {
+        "eyebrow": "Internet",
+        "connected": "Terhubung",
+        "degraded": "Menurun",
+        "disconnected": "Terputus",
+        "recovery": "Memulihkan",
+        "unknown": "Tidak diketahui",
+        "caption_cadence": "Diperiksa setiap {{seconds}} detik",
+        "caption_unknown": "Layanan probe tidak melaporkan apa pun"
+      },
+      "latency": {
+        "eyebrow": "Waktu pulang pergi",
+        "value": "{{ms}} ms",
+        "caption": "Rata-rata {{avg}} ms, terendah {{min}} ms, tertinggi {{max}} ms",
+        "caption_none": "Belum ada pembacaan"
+      },
+      "loss": {
+        "eyebrow": "Kehilangan paket",
+        "value": "{{pct}}%",
+        "caption": "Diukur dari {{samples}} sampel",
+        "caption_none": "Kurang dari 10 sampel dalam jendela ini, jadi kehilangan paket belum terukur"
+      },
+      "leg": {
+        "eyebrow": "Jalur penjawab",
+        "value": "Jalur {{n}}",
+        "none": "Tidak ada",
+        "caption_hostname": "Jalur nama host yang menjawab, ini normal",
+        "caption_fallback": "Rantai jatuh ke alamat IPv4 langsung, jadi DNS di perangkat ini tidak menyelesaikan nama",
+        "caption_none": "Tidak ada yang menjawab",
+        "family_ipv4": "IPv4",
+        "family_ipv6": "IPv6",
+        "family_none": "Tidak ada"
+      }
+    },
+    "targets": {
+      "title": "Target Probe",
+      "description": "Empat endpoint yang di-ping modem ini untuk menentukan apakah internet dapat dijangkau. Modem mencobanya berurutan dan berhenti pada jawaban pertama.",
+      "group_head": "Rantai probe",
+      "restore": "Pulihkan bawaan",
+      "answered": "Menjawab",
+      "unsaved": "Belum tersimpan",
+      "save": "Simpan Target Probe",
+      "save_failed": "Gagal menyimpan target probe",
+      "note_fallback": "Dua jalur terakhir adalah alamat IPv4 langsung, jadi keduanya tidak memerlukan DNS dan resolver yang rusak tidak pernah terbaca sebagai koneksi putus. Nama host ditolak pada kedua slot itu.",
+      "note_watchdog": "Seberapa sering modem memeriksa, dan berapa kegagalan yang dihitung sebagai gangguan, diatur di",
+      "note_watchdog_link": "Watchdog Koneksi",
+      "leg": {
+        "host_1": "Jalur nama host 1",
+        "host_2": "Jalur nama host 2",
+        "ip_1": "Jalur IPv4 1",
+        "ip_2": "Jalur IPv4 2"
+      },
+      "kind": {
+        "host": "Sebuah nama host, jadi resolver yang memilih keluarga alamatnya.",
+        "ip": "Alamat IPv4 langsung, jadi tidak perlu pencarian DNS."
+      },
+      "error": {
+        "title": "Tidak dapat membaca target probe",
+        "body": "QManager tidak dapat membaca target probe perangkat ini. Tidak ada yang diubah — target yang sudah tersimpan tetap berlaku di modem.",
+        "body_detail": "QManager tidak dapat membaca target probe perangkat ini. Tidak ada yang diubah — target yang sudah tersimpan tetap berlaku di modem. Perangkat menjawab: {{detail}}",
+        "retry": "Coba lagi"
+      },
+      "empty": {
+        "title": "Belum ada rantai probe tersimpan",
+        "body": "Perangkat ini belum memiliki target probe yang tercatat. Pulihkan bawaan agar modem punya rantai untuk di-ping.",
+        "action": "Pulihkan bawaan"
+      },
+      "toast": {
+        "saved": "Target probe tersimpan"
+      },
+      "validation": {
+        "empty": "Masukkan sebuah target.",
+        "too_long": "Gunakan maksimal {{max}} karakter.",
+        "spaces": "Spasi tidak diperbolehkan.",
+        "disallowed": "Mengandung karakter yang tidak diperbolehkan.",
+        "host_invalid": "Bukan nama host yang valid.",
+        "ipv4_required": "Slot ini memerlukan alamat IPv4. Nama host tidak diterima di sini.",
+        "ipv4_invalid": "Bukan alamat IPv4 yang valid."
+      }
+    },
+    "thresholds": {
+      "title": "Ambang Kualitas",
+      "description": "Dua ambang yang menentukan kapan koneksi yang lambat atau kehilangan paket dilaporkan sebagai peristiwa jaringan.",
+      "latency": {
+        "title": "Latensi"
+      },
+      "loss": {
+        "title": "Kehilangan paket"
+      },
+      "preset": {
+        "standard": "Standar",
+        "tolerant": "Toleran",
+        "very_tolerant": "Sangat toleran"
+      },
+      "blurb": {
+        "latency_standard": "Untuk sinyal seluler yang baik. Menandai latensi yang bertahan di atas 150 ms.",
+        "latency_tolerant": "Untuk sinyal seluler rata-rata. Membiarkan lonjakan sesekali sebelum menandai.",
+        "latency_very_tolerant": "Untuk area bersinyal lemah. Hanya menandai bila latensi terus tinggi.",
+        "loss_standard": "Patokan kualitas yang ketat. Menandai kehilangan di atas 15 persen.",
+        "loss_tolerant": "Wajar pada jaringan seluler yang padat. Tidak terpicu oleh lonjakan singkat.",
+        "loss_very_tolerant": "Hanya penurunan parah. Berguna di area bersinyal lemah."
+      },
+      "readout": {
+        "threshold": "Ambang",
+        "now": "Sekarang",
+        "debounce": "Konfirmasi",
+        "debounce_value_one": "{{count}} sampel",
+        "debounce_value_other": "{{count}} sampel",
+        "latency_value": "{{ms}} ms",
+        "loss_value": "{{pct}}%"
+      },
+      "state": {
+        "under": "Di bawah",
+        "over": "Di atas"
+      },
+      "footer": "Keduanya adalah ambang peringatan. Tidak ada yang di sini yang me-restart modem — pemulihan ditangani oleh Watchdog Koneksi.",
+      "default_note": "Perangkat ini belum menyimpan apa pun, jadi nilai bawaan yang ditampilkan. Menyimpan akan menuliskannya ke modem.",
+      "unsaved": "Belum tersimpan",
+      "save": "Simpan Ambang",
+      "save_failed": "Gagal menyimpan ambang",
+      "error": {
+        "title": "Tidak dapat membaca ambang kualitas",
+        "body": "QManager tidak dapat membaca ambang perangkat ini. Tidak ada yang diubah — ambang yang sudah tersimpan tetap berlaku di modem.",
+        "retry": "Coba lagi"
+      },
+      "toast": {
+        "saved": "Ambang kualitas tersimpan"
+      }
+    }
   }
 }

@@ -319,5 +319,142 @@
       "clear_failed": "Couldn't clear the system log",
       "refresh_failed": "Couldn't read the system log"
     }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "Connection Quality",
+      "description": "The modem pings four endpoints in a fixed order and stops at the first one that answers. Two separate cuts decide when slow or lossy is reported as a network event."
+    },
+    "band": {
+      "head": "In force right now",
+      "internet": {
+        "eyebrow": "Internet",
+        "connected": "Connected",
+        "degraded": "Degraded",
+        "disconnected": "Disconnected",
+        "recovery": "Recovering",
+        "unknown": "Unknown",
+        "caption_cadence": "Probed every {{seconds}} seconds",
+        "caption_unknown": "The probe daemon is not reporting"
+      },
+      "latency": {
+        "eyebrow": "Round trip",
+        "value": "{{ms}} ms",
+        "caption": "Average {{avg}} ms, low {{min}} ms, high {{max}} ms",
+        "caption_none": "No readings yet"
+      },
+      "loss": {
+        "eyebrow": "Packet loss",
+        "value": "{{pct}}%",
+        "caption": "Measured across {{samples}} samples",
+        "caption_none": "Fewer than 10 samples in the window, so loss is not measured yet"
+      },
+      "leg": {
+        "eyebrow": "Answering leg",
+        "value": "Leg {{n}}",
+        "none": "None",
+        "caption_hostname": "A hostname leg answered, which is normal",
+        "caption_fallback": "The chain fell through to an IPv4 literal, so DNS on this device is not resolving",
+        "caption_none": "Nothing answered",
+        "family_ipv4": "IPv4",
+        "family_ipv6": "IPv6",
+        "family_none": "None"
+      }
+    },
+    "targets": {
+      "title": "Probe Targets",
+      "description": "The four endpoints this modem pings to decide whether the internet is reachable. It tries them in order and stops at the first answer.",
+      "group_head": "Probe chain",
+      "restore": "Restore defaults",
+      "answered": "Answered",
+      "unsaved": "Unsaved",
+      "save": "Save Probe Targets",
+      "save_failed": "Couldn't save the probe targets",
+      "note_fallback": "The last two legs are IPv4 literals, so they need no DNS and a broken resolver is never read as a lost connection. Hostnames are rejected in those two slots.",
+      "note_watchdog": "How often the modem probes, and how many failures count as an outage, are set in the",
+      "note_watchdog_link": "Connection Watchdog",
+      "leg": {
+        "host_1": "Hostname leg 1",
+        "host_2": "Hostname leg 2",
+        "ip_1": "IPv4 leg 1",
+        "ip_2": "IPv4 leg 2"
+      },
+      "kind": {
+        "host": "A hostname, so the resolver picks the address family.",
+        "ip": "An IPv4 literal, so it needs no DNS lookup."
+      },
+      "error": {
+        "title": "Can't read the probe targets",
+        "body": "QManager couldn't read this device's probe targets. Nothing has been changed — the targets already saved are still in force on the modem.",
+        "body_detail": "QManager couldn't read this device's probe targets. Nothing has been changed — the targets already saved are still in force on the modem. The device said: {{detail}}",
+        "retry": "Retry"
+      },
+      "empty": {
+        "title": "No probe chain saved",
+        "body": "This device has no probe targets recorded yet. Restore the defaults to give it a chain to ping.",
+        "action": "Restore defaults"
+      },
+      "toast": {
+        "saved": "Probe targets saved"
+      },
+      "validation": {
+        "empty": "Enter a target.",
+        "too_long": "Use {{max}} characters or fewer.",
+        "spaces": "Spaces are not allowed.",
+        "disallowed": "Contains characters that are not allowed.",
+        "host_invalid": "Not a valid hostname.",
+        "ipv4_required": "This slot needs an IPv4 address. A hostname is not accepted here.",
+        "ipv4_invalid": "Not a valid IPv4 address."
+      }
+    },
+    "thresholds": {
+      "title": "Quality Thresholds",
+      "description": "The two cuts that decide when a slow or lossy connection is reported as a network event.",
+      "latency": {
+        "title": "Latency"
+      },
+      "loss": {
+        "title": "Packet loss"
+      },
+      "preset": {
+        "standard": "Standard",
+        "tolerant": "Tolerant",
+        "very_tolerant": "Very tolerant"
+      },
+      "blurb": {
+        "latency_standard": "For good cellular. Flags latency that stays above 150 ms.",
+        "latency_tolerant": "For average cellular. Allows the occasional spike before flagging.",
+        "latency_very_tolerant": "For poor-signal areas. Flags only when latency stays high.",
+        "loss_standard": "A tight quality bar. Flags loss above 15 percent.",
+        "loss_tolerant": "Acceptable on cellular under load. Won't fire from short bursts.",
+        "loss_very_tolerant": "Severe drops only. Useful in poor-signal areas."
+      },
+      "readout": {
+        "threshold": "Threshold",
+        "now": "Now",
+        "debounce": "Debounce",
+        "debounce_value_one": "{{count}} sample",
+        "debounce_value_other": "{{count}} samples",
+        "latency_value": "{{ms}} ms",
+        "loss_value": "{{pct}}%"
+      },
+      "state": {
+        "under": "Under",
+        "over": "Over"
+      },
+      "footer": "Both of these are alerting cuts. Nothing here restarts the modem — recovery lives in the Connection Watchdog.",
+      "default_note": "This device has nothing saved yet, so the built-in defaults are shown. Saving writes them to the modem.",
+      "unsaved": "Unsaved",
+      "save": "Save Thresholds",
+      "save_failed": "Couldn't save the thresholds",
+      "error": {
+        "title": "Can't read the quality thresholds",
+        "body": "QManager couldn't read this device's thresholds. Nothing has been changed — the cuts already saved are still in force on the modem.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "saved": "Quality thresholds saved"
+      }
+    }
   }
 }

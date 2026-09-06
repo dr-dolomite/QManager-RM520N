@@ -1,23 +1,61 @@
 "use client";
 
-import ConnectivitySensitivityCard from "@/components/system-settings/connection-quality/connectivity-sensitivity-card";
-import QualityThresholdsCard from "@/components/system-settings/connection-quality/quality-thresholds-card";
+import type * as React from "react";
+import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 
-const ConnectionQualitySettings = () => {
+import { usePingProfile } from "@/hooks/use-ping-profile";
+import { useQualityThresholds } from "@/hooks/use-quality-thresholds";
+import { staggerContainer, staggerItem } from "@/lib/motion";
+
+import ProbeTargetsCard from "./probe-targets-card";
+import QualityThresholdsCard from "./quality-thresholds-card";
+import { StatusBand } from "./status-band";
+import { CARD_CELL, CARD_GRID, PAGE_HEAD, PAGE_ROOT } from "./shapes";
+
+const K = "connection_quality";
+
+export function ConnectionQualitySettings(): React.JSX.Element {
+  const { t } = useTranslation("system-settings");
+  // The shell owns both GETs: the band reads the SAVED targets and presets to
+  // tone its discs, and each card owns the half it writes.
+  const profile = usePingProfile();
+  const quality = useQualityThresholds();
+
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Connection Quality</h1>
-        <p className="text-muted-foreground">
-          Probe sensitivity, and when latency or packet loss is flagged as an event.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
-        <ConnectivitySensitivityCard />
-        <QualityThresholdsCard />
-      </div>
-    </div>
+    <motion.div
+      className={PAGE_ROOT}
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* The cascade root declares initial/animate once. Every child below is a
+          staggerItem and must NOT declare its own, or it detaches from the clock. */}
+      <motion.div variants={staggerItem}>
+        <div className={PAGE_HEAD.ROOT}>
+          <div className={PAGE_HEAD.TITLES}>
+            <h1 className={PAGE_HEAD.TITLE}>{t(`${K}.page.title`)}</h1>
+            <p className={PAGE_HEAD.DESC}>{t(`${K}.page.description`)}</p>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div variants={staggerItem}>
+        <StatusBand targets={profile.targets} thresholds={quality.thresholds} />
+      </motion.div>
+
+      {/* A nested container: it inherits `visible` from the root and gives each
+          card its own 120ms step. It must not declare initial/animate. */}
+      <motion.div className={CARD_GRID} variants={staggerContainer}>
+        <motion.div variants={staggerItem} className={CARD_CELL}>
+          <ProbeTargetsCard profile={profile} />
+        </motion.div>
+        <motion.div variants={staggerItem} className={CARD_CELL}>
+          <QualityThresholdsCard quality={quality} />
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
-};
+}
 
 export default ConnectionQualitySettings;

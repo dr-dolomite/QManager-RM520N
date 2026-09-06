@@ -17,7 +17,7 @@
 
 | Item | Value |
 |------|-------|
-| Frontend page | `/system-settings/connection-quality` (`components/system-settings/connection-quality/`) |
+| Frontend page | `/system-settings/connection-quality` (`components/system-settings/connection-quality/` — shell, `shapes.ts`, `status-band.tsx`, `probe-targets-card.tsx`, `quality-thresholds-card.tsx`, `condition-block.tsx`) |
 | Producer daemon | `qmanager_ping` — `#!/bin/sh` **ICMP `ping`** daemon (source: `scripts/usr/bin/qmanager_ping`, installed to `/usr/bin/qmanager_ping`) |
 | Probe chain | Four legs, fixed order, short-circuit on first success: `cloudflare.com` → `google.com` → `1.1.1.1` → `8.8.8.8` (all four configurable) |
 | Producer key contract | **13 keys**, one `jq -n` literal, no branches — [see below](#the-producer-key-contract) |
@@ -380,13 +380,32 @@ Both chart sites treat a `null` RTT sample as an **absent** reading rather than 
 
 ## The Connection Quality page
 
-The page (`/system-settings/connection-quality`) is a two-card grid (`components/system-settings/connection-quality/connection-quality.tsx`): **Probe Targets** on the left, **Latency & Loss Thresholds** on the right. Both are write surfaces; live readouts come from `useModemStatus`.
+The page (`/system-settings/connection-quality`) is a page header, a four-tile **status band**, then a two-card grid (`components/system-settings/connection-quality/connection-quality.tsx`): **Probe Targets** on the left, **Latency & Loss Thresholds** on the right. Both cards are write surfaces; every live readout comes from `useModemStatus`.
 
-### Probe Targets card (`connectivity-sensitivity-card.tsx`)
+Re-authored onto the design canon 2026-09-06. Geometry and tone live in this family's own `shapes.ts`, which **imports** the page shell, band and card grammar from `components/system-settings/shapes.ts` one level up and restates only what is local to the route. The shell owns both GETs and passes them down, because the band needs the **saved** targets and presets to tone its discs while each card owns the half it writes.
 
-> ℹ️ NOTE: The React file is still named `connectivity-sensitivity-card.tsx` for git-history continuity, but the card's title and role are **"Probe Targets"**.
+> ⚠️ `shapes.ts` mirrors the preset limits from `_qt_apply_lat` / `_qt_apply_loss` in `events.sh` as `PRESET_LIMIT`, **including the comparison direction**: latency flags strictly above the cut (`$1 > t`), loss flags at or above it (`-ge`). The band's Under/Over chip and the headroom bar both read that map, so a change to either preset table in the shell must land here in the same commit or the UI will disagree with the alert that actually fires.
 
-The card owns the **four probe slots** — `target_host_1`, `target_host_2`, `target_ip_1`, `target_ip_2` — plus the profile selector. Behavior:
+### The status band
+
+Four 104px pinned tiles reading the poller's `connectivity` block — no new request, and no field that did not already exist. Neutral tile bodies; colour only on the 52px disc. Each tile's face is keyed off **one** state union through a `satisfies Record<...>` map, so the value, the caption and the disc cannot answer the same question differently, and every state carries a distinct glyph.
+
+| Tile | Reads | Disc |
+|------|-------|------|
+| Internet | `connectivity.status` | The five-state verdict, one tone and glyph each. Carries the surface's single ambient ring while `status !== "unknown"` |
+| Round trip | `latency_ms`, captioned with `avg`/`min`/`max` | **Binary** against the saved latency cut — neutral or `warning`, never the five-stop quality ramp: a tile has no room for a bar, and the ramp may not travel without one |
+| Packet loss | `packet_loss_pct` | Binary against the saved loss cut. A `null` renders `—` and says the window is under the ten-sample floor — it is **never** coerced to 0 |
+| Answering leg | `ping_target` matched against the saved slots, plus `last_family` | `primary` for a hostname leg, **`warning` for a literal leg** — a fallback leg answering is the visible signature of a broken resolver |
+
+> ⚠️ `ping_target` **falls back to `targets[0]` when nothing has answered yet**, so a string match alone is not proof that a leg replied. `legState()` additionally requires `internet_available === true` and a `last_family` that is not `"none"`. Drop either guard and a dead link paints leg 1 as the answering leg.
+>
+> A poller predating the ICMP port sends **no** `last_family` at all. Absence is not a value: the family tag is then not rendered, rather than reported as `None`.
+
+### Probe Targets card (`probe-targets-card.tsx`)
+
+> ℹ️ NOTE: Renamed from `connectivity-sensitivity-card.tsx` in the 2026-09-06 re-authoring. The old name was kept for git-history continuity while the file was only being patched; the re-authoring rewrote it top to bottom, which spent that argument.
+
+The card owns the **four probe slots** — `target_host_1`, `target_host_2`, `target_ip_1`, `target_ip_2`. They render as four numbered legs in one tonal group, in probe order, and the leg matching `ping_target` is promoted by container. Behavior:
 
 - Inputs are **ICMP targets** (hostname or IPv4 literal), **not HTTP URLs** — no scheme is prepended.
 - The four legs are walked in the order listed, short-circuiting on the first success. There is no v4/v6 slot distinction: the resolver picks the family for the two hostname legs.
@@ -394,6 +413,8 @@ The card owns the **four probe slots** — `target_host_1`, `target_host_2`, `ta
 - Client-side validation mirrors the CGI's two validator kinds; the CGI re-validates server-side.
 
 Data flow: `usePingProfile` hook (`hooks/use-ping-profile.ts`) → `GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh`.
+
+> ℹ️ Both hooks expose a **`refresh()`** as of 2026-09-06. Before that neither did, so a failed GET rendered a bare `Alert` printing `HTTP <code>` at the user and the only recovery was a browser reload. The condition screens' Retry affordances are wired to it — do not add a retry button to this route without one behind it.
 
 - **GET** returns `{ success: true, settings: { profile, target_host_1, target_host_2, target_ip_1, target_ip_2 } }`.
 - **POST** sends `{ action: "save_settings", target_host_1, target_host_2, target_ip_1, target_ip_2 }` plus the profile. All four target fields are required on every save. The CGI validates the profile against `{sensitive, regular, relaxed, quiet}` and each target against its slot kind, then performs an **atomic jq key-merge** — writing only `profile` and the four slots, so the Watchdog-owned `interval_sec` and the daemon's `fail_secs`/`recover_secs`/`history_secs` pass through untouched — and touches `/tmp/qmanager_ping_reload`.
@@ -407,7 +428,7 @@ Data flow: `usePingProfile` hook (`hooks/use-ping-profile.ts`) → `GET/POST /cg
 
 So the CGI **rejects a hostname in an IP slot**. That is the point of those two legs: they exist precisely so the verdict survives a broken resolver, and a hostname there would fail for the same reason the two hostname legs already did — the device would then report an outage it does not have. Failures return `{ success: false, error: "invalid_target", message: "<reason>" }`.
 
-> ⚠️ **Known gap — this card is not internationalised, and neither is the rest of the Connection Quality route.** The page header, the Probe Targets card and the sibling `quality-thresholds-card.tsx` are all hardcoded English, and `public/locales/en/system-settings.json` holds no keys for this route. The four new target fields were left in English to match their neighbours rather than half-translate the surface. A route-wide i18n pass (~35 strings across all five packs, and it must include `quality-thresholds-card.tsx`) is a **separate approved follow-up**, logged by user decision.
+> ℹ️ **The i18n gap is closed.** The route was hardcoded English with no keys in any pack until 2026-09-06; the re-authoring added a `connection_quality` namespace under `system-settings` across all five packs (137 lines each), including the validator messages and toasts. `bun run i18n:check` reports 100% parity.
 
 ### Latency & Loss Thresholds card (`quality-thresholds-card.tsx`)
 
@@ -420,6 +441,8 @@ It sets two independent presets — one for latency, one for packet loss — eac
 | standard | 150 ms / 3 samples | 15 % / 3 samples |
 | tolerant *(default)* | 250 ms / 3 samples | 30 % / 3 samples |
 | very-tolerant | 500 ms / 2 samples | 50 % / 2 samples |
+
+The presets render as a three-chip `role="radiogroup"`, one selected fill travelling on a shared `layoutId`. They were a `<Tabs>` / `<TabsList>` / `<TabsTrigger>` with **no `TabsContent` anywhere on the page** — a tab widget promising a panel that did not exist, where arrow keys mutated the saved value instead of moving focus. Under each rail sits a borderless tonal readout carrying the blurb, a `MetricBar` headroom bar (live reading against the selected cut) and the Threshold / Debounce / Now trio.
 
 Data flow: `useQualityThresholds` → `GET/POST /cgi-bin/quecmanager/settings/quality_thresholds.sh` → `/etc/qmanager/quality_thresholds.json`, poking `/tmp/qmanager_events_reload` so `events.sh` re-reads without a restart. Note the events pipeline emits `high_latency`/`high_packet_loss` only — it does **not** emit a recovery/connectivity event; recovery lives entirely in the Watchdog off `streak_fail`.
 

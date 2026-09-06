@@ -53,6 +53,8 @@ export interface UsePingProfileReturn {
   isSaving: boolean;
   saveError: string | null;
   save: (settings: PingProfileTargets) => Promise<PingProfileResponse>;
+  /** Re-runs the GET non-silently — the Retry affordance for the error state. */
+  refresh: () => Promise<void>;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -113,6 +115,9 @@ export function usePingProfile(): UsePingProfileReturn {
     fetchProfile();
   }, [fetchProfile]);
 
+  // Wrapped so a caller cannot pass `silent` and suppress the loading state.
+  const refresh = useCallback(() => fetchProfile(), [fetchProfile]);
+
   const save = useCallback(
     async (settings: PingProfileTargets): Promise<PingProfileResponse> => {
       setSaveError(null);
@@ -160,5 +165,6 @@ export function usePingProfile(): UsePingProfileReturn {
     isSaving,
     saveError,
     save,
+    refresh,
   };
 }

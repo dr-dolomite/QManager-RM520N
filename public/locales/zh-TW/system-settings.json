@@ -319,5 +319,142 @@
       "clear_failed": "無法清除系統日誌",
       "refresh_failed": "無法讀取系統日誌"
     }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "連線品質",
+      "description": "數據機會依固定順序 ping 四個目標，並在第一個回應的目標處停止。另有兩條獨立的門檻，決定何時把緩慢或封包遺失回報為網路事件。"
+    },
+    "band": {
+      "head": "目前生效",
+      "internet": {
+        "eyebrow": "網際網路",
+        "connected": "已連線",
+        "degraded": "已降級",
+        "disconnected": "已中斷",
+        "recovery": "正在復原",
+        "unknown": "未知",
+        "caption_cadence": "每 {{seconds}} 秒探測一次",
+        "caption_unknown": "探測服務沒有回報資料"
+      },
+      "latency": {
+        "eyebrow": "來回時間",
+        "value": "{{ms}} 毫秒",
+        "caption": "平均 {{avg}} 毫秒，最低 {{min}} 毫秒，最高 {{max}} 毫秒",
+        "caption_none": "尚無讀數"
+      },
+      "loss": {
+        "eyebrow": "封包遺失",
+        "value": "{{pct}}%",
+        "caption": "以 {{samples}} 個樣本測得",
+        "caption_none": "視窗內樣本不足 10 個，因此尚未測得封包遺失率"
+      },
+      "leg": {
+        "eyebrow": "回應目標",
+        "value": "第 {{n}} 個目標",
+        "none": "無",
+        "caption_hostname": "由主機名稱目標回應，屬於正常情況",
+        "caption_fallback": "探測鏈退回到 IPv4 字面位址，表示本裝置的 DNS 解析已經失效",
+        "caption_none": "沒有任何目標回應",
+        "family_ipv4": "IPv4",
+        "family_ipv6": "IPv6",
+        "family_none": "無"
+      }
+    },
+    "targets": {
+      "title": "探測目標",
+      "description": "本數據機用來判斷網際網路是否可連通的四個目標。它會依序嘗試，並在第一個回應處停止。",
+      "group_head": "探測鏈",
+      "restore": "還原預設值",
+      "answered": "已回應",
+      "unsaved": "未儲存",
+      "save": "儲存探測目標",
+      "save_failed": "無法儲存探測目標",
+      "note_fallback": "後兩個目標是 IPv4 字面位址，不需要 DNS，因此解析器故障不會被誤判為斷線。這兩個欄位不接受主機名稱。",
+      "note_watchdog": "探測頻率以及構成斷線的失敗次數，請在以下頁面設定：",
+      "note_watchdog_link": "連線看門狗",
+      "leg": {
+        "host_1": "主機名稱目標 1",
+        "host_2": "主機名稱目標 2",
+        "ip_1": "IPv4 目標 1",
+        "ip_2": "IPv4 目標 2"
+      },
+      "kind": {
+        "host": "這是一個主機名稱，由解析器決定使用哪種位址族。",
+        "ip": "這是一個 IPv4 字面位址，不需要 DNS 查詢。"
+      },
+      "error": {
+        "title": "無法讀取探測目標",
+        "body": "QManager 無法讀取本裝置的探測目標。沒有任何內容被變更——已儲存的目標仍在數據機上生效。",
+        "body_detail": "QManager 無法讀取本裝置的探測目標。沒有任何內容被變更——已儲存的目標仍在數據機上生效。裝置回應：{{detail}}",
+        "retry": "重試"
+      },
+      "empty": {
+        "title": "尚未儲存探測鏈",
+        "body": "本裝置還沒有記錄任何探測目標。還原預設值，為它設定一條可用的探測鏈。",
+        "action": "還原預設值"
+      },
+      "toast": {
+        "saved": "探測目標已儲存"
+      },
+      "validation": {
+        "empty": "請輸入一個目標。",
+        "too_long": "最多 {{max}} 個字元。",
+        "spaces": "不允許包含空格。",
+        "disallowed": "包含不允許使用的字元。",
+        "host_invalid": "不是有效的主機名稱。",
+        "ipv4_required": "此欄位需要一個 IPv4 位址，不接受主機名稱。",
+        "ipv4_invalid": "不是有效的 IPv4 位址。"
+      }
+    },
+    "thresholds": {
+      "title": "品質門檻",
+      "description": "這兩條門檻決定何時把緩慢或封包遺失的連線回報為網路事件。",
+      "latency": {
+        "title": "延遲"
+      },
+      "loss": {
+        "title": "封包遺失"
+      },
+      "preset": {
+        "standard": "標準",
+        "tolerant": "寬鬆",
+        "very_tolerant": "非常寬鬆"
+      },
+      "blurb": {
+        "latency_standard": "適用於訊號良好的行動網路。持續高於 150 毫秒時標記。",
+        "latency_tolerant": "適用於一般的行動網路。容許偶爾的尖峰，不會立即標記。",
+        "latency_very_tolerant": "適用於訊號較差的區域。只有延遲長期偏高時才標記。",
+        "loss_standard": "嚴格的品質標準。遺失率超過 15% 時標記。",
+        "loss_tolerant": "在負載較高的行動網路上屬正常。短暫的突發遺失不會觸發。",
+        "loss_very_tolerant": "僅針對嚴重掉線。適用於訊號較差的區域。"
+      },
+      "readout": {
+        "threshold": "門檻",
+        "now": "目前",
+        "debounce": "確認次數",
+        "debounce_value_one": "{{count}} 個樣本",
+        "debounce_value_other": "{{count}} 個樣本",
+        "latency_value": "{{ms}} 毫秒",
+        "loss_value": "{{pct}}%"
+      },
+      "state": {
+        "under": "低於",
+        "over": "高於"
+      },
+      "footer": "這兩條都只是警示門檻。此處的設定不會重啟數據機——恢復連線由連線看門狗負責。",
+      "default_note": "本裝置尚未儲存任何設定，這裡顯示的是內建預設值。儲存後即寫入數據機。",
+      "unsaved": "未儲存",
+      "save": "儲存門檻",
+      "save_failed": "無法儲存門檻",
+      "error": {
+        "title": "無法讀取品質門檻",
+        "body": "QManager 無法讀取本裝置的門檻。沒有任何內容被變更——已儲存的門檻仍在數據機上生效。",
+        "retry": "重試"
+      },
+      "toast": {
+        "saved": "品質門檻已儲存"
+      }
+    }
   }
 }
