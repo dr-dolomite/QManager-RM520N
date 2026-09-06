@@ -400,6 +400,8 @@ Four 104px pinned tiles reading the poller's `connectivity` block — no new req
 > ⚠️ `ping_target` **falls back to `targets[0]` when nothing has answered yet**, so a string match alone is not proof that a leg replied. `legState()` additionally requires `internet_available === true` and a `last_family` that is not `"none"`. Drop either guard and a dead link paints leg 1 as the answering leg.
 >
 > A poller predating the ICMP port sends **no** `last_family` at all. Absence is not a value: the family tag is then not rendered, rather than reported as `None`.
+>
+> The leg tile's one meta line is **state-dependent**. A hostname leg shows the target plus its family tag; a **fallback** leg spends that same 18px box on the cause instead (`leg.meta_fallback` — "DNS not resolving"), because the tile is pinned at 104px and there is no second line. The target is not lost: the probe chain card below promotes the answering leg and shows it. `srNote` carries the full sentence to assistive technology in both states.
 
 ### Probe Targets card (`probe-targets-card.tsx`)
 
