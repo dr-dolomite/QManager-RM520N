@@ -341,13 +341,17 @@
         "eyebrow": "Waktu pulang pergi",
         "value": "{{ms}} ms",
         "caption": "Rata-rata {{avg}} ms, terendah {{min}} ms, tertinggi {{max}} ms",
-        "caption_none": "Belum ada pembacaan"
+        "caption_none": "Belum ada pembacaan",
+        "sr_within": "Dalam ambang tersimpan {{limit}} ms",
+        "sr_over": "Melebihi ambang tersimpan {{limit}} ms"
       },
       "loss": {
         "eyebrow": "Kehilangan paket",
         "value": "{{pct}}%",
         "caption": "Diukur dari {{samples}} sampel",
-        "caption_none": "Kurang dari 10 sampel dalam jendela ini, jadi kehilangan paket belum terukur"
+        "caption_none": "Kurang dari 10 sampel dalam jendela ini, jadi kehilangan paket belum terukur",
+        "sr_within": "Dalam ambang tersimpan {{limit}}%",
+        "sr_over": "Melebihi ambang tersimpan {{limit}}%"
       },
       "leg": {
         "eyebrow": "Jalur penjawab",

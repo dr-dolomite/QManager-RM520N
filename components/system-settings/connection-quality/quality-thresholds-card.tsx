@@ -307,7 +307,7 @@ function MetricBlock({
           </div>
           <div className={READOUT.PAIR}>
             <span className={READOUT.PAIR_LABEL}>{t(`${K}.readout.now`)}</span>
-            <span className={cn(LABEL_LINE, "min-w-0")}>
+            <span className={READOUT.LIVE_LINE}>
               <TickingValue value={live} className={READOUT.PAIR_VALUE}>
                 {live === null ? VALUE_NONE : format(live)}
               </TickingValue>
@@ -377,7 +377,7 @@ function ThresholdsForm({
   return (
     <>
       {quality.saveError ? (
-        <div role="status" className={cn(NOTICE.BOX, NOTICE.FAILED)}>
+        <div role="alert" className={cn(NOTICE.BOX, NOTICE.FAILED)}>
           <TriangleAlertIcon className={NOTICE.GLYPH} aria-hidden="true" />
           <span className={NOTICE.STACK}>
             <span className={NOTICE.TEXT}>{t(`${K}.save_failed`)}</span>
@@ -528,7 +528,7 @@ export default function QualityThresholdsCard({
   return (
     <Card className={CARD_SHELL}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
+        <CardTitle as="h2" className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
         <CardDescription className={CARD_DESC}>
           {t(`${K}.description`)}
         </CardDescription>

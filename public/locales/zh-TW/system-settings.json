@@ -341,13 +341,17 @@
         "eyebrow": "來回時間",
         "value": "{{ms}} 毫秒",
         "caption": "平均 {{avg}} 毫秒，最低 {{min}} 毫秒，最高 {{max}} 毫秒",
-        "caption_none": "尚無讀數"
+        "caption_none": "尚無讀數",
+        "sr_within": "在已儲存的 {{limit}} 毫秒門檻以內",
+        "sr_over": "超出已儲存的 {{limit}} 毫秒門檻"
       },
       "loss": {
         "eyebrow": "封包遺失",
         "value": "{{pct}}%",
         "caption": "以 {{samples}} 個樣本測得",
-        "caption_none": "視窗內樣本不足 10 個，因此尚未測得封包遺失率"
+        "caption_none": "視窗內樣本不足 10 個，因此尚未測得封包遺失率",
+        "sr_within": "在已儲存的 {{limit}}% 門檻以內",
+        "sr_over": "超出已儲存的 {{limit}}% 門檻"
       },
       "leg": {
         "eyebrow": "回應目標",

@@ -41,6 +41,7 @@ import {
   HOSTNAME_LEGS,
   PRESET_LIMIT,
   RING,
+  RING_TONE,
   RING_WRAP,
   SKELETON,
   SLOT_ORDER,
@@ -129,7 +130,9 @@ function Tile({
   return (
     <motion.div variants={staggerRowItem} className={cn(TILE.ROOT, TILE.BODY)}>
       <span className={RING_WRAP}>
-        {live ? <span aria-hidden className={RING} /> : null}
+        {live ? (
+          <span aria-hidden className={cn(RING, RING_TONE[tone])} />
+        ) : null}
         <span
           className={cn(
             TILE.DISC,
@@ -145,7 +148,7 @@ function Tile({
         <span className={EYEBROW}>{eyebrow}</span>
         <span className={VALUE}>{children}</span>
         {srNote ? <span className="sr-only">{srNote}</span> : null}
-        <span className={CAPTION}>{caption}</span>
+        <span className={cn(CAPTION, "tabular-nums")}>{caption}</span>
       </div>
     </motion.div>
   );
@@ -268,6 +271,17 @@ export function StatusBand({
       ? t(`${K}.loss.caption_none`)
       : t(`${K}.loss.caption`, { samples: conn?.latency_history.length ?? 0 });
 
+  // A toned disc is the only thing saying a reading breached its cut, and its
+  // glyph is `aria-hidden` — so the verdict is spelled out for assistive tech.
+  const cutNote = (
+    metric: "latency" | "loss",
+    state: MeasureState,
+    limit: number | undefined,
+  ) =>
+    state === "unknown" || limit === undefined
+      ? undefined
+      : t(`${K}.${metric}.sr_${state}`, { limit });
+
   // --- Answering leg -------------------------------------------------------
   const leg = legState(conn, targets);
   const legFace = LEG_FACE[leg.state];
@@ -321,6 +335,7 @@ export function StatusBand({
               tone={LATENCY_FACE[latencyState].tone}
               eyebrow={t(`${K}.latency.eyebrow`)}
               caption={latencyCaption}
+              srNote={cutNote("latency", latencyState, latencyLimit)}
             >
               <TickingValue value={latency} className={VALUE_TEXT}>
                 {latency === null
@@ -334,6 +349,7 @@ export function StatusBand({
               tone={LOSS_FACE[lossState].tone}
               eyebrow={t(`${K}.loss.eyebrow`)}
               caption={lossCaption}
+              srNote={cutNote("loss", lossState, lossLimit)}
             >
               <TickingValue value={loss} className={VALUE_TEXT}>
                 {loss === null
@@ -346,7 +362,7 @@ export function StatusBand({
               glyph={legFace.glyph}
               tone={legFace.tone}
               eyebrow={t(`${K}.leg.eyebrow`)}
-              srNote={legNote}
+              srNote={leg.state === "none" ? undefined : legNote}
               caption={
                 leg.state === "none" ? (
                   legNote

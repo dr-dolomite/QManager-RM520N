@@ -57,7 +57,7 @@ export function ConditionBlock({
           type="button"
           onClick={onAction}
           className={cn(
-            "inline-flex items-center transition-[background-color,color] duration-[var(--duration-quick)] ease-out",
+            "inline-flex items-center transition-[background-color,color] duration-[var(--duration-quick)] ease-[var(--ease-quick)]",
             FOCUS_RING,
             CONDITION.ACTION,
             spec.action,

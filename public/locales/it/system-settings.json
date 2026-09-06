@@ -341,13 +341,17 @@
         "eyebrow": "Andata e ritorno",
         "value": "{{ms}} ms",
         "caption": "Media {{avg}} ms, minimo {{min}} ms, massimo {{max}} ms",
-        "caption_none": "Ancora nessuna lettura"
+        "caption_none": "Ancora nessuna lettura",
+        "sr_within": "Entro la soglia salvata di {{limit}} ms",
+        "sr_over": "Oltre la soglia salvata di {{limit}} ms"
       },
       "loss": {
         "eyebrow": "Perdita pacchetti",
         "value": "{{pct}}%",
         "caption": "Misurata su {{samples}} campioni",
-        "caption_none": "Meno di 10 campioni nella finestra, quindi la perdita non è ancora misurata"
+        "caption_none": "Meno di 10 campioni nella finestra, quindi la perdita non è ancora misurata",
+        "sr_within": "Entro la soglia salvata del {{limit}}%",
+        "sr_over": "Oltre la soglia salvata del {{limit}}%"
       },
       "leg": {
         "eyebrow": "Tratta attiva",

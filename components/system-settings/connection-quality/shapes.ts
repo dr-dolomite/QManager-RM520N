@@ -41,6 +41,7 @@ import {
   FOCUS_RING,
   GROUP_FILL,
   LABEL_LINE,
+  META_INK_ON_TONAL,
   NOTICE,
   PAGE_HEAD,
   PAGE_ROOT,
@@ -105,9 +106,20 @@ export type { DiscTone };
  * and only while the probe daemon is actually reporting. `animate-pulse-ring`
  * is the canon's CSS-only keyframe on the ambient token; its reduced-motion
  * block lives beside it in `globals.css` and nothing here starts it from JS.
+ *
+ * GEOMETRY ONLY — the hue is `RING_TONE`'s, keyed off the disc it sits under.
  */
-export const RING =
-  "animate-pulse-ring absolute -inset-1.5 rounded-pill bg-primary/25";
+export const RING = "animate-pulse-ring absolute -inset-1.5 rounded-pill";
+
+/** The halo: its own disc's fill at the ambient alpha. A fixed `bg-primary/25`
+ *  measured blue under the green, amber and red discs — 3 of the 4 live states. */
+export const RING_TONE = {
+  neutral: "bg-surface-container-high/25",
+  primary: "bg-primary/25",
+  success: "bg-success/25",
+  warning: "bg-warning/25",
+  destructive: "bg-destructive/25",
+} satisfies Record<DiscTone, string>;
 
 /** The box the ring and the disc share. Flex, so it shrink-wraps the disc
  *  instead of inheriting an inline box's line-height. */
@@ -169,6 +181,9 @@ export const LEG = {
   LABEL: "text-[0.9375rem] font-semibold",
   /** The one-line kind sentence, on the family's consequence step. */
   KIND: ROW.CONSEQUENCE,
+  /** The same sentence on a PROMOTED leg. `CONSEQUENCE`'s `on-surface-variant`
+   *  is another role's ink on `primary-container` and measured 4.230:1 in light. */
+  KIND_ANSWERED: `text-on-primary-container ${META_INK_ON_TONAL}`,
   CONTROL: "flex flex-none items-center @2xl/card:ml-auto",
   REST: "",
   ANSWERED: "bg-primary-container text-on-primary-container",
@@ -283,6 +298,10 @@ export const READOUT = {
   PAIR_LABEL: EYEBROW,
   /** A reading, so the UI face with `tabular-nums` — never `font-mono`. */
   PAIR_VALUE: "truncate text-[0.8125rem] font-semibold tabular-nums",
+  /** The "now" figure beside its chip. WRAPS: the chip is `shrink-0` and the
+   *  figure `truncate`, so otherwise the chip takes the column and the reading
+   *  collapses — measured at 0px wide in the single-column layout. */
+  LIVE_LINE: `${LABEL_LINE} min-w-0 flex-wrap`,
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -307,11 +326,13 @@ const LINE = {
  */
 export const SKELETON_LOCAL = {
   LEG: {
-    DISC: "size-7 flex-none rounded-pill",
+    /** The real disc box, so a change to `LEG.DISC` cannot drift out from it. */
+    DISC: LEG.DISC,
     LABEL: LINE.LABEL,
     KIND: LINE.KIND,
-    /** The family's field placeholder, plus this route's coarse bump. */
-    FIELD: `${SKELETON.TIME.FIELD} pointer-coarse:h-11`,
+    /** The family's field placeholder plus this route's coarse bump — MARKED,
+     *  because `SKELETON.TIME.FIELD` carries `h-[2.625rem]!` and would win. */
+    FIELD: `${SKELETON.TIME.FIELD} pointer-coarse:h-11!`,
   },
   BLOCK: {
     TITLE: LINE.LABEL,

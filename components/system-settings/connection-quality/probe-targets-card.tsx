@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import {
   CheckCircle2Icon,
   CircleAlertIcon,
+  RefreshCwIcon,
   RotateCcwIcon,
   RouteOffIcon,
   TriangleAlertIcon,
@@ -194,7 +195,7 @@ export default function ProbeTargetsCard({
   return (
     <Card className={CARD_SHELL}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
+        <CardTitle as="h2" className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
         <CardDescription className={CARD_DESC}>
           {t(`${K}.description`)}
         </CardDescription>
@@ -218,7 +219,7 @@ export default function ProbeTargetsCard({
             }
             onAction={() => void refresh()}
             actionLabel={t(`${K}.error.retry`)}
-            actionGlyph={RotateCcwIcon}
+            actionGlyph={RefreshCwIcon}
             className={CONDITION_PANEL.SCREEN}
           />
         ) : (
@@ -381,7 +382,7 @@ function ProbeChain({ profile, targets }: ProbeChainProps): React.JSX.Element {
       {/* A failed write says so and steps aside. It never replaces the form the
           user has just filled in. */}
       {saveError ? (
-        <div role="status" className={cn(NOTICE.BOX, NOTICE.FAILED)}>
+        <div role="alert" className={cn(NOTICE.BOX, NOTICE.FAILED)}>
           <TriangleAlertIcon className={NOTICE.GLYPH} aria-hidden="true" />
           <span className={NOTICE.STACK}>
             <span className={NOTICE.TEXT}>{t(`${K}.save_failed`)}</span>
@@ -450,7 +451,10 @@ function ProbeChain({ profile, targets }: ProbeChainProps): React.JSX.Element {
                       </Badge>
                     ) : null}
                   </span>
-                  <span id={kindId} className={LEG.KIND}>
+                  <span
+                    id={kindId}
+                    className={cn(LEG.KIND, isAnswered && LEG.KIND_ANSWERED)}
+                  >
                     {isHostLeg ? t(`${K}.kind.host`) : t(`${K}.kind.ip`)}
                   </span>
                   {code ? (

@@ -341,13 +341,17 @@
         "eyebrow": "Round trip",
         "value": "{{ms}} ms",
         "caption": "Average {{avg}} ms, low {{min}} ms, high {{max}} ms",
-        "caption_none": "No readings yet"
+        "caption_none": "No readings yet",
+        "sr_within": "Within the saved {{limit}} ms threshold",
+        "sr_over": "Over the saved {{limit}} ms threshold"
       },
       "loss": {
         "eyebrow": "Packet loss",
         "value": "{{pct}}%",
         "caption": "Measured across {{samples}} samples",
-        "caption_none": "Fewer than 10 samples in the window, so loss is not measured yet"
+        "caption_none": "Fewer than 10 samples in the window, so loss is not measured yet",
+        "sr_within": "Within the saved {{limit}}% threshold",
+        "sr_over": "Over the saved {{limit}}% threshold"
       },
       "leg": {
         "eyebrow": "Answering leg",
