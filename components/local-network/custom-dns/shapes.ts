@@ -422,7 +422,7 @@ export const ROW = {
  *
  * Kept on ONE line for the same reason `CARD_SHELL` is.
  */
-export const FIELD = "h-[2.625rem]! w-full min-w-0 rounded-pill border-0 bg-surface-container-high dark:bg-surface-container-high! px-4.5 font-mono text-sm text-on-surface tabular-nums placeholder:font-mono placeholder:text-on-surface-variant focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
+export const FIELD = "h-[2.625rem]! w-full min-w-0 rounded-pill border-0 bg-surface-container-high dark:bg-surface-container-high! px-4.5 font-mono text-sm text-on-surface tabular-nums placeholder:font-mono placeholder:text-on-surface-variant focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50";
 
 /** The ghost remove button beside a resolver field. 42px, so it matches. */
 export const FIELD_REMOVE =

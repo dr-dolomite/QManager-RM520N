@@ -426,7 +426,7 @@ const FIELD_BOX =
 
 /** Ink, focus ring and disabled. Rides whatever is the box. */
 const FIELD_STATE =
-  "text-on-surface placeholder:text-on-surface-variant focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
+  "text-on-surface placeholder:text-on-surface-variant focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
 export const FIELD = `${FIELD_BOX} bg-surface-container-high dark:bg-surface-container-high! ${FIELD_STATE}`;
 

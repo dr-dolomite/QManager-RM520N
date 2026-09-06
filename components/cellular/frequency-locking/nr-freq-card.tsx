@@ -141,7 +141,7 @@ const SCS_CONTROL = `${SLOT_INPUT} w-32 flex-none data-[size=default]:h-[2.625re
 
 /** The remove button's interaction layer. `SLOT.DROP` is shape only. */
 const DROP_INTERACT =
-  "transition-colors duration-[var(--duration-quick)] ease-out hover:text-on-surface focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55";
+  "transition-colors duration-[var(--duration-quick)] ease-out hover:text-on-surface focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55";
 
 export interface NrFreqCardProps {
   /** Committed (ARFCN, SCS) pairs, 0..32. Owned by the shell. */

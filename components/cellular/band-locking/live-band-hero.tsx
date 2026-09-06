@@ -721,7 +721,7 @@ export function LiveBandHero({
                 <button
                   type="button"
                   aria-label={t("band_locking.live.failover_help_label")}
-                  className="text-on-surface-variant hover:text-on-surface focus-visible:ring-ring/50 relative grid size-[1.375rem] place-items-center rounded-pill transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-[11px] before:content-[''] focus-visible:ring-[3px] focus-visible:outline-none"
+                  className="text-on-surface-variant hover:text-on-surface focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background relative grid size-[1.375rem] place-items-center rounded-pill transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-[11px] before:content-[''] focus-visible:ring-[3px] focus-visible:outline-none"
                 >
                   <MaterialSymbol name="info" size={18} />
                 </button>

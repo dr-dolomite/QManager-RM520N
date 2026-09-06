@@ -238,7 +238,7 @@ const SWITCH_TARGET =
 const FIELD_TILE = [
   "flex min-h-14 min-w-0 flex-col justify-center gap-0.5 rounded-field bg-surface-container px-4 py-2",
   "transition-[box-shadow] duration-[var(--duration-quick)] ease-out",
-  "focus-within:ring-ring/50 focus-within:ring-[3px]",
+  "focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background focus-within:ring-[3px]",
 ].join(" ");
 
 /** The tile's own label step. `w-full` so clicking anywhere along it focuses
@@ -1172,7 +1172,7 @@ export default function NrSaTowerCard({
                         <button
                           type="button"
                           aria-label={scsProvenance.tip}
-                          className="focus-visible:ring-ring/50 inline-flex rounded-pill focus-visible:ring-[3px] focus-visible:outline-none"
+                          className="focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background inline-flex rounded-pill focus-visible:ring-[3px] focus-visible:outline-none"
                         >
                           <MaterialSymbol
                             name={scsProvenance.glyph}

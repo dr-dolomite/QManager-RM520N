@@ -669,7 +669,7 @@ export const CARRIER_TILE = {
    * to be decided.
    */
   ACTION:
-    "relative ml-auto grid size-8 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-1.5 before:content-[''] hover:bg-primary-container hover:text-on-primary-container focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-45 aria-disabled:hover:bg-surface-container-high aria-disabled:hover:text-on-surface-variant",
+    "relative ml-auto grid size-8 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-1.5 before:content-[''] hover:bg-primary-container hover:text-on-primary-container focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-45 aria-disabled:hover:bg-surface-container-high aria-disabled:hover:text-on-surface-variant",
   /**
    * Marks the tile whose carrier IS the current lock target.
    *
@@ -807,7 +807,7 @@ export const FIELD_LABEL =
  * actually renders a select against this shape.
  */
 const FIELD_SHAPE =
-  "h-[2.625rem] rounded-field border-0 px-3.5 text-sm shadow-none focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+  "h-[2.625rem] rounded-field border-0 px-3.5 text-sm shadow-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]";
 
 /**
  * THE FIELD-STEP RULE: A FIELD'S RESTING FILL IS ONE TONAL STEP ABOVE ITS HOST,
@@ -1071,7 +1071,7 @@ export const DAY_CHIP = {
     "relative inline-flex size-11 items-center justify-center rounded-pill",
     "text-xs font-semibold select-none",
     "transition-[color,background-color] duration-[var(--duration-standard)] ease-standard",
-    "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
+    "focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none",
     "disabled:cursor-not-allowed disabled:opacity-55",
   ].join(" "),
   SKELETON: "size-11 rounded-pill",

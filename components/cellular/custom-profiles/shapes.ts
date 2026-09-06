@@ -459,7 +459,7 @@ export const HERO_STATE = {
  * corners — the wrapper paints nothing.
  */
 export const SAVED_PROFILES_ANCHOR =
-  "h-full scroll-mt-20 rounded-card outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+  "h-full scroll-mt-20 rounded-card outline-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]";
 
 /**
  * The eyebrow above the active profile's name.

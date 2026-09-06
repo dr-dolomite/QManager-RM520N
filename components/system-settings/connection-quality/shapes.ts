@@ -136,6 +136,14 @@ export const TARGET_LINE = {
   /** Size overrides only; the role stays the `Tag` variant's job. */
   CHIP: "h-4 min-w-0 shrink px-1.5 py-0 text-[0.6875rem] leading-none",
   CHIP_TEXT: "truncate",
+  /**
+   * The FALLBACK state spends this one line box on the cause instead of the
+   * target — the tile is pinned, so there is no second line to put it on and
+   * the target is one card down, promoted on the leg that answered. Same 18px
+   * box as `ROW`. The words carry the diagnosis; the ink only seconds it.
+   */
+  REASON:
+    "text-warning-on-surface block truncate leading-[1.125rem] font-medium",
 } as const;
 
 // -----------------------------------------------------------------------------

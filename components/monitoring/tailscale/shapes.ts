@@ -218,7 +218,7 @@ export const SWITCH_ROW = {
   /** A disabled switch cannot hold focus, so a tooltip needs its own target.
    *  That target is a real tab stop and therefore needs its own ring. */
   CONTROL_WRAP:
-    "relative flex-none rounded-pill outline-none before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-[''] focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+    "relative flex-none rounded-pill outline-none before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-[''] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -263,7 +263,7 @@ export const LOG_PANEL = {
   TITLE:
     "text-on-surface-variant text-[0.6875rem] font-semibold tracking-[0.02em] uppercase",
   GLYPH: "text-on-surface-variant size-3.5",
-  BODY: "h-56 overflow-y-auto px-4 pb-3 text-left font-mono text-xs leading-relaxed whitespace-pre outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+  BODY: "h-56 overflow-y-auto px-4 pb-3 text-left font-mono text-xs leading-relaxed whitespace-pre outline-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]",
   PLACEHOLDER: "text-on-surface-variant",
 } as const;
 

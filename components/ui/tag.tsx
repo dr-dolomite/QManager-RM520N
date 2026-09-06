@@ -60,7 +60,7 @@ const tagVariants = cva(
   // is listed explicitly — on this component the border is the fill, so
   // omitting it is the same defect `Badge` had when `background-color` was
   // missing from its own list.
-  "inline-flex items-center justify-center rounded-full border bg-transparent px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none [&>[data-slot=material-symbol]]:pointer-events-none focus-visible:ring-ring/50 focus-visible:ring-[3px] overflow-hidden [transition:color_var(--duration-standard)_var(--ease-standard),border-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
+  "inline-flex items-center justify-center rounded-full border bg-transparent px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none [&>[data-slot=material-symbol]]:pointer-events-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] overflow-hidden [transition:color_var(--duration-standard)_var(--ease-standard),border-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
   {
     variants: {
       variant: {

@@ -329,12 +329,14 @@ export const RECEIPT_ROW = "flex justify-end px-1";
 export const FIELD_WIDTH = "@2xl/card:w-auto @2xl/card:min-w-[13.5rem]";
 
 /**
- * The family's ONE focus ring — 3px `--ring` at 50%, the canon's spelling.
- * Written once because it had drifted to a `ring-2` in a role colour on two
- * controls, so tabbing the surface changed ring weight AND hue mid-page.
+ * The family's ONE focus ring — 3px of FULL-STRENGTH `--ring` over a 2px
+ * page-coloured gap, the canon's spelling. The alpha is a measured floor, not
+ * a taste call: at half strength the ring composited to 1.968:1 against its
+ * worst ground, under SC 1.4.11's 3:1. The gap is what makes it visible on a
+ * `bg-primary` control, where `--ring` is the same colour as the fill.
  */
 export const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 /** Focus ring and disabled. Rides whatever is the box. */
 const FIELD_STATE = `${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-50`;

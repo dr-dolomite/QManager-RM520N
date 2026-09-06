@@ -353,7 +353,7 @@ const FIELD_BASE =
   "h-[2.625rem] w-full rounded-field border-0 px-4 text-sm shadow-none outline-none " +
   "font-mono tracking-[0.06em] tabular-nums " +
   "placeholder:font-sans placeholder:tracking-normal " +
-  "focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
+  "focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background " +
   "aria-invalid:ring-[3px] aria-invalid:ring-destructive/40 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 

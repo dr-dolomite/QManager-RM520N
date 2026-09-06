@@ -266,7 +266,7 @@ export const SLOT = {
    * and focus ring; the `<input>` inside is transparent and unstyled.
    */
   LABEL_SHELL:
-    "flex h-11 w-[5.5rem] shrink-0 items-center gap-1.5 rounded-field bg-surface-container-high px-3 focus-within:ring-[3px] focus-within:ring-ring/50",
+    "flex h-11 w-[5.5rem] shrink-0 items-center gap-1.5 rounded-field bg-surface-container-high px-3 focus-within:ring-[3px] focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background",
   LABEL_FIELD:
     "min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] font-semibold focus-visible:outline-none",
   LABEL_STATIC: "w-[5.5rem] shrink-0 truncate text-[13px] font-semibold",

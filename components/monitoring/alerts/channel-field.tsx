@@ -244,7 +244,7 @@ export function ChannelSecretField({
           disabled={disabled}
           className={cn(
             ADORNMENT,
-            "text-on-surface-variant hover:text-on-surface focus-visible:ring-ring/50 size-8 justify-center rounded-pill focus-visible:ring-[3px] focus-visible:outline-none disabled:opacity-50",
+            "text-on-surface-variant hover:text-on-surface focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background size-8 justify-center rounded-pill focus-visible:ring-[3px] focus-visible:outline-none disabled:opacity-50",
             "transition-colors duration-[var(--duration-quick)] ease-out motion-reduce:transition-none",
           )}
         >

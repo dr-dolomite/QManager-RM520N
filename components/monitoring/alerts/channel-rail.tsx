@@ -110,7 +110,7 @@ export function ChannelRail({
             onClick={() => onValueChange(item.channel)}
             className={cn(
               "inline-flex items-center justify-center whitespace-nowrap outline-none",
-              "focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+              "focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]",
               "transition-[background-color,color] duration-[var(--duration-quick)] ease-out motion-reduce:transition-none",
               RAIL.PILL,
               active ? RAIL.PILL_ACTIVE : RAIL.PILL_REST,

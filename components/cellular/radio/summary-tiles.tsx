@@ -357,7 +357,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
               className={cn(
                 "font-semibold text-primary-on-surface underline underline-offset-2",
                 "transition-opacity duration-(--duration-quick) ease-out hover:opacity-80",
-                "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+                "focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
               )}
             >
               {t("radio_info.tiles.mimo.caption_link")}

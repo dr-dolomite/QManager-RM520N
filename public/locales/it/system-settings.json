@@ -359,10 +359,10 @@
         "none": "Nessuna",
         "caption_hostname": "Ha risposto una tratta con nome host, come previsto",
         "caption_fallback": "La catena è arrivata a un indirizzo IPv4 letterale, quindi il DNS di questo dispositivo non risolve",
+        "meta_fallback": "DNS non risolve",
         "caption_none": "Non ha risposto nessuna tratta",
         "family_ipv4": "IPv4",
-        "family_ipv6": "IPv6",
-        "family_none": "Nessuna"
+        "family_ipv6": "IPv6"
       }
     },
     "targets": {

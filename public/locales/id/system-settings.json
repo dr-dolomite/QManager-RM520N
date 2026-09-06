@@ -359,10 +359,10 @@
         "none": "Tidak ada",
         "caption_hostname": "Jalur nama host yang menjawab, ini normal",
         "caption_fallback": "Rantai jatuh ke alamat IPv4 langsung, jadi DNS di perangkat ini tidak menyelesaikan nama",
+        "meta_fallback": "Resolusi DNS gagal",
         "caption_none": "Tidak ada yang menjawab",
         "family_ipv4": "IPv4",
-        "family_ipv6": "IPv6",
-        "family_none": "Tidak ada"
+        "family_ipv6": "IPv6"
       }
     },
     "targets": {

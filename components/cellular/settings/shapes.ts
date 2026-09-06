@@ -531,7 +531,7 @@ export const READOUT_ICON_ACTION = [
   "relative grid size-6 flex-none place-items-center rounded-pill",
   "text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-[var(--ease-standard)]",
   "before:absolute before:-inset-2.5 before:content-['']",
-  "hover:text-on-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+  "hover:text-on-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
 ].join(" ");
 
 /** The glyph inside a `READOUT_ICON_ACTION`, sized to the 13px value beside it. */
@@ -576,7 +576,7 @@ export const CONDITION_ACTIONS =
  * no design system" this pass exists to remove.
  */
 export const INLINE_LINK =
-  "text-primary inline-flex items-center gap-1 rounded-pill font-medium underline underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none";
+  "text-primary inline-flex items-center gap-1 rounded-pill font-medium underline underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none";
 
 /** The glyph inside an `INLINE_LINK` — sized to the 14px body it rides on. */
 export const INLINE_LINK_GLYPH = 14;
@@ -994,7 +994,7 @@ const FIELD_VOICE = [
 
 /** The STATE half: focus ring, invalid ring, disabled. Rides whatever is the box. */
 const FIELD_STATE = [
-  "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+  "focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
   "aria-invalid:ring-[3px] aria-invalid:ring-destructive/40",
   "disabled:cursor-not-allowed disabled:opacity-50",
 ].join(" ");
@@ -1071,7 +1071,7 @@ export const CHECK_GROUP = {
   ROOT: [
     CONTROL_BOX,
     "flex w-full items-center gap-1 pr-3 pl-1.5",
-    "has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50",
+    "has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background",
   ].join(" "),
   /** The value itself: transparent, unringed, and the only thing that grows. */
   INPUT: [
@@ -1363,7 +1363,7 @@ export const REORDER_ROW = {
    * here, because it is a gesture-routing concern rather than a shape one.
    */
   HANDLE:
-    "flex size-8 flex-none cursor-grab items-center justify-center rounded-pill text-on-surface-variant hover:bg-surface-container-high active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [@media(pointer:coarse)]:size-11",
+    "flex size-8 flex-none cursor-grab items-center justify-center rounded-pill text-on-surface-variant hover:bg-surface-container-high active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none [@media(pointer:coarse)]:size-11",
   HANDLE_GLYPH: 20,
   TEXT: "flex min-w-0 flex-1 flex-col gap-0.75",
   LABEL: "text-[0.9375rem] font-semibold",
@@ -1500,7 +1500,7 @@ export const RAT_RANK_TONE: Record<string, string> = {
  */
 export const CHOICE_ROW = {
   SCROLL_CAP: "max-h-[17rem] overflow-y-auto",
-  ROOT: "flex w-full items-center gap-3 rounded-field px-4 py-3 text-left transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+  ROOT: "flex w-full items-center gap-3 rounded-field px-4 py-3 text-left transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)] focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
   REST: "hover:bg-surface-container-high",
   SELECTED: "bg-primary-container text-on-primary-container",
   /** Mirrors ROOT's resolved height for the skeleton. */

@@ -359,10 +359,10 @@
         "none": "無",
         "caption_hostname": "由主機名稱目標回應，屬於正常情況",
         "caption_fallback": "探測鏈退回到 IPv4 字面位址，表示本裝置的 DNS 解析已經失效",
+        "meta_fallback": "DNS 解析失效",
         "caption_none": "沒有任何目標回應",
         "family_ipv4": "IPv4",
-        "family_ipv6": "IPv6",
-        "family_none": "無"
+        "family_ipv6": "IPv6"
       }
     },
     "targets": {

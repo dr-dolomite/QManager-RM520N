@@ -205,7 +205,7 @@ export const HERO_RAIL_SUBTITLE = "text-[13px] text-on-surface-variant";
  * restating information the cards already carry, just one layer removed.
  */
 export const HERO_RAIL_ROW =
-  "group flex w-full items-center gap-3 rounded-field bg-surface px-4 py-3 text-left transition-colors duration-[var(--duration-quick)] ease-out hover:bg-surface-container-high focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none";
+  "group flex w-full items-center gap-3 rounded-field bg-surface px-4 py-3 text-left transition-colors duration-[var(--duration-quick)] ease-out hover:bg-surface-container-high focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none";
 
 export const HERO_RAIL_ROW_LABEL = "text-sm font-semibold";
 export const HERO_RAIL_ROW_RATIO =
@@ -314,7 +314,7 @@ export const HERO_ONAIR_ABSENT = {
   DISC: "grid size-9 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant",
   TITLE: "text-sm font-semibold",
   BODY: "text-on-surface-variant text-xs leading-relaxed text-pretty",
-  LINK: "mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-colors duration-[var(--duration-quick)] ease-out hover:text-primary/80 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none rounded-pill",
+  LINK: "mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-colors duration-[var(--duration-quick)] ease-out hover:text-primary/80 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none rounded-pill",
 } as const;
 
 /**
@@ -575,7 +575,7 @@ export const BAND_CHIP = {
     "font-mono text-[0.8125rem] font-semibold tabular-nums select-none",
     "transition-[color,background-color,box-shadow] duration-[var(--duration-standard)] ease-standard",
     "before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-['']",
-    "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
+    "focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none",
     "disabled:cursor-not-allowed disabled:opacity-55",
   ].join(" "),
   /** Skeleton mirror. Same height and minimum width as a real chip. */

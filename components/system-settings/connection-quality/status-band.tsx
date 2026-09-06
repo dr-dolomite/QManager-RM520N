@@ -293,14 +293,14 @@ export function StatusBand({
         : t(`${K}.leg.caption_none`);
   // A poller predating the ICMP port sends no family at all. Absence is not a
   // value, so the tag is simply not rendered rather than reported as "None".
+  // `"none"` cannot reach here — `legState` has already sent it to the None
+  // face — so there is no `family_none` leaf to key onto.
   const familyKey =
     conn?.last_family === "ipv4"
       ? `${K}.leg.family_ipv4`
       : conn?.last_family === "ipv6"
         ? `${K}.leg.family_ipv6`
-        : conn?.last_family === "none"
-          ? `${K}.leg.family_none`
-          : null;
+        : null;
 
   return (
     <div>
@@ -366,6 +366,13 @@ export function StatusBand({
               caption={
                 leg.state === "none" ? (
                   legNote
+                ) : leg.state === "fallback" ? (
+                  // The one diagnostic fact this tile can report, in words —
+                  // the amber disc and its glyph say something is off, they
+                  // cannot say WHAT. `srNote` still carries the full sentence.
+                  <span className={TARGET_LINE.REASON}>
+                    {t(`${K}.leg.meta_fallback`)}
+                  </span>
                 ) : (
                   <span className={TARGET_LINE.ROW}>
                     <span className={TARGET_LINE.HOST}>

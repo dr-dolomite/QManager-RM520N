@@ -281,7 +281,7 @@ export const CHIP_GLYPH = "size-3";
  */
 export const CHOICE_ROW = {
   GROUP: "flex flex-col gap-2",
-  ROOT: "flex w-full items-center gap-3.5 rounded-pill px-4.5 py-3.5 text-left transition-colors duration-(--duration-standard) ease-standard focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
+  ROOT: "flex w-full items-center gap-3.5 rounded-pill px-4.5 py-3.5 text-left transition-colors duration-(--duration-standard) ease-standard focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60",
   UNSELECTED: "bg-surface-container text-on-surface",
   SELECTED: "bg-primary-container text-on-primary-container",
   /**
@@ -497,7 +497,7 @@ export const HOST_MAX_COLUMNS = 3;
  * own background, with no edge at all.
  */
 export const FIELD =
-  "h-[2.625rem] w-full min-w-0 flex-1 rounded-field border-0 bg-surface-container px-4.5 font-mono text-sm text-on-surface placeholder:text-on-surface-variant focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "h-[2.625rem] w-full min-w-0 flex-1 rounded-field border-0 bg-surface-container px-4.5 font-mono text-sm text-on-surface placeholder:text-on-surface-variant focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 /** The field and its Add button, side by side once the CARD is wide enough. */
 export const FIELD_ROW = "flex flex-col gap-2.5 @lg/card:flex-row";

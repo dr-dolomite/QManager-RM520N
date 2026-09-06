@@ -323,7 +323,7 @@ export const TAG_HEIGHT = "h-[30px]";
  * the emitted CSS tells, and what it says is that the transition never runs.
  */
 export const FOCUS_RING =
-  "rounded-pill outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:transition-shadow focus-visible:duration-(--duration-quick) focus-visible:ease-quick";
+  "rounded-pill outline-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:transition-shadow focus-visible:duration-(--duration-quick) focus-visible:ease-quick";
 
 /**
  * The down/up pair's shared treatment.

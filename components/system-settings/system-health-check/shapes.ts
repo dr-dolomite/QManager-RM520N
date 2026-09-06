@@ -477,4 +477,4 @@ export const CLOCK_TICK_MS = 15_000;
 
 /** The family's ONE focus ring — 3px `--ring` at 50%, the canon's spelling. */
 export const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";

@@ -243,7 +243,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       className={cn(
         "inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-pill",
         "text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface",
-        "focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px]",
+        "focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none focus-visible:ring-[3px]",
         copied && "text-success",
       )}
     >
@@ -297,7 +297,7 @@ function AddressRow({
             className={cn(
               valueClass,
               "cursor-help rounded-inline text-left",
-              "focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px]",
+              "focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none focus-visible:ring-[3px]",
             )}
           >
             {compressed}
@@ -612,7 +612,7 @@ export function CellularInformationCard({
                       <TooltipTrigger asChild>
                         <button
                           type="button"
-                          className="inline-flex shrink-0 items-center gap-1 rounded-pill text-on-surface-variant outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-pill text-on-surface-variant outline-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]"
                         >
                           <span className="text-xs font-semibold tracking-wide uppercase">
                             {t("radio_info.value.estimated")}

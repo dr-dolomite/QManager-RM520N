@@ -359,10 +359,10 @@
         "none": "None",
         "caption_hostname": "A hostname leg answered, which is normal",
         "caption_fallback": "The chain fell through to an IPv4 literal, so DNS on this device is not resolving",
+        "meta_fallback": "DNS not resolving",
         "caption_none": "Nothing answered",
         "family_ipv4": "IPv4",
-        "family_ipv6": "IPv6",
-        "family_none": "None"
+        "family_ipv6": "IPv6"
       }
     },
     "targets": {

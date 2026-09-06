@@ -829,7 +829,7 @@ export function ActiveBandsCard({
                                   <TooltipTrigger asChild>
                                     <button
                                       type="button"
-                                      className="inline-flex shrink-0 items-center gap-1 rounded-pill text-on-surface-variant outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                                      className="inline-flex shrink-0 items-center gap-1 rounded-pill text-on-surface-variant outline-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]"
                                     >
                                       {/* `text-xs` — the Label step. The marker
                                           is subordinated by ink and case, not
@@ -885,7 +885,7 @@ export function ActiveBandsCard({
         </p>
         <Link
           href="/cellular/cell-scanner"
-          className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-pill text-[13px] font-semibold text-primary outline-none hover:underline focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-pill text-[13px] font-semibold text-primary outline-none hover:underline focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]"
         >
           {t("radio_info.bands.scanner.link")}
           <MaterialSymbol name="chevron_right" size={16} />

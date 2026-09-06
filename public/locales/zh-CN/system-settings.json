@@ -359,10 +359,10 @@
         "none": "无",
         "caption_hostname": "由主机名目标响应，属于正常情况",
         "caption_fallback": "探测链回落到了 IPv4 字面地址，说明本设备的 DNS 解析已经失效",
+        "meta_fallback": "DNS 解析失效",
         "caption_none": "没有任何目标响应",
         "family_ipv4": "IPv4",
-        "family_ipv6": "IPv6",
-        "family_none": "无"
+        "family_ipv6": "IPv6"
       }
     },
     "targets": {
