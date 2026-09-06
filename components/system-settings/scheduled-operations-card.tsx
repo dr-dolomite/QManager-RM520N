@@ -90,20 +90,39 @@ const ScheduledRebootCard = ({
   const [isSaving, setIsSaving] = useState(false);
 
   const rebootSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Only the newest save may lift `savePending`; an older one settling under a
+  // queued edit must leave the latch armed.
+  const saveSeqRef = useRef(0);
+  const [savePending, setSavePending] = useState(false);
+
+  // A save runs long after the render that scheduled it, so it reads the server
+  // value and the translator from here rather than from a stale closure.
+  const latestRef = useRef({ server: scheduledReboot, t });
+  useEffect(() => {
+    latestRef.current = { server: scheduledReboot, t };
+  });
 
   // Server value at render time, never copied in by an effect, and compared by
   // IDENTITY: a truthy guard leaves a read that carried no schedule on screen.
+  // Held off while a save is queued or in flight, or a refresh landing inside
+  // the debounce window would overwrite the very edit being saved.
   const [prevReboot, setPrevReboot] = useState<ScheduleConfig | null>(null);
-  if (scheduledReboot !== prevReboot) {
+  if (!savePending && scheduledReboot !== prevReboot) {
     setPrevReboot(scheduledReboot);
     setRebootEnabled(scheduledReboot?.enabled ?? false);
     setRebootTime(scheduledReboot?.time ?? "04:00");
     setRebootDays(scheduledReboot?.days ?? []);
   }
 
+  const isMountedRef = useRef(true);
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      if (rebootSaveTimerRef.current) clearTimeout(rebootSaveTimerRef.current);
+      isMountedRef.current = false;
+      if (!rebootSaveTimerRef.current) return;
+      // The card promises it saves on its own, so a dropped edit must say so.
+      clearTimeout(rebootSaveTimerRef.current);
+      toast.warning(latestRef.current.t(`${K}.toast.unsaved`));
     };
   }, []);
 
@@ -148,19 +167,29 @@ const ScheduledRebootCard = ({
       if (rebootSaveTimerRef.current) {
         clearTimeout(rebootSaveTimerRef.current);
       }
+      const seq = ++saveSeqRef.current;
+      setSavePending(true);
       rebootSaveTimerRef.current = setTimeout(async () => {
+        // Cleared before the await so unmounting mid-flight does not warn about
+        // a request that is already on the wire.
+        rebootSaveTimerRef.current = null;
         setIsSaving(true);
         let result;
         try {
           result = await saveScheduledReboot(payload);
         } finally {
           setIsSaving(false);
+          if (saveSeqRef.current === seq) setSavePending(false);
         }
+        // Unmounted mid-flight: the request is on the wire, but the hook stops
+        // reporting its result, so narrate nothing rather than claim a failure.
+        if (!isMountedRef.current) return;
         if (!result.success) {
           // The rejected write left the rail disagreeing with the band, so
           // revert both to the server's last-known values.
-          setRebootDays(scheduledReboot?.days ?? []);
-          setRebootTime(scheduledReboot?.time ?? "04:00");
+          const server = latestRef.current.server;
+          setRebootDays(server?.days ?? []);
+          setRebootTime(server?.time ?? "04:00");
           rejectionToast(`${K}.toast.save_failed`, result.rejection, result.rejectionDetail);
           return;
         }
@@ -176,7 +205,7 @@ const ScheduledRebootCard = ({
         }
       }, 800);
     },
-    [saveScheduledReboot, markSaved, armWarning, rejectionToast, t, scheduledReboot],
+    [saveScheduledReboot, markSaved, armWarning, rejectionToast, t],
   );
 
   const handleRebootEnabledChange = async (checked: boolean) => {
@@ -185,6 +214,8 @@ const ScheduledRebootCard = ({
       clearTimeout(rebootSaveTimerRef.current);
       rebootSaveTimerRef.current = null;
     }
+    const seq = ++saveSeqRef.current;
+    setSavePending(true);
     setIsSaving(true);
     let result;
     try {
@@ -196,7 +227,9 @@ const ScheduledRebootCard = ({
       });
     } finally {
       setIsSaving(false);
+      if (saveSeqRef.current === seq) setSavePending(false);
     }
+    if (!isMountedRef.current) return;
     if (!result.success) {
       setRebootEnabled(!checked);
       rejectionToast(`${K}.toast.update_failed`, result.rejection, result.rejectionDetail);

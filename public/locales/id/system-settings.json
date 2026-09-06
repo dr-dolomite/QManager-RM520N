@@ -193,6 +193,7 @@
       "saved": "Jadwal reboot tersimpan",
       "save_failed": "Gagal menyimpan jadwal reboot",
       "update_failed": "Gagal memperbarui jadwal reboot",
+      "unsaved": "Perubahan jadwal reboot tidak tersimpan — Anda meninggalkan halaman sebelum sempat disimpan.",
       "not_armed": "Jadwal reboot tersimpan, tetapi tidak dapat diaktifkan di perangkat ini — {{detail}}",
       "reason_unknown": "alasan tidak diketahui",
       "reasons": {

@@ -193,6 +193,7 @@
       "saved": "重啟排程已儲存",
       "save_failed": "儲存重啟排程失敗",
       "update_failed": "更新重啟排程失敗",
+      "unsaved": "重啟排程的變更未儲存——您在儲存完成前離開了頁面。",
       "not_armed": "重啟排程已儲存，但無法在本裝置上啟用——{{detail}}",
       "reason_unknown": "原因不明",
       "reasons": {

@@ -194,17 +194,35 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
   Mon, Wed". An unmapped token falls back to the translated generic line with the
   device's own words quoted beneath it as machine voice, never spliced into a sentence.
 
-- **Open: the 800ms debounced save races a concurrent refresh.**
+- **The 800ms debounced save raced a concurrent refresh — FIXED.**
   `scheduled-operations-card.tsx` resyncs local state from `scheduledReboot` by object
-  identity during render, and every GET yields a fresh object. A refresh landing inside
-  the debounce window overwrites an in-flight day edit while the already-scheduled timer
-  still POSTs the original payload. Two triggers: the page's Refresh button, and — less
-  obviously — a *preferences* save, which calls `fetchSettings(true)`. The POST's own
-  response resyncs, so it self-corrects, except on the rejection path where nothing
-  resyncs. Unmounting also drops a pending save with no feedback at all. The same closure
-  feeds the rejection revert, so a rejection arriving while an earlier save is still
-  in flight restores the rail to a value one step behind the server; a ref would
-  close both halves at once.
+  identity during render, and every GET yields a fresh object, so a refresh landing
+  inside the debounce window overwrote the very edit being saved while the
+  already-scheduled timer still POSTed the original payload. Two triggers: the page's
+  Refresh button, and — less obviously — a *preferences* save, which calls
+  `fetchSettings(true)`. Measured before the fix, the rail read Mon+Wed at the instant
+  the request carried Mon+Wed+Fri. Three parts close it, each load-bearing:
+
+  - **The render-time resync is held off while a save is queued or in flight**
+    (`savePending`). Suppressing the sync, rather than re-deriving the payload when the
+    timer fires, is the half that keeps the user's edit — re-deriving would POST the
+    server's own value back and discard the click. `prevReboot` deliberately does not
+    advance while the latch is up, so the reconcile it defers lands on the first render
+    after the latch drops, which is also the resync the rejection path never had.
+  - **`saveSeqRef` decides who may drop the latch.** Only the newest save clears
+    `savePending`; an older one settling underneath a queued edit must leave it armed,
+    or a refresh in that gap reopens the same race.
+  - **`latestRef` feeds the rejection revert, never the closure.** The debounced callback
+    captures `scheduledReboot` at schedule time, so a rejection arriving after an earlier
+    save had already landed used to restore the rail to a value one step behind the
+    server — measured as a rail showing Mon while the server held Fri.
+
+  Unmounting no longer drops a pending save in silence: the cleanup warns through
+  `reboot.toast.unsaved`, because the card's own receipt strip promises it "Saves
+  automatically". Its mirror is that once the request is on the wire the card stops
+  narrating the outcome at all (`isMountedRef`) — `postAction` returns a bare
+  `{success:false}` after the hook unmounts, which the card otherwise reported as
+  "Failed to save" over a write the device had actually accepted.
 
 - **Open: the frontend and backend disagree about whether "enabled with no days" is
   legal.** `scheduled-operations-card.tsx` renders it as a first-class `warning` badge

@@ -193,6 +193,7 @@
       "saved": "Reboot schedule saved",
       "save_failed": "Failed to save reboot schedule",
       "update_failed": "Failed to update reboot schedule",
+      "unsaved": "Reboot schedule change wasn’t saved — you left the page before it could save.",
       "not_armed": "Reboot schedule saved, but it couldn't be armed on this device — {{detail}}",
       "reason_unknown": "reason unknown",
       "reasons": {

@@ -193,6 +193,7 @@
       "saved": "Pianificazione dei riavvii salvata",
       "save_failed": "Impossibile salvare la pianificazione dei riavvii",
       "update_failed": "Impossibile aggiornare la pianificazione dei riavvii",
+      "unsaved": "Modifica alla pianificazione dei riavvii non salvata: hai lasciato la pagina prima che potesse essere salvata.",
       "not_armed": "Pianificazione dei riavvii salvata, ma non è stato possibile attivarla su questo dispositivo — {{detail}}",
       "reason_unknown": "motivo sconosciuto",
       "reasons": {
