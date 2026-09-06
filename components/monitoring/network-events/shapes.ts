@@ -120,8 +120,10 @@ export const ROW = {
   /** Size overrides only; the role stays the `Tag` variant's job. */
   META_CHIP: "h-4 shrink-0 px-1.5 py-0 text-[0.6875rem] leading-none",
   /** On a tinted row the chip takes the container's OWN ink; a neutral-ramp
-   *  stroke on a chromatic surface is a crossed pair. */
-  META_CHIP_ON_TONAL: "border-current/45 text-current",
+   *  stroke on a chromatic surface is a crossed pair. 65% is the floor that
+   *  holds it at 3:1 on all three tonal rows; 45% measured 2.13:1 on
+   *  `warning-container` in light. */
+  META_CHIP_ON_TONAL: "border-current/65 text-current",
   /** "Ongoing" is a plain marker, not a status chip: the row's tonal container
    *  already reports the state and the disc already carries the glyph. */
   META_MARKER: "flex shrink-0 items-center gap-1 text-[0.6875rem] leading-none font-semibold",

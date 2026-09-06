@@ -176,7 +176,10 @@ export const RUNG = {
    */
   META_CHIP:
     "min-h-4 min-w-0 shrink px-1.5 py-0 font-mono text-[0.6875rem] leading-[1.45] whitespace-normal break-words justify-start text-left",
-  META_CHIP_ON_TONAL: "border-current/45 text-current",
+  /** 65% is the floor that keeps the stroke at 3:1. This rung is tonal only
+   *  while running, so the pair is `primary-container`: 45% measured 2.32:1
+   *  light and 2.81:1 dark. */
+  META_CHIP_ON_TONAL: "border-current/65 text-current",
   /** "Running now" on the promoted rung: the container already reports state. */
   MARKER:
     "flex shrink-0 items-center gap-1 text-[0.6875rem] leading-none font-semibold",
@@ -278,8 +281,9 @@ export const ROW = {
   META: "flex h-4 min-w-0 items-center gap-1.5",
   /** Size overrides only; the role stays the `Tag` variant's job. */
   META_CHIP: "h-4 shrink-0 px-1.5 py-0 text-[0.6875rem] leading-none",
-  /** On a tinted row the chip takes the container's OWN ink. */
-  META_CHIP_ON_TONAL: "border-current/45 text-current",
+  /** On a tinted row the chip takes the container's OWN ink, at the 65% that
+   *  holds the stroke at 3:1; 45% measured 2.13:1 on `warning-container`. */
+  META_CHIP_ON_TONAL: "border-current/65 text-current",
   META_ID:
     "text-on-surface-variant truncate font-mono text-[0.6875rem] leading-none",
   META_ID_ON_TONAL:

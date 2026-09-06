@@ -323,8 +323,10 @@ export const ROW = {
   /** Size overrides only; the role stays the `Tag` variant's job. */
   META_CHIP: "h-4 shrink-0 px-1.5 py-0 text-[0.6875rem] leading-none",
   /** On a tinted row the chip takes the container's OWN ink; a neutral-ramp
-   *  stroke on a chromatic surface is a crossed pair. */
-  META_CHIP_ON_TONAL: "border-current/45 text-current",
+   *  stroke on a chromatic surface is a crossed pair. 65% is the floor that
+   *  holds it at 3:1; only `sent` and `failed` are tonal here, and 45% measured
+   *  2.22:1 on `success-container` and 2.32:1 on `destructive-container`. */
+  META_CHIP_ON_TONAL: "border-current/65 text-current",
   /** Machine voice: a recipient the device addressed verbatim. */
   META_ID:
     "text-on-surface-variant truncate font-mono text-[0.6875rem] leading-none",

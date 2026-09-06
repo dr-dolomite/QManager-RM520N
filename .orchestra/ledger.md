@@ -785,3 +785,98 @@ product hardcoding raw Tailwind palette colours.
 
 **Open:** `RELEASE_NOTES.md`'s Unreleased block still has no bullet for either the
 Alerts or the Tailscale refit. Left deliberately — out of the scope the user set.
+
+# Run: System Logs follow-ups — border-current/45 contrast sweep (2026-09-06)
+
+Baseline: 5e5fb1c. Mode: Full. LEAD = Opus 5.
+Scope as spun out by the user: watchdog + alerts only. network-events deliberately NOT included.
+
+## Tasks
+
+| ID | Task | State |
+|----|------|-------|
+| T2b-1 | Verify the recorded 2.13:1 claim independently | DONE |
+| T2b-2 | watchdog/shapes.ts:179 + :282 -> clearing alpha | DONE |
+| T2b-3 | alerts/shapes.ts:327 -> clearing alpha | DONE |
+| T2b-4 | DESIGN.md Migration Deltas row | DONE |
+| T2b-5 | Blind verification | PASS_WITH_NOTES, notes closed |
+
+## Measurement (two independent methods, agree within 0.04)
+
+LEAD offline: OKLCH -> sRGB, alpha composited in gamma sRGB.
+LEAD in-browser: canvas rasterisation, so the BROWSER does conversion + compositing.
+orchestra-verifier reproduced both with its own script: warning@45 light = 2.131.
+
+              light45  light65  dark45  dark65
+  warning       2.14     3.19     2.63    3.77
+  destructive   2.34     3.57     3.30    5.64
+  success       2.21     3.41     3.26    5.07
+  primary       2.32     3.62     2.79    4.20
+
+45% fails 3:1 on SIX of the EIGHT reachable (role, theme) pairs — all four in light, plus
+warning and primary in dark. 65% clears all eight; binding figure light/warning at 3.19.
+
+Chose 65% for parity with the corrected logs copy; a third value would recreate the drift.
+
+## Reachability (traced, not assumed)
+
+  watchdog RUNG:181  -> primary-container ONLY (gated on `running`)
+  watchdog ROW:285   -> destructive / warning / success (presentEvent TONAL_FILL)
+  alerts ROW:328     -> success / destructive ONLY (ROW_TONE_IS_TONAL: sent, failed)
+
+Union = all four roles. success-container and primary-container are reachable here and were
+NOT covered by the logs rationale, which measured only warning and destructive.
+
+## Gates
+
+tsc clean. eslint exit 0. i18n:check 0 errors / 100% parity (no strings changed).
+next build NOT run: another chat's dev server owns .next. No new utility-class literal was
+introduced (both /45 and /65 already existed in source), so the Tailwind prose hazard is not in play.
+Browser: border-current/65 confirmed to COMPILE to a real rule; verifier further proved twMerge
+strips `border-tag-neutral-border` so the fix is not shadowed by tag.tsx's earlier-emitted token.
+The chip was never seen rendered — no device backend, so both routes sit in their 404 condition state.
+
+## Verifier notes, all closed
+
+1. Comments named containers their site cannot reach (watchdog RUNG cited warning; alerts cited
+   warning). FIXED — each comment now names its own reachable pair.
+2. DESIGN.md row miscounted ("four of the six") and omitted dark primary. FIXED — "six of the eight".
+3. Four connection-quality files showed as modified mid-verification. Re-checked: clean. They were a
+   PARALLEL SESSION mid-edit in this same checkout, not part of this change.
+
+## Hazards logged
+
+- MSYS `sed -i` on a CRLF file strips every CR in the working copy. Git normalizes so the committed
+  diff stayed 1 line, but the working copy needed add + rm + checkout to repair. Use Edit, not sed -i.
+- `.orchestra/ledger.md` is TRACKED and holds prior run history. A `cat >` clobbered 780 lines;
+  recovered with git checkout. ALWAYS append.
+- Another Claude session is actively writing in this same checkout and owns the dev server on 3019.
+  Do not `git add -A` / `git commit -a` here.
+
+STATUS: not committed. No approval requested yet.
+
+## T2b-6 — network-events folded in (delegated, 2026-09-06)
+
+Dispatched to a single sonnet worker with the spec + measurements inlined; no orchestration
+(one constant + one doc row, decision already made). Worker returned DONE_WITH_CONCERNS.
+
+Result: components/monitoring/network-events/shapes.ts:124 -> border-current/65.
+DESIGN.md row closed: Delta cell struck, Status Open -> **Landed** 2026-09-06, trailing
+sentence now reads "all five copies now match at 65%".
+
+ALL FIVE META_CHIP_ON_TONAL copies are now /65. Zero border-current/45 remain in components/.
+
+LEAD corrections applied after the worker:
+  1. Worker CONVERTED network-events/shapes.ts to LF despite being told to use Edit and not
+     sed -i. Its three siblings were still CRLF. Repaired via add + rm + checkout. The tell was
+     the git "LF will be replaced by CRLF" warning firing on that one file only.
+  2. Its comment ran ~105 cols on one line against the file's ~80 wrap. Reflowed to 3 lines and
+     reworded to match the sibling copies.
+  3. Its report attributed the pre-existing DESIGN.md row and the alerts/watchdog edits to
+     "the other Claude session". Those were THIS session's earlier work. Harmless - it correctly
+     left them alone - but its numstat reasoning was built on a false premise.
+
+Gates after LEAD fixes: tsc clean, eslint clean on all five sites, i18n:check 0 errors.
+next build still NOT run (another session owns .next).
+
+STATUS: complete, NOT committed.
