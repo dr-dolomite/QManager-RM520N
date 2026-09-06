@@ -298,7 +298,7 @@ export function NavUser() {
                   <button
                     type="button"
                     onClick={handleAvatarClick}
-                    className="relative group shrink-0 rounded-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="relative group shrink-0 rounded-pill focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
                     aria-label="Change profile photo"
                   >
                     <Avatar className="size-8 rounded-pill">
