@@ -43,6 +43,10 @@ export interface ScheduledRebootSaveResult {
   success: boolean;
   armed?: boolean;
   reason?: string;
+  /** Machine token for a REJECTED write. Only meaningful when `success` is false. */
+  rejection?: string;
+  /** Raw backend prose for an unmapped rejection. Renders as the toast secondary line — never the primary sentence, never spliced into a translated one. */
+  rejectionDetail?: string;
 }
 
 // --- Day Labels (shared with tower locking) --------------------------------

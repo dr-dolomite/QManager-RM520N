@@ -124,6 +124,25 @@ const ScheduledRebootCard = ({
     [t],
   );
 
+  const rejectionToast = useCallback(
+    (fallbackKey: string, rejection?: string, detail?: string) => {
+      const mapped = rejection
+        ? t(`${K}.toast.rejected.${rejection}`, { defaultValue: "" })
+        : "";
+      if (rejection && !mapped) {
+        console.warn(`[system-settings] unmapped reboot rejection: ${rejection}`);
+      }
+      if (mapped) {
+        toast.error(mapped);
+        return;
+      }
+      // Unmapped: generic translated line, with the device's own words quoted
+      // beneath it rather than thrown away.
+      toast.error(t(fallbackKey), { description: detail || undefined });
+    },
+    [t],
+  );
+
   const debouncedRebootSave = useCallback(
     (payload: SaveScheduledRebootPayload) => {
       if (rebootSaveTimerRef.current) {
@@ -138,7 +157,11 @@ const ScheduledRebootCard = ({
           setIsSaving(false);
         }
         if (!result.success) {
-          toast.error(t(`${K}.toast.save_failed`));
+          // The rejected write left the rail disagreeing with the band, so
+          // revert both to the server's last-known values.
+          setRebootDays(scheduledReboot?.days ?? []);
+          setRebootTime(scheduledReboot?.time ?? "04:00");
+          rejectionToast(`${K}.toast.save_failed`, result.rejection, result.rejectionDetail);
           return;
         }
         markSaved();
@@ -153,7 +176,7 @@ const ScheduledRebootCard = ({
         }
       }, 800);
     },
-    [saveScheduledReboot, markSaved, armWarning, t],
+    [saveScheduledReboot, markSaved, armWarning, rejectionToast, t, scheduledReboot],
   );
 
   const handleRebootEnabledChange = async (checked: boolean) => {
@@ -176,7 +199,7 @@ const ScheduledRebootCard = ({
     }
     if (!result.success) {
       setRebootEnabled(!checked);
-      toast.error(t(`${K}.toast.update_failed`));
+      rejectionToast(`${K}.toast.update_failed`, result.rejection, result.rejectionDetail);
       return;
     }
     markSaved();

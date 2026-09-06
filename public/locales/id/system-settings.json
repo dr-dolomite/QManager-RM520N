@@ -196,7 +196,13 @@
       "not_armed": "Jadwal reboot tersimpan, tetapi tidak dapat diaktifkan di perangkat ini — {{detail}}",
       "reason_unknown": "alasan tidak diketahui",
       "reasons": {
-        "unit_absent": "layanan penjadwalan belum terpasang di perangkat ini — perbarui ke firmware terbaru untuk mengaktifkannya"
+        "unit_absent": "layanan penjadwalan belum terpasang di perangkat ini — perbarui ke firmware terbaru untuk mengaktifkannya",
+        "no_schedule": "tidak ada jadwal yang dikonfigurasi untuk diaktifkan"
+      },
+      "rejected": {
+        "no_days": "Pilih minimal satu hari, atau matikan jadwalnya.",
+        "invalid_time": "Waktu tersebut tidak valid. Gunakan format 24 jam HH:MM.",
+        "network": "Tidak dapat menjangkau perangkat untuk menyimpan. Periksa koneksi lalu coba lagi."
       }
     }
   },

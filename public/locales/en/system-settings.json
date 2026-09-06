@@ -196,7 +196,13 @@
       "not_armed": "Reboot schedule saved, but it couldn't be armed on this device — {{detail}}",
       "reason_unknown": "reason unknown",
       "reasons": {
-        "unit_absent": "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it"
+        "unit_absent": "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it",
+        "no_schedule": "no schedule is configured to arm"
+      },
+      "rejected": {
+        "no_days": "Pick at least one day, or turn the schedule off.",
+        "invalid_time": "That time isn't valid. Use a 24-hour HH:MM time.",
+        "network": "Couldn't reach the device to save. Check the connection and try again."
       }
     }
   },

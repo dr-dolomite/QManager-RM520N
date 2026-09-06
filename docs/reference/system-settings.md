@@ -166,17 +166,53 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
   roughly fifteen sites repo-wide — `about-device`, `network-events`,
   `latency-monitoring`, `overview-card`, both antenna surfaces. Three families
   already carry a code comment warning about it. Worth a sweep.
-- **`error` is one channel carrying two unrelated facts — and it misreports one of
-  them.** `useSystemSettings().error` is set both by a failed *read* and by a rejected
-  *write* (`hooks/use-system-settings.ts:172`). Both cards render the amber
-  `states.stale` notice — "QManager lost contact while refreshing" — whenever it is
-  non-null. So: enable the schedule, deselect every day, and `settings.sh:216-219`
-  returns `{success:false, error:"no_days", detail:"At least one day must be
-  selected"}` at HTTP 200. The card fires the generic `reboot.toast.save_failed`
-  toast, **discarding the one sentence that says how to fix it**, then paints a
-  lost-contact banner although contact was never lost. One click to reproduce. Open:
-  the fix is to split the read and write error channels, which is a hook-contract
-  change, not a copy change.
+- **`error` carried two unrelated facts, and misreported one of them — FIXED.**
+  `useSystemSettings().error` was set both by a failed *read* and by a rejected *write*,
+  so a write the backend refused lit every "we lost the device" surface on the page.
+  There were **three**, not two: the `band.stale` badge in `status-band.tsx`, and the
+  `states.stale` notices in both `scheduled-operations-card.tsx` and
+  `system-settings-card.tsx` — so deselecting the last reboot day made the *preferences*
+  card claim the modem had stopped answering. The write path no longer touches `error`:
+  `postAction` returns `{success:false, rejection, rejectionDetail}` and `fetchSettings`
+  is the sole writer, which is what `status-band.tsx`'s own prop comment — "Non-null when
+  the settings GET failed outright" — always claimed.
+
+  Two parts of that are load-bearing and easy to undo by accident:
+
+  - **The `setError(null)` that used to open `postAction` is gone on purpose.**
+    `save_scheduled_reboot` does not re-fetch, so clearing the read error on write entry
+    meant a *successful* save silently erased a genuine stale-read warning while every
+    value on screen was still from the failed read. The write "proved" the read.
+  - **`rejection` is a separate field from `reason`.** `reason` is the *arm* axis (the
+    save landed but no timer was installed); `rejection` is the *write* axis (the save
+    never happened). The i18n maps mirror the split — `reboot.toast.reasons.*` for arm
+    reasons, `reboot.toast.rejected.*` for rejections. Merging them would let an arm
+    warning render a validation failure, which is this same defect one layer up.
+
+  A rejected write now also reverts the day rail and time field to the server's values;
+  without that the rail read zero days while the band beside it still said "Repeats on
+  Mon, Wed". An unmapped token falls back to the translated generic line with the
+  device's own words quoted beneath it as machine voice, never spliced into a sentence.
+
+- **Open: the 800ms debounced save races a concurrent refresh.**
+  `scheduled-operations-card.tsx` resyncs local state from `scheduledReboot` by object
+  identity during render, and every GET yields a fresh object. A refresh landing inside
+  the debounce window overwrites an in-flight day edit while the already-scheduled timer
+  still POSTs the original payload. Two triggers: the page's Refresh button, and — less
+  obviously — a *preferences* save, which calls `fetchSettings(true)`. The POST's own
+  response resyncs, so it self-corrects, except on the rejection path where nothing
+  resyncs. Unmounting also drops a pending save with no feedback at all. The same closure
+  feeds the rejection revert, so a rejection arriving while an earlier save is still
+  in flight restores the rail to a value one step behind the server; a ref would
+  close both halves at once.
+
+- **Open: the frontend and backend disagree about whether "enabled with no days" is
+  legal.** `scheduled-operations-card.tsx` renders it as a first-class `warning` badge
+  and `status-band.tsx` gives it a `no_day` face with its own caption, while
+  `settings.sh:217-221` rejects it outright — so the band's `no_day` face is unreachable
+  from any server response. One layer models it as a warning state, the other as a hard
+  error. Reconciling that is a cross-layer (Tier 3) change; the error channel was only
+  how the disagreement leaked to the user.
 
 - **`components/ui/empty.tsx:10`** ends its base class with `md:p-12` — a viewport
   breakpoint inside a content-level primitive. This surface stopped consuming it;

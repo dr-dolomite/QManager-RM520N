@@ -73,6 +73,8 @@ interface PostActionResult {
   success: boolean;
   armed?: boolean;
   reason?: string;
+  rejection?: string;
+  rejectionDetail?: string;
 }
 
 export interface UseSystemSettingsReturn {
@@ -85,7 +87,7 @@ export interface UseSystemSettingsReturn {
   saveScheduledReboot: (
     payload: SaveScheduledRebootPayload,
   ) => Promise<ScheduledRebootSaveResult>;
-  refresh: () => void;
+  refresh: (silent?: boolean) => Promise<void>;
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
@@ -155,7 +157,6 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         | SaveSettingsPayload
         | SaveScheduledRebootPayload,
     ): Promise<PostActionResult> => {
-      setError(null);
       setIsSaving(true);
 
       try {
@@ -173,8 +174,11 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         if (!mountedRef.current) return { success: false };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save settings");
-          return { success: false };
+          return {
+            success: false,
+            rejection: json.error,
+            rejectionDetail: json.detail,
+          };
         }
 
         // Use response data directly when available (avoids re-fetch race),
@@ -203,10 +207,11 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         return { success: true, armed: json.armed, reason: json.reason };
       } catch (err) {
         if (!mountedRef.current) return { success: false };
-        setError(
-          err instanceof Error ? err.message : "Failed to save settings",
-        );
-        return { success: false };
+        return {
+          success: false,
+          rejection: "network",
+          rejectionDetail: err instanceof Error ? err.message : undefined,
+        };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);

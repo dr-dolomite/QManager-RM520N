@@ -196,7 +196,13 @@
       "not_armed": "Pianificazione dei riavvii salvata, ma non è stato possibile attivarla su questo dispositivo — {{detail}}",
       "reason_unknown": "motivo sconosciuto",
       "reasons": {
-        "unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo: aggiorna all'ultimo firmware per abilitarlo"
+        "unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo: aggiorna all'ultimo firmware per abilitarlo",
+        "no_schedule": "nessuna pianificazione è configurata per l'attivazione"
+      },
+      "rejected": {
+        "no_days": "Seleziona almeno un giorno, oppure disattiva la pianificazione.",
+        "invalid_time": "L'ora non è valida. Usa un orario in formato 24 ore HH:MM.",
+        "network": "Impossibile raggiungere il dispositivo per salvare. Controlla la connessione e riprova."
       }
     }
   },
