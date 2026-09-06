@@ -7,7 +7,6 @@ import { CircleAlertIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { changeSSHPassword } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -15,7 +14,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { cn } from "@/lib/utils";
 
@@ -40,13 +44,17 @@ const K = "ssh";
 // full-width password fields, so label and field stack at every width.
 const STACK_ROW = "flex flex-col gap-2.5 rounded-field px-4 py-4";
 
-// The field fills its row rather than collapsing to `FIELD`'s side-by-side
-// width, and reserves the lane the eye toggle rides in.
-const FIELD_FULL = "@2xl/card:w-full pr-11";
+// The pill now wraps the field AND its eye toggle via `InputGroup`, so
+// `FIELD`'s own px-4 would double up with the addon's built-in inset — the
+// group carries none of its own, same as the input/addon split it wraps.
+// `@2xl/card:w-full` cancels `FIELD`'s side-by-side auto-width: these rows
+// never flip, so the field always fills the row.
+const FIELD_GROUP = cn(FIELD, "px-0 @2xl/card:w-full");
 
-// The toggle sits INSIDE the 42px pill, so it paints 32px and cannot grow.
-// `COARSE_TARGET` reaches the 44px floor with a pseudo-element instead.
-const FIELD_TOGGLE = `absolute top-1/2 right-1.5 -translate-y-1/2 rounded-pill text-on-surface-variant hover:text-on-surface ${COARSE_TARGET}`;
+// The toggle rides INSIDE the pill via `InputGroupAddon`, so it paints 32px
+// and cannot grow. `COARSE_TARGET` reaches the 44px floor with a
+// pseudo-element instead of resizing the visible button.
+const FIELD_TOGGLE = `rounded-pill text-on-surface-variant hover:text-on-surface ${COARSE_TARGET}`;
 
 interface PasswordFieldProps {
   id: string;
@@ -88,8 +96,8 @@ function PasswordField({
         ) : null}
       </div>
 
-      <div className="relative">
-        <Input
+      <InputGroup className={FIELD_GROUP}>
+        <InputGroupInput
           id={id}
           type={visible ? "text" : "password"}
           autoComplete={autoComplete}
@@ -99,20 +107,21 @@ function PasswordField({
           }
           required
           disabled={disabled}
-          className={cn(FIELD, FIELD_FULL)}
+          className="pl-4 pr-2 text-[0.84375rem] font-medium"
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={FIELD_TOGGLE}
-          onClick={() => setVisible((v) => !v)}
-          aria-pressed={visible}
-          aria-label={t(visible ? `${K}.toggle.hide` : `${K}.toggle.show`)}
-        >
-          <Glyph className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton
+            type="button"
+            size="icon-sm"
+            className={FIELD_TOGGLE}
+            onClick={() => setVisible((v) => !v)}
+            aria-pressed={visible}
+            aria-label={t(visible ? `${K}.toggle.hide` : `${K}.toggle.show`)}
+          >
+            <Glyph className="size-4" aria-hidden="true" />
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
     </div>
   );
 }
