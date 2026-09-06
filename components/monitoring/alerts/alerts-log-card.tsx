@@ -383,7 +383,7 @@ export function AlertsLogCard({
         className={cn(
           LOG_STACK,
           CARD_FILL_REGION,
-          "overflow-y-auto rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "overflow-y-auto rounded-tile outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         )}
         aria-live="polite"
         aria-relevant="additions"

@@ -178,7 +178,7 @@ function CoverageCell({
         MATRIX.CELL,
         MATRIX.CELL_TRANSITION,
         tone.ROOT,
-        "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         cell.pending && CELL_PENDING_RING,
       )}
     >
