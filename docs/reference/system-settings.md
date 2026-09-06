@@ -224,15 +224,31 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
   `{success:false}` after the hook unmounts, which the card otherwise reported as
   "Failed to save" over a write the device had actually accepted.
 
-- **Open: the save paths still have four unsequenced edges.** A blind review of the
-  race fix walked the interleavings and cleared the latch, but flagged these. None
-  was introduced by that change; all four are lost-update shapes of the same family.
+- **Open: the save paths still have three unsequenced edges.** A blind review of the
+  race fix walked the interleavings and cleared the latch, but flagged four. The
+  first is now closed (below); none was introduced by that change, and all are
+  lost-update shapes of the same family.
 
-  - **The hook's `setScheduledReboot` is unsequenced** (`hooks/use-system-settings.ts`,
-    both the fetch and the POST-echo site). An older echo, or a GET issued before the
-    POST, resolving last overwrites newer server truth — and the card then faithfully
-    resyncs to the stale value. This is the one worth fixing first: it is upstream of
-    every consumer, not just this card.
+  - **FIXED — the hook's responses are now sequenced.** Every request in
+    `hooks/use-system-settings.ts` claims a counter at ISSUE time, and a response
+    whose sequence is not newer than the one already applied is dropped rather than
+    committed. Previously an older echo, or a GET issued before a POST, resolving
+    last overwrote newer server truth and the card faithfully resynced to the stale
+    value. Reproduced and confirmed closed: a read snapshotting `[1,3]` was left in
+    flight while a write moved the schedule to `[1,3,5]`; the stale read landed last
+    and was discarded, leaving both rail and server at `[1,3,5]`.
+
+    Two parts of that are deliberate. The **failure** path is sequenced too, so a
+    stale failure cannot overwrite a newer successful read and a stale success cannot
+    clear a newer error. But a POST advances the applied counter **only when it
+    actually echoes `scheduled_reboot`** — a rejected write leaves it alone, because
+    when the write did not happen the older read is still current.
+
+    The limit worth knowing: the counter orders **issuance**, not server-side
+    application. A read issued after a write but racing it can still observe pre-write
+    state and legitimately win. That is narrower than what was there before, not
+    absent. `isLoading` is also left unsequenced on purpose — gating it would strand
+    the spinner whenever a silent refetch superseded a visible one.
   - **`setIsSaving(false)` is not seq-guarded** even though `setSavePending` beside it
     is, so with overlapping saves the receipt strip reads "Saves automatically" while a
     newer request is still on the wire. Cosmetic, but the asymmetry reads as an

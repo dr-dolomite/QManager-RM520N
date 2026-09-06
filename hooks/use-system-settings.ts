@@ -102,6 +102,11 @@ export function useSystemSettings(): UseSystemSettingsReturn {
 
   const mountedRef = useRef(true);
 
+  // Responses settle out of order, so every request claims a sequence at ISSUE
+  // time and a late one that lost the race is dropped instead of applied.
+  const reqSeqRef = useRef(0);
+  const appliedSeqRef = useRef(0);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -113,6 +118,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   // Fetch current settings
   // ---------------------------------------------------------------------------
   const fetchSettings = useCallback(async (silent = false) => {
+    const seq = ++reqSeqRef.current;
     if (!silent) setIsLoading(true);
     setError(null);
 
@@ -124,6 +130,9 @@ export function useSystemSettings(): UseSystemSettingsReturn {
 
       const json: SystemSettingsResponse = await resp.json();
       if (!mountedRef.current) return;
+      // A newer answer already landed, so this one is stale by definition.
+      if (seq <= appliedSeqRef.current) return;
+      appliedSeqRef.current = seq;
 
       if (!json.success) {
         setError("Failed to fetch system settings");
@@ -134,10 +143,14 @@ export function useSystemSettings(): UseSystemSettingsReturn {
       setScheduledReboot(json.scheduled_reboot);
     } catch (err) {
       if (!mountedRef.current) return;
+      if (seq <= appliedSeqRef.current) return;
+      appliedSeqRef.current = seq;
       setError(
         err instanceof Error ? err.message : "Failed to fetch system settings",
       );
     } finally {
+      // Deliberately unsequenced: gating this would strand the spinner whenever
+      // a silent refetch supersedes a visible one and never clears it.
       if (mountedRef.current && !silent) {
         setIsLoading(false);
       }
@@ -157,6 +170,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         | SaveSettingsPayload
         | SaveScheduledRebootPayload,
     ): Promise<PostActionResult> => {
+      const seq = ++reqSeqRef.current;
       setIsSaving(true);
 
       try {
@@ -183,7 +197,8 @@ export function useSystemSettings(): UseSystemSettingsReturn {
 
         // Use response data directly when available (avoids re-fetch race),
         // fall back to silent re-fetch for actions that don't return full state.
-        if (json.scheduled_reboot) {
+        if (json.scheduled_reboot && seq > appliedSeqRef.current) {
+          appliedSeqRef.current = seq;
           setScheduledReboot(json.scheduled_reboot);
         }
 
