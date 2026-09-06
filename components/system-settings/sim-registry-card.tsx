@@ -129,8 +129,13 @@ function SimRegistryRow({
   const dim = sim.active ? META_INK_ON_TONAL : META_INK;
 
   return (
+    // `initial`/`animate` are declared HERE and not inherited. The page's
+    // cascade runs once at mount, while this card is still a skeleton; a
+    // variants-only child mounting after it would wait forever at opacity 0.
     <motion.div
       variants={rowItem}
+      initial="hidden"
+      animate="visible"
       custom={index}
       className={cn(
         SIM_ROW.ROOT,

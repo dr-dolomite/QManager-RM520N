@@ -284,6 +284,14 @@ export const GROUP_FILL = "min-h-0 flex-1";
  */
 export const ROW = {
   ROOT: "flex min-h-[5rem] flex-col gap-3 rounded-field px-4 py-4 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4 @2xl/card:pl-[1.125rem]",
+  /**
+   * A row whose control is a RAIL, not a field: it never flips beside its
+   * label, so the rail always spans a definite width. See `DAY_PILL.RAIL` —
+   * an auto-fit track list inside the `flex-none` `CONTROL` collapses to one
+   * column. `ROOT` minus its four flip utilities, restated rather than
+   * overridden so no `twMerge` ordering decides the layout.
+   */
+  RAIL_ROOT: "flex min-h-[5rem] flex-col gap-3 rounded-field px-4 py-4",
   TEXT: "flex min-w-0 flex-1 flex-col gap-1",
   LABEL: "text-[0.9375rem] font-semibold",
   /**
@@ -389,11 +397,20 @@ export const FIELD_GLYPH = "size-3.5";
  * peers and the selected Fri read as the loudest control on the card. A track
  * list fixes every column at the same width in every row, so a wrap is uniform.
  * Same idiom as `TILE.GRID` one section up.
+ *
+ * THE TRACK LIST IS WHY THE RAIL MUST RIDE `ROW.RAIL_ROOT`. `auto-fit` needs a
+ * definite available width to count repetitions against; given an indefinite
+ * one it resolves to a SINGLE track, and seven pills become seven rows. The
+ * `@2xl/card` flip hands `ROW.CONTROL` exactly that: `flex-none` is
+ * shrink-to-fit, so the week rendered as a vertical column on every card past
+ * 672px — measured at an 832px card, `grid-template-columns: 50.77px`.
+ * `w-full` lives here rather than at the call site so the constant carries its
+ * own definiteness.
  */
 const DAY_PILL_HEIGHT = "h-9 pointer-coarse:h-11";
 
 export const DAY_PILL = {
-  RAIL: "grid items-center gap-1.5 grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))]",
+  RAIL: "grid w-full items-center gap-1.5 grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))]",
   HEIGHT: DAY_PILL_HEIGHT,
   ROOT: `${DAY_PILL_HEIGHT} min-w-0 rounded-pill px-3 text-[0.8125rem] font-semibold transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]`,
   ON: "bg-primary text-primary-foreground",

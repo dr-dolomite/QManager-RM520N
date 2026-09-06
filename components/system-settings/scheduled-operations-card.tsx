@@ -42,7 +42,6 @@ import {
   CARD_SHELL,
   CARD_TITLE,
   COARSE_TARGET,
-  CONTROL_FILL,
   CONDITION_PANEL,
   DAY_PILL,
   FIELD,
@@ -317,17 +316,15 @@ const ScheduledRebootCard = ({
                 <Skeleton className={SKELETON.REBOOT.FIELD} />
               </div>
             </div>
-            <div className={ROW.ROOT}>
+            <div className={ROW.RAIL_ROOT}>
               <div className={ROW.TEXT}>
                 <Skeleton className={cn(SKELETON.REBOOT.LABEL, "w-24")} />
                 <Skeleton className={cn(SKELETON.REBOOT.CONSEQUENCE, "w-4/5")} />
               </div>
-              <div className={cn(ROW.CONTROL, CONTROL_FILL)}>
-                <div className={cn(DAY_PILL.RAIL, "w-full")}>
-                  {DAY_KEYS.map((key) => (
-                    <Skeleton key={key} className={SKELETON.REBOOT.DAY} />
-                  ))}
-                </div>
+              <div className={DAY_PILL.RAIL}>
+                {DAY_KEYS.map((key) => (
+                  <Skeleton key={key} className={SKELETON.REBOOT.DAY} />
+                ))}
               </div>
             </div>
           </div>
@@ -447,42 +444,40 @@ const ScheduledRebootCard = ({
           </motion.div>
 
           {/* Row 3 — the day rail. Fill carries selection; there is no glyph
-              because the fill already says it. */}
-          <motion.div variants={staggerRowItem} className={ROW.ROOT}>
+              because the fill already says it. The rail spans the row at every
+              width: `auto-fit` counts its columns against a definite one, or
+              collapses to a single track. */}
+          <motion.div variants={staggerRowItem} className={ROW.RAIL_ROOT}>
             <div className={ROW.TEXT}>
               <span className={ROW.LABEL}>{t(`${K}.rows.days.label`)}</span>
               <span className={ROW.CONSEQUENCE}>
                 {t(`${K}.rows.days.consequence`)}
               </span>
             </div>
-            {/* The rail stretches while the row is stacked so its seven pills
-                divide a real width; side by side it sizes to content. */}
-            <div className={cn(ROW.CONTROL, CONTROL_FILL)}>
-              <div
-                className={cn(DAY_PILL.RAIL, "w-full")}
-                role="group"
-                aria-label={t(`${K}.rows.days.rail`)}
-              >
-                {DAY_KEYS.map((key, index) => {
-                  const selected = rebootDays.includes(index);
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      aria-label={t(`${K}.days.${key}`)}
-                      aria-pressed={selected}
-                      onClick={() => handleRebootDayToggle(index)}
-                      className={cn(
-                        DAY_PILL.ROOT,
-                        selected ? DAY_PILL.ON : DAY_PILL.OFF,
-                        FOCUS_RING,
-                      )}
-                    >
-                      {t(`${K}.days.${key}`)}
-                    </button>
-                  );
-                })}
-              </div>
+            <div
+              className={DAY_PILL.RAIL}
+              role="group"
+              aria-label={t(`${K}.rows.days.rail`)}
+            >
+              {DAY_KEYS.map((key, index) => {
+                const selected = rebootDays.includes(index);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={t(`${K}.days.${key}`)}
+                    aria-pressed={selected}
+                    onClick={() => handleRebootDayToggle(index)}
+                    className={cn(
+                      DAY_PILL.ROOT,
+                      selected ? DAY_PILL.ON : DAY_PILL.OFF,
+                      FOCUS_RING,
+                    )}
+                  >
+                    {t(`${K}.days.${key}`)}
+                  </button>
+                );
+              })}
             </div>
           </motion.div>
         </motion.div>

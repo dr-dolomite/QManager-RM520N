@@ -48,6 +48,7 @@ byte-for-byte across two files within a day of being written.
 | `CARD_GRID` | `*:h-full *:*:data-[slot=card]:h-full` — the second step is what lets the height lock reach **through** each card's motion wrapper. Drop it and the Symmetric-Pair lock dies silently. |
 | `COARSE_TARGET` | A pseudo-element overlay, not a layout box, so a 44px touch target does not move the row's baseline. Applied to the reboot `Switch` (paints 18.4×32) and the password reveal toggles. |
 | `CHIP_ON_TONAL` | `Badge variant="info"` resolves to `bg-primary-container` — byte-identical to `SIM_ROW.ACTIVE` — so a stock chip dissolves into a promoted row. Re-grounded on the row's own ink. Same technique as `CONDITION_TONE.action`. |
+| `ROW.RAIL_ROOT` | The row that holds the day rail, and the only one that never flips beside its label. An `auto-fit` track list inside `ROW.CONTROL`'s shrink-to-fit box has no width to count columns against and collapses to one. See the rail invariant below. |
 
 **`CARD_BODY`, not `CONDITION_PANEL.CONTENT`.** The box that fills a height-locked
 cell is used on loaded content as often as on a state screen, so the old name
@@ -83,9 +84,27 @@ consumer today is still the contract its skeleton must import.
 - **The reboot card's local state syncs on identity** (`scheduledReboot !== prev`),
   never on truthiness. A truthiness guard means `null` never resets, so a failed
   read leaves the last schedule on screen — and the switch will then arm it.
-- **One cascade root per route.** `system-settings.tsx` alone declares
-  `initial`/`animate`. The card grid is a nested `staggerContainer` that inherits
-  `visible`; a nested container declaring its own clock detaches from the parent.
+- **One cascade root per route — for everything present at mount.**
+  `system-settings.tsx` declares `initial`/`animate`; the card grid is a nested
+  `staggerContainer` that inherits `visible`, and a nested container declaring its
+  own clock detaches from the parent. **The rule stops at the skeleton boundary.**
+  A row cascade that mounts on a skeleton→data swap arrives after the page's clock
+  has already run, and that clock never runs again — so a variants-only child there
+  waits forever at `opacity: 0`, rendering a full-height blank card rather than a
+  missing one. Tracked SIMs shipped exactly that: three rows in the DOM at 118px
+  each, all at opacity 0, under a footer showing the real count. **Any row cascade
+  behind a loading gate declares its own `initial="hidden" animate="visible"`** —
+  as the alerts log, network events, Tailscale peers, watchdog recovery and logs
+  transcript cascades all do.
+- **`DAY_PILL.RAIL` needs a definite host, so it rides `ROW.RAIL_ROOT`.**
+  `auto-fit` counts repetitions against the available inline size; given an
+  indefinite one it resolves to a **single** track. `ROW.CONTROL` is `flex-none`
+  (shrink-to-fit), so once `@2xl/card` flipped the row the seven day pills stacked
+  into seven rows — measured at an 832px card as
+  `grid-template-columns: 50.77px`. `RAIL_ROOT` is `ROW.ROOT` without its four
+  flip utilities: the rail spans the row at every width, giving 7 uniform columns
+  at 832px and a uniform 5+2 wrap at 375px. Restated rather than composed as an
+  override, so no `twMerge` ordering decides the layout.
 - **Icons are lucide here.** The Icon-Boundary Rule is route-scoped and
   `/system-settings` is not in the Material set. Verify a name is a live export of
   the installed `lucide-react` — several are aliases whose files are named
@@ -158,6 +177,16 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
 
 ## Known-good and known-open
 
+- **Two defects survived the 2026-09-06 canon pass and were fixed on device
+  evidence — FIXED.** Both were invisible to `tsc`, `eslint`, `i18n:check` and
+  `next build`, and both only appear in a state the fixture-free dev server never
+  reaches. The day rail collapsed to a vertical column on any card past 672px
+  (`auto-fit` against an indefinite width), and Tracked SIMs rendered its rows at
+  `opacity: 0` forever (a variants-only cascade mounting after the page's clock).
+  Reproduced and re-measured through a throwaway `app/qm-preview/` fixture that
+  mounts both real cards with stub data and the real skeleton→data ordering; that
+  fixture is the cheapest way to reach either state locally. Mechanisms are in
+  Invariants above.
 - **`settings.sms_tool_device`** is on the wire, typed on `SystemSettings`, and has
   **zero consumers product-wide**. Open question: give it a control or drop it from
   the type.
