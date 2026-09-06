@@ -233,7 +233,9 @@ const ScheduledRebootCard = ({
     }
     if (!isMountedRef.current) return;
     if (!result.success) {
-      setRebootEnabled(!checked);
+      // Only the newest toggle may restore the switch; an older one settling
+      // late would flip it against a server a newer save already changed.
+      if (saveSeqRef.current === seq) setRebootEnabled(!checked);
       rejectionToast(`${K}.toast.update_failed`, result.rejection, result.rejectionDetail);
       return;
     }

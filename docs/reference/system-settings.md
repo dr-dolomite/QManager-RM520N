@@ -224,6 +224,30 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
   `{success:false}` after the hook unmounts, which the card otherwise reported as
   "Failed to save" over a write the device had actually accepted.
 
+- **Open: the save paths still have four unsequenced edges.** A blind review of the
+  race fix walked the interleavings and cleared the latch, but flagged these. None
+  was introduced by that change; all four are lost-update shapes of the same family.
+
+  - **The hook's `setScheduledReboot` is unsequenced** (`hooks/use-system-settings.ts`,
+    both the fetch and the POST-echo site). An older echo, or a GET issued before the
+    POST, resolving last overwrites newer server truth — and the card then faithfully
+    resyncs to the stale value. This is the one worth fixing first: it is upstream of
+    every consumer, not just this card.
+  - **`setIsSaving(false)` is not seq-guarded** even though `setSavePending` beside it
+    is, so with overlapping saves the receipt strip reads "Saves automatically" while a
+    newer request is still on the wire. Cosmetic, but the asymmetry reads as an
+    oversight rather than a decision.
+  - **Edits made while the schedule is OFF are neither saved nor latched.** The day and
+    time handlers only schedule a save while `rebootEnabled` is true, so a silent
+    refetch clobbers days the user picked, and flipping the switch then POSTs the
+    server's days rather than theirs.
+  - **The unsaved-edit warning only covers a React unmount.** Not a tab close, not a
+    hard reload, and not `auth-fetch.ts`'s 401 full-document redirect — where the card
+    additionally toasts a failure a beat before navigating away.
+
+  Related: `authFetch` sets no timeout, so a POST that never settles pins both the
+  latch and the saving spinner until the browser gives up.
+
 - **Open: the frontend and backend disagree about whether "enabled with no days" is
   legal.** `scheduled-operations-card.tsx` renders it as a first-class `warning` badge
   and `status-band.tsx` gives it a `no_day` face with its own caption, while
