@@ -1455,5 +1455,134 @@
       "requested": "Ripristino della SIM richiesto. Il watchdog lo elaborerà a breve.",
       "failed": "Impossibile richiedere il ripristino della SIM"
     }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "Informazioni dispositivo",
+      "description": "Identità del dispositivo, indirizzi e software in esecuzione."
+    },
+    "actions": {
+      "refresh": "Aggiorna",
+      "refreshing": "Aggiornamento…",
+      "retry": "Riprova"
+    },
+    "band": {
+      "label": "Identità",
+      "not_responding": "Non risponde",
+      "unreachable": {
+        "title": "Il dispositivo non ha risposto",
+        "detail": "{{reason}} da {{endpoint}}. Nessun dato è stato letto.",
+        "no_reason": "Nessuna risposta"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "MODELLO"
+      },
+      "firmware": {
+        "eyebrow": "FIRMWARE MODEM",
+        "caption": "Compilato il {{date}}"
+      },
+      "host": {
+        "eyebrow": "SISTEMA HOST",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "INTERNET",
+        "reachable": "Raggiungibile",
+        "not_reachable": "Non raggiungibile",
+        "caption_reachable": "Pubblico {{address}}",
+        "caption_unreachable": "Nessuna risposta da {{probe}}"
+      }
+    },
+    "modem": {
+      "title": "Modem",
+      "description": "Identità hardware e release 3GPP implementata da ciascuna radio."
+    },
+    "addresses": {
+      "title": "Indirizzi",
+      "description": "Dove si colloca questo dispositivo sulla LAN e sulla rete dell’operatore.",
+      "provenance": "Gli indirizzi pubblici sono risolti tramite {{probe}}. Una lineetta indica che il dispositivo non ne riporta alcuno."
+    },
+    "groups": {
+      "three_gpp": "Release 3GPP",
+      "local": "Locale",
+      "wwan": "WWAN",
+      "public": "Pubblico"
+    },
+    "rows": {
+      "manufacturer": "Produttore",
+      "model": "Modello",
+      "firmware": "Firmware",
+      "firmware_revision": "Revisione firmware",
+      "build_date": "Data di build",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "IP dispositivo",
+      "lan_gateway": "Gateway LAN",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "Nessun dato letto",
+      "modem": "Questi valori provengono dal dispositivo, che non ha risposto.",
+      "addresses": "Gli indirizzi vengono letti dalla stessa richiesta."
+    },
+    "qmanager": {
+      "title": "Informazioni su QManager",
+      "note": "Ciao! Sono Rus. QManager è l’ultima evoluzione di QuecManager, costruita con un approccio più moderno e affidabile rispetto al suo predecessore — pur continuando a unire impostazioni tecniche per utenti esperti a un’interfaccia semplice per chi inizia. Un ringraziamento speciale a iamromulan, clndwhr e Wutang Clan!",
+      "copyright": "© {{year}} QManager. Tutti i diritti riservati.",
+      "repository": "Repository GitHub",
+      "release_notes": "Note di rilascio",
+      "support": "Sostieni il progetto"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "Supporto",
+      "description": "Segnala un bug, chiedi alla community o contatta il manutentore."
+    },
+    "help": {
+      "title": "Ottieni aiuto",
+      "description": "Quattro percorsi, nell’ordine in cui servono più spesso.",
+      "bug": {
+        "label": "Segnala un bug"
+      },
+      "community": {
+        "label": "Chiedi alla community"
+      },
+      "email": {
+        "label": "Scrivi al manutentore"
+      },
+      "release_notes": {
+        "label": "Leggi le note di rilascio",
+        "dest": "Ultima: {{version}}"
+      }
+    },
+    "community": {
+      "title": "Community",
+      "description": "Cellular Modem Talk/Development su Discord.",
+      "body": "Gli utenti condividono configurazioni, risolvono problemi insieme e parlano di reti cellulari. Scansiona o apri l’invito.",
+      "open_invite": "Apri l’invito",
+      "qr_alt": "Codice QR per l’invito al server Discord di QManager"
+    },
+    "opens_new_tab": "si apre in una nuova scheda"
+  },
+  "donate": {
+    "dialog": {
+      "title": "Sostieni il progetto",
+      "description": "Aiuta QManager ad andare avanti.",
+      "body": "Ciao, sono Rus. QManager è un progetto personale che mantengo gratuitamente. Se ti è stato utile, anche un piccolo contributo significa molto e mi permette di continuare.",
+      "thanks": "Grazie di cuore. 💙"
+    },
+    "links": {
+      "group_label": "Canali di donazione",
+      "opens_new_tab": "si apre in una nuova scheda"
+    },
+    "band": {
+      "title": "Sostieni il progetto",
+      "body": "QManager è un progetto personale, mantenuto gratuitamente. Se ti è stato utile, un contributo lo tiene in vita — e in ogni caso non arriverà alcun paywall."
+    }
   }
 }

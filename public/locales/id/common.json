@@ -1455,5 +1455,134 @@
       "requested": "Permintaan pemulihan SIM diterima. Watchdog akan segera memprosesnya.",
       "failed": "Tidak dapat meminta pemulihan SIM"
     }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "Tentang Perangkat",
+      "description": "Identitas perangkat, alamat, dan perangkat lunak yang berjalan di dalamnya."
+    },
+    "actions": {
+      "refresh": "Segarkan",
+      "refreshing": "Menyegarkan…",
+      "retry": "Coba lagi"
+    },
+    "band": {
+      "label": "Identitas",
+      "not_responding": "Tidak merespons",
+      "unreachable": {
+        "title": "Perangkat tidak menjawab",
+        "detail": "{{reason}} dari {{endpoint}}. Tidak ada data di bawah ini yang terbaca.",
+        "no_reason": "Tidak ada respons"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "MODEL"
+      },
+      "firmware": {
+        "eyebrow": "FIRMWARE MODEM",
+        "caption": "Dibuat {{date}}"
+      },
+      "host": {
+        "eyebrow": "SISTEM HOST",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "INTERNET",
+        "reachable": "Terjangkau",
+        "not_reachable": "Tidak terjangkau",
+        "caption_reachable": "Publik {{address}}",
+        "caption_unreachable": "Tidak ada jawaban dari {{probe}}"
+      }
+    },
+    "modem": {
+      "title": "Modem",
+      "description": "Identitas perangkat keras dan rilis 3GPP yang diterapkan setiap radio."
+    },
+    "addresses": {
+      "title": "Alamat",
+      "description": "Posisi perangkat ini di LAN dan di jaringan operator.",
+      "provenance": "Alamat publik diselesaikan melalui {{probe}}. Tanda pisah berarti perangkat tidak melaporkan alamat."
+    },
+    "groups": {
+      "three_gpp": "Rilis 3GPP",
+      "local": "Lokal",
+      "wwan": "WWAN",
+      "public": "Publik"
+    },
+    "rows": {
+      "manufacturer": "Produsen",
+      "model": "Model",
+      "firmware": "Firmware",
+      "firmware_revision": "Revisi firmware",
+      "build_date": "Tanggal build",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "IP Perangkat",
+      "lan_gateway": "Gateway LAN",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "Tidak ada data",
+      "modem": "Angka-angka ini berasal dari perangkat, dan perangkat tidak menjawab.",
+      "addresses": "Alamat dibaca dari permintaan yang sama."
+    },
+    "qmanager": {
+      "title": "Tentang QManager",
+      "note": "Halo! Rus di sini. QManager adalah iterasi terbaru dari QuecManager, dibangun dengan pendekatan yang lebih baru dan lebih andal dibandingkan pendahulunya — sambil tetap menggabungkan pengaturan teknis untuk pengguna tingkat lanjut dengan antarmuka sederhana bagi yang baru memulai. Terima kasih khusus kepada iamromulan, clndwhr, dan Wutang Clan!",
+      "copyright": "© {{year}} QManager. Seluruh hak cipta dilindungi.",
+      "repository": "Repositori GitHub",
+      "release_notes": "Catatan rilis",
+      "support": "Dukung proyek ini"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "Dukungan",
+      "description": "Laporkan bug, tanya komunitas, atau hubungi pengelola."
+    },
+    "help": {
+      "title": "Dapatkan bantuan",
+      "description": "Empat jalur, sesuai urutan yang paling sering dibutuhkan.",
+      "bug": {
+        "label": "Laporkan bug"
+      },
+      "community": {
+        "label": "Tanya komunitas"
+      },
+      "email": {
+        "label": "Email pengelola"
+      },
+      "release_notes": {
+        "label": "Baca catatan rilis",
+        "dest": "Terbaru: {{version}}"
+      }
+    },
+    "community": {
+      "title": "Komunitas",
+      "description": "Cellular Modem Talk/Development di Discord.",
+      "body": "Pengguna berbagi konfigurasi, memecahkan masalah bersama, dan membahas jaringan seluler. Pindai atau buka undangannya.",
+      "open_invite": "Buka undangan",
+      "qr_alt": "Kode QR untuk undangan server Discord QManager"
+    },
+    "opens_new_tab": "terbuka di tab baru"
+  },
+  "donate": {
+    "dialog": {
+      "title": "Dukung proyek ini",
+      "description": "Bantu QManager terus berjalan.",
+      "body": "Hai, saya Rus. QManager adalah proyek sampingan yang saya kelola secara gratis. Jika bermanfaat bagi Anda, dukungan kecil sangat berarti dan membuat saya terus melanjutkan.",
+      "thanks": "Terima kasih sudah luar biasa. 💙"
+    },
+    "links": {
+      "group_label": "Kanal donasi",
+      "opens_new_tab": "terbuka di tab baru"
+    },
+    "band": {
+      "title": "Dukung proyek ini",
+      "body": "QManager adalah proyek sampingan yang dikelola secara gratis. Jika bermanfaat untuk perangkat Anda, sedikit dukungan membuatnya terus berjalan — dan tidak akan ada fitur berbayar apa pun."
+    }
   }
 }

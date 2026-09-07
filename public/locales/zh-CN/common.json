@@ -1455,5 +1455,134 @@
       "requested": "已请求恢复 SIM 卡。看门狗将很快处理。",
       "failed": "无法请求恢复 SIM 卡"
     }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "关于设备",
+      "description": "设备标识、地址，以及其上运行的软件。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "refreshing": "正在刷新…",
+      "retry": "重试"
+    },
+    "band": {
+      "label": "标识",
+      "not_responding": "无响应",
+      "unreachable": {
+        "title": "设备未响应",
+        "detail": "来自 {{endpoint}} 的 {{reason}}。以下内容均未读取。",
+        "no_reason": "无响应"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "型号"
+      },
+      "firmware": {
+        "eyebrow": "模块固件",
+        "caption": "构建于 {{date}}"
+      },
+      "host": {
+        "eyebrow": "主机系统",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "互联网",
+        "reachable": "可达",
+        "not_reachable": "不可达",
+        "caption_reachable": "公网 {{address}}",
+        "caption_unreachable": "{{probe}} 无应答"
+      }
+    },
+    "modem": {
+      "title": "模块",
+      "description": "硬件标识，以及各制式无线电所实现的 3GPP 版本。"
+    },
+    "addresses": {
+      "title": "地址",
+      "description": "本设备在局域网和运营商网络中的位置。",
+      "provenance": "公网地址通过 {{probe}} 解析。破折号表示设备未报告任何地址。"
+    },
+    "groups": {
+      "three_gpp": "3GPP 版本",
+      "local": "本地",
+      "wwan": "WWAN",
+      "public": "公网"
+    },
+    "rows": {
+      "manufacturer": "制造商",
+      "model": "型号",
+      "firmware": "固件",
+      "firmware_revision": "固件修订版",
+      "build_date": "构建日期",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "设备 IP",
+      "lan_gateway": "局域网网关",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "未读取到数据",
+      "modem": "这些数值来自设备，而设备未响应。",
+      "addresses": "地址由同一次请求读取。"
+    },
+    "qmanager": {
+      "title": "关于 QManager",
+      "note": "你好！我是 Rus。QManager 是 QuecManager 的最新一代，采用了比前代更新、更可靠的实现方式——同时依然把面向高级用户的技术设置与面向新手的简化界面结合在一起。特别感谢 iamromulan、clndwhr 和 Wutang Clan！",
+      "copyright": "© {{year}} QManager。保留所有权利。",
+      "repository": "GitHub 仓库",
+      "release_notes": "发行说明",
+      "support": "支持本项目"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "支持",
+      "description": "报告缺陷、向社区提问，或联系维护者。"
+    },
+    "help": {
+      "title": "获取帮助",
+      "description": "四条途径，按最常用的顺序排列。",
+      "bug": {
+        "label": "报告缺陷"
+      },
+      "community": {
+        "label": "向社区提问"
+      },
+      "email": {
+        "label": "给维护者发邮件"
+      },
+      "release_notes": {
+        "label": "查看发行说明",
+        "dest": "最新：{{version}}"
+      }
+    },
+    "community": {
+      "title": "社区",
+      "description": "Discord 上的 Cellular Modem Talk/Development。",
+      "body": "用户在这里分享配置、共同排查问题、交流蜂窝网络话题。扫码或直接打开邀请链接。",
+      "open_invite": "打开邀请链接",
+      "qr_alt": "QManager Discord 服务器邀请二维码"
+    },
+    "opens_new_tab": "在新标签页中打开"
+  },
+  "donate": {
+    "dialog": {
+      "title": "支持本项目",
+      "description": "让 QManager 继续走下去。",
+      "body": "你好，我是 Rus。QManager 是我利用业余时间免费维护的项目。如果它对你有帮助，一点小小的支持意义重大，也让我能继续做下去。",
+      "thanks": "谢谢你，你真好。💙"
+    },
+    "links": {
+      "group_label": "捐赠渠道",
+      "opens_new_tab": "在新标签页中打开"
+    },
+    "band": {
+      "title": "支持本项目",
+      "body": "QManager 是一个业余维护、完全免费的项目。如果它对你的设备有帮助，一点小小的支持就能让它继续走下去——无论如何都不会有付费墙。"
+    }
   }
 }

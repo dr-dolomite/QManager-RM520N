@@ -1455,5 +1455,134 @@
       "requested": "SIM revert requested. The watchdog will process it shortly.",
       "failed": "Could not request the SIM revert"
     }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "About Device",
+      "description": "Device identity, addresses, and the software running on it."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "retry": "Retry"
+    },
+    "band": {
+      "label": "Identity",
+      "not_responding": "Not responding",
+      "unreachable": {
+        "title": "The device did not answer",
+        "detail": "{{reason}} from {{endpoint}}. Nothing below was read.",
+        "no_reason": "No response"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "Model"
+      },
+      "firmware": {
+        "eyebrow": "Modem firmware",
+        "caption": "Built {{date}}"
+      },
+      "host": {
+        "eyebrow": "Host system",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "Internet",
+        "reachable": "Reachable",
+        "not_reachable": "Not reachable",
+        "caption_reachable": "Public {{address}}",
+        "caption_unreachable": "No answer from {{probe}}"
+      }
+    },
+    "modem": {
+      "title": "Modem",
+      "description": "Hardware identity and the 3GPP release each radio implements."
+    },
+    "addresses": {
+      "title": "Addresses",
+      "description": "Where this device sits on the LAN and on the carrier network.",
+      "provenance": "Public addresses are resolved through {{probe}}. An em dash means the device reports none."
+    },
+    "groups": {
+      "three_gpp": "3GPP release",
+      "local": "Local",
+      "wwan": "WWAN",
+      "public": "Public"
+    },
+    "rows": {
+      "manufacturer": "Manufacturer",
+      "model": "Model",
+      "firmware": "Firmware",
+      "firmware_revision": "Firmware revision",
+      "build_date": "Build date",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "Device IP",
+      "lan_gateway": "LAN gateway",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "Nothing read",
+      "modem": "These figures come from the device, and the device did not answer.",
+      "addresses": "Addresses are read from the same request."
+    },
+    "qmanager": {
+      "title": "About QManager",
+      "note": "Hey there! Rus here. QManager is the latest iteration of QuecManager, built with a newer and more reliable approach compared to its predecessor — while still combining technical settings for advanced users with a simplified UI for those just getting started. Special thanks to iamromulan, clndwhr, and Wutang Clan!",
+      "copyright": "© {{year}} QManager. All rights reserved.",
+      "repository": "GitHub repository",
+      "release_notes": "Release notes",
+      "support": "Support the project"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "Support",
+      "description": "Report a bug, ask the community, or reach the maintainer."
+    },
+    "help": {
+      "title": "Get help",
+      "description": "Four routes, in the order most people need them.",
+      "bug": {
+        "label": "Report a bug"
+      },
+      "community": {
+        "label": "Ask the community"
+      },
+      "email": {
+        "label": "Email the maintainer"
+      },
+      "release_notes": {
+        "label": "Read the release notes",
+        "dest": "Latest: {{version}}"
+      }
+    },
+    "community": {
+      "title": "Community",
+      "description": "Cellular Modem Talk/Development on Discord.",
+      "body": "Users share configurations, troubleshoot together, and talk cellular networking. Scan or open the invite.",
+      "open_invite": "Open the invite",
+      "qr_alt": "QR code for the QManager Discord server invite"
+    },
+    "opens_new_tab": "opens in a new tab"
+  },
+  "donate": {
+    "dialog": {
+      "title": "Support the project",
+      "description": "Keep QManager going.",
+      "body": "Hi, I’m Rus. QManager is a side project I maintain for free. If you’ve found it useful, a small tip means a lot and keeps me going.",
+      "thanks": "Thanks for being awesome. 💙"
+    },
+    "links": {
+      "group_label": "Donation channels",
+      "opens_new_tab": "opens in a new tab"
+    },
+    "band": {
+      "title": "Support the project",
+      "body": "QManager is a side project, maintained for free. If it has been useful on your setup, a tip keeps it going — and there is no paywall coming either way."
+    }
   }
 }

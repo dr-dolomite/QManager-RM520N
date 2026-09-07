@@ -1455,5 +1455,134 @@
       "requested": "已請求還原 SIM 卡。看門狗將盡快處理。",
       "failed": "無法請求還原 SIM 卡"
     }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "關於裝置",
+      "description": "裝置識別資訊、位址，以及其上執行的軟體。"
+    },
+    "actions": {
+      "refresh": "重新整理",
+      "refreshing": "正在重新整理…",
+      "retry": "重試"
+    },
+    "band": {
+      "label": "識別資訊",
+      "not_responding": "無回應",
+      "unreachable": {
+        "title": "裝置未回應",
+        "detail": "來自 {{endpoint}} 的 {{reason}}。以下內容均未讀取。",
+        "no_reason": "無回應"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "型號"
+      },
+      "firmware": {
+        "eyebrow": "模組韌體",
+        "caption": "建置於 {{date}}"
+      },
+      "host": {
+        "eyebrow": "主機系統",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "網際網路",
+        "reachable": "可連線",
+        "not_reachable": "無法連線",
+        "caption_reachable": "公用 {{address}}",
+        "caption_unreachable": "{{probe}} 無回應"
+      }
+    },
+    "modem": {
+      "title": "模組",
+      "description": "硬體識別資訊，以及各制式無線電所實作的 3GPP 版本。"
+    },
+    "addresses": {
+      "title": "位址",
+      "description": "本裝置在區域網路與電信業者網路中的位置。",
+      "provenance": "公用位址透過 {{probe}} 解析。破折號代表裝置未回報任何位址。"
+    },
+    "groups": {
+      "three_gpp": "3GPP 版本",
+      "local": "本機",
+      "wwan": "WWAN",
+      "public": "公用"
+    },
+    "rows": {
+      "manufacturer": "製造商",
+      "model": "型號",
+      "firmware": "韌體",
+      "firmware_revision": "韌體修訂版",
+      "build_date": "建置日期",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "裝置 IP",
+      "lan_gateway": "區域網路閘道",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "未讀取到資料",
+      "modem": "這些數值來自裝置，而裝置未回應。",
+      "addresses": "位址由同一次請求讀取。"
+    },
+    "qmanager": {
+      "title": "關於 QManager",
+      "note": "你好！我是 Rus。QManager 是 QuecManager 的最新一代，採用比前代更新、更可靠的實作方式——同時仍將進階使用者的技術設定與新手適用的簡化介面結合在一起。特別感謝 iamromulan、clndwhr 與 Wutang Clan！",
+      "copyright": "© {{year}} QManager。保留一切權利。",
+      "repository": "GitHub 儲存庫",
+      "release_notes": "版本資訊",
+      "support": "支持本專案"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "支援",
+      "description": "回報問題、向社群提問，或聯絡維護者。"
+    },
+    "help": {
+      "title": "取得協助",
+      "description": "四種途徑，依最常需要的順序排列。",
+      "bug": {
+        "label": "回報問題"
+      },
+      "community": {
+        "label": "向社群提問"
+      },
+      "email": {
+        "label": "寄信給維護者"
+      },
+      "release_notes": {
+        "label": "查看版本資訊",
+        "dest": "最新：{{version}}"
+      }
+    },
+    "community": {
+      "title": "社群",
+      "description": "Discord 上的 Cellular Modem Talk/Development。",
+      "body": "使用者在這裡分享設定、一起排除問題，並討論行動網路話題。掃描或直接開啟邀請連結。",
+      "open_invite": "開啟邀請連結",
+      "qr_alt": "QManager Discord 伺服器邀請 QR 碼"
+    },
+    "opens_new_tab": "在新分頁中開啟"
+  },
+  "donate": {
+    "dialog": {
+      "title": "支持本專案",
+      "description": "讓 QManager 繼續走下去。",
+      "body": "你好，我是 Rus。QManager 是我利用業餘時間免費維護的專案。如果它對你有幫助，一點小小的支持意義重大，也讓我能繼續做下去。",
+      "thanks": "謝謝你，你真好。💙"
+    },
+    "links": {
+      "group_label": "贊助管道",
+      "opens_new_tab": "在新分頁中開啟"
+    },
+    "band": {
+      "title": "支持本專案",
+      "body": "QManager 是一個業餘維護、完全免費的專案。如果它對你的裝置有幫助，一點小小的支持就能讓它繼續走下去——無論如何都不會有付費牆。"
+    }
   }
 }
