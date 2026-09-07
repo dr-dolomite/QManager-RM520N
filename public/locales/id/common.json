@@ -129,11 +129,7 @@
   },
   "language": {
     "label": "Bahasa",
-    "switch_aria": "Ganti bahasa",
-    "page_title": "Bahasa",
-    "page_description": "Pilih bahasa tampilan untuk QManager. Pilihan Anda disimpan di perangkat ini.",
-    "active": "Aktif",
-    "select_prompt": "Pilih bahasa"
+    "switch_aria": "Ganti bahasa"
   },
   "login": {
     "brand_label": "QManager · Manajemen Modem Quectel",

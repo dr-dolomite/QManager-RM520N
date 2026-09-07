@@ -320,6 +320,140 @@
       "refresh_failed": "无法读取系统日志"
     }
   },
+  "languages": {
+    "page": {
+      "title": "语言",
+      "description": "选择 QManager 界面所使用的语言，并安装为本设备发布的社区翻译包。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "refreshing": "正在刷新…",
+      "refresh_aria": "刷新已安装的语言和社区目录",
+      "check_again": "重新检查",
+      "install": "安装",
+      "update": "更新",
+      "cancel": "取消",
+      "install_aria": "安装 {{language}}",
+      "update_aria": "更新 {{language}}",
+      "cancel_aria": "取消 {{language}} 的安装",
+      "remove_aria": "移除 {{language}} 语言包",
+      "copy_command": "复制手动安装命令"
+    },
+    "band": {
+      "head": "本设备上",
+      "display": {
+        "eyebrow": "显示语言",
+        "caption_built_in": "内置，{{code}}",
+        "caption_downloaded": "已下载，{{code}}",
+        "caption_unknown": "不在本设备的目录中"
+      },
+      "ready": {
+        "eyebrow": "可以使用",
+        "caption_built_in_one": "{{count}} 种内置",
+        "caption_built_in_other": "{{count}} 种内置",
+        "caption_with_downloaded_one": "{{builtIn}} 种内置，{{count}} 种已下载",
+        "caption_with_downloaded_other": "{{builtIn}} 种内置，{{count}} 种已下载"
+      },
+      "catalog": {
+        "eyebrow": "社区目录",
+        "value_unreachable": "无法访问",
+        "caption_unreachable": "无法连接 GitHub",
+        "caption_none": "尚未发布任何语言包",
+        "caption_available": "可以安装",
+        "caption_updates_one": "有可用更新",
+        "caption_updates_other": "有 {{count}} 项可用更新"
+      }
+    },
+    "display": {
+      "title": "显示语言",
+      "description": "选择 QManager 界面所使用的语言。更改会立即生效，且仅作用于本设备。",
+      "group_aria": "显示语言",
+      "built_in": "内置",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "移除 {{language}}？",
+      "description": "此操作会从本设备删除已下载的 {{language}} 语言包。您随时可以重新安装。",
+      "description_active": "{{language}} 正是您当前正在阅读的语言。移除它会让 QManager 切换回英语。",
+      "cancel": "保留",
+      "confirm": "移除",
+      "removing": "正在移除…"
+    },
+    "community": {
+      "title": "社区语言包",
+      "description": "由社区为 QManager 发布的翻译包。安装其中一个后，它会加入上方的列表。",
+      "list_aria": "社区语言包",
+      "completeness": "已翻译 {{pct}}%",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} 位译者",
+      "contributors_other": "{{count}} 位译者",
+      "contributors_none": "社区",
+      "incompatible": "需要更新版本的 QManager"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "正在安装 {{language}}"
+    },
+    "steps": {
+      "pending": "排队中",
+      "downloading": "正在下载",
+      "verifying": "正在校验",
+      "extracting": "正在解压",
+      "validating": "正在验证",
+      "installing": "正在安装",
+      "cancelling": "正在取消",
+      "working": "处理中"
+    },
+    "failure": {
+      "manual": "设备上没有任何内容被改动。您可以通过 SSH 手动安装此语言包："
+    },
+    "states": {
+      "unreachable": {
+        "title": "无法访问语言包目录",
+        "description": "设备无法从 GitHub 加载社区语言包列表。您已安装的语言未受影响 — 这只是一次失败的读取，调制解调器上没有任何改动。"
+      },
+      "none": {
+        "title": "还没有社区语言包",
+        "description": "还没有人为 QManager 发布可下载的翻译包。上方的语言内置于固件中，始终可用。"
+      }
+    },
+    "loading": {
+      "status": "正在加载语言"
+    },
+    "toast": {
+      "switched": "已切换到 {{language}}",
+      "switch_failed": "无法加载 {{language}} 语言包",
+      "switch_failed_detail": "可能需要重新安装它。",
+      "installing": "正在安装 {{language}}…",
+      "installed": "{{language}} 已安装",
+      "install_failed": "无法安装 {{language}}",
+      "install_failed_generic": "语言包安装失败",
+      "use_now": "立即使用",
+      "install_cancelled": "安装已取消",
+      "removed": "{{language}} 已移除",
+      "removed_active": "{{language}} 已移除，已切换回英语",
+      "remove_failed": "无法移除 {{language}}",
+      "copied": "安装命令已复制",
+      "copy_failed": "无法复制安装命令"
+    },
+    "errors": {
+      "generic": "无法安装该语言包。",
+      "checksum_mismatch": "下载的内容未通过完整性校验，已被丢弃。",
+      "sha256_mismatch": "下载的内容未通过完整性校验，已被丢弃。",
+      "insufficient_space": "设备上的可用空间不足，无法安装此语言包。",
+      "download_failed": "设备无法下载该语言包。请检查它的网络连接后重试。",
+      "manifest_fetch_failed": "设备无法访问 GitHub 上的语言包目录。",
+      "incompatible": "此语言包需要更新版本的 QManager。",
+      "bundled_immutable": "内置语言无法移除。",
+      "extract_failed": "无法解压该语言包的归档文件。",
+      "validate_failed": "该语言包未通过验证，已被丢弃。",
+      "pack_not_found": "该语言包已不在目录中。",
+      "install_in_progress": "已有另一个语言包正在安装。"
+    }
+  },
   "connection_quality": {
     "page": {
       "title": "连接质量",

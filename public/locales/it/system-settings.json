@@ -320,6 +320,140 @@
       "refresh_failed": "Impossibile leggere il log di sistema"
     }
   },
+  "languages": {
+    "page": {
+      "title": "Lingue",
+      "description": "Scegli la lingua in cui viene mostrata l'interfaccia di QManager e installa i pacchetti di traduzione della community pubblicati per questo dispositivo."
+    },
+    "actions": {
+      "refresh": "Aggiorna",
+      "refreshing": "Aggiornamento…",
+      "refresh_aria": "Aggiorna le lingue installate e il catalogo della community",
+      "check_again": "Controlla di nuovo",
+      "install": "Installa",
+      "update": "Aggiorna",
+      "cancel": "Annulla",
+      "install_aria": "Installa {{language}}",
+      "update_aria": "Aggiorna {{language}}",
+      "cancel_aria": "Annulla l'installazione di {{language}}",
+      "remove_aria": "Rimuovi il pacchetto {{language}}",
+      "copy_command": "Copia il comando di installazione manuale"
+    },
+    "band": {
+      "head": "Su questo dispositivo",
+      "display": {
+        "eyebrow": "Lingua dell'interfaccia",
+        "caption_built_in": "Integrata, {{code}}",
+        "caption_downloaded": "Scaricata, {{code}}",
+        "caption_unknown": "Non presente nel catalogo di questo dispositivo"
+      },
+      "ready": {
+        "eyebrow": "Pronte all'uso",
+        "caption_built_in_one": "{{count}} integrata",
+        "caption_built_in_other": "{{count}} integrate",
+        "caption_with_downloaded_one": "{{builtIn}} integrate, {{count}} scaricata",
+        "caption_with_downloaded_other": "{{builtIn}} integrate, {{count}} scaricate"
+      },
+      "catalog": {
+        "eyebrow": "Catalogo della community",
+        "value_unreachable": "Irraggiungibile",
+        "caption_unreachable": "Impossibile raggiungere GitHub",
+        "caption_none": "Ancora nessuna pubblicazione",
+        "caption_available": "Pronto per l'installazione",
+        "caption_updates_one": "Aggiornamento disponibile",
+        "caption_updates_other": "{{count}} aggiornamenti disponibili"
+      }
+    },
+    "display": {
+      "title": "Lingua dell'interfaccia",
+      "description": "Scegli la lingua in cui è scritta l'interfaccia di QManager. La modifica ha effetto immediato e vale solo su questo dispositivo.",
+      "group_aria": "Lingua dell'interfaccia",
+      "built_in": "Integrata",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "Rimuovere {{language}}?",
+      "description": "Questa operazione elimina da questo dispositivo il pacchetto {{language}} scaricato. Puoi installarlo di nuovo in qualsiasi momento.",
+      "description_active": "{{language}} è la lingua che stai leggendo in questo momento. Rimuoverla riporta QManager all'inglese.",
+      "cancel": "Mantienilo",
+      "confirm": "Rimuovi",
+      "removing": "Rimozione…"
+    },
+    "community": {
+      "title": "Pacchetti della community",
+      "description": "Pacchetti di traduzione pubblicati per QManager dalla community. Installandone uno viene aggiunto all'elenco qui sopra.",
+      "list_aria": "Pacchetti lingua della community",
+      "completeness": "{{pct}}% tradotto",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} traduttore",
+      "contributors_other": "{{count}} traduttori",
+      "contributors_none": "Community",
+      "incompatible": "Richiede una versione più recente di QManager"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "Installazione di {{language}}"
+    },
+    "steps": {
+      "pending": "In coda",
+      "downloading": "Download in corso",
+      "verifying": "Verifica del checksum",
+      "extracting": "Estrazione",
+      "validating": "Convalida",
+      "installing": "Installazione",
+      "cancelling": "Annullamento",
+      "working": "Elaborazione"
+    },
+    "failure": {
+      "manual": "Nulla è stato modificato sul dispositivo. Puoi installare questo pacchetto a mano tramite SSH:"
+    },
+    "states": {
+      "unreachable": {
+        "title": "Impossibile raggiungere il catalogo dei pacchetti",
+        "description": "Il dispositivo non è riuscito a caricare da GitHub l'elenco dei pacchetti della community. Le lingue installate non sono state toccate — si tratta di una lettura fallita e nulla è cambiato sul modem."
+      },
+      "none": {
+        "title": "Ancora nessun pacchetto della community",
+        "description": "Nessuno ha ancora pubblicato un pacchetto di traduzione scaricabile per QManager. Le lingue qui sopra sono integrate nel firmware e sono sempre disponibili."
+      }
+    },
+    "loading": {
+      "status": "Caricamento delle lingue"
+    },
+    "toast": {
+      "switched": "Passato a {{language}}",
+      "switch_failed": "Impossibile caricare il pacchetto {{language}}",
+      "switch_failed_detail": "Potrebbe essere necessario installarlo di nuovo.",
+      "installing": "Installazione di {{language}}…",
+      "installed": "{{language}} installata",
+      "install_failed": "Impossibile installare {{language}}",
+      "install_failed_generic": "L'installazione del pacchetto lingua non è riuscita",
+      "use_now": "Usa ora",
+      "install_cancelled": "Installazione annullata",
+      "removed": "{{language}} rimossa",
+      "removed_active": "{{language}} rimossa, si torna all'inglese",
+      "remove_failed": "Impossibile rimuovere {{language}}",
+      "copied": "Comando di installazione copiato",
+      "copy_failed": "Impossibile copiare il comando di installazione"
+    },
+    "errors": {
+      "generic": "Non è stato possibile installare il pacchetto lingua.",
+      "checksum_mismatch": "Il download non ha superato il controllo di integrità ed è stato scartato.",
+      "sha256_mismatch": "Il download non ha superato il controllo di integrità ed è stato scartato.",
+      "insufficient_space": "Sul dispositivo non c'è spazio libero sufficiente per installare questo pacchetto.",
+      "download_failed": "Il dispositivo non è riuscito a scaricare il pacchetto. Controlla la sua connessione e riprova.",
+      "manifest_fetch_failed": "Il dispositivo non è riuscito a raggiungere il catalogo dei pacchetti su GitHub.",
+      "incompatible": "Questo pacchetto richiede una versione più recente di QManager.",
+      "bundled_immutable": "Le lingue integrate non possono essere rimosse.",
+      "extract_failed": "Non è stato possibile decomprimere l'archivio del pacchetto.",
+      "validate_failed": "Il pacchetto non ha superato la convalida ed è stato scartato.",
+      "pack_not_found": "Quel pacchetto non è più presente nel catalogo.",
+      "install_in_progress": "È già in corso l'installazione di un altro pacchetto lingua."
+    }
+  },
   "connection_quality": {
     "page": {
       "title": "Qualità della connessione",

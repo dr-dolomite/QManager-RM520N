@@ -320,6 +320,140 @@
       "refresh_failed": "Gagal membaca log sistem"
     }
   },
+  "languages": {
+    "page": {
+      "title": "Bahasa",
+      "description": "Pilih bahasa yang dipakai antarmuka QManager, dan pasang paket terjemahan komunitas yang diterbitkan untuk perangkat ini."
+    },
+    "actions": {
+      "refresh": "Muat ulang",
+      "refreshing": "Memuat ulang…",
+      "refresh_aria": "Muat ulang bahasa terpasang dan katalog komunitas",
+      "check_again": "Periksa lagi",
+      "install": "Pasang",
+      "update": "Perbarui",
+      "cancel": "Batal",
+      "install_aria": "Pasang {{language}}",
+      "update_aria": "Perbarui {{language}}",
+      "cancel_aria": "Batalkan pemasangan {{language}}",
+      "remove_aria": "Hapus paket {{language}}",
+      "copy_command": "Salin perintah pemasangan manual"
+    },
+    "band": {
+      "head": "Di perangkat ini",
+      "display": {
+        "eyebrow": "Bahasa tampilan",
+        "caption_built_in": "Bawaan, {{code}}",
+        "caption_downloaded": "Terunduh, {{code}}",
+        "caption_unknown": "Tidak ada di katalog perangkat ini"
+      },
+      "ready": {
+        "eyebrow": "Siap dipakai",
+        "caption_built_in_one": "{{count}} bawaan",
+        "caption_built_in_other": "{{count}} bawaan",
+        "caption_with_downloaded_one": "{{builtIn}} bawaan, {{count}} terunduh",
+        "caption_with_downloaded_other": "{{builtIn}} bawaan, {{count}} terunduh"
+      },
+      "catalog": {
+        "eyebrow": "Katalog komunitas",
+        "value_unreachable": "Tidak terjangkau",
+        "caption_unreachable": "Gagal menjangkau GitHub",
+        "caption_none": "Belum ada yang diterbitkan",
+        "caption_available": "Siap dipasang",
+        "caption_updates_one": "Pembaruan tersedia",
+        "caption_updates_other": "{{count}} pembaruan tersedia"
+      }
+    },
+    "display": {
+      "title": "Bahasa tampilan",
+      "description": "Pilih bahasa yang dipakai antarmuka QManager. Perubahan berlaku seketika, dan hanya di perangkat ini.",
+      "group_aria": "Bahasa tampilan",
+      "built_in": "Bawaan",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "Hapus {{language}}?",
+      "description": "Tindakan ini menghapus paket {{language}} yang sudah diunduh dari perangkat ini. Anda bisa memasangnya lagi kapan saja.",
+      "description_active": "{{language}} adalah bahasa yang sedang Anda baca sekarang. Menghapusnya mengembalikan QManager ke bahasa Inggris.",
+      "cancel": "Biarkan saja",
+      "confirm": "Hapus",
+      "removing": "Menghapus…"
+    },
+    "community": {
+      "title": "Paket komunitas",
+      "description": "Paket terjemahan untuk QManager yang diterbitkan oleh komunitas. Memasang salah satunya menambahkannya ke daftar di atas.",
+      "list_aria": "Paket bahasa komunitas",
+      "completeness": "{{pct}}% diterjemahkan",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} penerjemah",
+      "contributors_other": "{{count}} penerjemah",
+      "contributors_none": "Komunitas",
+      "incompatible": "Perlu QManager versi lebih baru"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "Memasang {{language}}"
+    },
+    "steps": {
+      "pending": "Dalam antrean",
+      "downloading": "Mengunduh",
+      "verifying": "Memeriksa checksum",
+      "extracting": "Mengekstrak",
+      "validating": "Memvalidasi",
+      "installing": "Memasang",
+      "cancelling": "Membatalkan",
+      "working": "Memproses"
+    },
+    "failure": {
+      "manual": "Tidak ada yang diubah di perangkat. Anda bisa memasang paket ini secara manual lewat SSH:"
+    },
+    "states": {
+      "unreachable": {
+        "title": "Gagal menjangkau katalog paket",
+        "description": "Perangkat tidak dapat memuat daftar paket komunitas dari GitHub. Bahasa yang sudah terpasang tidak tersentuh — ini hanya pembacaan yang gagal, dan tidak ada yang berubah di modem."
+      },
+      "none": {
+        "title": "Belum ada paket komunitas",
+        "description": "Belum ada yang menerbitkan paket terjemahan yang bisa diunduh untuk QManager. Bahasa di atas sudah tertanam di firmware dan selalu tersedia."
+      }
+    },
+    "loading": {
+      "status": "Memuat bahasa"
+    },
+    "toast": {
+      "switched": "Beralih ke {{language}}",
+      "switch_failed": "Gagal memuat paket {{language}}",
+      "switch_failed_detail": "Mungkin perlu dipasang ulang.",
+      "installing": "Memasang {{language}}…",
+      "installed": "{{language}} terpasang",
+      "install_failed": "Gagal memasang {{language}}",
+      "install_failed_generic": "Pemasangan paket bahasa gagal",
+      "use_now": "Pakai sekarang",
+      "install_cancelled": "Pemasangan dibatalkan",
+      "removed": "{{language}} dihapus",
+      "removed_active": "{{language}} dihapus, kembali ke bahasa Inggris",
+      "remove_failed": "Gagal menghapus {{language}}",
+      "copied": "Perintah pemasangan disalin",
+      "copy_failed": "Gagal menyalin perintah pemasangan"
+    },
+    "errors": {
+      "generic": "Paket bahasa tidak dapat dipasang.",
+      "checksum_mismatch": "Unduhan gagal pemeriksaan integritas dan dibuang.",
+      "sha256_mismatch": "Unduhan gagal pemeriksaan integritas dan dibuang.",
+      "insufficient_space": "Ruang kosong di perangkat tidak cukup untuk memasang paket ini.",
+      "download_failed": "Perangkat gagal mengunduh paket. Periksa koneksinya lalu coba lagi.",
+      "manifest_fetch_failed": "Perangkat gagal menjangkau katalog paket di GitHub.",
+      "incompatible": "Paket ini memerlukan QManager versi lebih baru.",
+      "bundled_immutable": "Bahasa bawaan tidak bisa dihapus.",
+      "extract_failed": "Arsip paket tidak dapat dibuka.",
+      "validate_failed": "Paket gagal validasi dan dibuang.",
+      "pack_not_found": "Paket itu sudah tidak ada di katalog.",
+      "install_in_progress": "Paket bahasa lain sedang dipasang."
+    }
+  },
   "connection_quality": {
     "page": {
       "title": "Kualitas Koneksi",

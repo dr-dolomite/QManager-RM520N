@@ -129,11 +129,7 @@
   },
   "language": {
     "label": "語言",
-    "switch_aria": "切換語言",
-    "page_title": "語言",
-    "page_description": "選擇 QManager 的顯示語言。您的選擇將儲存在此裝置上。",
-    "active": "使用中",
-    "select_prompt": "選擇語言"
+    "switch_aria": "切換語言"
   },
   "login": {
     "brand_label": "QManager · Quectel 數據機管理",

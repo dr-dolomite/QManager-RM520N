@@ -129,11 +129,7 @@
   },
   "language": {
     "label": "语言",
-    "switch_aria": "切换语言",
-    "page_title": "语言",
-    "page_description": "选择 QManager 的显示语言。您的选择将保存在本设备上。",
-    "active": "活动",
-    "select_prompt": "选择语言"
+    "switch_aria": "切换语言"
   },
   "login": {
     "brand_label": "QManager · Quectel 调制解调器管理",

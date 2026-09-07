@@ -129,11 +129,7 @@
   },
   "language": {
     "label": "Lingua",
-    "switch_aria": "Cambia lingua",
-    "page_title": "Lingua",
-    "page_description": "Scegli la lingua di visualizzazione di QManager. La selezione viene salvata su questo dispositivo.",
-    "active": "Attivo",
-    "select_prompt": "Seleziona una lingua"
+    "switch_aria": "Cambia lingua"
   },
   "login": {
     "brand_label": "QManager · Gestione modem Quectel",
