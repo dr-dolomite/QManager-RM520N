@@ -827,5 +827,187 @@
       "auto_off": "Automatic updates disabled",
       "save_failed": "Couldn't save that preference"
     }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "AT Terminal",
+      "description": "Send AT commands straight to the modem and read its replies exactly as they come back. Commands that would take the radio off the air are held for confirmation first, and a few are refused outright."
+    },
+    "card": {
+      "title": "Console",
+      "description": "Replies are shown raw, in the modem's own words. The last 100 commands stay in this browser until you clear them."
+    },
+    "actions": {
+      "clear": "Clear",
+      "export": "Export"
+    },
+    "game": {
+      "playing": "Playing Signal Storm"
+    },
+    "empty": {
+      "title": "Nothing sent yet",
+      "description": "Type an AT command in the prompt below, or open Commands to pick a ready-made one."
+    },
+    "transcript": {
+      "label": "Command transcript",
+      "copy": "Copy this command and its reply",
+      "copied": "Copied",
+      "status": {
+        "success": "Succeeded",
+        "error": "Failed",
+        "blocked": "Blocked"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "Press Tab to complete this command from your history."
+    },
+    "gate": {
+      "title": "This command can cut your connection",
+      "confirm": "Send anyway",
+      "cancel": "Cancel"
+    },
+    "rules": {
+      "qscanfreq": "Frequency scans are refused here. They hold the radio off the air for minutes with nothing to show while they run — use the Cell Scanner page, which reports progress and can be stopped.",
+      "qscan": "Network scans are refused here. They hold the radio off the air for minutes with nothing to show while they run — use the Cell Scanner page, which reports progress and can be stopped.",
+      "resetfactory": "A factory reset is refused here. It clears every setting on the modem at once, including the ones QManager needs to reach it, and nothing on this page can undo it.",
+      "radio_off": "This turns the modem's radio off. If you reached this page over the modem's own connection, Tailscale included, you lose this page until the radio is switched back on from the device itself."
+    },
+    "input": {
+      "label": "AT command",
+      "placeholder": "AT+COPS?",
+      "send": "Send"
+    },
+    "responses": {
+      "failed": "The command failed and the modem gave no reason.",
+      "unexpected": "This command couldn't be sent. Check System Logs for what the backend reported.",
+      "unreachable": "Couldn't reach QManager's backend on the modem. Check that the device is still reachable, then send it again.",
+      "game": "Starting Signal Storm..."
+    },
+    "commands": {
+      "trigger": "Commands",
+      "search_placeholder": "Search commands",
+      "empty": "No commands match that search.",
+      "count_one": "{{count}} command",
+      "count_other": "{{count}} commands",
+      "manage": "Manage commands",
+      "groups": {
+        "modem": "Modem",
+        "network": "Network mode",
+        "sim": "SIM slots",
+        "apn": "APN",
+        "bands": "Bands",
+        "passthrough": "IP passthrough",
+        "custom": "Custom"
+      },
+      "presets": {
+        "reboot": "Reboot the modem",
+        "disconnect": "Turn the radio off",
+        "connect": "Turn the radio on",
+        "signal_info": "Signal info (serving cell)",
+        "ca_info": "Carrier aggregation info",
+        "imei_show": "Show the IMEI",
+        "mode_show": "Show the network mode",
+        "mode_auto": "Set network mode to auto",
+        "mode_nr_lte": "Set network mode to 5G NR and LTE",
+        "mode_nr": "Set network mode to 5G NR only",
+        "mode_lte": "Set network mode to LTE only",
+        "nr5g_disable_status": "Show which of SA and NSA are on",
+        "nr5g_enable_both": "Enable both SA and NSA",
+        "nr5g_disable_sa": "Disable SA only",
+        "nr5g_disable_nsa": "Disable NSA only",
+        "sim_slot_get": "Show the active SIM slot",
+        "sim_slot_1": "Switch to SIM slot 1",
+        "sim_slot_2": "Switch to SIM slot 2",
+        "apn_list": "Show the APN list",
+        "apn_nrbroadband": "Set the APN to NRBROADBAND",
+        "bands_nr_sa": "Show enabled 5G NR SA bands",
+        "bands_nr_nsa": "Show enabled 5G NR NSA bands",
+        "bands_lte": "Show enabled LTE bands",
+        "ippt_addresses": "Show assigned IP addresses",
+        "ippt_enable": "Enable IP passthrough",
+        "ippt_disable": "Disable IP passthrough"
+      },
+      "errors": {
+        "required": "Both a name and a command are required.",
+        "must_start_at": "The command has to start with AT.",
+        "duplicate_command": "That command is already in the list.",
+        "duplicate_label": "Another command already uses that name."
+      },
+      "manage_dialog": {
+        "title": "Manage custom commands",
+        "description": "Commands you add here are saved in this browser and appear under Custom in the list.",
+        "empty": "You haven't added any custom commands yet.",
+        "label_field": "Command name",
+        "label_placeholder": "Command name",
+        "command_field": "AT command",
+        "command_placeholder": "AT+...",
+        "add": "Add",
+        "delete": "Delete {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "Web Console",
+      "description": "A root shell on the modem, opened in your browser. Everything you type here runs as root on the device that is serving this page — nothing asks for confirmation and nothing can be undone."
+    },
+    "card": {
+      "title": "Terminal",
+      "description": "The session starts when this page loads and ends when you type exit or leave the page."
+    },
+    "chip": {
+      "connecting": "Connecting",
+      "reconnecting": "Reconnecting",
+      "connected": "Connected",
+      "unreachable": "Not running",
+      "refused": "Refused",
+      "dropped": "Link lost",
+      "ended": "Session ended"
+    },
+    "hints": {
+      "copy": "Copy",
+      "paste": "Paste",
+      "leave": "Leave full screen"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "Clear",
+      "fullscreen": "Full screen",
+      "exit_fullscreen": "Exit full screen",
+      "reconnect": "Reconnect",
+      "retry": "Try again",
+      "start_session": "Start a new session"
+    },
+    "terminal": {
+      "label": "Root shell on the modem"
+    },
+    "states": {
+      "close": {
+        "code": "Close code {{code}}",
+        "reason": "Close code {{code}} — {{reason}}",
+        "none": "The connection closed without reporting a code."
+      },
+      "unreachable": {
+        "title": "The console service isn't running",
+        "description": "QManager couldn't reach ttyd, the small program that serves this terminal from the modem. It is an optional part of the install, so it may never have been downloaded, or its service may have stopped. Reinstalling or updating QManager puts it back."
+      },
+      "refused": {
+        "title": "The modem refused this session",
+        "description": "ttyd answered and then closed the connection with a status of its own. It is usually already serving another terminal, or it stopped part-way through the handshake. Close any other console you have open, then try again."
+      },
+      "dropped": {
+        "title": "The connection to the modem dropped",
+        "description": "The console was running and then the link went away. A Wi-Fi handover, a VPN or a modem reboot will all do this. Check that you can still reach the device, then reconnect."
+      },
+      "ended": {
+        "title": "Session ended",
+        "description": "The shell on the modem exited, so this terminal is closed. Nothing was lost — start a new session whenever you need one."
+      }
+    }
   }
 }

@@ -827,5 +827,187 @@
       "auto_off": "Aggiornamenti automatici disattivati",
       "save_failed": "Impossibile salvare questa preferenza"
     }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "Terminale AT",
+      "description": "Invia comandi AT direttamente al modem e leggi le risposte esattamente come arrivano. I comandi che spegnerebbero la radio vengono prima trattenuti per una conferma, e alcuni vengono rifiutati del tutto."
+    },
+    "card": {
+      "title": "Console",
+      "description": "Le risposte sono mostrate grezze, nelle parole del modem stesso. Gli ultimi 100 comandi restano in questo browser finché non li cancelli."
+    },
+    "actions": {
+      "clear": "Cancella",
+      "export": "Esporta"
+    },
+    "game": {
+      "playing": "Signal Storm in corso"
+    },
+    "empty": {
+      "title": "Ancora nessun comando inviato",
+      "description": "Scrivi un comando AT nel prompt qui sotto, oppure apri Comandi per sceglierne uno già pronto."
+    },
+    "transcript": {
+      "label": "Trascrizione dei comandi",
+      "copy": "Copia questo comando e la sua risposta",
+      "copied": "Copiato",
+      "status": {
+        "success": "Riuscito",
+        "error": "Non riuscito",
+        "blocked": "Bloccato"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "Premi Tab per completare questo comando dalla cronologia."
+    },
+    "gate": {
+      "title": "Questo comando può interrompere la tua connessione",
+      "confirm": "Invia comunque",
+      "cancel": "Annulla"
+    },
+    "rules": {
+      "qscanfreq": "Le scansioni di frequenza sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
+      "qscan": "Le scansioni di rete sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
+      "resetfactory": "Il ripristino di fabbrica è rifiutato qui. Azzera in un colpo solo ogni impostazione del modem, comprese quelle che servono a QManager per raggiungerlo, e nulla in questa pagina può annullarlo.",
+      "radio_off": "Questo comando spegne la radio del modem. Se hai raggiunto questa pagina attraverso la connessione del modem stesso, Tailscale compreso, la perdi finché la radio non viene riaccesa dal dispositivo."
+    },
+    "input": {
+      "label": "Comando AT",
+      "placeholder": "AT+COPS?",
+      "send": "Invia"
+    },
+    "responses": {
+      "failed": "Il comando non è riuscito e il modem non ha dato una ragione.",
+      "unexpected": "Non è stato possibile inviare questo comando. Controlla i Log di sistema per vedere cosa ha riportato il backend.",
+      "unreachable": "Impossibile raggiungere il backend di QManager sul modem. Verifica che il dispositivo sia ancora raggiungibile, poi invia di nuovo.",
+      "game": "Avvio di Signal Storm…"
+    },
+    "commands": {
+      "trigger": "Comandi",
+      "search_placeholder": "Cerca fra i comandi",
+      "empty": "Nessun comando corrisponde alla ricerca.",
+      "count_one": "{{count}} comando",
+      "count_other": "{{count}} comandi",
+      "manage": "Gestisci i comandi",
+      "groups": {
+        "modem": "Modem",
+        "network": "Modalità di rete",
+        "sim": "Slot SIM",
+        "apn": "APN",
+        "bands": "Bande",
+        "passthrough": "IP passthrough",
+        "custom": "Personalizzati"
+      },
+      "presets": {
+        "reboot": "Riavvia il modem",
+        "disconnect": "Spegni la radio",
+        "connect": "Accendi la radio",
+        "signal_info": "Info segnale (serving cell)",
+        "ca_info": "Info carrier aggregation",
+        "imei_show": "Mostra l'IMEI",
+        "mode_show": "Mostra la modalità di rete",
+        "mode_auto": "Imposta la modalità di rete su automatica",
+        "mode_nr_lte": "Imposta la modalità di rete su 5G NR e LTE",
+        "mode_nr": "Imposta la modalità di rete su solo 5G NR",
+        "mode_lte": "Imposta la modalità di rete su solo LTE",
+        "nr5g_disable_status": "Mostra quali fra SA e NSA sono attive",
+        "nr5g_enable_both": "Attiva sia SA sia NSA",
+        "nr5g_disable_sa": "Disattiva solo SA",
+        "nr5g_disable_nsa": "Disattiva solo NSA",
+        "sim_slot_get": "Mostra lo slot SIM attivo",
+        "sim_slot_1": "Passa allo slot SIM 1",
+        "sim_slot_2": "Passa allo slot SIM 2",
+        "apn_list": "Mostra l'elenco degli APN",
+        "apn_nrbroadband": "Imposta l'APN su NRBROADBAND",
+        "bands_nr_sa": "Mostra le bande 5G NR SA attive",
+        "bands_nr_nsa": "Mostra le bande 5G NR NSA attive",
+        "bands_lte": "Mostra le bande LTE attive",
+        "ippt_addresses": "Mostra gli indirizzi IP assegnati",
+        "ippt_enable": "Attiva l'IP passthrough",
+        "ippt_disable": "Disattiva l'IP passthrough"
+      },
+      "errors": {
+        "required": "Servono sia un nome sia un comando.",
+        "must_start_at": "Il comando deve iniziare con AT.",
+        "duplicate_command": "Quel comando è già nell'elenco.",
+        "duplicate_label": "Un altro comando usa già quel nome."
+      },
+      "manage_dialog": {
+        "title": "Gestisci i comandi personalizzati",
+        "description": "I comandi che aggiungi qui vengono salvati in questo browser e compaiono sotto Personalizzati nell'elenco.",
+        "empty": "Non hai ancora aggiunto nessun comando personalizzato.",
+        "label_field": "Nome del comando",
+        "label_placeholder": "Nome del comando",
+        "command_field": "Comando AT",
+        "command_placeholder": "AT+…",
+        "add": "Aggiungi",
+        "delete": "Elimina {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "Console Web",
+      "description": "Una shell di root sul modem, aperta nel tuo browser. Tutto ciò che scrivi qui viene eseguito come root sul dispositivo che serve questa pagina: non c'è nessuna conferma e nulla si può annullare."
+    },
+    "card": {
+      "title": "Terminale",
+      "description": "La sessione parte al caricamento della pagina e finisce quando scrivi exit o lasci la pagina."
+    },
+    "chip": {
+      "connecting": "Connessione…",
+      "reconnecting": "Riconnessione…",
+      "connected": "Connesso",
+      "unreachable": "Non in esecuzione",
+      "refused": "Rifiutata",
+      "dropped": "Collegamento perso",
+      "ended": "Sessione terminata"
+    },
+    "hints": {
+      "copy": "Copia",
+      "paste": "Incolla",
+      "leave": "Esci da schermo intero"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "Pulisci",
+      "fullscreen": "Schermo intero",
+      "exit_fullscreen": "Esci da schermo intero",
+      "reconnect": "Riconnetti",
+      "retry": "Riprova",
+      "start_session": "Avvia una nuova sessione"
+    },
+    "terminal": {
+      "label": "Shell di root sul modem"
+    },
+    "states": {
+      "close": {
+        "code": "Codice di chiusura {{code}}",
+        "reason": "Codice di chiusura {{code}} — {{reason}}",
+        "none": "La connessione si è chiusa senza riportare alcun codice."
+      },
+      "unreachable": {
+        "title": "Il servizio della console non è in esecuzione",
+        "description": "QManager non è riuscito a raggiungere ttyd, il piccolo programma che serve questo terminale dal modem. È una parte opzionale dell'installazione, quindi potrebbe non essere mai stata scaricata, oppure il suo servizio si è fermato. Reinstallare o aggiornare QManager lo rimette a posto."
+      },
+      "refused": {
+        "title": "Il modem ha rifiutato questa sessione",
+        "description": "ttyd ha risposto e poi ha chiuso la connessione con uno stato deciso da lui. Di solito sta già servendo un altro terminale, oppure si è fermato a metà dell'handshake. Chiudi le altre console aperte, poi riprova."
+      },
+      "dropped": {
+        "title": "La connessione al modem è caduta",
+        "description": "La console era in funzione e poi il collegamento è venuto a mancare. Un passaggio di rete Wi-Fi, una VPN o un riavvio del modem lo provocano tutti. Verifica di riuscire ancora a raggiungere il dispositivo, poi riconnettiti."
+      },
+      "ended": {
+        "title": "Sessione terminata",
+        "description": "La shell sul modem è uscita, quindi questo terminale è chiuso. Non è andato perso nulla: avvia una nuova sessione quando ti serve."
+      }
+    }
   }
 }

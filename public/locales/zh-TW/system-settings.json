@@ -827,5 +827,187 @@
       "auto_off": "已關閉自動更新",
       "save_failed": "無法儲存該偏好設定"
     }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "AT 終端",
+      "description": "直接向數據機發送 AT 命令，並原樣讀取它回傳的回覆。會讓射頻停止運作的命令會先等待您確認，還有少數命令會被直接拒絕。"
+    },
+    "card": {
+      "title": "主控台",
+      "description": "回覆以原始形式顯示，就是數據機自己的措辭。最近 100 條命令會保存在本瀏覽器中，直到您清除為止。"
+    },
+    "actions": {
+      "clear": "清除",
+      "export": "匯出"
+    },
+    "game": {
+      "playing": "正在玩 Signal Storm"
+    },
+    "empty": {
+      "title": "尚未發送任何命令",
+      "description": "在下方提示符處輸入 AT 命令，或者開啟「命令」從現成的命令中挑選一條。"
+    },
+    "transcript": {
+      "label": "命令記錄",
+      "copy": "複製這條命令及其回覆",
+      "copied": "已複製",
+      "status": {
+        "success": "成功",
+        "error": "失敗",
+        "blocked": "已攔截"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "按 Tab 鍵，用歷史記錄補全這條命令。"
+    },
+    "gate": {
+      "title": "此命令可能切斷您的連線",
+      "confirm": "仍然發送",
+      "cancel": "取消"
+    },
+    "rules": {
+      "qscanfreq": "此處拒絕執行頻率掃描。掃描期間射頻會停止運作數分鐘，而且全程沒有任何顯示——請改用「小區掃描」頁面，它會回報進度並且可以中止。",
+      "qscan": "此處拒絕執行網路掃描。掃描期間射頻會停止運作數分鐘，而且全程沒有任何顯示——請改用「小區掃描」頁面，它會回報進度並且可以中止。",
+      "resetfactory": "此處拒絕執行恢復原廠設定。它會一次清空數據機的所有設定，包括 QManager 連線裝置所需的那些，而且本頁面無法復原。",
+      "radio_off": "此命令會關閉數據機的射頻。如果您是透過數據機自身的連線（包括 Tailscale）開啟本頁面的，那麼在從裝置端重新開啟射頻之前，您將失去這個頁面。"
+    },
+    "input": {
+      "label": "AT 命令",
+      "placeholder": "AT+COPS?",
+      "send": "發送"
+    },
+    "responses": {
+      "failed": "命令執行失敗，數據機沒有給出原因。",
+      "unexpected": "這條命令未能發送。請查看「系統日誌」了解後端的回報。",
+      "unreachable": "無法連線到數據機上的 QManager 後端。請確認裝置仍可存取，然後重新發送。",
+      "game": "正在啟動 Signal Storm…"
+    },
+    "commands": {
+      "trigger": "命令",
+      "search_placeholder": "搜尋命令",
+      "empty": "沒有命令符合該搜尋條件。",
+      "count_one": "{{count}} 條命令",
+      "count_other": "{{count}} 條命令",
+      "manage": "管理命令",
+      "groups": {
+        "modem": "數據機",
+        "network": "網路模式",
+        "sim": "SIM 卡插槽",
+        "apn": "APN",
+        "bands": "頻段",
+        "passthrough": "IP 透傳",
+        "custom": "自訂"
+      },
+      "presets": {
+        "reboot": "重啟數據機",
+        "disconnect": "關閉射頻",
+        "connect": "開啟射頻",
+        "signal_info": "訊號資訊（服務小區）",
+        "ca_info": "載波聚合資訊",
+        "imei_show": "顯示 IMEI",
+        "mode_show": "顯示網路模式",
+        "mode_auto": "將網路模式設為自動",
+        "mode_nr_lte": "將網路模式設為 5G NR 和 LTE",
+        "mode_nr": "將網路模式設為僅 5G NR",
+        "mode_lte": "將網路模式設為僅 LTE",
+        "nr5g_disable_status": "顯示 SA 與 NSA 的啟用情況",
+        "nr5g_enable_both": "同時啟用 SA 和 NSA",
+        "nr5g_disable_sa": "僅停用 SA",
+        "nr5g_disable_nsa": "僅停用 NSA",
+        "sim_slot_get": "顯示目前 SIM 卡插槽",
+        "sim_slot_1": "切換到 SIM 卡插槽 1",
+        "sim_slot_2": "切換到 SIM 卡插槽 2",
+        "apn_list": "顯示 APN 清單",
+        "apn_nrbroadband": "將 APN 設為 NRBROADBAND",
+        "bands_nr_sa": "顯示已啟用的 5G NR SA 頻段",
+        "bands_nr_nsa": "顯示已啟用的 5G NR NSA 頻段",
+        "bands_lte": "顯示已啟用的 LTE 頻段",
+        "ippt_addresses": "顯示已指派的 IP 位址",
+        "ippt_enable": "啟用 IP 透傳",
+        "ippt_disable": "停用 IP 透傳"
+      },
+      "errors": {
+        "required": "名稱和命令都必須填寫。",
+        "must_start_at": "命令必須以 AT 開頭。",
+        "duplicate_command": "該命令已在清單中。",
+        "duplicate_label": "另一條命令已經使用了這個名稱。"
+      },
+      "manage_dialog": {
+        "title": "管理自訂命令",
+        "description": "您在這裡新增的命令會保存在本瀏覽器中，並顯示在清單的「自訂」分組下。",
+        "empty": "您還沒有新增任何自訂命令。",
+        "label_field": "命令名稱",
+        "label_placeholder": "命令名稱",
+        "command_field": "AT 命令",
+        "command_placeholder": "AT+…",
+        "add": "新增",
+        "delete": "刪除 {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "網頁主控台",
+      "description": "在瀏覽器中開啟的數據機 root shell。您在這裡輸入的一切都會以 root 身分執行在提供本頁面的裝置上——沒有任何確認步驟，也無法復原。"
+    },
+    "card": {
+      "title": "終端機",
+      "description": "工作階段在本頁面載入時開始，在您輸入 exit 或離開本頁面時結束。"
+    },
+    "chip": {
+      "connecting": "連線中",
+      "reconnecting": "重新連線中",
+      "connected": "已連線",
+      "unreachable": "未執行",
+      "refused": "已拒絕",
+      "dropped": "連結已中斷",
+      "ended": "工作階段已結束"
+    },
+    "hints": {
+      "copy": "複製",
+      "paste": "貼上",
+      "leave": "離開全螢幕"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "清除畫面",
+      "fullscreen": "全螢幕",
+      "exit_fullscreen": "離開全螢幕",
+      "reconnect": "重新連線",
+      "retry": "重試",
+      "start_session": "開始新的工作階段"
+    },
+    "terminal": {
+      "label": "數據機上的 root shell"
+    },
+    "states": {
+      "close": {
+        "code": "關閉代碼 {{code}}",
+        "reason": "關閉代碼 {{code}} — {{reason}}",
+        "none": "連線關閉時沒有回報任何代碼。"
+      },
+      "unreachable": {
+        "title": "主控台服務未在執行",
+        "description": "QManager 無法連線到 ttyd，也就是在數據機上提供這個終端機的小程式。它是安裝套件中的選用元件，可能從未下載過，也可能是它的服務已經停止。重新安裝或更新 QManager 會把它裝回來。"
+      },
+      "refused": {
+        "title": "數據機拒絕了這個工作階段",
+        "description": "ttyd 已回應，隨後用它自己給出的狀態關閉了連線。通常是因為它已經在服務另一個終端機，或者在交握過程中途停止。請關閉您開啟的其他主控台，然後重試。"
+      },
+      "dropped": {
+        "title": "與數據機的連線已中斷",
+        "description": "主控台原本正在執行，隨後連結消失了。Wi-Fi 換手、VPN 或數據機重啟都會造成這種情況。請確認裝置仍然可以存取，然後重新連線。"
+      },
+      "ended": {
+        "title": "工作階段已結束",
+        "description": "數據機上的 shell 已結束，因此這個終端機已關閉。沒有任何內容遺失——需要時隨時開始新的工作階段。"
+      }
+    }
   }
 }

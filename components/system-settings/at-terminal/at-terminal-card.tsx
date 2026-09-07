@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  useId,
+  type FormEvent,
+} from "react";
 import {
   TerminalIcon,
   TriangleAlertIcon,
@@ -8,120 +16,76 @@ import {
   Trash2Icon,
   LoaderCircleIcon,
   ChevronRightIcon,
+  Gamepad2Icon,
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
+
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  InputGroup,
-  InputGroupInput,
-  InputGroupButton,
-  InputGroupText,
-} from "@/components/ui/input-group";
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Kbd } from "@/components/ui/kbd";
+import { ConditionBlock } from "@/components/system-settings/condition-block";
 import { authFetch } from "@/lib/auth-fetch";
+import { transitionStandard } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import CommandsPopover from "@/components/system-settings/at-terminal/commands-popover";
 import SignalStormGame from "@/components/system-settings/at-terminal/signal-storm-game";
 
-// --- Types ---
+import { TranscriptRow } from "./transcript-row";
+import {
+  CGI_ENDPOINT,
+  GAME_COMMAND,
+  MAX_HISTORY,
+  STORAGE_KEY,
+  formatExport,
+  generateId,
+  isNearBottom,
+  loadHistory,
+  matchBlocked,
+  matchWarning,
+  prefersReducedMotion,
+  saveHistory,
+  type HistoryEntry,
+  type PendingGate,
+} from "./derive";
+import {
+  CARD_DESC,
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  CHIP_GLYPH,
+  CONSOLE_BODY,
+  FOCUS_RING,
+  GATE,
+  HEAD_ACTION,
+  HEAD_ACTIONS,
+  HEAD_GLYPH,
+  HINT,
+  PROMPT,
+  TRANSCRIPT,
+} from "./shapes";
 
-interface HistoryEntry {
-  id: string;
-  command: string;
-  response: string;
-  status: "success" | "error" | "blocked";
-  timestamp: number;
-}
-
-interface Warning {
-  message: string;
-  command: string;
-}
-
-// --- Safety rules ---
-
-const BLOCKED_COMMANDS = [
-  {
-    pattern: /\bQSCANFREQ\b/i,
-    message: "Use the Cell Scanner page for frequency scanning.",
-  },
-  {
-    pattern: /\bQSCAN\b/i,
-    message: "Use the Cell Scanner page for network scanning.",
-  },
-  {
-    pattern: /QCFG\s*=\s*"resetfactory"/i,
-    message: "Factory reset is not allowed from the terminal.",
-  },
-];
-
-const WARNING_COMMANDS = [
-  {
-    pattern: /CFUN\s*=\s*[04]\b/i,
-    message:
-      "This will disable the modem radio. If connected via Tailscale, you may lose access to this UI.",
-  },
-];
-
-// --- Constants ---
-
-const STORAGE_KEY = "qm_at_history";
-const MAX_HISTORY = 100;
-const CGI_ENDPOINT = "/cgi-bin/quecmanager/at_cmd/send_command.sh";
-
-// --- Helpers ---
-
-function generateId(): string {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-}
-
-function loadHistory(): HistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(entries: HistoryEntry[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-    // Quota exceeded — trim to half and retry
-    try {
-      const trimmed = entries.slice(-Math.floor(MAX_HISTORY / 2));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-    } catch {
-      // Still failing — degrade to in-memory only
-    }
-  }
-}
-
-function formatExport(entries: HistoryEntry[]): string {
-  return entries
-    .map((e) => {
-      const date = new Date(e.timestamp);
-      const ts = date.toISOString().replace("T", " ").slice(0, 19);
-      return `[${ts}] ❯ ${e.command}\n${e.response}`;
-    })
-    .join("\n\n");
-}
-
-// --- Component ---
+const K = "at_terminal";
 
 export default function ATTerminalCard() {
+  const { t } = useTranslation("system-settings");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [warning, setWarning] = useState<Warning | null>(null);
+  const [gate, setGate] = useState<PendingGate | null>(null);
   const [lastCommand, setLastCommand] = useState("");
   const [gameActive, setGameActive] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+
+  const inputId = useId();
 
   const suggestions = useMemo(() => {
     if (!input.trim()) return [];
@@ -141,23 +105,32 @@ export default function ATTerminalCard() {
   }, [history, input]);
 
   const historyEndRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Whether the reader was at the foot BEFORE the new row landed. Sampled in
+  // the submit path, because by the time the effect runs the row is already in.
+  const followRef = useRef(true);
 
   // Load history from localStorage on mount
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
 
-  // Sync history to localStorage and auto-scroll
+  // Sync history to localStorage, and follow the foot only when the reader was
+  // already there — an unconditional scroll yanks the view mid-read.
   useEffect(() => {
-    if (history.length > 0) {
-      saveHistory(history);
-      historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (history.length === 0) return;
+    saveHistory(history);
+    if (!followRef.current) return;
+    historyEndRef.current?.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "end",
+    });
   }, [history]);
 
   const appendEntry = useCallback(
     (entry: Omit<HistoryEntry, "id" | "timestamp">) => {
+      followRef.current = isNearBottom(viewportRef.current);
       setHistory((prev) => {
         const next = [
           ...prev,
@@ -188,7 +161,7 @@ export default function ATTerminalCard() {
         } else {
           appendEntry({
             command,
-            response: json.detail ?? json.error ?? "Command failed",
+            response: json.detail ?? json.error ?? t(`${K}.responses.failed`),
             status: "error",
           });
         }
@@ -197,8 +170,8 @@ export default function ATTerminalCard() {
           command,
           response:
             err instanceof TypeError
-              ? "Network error — could not reach modem backend"
-              : "Unexpected error — check backend logs",
+              ? t(`${K}.responses.unreachable`)
+              : t(`${K}.responses.unexpected`),
           status: "error",
         });
       } finally {
@@ -207,7 +180,7 @@ export default function ATTerminalCard() {
         inputRef.current?.focus();
       }
     },
-    [appendEntry],
+    [appendEntry, t],
   );
 
   const handleSubmit = useCallback(
@@ -217,10 +190,10 @@ export default function ATTerminalCard() {
       if (!trimmed || isLoading) return;
 
       // Easter egg
-      if (trimmed.toUpperCase() === "AT+GAME") {
+      if (trimmed.toUpperCase() === GAME_COMMAND) {
         appendEntry({
           command: trimmed,
-          response: "Initializing Signal Storm...",
+          response: t(`${K}.responses.game`),
           status: "success",
         });
         setInput("");
@@ -228,52 +201,49 @@ export default function ATTerminalCard() {
         return;
       }
 
-      // Check blocked commands
-      for (const rule of BLOCKED_COMMANDS) {
-        if (rule.pattern.test(trimmed)) {
-          appendEntry({
-            command: trimmed,
-            response: rule.message,
-            status: "blocked",
-          });
-          setInput("");
-          setLastCommand(trimmed);
-          return;
-        }
+      const blocked = matchBlocked(trimmed);
+      if (blocked) {
+        appendEntry({
+          command: trimmed,
+          response: t(`${K}.rules.${blocked}`),
+          status: "blocked",
+        });
+        setInput("");
+        setLastCommand(trimmed);
+        return;
       }
 
-      // Check warning commands
-      for (const rule of WARNING_COMMANDS) {
-        if (rule.pattern.test(trimmed)) {
-          setWarning({ message: rule.message, command: trimmed });
-          return;
-        }
+      const warned = matchWarning(trimmed);
+      if (warned) {
+        setGate({ command: trimmed, rule: warned });
+        return;
       }
 
       setLastCommand(trimmed);
       sendCommand(trimmed);
     },
-    [input, isLoading, appendEntry, sendCommand],
+    [input, isLoading, appendEntry, sendCommand, t],
   );
 
   const handleSendAnyway = useCallback(() => {
-    if (!warning) return;
-    const cmd = warning.command;
+    if (!gate) return;
+    const cmd = gate.command;
     setLastCommand(cmd);
-    setWarning(null);
+    setGate(null);
     setInput("");
     sendCommand(cmd);
-  }, [warning, sendCommand]);
+  }, [gate, sendCommand]);
 
-  const handleCancelWarning = useCallback(() => {
-    setWarning(null);
+  const handleCancelGate = useCallback(() => {
+    setGate(null);
     inputRef.current?.focus();
   }, []);
 
   const handleClear = useCallback(() => {
     setHistory([]);
     localStorage.removeItem(STORAGE_KEY);
-    setWarning(null);
+    setGate(null);
+    followRef.current = true;
     inputRef.current?.focus();
   }, []);
 
@@ -317,163 +287,181 @@ export default function ATTerminalCard() {
   );
 
   const isEmpty = history.length === 0;
-  const inputDisabled = isLoading || warning !== null || gameActive;
+  const inputDisabled = isLoading || gate !== null || gameActive;
 
   return (
-    <Card className="overflow-hidden gap-0 py-0">
-      {/* Header bar */}
-      <div className="bg-muted flex items-center gap-2 border-b px-3 py-2">
-        <TerminalIcon className="text-muted-foreground size-4" />
-        <span className="text-muted-foreground text-sm font-medium">
-          AT Terminal
-        </span>
-        <div className="ml-auto flex gap-1">
+    <Card className={CARD_SHELL}>
+      <CardHeader className={CARD_PAD}>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
+        <CardDescription className={CARD_DESC}>
+          {t(`${K}.card.description`)}
+        </CardDescription>
+        <CardAction className={HEAD_ACTIONS}>
           {gameActive ? (
-            <span className="text-muted-foreground text-xs italic">
-              Playing Signal Storm... (Esc to exit)
-            </span>
+            <Badge variant="info">
+              <Gamepad2Icon className={CHIP_GLYPH} />
+              {t(`${K}.game.playing`)}
+            </Badge>
           ) : (
             <>
               <CommandsPopover onSelect={setInput} inputRef={inputRef} />
-              <Button variant="ghost" size="xs" onClick={handleClear} disabled={isEmpty}>
-                <Trash2Icon />
-                Clear
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleClear}
+                disabled={isEmpty}
+                className={HEAD_ACTION}
+              >
+                <Trash2Icon className={HEAD_GLYPH} />
+                {t(`${K}.actions.clear`)}
               </Button>
-              <Button variant="ghost" size="xs" onClick={handleExport} disabled={isEmpty}>
-                <DownloadIcon />
-                Export
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleExport}
+                disabled={isEmpty}
+                className={HEAD_ACTION}
+              >
+                <DownloadIcon className={HEAD_GLYPH} />
+                {t(`${K}.actions.export`)}
               </Button>
             </>
           )}
-        </div>
-      </div>
+        </CardAction>
+      </CardHeader>
 
+      {/* The game keeps the full-bleed slot it has always had — it is a direct
+          Card child, not a padded content box. */}
       {gameActive ? (
         <SignalStormGame onExit={() => setGameActive(false)} />
       ) : (
-        <>
-          {/* History area */}
+        <CardContent className={cn(CARD_PAD, CONSOLE_BODY)}>
           <div
-            className="max-h-[clamp(12rem,50vh,60vh)] min-h-48 overflow-y-auto px-4 py-3"
+            ref={viewportRef}
+            className={TRANSCRIPT.ROOT}
+            role="log"
             aria-live="polite"
+            aria-label={t(`${K}.transcript.label`)}
           >
             {isEmpty ? (
-              <div className="text-muted-foreground flex h-40 items-center justify-center text-sm">
-                No commands yet. Type an AT command below.
+              <div className={TRANSCRIPT.EMPTY}>
+                <ConditionBlock
+                  tone="neutral"
+                  glyph={TerminalIcon}
+                  ariaRole="status"
+                  title={t(`${K}.empty.title`)}
+                  description={t(`${K}.empty.description`)}
+                  className={TRANSCRIPT.EMPTY_BLOCK}
+                />
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className={TRANSCRIPT.LIST}>
                 {history.map((entry) => (
-                  <HistoryEntryRow key={entry.id} entry={entry} />
+                  // Each row declares its own initial/animate: a row mounts long
+                  // after the page cascade settled, and a variants-only child
+                  // that mounts late renders blank.
+                  <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={transitionStandard}
+                  >
+                    <TranscriptRow
+                      entry={entry}
+                      statusWord={t(`${K}.transcript.status.${entry.status}`)}
+                      copyLabel={t(`${K}.transcript.copy`)}
+                      copiedLabel={t(`${K}.transcript.copied`)}
+                    />
+                  </motion.div>
                 ))}
                 <div ref={historyEndRef} />
               </div>
             )}
           </div>
 
-          {/* Suggestion hint */}
-          {suggestions.length > 0 && !warning && (
-            <div className="flex items-center gap-1.5 px-4 pb-1.5">
-              <span className="font-mono text-sm text-muted-foreground/40 italic">
+          {suggestions.length > 0 && !gate && (
+            <div className={HINT.ROOT}>
+              <span className={HINT.TEXT}>
                 {suggestions[suggestionIndex % suggestions.length]}
               </span>
-              <kbd className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground/35">
-                Tab
-              </kbd>
+              <Kbd className={HINT.KEY}>{t(`${K}.hint.key`)}</Kbd>
+              <span className="sr-only">{t(`${K}.hint.label`)}</span>
             </div>
           )}
 
-          {/* Warning banner */}
-          {warning && (
-            <div className="mx-3 mb-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
-              <div className="text-warning mb-1 flex items-center gap-1.5 text-sm font-semibold">
-                <TriangleAlertIcon className="size-4" />
-                Warning
-              </div>
-              <p className="text-muted-foreground mb-2 text-sm">
-                <code className="bg-warning/10 rounded px-1 py-0.5 text-xs">
-                  {warning.command}
-                </code>{" "}
-                {warning.message}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  size="xs"
-                  className="bg-warning text-warning-foreground hover:bg-warning/90"
-                  onClick={handleSendAnyway}
-                >
-                  Send Anyway
-                </Button>
-                <Button variant="outline" size="xs" onClick={handleCancelWarning}>
-                  Cancel
-                </Button>
+          {gate && (
+            <div className={GATE.ROOT} role="alert">
+              <span aria-hidden="true" className={GATE.DISC}>
+                <TriangleAlertIcon className={GATE.DISC_GLYPH} />
+              </span>
+              <div className={GATE.BODY}>
+                <span className={GATE.TITLE}>{t(`${K}.gate.title`)}</span>
+                <p className={GATE.TEXT}>{t(`${K}.rules.${gate.rule}`)}</p>
+                <span className={GATE.COMMAND}>{gate.command}</span>
+                <div className={GATE.ACTIONS}>
+                  <button
+                    type="button"
+                    onClick={handleSendAnyway}
+                    className={cn(GATE.ACTION_BASE, FOCUS_RING, GATE.CONFIRM)}
+                  >
+                    {t(`${K}.gate.confirm`)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelGate}
+                    className={cn(GATE.ACTION_BASE, FOCUS_RING, GATE.DISMISS)}
+                  >
+                    {t(`${K}.gate.cancel`)}
+                  </button>
+                </div>
               </div>
             </div>
           )}
-        </>
+        </CardContent>
       )}
 
-      {/* Input bar */}
-      <form onSubmit={handleSubmit} className="border-t">
-        <InputGroup className="rounded-none border-0 shadow-none">
-          <InputGroupText className="font-mono pl-3">❯</InputGroupText>
-          <InputGroupInput
-            ref={inputRef}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              setSuggestionIndex(0);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="AT+COPS?"
-            disabled={inputDisabled}
-            className="font-mono text-sm"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={4096}
-          />
-          <InputGroupButton
-            type="submit"
-            variant="default"
-            size="sm"
-            disabled={inputDisabled || input.trim() === ""}
-            className="mr-1.5"
-          >
-            {isLoading ? (
-              <LoaderCircleIcon className="animate-spin" />
-            ) : (
-              <ChevronRightIcon />
-            )}
-            Send
-          </InputGroupButton>
-        </InputGroup>
-      </form>
+      <CardContent className={CARD_PAD}>
+        <form onSubmit={handleSubmit}>
+          <label htmlFor={inputId} className="sr-only">
+            {t(`${K}.input.label`)}
+          </label>
+          <div className={PROMPT.ROOT}>
+            <span aria-hidden="true" className={PROMPT.GLYPH}>
+              ❯
+            </span>
+            <input
+              id={inputId}
+              ref={inputRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setSuggestionIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={t(`${K}.input.placeholder`)}
+              disabled={inputDisabled}
+              className={PROMPT.INPUT}
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={4096}
+            />
+            <Button
+              type="submit"
+              disabled={inputDisabled || input.trim() === ""}
+              className={PROMPT.SEND}
+            >
+              {isLoading ? (
+                <LoaderCircleIcon
+                  className={cn(PROMPT.SEND_GLYPH, "animate-spin")}
+                />
+              ) : (
+                <ChevronRightIcon className={PROMPT.SEND_GLYPH} />
+              )}
+              {t(`${K}.input.send`)}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
     </Card>
-  );
-}
-
-// --- History entry row ---
-
-function HistoryEntryRow({ entry }: { entry: HistoryEntry }) {
-  const colorClass =
-    entry.status === "blocked"
-      ? "text-destructive"
-      : entry.status === "error"
-        ? "text-destructive"
-        : "text-success";
-
-  return (
-    <div className="font-mono text-sm">
-      <div className={`font-medium ${colorClass}`}>❯ {entry.command}</div>
-      <div
-        className={`mt-0.5 ml-4 whitespace-pre-wrap ${
-          entry.status === "blocked" || entry.status === "error"
-            ? "text-destructive/80 text-xs"
-            : "text-muted-foreground"
-        }`}
-      >
-        {entry.response}
-      </div>
-    </div>
   );
 }
