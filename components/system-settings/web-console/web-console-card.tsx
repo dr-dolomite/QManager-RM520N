@@ -10,7 +10,7 @@ import {
   MinimizeIcon,
   Trash2Icon,
 } from "lucide-react";
-import { motion, useAnimationControls } from "motion/react";
+import { AnimatePresence, motion, useAnimationControls } from "motion/react";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 
@@ -28,7 +28,7 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWebConsole } from "@/hooks/use-web-console";
-import { DUR, EASE_STANDARD } from "@/lib/motion";
+import { DUR, EASE_QUICK, EASE_STANDARD } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { FAILURE_ACTION, chipCopyKey, closeDetail, resolveView } from "./derive";
@@ -66,6 +66,7 @@ export function WebConsoleCard(): React.JSX.Element {
 
   // DOM container ref for xterm to mount into
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const overlayRef = React.useRef<HTMLDivElement | null>(null);
   const fullscreenButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const focusReturnRef = React.useRef<HTMLElement | null>(null);
   const wasFullscreenRef = React.useRef(false);
@@ -205,6 +206,29 @@ export function WebConsoleCard(): React.JSX.Element {
     else fullscreenButtonRef.current?.focus();
   }, [isFullscreen]);
 
+  // The sheet has no scrim by design, so nothing else stops Tab walking into a
+  // sidebar the user cannot see. Everything outside the sheet goes inert.
+  React.useEffect(() => {
+    const node = overlayRef.current;
+    if (!isFullscreen || !node) return;
+    const marked: HTMLElement[] = [];
+    for (
+      let el: HTMLElement | null = node;
+      el && el !== document.body;
+      el = el.parentElement
+    ) {
+      for (const sibling of Array.from(el.parentElement?.children ?? [])) {
+        if (sibling === el || !(sibling instanceof HTMLElement)) continue;
+        if (sibling.hasAttribute("inert")) continue;
+        sibling.setAttribute("inert", "");
+        marked.push(sibling);
+      }
+    }
+    return () => {
+      for (const el of marked) el.removeAttribute("inert");
+    };
+  }, [isFullscreen]);
+
   // ── Clear ────────────────────────────────────────────────────────────────
 
   const handleClear = React.useCallback(() => {
@@ -218,6 +242,7 @@ export function WebConsoleCard(): React.JSX.Element {
 
   return (
     <motion.div
+      ref={overlayRef}
       animate={controls}
       className={isFullscreen ? CONSOLE.OVERLAY : CONSOLE.SLOT}
     >
@@ -249,24 +274,24 @@ export function WebConsoleCard(): React.JSX.Element {
               <span className={CONSOLE.HINT}>
                 {t(`${K}.hints.copy`)}
                 <KbdGroup>
-                  <Kbd>{t(`${K}.keys.ctrl`)}</Kbd>
-                  <Kbd>{t(`${K}.keys.shift`)}</Kbd>
-                  <Kbd>C</Kbd>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.ctrl`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.shift`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>C</Kbd>
                 </KbdGroup>
               </span>
               <span className={CONSOLE.HINT}>
                 {t(`${K}.hints.paste`)}
                 <KbdGroup>
-                  <Kbd>{t(`${K}.keys.ctrl`)}</Kbd>
-                  <Kbd>{t(`${K}.keys.shift`)}</Kbd>
-                  <Kbd>V</Kbd>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.ctrl`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.shift`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>V</Kbd>
                 </KbdGroup>
               </span>
               {isFullscreen && (
                 <span className={CONSOLE.HINT}>
                   {t(`${K}.hints.leave`)}
                   <KbdGroup>
-                    <Kbd>{t(`${K}.keys.esc`)}</Kbd>
+                    <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.esc`)}</Kbd>
                   </KbdGroup>
                 </span>
               )}
@@ -289,7 +314,6 @@ export function WebConsoleCard(): React.JSX.Element {
                 variant="outline"
                 className={PILL_ACTION}
                 onClick={toggleFullscreen}
-                aria-pressed={isFullscreen}
               >
                 {isFullscreen ? (
                   <MinimizeIcon className={PILL_GLYPH} aria-hidden="true" />
@@ -315,9 +339,23 @@ export function WebConsoleCard(): React.JSX.Element {
               hidden={failed}
             />
 
-            {view === "loading" && (
-              <Skeleton className={SKELETON.PANE} aria-hidden="true" />
-            )}
+            {/* The handoff crossfades rather than cutting: the skeleton stands
+                on the terminal's own rectangle, so an unmount is a flash. */}
+            <AnimatePresence>
+              {view === "loading" && (
+                <motion.div
+                  key="console-skeleton"
+                  className={SKELETON.PANE}
+                  initial={{ opacity: 1 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+                  aria-hidden="true"
+                >
+                  <Skeleton className={SKELETON.FILL} />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {failed && failure && face && FaceGlyph && detail && (
               <div className={CONSOLE.COVER}>

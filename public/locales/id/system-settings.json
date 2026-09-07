@@ -860,7 +860,7 @@
     },
     "hint": {
       "key": "Tab",
-      "label": "Tekan Tab untuk melengkapi perintah ini dari riwayat Anda."
+      "label": "Tekan Tab untuk melengkapi perintah ini dari riwayat Anda, atau Shift+Tab untuk keluar dari kolom."
     },
     "gate": {
       "title": "Perintah ini dapat memutus koneksi Anda",
@@ -871,6 +871,7 @@
       "qscanfreq": "Pemindaian frekuensi ditolak di sini. Pemindaian menahan radio tetap mati selama beberapa menit tanpa menampilkan apa pun — gunakan halaman Pemindai Sel, yang melaporkan kemajuan dan bisa dihentikan.",
       "qscan": "Pemindaian jaringan ditolak di sini. Pemindaian menahan radio tetap mati selama beberapa menit tanpa menampilkan apa pun — gunakan halaman Pemindai Sel, yang melaporkan kemajuan dan bisa dihentikan.",
       "resetfactory": "Reset pabrik ditolak di sini. Reset menghapus seluruh pengaturan modem sekaligus, termasuk yang dibutuhkan QManager untuk menjangkaunya, dan tidak ada di halaman ini yang bisa membatalkannya.",
+      "reboot": "Perintah ini me-reboot modem. Semua koneksi yang lewat modem terputus, termasuk halaman ini, dan apa pun yang sedang berjalan hilang — perlu sekitar satu menit sampai modem kembali, dengan jamnya di Januari 1970 sampai jaringan menyetelnya lagi.",
       "radio_off": "Perintah ini mematikan radio modem. Jika Anda membuka halaman ini lewat koneksi modem itu sendiri, termasuk melalui Tailscale, halaman ini akan hilang sampai radio dinyalakan kembali dari perangkatnya langsung."
     },
     "input": {

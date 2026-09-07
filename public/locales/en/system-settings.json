@@ -860,7 +860,7 @@
     },
     "hint": {
       "key": "Tab",
-      "label": "Press Tab to complete this command from your history."
+      "label": "Press Tab to complete this command from your history, or Shift+Tab to leave the field."
     },
     "gate": {
       "title": "This command can cut your connection",
@@ -871,6 +871,7 @@
       "qscanfreq": "Frequency scans are refused here. They hold the radio off the air for minutes with nothing to show while they run — use the Cell Scanner page, which reports progress and can be stopped.",
       "qscan": "Network scans are refused here. They hold the radio off the air for minutes with nothing to show while they run — use the Cell Scanner page, which reports progress and can be stopped.",
       "resetfactory": "A factory reset is refused here. It clears every setting on the modem at once, including the ones QManager needs to reach it, and nothing on this page can undo it.",
+      "reboot": "This reboots the modem. Every connection through it drops, this page included, and anything still in flight is lost — it takes about a minute to come back, with its clock at January 1970 until the network sets it again.",
       "radio_off": "This turns the modem's radio off. If you reached this page over the modem's own connection, Tailscale included, you lose this page until the radio is switched back on from the device itself."
     },
     "input": {
@@ -968,7 +969,7 @@
     "hints": {
       "copy": "Copy",
       "paste": "Paste",
-      "leave": "Leave full screen"
+      "leave": "Exit full screen"
     },
     "keys": {
       "ctrl": "Ctrl",

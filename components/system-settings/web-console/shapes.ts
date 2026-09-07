@@ -30,7 +30,7 @@ import {
   META_INK_ON_TONAL,
   PAGE_HEAD,
   PAGE_ROOT,
-  PILL_ACTION,
+  PILL_ACTION as PILL_ACTION_BASE,
   PILL_GLYPH,
 } from "../shapes";
 
@@ -42,9 +42,14 @@ export {
   CARD_TITLE,
   PAGE_HEAD,
   PAGE_ROOT,
-  PILL_ACTION,
   PILL_GLYPH,
 };
+
+/**
+ * The family's 42px pill, taken to the 44px coarse-pointer floor — the spelling
+ * `connection-quality` and `tailscale` already use.
+ */
+export const PILL_ACTION = `${PILL_ACTION_BASE} pointer-coarse:h-11`;
 
 // -----------------------------------------------------------------------------
 // The console
@@ -85,6 +90,9 @@ export const CONSOLE = {
    */
   HINTS: "flex flex-wrap items-center gap-x-4 gap-y-1.5",
   HINT: "text-on-surface-variant flex items-center gap-1.5 text-xs",
+  /** `Kbd` ships `rounded-sm`, which is off the role scale. Same override the
+   *  AT Terminal's `HINT.KEY` carries, so the two consoles' caps agree. */
+  KEY: "rounded-inline",
   ACTIONS: "flex flex-wrap items-center gap-2 @2xl/card:ml-auto",
   /**
    * The machine surface. `surface-container` is one step above the card it sits
@@ -94,12 +102,18 @@ export const CONSOLE = {
   PANE: "relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-tile bg-surface-container p-3",
   /** The box xterm mounts into. */
   TERMINAL: "min-h-0 flex-1",
-  /** The state block's cover. The terminal host stays mounted underneath it. */
-  COVER: `${PANE_INSET} grid place-items-center`,
+  /**
+   * The state block's cover. The terminal host stays mounted underneath it.
+   * It SCROLLS: a grid item taller than its track under `place-items-center`
+   * overflows both edges and the pane's `overflow-hidden` clips it, which on a
+   * phone put the retry pill outside the visible box.
+   */
+  COVER: `${PANE_INSET} grid place-items-center overflow-y-auto`,
   /** Backend words quoted inside the block — machine voice. */
   DETAIL: `font-mono text-xs leading-relaxed break-words ${META_INK_ON_TONAL}`,
-  /** The block itself, capped so it does not stretch across a wide pane. */
-  BLOCK: "w-full max-w-md",
+  /** The block itself, capped so it does not stretch across a wide pane.
+   *  `my-auto` centres it where there is room and lets it scroll where not. */
+  BLOCK: "my-auto w-full max-w-md",
 } as const;
 
 /** The lucide glyph inside a status chip, sized to the chip's 12px text. */
@@ -171,4 +185,6 @@ export const SKELETON = {
    * pane's row with the host it stands in for.
    */
   PANE: `${PANE_INSET} rounded-tile`,
+  /** The pulsing surface inside it, once the box is a crossfade wrapper. */
+  FILL: "size-full rounded-tile",
 } as const;

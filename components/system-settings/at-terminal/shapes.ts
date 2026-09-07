@@ -24,6 +24,7 @@ import {
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
+  COARSE_TARGET,
   FOCUS_RING,
   PAGE_HEAD,
   PAGE_ROOT,
@@ -40,6 +41,30 @@ export {
   PAGE_ROOT,
   PILL_ACTION,
 };
+
+// -----------------------------------------------------------------------------
+// Focus rings, per ground
+// -----------------------------------------------------------------------------
+
+/**
+ * The ring's 2px GAP takes the colour of whatever the control sits on, so the
+ * family's page-ground `FOCUS_RING` cuts a visible halo anywhere else. Same
+ * split as `software-update/shapes.ts`; these are this route's three grounds.
+ */
+const FOCUS_RING_BASE =
+  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2";
+
+/** Host = the card's own surface, or the dialog panel's (both `bg-surface`). */
+export const FOCUS_RING_ON_SURFACE = `${FOCUS_RING_BASE} focus-visible:ring-offset-surface`;
+
+/** Host = the commands popover's panel. */
+export const FOCUS_RING_ON_POPOVER = `${FOCUS_RING_BASE} focus-visible:ring-offset-popover`;
+
+/** Host = the confirmation gate's tonal container, the loudest mismatch. */
+export const FOCUS_RING_ON_WARNING = `${FOCUS_RING_BASE} focus-visible:ring-offset-warning-container`;
+
+/** The spin class, named once so the prompt and any sibling agree. */
+export const SPIN = "animate-spin";
 
 // -----------------------------------------------------------------------------
 // The card
@@ -79,7 +104,9 @@ export const CHIP_GLYPH = "size-3";
 const TRANSCRIPT_FLOOR = "min-h-[16rem]";
 
 export const TRANSCRIPT = {
-  ROOT: `${TRANSCRIPT_FLOOR} max-h-[clamp(16rem,50vh,40rem)] overflow-y-auto overscroll-contain`,
+  // `svh` rather than `vh`: mobile Safari counts the collapsible URL bar into
+  // `vh`, so the cap could exceed the viewport this line exists to stay inside.
+  ROOT: `${TRANSCRIPT_FLOOR} max-h-[clamp(16rem,50svh,40rem)] overflow-y-auto overscroll-contain`,
   /** The rules. `--border` is for genuine table rules, and this is one. */
   LIST: "flex flex-col divide-y divide-border border-y border-border",
   EMPTY: `${TRANSCRIPT_FLOOR} flex items-center justify-center`,
@@ -105,8 +132,12 @@ export const ROW = {
   COMMAND: "font-mono text-[0.8125rem] leading-5 font-medium break-all",
   /** The device's own answer, newlines preserved. */
   RESPONSE: "font-mono text-xs leading-5 break-words whitespace-pre-wrap",
-  /** Revealed on hover AND focus — a hover-only control is unreachable by key. */
-  COPY: "size-7 flex-none rounded-pill opacity-0 transition-opacity duration-[var(--duration-quick)] ease-out group-hover/row:opacity-100 group-focus-within/row:opacity-100",
+  /**
+   * Revealed on hover AND focus — a hover-only control is unreachable by key,
+   * and on a coarse pointer neither fires at all, so touch gets it outright at
+   * the 44px floor.
+   */
+  COPY: "size-7 flex-none rounded-pill opacity-0 transition-opacity duration-[var(--duration-quick)] ease-out group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100",
   COPY_GLYPH: "size-3.5",
 } as const;
 
@@ -214,10 +245,11 @@ const PROMPT_HEIGHT = "h-[2.625rem]!";
 
 /**
  * The family's `FOCUS_RING`, on the `focus-within` axis — the ring belongs to
- * the pill, and the thing that takes focus is the bare input inside it.
+ * the pill, and the thing that takes focus is the bare input inside it. The gap
+ * takes the CARD's ground, which is what the bar actually sits on.
  */
 const PROMPT_RING =
-  "focus-within:outline-none focus-within:ring-[3px] focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background";
+  "focus-within:outline-none focus-within:ring-[3px] focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-surface";
 
 /**
  * The prompt bar, replacing a flush square-cornered `InputGroup` with a hairline
@@ -240,8 +272,11 @@ export const PROMPT = {
    */
   INPUT:
     "placeholder:text-on-surface-variant min-w-0 flex-1 border-0 bg-transparent font-mono text-[0.84375rem] outline-none disabled:cursor-not-allowed disabled:opacity-50",
-  /** The Send pill, inset inside the bar. */
-  SEND: "h-[2.125rem] flex-none gap-1.5 rounded-pill px-4 text-[0.8125rem] font-semibold",
+  /**
+   * The Send pill, inset inside the bar. It paints 34px and cannot grow inside
+   * a 42px bar, so the coarse-pointer floor is met by the family's overlay.
+   */
+  SEND: `h-[2.125rem] flex-none gap-1.5 rounded-pill px-4 text-[0.8125rem] font-semibold ${COARSE_TARGET}`,
   SEND_GLYPH: "size-4",
 } as const;
 
@@ -253,7 +288,8 @@ export const POPOVER = {
   CONTENT: "w-84 rounded-field p-0",
   /** The `cmdk` list, off the primitive's own square-ish corners. */
   LIST: "max-h-72",
-  ITEM: "gap-2 rounded-field",
+  /** An item never repeats its container's radius — one step down (DESIGN.md). */
+  ITEM: "gap-2 rounded-inline",
   LABEL: "min-w-0 flex-1 truncate text-[0.8125rem] font-medium",
   /** The command preview: metadata, so an outline `Tag`, never a filled chip. */
   PREVIEW: "max-w-36 shrink-0 font-mono",
@@ -261,7 +297,8 @@ export const POPOVER = {
   FOOT: "text-on-surface-variant flex items-center justify-between gap-2 border-t px-4 py-2.5 text-xs",
   /** A live figure, so tabular. */
   COUNT: "tabular-nums",
-  MANAGE: `rounded-pill px-2 py-0.5 text-xs font-medium underline underline-offset-2 transition-colors duration-[var(--duration-quick)] ease-out hover:text-on-surface ${FOCUS_RING}`,
+  /** Its ground is the popover panel, and touch takes it to the 44px floor. */
+  MANAGE: `inline-flex items-center rounded-pill px-2 py-0.5 text-xs font-medium underline underline-offset-2 transition-colors duration-[var(--duration-quick)] ease-out hover:text-on-surface pointer-coarse:h-11 pointer-coarse:px-3 ${FOCUS_RING_ON_POPOVER}`,
 } as const;
 
 /** The Manage Custom Commands dialog. */
@@ -272,12 +309,16 @@ export const MANAGE = {
   ROW_TEXT: "flex min-w-0 flex-1 flex-col",
   ROW_LABEL: "truncate text-sm font-medium",
   ROW_COMMAND: "text-on-surface-variant truncate font-mono text-xs",
-  DELETE: "size-8 flex-none rounded-pill",
+  DELETE: "size-8 flex-none rounded-pill pointer-coarse:size-11",
   DELETE_GLYPH: "size-3.5",
   EMPTY: "text-on-surface-variant py-4 text-center text-sm",
   FORM: "flex flex-wrap items-center gap-2",
-  /** Two text fields on a dialog ground; `surface-container` is host + 1. */
-  FIELD: `${PROMPT_HEIGHT} min-w-0 flex-1 rounded-pill border-0 bg-surface-container px-4 text-[0.84375rem] dark:bg-surface-container! ${FOCUS_RING}`,
+  /**
+   * Two text fields on a dialog ground; `surface-container` is host + 1. The
+   * basis is what makes the row wrap instead of squeezing a mono AT command
+   * into ~90px beside a flex-none Add pill.
+   */
+  FIELD: `${PROMPT_HEIGHT} min-w-0 flex-1 basis-40 rounded-pill border-0 bg-surface-container px-4 text-[0.84375rem] dark:bg-surface-container! aria-invalid:ring-[3px] aria-invalid:ring-destructive/40 ${FOCUS_RING_ON_SURFACE}`,
   FIELD_MONO: "font-mono",
   ADD: PILL_ACTION,
   ERROR: "text-destructive-on-surface text-xs",

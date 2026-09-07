@@ -75,13 +75,25 @@ export function saveHistory(entries: HistoryEntry[]): void {
   }
 }
 
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/**
+ * A wall-clock stamp in the SAME zone the transcript column reads in, with the
+ * offset spelled out — `toISOString()` here silently shifted the file to UTC.
+ */
+export function exportStamp(atMs: number): string {
+  const d = new Date(atMs);
+  const offset = -d.getTimezoneOffset();
+  const sign = offset < 0 ? "-" : "+";
+  const abs = Math.abs(offset);
+  const date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  return `${date} ${time} ${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`;
+}
+
 export function formatExport(entries: HistoryEntry[]): string {
   return entries
-    .map((e) => {
-      const date = new Date(e.timestamp);
-      const ts = date.toISOString().replace("T", " ").slice(0, 19);
-      return `[${ts}] ❯ ${e.command}\n${e.response}`;
-    })
+    .map((e) => `[${exportStamp(e.timestamp)}] ❯ ${e.command}\n${e.response}`)
     .join("\n\n");
 }
 
@@ -110,7 +122,12 @@ const BLOCKED_RULES = [
   { key: "resetfactory", pattern: /QCFG\s*=\s*"resetfactory"/i },
 ] as const;
 
-const WARNING_RULES = [{ key: "radio_off", pattern: /CFUN\s*=\s*[04]\b/i }] as const;
+// `reboot` comes FIRST: `AT+CFUN=1,1` is the harder hazard, and a `[04]` class
+// can never match it, so ordering is what keeps the two rules from swapping.
+const WARNING_RULES = [
+  { key: "reboot", pattern: /CFUN\s*=\s*1\s*,\s*1\b/i },
+  { key: "radio_off", pattern: /CFUN\s*=\s*[04]\b/i },
+] as const;
 
 export type BlockedKey = (typeof BLOCKED_RULES)[number]["key"];
 export type WarningKey = (typeof WARNING_RULES)[number]["key"];

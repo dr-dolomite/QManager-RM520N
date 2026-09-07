@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { ChevronDownIcon, Trash2Icon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -54,6 +54,17 @@ function saveCustomCommands(commands: ATCommandPreset[]): void {
   }
 }
 
+/**
+ * Which field the standing error is about, so the invalid state lands on the
+ * control at fault rather than only on a sentence under the row.
+ */
+type AddErrorField = "both" | "label" | "command";
+
+interface AddError {
+  message: string;
+  field: AddErrorField;
+}
+
 interface CommandsPopoverProps {
   onSelect: (command: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -74,7 +85,14 @@ export default function CommandsPopover({
 
   const [newLabel, setNewLabel] = useState("");
   const [newCommand, setNewCommand] = useState("");
-  const [addError, setAddError] = useState("");
+  const [addError, setAddError] = useState<AddError | null>(null);
+
+  const errorId = useId();
+  const labelInvalid =
+    addError !== null && (addError.field === "both" || addError.field === "label");
+  const commandInvalid =
+    addError !== null &&
+    (addError.field === "both" || addError.field === "command");
 
   const groups = useMemo(() => groupedDefaults(), []);
   const defaultCount = useMemo(
@@ -113,12 +131,15 @@ export default function CommandsPopover({
     const trimmedCommand = newCommand.trim();
 
     if (!trimmedLabel || !trimmedCommand) {
-      setAddError(t(`${K}.errors.required`));
+      setAddError({ message: t(`${K}.errors.required`), field: "both" });
       return;
     }
 
     if (!trimmedCommand.toUpperCase().startsWith("AT")) {
-      setAddError(t(`${K}.errors.must_start_at`));
+      setAddError({
+        message: t(`${K}.errors.must_start_at`),
+        field: "command",
+      });
       return;
     }
 
@@ -127,7 +148,10 @@ export default function CommandsPopover({
         (command) => command.toLowerCase() === trimmedCommand.toLowerCase(),
       )
     ) {
-      setAddError(t(`${K}.errors.duplicate_command`));
+      setAddError({
+        message: t(`${K}.errors.duplicate_command`),
+        field: "command",
+      });
       return;
     }
 
@@ -136,7 +160,7 @@ export default function CommandsPopover({
         (label) => label.toLowerCase() === trimmedLabel.toLowerCase(),
       )
     ) {
-      setAddError(t(`${K}.errors.duplicate_label`));
+      setAddError({ message: t(`${K}.errors.duplicate_label`), field: "label" });
       return;
     }
 
@@ -148,7 +172,7 @@ export default function CommandsPopover({
     saveCustomCommands(updated);
     setNewLabel("");
     setNewCommand("");
-    setAddError("");
+    setAddError(null);
   }
 
   function handleDelete(index: number) {
@@ -290,8 +314,10 @@ export default function CommandsPopover({
               value={newLabel}
               onChange={(e) => {
                 setNewLabel(e.target.value);
-                setAddError("");
+                setAddError(null);
               }}
+              aria-invalid={labelInvalid || undefined}
+              aria-describedby={labelInvalid ? errorId : undefined}
               className={MANAGE.FIELD}
             />
             <input
@@ -300,8 +326,10 @@ export default function CommandsPopover({
               value={newCommand}
               onChange={(e) => {
                 setNewCommand(e.target.value);
-                setAddError("");
+                setAddError(null);
               }}
+              aria-invalid={commandInvalid || undefined}
+              aria-describedby={commandInvalid ? errorId : undefined}
               className={cn(MANAGE.FIELD, MANAGE.FIELD_MONO)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAdd();
@@ -312,7 +340,11 @@ export default function CommandsPopover({
             </Button>
           </div>
 
-          {addError && <p className={MANAGE.ERROR}>{addError}</p>}
+          {addError && (
+            <p id={errorId} role="alert" className={MANAGE.ERROR}>
+              {addError.message}
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </>

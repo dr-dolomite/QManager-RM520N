@@ -44,6 +44,7 @@ import {
   GAME_COMMAND,
   MAX_HISTORY,
   STORAGE_KEY,
+  exportStamp,
   formatExport,
   generateId,
   isNearBottom,
@@ -62,13 +63,14 @@ import {
   CARD_TITLE,
   CHIP_GLYPH,
   CONSOLE_BODY,
-  FOCUS_RING,
+  FOCUS_RING_ON_WARNING,
   GATE,
   HEAD_ACTION,
   HEAD_ACTIONS,
   HEAD_GLYPH,
   HINT,
   PROMPT,
+  SPIN,
   TRANSCRIPT,
 } from "./shapes";
 
@@ -83,8 +85,12 @@ export default function ATTerminalCard() {
   const [lastCommand, setLastCommand] = useState("");
   const [gameActive, setGameActive] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+  // Until the stored transcript has been read, neither branch is honest: the
+  // empty block would flash in front of up to 100 rows about to replace it.
+  const [hydrated, setHydrated] = useState(false);
 
   const inputId = useId();
+  const hintId = useId();
 
   const suggestions = useMemo(() => {
     if (!input.trim()) return [];
@@ -106,6 +112,7 @@ export default function ATTerminalCard() {
   const historyEndRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
   // Whether the reader was at the foot BEFORE the new row landed. Sampled in
   // the submit path, because by the time the effect runs the row is already in.
   const followRef = useRef(true);
@@ -113,7 +120,14 @@ export default function ATTerminalCard() {
   // Load history from localStorage on mount
   useEffect(() => {
     setHistory(loadHistory());
+    setHydrated(true);
   }, []);
+
+  // Opening the gate disables the prompt, and the browser blurs a disabled
+  // input to <body> — so the entry half of focus has to be moved by hand.
+  useEffect(() => {
+    if (gate) confirmRef.current?.focus();
+  }, [gate]);
 
   // Sync history to localStorage, and follow the foot only when the reader was
   // already there — an unconditional scroll yanks the view mid-read.
@@ -248,19 +262,25 @@ export default function ATTerminalCard() {
 
   const handleExport = useCallback(() => {
     const text = formatExport(history);
-    const date = new Date().toISOString().slice(0, 10);
+    const date = exportStamp(Date.now()).slice(0, 10);
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `at-terminal-export-${date}.txt`;
+    // The anchor has to be in the document, and the URL has to outlive the
+    // click: revoking on the same tick aborts the download in some browsers.
+    document.body.append(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }, [history]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Tab") {
+      // Shift+Tab is deliberately NOT caught: it is the only way out of the
+      // prompt by keyboard while suggestions are standing (WCAG 2.1.2).
+      if (e.key === "Tab" && !e.shiftKey) {
         if (suggestions.length > 0) {
           e.preventDefault();
           setInput(suggestions[suggestionIndex]);
@@ -287,6 +307,9 @@ export default function ATTerminalCard() {
 
   const isEmpty = history.length === 0;
   const inputDisabled = isLoading || gate !== null || gameActive;
+  // Named once: the hint's render condition is also what makes its id a live
+  // target for `aria-describedby`.
+  const showHint = suggestions.length > 0 && !gate;
 
   return (
     <Card className={CARD_SHELL}>
@@ -342,7 +365,7 @@ export default function ATTerminalCard() {
             aria-live="polite"
             aria-label={t(`${K}.transcript.label`)}
           >
-            {isEmpty ? (
+            {!hydrated ? null : isEmpty ? (
               <div className={TRANSCRIPT.EMPTY}>
                 <ConditionBlock
                   tone="neutral"
@@ -378,13 +401,15 @@ export default function ATTerminalCard() {
             )}
           </div>
 
-          {suggestions.length > 0 && !gate && (
+          {showHint && (
             <div className={HINT.ROOT}>
               <span className={HINT.TEXT}>
                 {suggestions[suggestionIndex % suggestions.length]}
               </span>
               <Kbd className={HINT.KEY}>{t(`${K}.hint.key`)}</Kbd>
-              <span className="sr-only">{t(`${K}.hint.label`)}</span>
+              <span id={hintId} className="sr-only">
+                {t(`${K}.hint.label`)}
+              </span>
             </div>
           )}
 
@@ -399,16 +424,25 @@ export default function ATTerminalCard() {
                 <span className={GATE.COMMAND}>{gate.command}</span>
                 <div className={GATE.ACTIONS}>
                   <button
+                    ref={confirmRef}
                     type="button"
                     onClick={handleSendAnyway}
-                    className={cn(GATE.ACTION_BASE, FOCUS_RING, GATE.CONFIRM)}
+                    className={cn(
+                      GATE.ACTION_BASE,
+                      FOCUS_RING_ON_WARNING,
+                      GATE.CONFIRM,
+                    )}
                   >
                     {t(`${K}.gate.confirm`)}
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelGate}
-                    className={cn(GATE.ACTION_BASE, FOCUS_RING, GATE.DISMISS)}
+                    className={cn(
+                      GATE.ACTION_BASE,
+                      FOCUS_RING_ON_WARNING,
+                      GATE.DISMISS,
+                    )}
                   >
                     {t(`${K}.gate.cancel`)}
                   </button>
@@ -437,6 +471,7 @@ export default function ATTerminalCard() {
                 setSuggestionIndex(0);
               }}
               onKeyDown={handleKeyDown}
+              aria-describedby={showHint ? hintId : undefined}
               placeholder={t(`${K}.input.placeholder`)}
               disabled={inputDisabled}
               className={PROMPT.INPUT}
@@ -451,7 +486,7 @@ export default function ATTerminalCard() {
             >
               {isLoading ? (
                 <LoaderCircleIcon
-                  className={cn(PROMPT.SEND_GLYPH, "animate-spin")}
+                  className={cn(PROMPT.SEND_GLYPH, SPIN)}
                 />
               ) : (
                 <ChevronRightIcon className={PROMPT.SEND_GLYPH} />

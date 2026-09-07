@@ -860,7 +860,7 @@
     },
     "hint": {
       "key": "Tab",
-      "label": "Premi Tab per completare questo comando dalla cronologia."
+      "label": "Premi Tab per completare questo comando dalla cronologia, o Maiusc+Tab per uscire dal campo."
     },
     "gate": {
       "title": "Questo comando può interrompere la tua connessione",
@@ -871,6 +871,7 @@
       "qscanfreq": "Le scansioni di frequenza sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
       "qscan": "Le scansioni di rete sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
       "resetfactory": "Il ripristino di fabbrica è rifiutato qui. Azzera in un colpo solo ogni impostazione del modem, comprese quelle che servono a QManager per raggiungerlo, e nulla in questa pagina può annullarlo.",
+      "reboot": "Questo comando riavvia il modem. Ogni connessione che passa da qui cade, questa pagina compresa, e tutto ciò che è in corso va perso: serve circa un minuto perché torni disponibile, con l'orologio a gennaio 1970 finché la rete non lo aggiorna.",
       "radio_off": "Questo comando spegne la radio del modem. Se hai raggiunto questa pagina attraverso la connessione del modem stesso, Tailscale compreso, la perdi finché la radio non viene riaccesa dal dispositivo."
     },
     "input": {
