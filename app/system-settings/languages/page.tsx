@@ -1,7 +1,7 @@
-import { LanguageSettings } from "@/components/i18n/language-settings";
+import Languages from "@/components/system-settings/languages/languages";
 
 const LanguagesPage = () => {
-  return <LanguageSettings />;
+  return <Languages />;
 };
 
 export default LanguagesPage;

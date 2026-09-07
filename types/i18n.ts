@@ -127,6 +127,8 @@ export interface LanguagePackInstallState {
   step?: string;
   /** Human-readable detail from the worker, if any. */
   message?: string;
+  /** The device's raw error code, kept unresolved so the UI can translate it. */
+  error_code?: string;
   /** Epoch seconds of the last worker write. */
   updated_at?: number;
 }

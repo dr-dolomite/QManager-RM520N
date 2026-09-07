@@ -320,6 +320,140 @@
       "refresh_failed": "Couldn't read the system log"
     }
   },
+  "languages": {
+    "page": {
+      "title": "Languages",
+      "description": "Choose the language QManager's interface is shown in, and install community translation packs published for this device."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "refresh_aria": "Refresh the installed languages and the community catalog",
+      "check_again": "Check again",
+      "install": "Install",
+      "update": "Update",
+      "cancel": "Cancel",
+      "install_aria": "Install {{language}}",
+      "update_aria": "Update {{language}}",
+      "cancel_aria": "Cancel the {{language}} install",
+      "remove_aria": "Remove the {{language}} pack",
+      "copy_command": "Copy the manual install command"
+    },
+    "band": {
+      "head": "On this device",
+      "display": {
+        "eyebrow": "Display language",
+        "caption_built_in": "Built in, {{code}}",
+        "caption_downloaded": "Downloaded, {{code}}",
+        "caption_unknown": "Not in this device's catalog"
+      },
+      "ready": {
+        "eyebrow": "Ready to use",
+        "caption_built_in_one": "{{count}} built in",
+        "caption_built_in_other": "{{count}} built in",
+        "caption_with_downloaded_one": "{{builtIn}} built in, {{count}} downloaded",
+        "caption_with_downloaded_other": "{{builtIn}} built in, {{count}} downloaded"
+      },
+      "catalog": {
+        "eyebrow": "Community catalog",
+        "value_unreachable": "Unreachable",
+        "caption_unreachable": "Couldn't reach GitHub",
+        "caption_none": "Nothing published yet",
+        "caption_available": "Ready to install",
+        "caption_updates_one": "Update available",
+        "caption_updates_other": "{{count}} updates available"
+      }
+    },
+    "display": {
+      "title": "Display language",
+      "description": "Pick the language QManager's interface is written in. The change takes effect straight away, and only on this device.",
+      "group_aria": "Display language",
+      "built_in": "Built in",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "Remove {{language}}?",
+      "description": "This deletes the downloaded {{language}} pack from this device. You can install it again at any time.",
+      "description_active": "{{language}} is the language you are reading right now. Removing it switches QManager back to English.",
+      "cancel": "Keep it",
+      "confirm": "Remove",
+      "removing": "Removing…"
+    },
+    "community": {
+      "title": "Community packs",
+      "description": "Translation packs published for QManager by the community. Installing one adds it to the list above.",
+      "list_aria": "Community language packs",
+      "completeness": "{{pct}}% translated",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} translator",
+      "contributors_other": "{{count}} translators",
+      "contributors_none": "Community",
+      "incompatible": "Needs a newer QManager"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "Installing {{language}}"
+    },
+    "steps": {
+      "pending": "Queued",
+      "downloading": "Downloading",
+      "verifying": "Verifying checksum",
+      "extracting": "Extracting",
+      "validating": "Validating",
+      "installing": "Installing",
+      "cancelling": "Cancelling",
+      "working": "Working"
+    },
+    "failure": {
+      "manual": "Nothing on the device was changed. You can install this pack by hand over SSH:"
+    },
+    "states": {
+      "unreachable": {
+        "title": "Couldn't reach the pack catalog",
+        "description": "The device couldn't load the community pack list from GitHub. Your installed languages are untouched — this is a read that failed, and nothing on the modem has changed."
+      },
+      "none": {
+        "title": "No community packs yet",
+        "description": "Nobody has published a downloadable translation pack for QManager yet. The languages above are built into the firmware and are always available."
+      }
+    },
+    "loading": {
+      "status": "Loading languages"
+    },
+    "toast": {
+      "switched": "Switched to {{language}}",
+      "switch_failed": "Couldn't load the {{language}} pack",
+      "switch_failed_detail": "It may need to be installed again.",
+      "installing": "Installing {{language}}…",
+      "installed": "{{language}} installed",
+      "install_failed": "Couldn't install {{language}}",
+      "install_failed_generic": "The language pack install failed",
+      "use_now": "Use now",
+      "install_cancelled": "Install cancelled",
+      "removed": "{{language}} removed",
+      "removed_active": "{{language}} removed, switched back to English",
+      "remove_failed": "Couldn't remove {{language}}",
+      "copied": "Install command copied",
+      "copy_failed": "Couldn't copy the install command"
+    },
+    "errors": {
+      "generic": "The language pack couldn't be installed.",
+      "checksum_mismatch": "The download failed its integrity check and was discarded.",
+      "sha256_mismatch": "The download failed its integrity check and was discarded.",
+      "insufficient_space": "There isn't enough free space on the device to install this pack.",
+      "download_failed": "The device couldn't download the pack. Check its connection and try again.",
+      "manifest_fetch_failed": "The device couldn't reach the pack catalog on GitHub.",
+      "incompatible": "This pack needs a newer version of QManager.",
+      "bundled_immutable": "Built-in languages can't be removed.",
+      "extract_failed": "The pack archive couldn't be unpacked.",
+      "validate_failed": "The pack failed validation and was discarded.",
+      "pack_not_found": "That pack is no longer listed in the catalog.",
+      "install_in_progress": "Another language pack is already installing."
+    }
+  },
   "connection_quality": {
     "page": {
       "title": "Connection Quality",

@@ -12,7 +12,6 @@ import {
   type MutationResult,
 } from "@/lib/i18n/language-pack-client";
 import { DEFAULT_MANIFEST_URL } from "@/lib/i18n/language-pack-manifest";
-import { resolveInstallError } from "@/lib/i18n/resolve-error";
 import { syncInstalledPacks } from "@/lib/i18n/installed-store";
 
 const STATUS_POLL_INTERVAL_MS = 1500;
@@ -135,15 +134,14 @@ export function useLanguagePacks(
       setInstall({ state: "pending", code, progress: 0, message: "" });
       const res = await startLanguagePackInstall(code, manifestUrl);
       if (!res.ok) {
+        // The code stays unresolved: the UI owns the translation, and `message`
+        // keeps whatever the device said, which may be all there is.
         setInstall({
           state: "failed",
           code,
           progress: 100,
-          message: resolveInstallError(
-            res.error,
-            undefined,
-            "Couldn't start the install.",
-          ),
+          error_code: res.error,
+          message: res.error,
         });
         return res;
       }
