@@ -58,3 +58,7 @@
 - [Live Latency chart plots 0, not null — a blackout looks like a healthy flat line](live_latency_chart_plots_zero_not_null.md) — `rtt ?? 0` plus an always-60-long history means the `length === 0` guard never fires; "the chart is plotting" is never evidence of connectivity, and DNS keeps resolving via the on-net carrier resolver during a total blackout
 
 - [systemd daemons get a PATH with NO /opt/bin; login shells put /opt/bin FIRST](daemon_path_lacks_opt_bin.md) — so an interactive probe of `timeout` on RG501Q measures Entware coreutils while the daemon gets BusyBox 1.29.3; includes the `env -i PATH=...` daemon-env repro
+
+- [jq is unreachable before opt.mount — qm_config_get silently returns its DEFAULT](jq_unreachable_before_opt_mount.md) — /usr/bin/jq is the ONLY jq and points into /opt, mounted at ~boot+30s; this is what actually denied the issue-9 reboot fire (not the guard logic), and what fails rc.unslung 203/EXEC
+
+- [lighttpd DOES export HTTP_AUTHORIZATION; curl STRIPS it across the http->https 301](cgi_env_authorization_and_no_path.md) -- a bearer-token CGI needs no lighttpd change, but `curl -L http://...` arrives unauthenticated while a custom `X-...` header survives; CGI also gets NO PATH at all, so cgi_base.sh's PATH ends in an empty (CWD) element
