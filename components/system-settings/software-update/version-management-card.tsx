@@ -55,6 +55,7 @@ import {
   CONDITION_PANEL,
   DIALOG_MOTION,
   FIELD,
+  FOCUS_RING_ON_SURFACE,
   FIELD_ACTION,
   FIELD_ROW,
   GROUP_FILL,
@@ -204,7 +205,7 @@ export function VersionManagementCard({
               </Select>
 
               <Button
-                className={FIELD_ACTION}
+                className={cn(FIELD_ACTION, FOCUS_RING_ON_SURFACE)}
                 onClick={() => onDialogOpenChange(true)}
                 disabled={!selectedVersion || busy}
               >
@@ -233,8 +234,14 @@ export function VersionManagementCard({
             <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t(`${K}.dialog.cancel`)}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm}>
+            {/* The gap takes the DIALOG's ground, which is `bg-surface`. */}
+            <AlertDialogCancel className={FOCUS_RING_ON_SURFACE}>
+              {t(`${K}.dialog.cancel`)}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={FOCUS_RING_ON_SURFACE}
+              onClick={handleConfirm}
+            >
               <DownloadIcon className={PILL_GLYPH} aria-hidden="true" />
               {t(
                 isReinstall

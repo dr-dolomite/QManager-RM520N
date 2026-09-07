@@ -764,13 +764,14 @@
       "description": "Come questo modem decide quando aggiornarsi.",
       "auto": {
         "label": "Aggiornamenti automatici",
-        "description": "Controlla una volta al giorno a un orario casuale e installa quello che trova. Il modem si riavvia per completare."
+        "description": "Controlla una volta al giorno a un orario casuale e installa quello che trova. Il modem si riavvia per completare.",
+        "error": "Impossibile salvare l'impostazione degli aggiornamenti automatici"
       },
       "prerelease": {
         "label": "Includi le versioni preliminari",
-        "description": "Propone le build marcate come preliminari su GitHub. Arrivano prima e sono state testate di meno."
-      },
-      "error_title": "Impossibile salvare questa preferenza"
+        "description": "Propone le build marcate come preliminari su GitHub. Arrivano prima e sono state testate di meno.",
+        "error": "Impossibile salvare l'impostazione delle pre-release"
+      }
     },
     "versions": {
       "title": "Gestione delle versioni",
@@ -802,7 +803,8 @@
     },
     "states": {
       "loading": {
-        "status": "Controllo degli aggiornamenti"
+        "status": "Controllo degli aggiornamenti",
+        "notes": "Caricamento delle note di rilascio"
       },
       "unreachable": {
         "title": "Impossibile raggiungere il servizio di aggiornamento",

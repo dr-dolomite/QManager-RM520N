@@ -92,9 +92,15 @@ export function AnchorCardSkeleton(): React.JSX.Element {
 
 /** The release-notes placeholder: the real panel box, filled with prose. */
 export function NotesCardSkeleton(): React.JSX.Element {
+  const { t } = useTranslation("system-settings");
+
   return (
     <motion.div variants={staggerItem}>
-      <Card className={CARD_SHELL}>
+      <Card
+        className={CARD_SHELL}
+        role="status"
+        aria-label={t("software_update.states.loading.notes")}
+      >
         <CardHeader className={CARD_PAD}>
           <Skeleton className={SKELETON.CARD.TITLE} />
           <Skeleton className={SKELETON.CARD.DESC} />
@@ -102,7 +108,7 @@ export function NotesCardSkeleton(): React.JSX.Element {
 
         <CardContent className={cn(CARD_PAD, CARD_STACK)}>
           <div className={SKELETON.NOTES.PANEL}>
-            <div className={NOTICE.STACK}>
+            <div className={SKELETON.NOTES.STACK}>
               {NOTES_LINES.map((line) => (
                 <Skeleton key={line} className={SKELETON.NOTES.LINE} />
               ))}

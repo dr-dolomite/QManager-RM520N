@@ -225,20 +225,39 @@ export function StatusBand({
         )}
       </div>
 
+      {/* NO `aria-live` here: the Latest tile's caption re-reads the wall clock
+          every 15s, so a live region would re-announce "5 minutes ago" at every
+          rollover. The ladder is this run's announcer. */}
       <motion.div
         className={TILE.GRID}
         variants={staggerRows}
-        aria-live="polite"
+        initial="hidden"
+        animate="visible"
         aria-busy={running || view === "loading"}
       >
         {view === "loading" ? (
-          <>
+          // Each branch is its own cascade root, keyed so the swap REMOUNTS it:
+          // a variants-only child that mounts into a settled parent renders
+          // blank, and three tiles replacing three skeletons is exactly that.
+          <motion.div
+            key="skeletons"
+            className="contents"
+            variants={staggerRows}
+            initial="hidden"
+            animate="visible"
+          >
             <TileSkeleton />
             <TileSkeleton />
             <TileSkeleton />
-          </>
+          </motion.div>
         ) : (
-          <>
+          <motion.div
+            key="tiles"
+            className="contents"
+            variants={staggerRows}
+            initial="hidden"
+            animate="visible"
+          >
             <Tile
               glyph={installedFace.glyph}
               tone={installedFace.tone}
@@ -270,7 +289,7 @@ export function StatusBand({
               value={t(`${K}.band.auto.value_${autoState}`)}
               caption={t(`${K}.band.auto.caption_${autoState}`)}
             />
-          </>
+          </motion.div>
         )}
       </motion.div>
     </motion.section>

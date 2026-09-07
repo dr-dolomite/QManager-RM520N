@@ -53,7 +53,9 @@ export function resolveView(input: ViewInput): UpdateView {
   } = input;
 
   if (isLoading) return "loading";
-  if (error && !updateInfo) return "unreachable";
+  // The KIND is the proof a read failed, not the text: the device is allowed to
+  // fail without saying why, and `error` is null when it does.
+  if ((errorKind !== null || error !== null) && !updateInfo) return "unreachable";
   if (updateStatus.status === "rebooting") return "rebooting";
   if (isUpdating && updateStatus.status === "installing") return "installing";
   if (downloadState?.status === "verifying") return "verifying";

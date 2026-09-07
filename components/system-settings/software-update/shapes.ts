@@ -31,7 +31,7 @@ import type { FailureKind, UpdateView } from "./derive";
 // -----------------------------------------------------------------------------
 
 /** The route wrapper. Container queries key off `@container/main`. */
-export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-5 p-2";
+export const PAGE_ROOT = "@container/main flex flex-col gap-5 p-2";
 
 /** The page header: titles left, actions pushed right once the page is wide. */
 export const PAGE_HEAD = {
@@ -66,6 +66,33 @@ export const CHIP_GLYPH = "size-3";
 
 /** The one spin class, so a `Face` carrying `spin` has one spelling to reach. */
 export const SPIN = "animate-spin";
+
+// -----------------------------------------------------------------------------
+// Focus
+// -----------------------------------------------------------------------------
+
+/**
+ * The ring itself — 3px of full-strength `--ring` over a 2px gap. The gap is
+ * what makes the ring visible on a filled control, where the ring is the same
+ * colour as the fill.
+ *
+ * The GAP'S COLOUR IS THE HOST'S GROUND, never always the page canvas: light
+ * mode hides the difference (`--background` 0.985 against `--surface` 1.0), but
+ * dark mode paints a visibly darker halo (0.12 against 0.17, and two steps off
+ * against a `surface-container` row group). `banner.tsx` solves the same
+ * problem per tone; these four are this surface's four grounds.
+ */
+const FOCUS_RING_BASE =
+  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2";
+
+/** Host = the page canvas. */
+export const FOCUS_RING = `${FOCUS_RING_BASE} focus-visible:ring-offset-background`;
+
+/** Host = a card's own surface, or a dialog panel's (both `bg-surface`). */
+export const FOCUS_RING_ON_SURFACE = `${FOCUS_RING_BASE} focus-visible:ring-offset-surface`;
+
+/** Host = a `ROW_GROUP` or the delta strip. */
+export const FOCUS_RING_ON_CONTAINER = `${FOCUS_RING_BASE} focus-visible:ring-offset-surface-container`;
 
 // -----------------------------------------------------------------------------
 // The status band
@@ -112,11 +139,11 @@ export type DiscTone = keyof typeof DISC_TONE;
 
 /**
  * The tone transition for a disc that changes mid-run. Scoped to two named
- * properties, and every custom property takes `var()` — the naked arbitrary
- * shorthand compiles to a declaration the browser discards.
+ * properties. `--duration-*` takes `var()` because it is NOT `@theme`-
+ * registered; `--ease-*` is, so it spells as the first-class utility.
  */
 export const DISC_TRANSITION =
-  "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]";
+  "transition-[background-color,color] duration-[var(--duration-standard)] ease-standard";
 
 /** The eyebrow above a tile's figure. Casing lives HERE, never in a leaf. */
 export const EYEBROW =
@@ -213,6 +240,9 @@ export const NOTICE = {
  * the arrow carries its rotation in the resting state and drops it at the flip.
  * `VALUE_NEXT` is the only colour in the strip (the Data-Ink Rule).
  */
+/** The strip arrow's 20px box, shared with its own skeleton. */
+const DELTA_ARROW_SIZE = "size-5";
+
 export const DELTA = {
   ROOT: "flex flex-col gap-3.5 rounded-tile bg-surface-container px-[1.375rem] py-[1.125rem] @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-5",
   SLOT: "flex min-w-0 flex-col gap-1",
@@ -221,7 +251,7 @@ export const DELTA = {
   VALUE:
     "truncate font-mono text-[1.375rem] font-bold leading-[1.1] tracking-[-0.01em]",
   VALUE_NEXT: "text-primary-on-surface",
-  ARROW: "size-5 flex-none rotate-90 text-on-surface-variant @2xl/card:rotate-0",
+  ARROW: `${DELTA_ARROW_SIZE} flex-none rotate-90 text-on-surface-variant @2xl/card:rotate-0`,
   META: "flex flex-wrap items-center gap-2 @2xl/card:ml-auto",
 } as const;
 
@@ -239,7 +269,7 @@ const STEP_DISC_SIZE = "size-10";
 
 export const LADDER = {
   GROUP: "flex flex-col gap-0.5 rounded-tile bg-surface-container p-1.5",
-  ROW: "flex items-center gap-3 rounded-field px-4 py-3 transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
+  ROW: "flex items-center gap-3 rounded-field px-4 py-3 transition-[background-color,color] duration-[var(--duration-standard)] ease-standard",
   /** One tonal step above the group — the only thing marking the live row. */
   ROW_ACTIVE: "bg-surface-container-high",
   DISC: `grid ${STEP_DISC_SIZE} flex-none place-items-center rounded-pill`,
@@ -304,17 +334,21 @@ export const STEP_BADGE: Record<Exclude<StepState, "pending">, BadgeVariant> = {
  * tinted surface collapses toward its ground in dark mode.
  */
 export const NOTES = {
-  PANEL:
-    "rounded-field bg-surface-container-high px-5 py-4 max-h-[13.75rem] overflow-y-auto",
+  /**
+   * Both axes are DECLARED: `RELEASE_NOTES.md` ships verbatim curl/wget blocks,
+   * so the sideways scroll is real and not inherited from the y-axis. The panel
+   * is focusable because it scrolls, so it also carries a ring — its host is the
+   * card's own surface.
+   */
+  PANEL: `rounded-field bg-surface-container-high px-5 py-4 max-h-[13.75rem] overflow-x-auto overflow-y-auto ${FOCUS_RING_ON_SURFACE}`,
   /** Markdown ink on canon tokens; the primitive's own inks are retired. */
   PROSE:
     "prose prose-sm dark:prose-invert max-w-none prose-p:text-on-surface-variant prose-li:text-on-surface-variant prose-headings:text-on-surface prose-strong:text-on-surface prose-code:bg-surface-container prose-code:text-on-surface prose-hr:border-outline prose-a:text-primary",
   FOOTER: "flex justify-end",
 } as const;
 
-/** The same panel at the dialog's taller cap. */
-export const DIALOG_PANEL =
-  "rounded-field bg-surface-container-high px-5 py-4 max-h-[26rem] overflow-y-auto";
+/** The same panel at the dialog's taller cap; its host is `bg-surface` too. */
+export const DIALOG_PANEL = `rounded-field bg-surface-container-high px-5 py-4 max-h-[26rem] overflow-x-auto overflow-y-auto ${FOCUS_RING_ON_SURFACE}`;
 
 /**
  * A dialog's two directions, written SEPARATELY. Radix pins the body's pointer
@@ -356,14 +390,6 @@ export const ROW = {
 } as const;
 
 /**
- * The family's ONE focus ring — 3px of full-strength ring over a 2px
- * page-coloured gap. The gap is what makes it visible on a filled control,
- * where the ring is the same colour as the fill.
- */
-export const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
-/**
  * `CONTROL_HEIGHT`'s number, important-marked INSIDE the string. `select.tsx`
  * ships a default 36px behind a data-attribute selector, which outranks a bare
  * arbitrary height; a marker appended to an interpolation never appears in
@@ -377,7 +403,7 @@ const FIELD_HEIGHT = "h-[2.625rem]!";
  * The dark half is written as a PAIR and important-marked, because the field
  * primitives ship their own dark fill at higher specificity.
  */
-export const FIELD = `${FIELD_HEIGHT} w-full rounded-pill border-0 bg-surface-container dark:bg-surface-container! px-4 text-[0.84375rem] font-medium ${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-50`;
+export const FIELD = `${FIELD_HEIGHT} w-full rounded-pill border-0 bg-surface-container dark:bg-surface-container! px-4 text-[0.84375rem] font-medium ${FOCUS_RING_ON_SURFACE} disabled:cursor-not-allowed disabled:opacity-50`;
 
 /** The select and its Install button: stacked until the card can seat them. */
 export const FIELD_ROW =
@@ -409,6 +435,9 @@ export const SELECT_ITEM = {
 export const SWITCH_TARGET =
   "relative before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-['']";
 
+/** `Switch`'s own painted box (`switch.tsx`), so its skeleton cannot invent one. */
+const SWITCH_BOX = "h-[1.15rem] w-8";
+
 // -----------------------------------------------------------------------------
 // Conditions
 // -----------------------------------------------------------------------------
@@ -419,13 +448,15 @@ export const CONDITION_PANEL = {
 } as const;
 
 /**
- * The unreachable state: the block, with the device's own status text beneath
- * it. The raw text stays machine voice rather than folded into the sentence.
+ * The unreachable state: the block, with the device's own status text INSIDE
+ * it, so the alert announces both. The raw text stays machine voice rather than
+ * folded into the sentence, and takes the container's own ink stepped back —
+ * a role ink here would be a fill role's ink with nothing under it.
  */
 export const ERROR_STATE = {
   ROOT: "flex flex-col items-center gap-2.5",
   BLOCK: "w-full",
-  DETAIL: "text-on-surface-variant break-words text-center font-mono text-xs",
+  DETAIL: `break-words text-center font-mono text-xs ${META_INK_ON_TONAL}`,
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -577,7 +608,7 @@ export const SKELETON = {
   DELTA: {
     EYEBROW: `${LINE.EYEBROW} w-16`,
     VALUE: `${LINE.VALUE} w-28`,
-    ARROW: "size-5 flex-none rounded-inline",
+    ARROW: `${DELTA_ARROW_SIZE} flex-none rounded-inline`,
     TAG: "h-[1.375rem] w-16 rounded-pill",
   },
   /** One ladder row, worn inside the real `LADDER.ROW`. */
@@ -589,7 +620,8 @@ export const SKELETON = {
   },
   /** The consequence notice, worn inside the real `NOTICE.BOX`. */
   NOTICE: {
-    GLYPH: "size-4 flex-none rounded-inline",
+    /** `NOTICE.GLYPH`'s box INCLUDING its optical nudge, or it sits 2px high. */
+    GLYPH: `${NOTICE.GLYPH} rounded-inline`,
     TEXT: `${LINE.DETAIL} w-full`,
     /** The second line `notice.rest` and `notice.staged` wrap to at hero width. */
     TEXT_2: `${LINE.DETAIL} w-3/5`,
@@ -597,6 +629,8 @@ export const SKELETON = {
   /** The notes panel: the real box, filled past its own 220px cap. */
   NOTES: {
     PANEL: NOTES.PANEL,
+    /** The prose stack's own rhythm — a notice's two-line stack is not it. */
+    STACK: "flex min-w-0 flex-col gap-1.5",
     LINE: LINE.PROSE,
     LINE_SHORT: `${LINE.PROSE} w-2/3`,
   },
@@ -606,8 +640,8 @@ export const SKELETON = {
     CONSEQUENCE: `${LINE.DETAIL} w-64 max-w-full`,
     /** The second line the consequence wraps to at real card widths. */
     CONSEQUENCE_2: `${LINE.DETAIL} w-48 max-w-full`,
-    /** The `Switch` in the control box — 24px tall, not a field. */
-    SWITCH: "h-6 w-10 rounded-pill",
+    /** The `Switch` in the control box — 32x18.4px, not a field. */
+    SWITCH: `${SWITCH_BOX} rounded-pill`,
   },
   /** Mirrors `FIELD`'s height and radius, and the button beside it. */
   FIELD: `${CONTROL_HEIGHT} w-full rounded-pill`,

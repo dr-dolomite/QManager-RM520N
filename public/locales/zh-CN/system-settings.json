@@ -764,13 +764,14 @@
       "description": "本调制解调器如何决定何时自我更新。",
       "auto": {
         "label": "自动更新",
-        "description": "每天在随机时间检查一次，并安装找到的更新。调制解调器会重启以完成安装。"
+        "description": "每天在随机时间检查一次，并安装找到的更新。调制解调器会重启以完成安装。",
+        "error": "无法保存自动更新设置"
       },
       "prerelease": {
         "label": "包含预发布版本",
-        "description": "提供在 GitHub 上标记为预发布的版本。它们发布得更早，但测试也更少。"
-      },
-      "error_title": "无法保存该偏好设置"
+        "description": "提供在 GitHub 上标记为预发布的版本。它们发布得更早，但测试也更少。",
+        "error": "无法保存预发布版本设置"
+      }
     },
     "versions": {
       "title": "版本管理",
@@ -802,7 +803,8 @@
     },
     "states": {
       "loading": {
-        "status": "正在检查更新"
+        "status": "正在检查更新",
+        "notes": "正在加载发行说明"
       },
       "unreachable": {
         "title": "无法访问更新服务",

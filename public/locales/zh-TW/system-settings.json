@@ -764,13 +764,14 @@
       "description": "本數據機如何決定何時自我更新。",
       "auto": {
         "label": "自動更新",
-        "description": "每天在隨機時間檢查一次，並安裝找到的更新。數據機會重啟以完成安裝。"
+        "description": "每天在隨機時間檢查一次，並安裝找到的更新。數據機會重啟以完成安裝。",
+        "error": "無法儲存自動更新設定"
       },
       "prerelease": {
         "label": "包含預先發行版本",
-        "description": "提供在 GitHub 上標記為預先發行的版本。它們發行得較早，但測試也較少。"
-      },
-      "error_title": "無法儲存該偏好設定"
+        "description": "提供在 GitHub 上標記為預先發行的版本。它們發行得較早，但測試也較少。",
+        "error": "無法儲存預先發行版設定"
+      }
     },
     "versions": {
       "title": "版本管理",
@@ -802,7 +803,8 @@
     },
     "states": {
       "loading": {
-        "status": "正在檢查更新"
+        "status": "正在檢查更新",
+        "notes": "正在載入版本資訊"
       },
       "unreachable": {
         "title": "無法存取更新服務",

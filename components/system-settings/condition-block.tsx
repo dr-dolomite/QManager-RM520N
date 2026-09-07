@@ -21,6 +21,12 @@ export interface ConditionBlockProps {
   ariaRole: "alert" | "status";
   title: string;
   description: string;
+  /**
+   * Machine-voice text under the sentence — the device's own words. It renders
+   * INSIDE the block so the live region announces it with the alert; a sibling
+   * paragraph is not part of what the alert says.
+   */
+  detail?: React.ReactNode;
   /** Omit to render no retry affordance. */
   onRetry?: () => void;
   retryLabel?: string;
@@ -33,6 +39,7 @@ export function ConditionBlock({
   ariaRole,
   title,
   description,
+  detail,
   onRetry,
   retryLabel,
   className,
@@ -51,6 +58,7 @@ export function ConditionBlock({
         <p className={CONDITION.TITLE}>{title}</p>
         <p className={CONDITION.BODY}>{description}</p>
       </div>
+      {detail}
       {onRetry && (
         <button
           type="button"

@@ -28,6 +28,7 @@ import {
   CARD_SHELL,
   CARD_STACK,
   CARD_TITLE,
+  FOCUS_RING_ON_CONTAINER,
   GROUP_FILL,
   NOTICE,
   ROW,
@@ -48,7 +49,16 @@ export interface UpdatePreferencesCardProps {
   saveAutoUpdate: (enabled: boolean, time: string) => Promise<string | null>;
 }
 
-type PendingRow = "auto" | "prerelease" | null;
+/** The two rows, and what a save that failed was trying to change. */
+type PrefRow = "auto" | "prerelease";
+
+type PendingRow = PrefRow | null;
+
+/** `detail` is the device's own words; `null` means it failed without saying. */
+interface SaveFailure {
+  row: PrefRow;
+  detail: string | null;
+}
 
 function RowSkeleton(): React.JSX.Element {
   return (
@@ -74,43 +84,37 @@ export function UpdatePreferencesCard({
 }: UpdatePreferencesCardProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
   const [pending, setPending] = React.useState<PendingRow>(null);
-  const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [saveError, setSaveError] = React.useState<SaveFailure | null>(null);
 
   const autoLabelId = React.useId();
   const prereleaseLabelId = React.useId();
 
-  const settle = (failure: string | null, onKey: string, offKey: string, enabled: boolean) => {
-    if (failure) {
-      setSaveError(failure);
+  // `""` is a failure the device gave no words for, so the test is against
+  // `null` and never against truthiness — the sentence is this card's anyway.
+  const settle = (row: PrefRow, failure: string | null, enabled: boolean) => {
+    if (failure !== null) {
+      setSaveError({ row, detail: failure || null });
       toast.error(t("software_update.toast.save_failed"));
       return;
     }
     setSaveError(null);
-    toast.success(t(enabled ? onKey : offKey));
+    toast.success(
+      t(`software_update.toast.${row}_${enabled ? "on" : "off"}`),
+    );
   };
 
   const handleAuto = async (enabled: boolean) => {
     setPending("auto");
     const failure = await saveAutoUpdate(enabled, AUTO_UPDATE_TIME);
     setPending(null);
-    settle(
-      failure,
-      "software_update.toast.auto_on",
-      "software_update.toast.auto_off",
-      enabled,
-    );
+    settle("auto", failure, enabled);
   };
 
   const handlePrerelease = async (enabled: boolean) => {
     setPending("prerelease");
     const failure = await togglePrerelease(enabled);
     setPending(null);
-    settle(
-      failure,
-      "software_update.toast.prerelease_on",
-      "software_update.toast.prerelease_off",
-      enabled,
-    );
+    settle("prerelease", failure, enabled);
   };
 
   const locked = busy || pending !== null;
@@ -142,7 +146,7 @@ export function UpdatePreferencesCard({
                   <div className={ROW.CONTROL}>
                     <Switch
                       id="qm-update-auto"
-                      className={SWITCH_TARGET}
+                      className={cn(SWITCH_TARGET, FOCUS_RING_ON_CONTAINER)}
                       checked={info.auto_update_enabled === true}
                       onCheckedChange={handleAuto}
                       disabled={locked}
@@ -163,7 +167,7 @@ export function UpdatePreferencesCard({
                   <div className={ROW.CONTROL}>
                     <Switch
                       id="qm-update-prerelease"
-                      className={SWITCH_TARGET}
+                      className={cn(SWITCH_TARGET, FOCUS_RING_ON_CONTAINER)}
                       checked={info.include_prerelease === true}
                       onCheckedChange={handlePrerelease}
                       disabled={locked}
@@ -184,8 +188,10 @@ export function UpdatePreferencesCard({
             <div role="alert" className={cn(NOTICE.BOX, NOTICE.DESTRUCTIVE)}>
               <AlertCircleIcon className={NOTICE.GLYPH} aria-hidden="true" />
               <div className={NOTICE.STACK}>
-                <p className={NOTICE.TEXT}>{t(`${K}.error_title`)}</p>
-                <p className={NOTICE.DETAIL}>{saveError}</p>
+                <p className={NOTICE.TEXT}>{t(`${K}.${saveError.row}.error`)}</p>
+                {saveError.detail && (
+                  <p className={NOTICE.DETAIL}>{saveError.detail}</p>
+                )}
               </div>
             </div>
           )}

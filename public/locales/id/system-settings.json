@@ -764,13 +764,14 @@
       "description": "Bagaimana modem ini menentukan kapan memperbarui dirinya.",
       "auto": {
         "label": "Pembaruan otomatis",
-        "description": "Memeriksa sekali sehari pada waktu acak dan memasang apa yang ditemukannya. Modem reboot untuk menyelesaikannya."
+        "description": "Memeriksa sekali sehari pada waktu acak dan memasang apa yang ditemukannya. Modem reboot untuk menyelesaikannya.",
+        "error": "Tidak dapat menyimpan pengaturan pembaruan otomatis"
       },
       "prerelease": {
         "label": "Sertakan pra-rilis",
-        "description": "Menawarkan build yang ditandai pra-rilis di GitHub. Build itu datang lebih awal dan lebih sedikit diuji."
-      },
-      "error_title": "Tidak dapat menyimpan preferensi itu"
+        "description": "Menawarkan build yang ditandai pra-rilis di GitHub. Build itu datang lebih awal dan lebih sedikit diuji.",
+        "error": "Tidak dapat menyimpan pengaturan pra-rilis"
+      }
     },
     "versions": {
       "title": "Manajemen Versi",
@@ -802,7 +803,8 @@
     },
     "states": {
       "loading": {
-        "status": "Memeriksa pembaruan"
+        "status": "Memeriksa pembaruan",
+        "notes": "Memuat catatan rilis"
       },
       "unreachable": {
         "title": "Tidak dapat menjangkau layanan pembaruan",

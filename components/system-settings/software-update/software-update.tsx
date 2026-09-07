@@ -38,6 +38,7 @@ import {
   CARD_GRID,
   DIALOG_MOTION,
   ERROR_STATE,
+  FOCUS_RING_ON_SURFACE,
   PAGE_ROOT,
   PILL_GLYPH,
 } from "./shapes";
@@ -169,18 +170,27 @@ export function SoftwareUpdate(): React.JSX.Element {
           <NotesCardSkeleton />
         </>
       ) : view === "unreachable" ? (
-        <motion.div variants={staggerItem} className={ERROR_STATE.ROOT}>
+        // This branch mounts AFTER the page root settled, so it declares its
+        // own directions: a variants-only child that mounts late renders blank.
+        <motion.div
+          variants={staggerItem}
+          initial="hidden"
+          animate="visible"
+          className={ERROR_STATE.ROOT}
+        >
           <ConditionBlock
             tone="destructive"
             glyph={ServerOffIcon}
             ariaRole="alert"
             title={t(`${K}.states.unreachable.title`)}
             description={t(`${K}.states.unreachable.description`)}
+            detail={
+              error ? <p className={ERROR_STATE.DETAIL}>{error}</p> : undefined
+            }
             onRetry={() => void checkForUpdates()}
             retryLabel={t(`${K}.actions.retry`)}
             className={ERROR_STATE.BLOCK}
           />
-          {error && <p className={ERROR_STATE.DETAIL}>{error}</p>}
         </motion.div>
       ) : (
         // `display: contents` keeps these in the page's flex column while
@@ -257,10 +267,14 @@ export function SoftwareUpdate(): React.JSX.Element {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
+            {/* The gap takes the DIALOG's ground, which is `bg-surface`. */}
+            <AlertDialogCancel className={FOCUS_RING_ON_SURFACE}>
               {t(`${K}.versions.dialog.cancel`)}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleInstallStaged()}>
+            <AlertDialogAction
+              className={FOCUS_RING_ON_SURFACE}
+              onClick={() => void handleInstallStaged()}
+            >
               <DownloadIcon className={PILL_GLYPH} aria-hidden="true" />
               {t(`${K}.versions.dialog.confirm_install`)}
             </AlertDialogAction>

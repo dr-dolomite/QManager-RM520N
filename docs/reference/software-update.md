@@ -120,6 +120,15 @@ only two are check failures. So the hook also tracks **which operation failed**:
 export type UpdateErrorKind = "check" | "download" | "install";
 ```
 
+**The hook carries no English prose.** `error` holds the device's own sentence or `null` — every
+`||  "Failed to …"` fallback was removed, because a fallback fires exactly when the backend
+answered with nothing, i.e. on the transport failure that is the most likely case, and
+`i18n:check` cannot see a literal inside a hook. The human sentence is the render site's, keyed
+off `errorKind` (the anchor card's `notice.failed_check` / `failed_download` / `failed_install`,
+the band's captions, the header's verb) and translated there. That also means `resolveView` tests
+`errorKind !== null` for `unreachable` rather than the text: the device may fail without saying
+why, and the absence of a sentence is not the absence of a failure.
+
 Every `setError` goes through one `fail(kind, message)` helper, and `resolveFailure()` is the
 **one** derived place that turns that into `{ kind, message }` or `null`. Three slots then read
 `failure.kind` rather than the view — the anchor card (title, description, chip and notice, all
@@ -248,7 +257,13 @@ falling back to the page-level figure. The latest release's size is not the size
 to say it was.**
 
 `togglePrerelease` and `saveAutoUpdate` return `Promise<string | null>` — `null` on success, the
-failure message otherwise — and deliberately do **not** call the hook's shared `setError`.
+device's own words otherwise — and deliberately do **not** call the hook's shared `setError`.
+
+> ⚠️ `""` is a real failure: the device declined and said nothing. The card therefore tests
+> `failure !== null`, never truthiness, or a silent rejection reads as a save and even fires the
+> success toast. The sentence is the card's own — it knows which row it saved, so it renders
+> `preferences.auto.error` or `preferences.prerelease.error` and puts the device's words, when
+> there are any, in the mono detail line beneath.
 
 The mechanism: `error` is a `resolveView` input. Setting it from a rejected write repaints the
 entire surface as `check_failed` — the anchor card's title, description and chip all flip, the
@@ -432,10 +447,31 @@ is not a shared library; the *design system's numbers* are. `components/system-s
 holds the same 104px tile, the same 42px pill, the same focus ring — and this module declares its
 own copies rather than importing them.
 
+### Two invariants a reviewer will otherwise "correct" back
+
+**The focus gap takes the HOST's ground.** The ring is one geometry (`FOCUS_RING_BASE`) with three
+grounds: `FOCUS_RING` on the page canvas, `FOCUS_RING_ON_SURFACE` on a card or dialog panel,
+`FOCUS_RING_ON_CONTAINER` inside a row group. A single page-coloured gap is invisible in light
+mode and a visibly darker halo in dark, where the canvas is 0.12 against a 0.17 card and a 0.20
+row group. `components/ui/banner.tsx` solves the same problem per tone. Where a primitive ships
+its own gap (`switch.tsx`, `button.tsx`, `select.tsx` all hardcode the canvas), the call site
+passes the host's constant and `twMerge` drops the primitive's — verified in the browser: the
+switch keeps only `focus-visible:ring-offset-surface-container`, and a keyboard-focused notes
+panel paints a 2px gap in `--surface` under 3px of `--ring`.
+**The status band is NOT a live region.** Its Latest tile re-reads the wall clock every 15s
+(`CLOCK_TICK_MS`), so an `aria-live` there re-announces "5 minutes ago" at every rollover — noise
+with no state change behind it. The ladder carries the run's `aria-live`, the notices carry
+`role="alert"` / `role="status"`, and a save reports through a toast. The band keeps `aria-busy`
+only.
+
 > ⚠️ WARNING: nothing under `components/system-settings/software-update/` may import a shape from
 > a sibling family, and no sibling family may import from here. The two shared things this family
 > *does* import are `components/system-settings/condition-block.tsx` (a component, not geometry)
 > and `lib/motion.ts` (the motion scale's single source of truth).
+
+`ConditionBlock` gained an optional `detail` slot for this surface: the unreachable state's raw
+device text renders *inside* the block, because a paragraph beside a `role="alert"` is not part of
+what the alert announces. Every other caller passes nothing and is unchanged.
 
 Note the divergence from `logs.md`'s family module, which *re-exports* twenty names from
 `components/system-settings/shapes.ts`. That is the same rule reaching a different answer: Logs

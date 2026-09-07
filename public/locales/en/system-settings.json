@@ -764,13 +764,14 @@
       "description": "How this modem decides when to update itself.",
       "auto": {
         "label": "Automatic updates",
-        "description": "Checks once a day at a randomised time and installs what it finds. The modem reboots to finish."
+        "description": "Checks once a day at a randomised time and installs what it finds. The modem reboots to finish.",
+        "error": "Couldn't save the automatic-update setting"
       },
       "prerelease": {
         "label": "Include pre-releases",
-        "description": "Offers builds marked pre-release on GitHub. They arrive earlier and have had less testing."
-      },
-      "error_title": "Couldn't save that preference"
+        "description": "Offers builds marked pre-release on GitHub. They arrive earlier and have had less testing.",
+        "error": "Couldn't save the pre-release setting"
+      }
     },
     "versions": {
       "title": "Version Management",
@@ -802,7 +803,8 @@
     },
     "states": {
       "loading": {
-        "status": "Checking for updates"
+        "status": "Checking for updates",
+        "notes": "Loading release notes"
       },
       "unreachable": {
         "title": "Can't reach the update service",
