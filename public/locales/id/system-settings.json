@@ -595,5 +595,235 @@
         "saved": "Ambang kualitas tersimpan"
       }
     }
+  },
+  "software_update": {
+    "page": {
+      "title": "Pembaruan Perangkat Lunak",
+      "description": "QManager memeriksa GitHub untuk rilis yang lebih baru dan memasangnya langsung di modem. Pemasangan mengganti aplikasi dan me-reboot perangkat, jadi sesi yang sedang Anda pakai untuk membaca ini akan terputus lalu kembali."
+    },
+    "actions": {
+      "check": "Periksa pembaruan",
+      "checking": "Memeriksa…",
+      "check_again": "Periksa lagi",
+      "download": "Unduh {{version}}",
+      "downloading": "Mengunduh…",
+      "install": "Pasang {{version}}",
+      "installing": "Memasang…",
+      "try_again": "Coba lagi",
+      "retry": "Ulangi",
+      "read_full_notes": "Baca catatan lengkapnya",
+      "rebooting": "Me-reboot…",
+      "verifying": "Memverifikasi…",
+      "retry_download": "Coba unduh lagi"
+    },
+    "band": {
+      "head": "Status pembaruan",
+      "chip_offline": "Offline",
+      "chip_in_progress": "Sedang berjalan",
+      "installed": {
+        "eyebrow": "Terpasang",
+        "caption_stable": "Kanal stabil",
+        "caption_prerelease": "Kanal pra-rilis",
+        "caption_interrupted": "Pemasangan mungkin belum lengkap"
+      },
+      "latest": {
+        "eyebrow": "Rilis terbaru",
+        "caption_checked": "Diperiksa {{ago}}",
+        "caption_downloading": "Mengunduh {{size}}…",
+        "caption_verified": "Terunduh dan terverifikasi",
+        "caption_installing": "Langkah {{step}} dari 4 — jangan matikan daya",
+        "caption_failed": "Tidak dapat menjangkau GitHub",
+        "caption_never": "Belum pernah diperiksa",
+        "value_none_label": "Tidak ada informasi rilis",
+        "caption_downloading_plain": "Mengunduh paketnya…",
+        "caption_verifying": "Memeriksa paketnya…",
+        "caption_failed_download": "Unduhan tidak selesai",
+        "caption_failed_install": "Pemasangan tidak selesai"
+      },
+      "auto": {
+        "eyebrow": "Pembaruan otomatis",
+        "value_on": "Aktif",
+        "value_off": "Mati",
+        "caption_on": "Pemeriksaan harian pada waktu acak",
+        "caption_off": "Hanya pembaruan manual"
+      },
+      "chip_failed": "Gagal"
+    },
+    "card": {
+      "loading": {
+        "title": "Memeriksa pembaruan",
+        "description": "Membaca daftar rilis dari GitHub."
+      },
+      "unreachable": {
+        "title": "Layanan pembaruan tidak tersedia",
+        "description": "QManager tidak dapat menjangkau endpoint pembaruan di modem ini, jadi ia tidak bisa memastikan apa yang terpasang atau apa yang tersedia."
+      },
+      "check_failed": {
+        "title": "Pemeriksaan pembaruan gagal",
+        "description": "Build di modem ini tidak tersentuh. QManager hanya gagal membaca daftar rilis kali ini."
+      },
+      "download_failed": {
+        "title": "Unduhan tidak selesai",
+        "description": "Tidak ada yang diganti. Build yang sudah ada di modem ini tidak tersentuh, jadi aman untuk mengunduh lagi."
+      },
+      "install_failed": {
+        "title": "Pemasangan tidak selesai",
+        "description": "Modem mungkin menjalankan berkas yang tercampur. Memasang lagi mengembalikannya ke build yang pasti."
+      },
+      "up_to_date": {
+        "title": "Anda sudah memakai build terbaru",
+        "description": "Tidak ada yang perlu dipasang. Empat langkah di bawah adalah yang dilakukan pembaruan saat ada yang datang."
+      },
+      "available": {
+        "title": "Pembaruan tersedia",
+        "description": "Mengunduh dan memasang memakan waktu beberapa menit dan berakhir dengan reboot. Inilah persis yang terjadi."
+      },
+      "downloading": {
+        "title": "Mengunduh pembaruan",
+        "description": "Paket sedang diambil dari GitHub. Belum ada yang diganti dan modem tetap bekerja."
+      },
+      "verifying": {
+        "title": "Memverifikasi unduhan",
+        "description": "QManager sedang mencocokkan paket dengan SHA-256-nya sebelum ada yang diganti."
+      },
+      "staged": {
+        "title": "Siap dipasang",
+        "description": "Paket sudah diunduh dan terverifikasi. Pemasangan mengganti QManager dan me-reboot modem."
+      },
+      "installing": {
+        "title": "Memasang pembaruan",
+        "description": "Aplikasi, layanannya, dan skrip CGI sedang diganti. Jangan matikan daya modem."
+      },
+      "rebooting": {
+        "title": "Me-reboot modem",
+        "description": "Pemasangan selesai. Modem sedang reboot dan sesi ini terputus sampai ia kembali."
+      },
+      "chip": {
+        "loading": "Memeriksa",
+        "unreachable": "Tak terjangkau",
+        "check_failed": "Pemeriksaan gagal",
+        "download_failed": "Unduhan gagal",
+        "install_failed": "Pemasangan gagal",
+        "up_to_date": "Terbaru",
+        "available": "Tersedia",
+        "downloading": "Mengunduh",
+        "verifying": "Memverifikasi",
+        "staged": "Siap",
+        "installing": "Memasang",
+        "rebooting": "Reboot"
+      }
+    },
+    "delta": {
+      "installed": "Terpasang",
+      "available": "Tersedia",
+      "channel_stable": "Stabil",
+      "channel_prerelease": "Pra-rilis"
+    },
+    "steps": {
+      "aria_label": "Langkah pembaruan",
+      "download": {
+        "label": "Unduh",
+        "detail": "Mengambil qmanager.tar.gz dari GitHub"
+      },
+      "verify": {
+        "label": "Verifikasi",
+        "detail": "Mencocokkan paket dengan SHA-256-nya"
+      },
+      "install": {
+        "label": "Pasang",
+        "detail": "Mengganti aplikasi, layanan, dan skrip CGI"
+      },
+      "reboot": {
+        "label": "Reboot",
+        "detail": "Modem akan reboot. Sesi Anda akan terputus."
+      },
+      "state": {
+        "done": "Selesai",
+        "active": "Berjalan"
+      }
+    },
+    "notice": {
+      "rest": "Pemasangan me-reboot modem, yang memutus sesi ini dan setiap koneksi yang melewatinya selama sekitar satu menit.",
+      "staged": "Pemasangan mengganti QManager dan me-reboot modem. Sesi ini terputus lalu kembali sendiri.",
+      "running": "Jangan matikan daya modem.",
+      "failed_check": "QManager gagal membaca daftar rilis. Build di modem ini tidak tersentuh, jadi ini kegagalan pembacaan, bukan kehilangan.",
+      "failed_download": "Unduhan tidak selesai, jadi tidak ada yang terpasang. Build yang sudah ada di modem tidak tersentuh.",
+      "versions": "Setiap opsi di sini me-reboot modem, dan build yang lebih lama bisa membatalkan pengaturan yang dibawa build yang lebih baru.",
+      "failed_install": "Pemasangan tidak selesai, jadi modem mungkin menjalankan berkas yang tercampur. Memasang lagi mengembalikannya ke build yang pasti."
+    },
+    "notes": {
+      "title": "Apa yang berubah",
+      "description": "Catatan rilis yang diterbitkan bersama {{version}}.",
+      "empty_title": "Tidak ada catatan rilis",
+      "empty_description": "GitHub tidak mengembalikan changelog untuk rilis ini, jadi tidak ada yang bisa ditampilkan di sini.",
+      "dialog_title": "Catatan rilis untuk {{version}}",
+      "region_label": "Catatan rilis"
+    },
+    "preferences": {
+      "title": "Preferensi Pembaruan",
+      "description": "Bagaimana modem ini menentukan kapan memperbarui dirinya.",
+      "auto": {
+        "label": "Pembaruan otomatis",
+        "description": "Memeriksa sekali sehari pada waktu acak dan memasang apa yang ditemukannya. Modem reboot untuk menyelesaikannya."
+      },
+      "prerelease": {
+        "label": "Sertakan pra-rilis",
+        "description": "Menawarkan build yang ditandai pra-rilis di GitHub. Build itu datang lebih awal dan lebih sedikit diuji."
+      },
+      "error_title": "Tidak dapat menyimpan preferensi itu"
+    },
+    "versions": {
+      "title": "Manajemen Versi",
+      "description": "Pasang, pasang ulang, atau kembali ke build mana pun yang sudah diterbitkan.",
+      "select_label": "Pilih versi untuk dipasang",
+      "select_placeholder": "Pilih versi",
+      "install": "Pasang",
+      "current": "Saat ini",
+      "no_binary": "Tidak ada paket",
+      "dialog": {
+        "title_install": "Pasang {{version}}?",
+        "title_reinstall": "Pasang ulang {{version}}?",
+        "description_install": "Ini memasang {{version}} menggantikan {{current}}. Modem reboot setelah selesai.",
+        "description_reinstall": "Ini memasang ulang {{version}} di atas salinan yang sudah ada di modem, untuk memperbaikinya. Modem reboot setelah selesai.",
+        "size": "Ukuran unduhan: {{size}}.",
+        "warning": "Jangan matikan daya modem selagi sedang memasang.",
+        "cancel": "Batal",
+        "confirm_install": "Pasang sekarang",
+        "confirm_reinstall": "Pasang ulang sekarang"
+      },
+      "empty_title": "Tidak ada versi untuk dipilih",
+      "empty_description": "GitHub tidak mengembalikan rilis yang membawa paket yang bisa dipasang, jadi tidak ada yang bisa dipasang atau dikembalikan di sini."
+    },
+    "banner": {
+      "title": "Pembaruan terakhir tidak selesai",
+      "description": "Penanda tertunda untuk {{pending}} bertahan melewati reboot sementara yang berjalan adalah {{version}}, jadi berkas yang terpasang mungkin tercampur. Memasang ulang {{pending}} mengembalikan modem ini ke build yang pasti.",
+      "action": "Selesaikan pemasangan",
+      "description_unknown": "Sebuah pemasangan tidak selesai sementara yang berjalan adalah {{version}}, jadi berkas yang terpasang mungkin tercampur. Memasang ulang mengembalikan modem ini ke build yang pasti."
+    },
+    "states": {
+      "loading": {
+        "status": "Memeriksa pembaruan"
+      },
+      "unreachable": {
+        "title": "Tidak dapat menjangkau layanan pembaruan",
+        "description": "QManager tidak dapat menjangkau endpoint pembaruan di modem ini. Build yang terpasang tidak tersentuh, jadi ini kegagalan pembacaan, bukan kehilangan."
+      }
+    },
+    "time": {
+      "just_now": "baru saja",
+      "minutes": "{{value}} menit lalu",
+      "minutes_one": "semenit lalu",
+      "hours": "{{value}} jam lalu",
+      "hours_one": "sejam lalu",
+      "days": "{{value}} hari lalu",
+      "days_one": "sehari lalu"
+    },
+    "toast": {
+      "prerelease_on": "Pembaruan pra-rilis diaktifkan",
+      "prerelease_off": "Pembaruan pra-rilis dinonaktifkan",
+      "auto_on": "Pembaruan otomatis diaktifkan",
+      "auto_off": "Pembaruan otomatis dinonaktifkan",
+      "save_failed": "Tidak dapat menyimpan preferensi itu"
+    }
   }
 }

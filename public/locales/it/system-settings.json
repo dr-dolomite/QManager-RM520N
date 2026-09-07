@@ -595,5 +595,235 @@
         "saved": "Soglie di qualità salvate"
       }
     }
+  },
+  "software_update": {
+    "page": {
+      "title": "Aggiornamento software",
+      "description": "QManager controlla su GitHub se esiste una release più recente e la installa sul modem stesso. L'installazione sostituisce l'app e riavvia il dispositivo, quindi la sessione in cui stai leggendo cadrà e tornerà da sola."
+    },
+    "actions": {
+      "check": "Controlla aggiornamenti",
+      "checking": "Controllo…",
+      "check_again": "Controlla di nuovo",
+      "download": "Scarica {{version}}",
+      "downloading": "Download in corso…",
+      "install": "Installa {{version}}",
+      "installing": "Installazione…",
+      "try_again": "Riprova",
+      "retry": "Riprova",
+      "read_full_notes": "Leggi le note complete",
+      "rebooting": "Riavvio…",
+      "verifying": "Verifica…",
+      "retry_download": "Riprova il download"
+    },
+    "band": {
+      "head": "Stato dell'aggiornamento",
+      "chip_offline": "Offline",
+      "chip_in_progress": "In corso",
+      "installed": {
+        "eyebrow": "Installata",
+        "caption_stable": "Canale stabile",
+        "caption_prerelease": "Canale versioni preliminari",
+        "caption_interrupted": "L'installazione potrebbe essere incompleta"
+      },
+      "latest": {
+        "eyebrow": "Ultima release",
+        "caption_checked": "Controllato {{ago}}",
+        "caption_downloading": "Download di {{size}} in corso…",
+        "caption_verified": "Scaricata e verificata",
+        "caption_installing": "Passo {{step}} di 4 — non spegnere",
+        "caption_failed": "Impossibile raggiungere GitHub",
+        "caption_never": "Mai controllato",
+        "value_none_label": "Nessuna informazione sulla release",
+        "caption_downloading_plain": "Download del pacchetto in corso…",
+        "caption_verifying": "Controllo del pacchetto…",
+        "caption_failed_download": "Il download non è stato completato",
+        "caption_failed_install": "L'installazione non è stata completata"
+      },
+      "auto": {
+        "eyebrow": "Aggiornamenti automatici",
+        "value_on": "Attivi",
+        "value_off": "Disattivati",
+        "caption_on": "Controllo giornaliero a un orario casuale",
+        "caption_off": "Solo aggiornamenti manuali"
+      },
+      "chip_failed": "Non riuscito"
+    },
+    "card": {
+      "loading": {
+        "title": "Controllo degli aggiornamenti",
+        "description": "Lettura dell'elenco delle release da GitHub."
+      },
+      "unreachable": {
+        "title": "Servizio di aggiornamento non disponibile",
+        "description": "QManager non riesce a raggiungere l'endpoint di aggiornamento su questo modem, quindi non può dire cosa è installato né cosa è disponibile."
+      },
+      "check_failed": {
+        "title": "Il controllo degli aggiornamenti non è riuscito",
+        "description": "La build su questo modem è intatta. QManager semplicemente non è riuscito a leggere l'elenco delle release questa volta."
+      },
+      "download_failed": {
+        "title": "Il download non è stato completato",
+        "description": "Non è stato sostituito nulla. La build già presente su questo modem è intatta, quindi si può riprovare il download senza rischi."
+      },
+      "install_failed": {
+        "title": "L'installazione non è stata completata",
+        "description": "Il modem potrebbe avere file misti. Installare di nuovo lo riporta su una build nota."
+      },
+      "up_to_date": {
+        "title": "Sei sull'ultima build",
+        "description": "Non c'è nulla da installare. I quattro passi qui sotto sono ciò che fa un aggiornamento quando ne arriva uno."
+      },
+      "available": {
+        "title": "Aggiornamento disponibile",
+        "description": "Scaricare e installare richiede qualche minuto e termina con un riavvio. Ecco esattamente cosa succede."
+      },
+      "downloading": {
+        "title": "Download dell'aggiornamento",
+        "description": "Il pacchetto viene scaricato da GitHub. Non è stato ancora sostituito nulla e il modem continua a funzionare."
+      },
+      "verifying": {
+        "title": "Verifica del download",
+        "description": "QManager sta controllando il pacchetto con il suo SHA-256 prima che venga sostituito qualcosa."
+      },
+      "staged": {
+        "title": "Pronto per l'installazione",
+        "description": "Il pacchetto è scaricato e verificato. L'installazione sostituisce QManager e riavvia il modem."
+      },
+      "installing": {
+        "title": "Installazione dell'aggiornamento",
+        "description": "L'app, i suoi servizi e gli script CGI vengono sostituiti. Non spegnere il modem."
+      },
+      "rebooting": {
+        "title": "Riavvio del modem",
+        "description": "L'installazione è terminata. Il modem si sta riavviando e questa sessione cade finché non torna."
+      },
+      "chip": {
+        "loading": "Controllo",
+        "unreachable": "Non raggiungibile",
+        "check_failed": "Controllo fallito",
+        "download_failed": "Download fallito",
+        "install_failed": "Installazione fallita",
+        "up_to_date": "Aggiornato",
+        "available": "Disponibile",
+        "downloading": "In download",
+        "verifying": "Verifica",
+        "staged": "Pronto",
+        "installing": "Installazione",
+        "rebooting": "Riavvio"
+      }
+    },
+    "delta": {
+      "installed": "Installata",
+      "available": "Disponibile",
+      "channel_stable": "Stabile",
+      "channel_prerelease": "Preliminare"
+    },
+    "steps": {
+      "aria_label": "Passi dell'aggiornamento",
+      "download": {
+        "label": "Scaricamento",
+        "detail": "Scarica qmanager.tar.gz da GitHub"
+      },
+      "verify": {
+        "label": "Verifica",
+        "detail": "Controlla il pacchetto con il suo SHA-256"
+      },
+      "install": {
+        "label": "Installazione",
+        "detail": "Sostituisce l'app, i servizi e gli script CGI"
+      },
+      "reboot": {
+        "label": "Riavvio",
+        "detail": "Il modem si riavvia. La tua sessione cadrà."
+      },
+      "state": {
+        "done": "Fatto",
+        "active": "In corso"
+      }
+    },
+    "notice": {
+      "rest": "L'installazione riavvia il modem, e questo fa cadere questa sessione e ogni connessione che passa da qui per circa un minuto.",
+      "staged": "L'installazione sostituisce QManager e riavvia il modem. Questa sessione cade e torna da sola.",
+      "running": "Non spegnere il modem.",
+      "failed_check": "QManager non è riuscito a leggere l'elenco delle release. La build su questo modem è intatta: è un errore di lettura, non una perdita.",
+      "failed_download": "Il download non è stato completato, quindi non è stato installato nulla. La build già presente sul modem è intatta.",
+      "versions": "Ogni opzione qui riavvia il modem, e una build più vecchia può annullare impostazioni introdotte da una più recente.",
+      "failed_install": "L'installazione non è stata completata, quindi il modem potrebbe avere file misti. Installare di nuovo lo riporta su una build nota."
+    },
+    "notes": {
+      "title": "Cosa è cambiato",
+      "description": "Le note di rilascio pubblicate con {{version}}.",
+      "empty_title": "Nessuna nota di rilascio",
+      "empty_description": "GitHub non ha restituito alcun changelog per questa release, quindi qui non c'è nulla da mostrare.",
+      "dialog_title": "Note di rilascio di {{version}}",
+      "region_label": "Note di rilascio"
+    },
+    "preferences": {
+      "title": "Preferenze di aggiornamento",
+      "description": "Come questo modem decide quando aggiornarsi.",
+      "auto": {
+        "label": "Aggiornamenti automatici",
+        "description": "Controlla una volta al giorno a un orario casuale e installa quello che trova. Il modem si riavvia per completare."
+      },
+      "prerelease": {
+        "label": "Includi le versioni preliminari",
+        "description": "Propone le build marcate come preliminari su GitHub. Arrivano prima e sono state testate di meno."
+      },
+      "error_title": "Impossibile salvare questa preferenza"
+    },
+    "versions": {
+      "title": "Gestione delle versioni",
+      "description": "Installa, reinstalla o torna a qualsiasi build pubblicata.",
+      "select_label": "Seleziona una versione da installare",
+      "select_placeholder": "Scegli una versione",
+      "install": "Installa",
+      "current": "Attuale",
+      "no_binary": "Nessun pacchetto",
+      "dialog": {
+        "title_install": "Installare {{version}}?",
+        "title_reinstall": "Reinstallare {{version}}?",
+        "description_install": "Questa operazione installa {{version}} al posto di {{current}}. Il modem si riavvia al termine.",
+        "description_reinstall": "Questa operazione reinstalla {{version}} sopra la copia già presente sul modem, per ripararla. Il modem si riavvia al termine.",
+        "size": "Dimensione del download: {{size}}.",
+        "warning": "Non spegnere il modem mentre sta installando.",
+        "cancel": "Annulla",
+        "confirm_install": "Installa ora",
+        "confirm_reinstall": "Reinstalla ora"
+      },
+      "empty_title": "Nessuna versione tra cui scegliere",
+      "empty_description": "GitHub non ha restituito release con un pacchetto installabile, quindi qui non c'è nulla da installare o a cui tornare."
+    },
+    "banner": {
+      "title": "L'ultimo aggiornamento non è stato completato",
+      "description": "Un marcatore in sospeso per {{pending}} è sopravvissuto a un riavvio mentre è in esecuzione {{version}}, quindi i file installati potrebbero essere misti. Reinstallare {{pending}} riporta questo modem su una build nota.",
+      "action": "Completa l'installazione",
+      "description_unknown": "Un'installazione non è stata completata mentre è in esecuzione {{version}}, quindi i file installati potrebbero essere misti. Reinstallare riporta questo modem su una build nota."
+    },
+    "states": {
+      "loading": {
+        "status": "Controllo degli aggiornamenti"
+      },
+      "unreachable": {
+        "title": "Impossibile raggiungere il servizio di aggiornamento",
+        "description": "QManager non è riuscito a raggiungere l'endpoint di aggiornamento su questo modem. La build installata è intatta: è un errore di lettura, non una perdita."
+      }
+    },
+    "time": {
+      "just_now": "proprio ora",
+      "minutes": "{{value}} minuti fa",
+      "minutes_one": "un minuto fa",
+      "hours": "{{value}} ore fa",
+      "hours_one": "un'ora fa",
+      "days": "{{value}} giorni fa",
+      "days_one": "un giorno fa"
+    },
+    "toast": {
+      "prerelease_on": "Aggiornamenti preliminari attivati",
+      "prerelease_off": "Aggiornamenti preliminari disattivati",
+      "auto_on": "Aggiornamenti automatici attivati",
+      "auto_off": "Aggiornamenti automatici disattivati",
+      "save_failed": "Impossibile salvare questa preferenza"
+    }
   }
 }

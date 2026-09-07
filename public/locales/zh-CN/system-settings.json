@@ -595,5 +595,235 @@
         "saved": "质量阈值已保存"
       }
     }
+  },
+  "software_update": {
+    "page": {
+      "title": "软件更新",
+      "description": "QManager 会检查 GitHub 上是否有更新的版本，并直接在调制解调器上安装。安装会替换应用并重启设备，因此您正在阅读本页的会话会中断，随后自动恢复。"
+    },
+    "actions": {
+      "check": "检查更新",
+      "checking": "检查中…",
+      "check_again": "重新检查",
+      "download": "下载 {{version}}",
+      "downloading": "下载中…",
+      "install": "安装 {{version}}",
+      "installing": "安装中…",
+      "try_again": "再试一次",
+      "retry": "重试",
+      "read_full_notes": "阅读完整发行说明",
+      "rebooting": "重启中…",
+      "verifying": "校验中…",
+      "retry_download": "重新下载"
+    },
+    "band": {
+      "head": "更新状态",
+      "chip_offline": "离线",
+      "chip_in_progress": "进行中",
+      "installed": {
+        "eyebrow": "已安装",
+        "caption_stable": "稳定版通道",
+        "caption_prerelease": "预发布通道",
+        "caption_interrupted": "安装可能不完整"
+      },
+      "latest": {
+        "eyebrow": "最新版本",
+        "caption_checked": "上次检查 {{ago}}",
+        "caption_downloading": "正在下载 {{size}}…",
+        "caption_verified": "已下载并校验",
+        "caption_installing": "第 {{step}} 步，共 4 步——请勿断电",
+        "caption_failed": "无法连接 GitHub",
+        "caption_never": "从未检查",
+        "value_none_label": "无版本信息",
+        "caption_downloading_plain": "正在下载安装包…",
+        "caption_verifying": "正在校验安装包…",
+        "caption_failed_download": "下载未能完成",
+        "caption_failed_install": "安装未能完成"
+      },
+      "auto": {
+        "eyebrow": "自动更新",
+        "value_on": "开启",
+        "value_off": "关闭",
+        "caption_on": "每天在随机时间检查一次",
+        "caption_off": "仅手动更新"
+      },
+      "chip_failed": "失败"
+    },
+    "card": {
+      "loading": {
+        "title": "正在检查更新",
+        "description": "正在从 GitHub 读取版本列表。"
+      },
+      "unreachable": {
+        "title": "更新服务不可用",
+        "description": "QManager 无法访问本调制解调器上的更新接口，因此无法说明已安装的版本或可用的版本。"
+      },
+      "check_failed": {
+        "title": "更新检查失败",
+        "description": "本调制解调器上的版本未被改动。QManager 只是这次没能读取到版本列表。"
+      },
+      "download_failed": {
+        "title": "下载没有完成",
+        "description": "没有任何文件被替换。本调制解调器上原有的版本未被改动，因此可以放心重新下载。"
+      },
+      "install_failed": {
+        "title": "安装没有完成",
+        "description": "调制解调器上的文件可能是混杂的。重新安装可让它回到一个确定的版本。"
+      },
+      "up_to_date": {
+        "title": "您已是最新版本",
+        "description": "没有可安装的内容。下面四个步骤就是有更新时会执行的操作。"
+      },
+      "available": {
+        "title": "有可用更新",
+        "description": "下载并安装需要几分钟，最后会重启设备。整个过程如下。"
+      },
+      "downloading": {
+        "title": "正在下载更新",
+        "description": "正在从 GitHub 获取安装包。目前尚未替换任何文件，调制解调器仍在正常工作。"
+      },
+      "verifying": {
+        "title": "正在校验下载内容",
+        "description": "QManager 正在用 SHA-256 校验安装包，之后才会替换任何文件。"
+      },
+      "staged": {
+        "title": "准备安装",
+        "description": "安装包已下载并校验通过。安装将替换 QManager 并重启调制解调器。"
+      },
+      "installing": {
+        "title": "正在安装更新",
+        "description": "正在替换应用、其服务和 CGI 脚本。请勿给调制解调器断电。"
+      },
+      "rebooting": {
+        "title": "正在重启调制解调器",
+        "description": "安装已完成。调制解调器正在重启，本会话会中断，直到它恢复。"
+      },
+      "chip": {
+        "loading": "检查中",
+        "unreachable": "无法访问",
+        "check_failed": "检查失败",
+        "download_failed": "下载失败",
+        "install_failed": "安装失败",
+        "up_to_date": "已是最新",
+        "available": "有可用更新",
+        "downloading": "下载中",
+        "verifying": "校验中",
+        "staged": "准备就绪",
+        "installing": "安装中",
+        "rebooting": "重启中"
+      }
+    },
+    "delta": {
+      "installed": "已安装",
+      "available": "可用",
+      "channel_stable": "稳定版",
+      "channel_prerelease": "预发布版"
+    },
+    "steps": {
+      "aria_label": "更新步骤",
+      "download": {
+        "label": "下载",
+        "detail": "从 GitHub 获取 qmanager.tar.gz"
+      },
+      "verify": {
+        "label": "校验",
+        "detail": "用 SHA-256 校验安装包"
+      },
+      "install": {
+        "label": "安装",
+        "detail": "替换应用、服务和 CGI 脚本"
+      },
+      "reboot": {
+        "label": "重启",
+        "detail": "调制解调器会重启。您的会话将中断。"
+      },
+      "state": {
+        "done": "已完成",
+        "active": "进行中"
+      }
+    },
+    "notice": {
+      "rest": "安装会重启调制解调器，本会话以及经由它的所有连接都会中断约一分钟。",
+      "staged": "安装会替换 QManager 并重启调制解调器。本会话会中断，随后自动恢复。",
+      "running": "请勿给调制解调器断电。",
+      "failed_check": "QManager 未能读取版本列表。本调制解调器上的版本未被改动，这只是一次读取失败，并非损失。",
+      "failed_download": "下载没有完成，因此没有安装任何内容。设备上原有的版本未被改动。",
+      "versions": "这里的每个选项都会重启调制解调器，而较旧的版本可能会撤销较新版本引入的设置。",
+      "failed_install": "安装没有完成，因此调制解调器上的文件可能是混杂的。重新安装可让它回到一个确定的版本。"
+    },
+    "notes": {
+      "title": "更新内容",
+      "description": "随 {{version}} 一同发布的发行说明。",
+      "empty_title": "没有发行说明",
+      "empty_description": "GitHub 未返回此版本的更新日志，因此这里没有可显示的内容。",
+      "dialog_title": "{{version}} 的发行说明",
+      "region_label": "发行说明"
+    },
+    "preferences": {
+      "title": "更新偏好设置",
+      "description": "本调制解调器如何决定何时自我更新。",
+      "auto": {
+        "label": "自动更新",
+        "description": "每天在随机时间检查一次，并安装找到的更新。调制解调器会重启以完成安装。"
+      },
+      "prerelease": {
+        "label": "包含预发布版本",
+        "description": "提供在 GitHub 上标记为预发布的版本。它们发布得更早，但测试也更少。"
+      },
+      "error_title": "无法保存该偏好设置"
+    },
+    "versions": {
+      "title": "版本管理",
+      "description": "安装、重新安装或回退到任意已发布的版本。",
+      "select_label": "选择要安装的版本",
+      "select_placeholder": "选择版本",
+      "install": "安装",
+      "current": "当前",
+      "no_binary": "无安装包",
+      "dialog": {
+        "title_install": "安装 {{version}}？",
+        "title_reinstall": "重新安装 {{version}}？",
+        "description_install": "这会用 {{version}} 替换当前的 {{current}}。完成后调制解调器会重启。",
+        "description_reinstall": "这会在调制解调器上已有的副本之上重新安装 {{version}}，以进行修复。完成后调制解调器会重启。",
+        "size": "下载大小：{{size}}。",
+        "warning": "安装过程中请勿给调制解调器断电。",
+        "cancel": "取消",
+        "confirm_install": "立即安装",
+        "confirm_reinstall": "立即重新安装"
+      },
+      "empty_title": "没有可选择的版本",
+      "empty_description": "GitHub 未返回任何带有可安装包的版本，因此这里没有可安装或可回退的目标。"
+    },
+    "banner": {
+      "title": "上次更新未能完成",
+      "description": "{{pending}} 的待处理标记在重启后仍然存在，而当前运行的是 {{version}}，因此已安装的文件可能是混杂的。重新安装 {{pending}} 可让本调制解调器回到一个确定的版本。",
+      "action": "完成安装",
+      "description_unknown": "在运行 {{version}} 期间有一次安装没有完成，因此已安装的文件可能是混杂的。重新安装可让本调制解调器回到一个确定的版本。"
+    },
+    "states": {
+      "loading": {
+        "status": "正在检查更新"
+      },
+      "unreachable": {
+        "title": "无法访问更新服务",
+        "description": "QManager 无法访问本调制解调器上的更新接口。已安装的版本未被改动，这只是一次读取失败，并非损失。"
+      }
+    },
+    "time": {
+      "just_now": "刚刚",
+      "minutes": "{{value}} 分钟前",
+      "minutes_one": "一分钟前",
+      "hours": "{{value}} 小时前",
+      "hours_one": "一小时前",
+      "days": "{{value}} 天前",
+      "days_one": "一天前"
+    },
+    "toast": {
+      "prerelease_on": "已启用预发布更新",
+      "prerelease_off": "已关闭预发布更新",
+      "auto_on": "已启用自动更新",
+      "auto_off": "已关闭自动更新",
+      "save_failed": "无法保存该偏好设置"
+    }
   }
 }

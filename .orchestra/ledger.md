@@ -880,3 +880,65 @@ Gates after LEAD fixes: tsc clean, eslint clean on all five sites, i18n:check 0 
 next build still NOT run (another session owns .next).
 
 STATUS: complete, NOT committed.
+
+---
+
+## Run: software-update design-canon re-authoring (2026-09-07)
+
+- **Worktree:** `.claude/worktrees/wt-software-update-refit`, branch `worktree-wt-software-update-refit`
+- **Baseline commit:** `1a33d26` (`merge-base HEAD development == HEAD` verified)
+- **Spec:** scratchpad `software-update-refit-spec.md` (APPROVED, phases 1-3 complete)
+- **Mode:** Full (Agent tool + real shell). No Codex.
+- **Seats:** LEAD = Opus (conductor). Workers = `ui-builder` (opus-pinned, NO model override),
+  `docs-writer`, devil's advocate on Opus.
+- **Gates skipped by Lite Path (pre-triaged):** modem-investigator, installer-safety-auditor,
+  busybox-portability-checker.
+
+### Tasks
+
+| # | Task | Write set | Status |
+|---|---|---|---|
+| T0 | Move monitoring/software-update -> system-settings/software-update; page import; hook types | components/, app/, hooks/ | PENDING |
+| T1 | Contract: shapes.ts + derive.ts + en software_update locale subtree | 3 files | PENDING |
+| T2a | page-header.tsx, status-band.tsx, card-skeleton.tsx | 3 files | PENDING |
+| T2b | update-card.tsx, step-ladder.tsx | 2 files | PENDING |
+| T2c | release-notes-card.tsx, update-preferences-card.tsx, version-management-card.tsx | 3 files | PENDING |
+| T3 | Shell software-update.tsx + wiring reconcile | 1 file | PENDING |
+| T4 | Translations: zh-CN, zh-TW, it, id | 4 locale files | PENDING |
+| T5 | Gates: tsc / eslint / i18n:check / next build / browser render | - | PENDING |
+| T6 | Devil's advocate against the finished diff | read-only | PENDING |
+| T7 | docs-writer: docs/reference/software-update.md + 1 CLAUDE.md row | 2 files | PENDING |
+
+### Attempts (append-only)
+
+| T0 | Move + page import + hook types | conductor | DONE |
+| T1 | shapes.ts + derive.ts + en locale subtree (133 keys) | ui-builder | DONE |
+| T2a | page-header / status-band / card-skeleton | ui-builder | DONE_WITH_CONCERNS (2 missing keys, 3 canon flags — all resolved) |
+| T2b | update-card / step-ladder | ui-builder | DONE |
+| T2c | release-notes / preferences / versions + hook save signatures | ui-builder | DONE_WITH_CONCERNS (2 missing keys, 3 shape gaps — all resolved) |
+| T3 | Shell wiring + staged-install confirm | conductor | DONE |
+| T4 | Translations zh-CN / zh-TW / it / id | general-purpose | DONE (i18n:check 0 errors) |
+| T5 | Gates: tsc / eslint / i18n:check / next build / browser | conductor | DONE |
+| T6 | Devil's advocate | opus, read-only | **FAIL** — 2 blockers, 3 majors, 13 minors |
+| T6b | Fix round against the findings list | ui-builder | DONE_WITH_CONCERNS |
+| T6c | Anchor-card residue (title/desc/chip by failure kind) | ui-builder | DONE |
+| T6d | Ladder keeps download+verify done on a staged install failure | conductor | DONE |
+| T7 | docs/reference/software-update.md + 1 CLAUDE.md row | docs-writer | DONE |
+
+### Outcome
+
+The adversarial pass earned its keep: it found that a failed install repainted the page as
+"Ready to install" with no notice at all (the `staged` guard sat above the failure guard), and
+that a failed `installVersion` stranded the page in a spinning `downloading` forever. Both were
+regressions introduced by routing the surface through one derived union without carrying the
+hook's error provenance with it. Fixed by giving the hook an `errorKind` and reordering
+`resolveView`; the three failure kinds now drive copy and glyph in four slots that previously
+all claimed GitHub was unreachable.
+
+Gates, final: `tsc` clean, `eslint` clean on every touched path, `i18n:check` 0 errors,
+`next build` exit 0 with no CSS-optimizer warnings. All ten `UpdateView` members plus the
+interrupted banner and both notes states rendered in a browser at desktop and 375px in both
+themes, against a fetch-shimmed CGI; the reboot handoff was driven end to end.
+
+Not merged. The parent session owns merge and close-out.
+

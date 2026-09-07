@@ -595,5 +595,235 @@
         "saved": "Quality thresholds saved"
       }
     }
+  },
+  "software_update": {
+    "page": {
+      "title": "Software Update",
+      "description": "QManager checks GitHub for a newer release and installs it on the modem itself. Installing replaces the app and restarts the device, so the session you are reading this in will drop and come back."
+    },
+    "actions": {
+      "check": "Check for updates",
+      "checking": "Checking...",
+      "check_again": "Check again",
+      "download": "Download {{version}}",
+      "downloading": "Downloading...",
+      "install": "Install {{version}}",
+      "installing": "Installing...",
+      "try_again": "Try again",
+      "retry": "Retry",
+      "read_full_notes": "Read the full notes",
+      "rebooting": "Restarting...",
+      "verifying": "Verifying...",
+      "retry_download": "Try download again"
+    },
+    "band": {
+      "head": "Update status",
+      "chip_offline": "Offline",
+      "chip_in_progress": "In progress",
+      "installed": {
+        "eyebrow": "Installed",
+        "caption_stable": "Stable channel",
+        "caption_prerelease": "Pre-release channel",
+        "caption_interrupted": "Install may be incomplete"
+      },
+      "latest": {
+        "eyebrow": "Latest release",
+        "caption_checked": "Checked {{ago}}",
+        "caption_downloading": "Downloading {{size}}...",
+        "caption_verified": "Downloaded and verified",
+        "caption_installing": "Step {{step}} of 4 — do not power off",
+        "caption_failed": "Could not reach GitHub",
+        "caption_never": "Never checked",
+        "value_none_label": "No release information",
+        "caption_downloading_plain": "Downloading the package...",
+        "caption_verifying": "Checking the package...",
+        "caption_failed_download": "The download did not finish",
+        "caption_failed_install": "The install did not finish"
+      },
+      "auto": {
+        "eyebrow": "Automatic updates",
+        "value_on": "On",
+        "value_off": "Off",
+        "caption_on": "Daily check at a randomised time",
+        "caption_off": "Manual updates only"
+      },
+      "chip_failed": "Failed"
+    },
+    "card": {
+      "loading": {
+        "title": "Checking for updates",
+        "description": "Reading the release list from GitHub."
+      },
+      "unreachable": {
+        "title": "Update service unavailable",
+        "description": "QManager can't reach the update endpoint on this modem, so it can't say what is installed or what is available."
+      },
+      "check_failed": {
+        "title": "The update check failed",
+        "description": "The build on this modem is untouched. QManager just couldn't read the release list this time."
+      },
+      "download_failed": {
+        "title": "The download didn't finish",
+        "description": "Nothing has been replaced. The build already on this modem is untouched, so it is safe to try the download again."
+      },
+      "install_failed": {
+        "title": "The install didn't finish",
+        "description": "The modem may be running a mixed set of files. Installing again puts it back on a known build."
+      },
+      "up_to_date": {
+        "title": "You're on the latest build",
+        "description": "Nothing to install. The four steps below are what an update does when one arrives."
+      },
+      "available": {
+        "title": "Update available",
+        "description": "Downloading and installing takes a few minutes and ends in a restart. This is exactly what happens."
+      },
+      "downloading": {
+        "title": "Downloading the update",
+        "description": "The package is being fetched from GitHub. Nothing has been replaced yet and the modem keeps working."
+      },
+      "verifying": {
+        "title": "Verifying the download",
+        "description": "QManager is checking the package against its SHA-256 before anything is replaced."
+      },
+      "staged": {
+        "title": "Ready to install",
+        "description": "The package is downloaded and verified. Installing replaces QManager and restarts the modem."
+      },
+      "installing": {
+        "title": "Installing the update",
+        "description": "The app, its services and the CGI scripts are being replaced. Do not power off the modem."
+      },
+      "rebooting": {
+        "title": "Restarting the modem",
+        "description": "The install finished. The modem is restarting and this session drops until it comes back."
+      },
+      "chip": {
+        "loading": "Checking",
+        "unreachable": "Unreachable",
+        "check_failed": "Check failed",
+        "download_failed": "Download failed",
+        "install_failed": "Install failed",
+        "up_to_date": "Up to date",
+        "available": "Available",
+        "downloading": "Downloading",
+        "verifying": "Verifying",
+        "staged": "Ready",
+        "installing": "Installing",
+        "rebooting": "Restarting"
+      }
+    },
+    "delta": {
+      "installed": "Installed",
+      "available": "Available",
+      "channel_stable": "Stable",
+      "channel_prerelease": "Pre-release"
+    },
+    "steps": {
+      "aria_label": "Update steps",
+      "download": {
+        "label": "Download",
+        "detail": "Fetches qmanager.tar.gz from GitHub"
+      },
+      "verify": {
+        "label": "Verify",
+        "detail": "Checks the package against its SHA-256"
+      },
+      "install": {
+        "label": "Install",
+        "detail": "Replaces the app, services and CGI scripts"
+      },
+      "reboot": {
+        "label": "Reboot",
+        "detail": "The modem restarts. Your session will drop."
+      },
+      "state": {
+        "done": "Done",
+        "active": "Running"
+      }
+    },
+    "notice": {
+      "rest": "Installing restarts the modem, which drops this session and every connection through it for about a minute.",
+      "staged": "Installing replaces QManager and restarts the modem. This session drops and comes back on its own.",
+      "running": "Do not power off the modem.",
+      "failed_check": "QManager couldn't read the release list. The build on this modem is untouched, so this is a read failure and not a loss.",
+      "failed_download": "The download didn't finish, so nothing has been installed. The build already on the modem is untouched.",
+      "versions": "Every option here restarts the modem, and an older build can undo settings a newer one introduced.",
+      "failed_install": "The install did not finish, so the modem may be running a mixed set of files. Installing again puts it back on a known build."
+    },
+    "notes": {
+      "title": "What changed",
+      "description": "The release notes published with {{version}}.",
+      "empty_title": "No release notes",
+      "empty_description": "GitHub returned no changelog for this release, so there's nothing to show here.",
+      "dialog_title": "Release notes for {{version}}",
+      "region_label": "Release notes"
+    },
+    "preferences": {
+      "title": "Update Preferences",
+      "description": "How this modem decides when to update itself.",
+      "auto": {
+        "label": "Automatic updates",
+        "description": "Checks once a day at a randomised time and installs what it finds. The modem reboots to finish."
+      },
+      "prerelease": {
+        "label": "Include pre-releases",
+        "description": "Offers builds marked pre-release on GitHub. They arrive earlier and have had less testing."
+      },
+      "error_title": "Couldn't save that preference"
+    },
+    "versions": {
+      "title": "Version Management",
+      "description": "Install, reinstall or roll back to any published build.",
+      "select_label": "Select a version to install",
+      "select_placeholder": "Choose a version",
+      "install": "Install",
+      "current": "Current",
+      "no_binary": "No binary",
+      "dialog": {
+        "title_install": "Install {{version}}?",
+        "title_reinstall": "Reinstall {{version}}?",
+        "description_install": "This installs {{version}} in place of {{current}}. The modem restarts when it finishes.",
+        "description_reinstall": "This reinstalls {{version}} over the copy already on the modem, to repair it. The modem restarts when it finishes.",
+        "size": "Download size: {{size}}.",
+        "warning": "Do not power off the modem while it is installing.",
+        "cancel": "Cancel",
+        "confirm_install": "Install now",
+        "confirm_reinstall": "Reinstall now"
+      },
+      "empty_title": "No versions to choose from",
+      "empty_description": "GitHub returned no releases carrying an installable package, so there is nothing to install or roll back to here."
+    },
+    "banner": {
+      "title": "The last update did not finish",
+      "description": "A pending marker for {{pending}} survived a restart while {{version}} is running, so the installed files may be mixed. Reinstalling {{pending}} puts this modem back on a known build.",
+      "action": "Finish the install",
+      "description_unknown": "An install did not finish while {{version}} is running, so the installed files may be mixed. Reinstalling puts this modem back on a known build."
+    },
+    "states": {
+      "loading": {
+        "status": "Checking for updates"
+      },
+      "unreachable": {
+        "title": "Can't reach the update service",
+        "description": "QManager couldn't reach the update endpoint on this modem. The build that is installed is untouched, so this is a read failure and not a loss."
+      }
+    },
+    "time": {
+      "just_now": "just now",
+      "minutes": "{{value}} minutes ago",
+      "minutes_one": "a minute ago",
+      "hours": "{{value}} hours ago",
+      "hours_one": "an hour ago",
+      "days": "{{value}} days ago",
+      "days_one": "a day ago"
+    },
+    "toast": {
+      "prerelease_on": "Pre-release updates enabled",
+      "prerelease_off": "Pre-release updates disabled",
+      "auto_on": "Automatic updates enabled",
+      "auto_off": "Automatic updates disabled",
+      "save_failed": "Couldn't save that preference"
+    }
   }
 }

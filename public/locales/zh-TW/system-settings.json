@@ -595,5 +595,235 @@
         "saved": "品質門檻已儲存"
       }
     }
+  },
+  "software_update": {
+    "page": {
+      "title": "軟體更新",
+      "description": "QManager 會檢查 GitHub 上是否有更新的版本，並直接在數據機上安裝。安裝會取代應用程式並重啟裝置，因此您正在閱讀本頁的工作階段會中斷，隨後自動恢復。"
+    },
+    "actions": {
+      "check": "檢查更新",
+      "checking": "檢查中…",
+      "check_again": "重新檢查",
+      "download": "下載 {{version}}",
+      "downloading": "下載中…",
+      "install": "安裝 {{version}}",
+      "installing": "安裝中…",
+      "try_again": "再試一次",
+      "retry": "重試",
+      "read_full_notes": "閱讀完整發行說明",
+      "rebooting": "重啟中…",
+      "verifying": "驗證中…",
+      "retry_download": "重新下載"
+    },
+    "band": {
+      "head": "更新狀態",
+      "chip_offline": "離線",
+      "chip_in_progress": "進行中",
+      "installed": {
+        "eyebrow": "已安裝",
+        "caption_stable": "穩定版通道",
+        "caption_prerelease": "預先發行通道",
+        "caption_interrupted": "安裝可能不完整"
+      },
+      "latest": {
+        "eyebrow": "最新版本",
+        "caption_checked": "上次檢查 {{ago}}",
+        "caption_downloading": "正在下載 {{size}}…",
+        "caption_verified": "已下載並驗證",
+        "caption_installing": "第 {{step}} 步，共 4 步——請勿斷電",
+        "caption_failed": "無法連線至 GitHub",
+        "caption_never": "從未檢查",
+        "value_none_label": "沒有版本資訊",
+        "caption_downloading_plain": "正在下載安裝套件…",
+        "caption_verifying": "正在驗證安裝套件…",
+        "caption_failed_download": "下載未能完成",
+        "caption_failed_install": "安裝未能完成"
+      },
+      "auto": {
+        "eyebrow": "自動更新",
+        "value_on": "開啟",
+        "value_off": "關閉",
+        "caption_on": "每天在隨機時間檢查一次",
+        "caption_off": "僅手動更新"
+      },
+      "chip_failed": "失敗"
+    },
+    "card": {
+      "loading": {
+        "title": "正在檢查更新",
+        "description": "正在從 GitHub 讀取版本列表。"
+      },
+      "unreachable": {
+        "title": "更新服務無法使用",
+        "description": "QManager 無法存取本數據機上的更新端點，因此無法說明已安裝的版本或可用的版本。"
+      },
+      "check_failed": {
+        "title": "更新檢查失敗",
+        "description": "本數據機上的版本未被更動。QManager 只是這次沒能讀取到版本列表。"
+      },
+      "download_failed": {
+        "title": "下載沒有完成",
+        "description": "沒有任何檔案被取代。本數據機上原有的版本未被更動，因此可以放心重新下載。"
+      },
+      "install_failed": {
+        "title": "安裝沒有完成",
+        "description": "數據機上的檔案可能是混雜的。重新安裝可讓它回到一個確定的版本。"
+      },
+      "up_to_date": {
+        "title": "您已是最新版本",
+        "description": "沒有可安裝的內容。下方四個步驟就是有更新時會執行的動作。"
+      },
+      "available": {
+        "title": "有可用更新",
+        "description": "下載並安裝需要幾分鐘，最後會重啟裝置。整個過程如下。"
+      },
+      "downloading": {
+        "title": "正在下載更新",
+        "description": "正在從 GitHub 取得安裝套件。目前尚未取代任何檔案，數據機仍正常運作。"
+      },
+      "verifying": {
+        "title": "正在驗證下載內容",
+        "description": "QManager 正在以 SHA-256 驗證安裝套件，之後才會取代任何檔案。"
+      },
+      "staged": {
+        "title": "準備安裝",
+        "description": "安裝套件已下載並通過驗證。安裝會取代 QManager 並重啟數據機。"
+      },
+      "installing": {
+        "title": "正在安裝更新",
+        "description": "正在取代應用程式、其服務與 CGI 指令碼。請勿讓數據機斷電。"
+      },
+      "rebooting": {
+        "title": "正在重啟數據機",
+        "description": "安裝已完成。數據機正在重啟，本工作階段會中斷，直到它恢復。"
+      },
+      "chip": {
+        "loading": "檢查中",
+        "unreachable": "無法存取",
+        "check_failed": "檢查失敗",
+        "download_failed": "下載失敗",
+        "install_failed": "安裝失敗",
+        "up_to_date": "已是最新",
+        "available": "有可用更新",
+        "downloading": "下載中",
+        "verifying": "驗證中",
+        "staged": "準備就緒",
+        "installing": "安裝中",
+        "rebooting": "重啟中"
+      }
+    },
+    "delta": {
+      "installed": "已安裝",
+      "available": "可用",
+      "channel_stable": "穩定版",
+      "channel_prerelease": "預先發行版"
+    },
+    "steps": {
+      "aria_label": "更新步驟",
+      "download": {
+        "label": "下載",
+        "detail": "從 GitHub 取得 qmanager.tar.gz"
+      },
+      "verify": {
+        "label": "驗證",
+        "detail": "以 SHA-256 驗證安裝套件"
+      },
+      "install": {
+        "label": "安裝",
+        "detail": "取代應用程式、服務與 CGI 指令碼"
+      },
+      "reboot": {
+        "label": "重啟",
+        "detail": "數據機會重啟。您的工作階段將中斷。"
+      },
+      "state": {
+        "done": "已完成",
+        "active": "進行中"
+      }
+    },
+    "notice": {
+      "rest": "安裝會重啟數據機，本工作階段以及經由它的所有連線都會中斷約一分鐘。",
+      "staged": "安裝會取代 QManager 並重啟數據機。本工作階段會中斷，隨後自動恢復。",
+      "running": "請勿讓數據機斷電。",
+      "failed_check": "QManager 未能讀取版本列表。本數據機上的版本未被更動，這只是一次讀取失敗，並非損失。",
+      "failed_download": "下載沒有完成，因此沒有安裝任何內容。裝置上原有的版本未被更動。",
+      "versions": "這裡的每個選項都會重啟數據機，而較舊的版本可能會撤銷較新版本引入的設定。",
+      "failed_install": "安裝沒有完成，因此數據機上的檔案可能是混雜的。重新安裝可讓它回到一個確定的版本。"
+    },
+    "notes": {
+      "title": "變更內容",
+      "description": "隨 {{version}} 一同發行的發行說明。",
+      "empty_title": "沒有發行說明",
+      "empty_description": "GitHub 未回傳此版本的變更日誌，因此這裡沒有可顯示的內容。",
+      "dialog_title": "{{version}} 的發行說明",
+      "region_label": "發行說明"
+    },
+    "preferences": {
+      "title": "更新偏好設定",
+      "description": "本數據機如何決定何時自我更新。",
+      "auto": {
+        "label": "自動更新",
+        "description": "每天在隨機時間檢查一次，並安裝找到的更新。數據機會重啟以完成安裝。"
+      },
+      "prerelease": {
+        "label": "包含預先發行版本",
+        "description": "提供在 GitHub 上標記為預先發行的版本。它們發行得較早，但測試也較少。"
+      },
+      "error_title": "無法儲存該偏好設定"
+    },
+    "versions": {
+      "title": "版本管理",
+      "description": "安裝、重新安裝或回復到任何已發行的版本。",
+      "select_label": "選擇要安裝的版本",
+      "select_placeholder": "選擇版本",
+      "install": "安裝",
+      "current": "目前",
+      "no_binary": "沒有安裝套件",
+      "dialog": {
+        "title_install": "安裝 {{version}}？",
+        "title_reinstall": "重新安裝 {{version}}？",
+        "description_install": "這會以 {{version}} 取代目前的 {{current}}。完成後數據機會重啟。",
+        "description_reinstall": "這會在數據機上已有的副本之上重新安裝 {{version}}，以進行修復。完成後數據機會重啟。",
+        "size": "下載大小：{{size}}。",
+        "warning": "安裝過程中請勿讓數據機斷電。",
+        "cancel": "取消",
+        "confirm_install": "立即安裝",
+        "confirm_reinstall": "立即重新安裝"
+      },
+      "empty_title": "沒有可選擇的版本",
+      "empty_description": "GitHub 未回傳任何帶有可安裝套件的版本，因此這裡沒有可安裝或可回復的目標。"
+    },
+    "banner": {
+      "title": "上次更新未能完成",
+      "description": "{{pending}} 的待處理標記在重啟後仍然存在，而目前執行的是 {{version}}，因此已安裝的檔案可能是混雜的。重新安裝 {{pending}} 可讓本數據機回到一個確定的版本。",
+      "action": "完成安裝",
+      "description_unknown": "在執行 {{version}} 期間有一次安裝沒有完成，因此已安裝的檔案可能是混雜的。重新安裝可讓本數據機回到一個確定的版本。"
+    },
+    "states": {
+      "loading": {
+        "status": "正在檢查更新"
+      },
+      "unreachable": {
+        "title": "無法存取更新服務",
+        "description": "QManager 無法存取本數據機上的更新端點。已安裝的版本未被更動，這只是一次讀取失敗，並非損失。"
+      }
+    },
+    "time": {
+      "just_now": "剛剛",
+      "minutes": "{{value}} 分鐘前",
+      "minutes_one": "一分鐘前",
+      "hours": "{{value}} 小時前",
+      "hours_one": "一小時前",
+      "days": "{{value}} 天前",
+      "days_one": "一天前"
+    },
+    "toast": {
+      "prerelease_on": "已啟用預先發行更新",
+      "prerelease_off": "已關閉預先發行更新",
+      "auto_on": "已啟用自動更新",
+      "auto_off": "已關閉自動更新",
+      "save_failed": "無法儲存該偏好設定"
+    }
   }
 }
