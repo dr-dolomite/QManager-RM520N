@@ -266,7 +266,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         if [ -n "$f_enabled" ]; then
             case "$f_enabled" in
                 true)  qm_config_set watchcat enabled 1 ;;
-                false) qm_config_set watchcat enabled 0 ;;
+                false) : ;; # committed only after svc_disable succeeds, below
             esac
         fi
 
@@ -311,9 +311,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # Signal running watchcat daemon to reload config (if it's already running)
         touch "$RELOAD_FLAG"
 
-        # Clear auto-disabled flag if user is re-enabling
+        # Desired enabled state: this request's f_enabled if it set one,
+        # otherwise whatever is already persisted (enabled=0 for "false" is
+        # NOT yet written — see the deferred commit below).
         new_enabled=""
-        new_enabled=$(qm_config_get watchcat enabled 0)
+        if [ "$f_enabled" = "false" ]; then
+            new_enabled=0
+        else
+            new_enabled=$(qm_config_get watchcat enabled 0)
+        fi
         if [ "$new_enabled" = "1" ]; then
             rm -f "$DISABLED_FLAG"
             # Enable and start the watchcat service
@@ -324,12 +330,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             ( svc_restart qmanager_watchcat & )
             qlog_info "Watchdog settings saved, watchcat enabled and started"
         else
-            # Stop and disable the watchcat service
+            # Stop and disable the watchcat service BEFORE persisting enabled=0,
+            # so a failed disable never leaves stale "enabled=0" config behind.
             svc_stop qmanager_watchcat
             if ! svc_disable qmanager_watchcat; then
                 cgi_error "service_disable_failed" "Watchdog settings were saved, but the watchcat service could not be disabled on boot (rootfs may be read-only)"
                 exit 0
             fi
+            qm_config_set watchcat enabled 0
             qlog_info "Watchdog settings saved, watchcat stopped and disabled"
         fi
         echo '{"success":true}'

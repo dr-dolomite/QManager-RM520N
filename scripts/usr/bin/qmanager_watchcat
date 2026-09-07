@@ -315,7 +315,7 @@ count_recent_reboots() {
     local now cutoff count
     now=$(date +%s)
     cutoff=$((now - 3600))
-    count=$(awk -v cutoff="$cutoff" -F'|' '$1 >= cutoff { n++ } END { print n+0 }' "$CRASH_LOG" 2>/dev/null)
+    count=$(awk -v cutoff="$cutoff" -F'|' '$1 >= cutoff && $2 == "reboot" { n++ } END { print n+0 }' "$CRASH_LOG" 2>/dev/null)
     reboots_this_hour="${count:-0}"
 }
 

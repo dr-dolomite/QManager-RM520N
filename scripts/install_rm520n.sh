@@ -293,7 +293,8 @@ install_file() {
     cp "$src" "$tmp" || return 1
 
     if ! head -c 4 "$tmp" 2>/dev/null | grep -q $'\x7fELF'; then
-        tr -d '\r' < "$tmp" > "${tmp}.cr" && mv "${tmp}.cr" "$tmp"
+        tr -d '\r' < "$tmp" > "${tmp}.cr" && mv "${tmp}.cr" "$tmp" \
+            || { rm -f "$tmp" "${tmp}.cr"; return 1; }
     fi
 
     chmod "$mode" "$tmp" || { rm -f "$tmp"; return 1; }
@@ -356,8 +357,14 @@ mark_version_pending() {
 
 finalize_version() {
     if [ -f "$VERSION_PENDING" ]; then
-        mv "$VERSION_PENDING" "$CONF_DIR/VERSION"
-        _log_raw "Version $VERSION finalized"
+        # Runs after services are already back up (see main()'s ordering) —
+        # a failed rename here must not abort the reboot over a stale VERSION
+        # marker, so warn and continue rather than die().
+        if mv "$VERSION_PENDING" "$CONF_DIR/VERSION"; then
+            _log_raw "Version $VERSION finalized"
+        else
+            warn "Could not finalize $CONF_DIR/VERSION — install completed, marker left pending"
+        fi
     fi
 }
 
@@ -1233,19 +1240,7 @@ SVCEOF
 
         # Create Entware init.d service (starts Entware services at boot)
         if [ ! -f /lib/systemd/system/rc.unslung.service ]; then
-            cat > /lib/systemd/system/rc.unslung.service << 'RCEOF'
-[Unit]
-Description=Start Entware services
-
-[Service]
-Type=oneshot
-ExecStartPre=/bin/sleep 5
-ExecStart=/opt/etc/init.d/rc.unslung start
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-RCEOF
+            _rc_unslung_unit_body > /lib/systemd/system/rc.unslung.service
             ln -sf /lib/systemd/system/rc.unslung.service \
                 /lib/systemd/system/multi-user.target.wants/rc.unslung.service
             info "Created rc.unslung.service"
@@ -2319,8 +2314,12 @@ migrate_ping_targets() {
         # must not abort the install.
         chmod 644 "$tmp"
         chown www-data:www-data "$tmp" 2>/dev/null || true
-        mv "$tmp" "$target"
-        echo "  Migrated $target to the four-slot chain: $(jq -r '[.target_host_1, .target_host_2, .target_ip_1, .target_ip_2] | join(" -> ")' "$target" 2>/dev/null)"
+        if mv "$tmp" "$target"; then
+            echo "  Migrated $target to the four-slot chain: $(jq -r '[.target_host_1, .target_host_2, .target_ip_1, .target_ip_2] | join(" -> ")' "$target" 2>/dev/null)"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to install migrated $target — left untouched" >&2
+        fi
     else
         rm -f "$tmp"
         echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
@@ -2368,8 +2367,12 @@ migrate_ping_debounce_shadow() {
         "$target" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
         chmod 644 "$tmp"
         chown www-data:www-data "$tmp" 2>/dev/null || true
-        mv "$tmp" "$target"
-        echo "  $target now follows the profile table for fail/recover windows"
+        if mv "$tmp" "$target"; then
+            echo "  $target now follows the profile table for fail/recover windows"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to install debounce-migrated $target — left untouched" >&2
+        fi
     else
         rm -f "$tmp"
         echo "  WARNING: failed to drop seeded debounce keys in $target" >&2
@@ -2731,8 +2734,12 @@ migrate_ping_environment() {
     # and qmanager_setup's per-boot equivalent both flatten it back.
     chmod 644 "$tmp"
     chown root:root "$tmp" 2>/dev/null || true
-    mv "$tmp" "$env_file"
-    echo "  Migrated $env_file (backup at $backup)"
+    if mv "$tmp" "$env_file"; then
+        echo "  Migrated $env_file (backup at $backup)"
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to install migrated $env_file — original left untouched (backup at $backup)" >&2
+    fi
 }
 
 # --- Prune Stale Ping Environment Vars ---------------------------------------
@@ -2780,8 +2787,12 @@ prune_stale_ping_environment() {
         # and must run before migrate_environment_location().
         chmod 644 "$tmp"
         chown root:root "$tmp" 2>/dev/null || true
-        mv "$tmp" "$env_file"
-        echo "  Removed $pruned stale ping env var(s) from $env_file (CARRIER_FILE no longer used)"
+        if mv "$tmp" "$env_file"; then
+            echo "  Removed $pruned stale ping env var(s) from $env_file (CARRIER_FILE no longer used)"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to install pruned $env_file — original left untouched" >&2
+        fi
     else
         rm -f "$tmp"
     fi
@@ -3518,6 +3529,50 @@ install_udev_rules() {
     fi
 }
 
+# --- Config-gated service symlink (UCI_GATED_SERVICES) -----------------------
+
+# jq's `// false` can't tell "explicitly off" from "unreadable" — map by hand
+# so a failed read leaves the existing symlink alone instead of disabling it.
+_apply_gated_symlink() {
+    local _file="$1" _key="$2" _unit="$3" _label="$4"
+    local _link="$WANTS_DIR/${_unit}.service"
+    local _raw
+
+    if [ ! -f "$_file" ]; then
+        [ -L "$_link" ] && warn "$_file missing — leaving $_label symlink untouched"
+        return 0
+    fi
+
+    # The assignment must live INSIDE the if-condition: a bare
+    # `_raw=$(jq ...)` statement is not exempt from `set -e` and a jq parse
+    # failure would abort the whole installer right here.
+    if ! _raw=$(jq -r "${_key} | if . == null then \"unset\" else . end" "$_file" 2>/dev/null) || [ -z "$_raw" ]; then
+        [ -L "$_link" ] && warn "Could not parse $_file — leaving $_label symlink untouched"
+        return 0
+    fi
+
+    case "$_raw" in
+        true|1)
+            ln -sf "$SYSTEMD_DIR/${_unit}.service" "$_link"
+            info "$_label enabled"
+            ;;
+        false|0)
+            rm -f "$_link"
+            info "$_label disabled"
+            ;;
+        *)
+            # "unset" (key absent) lands here too — an absent key is not the
+            # same claim as an explicit false.
+            [ -L "$_link" ] && warn "$_file has no definite setting for $_key — leaving $_label symlink untouched"
+            ;;
+    esac
+
+    # This function must never return non-zero: its call sites are bare
+    # statements under `set -e`, and a failed cosmetic [ -L ]/warn above must
+    # not abort the installer.
+    return 0
+}
+
 # --- Enable Services ---------------------------------------------------------
 
 enable_services() {
@@ -3556,14 +3611,8 @@ enable_services() {
         info "Enabled opt.mount"
     fi
 
-    # Capture pre-install symlink state for gated services so we can restore
-    # the same enabled/disabled state rather than force-enabling them.
-    local gated_was_enabled=""
-    for svc in $UCI_GATED_SERVICES; do
-        if [ -L "$WANTS_DIR/${svc}.service" ]; then
-            gated_was_enabled="$gated_was_enabled $svc"
-        fi
-    done
+    # UCI_GATED_SERVICES are config-driven (see _apply_gated_symlink below),
+    # not symlink-state-gated — nothing to capture before this run.
 
     # Scan all installed qmanager units and enable/skip based on gating
     for unit in "$SYSTEMD_DIR"/qmanager-*.service; do
@@ -3605,24 +3654,13 @@ enable_services() {
         done
 
         if [ "$is_gated" = "1" ]; then
-            # Only re-enable if it was already enabled before this run
-            local was_on=0
-            for w in $gated_was_enabled; do
-                if [ "$w" = "$svc" ]; then
-                    was_on=1
-                    break
-                fi
-            done
-            if [ "$was_on" = "1" ]; then
-                ln -sf "$unit" "$WANTS_DIR/${svc}.service"
-                info "Re-enabled $svc (was previously enabled)"
-            else
-                info "Skipped $svc (enable manually if needed)"
-            fi
-        else
-            ln -sf "$unit" "$WANTS_DIR/${svc}.service"
-            info "Enabled $svc"
+            # Owned entirely by _apply_gated_symlink below — this loop must
+            # not touch its symlink either way.
+            continue
         fi
+
+        ln -sf "$unit" "$WANTS_DIR/${svc}.service"
+        info "Enabled $svc"
     done
 
     # --- Auto-update timer (config-gated, NOT symlink-state-gated) ------------
@@ -3702,62 +3740,28 @@ enable_services() {
         fi
     fi
 
-    # --- Discord bot (gated on binary + config + enabled flag) ----------------
-    if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
-        enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null) || enabled=false
-        if [ "$enabled" = "true" ]; then
-            ln -sf "$SYSTEMD_DIR/qmanager-discord.service" "$WANTS_DIR/qmanager-discord.service"
-            info "Discord bot service enabled"
-        fi
+    # --- Discord / Watchcat / Tower Failover / SMS Forward (config-gated) -----
+    # All four UCI_GATED_SERVICES now go through _apply_gated_symlink, which
+    # is symmetric (enables AND disables) — see its doc-comment for why a
+    # failed config read must never be read as "disabled".
+    if [ -x "$BIN_DIR/qmanager_discord" ]; then
+        _apply_gated_symlink /etc/qmanager/discord_bot.json '.enabled' qmanager-discord "Discord bot service"
     fi
 
-    # --- Watchcat / Tower Failover / SMS Forward (config-gated self-heal) -----
-    # Same shape as the Discord block above, extended to the other three
-    # UCI_GATED_SERVICES. Those three are restored ONLY from pre-install
-    # symlink state (the loop above) — a device that lost its
-    # multi-user.target.wants symlink to a transient EROFS window (see
-    # svc_enable) has configured intent that the symlink-restore loop can
-    # never see, so it stays disabled forever across every future OTA. This
-    # pass re-derives "should be enabled" from the same config each service's
-    # own CGI already treats as authoritative, and is ADDITIVE ONLY: it only
-    # ever ln -sf's a service ON. It never rm -f's one, so it can't undo what
-    # the symlink-restore loop just did — repair upward only, matching the
-    # brief's "never silently turn a working feature off."
-    #
-    # watchcat: /etc/qmanager/qmanager.conf is JSON despite the .conf name;
-    # qm_config_get already degrades to the given default on a missing/
-    # unparseable file (jq failure -> empty val -> default), so no separate
-    # [ -f ... ] guard is needed here — mirrors the auto-update timer block.
+    # watchcat: /etc/qmanager/qmanager.conf is JSON despite the .conf name.
     if [ -x "$BIN_DIR/qmanager_watchcat" ]; then
-        _watchcat_enabled=$(qm_config_get watchcat enabled 0 2>/dev/null) || _watchcat_enabled=0
-        if [ "$_watchcat_enabled" = "1" ]; then
-            ln -sf "$SYSTEMD_DIR/qmanager-watchcat.service" "$WANTS_DIR/qmanager-watchcat.service"
-            info "Watchdog service enabled (watchcat.enabled=1)"
-        fi
+        _apply_gated_symlink /etc/qmanager/qmanager.conf '.watchcat.enabled' qmanager-watchcat "Watchdog service"
     fi
 
-    # tower-failover: /etc/qmanager/tower_lock.json, .failover.enabled (bool).
-    # Same jq -r '... // false' pattern the tower schedule re-arm above and
-    # tower/status.sh both already use for this exact file.
-    if [ -x "$BIN_DIR/qmanager_tower_failover" ] && [ -f /etc/qmanager/tower_lock.json ]; then
-        _failover_enabled=$(jq -r '.failover.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null) || _failover_enabled=false
-        if [ "$_failover_enabled" = "true" ]; then
-            ln -sf "$SYSTEMD_DIR/qmanager-tower-failover.service" "$WANTS_DIR/qmanager-tower-failover.service"
-            info "Tower failover service enabled (failover.enabled=true)"
-        fi
+    if [ -x "$BIN_DIR/qmanager_tower_failover" ]; then
+        _apply_gated_symlink /etc/qmanager/tower_lock.json '.failover.enabled' qmanager-tower-failover "Tower failover service"
     fi
 
-    # sms-forward: /etc/qmanager/sms_forwarding.json, .enabled (bool). Lazy-
-    # created by cellular/sms_forwarding.sh's own tmp+mv on first save — there
-    # is no installer seed, so a fresh/never-configured device simply has no
-    # file here. The [ -f ... ] guard treats that as "not enabled" without
-    # invoking jq on a nonexistent path.
-    if [ -x "$BIN_DIR/qmanager_sms_forward" ] && [ -f /etc/qmanager/sms_forwarding.json ]; then
-        _smsfwd_enabled=$(jq -r '.enabled // false' /etc/qmanager/sms_forwarding.json 2>/dev/null) || _smsfwd_enabled=false
-        if [ "$_smsfwd_enabled" = "true" ]; then
-            ln -sf "$SYSTEMD_DIR/qmanager-sms-forward.service" "$WANTS_DIR/qmanager-sms-forward.service"
-            info "SMS forwarding service enabled (sms_forwarding.enabled=true)"
-        fi
+    # sms_forwarding.json is lazy-created by cellular/sms_forwarding.sh's own
+    # tmp+mv on first save — a never-configured device simply has no file
+    # here yet, which _apply_gated_symlink already treats as "leave alone".
+    if [ -x "$BIN_DIR/qmanager_sms_forward" ]; then
+        _apply_gated_symlink /etc/qmanager/sms_forwarding.json '.enabled' qmanager-sms-forward "SMS forwarding service"
     fi
 
     sync
@@ -4092,6 +4096,142 @@ _verify_dropbear_unit() {
     return 0
 }
 
+# --- rc.unslung unit body (single source of truth) ---------------------------
+
+# install_dependencies (fresh install) and ensure_rc_unslung_unit_ordering (OTA)
+# both emit through this, so the two paths cannot drift.
+# Requires=opt.mount only when that unit file exists — a Requires= on a
+# nonexistent unit makes rc.unslung fail to start outright.
+_rc_unslung_unit_body() {
+    printf '%s\n' '[Unit]' 'Description=Start Entware services'
+    [ -f "$SYSTEMD_DIR/opt.mount" ] && printf '%s\n' 'Requires=opt.mount'
+    printf '%s\n' \
+        'After=opt.mount' \
+        '' \
+        '[Service]' \
+        'Type=oneshot' \
+        'ExecStartPre=/bin/sleep 5' \
+        'ExecStart=/opt/etc/init.d/rc.unslung start' \
+        'RemainAfterExit=yes' \
+        '' \
+        '[Install]' \
+        'WantedBy=multi-user.target'
+}
+
+# The old body, verbatim. ensure_rc_unslung_unit_ordering only rewrites a unit
+# byte-identical to this — anything else is someone's own file.
+_rc_unslung_unit_body_legacy() {
+    cat << 'RCOLDEOF'
+[Unit]
+Description=Start Entware services
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 5
+ExecStart=/opt/etc/init.d/rc.unslung start
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+RCOLDEOF
+}
+
+# Atomic write, same rationale as _write_dropbear_unit: temp file + rename(2)
+# so a power loss mid-write never leaves a truncated unit on flash.
+_write_rc_unslung_unit() {
+    local _dest="$SYSTEMD_DIR/rc.unslung.service"
+    local _tmp="${_dest}.new"
+
+    mount -o remount,rw / 2>/dev/null || true
+
+    if ! _rc_unslung_unit_body > "$_tmp" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not stage $_tmp — rc.unslung.service left unchanged"
+        return 1
+    fi
+    chmod 0644 "$_tmp" 2>/dev/null || true
+    sync 2>/dev/null || true
+
+    if ! mv -f "$_tmp" "$_dest" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not install $_dest — rc.unslung.service left unchanged"
+        return 1
+    fi
+    sync 2>/dev/null || true
+
+    return 0
+}
+
+# Never creates a unit or rewrites one it didn't write itself, and must never
+# die()/return non-zero — every failure path leaves today's working unit in place.
+ensure_rc_unslung_unit_ordering() {
+    local _dest="$SYSTEMD_DIR/rc.unslung.service"
+    local _bak="${_dest}.qmbak"
+    local _current
+
+    [ -f "$_dest" ] || return 0
+
+    # `|| true` is load-bearing: the installer runs under `set -e` (:42) and a
+    # bare assignment from a failed command substitution would abort the
+    # whole install, which this function must never do.
+    _current=$(cat "$_dest" 2>/dev/null) || true
+
+    if [ "$_current" = "$(_rc_unslung_unit_body)" ]; then
+        info "rc.unslung.service ordering already current"
+        return 0
+    fi
+
+    if [ "$_current" != "$(_rc_unslung_unit_body_legacy)" ]; then
+        warn "rc.unslung.service is not QManager's — leaving it untouched"
+        return 0
+    fi
+
+    # Written only when absent, so it always holds the true original even if
+    # a later OTA runs this again.
+    if [ ! -f "$_bak" ]; then
+        cp "$_dest" "$_bak" 2>/dev/null || true
+        chmod 0644 "$_bak" 2>/dev/null || true
+    fi
+
+    _write_rc_unslung_unit || return 0
+    systemctl daemon-reload 2>/dev/null || true
+
+    if _verify_rc_unslung_unit; then
+        info "rc.unslung.service ordered after opt.mount"
+        return 0
+    fi
+
+    warn "rc.unslung.service did not verify — restoring the previous unit"
+    if [ -f "$_bak" ] && cp "$_bak" "$_dest" 2>/dev/null; then
+        chmod 0644 "$_dest" 2>/dev/null || true
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+        warn "Restored the previous rc.unslung.service — ordering unchanged"
+    else
+        warn "Could not restore $_bak — inspect $_dest before rebooting"
+    fi
+
+    return 0
+}
+
+# Reads back what systemd parsed, same rationale as _verify_dropbear_unit:
+# an unknown lvalue still reads `loaded`, so LoadState can't see a mis-authored
+# directive. Requires/After are space-separated lists, hence the padded match.
+_verify_rc_unslung_unit() {
+    local _requires _after
+
+    _requires=" $(systemctl show rc.unslung -p Requires --value 2>/dev/null) "
+    _after=" $(systemctl show rc.unslung -p After --value 2>/dev/null) "
+
+    # Requires= is only emitted when the opt.mount unit exists, so only assert it then.
+    if [ -f "$SYSTEMD_DIR/opt.mount" ]; then
+        case "$_requires" in *" opt.mount "*) : ;; *) return 1 ;; esac
+    fi
+    case "$_after" in *" opt.mount "*) : ;; *) return 1 ;; esac
+
+    return 0
+}
+
 # --- Early SSH Bootstrap (fresh installs only) -------------------------------
 # Runs once, right after install_dependencies (so Entware/dropbear are available)
 # and before the rest of the install. On fresh installs with no existing SSH,
@@ -4380,6 +4520,13 @@ main() {
     # install) and unconditionally, because that function returns early on every
     # OTA, so this is the only path that reaches an already-installed device.
     ensure_dropbear_unit_ordering
+
+    # Same unconditional-reach reason as ensure_dropbear_unit_ordering above.
+    # Order between the two doesn't matter to systemd (Before=/After= don't
+    # require the referenced unit to exist yet), but both must run before
+    # stop_services so a broken rc.unslung ordering is fixed even on a run
+    # that never reaches install_dependencies.
+    ensure_rc_unslung_unit_ordering
 
     stop_services
 

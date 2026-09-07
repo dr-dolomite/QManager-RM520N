@@ -845,6 +845,7 @@
     "activity": {
       "cause": {
         "planned": "Pianificato",
+        "scheduled": "Programmato",
         "unexpected": "Imprevisto",
         "watchdog": "Watchdog"
       },

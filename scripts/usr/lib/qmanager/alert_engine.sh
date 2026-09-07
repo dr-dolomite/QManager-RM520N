@@ -233,13 +233,15 @@ _ae_append_reboot_history() {
 }
 
 # Classify the reboot that just happened by inspecting the newest crash.log
-# line. Sets _ae_reboot_cause to one of: watchdog | user | unplanned.
+# line. Sets _ae_reboot_cause to one of: watchdog | user | scheduled | unplanned.
 _ae_classify_reboot() {
     _ae_reboot_cause="unplanned"
     [ -f "$_AE_CRASH_LOG" ] || return 0
 
     local last_line last_epoch last_tag now age
-    last_line=$(tail -n 1 "$_AE_CRASH_LOG" 2>/dev/null)
+    # Skip lines from the clock-step guard aren't reboots — take the newest
+    # line whose verb field is exactly "reboot", not just the last line.
+    last_line=$(grep '|reboot|' "$_AE_CRASH_LOG" 2>/dev/null | tail -n 1)
     [ -z "$last_line" ] && return 0
 
     last_epoch=$(printf '%s' "$last_line" | cut -d'|' -f1)
@@ -254,6 +256,7 @@ _ae_classify_reboot() {
         case "$last_tag" in
             tier4_escalation) _ae_reboot_cause="watchdog" ;;
             user)             _ae_reboot_cause="user" ;;
+            scheduled)        _ae_reboot_cause="scheduled" ;;
             *)                _ae_reboot_cause="unplanned" ;;
         esac
     fi

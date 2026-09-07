@@ -28,7 +28,7 @@ The Alerts subsystem consolidates the three previously-independent notification 
 | Test-email helper | `/usr/bin/qmanager_email_send` (sudoers-gated root helper; one verb, `test`) |
 | Reboot ledger | `/etc/qmanager/reboot_history.json` (**persistent**, NDJSON, cap 10) |
 | Boot-id state | `/etc/qmanager/last_boot_id` (**persistent**) |
-| Crash log (read-only here) | `/etc/qmanager/crash.log` (**persistent**, written by watchdog / root helper) |
+| Crash log (read-only here) | `/etc/qmanager/crash.log` (**persistent**, written by watchdog / scheduled-reboot worker / root helper; two line shapes — see [the line contract](#the-crashlog-line-contract)) |
 | Legacy redirects | `/monitoring/{email-alerts,sms-alerts,discord-bot}` → `/monitoring/alerts` |
 
 **The model, at a glance:** 3 events × 3 channels, gated by a user routing matrix AND a hardcoded backend capability table.
@@ -300,19 +300,50 @@ On `alert_engine_init`, `_ae_init_boot_check`:
 3. **First boot (file absent):** record the id, but **never alert.** Installs and OTA upgrades reboot the device themselves; that must not look like a crash to the user.
 4. **Id changed:** classify the cause, append to the ledger, arm `_ae_reboot_pending`, and persist the new id.
 
+### The `crash.log` line contract
+
+`crash.log` is a pipe-delimited flat file with **three fields and two line shapes**:
+
+```
+<epoch>|<verb>|<tag>
+```
+
+| Shape | Meaning | Written by |
+|-------|---------|------------|
+| `<epoch>\|reboot\|<tag>` | A reboot is about to happen (or just did) | `qmanager_watchcat` (Tier 4), `qmanager_crash_log_append` (user), `qmanager_scheduled_reboot` (scheduled) |
+| `<epoch>\|skip\|<reason>` | The scheduled-reboot worker decided **not** to reboot | `qmanager_scheduled_reboot` |
+
+The `skip` shape was added in 2026-09 for issue #9. It is a diagnostic breadcrumb, not an alert input: this platform masks `systemd-journald` to `/dev/null` and wipes `/tmp` each boot, so a fire guard that denies a spurious reboot would otherwise leave no evidence it ran at all. See [scheduled-timers.md](scheduled-timers.md#the-skip-trace-a-denied-fire-leaves-evidence).
+
+> ⚠️ WARNING: **Field 2 is a discriminator, and every reader must filter on it.** There are three read sites across two files, and all three now test `$2 == "reboot"` (or `grep '|reboot|'`):
+>
+> | Reader | Purpose | Filter |
+> |--------|---------|--------|
+> | `alert_engine.sh` → `_ae_classify_reboot` | Which cause to report | `grep '\|reboot\|' \| tail -n 1` |
+> | `alert_engine.sh` → `_ae_deliver_reboot` | Coalescing count for the trailing hour | `awk '$2 == "reboot"'` |
+> | `qmanager_watchcat` → `count_recent_reboots()` | The watchdog's own hourly reboot budget | `awk '$2 == "reboot"'` |
+>
+> **Anyone adding a third line shape must update all three.** This is not hypothetical — missing the watchdog reader was a live regression during the issue #9 change: the new `skip` lines were counted as reboots by `count_recent_reboots()`, which tripped the hourly cap and silently disabled the watchdog's Tier-4 recovery rung for an hour. The classifier and the coalescer were correct; the third reader, in a different file, was not.
+
 ### Classification (crash.log tags)
 
-`_ae_classify_reboot` inspects the newest `crash.log` line — pipe-delimited `<epoch>|reboot|<tag>` — but only trusts it if the entry is within a 600-second window of now (an old breadcrumb from a previous boot must not misclassify this one):
+`_ae_classify_reboot` takes the newest line **whose verb field is exactly `reboot`** — not simply the last line, which may now be a `skip` — and trusts it only if the entry is within a 600-second window of now (an old breadcrumb from a previous boot must not misclassify this one):
 
 | crash.log tag | Classified cause |
 |---------------|------------------|
 | `tier4_escalation` | `watchdog` |
 | `user` | `user` |
-| *(anything else, or no recent line)* | `unplanned` |
+| `scheduled` | `scheduled` |
+| *(anything else, or no recent `reboot` line)* | `unplanned` |
 
 - **`watchdog`** — the connection watchdog's Tier-4 reboot wrote `tier4_escalation` as root (see [connection-watchdog.md](connection-watchdog.md)).
 - **`user`** — a user-initiated reboot (via `system/reboot.sh`) wrote the `user` breadcrumb through the sudoers-gated root helper (below).
+- **`scheduled`** — the Scheduled Reboot timer fired legitimately and `qmanager_scheduled_reboot` wrote `<epoch>|reboot|scheduled` immediately before calling `reboot`. Before this existed, a scheduled reboot had no breadcrumb at all and fell through to `unplanned` — so the feature working exactly as configured was reported to the user as a crash.
 - **`unplanned`** — the fallback when there's no positive breadcrumb: power loss, kernel panic, hardware watchdog. There is no hardware signal for this — it's inferred from the *absence* of an intentional-reboot tag.
+
+The cause vocabulary is therefore **`watchdog | user | scheduled | unplanned`**, mirrored by the `RebootCause` union in `types/alerts.ts`. The four maps in `components/monitoring/alerts/alerts-log-card.tsx` — `REBOOT_TONE`, `REBOOT_GLYPH`, `REBOOT_CAUSE_KEY`, `REBOOT_CAUSE_EN` — are each declared `Record<RebootCause, …>`, so adding a member to the union without filling in all four **fails the build** rather than rendering a blank row. That is the enforcement; the shell side has none, so a new tag written by a worker but absent from `_ae_classify_reboot`'s `case` silently classifies as `unplanned`.
+
+`scheduled` renders as a **neutral** row with a `CalendarClockIcon` — a reboot you asked for is not something to notice, so it sits beside `user` rather than beside `watchdog`. Its label is `alerts.activity.cause.scheduled`, present in all five locales.
 
 > ℹ️ NOTE: The engine reads `crash.log` but never writes it — it only ever `tail`s it. A www-data CGI writing it directly would be a symlink-escalation hole, which is why the `user` breadcrumb goes through a root helper (below).
 >
@@ -331,7 +362,8 @@ It exists solely so a user-initiated reboot leaves a `user` breadcrumb *before* 
 - **Reason whitelist:** the only accepted argument is the literal string `user`. Anything else is rejected with a JSON error — caller text is never interpolated.
 - **Symlink guard:** a symlinked `crash.log` is removed rather than followed.
 - **Re-asserts `root:root 644` on every call**, not just at creation, because the `chown -R www-data:www-data /etc/qmanager` pass flips it back. Note that this only holds until the next boot chown — see the warning above; treat it as hygiene, not as an ownership guarantee.
-- Trims to the last 20 lines, matching the watchdog's own convention.
+- Trims to the last 20 lines after its own append, matching the watchdog's own convention.
+- **Pre-caps at 200 lines before appending.** The helper's 20-line trim only ever runs when the helper itself is called, and root workers now append directly without going through it — the scheduled-reboot worker writes a `skip` line on every denied fire, which on a device inside the boot-misfire window is once per boot. Both this helper and the worker's own appender therefore trim to the newest 100 lines whenever the file passes 200, so the added write volume cannot grow unbounded on flash. Neither trim is allowed to fail the append: on a failed `tail`/`mv` the temp file is removed and the line is written anyway.
 
 ### Delivery & coalescing
 
@@ -501,7 +533,7 @@ The Alerts page owns *notification* config only. Several adjacent files are owne
 | `qmanager.conf` `[watchcat]` (`watchcat.*`) | Connection Watchdog (`watchdog.sh`) | Off-limits. Recovery tiers, thresholds, SIM-failover config. |
 | `ping_profile.json` | Watchdog (`interval_sec`) + Connection Quality (`profile`/`targets`) | Off-limits. The connectivity *producer's* config. |
 | `quality_thresholds.json` | Connection Quality (Latency & Loss Thresholds card, feeding `events.sh`) | Off-limits. Latency/loss presets are quality signals, not connectivity. |
-| `crash.log` | Watchdog (Tier 4) + the `user` root helper | **Read-only** for the engine; written only by root paths. |
+| `crash.log` | Watchdog (Tier 4) + Scheduled Reboot worker + the `user` root helper | **Read-only** for the engine; written only by root paths. Three writers, two line shapes — see [the line contract](#the-crashlog-line-contract). |
 
 The alert engine *reads* the connectivity verdict indirectly (via the poller's `conn_internet_available` global, itself derived from `qmanager_ping`) but never touches any of these files. Conversely, the watchdog and quality subsystems never touch `alert_routing.json` or the channel configs. This clean separation is why an alert can fire without a watchdog recovery, and a recovery can happen without an alert.
 
@@ -509,7 +541,8 @@ The alert engine *reads* the connectivity verdict indirectly (via the poller's `
 
 ## Related docs
 
-- Connection Watchdog — the recovery ladder that writes `tier4_escalation` reboot breadcrumbs — [connection-watchdog.md](connection-watchdog.md)
+- Connection Watchdog — the recovery ladder that writes `tier4_escalation` reboot breadcrumbs, and the third `crash.log` reader — [connection-watchdog.md](connection-watchdog.md)
+- Scheduled timers — the `scheduled` reboot cause, the `skip` line shape, and the clock-step fire guard that produces it — [scheduled-timers.md](scheduled-timers.md#the-skip-trace-a-denied-fire-leaves-evidence)
 - Connection Quality — the `qmanager_ping` producer and the latency/loss thresholds surface — [connection-quality.md](connection-quality.md)
 - Discord bot internals (daemon lifecycle, DM channel resolution, OAuth) — [discord-bot.md](discord-bot.md)
 - AT command transport (`sms_tool`, `flock` serialization for the SMS channel) — [at-command-transport.md](at-command-transport.md)

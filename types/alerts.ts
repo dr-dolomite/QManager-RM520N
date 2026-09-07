@@ -80,7 +80,7 @@ export type AlertCapabilities = Record<AlertEventKey, AlertCapabilityCell>;
 /** How a recorded reboot was classified. `unplanned` is inferred as the
  *  absence of any intentional-reboot breadcrumb — there is no positive
  *  hardware signal for it on the device. */
-export type RebootCause = "watchdog" | "user" | "unplanned";
+export type RebootCause = "watchdog" | "user" | "scheduled" | "unplanned";
 
 export interface RebootHistoryEntry {
   /** Unix epoch seconds of the reboot, as recorded on the device. */

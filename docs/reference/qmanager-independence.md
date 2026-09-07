@@ -414,6 +414,24 @@ record — and is strictly **additive**:
 did, so a live install printed only `WARNING: failed to seed sim_registry.json`
 with the actual ONIGURUMA error discarded. Capture stderr into the warning text.
 
+### ⚠️ OTA-reach rule: a fix inside `install_dependencies()` reaches zero deployed devices
+
+Every OTA invokes the installer with `--skip-packages`, which sets `DO_PACKAGES=0`
+and skips `install_dependencies()` in its entirety. So a repair written there — and
+especially one written as `if [ ! -f "$unit" ]; then …` inside it, which additionally
+refuses to touch anything that already exists — runs only on a **fresh** install. It
+looks correct in review, passes on a clean device, and never reaches a single machine
+in the field.
+
+The pattern that does reach the field is an **unconditional `ensure_*` function called
+from `main()`**, which rewrites the drifted state whether or not the file already
+exists and then confirms the result with a `systemctl show`-based read-back rather
+than trusting the write. `ensure_dropbear_unit_ordering()` is the precedent;
+`ensure_rc_unslung_unit_ordering()` was added on the same shape. Both run before
+`stop_services()` so the repair lands even on a run that never reaches
+`install_dependencies()`. Worked example and the defect that forced it:
+[scheduled-timers.md](scheduled-timers.md).
+
 ---
 
 ## Device permissions (/dev/smd11 & udev)
@@ -624,23 +642,23 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 
 ### OTA self-heal for gated services
 
-**Short version: a gated service is now re-enabled if EITHER its boot symlink existed before the upgrade OR its own config says it should be on. The two passes are additive, so an OTA repairs a device that lost a symlink instead of preserving the loss forever.**
+**Short version: the config file is now the sole authority on whether a gated service boots. Prior symlink state is no longer consulted at all, so an OTA repairs a device that lost a symlink instead of preserving the loss forever — and honours a disable the user made since the last run.**
 
 `enable_services()` in `install_rm520n.sh` originally restored the `UCI_GATED_SERVICES` set purely from **pre-install symlink state** — it snapshotted `multi-user.target.wants/` before wiping the tree, then recreated whatever it found. That is a reasonable "don't turn on what the user turned off" rule, but it has a trap: symlink state is not the user's *intent*, it is a cache of it. A device that lost a symlink to a transient read-only rootfs (see [BACKEND.md §2.1](../BACKEND.md#21-rootfs-mount-mode-contract)) has configured intent the snapshot can never see, so the feature stayed disabled through **every future OTA**. Discord happened to escape this because it already had a second, config-gated pass; watchcat, tower-failover and SMS forwarding did not.
 
-`enable_services()` now runs a config-gated pass for all four, reading the same file each service's own CGI already treats as authoritative:
+`enable_services()` now routes all four through the single `_apply_gated_symlink()` helper, reading the same file each service's own CGI already treats as authoritative:
 
 | Service | Unit | Config source | Enabled when |
 |---------|------|---------------|--------------|
 | Discord bot | `qmanager-discord.service` | `/etc/qmanager/discord_bot.json` | `.enabled == true` |
-| Connection watchdog | `qmanager-watchcat.service` | `qm_config_get watchcat enabled` (`/etc/qmanager/qmanager.conf`, JSON despite the name) | `== 1` |
+| Connection watchdog | `qmanager-watchcat.service` | `/etc/qmanager/qmanager.conf` (JSON despite the name), key `.watchcat.enabled` | `== true` or `== 1` |
 | Tower failover | `qmanager-tower-failover.service` | `/etc/qmanager/tower_lock.json` | `.failover.enabled == true` |
 | SMS forwarding | `qmanager-sms-forward.service` | `/etc/qmanager/sms_forwarding.json` | `.enabled == true` |
 
-Two properties make this safe:
+The helper is **symmetric** — it enables *and* disables — which is only safe because of the property that makes it so:
 
-- **Additive only.** The pass never runs `rm -f` — it only ever `ln -sf`s a service **on**. It therefore cannot undo the symlink-restore loop that ran just before it, and cannot silently turn a working feature off. Repair goes upward only.
-- **Absent config means "not enabled".** `sms_forwarding.json` is lazily created by the CGI on first save, so a never-configured device simply has no file; an explicit `[ -f ]` guard treats that as off rather than invoking `jq` on a missing path. `qm_config_get` already degrades to its supplied default on a missing or unparseable file, so the watchcat block needs no separate guard.
+- **Only an explicit value acts. Everything else leaves the symlink alone.** `ln -sf` on `true`/`1`, `rm -f` on `false`/`0`, and on *anything else* — file missing, `jq` parse failure, key absent — the existing symlink is untouched with a warning. "I could not read your setting" is not the same claim as "you turned this off", and a jq `// false` cannot tell them apart, so the mapping is done by hand rather than through a default. This is what makes a never-configured device (`sms_forwarding.json` is lazily created by the CGI on first save) and a device with one corrupt config file both harmless.
+- **The helper never returns non-zero.** Its call sites are bare statements under `set -e`, so a failed cosmetic `[ -L ]` test inside it would otherwise abort the installer.
 
 > ℹ️ NOTE: All twelve `VAR=$(...)` config reads in `enable_services()` now carry an `|| VAR=<default>` fallback. The installer runs under `set -e`, so a single malformed JSON file would otherwise abort the whole run **before** `finalize_version()` — leaving `VERSION.pending` behind and the device reporting a failed install for what is really one bad config field.
 

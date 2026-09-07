@@ -5,6 +5,7 @@ import { motion, type Variants } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   BellOffIcon,
+  CalendarClockIcon,
   PowerIcon,
   RefreshCcwIcon,
   SendIcon,
@@ -82,29 +83,33 @@ function deliveryTime(ts: string): number {
 }
 
 /** A reboot is not an alert, so it keeps a neutral ground; the disc carries
- *  whether it was something to notice. Glyphs separate all three causes. */
+ *  whether it was something to notice. Glyphs separate all four causes. */
 const REBOOT_TONE: Record<RebootCause, RowTone> = {
   unplanned: "notable",
   watchdog: "notable",
   user: "neutral",
+  scheduled: "neutral",
 };
 
 const REBOOT_GLYPH: Record<RebootCause, LucideIcon> = {
   unplanned: TriangleAlertIcon,
   watchdog: ShieldCheckIcon,
   user: PowerIcon,
+  scheduled: CalendarClockIcon,
 };
 
 const REBOOT_CAUSE_KEY: Record<RebootCause, string> = {
   unplanned: "alerts.activity.cause.unexpected",
   watchdog: "alerts.activity.cause.watchdog",
   user: "alerts.activity.cause.planned",
+  scheduled: "alerts.activity.cause.scheduled",
 };
 
 const REBOOT_CAUSE_EN: Record<RebootCause, string> = {
   unplanned: "Unexpected",
   watchdog: "Watchdog",
   user: "Planned",
+  scheduled: "Scheduled",
 };
 
 const CHANNEL_KEY: Record<AlertChannel, string> = {

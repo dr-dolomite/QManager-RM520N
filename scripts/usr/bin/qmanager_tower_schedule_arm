@@ -138,6 +138,7 @@ write_timer() {
         printf '%s\n' "$_line"
         printf 'Unit=%s\n' "$_service"
         printf 'Persistent=false\n'
+        printf 'AccuracySec=1s\n'
         printf '\n[Install]\n'
         printf 'WantedBy=timers.target\n'
     } > "$_tmp" 2>/dev/null

@@ -845,6 +845,7 @@
     "activity": {
       "cause": {
         "planned": "计划内",
+        "scheduled": "定时",
         "unexpected": "意外",
         "watchdog": "看门狗"
       },

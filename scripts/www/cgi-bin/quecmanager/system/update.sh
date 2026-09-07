@@ -324,9 +324,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             true|false) ;;
             *) cgi_error "invalid_value" "enabled must be true or false"; exit 0 ;;
         esac
-        echo "$auto_time" | grep -qE '^[0-9]{2}:[0-9]{2}$' || {
-            cgi_error "invalid_value" "time must be HH:MM format"; exit 0
-        }
+        # case, not grep -E: BusyBox grep returns rc 2 on error too, which a
+        # bare `||` can't tell apart from a clean no-match.
+        case "$auto_time" in
+            [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
+            *) cgi_error "invalid_value" "time must be HH:MM format"; exit 0 ;;
+        esac
 
         case "$enabled" in
             true)  qm_config_set update auto_update_enabled 1 ;;

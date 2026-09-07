@@ -139,6 +139,7 @@ tmp_unit="${UNIT_DIR}/.${UNIT}.tmp.$$"
     # _qm_timer_fire_allowed() in schedule_timer.sh. See issue #9 and
     # docs/reference/scheduled-timers.md ("The 1970 boot window").
     printf 'Persistent=false\n'
+    printf 'AccuracySec=1s\n'
     printf '\n[Install]\n'
     printf 'WantedBy=timers.target\n'
 } > "$tmp_unit" 2>/dev/null

@@ -3,6 +3,8 @@
 Description=QManager Discord Bot
 After=network-online.target qmanager-poller.service
 Wants=network-online.target
+StartLimitIntervalSec=3600
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -16,8 +18,6 @@ TimeoutStartSec=30
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=10s
-StartLimitIntervalSec=3600
-StartLimitBurst=5
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=qmanager-discord

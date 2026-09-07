@@ -964,10 +964,16 @@ lockout at any point):
   session and the OTA survive the rewrite unconditionally.
 
 > ⚠️ **`LoadState` is not a unit verifier.** An unknown lvalue — a directive in the
-> wrong section — still reads `loaded`. Six shipped QManager units put
-> `StartLimitIntervalSec` in `[Service]`, where systemd ignores it; the RM520N-GL
-> reports the 10s default while `LoadState` reads `loaded` throughout. Verify by
-> reading back the specific properties systemd parsed.
+> wrong section — still reads `loaded`. `StartLimitIntervalSec` / `StartLimitBurst`
+> are **`[Unit]` directives**; put in `[Service]` they are parsed, silently discarded,
+> and the unit falls back to systemd's 10s/5 default while `LoadState` reads `loaded`
+> throughout. Six shipped QManager units had them in `[Service]` — measured live on
+> RM520N-GL as an effective 10s against a declared 3600, so the burst window never
+> filled and the rate limiter never fired. **Fixed:** all six (`qmanager-watchcat`,
+> `-poller`, `-ping`, `-discord`, `-sms-forward`, `-dpi`) now carry both directives in
+> `[Unit]`. The trap remains open for any *new* unit — check the section, and verify
+> by reading back the specific properties systemd parsed
+> (`systemctl show -p StartLimitIntervalUSec,StartLimitBurst <unit>`), never `LoadState`.
 
 #### The two sub-findings found while measuring — both now resolved
 

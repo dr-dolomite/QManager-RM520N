@@ -3,6 +3,8 @@
 Description=QManager Modem Data Poller
 After=qmanager-setup.service qmanager-ping.service
 Wants=qmanager-ping.service
+StartLimitIntervalSec=3600
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -17,8 +19,6 @@ TimeoutStartSec=35
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=5s
-StartLimitIntervalSec=3600
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

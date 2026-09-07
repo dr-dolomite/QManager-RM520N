@@ -17,14 +17,14 @@
 Description=QManager Traffic Engine (tpws DPI bypass)
 After=network.target qmanager-setup.service
 ConditionPathExists=/usrdata/qmanager/bin/tpws
+StartLimitIntervalSec=3600
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/qmanager_dpi_run
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=3600
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

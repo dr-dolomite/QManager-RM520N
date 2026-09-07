@@ -80,6 +80,11 @@ if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
         qlog_info "Auto-update check skipped: boot-window fire (clock-step guard, issue #9)"
         exit 0
     fi
+else
+    # No guard library — this worker is reboot-capable (exec's the updater's
+    # own reboot), so an unguarded boot-window fire must not proceed.
+    qlog_warn "Auto-update check skipped: guard library unavailable, failing closed (issue #9)"
+    exit 0
 fi
 
 # --- Guard: master on/off switch ---------------------------------------------

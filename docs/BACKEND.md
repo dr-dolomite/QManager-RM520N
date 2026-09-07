@@ -910,7 +910,9 @@ OTA update worker. See §12 for full pipeline description. Called via `sudo -n` 
 
 **Boot persistence model:** Boot persistence uses direct symlinks in `/lib/systemd/system/multi-user.target.wants/`. `systemctl enable` does not work on RM520N-GL because unit files live on a partition where the `systemctl enable` mechanism cannot write. Use `svc_enable`/`svc_disable` from `platform.sh`.
 
-**`UCI_GATED_SERVICES` pattern:** During upgrades, `install_rm520n.sh` only re-enables `qmanager-watchcat` and `qmanager-tower-failover` if their `multi-user.target.wants/` symlink existed before the upgrade. The variable is named `UCI_GATED_SERVICES` for historical reasons (RM551E had UCI-gated enables); on RM520N-GL the mechanism is purely symlink-presence detection with no UCI involvement.
+**`UCI_GATED_SERVICES` pattern:** The four services in this set (`qmanager-watchcat`, `qmanager-tower-failover`, `qmanager-discord`, `qmanager-sms-forward`) get their boot symlink from **their own config file, not from prior symlink state**. `install_rm520n.sh` routes all four through `_apply_gated_symlink()`, which `ln -sf`s the unit when the config says explicitly enabled and `rm -f`s it when the config says explicitly disabled. The variable is named `UCI_GATED_SERVICES` for historical reasons (RM551E had UCI-gated enables); there is no UCI involvement on RM520N-GL.
+
+> ℹ️ NOTE: **An unreadable config never disables a service.** A missing file, an unparseable file, or an absent key all leave the existing symlink exactly as it is — only an explicit `false`/`0` removes it. "I couldn't read your setting" and "you turned this off" are different claims, and the installer must never confuse them. See [qmanager-independence.md > OTA self-heal for gated services](reference/qmanager-independence.md#ota-self-heal-for-gated-services).
 
 | Service | Type | Binary | Description |
 |---------|------|--------|-------------|

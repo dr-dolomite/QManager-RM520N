@@ -2,14 +2,14 @@
 [Unit]
 Description=QManager SMS Forwarding Daemon
 After=network.target qmanager-setup.service
+StartLimitIntervalSec=3600
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/qmanager_sms_forward
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=3600
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

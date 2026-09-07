@@ -125,6 +125,7 @@ tmp_unit="${UNIT_DIR}/.${UNIT}.tmp.$$"
     printf '%s\n' "$line"
     printf 'Unit=%s\n' "$SERVICE"
     printf 'Persistent=false\n'
+    printf 'AccuracySec=1s\n'
     printf '\n[Install]\n'
     printf 'WantedBy=timers.target\n'
 } > "$tmp_unit" 2>/dev/null

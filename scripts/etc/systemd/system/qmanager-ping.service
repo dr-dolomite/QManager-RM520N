@@ -2,6 +2,8 @@
 [Unit]
 Description=QManager Ping Daemon
 After=network.target qmanager-setup.service
+StartLimitIntervalSec=3600
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -30,8 +32,6 @@ EnvironmentFile=-/etc/qmanager.env
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=5s
-StartLimitIntervalSec=3600
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

@@ -1041,7 +1041,8 @@
       "cause": {
         "unexpected": "Unexpected",
         "watchdog": "Watchdog",
-        "planned": "Planned"
+        "planned": "Planned",
+        "scheduled": "Scheduled"
       },
       "channel": {
         "sms": "SMS",

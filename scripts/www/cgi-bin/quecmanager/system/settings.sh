@@ -207,7 +207,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         if [ "$ENABLED" = "true" ]; then
             # Validate time format HH:MM
             case "$SCHED_TIME" in
-                [0-2][0-9]:[0-5][0-9]) ;;
+                [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
                 *)
                     cgi_error "invalid_time" "time must be HH:MM format"
                     exit 0
@@ -269,13 +269,27 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         DAYS_RESP=$(printf '%s' "$DAYS_RAW" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)
         [ -z "$DAYS_RESP" ] && DAYS_RESP="[0,1,2,3,4,5,6]"
 
-        jq -n \
-            --argjson enabled "$([ "$ENABLED" = "true" ] && echo true || echo false)" \
-            --arg time "$SCHED_TIME" \
-            --argjson days "$DAYS_RESP" \
-            --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
-            --arg reason "$arm_reason" \
-            '{success: true, armed: $armed, reason: $reason, scheduled_reboot: {enabled: $enabled, time: $time, days: $days}}'
+        # The config write above always succeeds, so this stays success:true;
+        # an arm failure is surfaced as a warning (matches scenarios/activate.sh's
+        # partial_band_lock convention) rather than changing the success shape.
+        if [ "$arm_ok" != "true" ]; then
+            jq -n \
+                --argjson enabled "$([ "$ENABLED" = "true" ] && echo true || echo false)" \
+                --arg time "$SCHED_TIME" \
+                --argjson days "$DAYS_RESP" \
+                --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
+                --arg reason "$arm_reason" \
+                --arg detail "${arm_reason:-Scheduled reboot timer could not be armed}" \
+                '{success: true, armed: $armed, reason: $reason, warning: "reboot_arm_failed", detail: $detail, scheduled_reboot: {enabled: $enabled, time: $time, days: $days}}'
+        else
+            jq -n \
+                --argjson enabled "$([ "$ENABLED" = "true" ] && echo true || echo false)" \
+                --arg time "$SCHED_TIME" \
+                --argjson days "$DAYS_RESP" \
+                --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
+                --arg reason "$arm_reason" \
+                '{success: true, armed: $armed, reason: $reason, scheduled_reboot: {enabled: $enabled, time: $time, days: $days}}'
+        fi
         exit 0
     fi
 

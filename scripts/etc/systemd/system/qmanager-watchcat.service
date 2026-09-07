@@ -3,6 +3,8 @@
 Description=QManager Connection Health Watchdog
 After=qmanager-poller.service qmanager-ping.service
 Wants=qmanager-poller.service qmanager-ping.service
+StartLimitIntervalSec=3600
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -17,8 +19,6 @@ ExecStopPost=/bin/sh -c 'rm -f /tmp/qmanager_watchcat.pid /tmp/qmanager_watchcat
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=5s
-StartLimitIntervalSec=3600
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

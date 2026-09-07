@@ -170,6 +170,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             fi
         fi
 
+        # Disable requested: stop/disable the daemon BEFORE persisting the
+        # config, so a failed disable never leaves stale saved state behind.
+        if [ "$ENABLED" = "false" ]; then
+            svc_stop qmanager_sms_forward
+            if ! svc_disable qmanager_sms_forward; then
+                cgi_error "service_disable_failed" "Settings were not saved: the daemon could not be disabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
+        fi
+
         mkdir -p "$(dirname "$CONFIG")" 2>/dev/null
 
         TMP="${CONFIG}.tmp"
@@ -197,11 +207,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             svc_restart qmanager_sms_forward
             qlog_info "SMS forwarding enabled, daemon enabled and restarted"
         else
-            svc_stop qmanager_sms_forward
-            if ! svc_disable qmanager_sms_forward; then
-                cgi_error "service_disable_failed" "SMS forwarding settings were saved, but the daemon could not be disabled on boot (rootfs may be read-only)"
-                exit 0
-            fi
             qlog_info "SMS forwarding disabled, daemon stopped and disabled"
         fi
 

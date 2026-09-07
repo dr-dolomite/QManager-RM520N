@@ -55,14 +55,14 @@ fi
 if [ "$ENABLED" = "true" ]; then
     # Validate time format HH:MM
     case "$START_TIME" in
-        [0-2][0-9]:[0-5][0-9]) ;;
+        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
         *)
             cgi_error "invalid_start_time" "start_time must be HH:MM format"
             exit 0
             ;;
     esac
     case "$END_TIME" in
-        [0-2][0-9]:[0-5][0-9]) ;;
+        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
         *)
             cgi_error "invalid_end_time" "end_time must be HH:MM format"
             exit 0
@@ -151,11 +151,26 @@ qlog_info "Tower schedule timer ${ENABLED}: apply at ${START_TIME}, clear at ${E
 DAYS_RESP=$(printf '%s' "$DAYS_RAW" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)
 [ -z "$DAYS_RESP" ] && DAYS_RESP="$DAYS_JSON"
 
-jq -n \
-    --argjson enabled "$ENABLED" \
-    --arg start "$START_TIME" \
-    --arg end "$END_TIME" \
-    --argjson days "$DAYS_RESP" \
-    --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
-    --arg reason "$arm_reason" \
-    '{success: true, armed: $armed, reason: $reason, enabled: $enabled, start_time: $start, end_time: $end, days: $days}'
+# The config write above always succeeds, so this stays success:true; an arm
+# failure is surfaced as a warning (matches scenarios/activate.sh's
+# partial_band_lock convention) rather than changing the success shape.
+if [ "$arm_ok" != "true" ]; then
+    jq -n \
+        --argjson enabled "$ENABLED" \
+        --arg start "$START_TIME" \
+        --arg end "$END_TIME" \
+        --argjson days "$DAYS_RESP" \
+        --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
+        --arg reason "$arm_reason" \
+        --arg detail "${arm_reason:-Tower schedule timer could not be armed}" \
+        '{success: true, armed: $armed, reason: $reason, warning: "tower_schedule_arm_failed", detail: $detail, enabled: $enabled, start_time: $start, end_time: $end, days: $days}'
+else
+    jq -n \
+        --argjson enabled "$ENABLED" \
+        --arg start "$START_TIME" \
+        --arg end "$END_TIME" \
+        --argjson days "$DAYS_RESP" \
+        --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
+        --arg reason "$arm_reason" \
+        '{success: true, armed: $armed, reason: $reason, enabled: $enabled, start_time: $start, end_time: $end, days: $days}'
+fi
