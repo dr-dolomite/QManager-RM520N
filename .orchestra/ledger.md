@@ -942,3 +942,885 @@ themes, against a fetch-shimmed CGI; the reboot handoff was driven end to end.
 
 Not merged. The parent session owns merge and close-out.
 
+
+---
+
+# Orchestration Ledger — Issue #9 regression audit (1970 clock-step reboot loop)
+BASELINE: f10172f13e214be38b59ddc0aebbf797ee492444 | working tree clean | 2026-09-07
+MODE: Full (Agent tool + real shell). Codex CLI: NOT INSTALLED — no Codex seats, no consent needed.
+LEAD SEAT: Opus 5 (FRONTIER).
+SURFACE: live RM520N-GL reachable (port 22 open); RG501Q-EU OFFLINE (port 22 closed).
+USER CONSTRAINT: auditor MUST be an Opus agent.
+STAKES: field reports include a user who RE-FLASHED the modem to escape the loop.
+        Recoverability is in scope, not just "does it fire".
+
+## Plan
+1. A1 — Opus auditor: scheduled-reboot fire path + fire-guard correctness (core bug). FRONTIER.
+2. A2 — Opus auditor: blast radius — other OnCalendar timers, watchcat wants-link,
+        rc.unslung/opt.mount, recoverability, regressions from the patches. FRONTIER.
+3. D1 — modem-investigator: live read-only probe of on-device timer/unit state. (pins own model)
+4. V1 — orchestra-verifier: blind second read, issue text verbatim, no auditor reasoning. FRONTIER.
+5. Conductor: synthesise, gate with user before any code change.
+
+## Routing
+A1 → FRONTIER → Agent(general-purpose, model=opus) — adversarial reasoning about a clock-jump race; user mandated Opus.
+A2 → FRONTIER → Agent(general-purpose, model=opus) — same class, disjoint surface; runs parallel.
+D1 → project agent modem-investigator — pins its own model; NEVER pass a model override.
+V1 → FRONTIER → orchestra-verifier (model: inherit = Opus) — blind, same model / independent context.
+
+## Tasks
+| id | state | owned paths | notes |
+|----|-------|-------------|-------|
+| A1 | PENDING | read-only | writes report to .orchestra/scratch/issue9-A1.md |
+| A2 | PENDING | read-only | writes report to .orchestra/scratch/issue9-A2.md |
+| D1 | PENDING | read-only (device) | no writes, no reboots, no service restarts |
+| V1 | PENDING | read-only | dispatched after A1/A2 land |
+
+## Decisions
+- No code changes in this run without an explicit user gate (CLAUDE.md change workflow).
+- All three dispatches are READ-ONLY; write sets are empty except each agent's own scratch file
+  under .orchestra/scratch/ (gitignored) — provably disjoint.
+- Device probe is strictly read-only: CLAUDE.md forbids reboot / CFUN / service restart / config
+  write on a live device without a user yes.
+
+## Attempts
+| A1 | 1 | Agent(general-purpose, model=opus) | rev1 | DISPATCHED | — | .orchestra/scratch/issue9-A1.md | 2026-09-07 |
+| A2 | 1 | Agent(general-purpose, model=opus) | rev1 | DISPATCHED | — | .orchestra/scratch/issue9-A2.md | 2026-09-07 |
+| D1 | 1 | modem-investigator (pins own model) | rev1 | DISPATCHED | live RM520N-GL, read-only | .orchestra/scratch/issue9-D1.md | 2026-09-07 |
+| A1 | 1 | Agent(general-purpose, model=opus) | rev1 | REPORTED(DONE_WITH_CONCERNS) -> ACCEPTED | verdict FIXED_WITH_GAPS; 2 Critical, 3 Major, 3 Minor | .orchestra/scratch/issue9-A1.md | 2026-09-07 |
+| V1 | 1 | orchestra-verifier (inherit=Opus) | rev1 | DISPATCHED | blind; fenced from A1/A2 reports | .orchestra/scratch/issue9-V1.md | 2026-09-07 |
+| A2 | 1 | Agent(general-purpose, model=opus) | rev1 | REPORTED(DONE_WITH_CONCERNS) -> ACCEPTED | verdict FIXED_WITH_GAPS; 3 Critical, 4 Major, 4 Minor | .orchestra/scratch/issue9-A2.md | 2026-09-07 |
+
+### Note on A2's tree concern
+A2 observed `?? public/__proposal_preview.html` mid-run. Re-checked at conductor level after A2
+reported: file ABSENT, `git status --porcelain` shows only ` M .orchestra/ledger.md` (the
+conductor's own append). Transient, not residue. ` M ledger.md` is this run's own bookkeeping.
+
+### Open deterministic check (outranks any model verdict)
+A2 Critical#2 claims `StartLimitIntervalSec=` sits in `[Service]` across 6 units, where systemd
+>=229 ignores it, collapsing to the 10s/5 default and (with RestartSec=5) an unbounded restart
+loop. This is settleable on the live device in one read-only command:
+  systemctl show <unit> -p StartLimitIntervalSec -p StartLimitBurst -p RestartUSec
+Effective values of 10s/5 that disagree with the shipped unit file PROVE the claim.
+Routed to D1 as a follow-up rather than run by the conductor, to avoid a concurrent-SSH collision.
+| D1 | 1 | modem-investigator | rev1 | REPORTED(DONE_WITH_CONCERNS) -> ACCEPTED | md5 match device==repo; guard replay; rc.unslung 203/EXEC live | .orchestra/scratch/issue9-D1.md | 2026-09-07 |
+
+### CONDUCTOR DETERMINISTIC CHECKS (Layer 1 — authoritative, outrank any model verdict)
+Run by the conductor over Posh-SSH, strictly read-only. SendMessage is disabled this session, so
+the D1 follow-ups were executed here rather than by resuming the agent.
+
+C-1 START LIMITS — A2's INFERRED Critical is now PROVEN on hardware.
+  All 6 units declare `StartLimitIntervalSec=3600` INSIDE `[Service]`; systemd's effective
+  value is 10s (the default) for every one of them:
+    watchcat / ping / poller / discord / sms-forward / dpi
+    declared: StartLimitIntervalSec=3600 (in [Service])  effective: StartLimitIntervalUSec=10s
+    RestartUSec 5s (10s for discord), StartLimitBurst=5, Restart=on-failure
+  => directive SILENTLY DROPPED. Burst of 5 unreachable within 10s at RestartSec=5s,
+     so the rate limiter never trips: unbounded restart loop. Status: CONFIRMED, not inferred.
+
+C-2 GUARD REPLAY on the DEPLOYED library (pure funcs, worker never invoked; schedule 04:00 daily):
+    year=2026 uptime=26s: 03:49 DENY | 03:50 ALLOW | 03:55 ALLOW | 04:00 ALLOW | 04:02 ALLOW
+                          04:05 ALLOW | 04:10 ALLOW | 04:11 DENY | 04:20 DENY | 15:20 DENY
+    year=1970 uptime=23s  -> DENY   (pre-step misfire correctly denied)
+    year=2026 uptime=400s -> ALLOW  at an UNRELATED 15:20  <== A1 Critical#2 CONFIRMED
+    year=1970 uptime=99999-> DENY   (no-SIM device: schedule never fires, ever)
+  => A1 Critical#1 and Critical#2 both CONFIRMED against the deployed byte-identical guard.
+
+C-3 ATTRIBUTION CORRECTION — D1 over-claimed; conductor downgrades two of its statements.
+  (i) reboot_history.json cause vocabulary is `watchdog | user | unplanned` only
+      (alert_engine.sh:236,257). `qmanager_scheduled_reboot` calls `reboot` at :82 WITHOUT
+      writing a crash.log marker, unlike the UI path (system/reboot.sh:44). So a scheduled
+      reboot is recorded as "unplanned" — indistinguishable from a crash. The 2026-09-03
+      cluster (10:54:11, 10:56:08, 10:57:05, 10:58:07 +0800; deltas 117s/57s/62s) has the
+      SHAPE of a loop but is NOT attributable to the timer from this data. Downgrade to
+      corroborating, not probative.
+  (ii) EVERY file under /usr/lib/qmanager and /usr/bin has mtime 2026-09-07 18:59 (today's
+      install of v0.1.14-draft). D1's "guard already deployed on 2026-09-03" is NOT supported
+      by on-device evidence. Furthermore the device has NOT booted since that install
+      (uptime continuous from 04:02), so NO boot-behaviour evidence exists for the current
+      build. The probative evidence is C-2 (direct replay of the deployed guard), not history.
+  NEW FINDING (conductor): scheduled reboots are misclassified as "unplanned" in reboot_history
+      and crash.log — they will read as crashes to the alert engine and the UI.
+| V1 | 1 | orchestra-verifier (inherit=Opus) | rev1 | REPORTED(FAIL) -> ACCEPTED | independent FAIL; same two paths; +path (e) second clock step | (chat report) | 2026-09-07 |
+
+### TICKET DEFECT — disclosed, does not overturn the result
+`gh issue view 9 --comments` writes ONLY the comments; the issue BODY was never in
+.orchestra/scratch/issue9-verbatim.md. A1/A2/V1 therefore read comments + the core claim I
+inlined in each ticket, not the full body. Conclusions stand because (a) each ticket inlined the
+mechanism and the specific sub-claims verbatim, and (b) all three converged with the conductor's
+own hardware replay (C-2), which is independent of the issue text entirely. Recorded as a
+conductor error, not papered over. Fix for future runs: `gh issue view N --json body,comments`.
+
+### CONVERGENCE
+Four independent readings — A1 (opus), A2 (opus), V1 (opus, blind), conductor hardware replay —
+agree on both loop paths. V1 adds path (e): a SECOND/non-NITZ clock step near the schedule
+minute also lands in the tolerance window. Independence axis: same model family, independent
+contexts + one real-hardware measurement. Disclosed as such, not as a cross-family second opinion.
+
+### TREE STATE AT CLOSE
+` M .claude/agent-memory/modem-investigator/*` (2 files) — the agent's own memory upkeep, real
+findings (jq-before-opt.mount; /etc/qmanager now 0755 not 0777). Not residue; left uncommitted
+for the user. ` M .orchestra/ledger.md` — this file. HEAD unchanged at f10172f. NO source file
+was modified by this run: the audit was read-only end to end.
+
+### FINAL VERDICT (conductor)
+STILL VULNERABLE. Issue #9 is NOT fixed at HEAD. The patch closed the ordinary-boot misfire and
+left two live loop paths, one bounded and one unbounded, plus an unrelated third Critical
+(start-limit placement) proven on hardware. 1 of the issue's 3 suggested fixes is fully shipped.
+No code change made — remediation gated on the user per CLAUDE.md's change workflow.
+
+---
+
+## RUN 2026-09-07 — About / Support / Donate design-language adoption pass
+
+- **Baseline commit:** f10172f13e214be38b59ddc0aebbf797ee492444 (`development`, clean tree)
+- **Worktree:** `.claude/worktrees/about-support-donate` · branch `wt/about-support-donate`
+- **Tier:** 2, frontend-only Lite Path. Design approved by the user at the gate before this run.
+- **Mode:** Full orchestration (Agent tool + real shell). Conductor does not write production code.
+
+| # | Task | Owner | Write set | State |
+|---|------|-------|-----------|-------|
+| R1 | Recon: shapes/motion/primitives conventions | orchestra-scout (sonnet) | none (read-only) | DONE |
+| R2 | Recon: i18n conventions + CRLF recipe | orchestra-scout (sonnet) | none (read-only) | PENDING |
+| B1 | About Device re-author (shapes/derive/components/hook/types) | ui-builder | components/about-device/**, app/about-device/**, hooks/use-about-device.ts, types/about-device.ts | PENDING |
+| B2 | Support + Donate re-author (shared donate links) | ui-builder | components/support/**, components/donate-dialog.tsx | PENDING |
+| B3 | i18n keying across 5 locale packs | orchestra-worker (sonnet) | public/locales/** | PENDING |
+| V1 | Blind verification | orchestra-verifier | none | PENDING |
+| D1 | Reference doc + CLAUDE.md routing rows | docs-writer | docs/reference/**, CLAUDE.md | PENDING |
+
+
+### V1 ADDENDUM (second report) + auditor disagreement RESOLVED
+V1 promotes one item out of "Not checked": `install_rm520n.sh:3678-3688` re-arms the timer from
+config on every install/OTA, so an affected device carries Path A/C ACROSS the upgrade.
+This CONTRADICTS A2's framing ("OTA actively re-arms/tears down from config so upgrading devices
+are healed"). Both describe the same mechanism; V1's reading is the correct one for the user's
+question: re-arming from an unchanged config re-arms the VULNERABILITY. Conductor adopts V1.
+Consequence: "upgrade to the fixed release" is NOT a field remedy on its own — the fix must
+change the guard, not merely ship a new build. Belongs in RELEASE_NOTES.
+Also: sudoers.d/qmanager:64 confirms qmanager_scheduled_reboot_arm is NOPASSWD for www-data, so
+the UI teardown path is genuinely wired — just unreachable inside a ~29s boot window.
+
+### USER GATE — ANSWERED 2026-09-07
+Scope: **EVERYTHING FOUND** (loop paths + start limits + rc.unslung/opt.mount incl. field reach +
+watchdog wants-symlink restore-from-config + scheduled-reboot cause marking + bare-mv OTA aborts).
+Device policy: **ASK BEFORE EACH REBOOT** — deploy + read-only replay free; every reboot or
+service restart on the live RM520N-GL needs an explicit yes first.
+Run transitions from AUDIT (read-only, complete) to REMEDIATION. Next: read
+docs/reference/change-workflow.md in full per CLAUDE.md, then Phase 1 Triage.
+
+### RUN CLOSED 2026-09-07 — AUDIT COMPLETE, REMEDIATION DEFERRED BY USER
+User elected to run the (largest-blast-radius) remediation in a FRESH orchestrate session rather
+than continue in this one. Correct call: the fix touches install_rm520n.sh, 6 systemd units, the
+guard library and 4 workers, and this session is carrying ~full audit context.
+
+Phase 1 Triage was NOT entered. `docs/reference/change-workflow.md` was opened but the fresh
+session must read it in full itself before its first `**[Phase 1 — Triage]**` header.
+
+HANDOFF: .orchestra/scratch/issue9-handoff.md — 19 ranked findings with file:line evidence, the
+timer inventory, the two user decisions already taken (scope = EVERYTHING FOUND; device policy =
+ASK BEFORE EACH REBOOT), device state, and the suggested fix direction (persisted fire-stamp +
+gate on time-since-clock-sane rather than uptime + a short-uptime circuit breaker).
+
+TREE AT CLOSE: HEAD f10172f (unchanged). Modified, uncommitted, none of it source:
+  M .orchestra/ledger.md                                  (this journal)
+  M .claude/agent-memory/modem-investigator/*  (2 files)   (agent memory upkeep, real findings)
+Untracked: .orchestra/scratch/issue9-{A1,A2,D1,handoff,verbatim}.md (gitignored).
+No production file was touched. Memories written: 3 (issue-9 status, StartLimit trap, gh flag trap).
+
+---
+
+## RUN 2026-09-07 — Issue #9 REMEDIATION (1970 clock-step reboot loop)
+
+- **Baseline commit:** f10172f13e214be38b59ddc0aebbf797ee492444 (`development`)
+- **Baseline tree:** M .orchestra/ledger.md, M .claude/agent-memory/modem-investigator/{MEMORY.md,etc_qmanager_is_0777_www_data_writable.md} — no source file modified
+- **Mode:** Full orchestration (Agent tool + real shell). Conductor = Opus 5 (FRONTIER, LEAD seat). Codex not probed — project agents pin their own models; no Codex seat needed.
+- **Predecessor:** audit run closed same day; handoff `.orchestra/scratch/issue9-handoff.md` (19 findings).
+- **User decisions carried in (do NOT re-ask):** scope = EVERYTHING FOUND; device policy = ASK BEFORE EACH REBOOT.
+- **Tier:** 4 (installer / systemd units / sudoers-adjacent / OTA path). Full 6-phase flow, no Lite Path.
+
+### Conductor's own reading (before any dispatch)
+Read `schedule_timer.sh` in full. Confirms findings 1, 2, 13, 14, 15 first-hand:
+- `_qm_timer_fire_allowed` = `sane AND (settled OR matches)`. The `settled` leg is an OR-ESCAPE:
+  once uptime >= 300 it allows a fire at ANY time of day. That is finding 2's unbounded loop.
+- `_qm_now_matches_hhmm` fail-open confirmed: on awk failure both operands are empty NAMES inside
+  `$(( ))`, POSIX arithmetic resolves an unset name to 0, so `d=0` and the tolerance test passes.
+- `_qm_validate_hhmm` shape `[0-2][0-9]` accepts hours 24-29 — confirmed line 47.
+- Header cites `docs/plans/issue-9-clock-step-timer-fix.md`, deleted in 4a61d7f — confirmed.
+
+### Corrections to the handoff (found by conductor, pre-dispatch)
+1. Finding 18 overstates. `qmanager_auto_update:77-82` IS guarded. What it lacks is a LIB-MISSING
+   FALLBACK: `[ -f ... ] && . ...` then `if command -v` means a failed load silently proceeds
+   UNGUARDED. Same shape in `qmanager_scenario_schedule:54-56` and `qmanager_tower_schedule:49-50`.
+   The defect is real; the description "falls through UNGUARDED" is only true on lib-load failure.
+2. `qmanager-auto-update.timer` carries **RandomizedDelaySec=3h** — it genuinely has NO single
+   schedule minute. Any fix requiring a schedule-minute match CANNOT apply to auto-update.
+3. Finding 3 has a 7th site the handoff missed: `install_rm520n.sh:3937-3938`
+   (StartLimitIntervalSec=60 / Burst=40, heredoc-written unit) — to be confirmed by census.
+
+### Conductor's proposed fix architecture (to be attacked before it is planned)
+The guard asks "did this fire at a plausible TIME?" — a heuristic. Replace with two facts:
+- **(A) Persisted occurrence-key fire-stamp.** Before any side effect, stamp the occurrence the
+  fire belongs to; refuse a repeat of a stamped occurrence. Key = `YYYY-MM-DD HH:MM` (schedule
+  minute) for the fixed-time timers, `YYYY-MM-DD` for auto-update. Root-owned persistent store.
+  Kills path A (tolerance re-entry) and path E (second clock step) outright.
+- **(B) Make the schedule-minute match REQUIRED, and DELETE the `boot_settled` leg** for the three
+  fixed-time workers: `sane AND matches AND not-already-stamped`. A legitimate systemd fire always
+  matches by construction. Kills path B (finding 2) outright — a misfire at 15:20 for an 04:00
+  schedule is denied regardless of uptime. This makes the handoff's "time-since-clock-sane marker"
+  UNNECESSARY, removing a proposed coupling to the poller.
+- **(C) auto-update** cannot use (B) (RandomizedDelaySec=3h). It gets (A) alone at day granularity:
+  bounded to one fire per calendar day => cannot loop.
+- **Store location:** NOT `/etc/qmanager` — it is www-data-owned 0777, so nothing root-pinned
+  survives there and a plain `>` is symlink-redirectable. Use a root-owned sibling matching the
+  established precedent (`/etc/qmanager.env`, `/etc/qmanager-secrets`, `/etc/qmanager-backups`).
+  New installed artifact => installer/uninstall/OTA lockstep => installer-safety-auditor is a
+  BLOCKING Phase 1 gate.
+
+### Phase 1 gate routing (by competency, not by tier)
+| Gate | Fires? | Why |
+|---|---|---|
+| `installer-safety-auditor` | YES — blocking | New persistent artifact, 6+ unit edits, OTA field-reach, uninstall lockstep |
+| devil's advocate (Opus) | YES — mandatory, never trimmed | Attack the (A)+(B)+(C) design before it is planned |
+| census scout (Sonnet) | YES | Legwork: exact file:line for the 12 non-guard findings. A list, not a judgment |
+| `modem-investigator` | NO | Change has no modem-state surface. Conductor does the cheap read-only probe himself first, per "run it before you dispatch" |
+| `busybox-portability-checker` | Phase 5 only | Dispatch for residue AFTER conductor runs the changed scripts on device |
+
+| # | Task | Class | Owner | Write set | State |
+|---|------|-------|-------|-----------|-------|
+| G1 | Installer/systemd/OTA safety gate on proposed design | judgment | installer-safety-auditor (pinned) | none (read-only) | PENDING |
+| G2 | Devil's advocate vs the (A)+(B)+(C) architecture | judgment | general-purpose (opus) | none (read-only) | PENDING |
+| G3 | Census: file:line for findings 3,6,7,8,9,10,11,12,16,17,18,19 | list | general-purpose (sonnet) | none (read-only) | PENDING |
+| P0 | Conductor device probe: reachability + unit state, read-only | list | conductor | none | PENDING |
+
+### P0 — CONDUCTOR DEVICE PROBE (read-only) — ACCEPTED. MAJOR NEW FINDING.
+RM520N-GL (serial 61368cd2, v0.1.14-draft) reachable. RG501Q-EU OFFLINE (ping fail) — unchanged
+from the audit; no cross-device diff possible this run.
+
+**Device did NOT loop, and the reason is an ACCIDENT — this is the field bug's real mechanism.**
+
+Live state: booted 04:02:27, `qmanager-scheduled-reboot.timer` LAST fired 04:02:53 (uptime 26s) —
+i.e. the boot-window misfire happened. The worker logged
+`Scheduled reboot skipped: fire outside schedule window` and did NOT reboot. But replaying the
+DEPLOYED guard proves it should have ALLOWED: `now=04:02 uptime=26 sched=04:00 -> ALLOW`.
+
+Resolved the contradiction by measuring systemd monotonic timestamps:
+| Event | Monotonic |
+|---|---|
+| `timers.target` active | 5,997,359 us  (6.0 s) |
+| `qmanager-scheduled-reboot.service` ExecMainStart | 26,903,671 us (26.9 s) |
+| `opt.mount` active | 30,226,214 us (30.2 s) |
+
+`jq` is an ENTWARE binary at `/opt/bin/jq` (confirmed; `/opt` is a separate ubi2_0 mount). The
+worker runs at 26.9s; `/opt` mounts at 30.2s. So at fire time **jq did not exist**, so
+`qm_config_get settings sched_reboot_time` returned its empty default, so the guard was called as
+`_qm_timer_fire_allowed ""` — and with no schedule minute the tolerance leg cannot engage, so it
+denied. Verified directly: guard with `sched=""`, uptime 26, year 2026 -> **DENY**.
+
+CONSEQUENCES (these change the plan):
+1. **The protection is a 3.3-second RACE, not a guard.** Whenever `opt.mount` wins that race (faster
+   boot, different SIM registration timing, another device, an OTA that reorders units), the config
+   read SUCCEEDS, `sched_time` becomes "04:00", the tolerance leg engages, and Path A goes live ->
+   reboot loop. This explains the field pattern precisely: some devices loop, some do not, and it
+   presents to the owner as "the hardware suddenly broke".
+2. **No part of the fix may depend on `jq` or `/opt`.** A fire-stamp written or read through jq
+   silently no-ops in exactly the boot window it exists to defend. The stamp store and its
+   reader/writer must use BusyBox-only primitives. HARD CONSTRAINT on the design.
+3. Design (B) (match REQUIRED) is reinforced, not broken: in the boot window the config read fails
+   -> no schedule minute -> DENY (fail-closed); at the legitimate fire `/opt` is mounted -> match ->
+   ALLOW. But the dependency must be made EXPLICIT and intentional rather than accidental.
+4. Do NOT "fix" this by ordering the timers After=opt.mount — that would make jq available in the
+   boot window and ARM Path A. Counter-intuitive, and worth stating in the plan so nobody does it.
+5. `rc.unslung.service` observed `failed` / exit-code (finding 8 reproduced on this boot).
+6. `/etc/qmanager` is www-data:www-data 0755 here (not 0777) but still www-data-OWNED, so the
+   root-pinned-state objection stands; root-owned siblings `/etc/qmanager-secrets` (0700) and
+   `/etc/qmanager-backups` (0700) confirm the precedent for the stamp store.
+7. Config lives at `/etc/qmanager/qmanager.conf` (JSON, read via jq) — NOT `config.json`.
+
+STARTLIMIT (finding 3) REPRODUCED on hardware: all six units report effective
+`StartLimitIntervalUSec=10s`, `StartLimitBurst=5` despite declaring 3600 — confirming the
+`[Service]`-section placement is silently discarded.
+
+### P0 REFINEMENT — the race is a MOUNT race, not a PATH race
+Ruled out the PATH hypothesis: `/usr/bin/jq` is a SYMLINK to `/opt/bin/jq`, and systemd's default
+PATH (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`) contains `/usr/bin`. The
+qmanager daemons additionally carry an Entware-prefixed PATH. So jq is reachable by name in every
+context — the symlink simply DANGLES until `/opt` mounts. Confirmed jq resolves and the config read
+returns "04:00" under the real daemon PATH.
+=> The failure window is exactly `[worker start 26.9s, opt.mount 30.2s]` = 3.3 s. Nothing orders any
+qmanager timer relative to `opt.mount` (grep: no matches), so the margin is unmanaged on every boot.
+=> Restating the hard constraint: the fire-stamp store/reader MUST be BusyBox-only (no jq, nothing
+under /opt). `config.sh`'s `qm_config_get` is unusable inside the boot window BY CONSTRUCTION.
+
+### G1 installer-safety-auditor — REPORTED DONE_WITH_CONCERNS -> ACCEPTED
+Verdict PROCEED WITH CHANGES. Confirmed F5/F6/F7/F9/F10 with line evidence. Key durable facts:
+- FIELD REACH: the 6 unit files, `schedule_timer.sh` and the 4 workers ALL reach deployed devices
+  (glob-installed in `install_backend()` :1702-1706, gated only on DO_BACKEND, never --skip-packages).
+  `rc.unslung.service` does NOT (written under `if [ ! -f ]` at :1235 inside `install_dependencies()`,
+  skipped by --skip-packages via :4303/:4351). Template for the fix: `ensure_dropbear_unit_ordering`,
+  called UNCONDITIONALLY at :4382 with a `systemctl show` read-back verifier at :4074-4093.
+- F6 correct restore predicate: delete the prior-symlink-state capture (:3562-3566, restored :3617)
+  and make the config-driven pass SYMMETRIC (ln -sf when enabled / rm -f when not), copying the
+  auto-update timer pattern at :3640-3650.
+- F7: config commit at watchdog.sh:266-271 precedes svc_disable at :327-332 — reorder or make the
+  write conditional.
+- F10: 4 bare `mv` CONFIRMED at :2322, :2371, :2734, :2783 (`set -e` at :42), all post-stop_services.
+- An already-looping device does NOT self-heal via OTA — orthogonal to the guard fix.
+
+### G2 devil's advocate — REPORTED DONE_WITH_CONCERNS -> ACCEPTED. CONDUCTOR'S DESIGN IS OVERTURNED.
+The advocate broke (A)+(B). Adjudicated by the conductor; the advocate wins on the design, the
+auditor's installer facts stand.
+
+**K1 (fatal to (B)):** two callers pass `""` — `qmanager_scenario_schedule:56` and
+`qmanager_auto_update:79`. Deleting `_qm_boot_settled` reduces the composite to `return 1` for an
+empty sched, so BOTH workers die permanently and silently on every device. My design never said what
+replaced the leg for them; the scenario worker was omitted from the design entirely, and (B) is
+architecturally inapplicable to it (`_scenario_generate_oncalendar_lines` emits one line per
+transition boundary — there is no single minute to match).
+**K3 (fatal to (A)+(B) jointly):** device reboots 03:59 for an unrelated reason, clock steps at
+04:00:xx. sane OK, matches OK, not-stamped OK -> ALLOW -> reboot, AND today's occurrence is consumed
+so the real scheduled reboot is skipped too. The SHIPPED code denies this via uptime 24s < 300.
+=> (A)+(B) is WORSE than f10172f on this case, in exchange for a persistent store + OTA lockstep.
+**K2:** occurrence key takes its DATE from "now", so any schedule within tol of midnight gets an
+extra reboot AND loses the next night's legitimate fire, permanently. Moot once (A) is dropped.
+**K4:** stronger reason `/etc/qmanager` is unusable than the conductor's: `qmanager_setup:177` runs
+`chown -R www-data:www-data /etc/qmanager` ON EVERY BOOT.
+**K6:** under a required match, finding 15's fail-open IS the guard. Must be fixed in the same change.
+**K7:** neither guard nor design is DAY-MASK aware. `OnCalendar=Sun,Mon,...` but the guard only sees
+HH:MM, so a Mon-only schedule spuriously fires on a Wednesday. `sched_reboot_days` + `date +%w` free.
+
+**CONDUCTOR'S RULING — adopt the advocate's minimal fix, DROP the persistent stamp entirely.**
+Uptime was never the wrong axis; it was the wrongly-COMBINED axis. Every misfire lands at
+boot+24-29s, so uptime is the one input that cannot be spoofed by a clock step.
+    allowed = clock_sane AND uptime >= N AND (sched is empty OR now_matches(sched, tol))
+i.e. change the OR-escape into a required AND-leg. Verified by the conductor against the recorded
+replay matrix: `04:02/26 -> DENY` (Path A dies), `15:20/400 -> DENY` (Path B dies), legitimate
+`04:00/large -> ALLOW`, `""` callers keep `sane AND uptime>=N` (K1 dies). The new composite is a
+strict AND-tightening of the shipped one, so it can only ever deny MORE — it cannot introduce a new
+spurious fire. Residual cost is false negatives only (device booted < N sec before the schedule
+minute), which for a reboot payload is arguably correct behaviour.
+=> DROPPED from scope: `/etc/qmanager-state`, the fire-stamp, its write discipline, its retention
+policy, and its install/uninstall/OTA lockstep. Large scope reduction on the highest-risk surface.
+=> The conductor's P0 `sync`-before-reboot question is now moot for the stamp, and separately
+answered: `/sbin/reboot -> /bin/systemctl`, so a reboot is a systemd clean shutdown (which syncs).
+
+**Empty-sched subtlety the conductor is adding on top of the advocate's formula:** "(sched empty OR
+match)" lets an empty sched PASS, so a jq/`/opt` read failure at uptime>=N would reopen Path B for
+the REBOOT worker. The two workers that HAVE a schedule (reboot, tower) must therefore treat an
+unreadable schedule as a hard DENY in the worker itself, before calling the guard — distinguishing
+"no schedule by design" (scenario/auto-update) from "schedule unreadable" (a failure).
+
+**Free field remedy the audit missed (advocate).** Pulling the SIM leaves the clock at 1970 forever,
+so `_qm_clock_sane` denies every fire and the loop stops — the device stays up and the owner can
+disable the schedule in the UI. This is already CONFIRMED in the issue body itself ("SIM removed ->
+device stays up indefinitely, fully stable"). Zero code, works on a device that is looping RIGHT NOW,
+and it directly refutes handoff finding 4's "no recovery path a normal user can take".
+=> Belongs in RELEASE_NOTES and as a comment on issue #9, ahead of any code.
+
+**Circuit breaker: NOT BUILT.** It cannot reach an already-looping device (same ~29s window that
+blocks the OTA), so it does nothing for the affected population, and a real one needs monotonic-only
+state plus a new unit. The SIM-pull remedy covers the field case for free.
+
+### P0b — CONDUCTOR PROOF OF THE CORRECTED DESIGN (read-only, deployed library, no code written)
+Composed the PROPOSED composite out of the DEPLOYED pure functions over SSH and ran both side by
+side. Method is D1's replay protocol (QM_TEST_YEAR / QM_TEST_UPTIME / QM_TEST_NOW_HHMM).
+
+| scenario | year | uptime | now | sched | SHIPPED | PROPOSED |
+|---|---|---|---|---|---|---|
+| Path A re-entry            | 2026 | 26    | 04:02 | 04:00 | ALLOW | **DENY** |
+| Path A tolerance edge      | 2026 | 26    | 04:10 | 04:00 | ALLOW | **DENY** |
+| Path B late step           | 2026 | 400   | 15:20 | 04:00 | ALLOW | **DENY** |
+| Path B late step           | 2026 | 900   | 09:33 | 04:00 | ALLOW | **DENY** |
+| K3 unrelated reboot        | 2026 | 24    | 04:00 | 04:00 | ALLOW | **DENY** |
+| 1970 boot fire             | 1970 | 23    | 04:02 | 04:00 | DENY  | DENY |
+| LEGITIMATE fire            | 2026 | 86400 | 04:00 | 04:00 | ALLOW | **ALLOW** |
+| LEGITIMATE + 1min accuracy | 2026 | 86400 | 04:01 | 04:00 | ALLOW | **ALLOW** |
+| scenario worker (empty)    | 2026 | 26    | 12:00 | ""    | DENY  | DENY |
+| scenario worker (empty)    | 2026 | 400   | 12:00 | ""    | ALLOW | **ALLOW** |
+| auto-update (empty)        | 2026 | 400   | 17:45 | ""    | ALLOW | **ALLOW** |
+| auto-update (empty)        | 2026 | 26    | 04:02 | ""    | DENY  | DENY |
+
+Every loop path flips ALLOW->DENY. Every legitimate fire and both empty-sched callers are unchanged
+(K1 refuted for the corrected design). The design is proven before a line of it is written.
+Also recorded: `/sbin/reboot -> /bin/systemctl` (systemd clean shutdown); `/etc` is persistent ubifs
+rw; a `set -C` noclobber write into /etc works and correctly refuses a second write; all five timer
+workers run as root (no `User=`).
+
+### G3 census — REPORTED DONE_WITH_CONCERNS -> ACCEPTED. 93 verified path:line citations.
+Corrections and EXPANSIONS that change the work packages:
+- **CONDUCTOR'S OWN CLAIM REFUTED.** My pre-dispatch note said `install_rm520n.sh:3937-3938` was a 7th
+  StartLimit site. It is NOT — that heredoc places both directives correctly in `[Unit]` (header
+  :3933). Census is exhaustive: exactly **6** affected units, all already in the handoff.
+- **D2 is a CLASS defect, not a watchdog one.** `UCI_GATED_SERVICES` (:126) =
+  `qmanager-watchcat qmanager-tower-failover qmanager-discord qmanager-sms-forward`. The
+  symlink-state capture (:3562-3617) + additive-only config pass applies to ALL FOUR
+  (discord :3705-3712, tower-failover :3739-3748, sms-forward :3750-3760). Handoff scoped it to 1 of 4.
+- **D3 has a second true instance:** `cellular/sms_forwarding.sh:180` commits then `:201-202`
+  `cgi_error`s. (`tower/settings.sh:141-143` and `tower/lock.sh:224-226,356-358` are the SAFE variant —
+  they set a warning field and still return success — so they are NOT part of this defect.)
+- **D6: handoff was wrong.** `:42` is `set -e` itself, not a `mv`. Two sites were MISSED: `:296`
+  (inside `install_file()`) and `:359` (`finalize_version()`). True count of bare, unhandled,
+  post-`stop_services` `mv` = **6** (296, 359, 2322, 2371, 2734, 2783). ~17 other `mv` are guarded.
+- **D7: handoff path wrong.** No `scripts/usr/bin/qmanager_alert_engine`. Real:
+  `scripts/usr/lib/qmanager/alert_engine.sh`, `_ae_classify_reboot()` :237-260, vocabulary comment
+  :236, switch :254-257, sole crash.log reader :242. Marker writer is `qmanager_crash_log_append`
+  (`CRASH_LOG=/etc/qmanager/crash.log` :29, format `epoch|reboot|reason` :63, root:root 644 :59-60,
+  sudoers NOPASSWD `:50`). SECOND producer: `qmanager_watchcat:620`.
+- **D13 is 6 sites + 1 worse one, not 1.** Hour range `[0-2][0-9]` (accepts 24-29) at
+  `schedule_timer.sh:47`, `:160`, `:169`, `tower/schedule.sh:58`, `:65`, `system/settings.sh:210`.
+  `system/update.sh:327` is WORSE — `grep -qE '^[0-9]{2}:[0-9]{2}$'` accepts 00-99. **No validator
+  anywhere in the repo restricts the hour to 00-23.** Also `..._arm:151` is the `armed:true` line
+  (handoff said :146, which is the failure check).
+- D9 softened: `qmanager-dpi-ensure.timer` is `OnBootSec=` and structurally immune, so its absence
+  from a table scoped to "families exposed to the window" is arguably correct; the real gap is that
+  the doc never says the timer exists or why it is excluded.
+- D10 confirmed exact source-time side effects: tower worker sources `qlog.sh` (mkdir at
+  `qlog.sh:62` via `qlog_init` :29) + `tower_lock_mgr.sh` (top-level `mkdir -p /etc/qmanager` :93);
+  scenario worker sources `qlog.sh` (:34) + `profile_mgr.sh` (top-level `mkdir -p` :44).
+  `scenario_mgr.sh`'s mkdir is INSIDE a function — clean, not a source-time effect.
+- D12: `scripts-dev/tests/test_timer_guard.sh` exists (155 lines), referenced by NOTHING.
+
+### PHASE 2 — PLAN SYNTHESIZED BY CONDUCTOR (no builder pre-flight dispatched)
+Deviation recorded deliberately: change-workflow Phase 2 calls for builder pre-flight on Tier 2+.
+Skipped because the design is already fully specified AND proven on hardware by the P0b replay
+matrix before any code exists — scaffolding returned by a builder could not add information. The
+approval gate, the worktree, all Phase 5 validators and `docs-writer` are unchanged.
+
+### RECONCILE 2026-09-08 (session resumed after a usage-limit stop)
+Baseline moved f10172f -> **c472dd9** while stopped. Verified: `f10172f` is an ancestor of HEAD
+(clean fast-forward, no rebase), and `c472dd9` touches ONLY `.claude/agent-memory/**` — no source
+file. Working tree carries no source modification. Therefore every file:line citation gathered in
+Phase 1 against f10172f remains valid verbatim; only the baseline hash changes.
+**NEW BASELINE: c472dd9** | tree: `M .claude/agent-memory/ui-builder/MEMORY.md`, `M .orchestra/ledger.md`.
+No builder had been dispatched before the stop, so there is no partial work to reconcile.
+
+### PHASE 3 — USER GATE ANSWERED 2026-09-08
+1. **Issue #9 comment:** hold the SIM-pull remedy until release — RELEASE_NOTES entry + ONE closing
+   comment on the issue at ship time. Do NOT post to GitHub now.
+2. **Skip trace:** YES — persist the guard's deny reason by reusing the existing root-owned
+   persistent `/etc/qmanager/crash.log` via `qmanager_crash_log_append`. No new artifact, no
+   installer lockstep. Its reader (`alert_engine.sh:242`, `tail -n 1`) MUST be made to filter for
+   `|reboot|` lines, or a trailing skip line would misclassify the next real reboot.
+3. **Verification depth:** replay only. **NO REBOOT**, no daemon-reload on the live device.
+   The unit changes are therefore proven by `systemd-analyze verify` + static read, NOT by a live
+   `systemctl show` read-back. Recorded as a deliberate evidence limit.
+Plan as presented at the gate is APPROVED — proceeding to Phase 4.
+
+### PHASE 4 — WORKTREE + BUILDER DISPATCH (2026-09-08)
+Worktree `.claude/worktrees/issue9-clock-step`, branch `worktree-issue9-clock-step`.
+Base verified NOT stale: HEAD == merge-base == development == c472dd9. `.env` copied in and
+confirmed still gitignored (`.gitignore:34`). Repo `schedule_timer.sh` md5 aaa4a3dd... is IDENTICAL
+to the deployed copy replayed in P0b, so that proof applies directly to the code being changed.
+NOTE: `.orchestra/scratch/` is gitignored so it does NOT exist in the worktree — briefs therefore
+carry the spec INLINE rather than by scratch path. Ledger is appended in the MAIN checkout only
+(the worktree's tracked copy predates this run's appends; writing it would fork the journal).
+
+Five builders, one wave, provably disjoint write sets. All `cgi-endpoint-builder` (pins its own
+model — dispatched with NO model override, per the project's tiering rule).
+
+| # | Task | Write set | State |
+|---|------|-----------|-------|
+| B1 | Fire guard + 4 workers: required-AND composite, day mask, fail-open fix, hour range, hard-deny on unreadable schedule, lib-missing fallbacks, cause marker + skip trace | `usr/lib/qmanager/schedule_timer.sh`, `usr/bin/qmanager_{scheduled_reboot,tower_schedule,scenario_schedule,auto_update}` | DISPATCHED |
+| B2 | StartLimit* -> `[Unit]` in 6 units; `AccuracySec=1s` in 3 generated timers | `etc/systemd/system/qmanager-{watchcat,poller,ping,discord,sms-forward,dpi}.service`, `usr/bin/qmanager_*_arm` (3) | DISPATCHED |
+| B4 | CGI: svc_disable before config commit (x2); HH:MM 00-23 (x4 incl. update.sh 00-99); arm-failure must not report success | `www/cgi-bin/quecmanager/{monitoring/watchdog.sh,cellular/sms_forwarding.sh,tower/schedule.sh,system/settings.sh,system/update.sh}` | DISPATCHED |
+| B3 | Installer: unconditional `ensure_rc_unslung_unit_ordering`; symmetric config-driven wants-symlinks for all 4 gated services; 6 bare `mv` guarded | `install_rm520n.sh` | DISPATCHED |
+| B5 | alert_engine reader filters `\|reboot\|` + new `scheduled` cause; crash.log size cap; consumer sweep | `usr/lib/qmanager/alert_engine.sh`, `usr/bin/qmanager_crash_log_append` | DISPATCHED |
+
+CROSS-BUILDER CONTRACT fixed by the conductor so B1 and B5 agree without talking:
+- Root workers append DIRECTLY to `/etc/qmanager/crash.log` in the `qmanager_watchcat:620` style.
+  **The sudo helper's argument surface is NOT changed and sudoers is NOT touched** — deliberately,
+  to keep this out of the privilege boundary.
+- Line formats: `<epoch>|reboot|scheduled` and `<epoch>|skip|<short_reason>`.
+- B5 must make the reader select the last `|reboot|` line, else a trailing `skip` line would
+  misclassify the next real reboot. This is the one place the two builders could have collided.
+
+SAFETY CONSTRAINT emphasised to B3 (this would have been a device-bricking bug): making the
+wants-symlink pass symmetric means it can now `rm -f`. `qm_config_get` returns its DEFAULT on ANY
+jq/config failure, so "unreadable" is indistinguishable from "disabled" unless explicitly checked.
+A naive symmetric pass would silently disable watchdog, Discord, tower-failover and SMS-forwarding
+on any install where the config read failed. B3 is required to distinguish the two and leave the
+symlink alone when the read is not definite.
+
+### B2 — REPORTED DONE -> VERIFIED BY CONDUCTOR (independent read, not the report)
+All 12 directives confirmed under `[Unit]` across the 6 units (awk section-walk); `AccuracySec=1s`
+present in all 3 arm helpers (`..._reboot_arm:128`, `..._tower_arm:141`, `..._scenario_arm:142`);
+no CRLF in any of the 9 files. Report was accurate.
+B2 also spotted a stray untracked `scripts/usr/lib/qmanager/schedule_timer.sh.new` — B1's in-flight
+artifact. MUST be gone before commit; check with git, not with B1's report.
+
+### B4 — REPORTED DONE -> ACCEPTED, 1 item to the fix wave
+Defect 1 (svc_disable before commit) and Defect 2 (HH:MM 00-23, incl. update.sh's 00-99 grep ->
+case) applied. Defect 3 resolved as an additive `warning`+`detail` pair, success shape byte-identical.
+
+CONDUCTOR'S CHECK ON THE i18n QUESTION — resolved, no locale work needed:
+The frontend ALREADY carries the correct contract. `types/system-settings.ts:35-45` documents
+`armed?: boolean` / `reason?: string` and states "The UI must warn on `armed === false` rather than
+flash an unconditional success toast (silent-success bug)"; `hooks/use-system-settings.ts:213`
+already raises `toast.warning`, and `:222` returns `{success, armed, reason}`. So the user-facing
+warning is already keyed and translated, and B4's new slugs are machine-voice belt-and-braces, not
+the load-bearing signal. **No new locale keys; the i18n parity gate is NOT triggered by B4's files.**
+Verifier must confirm `armed`/`reason` are still emitted alongside the new `warning`.
+
+FIX-WAVE ITEM 1 (B4, self-reported, real): `cellular/sms_forwarding.sh` — its config write is a
+single combined `{enabled, target_phone}` object, so deferring it means that on a FAILED disable
+nothing at all was persisted. The retained message "Watchdog/SMS settings were saved, but ..." is
+now false on that path. `watchdog.sh` is NOT affected (only the `enabled` key was withheld there;
+its other fields genuinely did persist). Reword the sms_forwarding message only.
+
+### B1 — REPORTED DONE -> VERIFIED ON HARDWARE BY CONDUCTOR. THE FIX IS PROVEN.
+Local checks: stray `schedule_timer.sh.new` is GONE (checked with git, not the report — per the
+standing rule that agent cleanup claims are verified with git). Composite matches spec verbatim.
+Hour range corrected at all three sites (:46, :156, :165).
+
+DEVICE REPLAY — new library uploaded to **/tmp/issue9/** and sourced from there. The LIVE library at
+/usr/lib/qmanager/ was deliberately NOT replaced (md5 still aaa4a3dd... vs new 33b30ca1...), because
+this device has a real 04:00 scheduled reboot armed. No system file touched, no unit reloaded.
+
+| scenario | year | up | now | sched | dow | days | SHIPPED | NEW |
+|---|---|---|---|---|---|---|---|---|
+| Path A re-entry     | 2026 | 26    | 04:02 | 04:00 | - | -   | ALLOW | **DENY** |
+| Path A edge         | 2026 | 26    | 04:10 | 04:00 | - | -   | ALLOW | **DENY** |
+| Path B late step    | 2026 | 400   | 15:20 | 04:00 | - | -   | ALLOW | **DENY** |
+| Path B late step    | 2026 | 900   | 09:33 | 04:00 | - | -   | ALLOW | **DENY** |
+| K3 unrelated reboot | 2026 | 24    | 04:00 | 04:00 | - | -   | ALLOW | **DENY** |
+| 1970 boot fire      | 1970 | 23    | 04:02 | 04:00 | - | -   | DENY  | DENY |
+| LEGITIMATE          | 2026 | 86400 | 04:00 | 04:00 | - | -   | ALLOW | **ALLOW** |
+| LEGIT +1min slop    | 2026 | 86400 | 04:01 | 04:00 | - | -   | ALLOW | **ALLOW** |
+| empty sched         | 2026 | 400   | 12:00 | ""    | - | -   | ALLOW | **ALLOW** |
+| empty sched (boot)  | 2026 | 26    | 04:02 | ""    | - | -   | DENY  | DENY |
+| daymask Mon, is Wed | 2026 | 86400 | 04:00 | 04:00 | 3 | 1   | n/a   | **DENY** |
+| daymask Mon, is Mon | 2026 | 86400 | 04:00 | 04:00 | 1 | 1   | n/a   | **ALLOW** |
+| daymask bad dow     | 2026 | 86400 | 04:00 | 04:00 | x | 1   | n/a   | **DENY** (fails closed) |
+
+Hour validator: 00:00/04:00/23:59 VALID; 24:00/26:30/29:59/2a:00 REJECT (was VALID for 24-29).
+Fail-open closed: now="" / "9x:00" / "99:99" all DENY (previously ALLOW via the d=0 arithmetic trap).
+=> Both loop paths, K3, and the day-mask hole are closed; both legitimate fires and both empty-sched
+callers are preserved. K1 refuted in practice. This is the Phase 5 primary evidence for the guard.
+
+B1 deviations reviewed and ACCEPTED: (a) a local `_qm_crash_log_append` helper inside
+qmanager_scheduled_reboot only — direct append in the watchcat:620 style, no sudo helper, no shared
+file; (b) tower day mask read from `tower_lock.json .schedule.days` (a JSON array) via
+`jq ... | join(",")` — `join` is a builtin, NOT a regex function, so it is safe on the
+ONIGURUMA-less device jq; (c) added `update_in_progress` as a skip reason, which correctly covers
+the OTA-bail path sitting between the guard and `reboot`; (d) trimmed more stale comment blocks than
+asked — consistent with the project's hard comment rule.
+
+### B5 — REPORTED DONE -> VERIFIED BY CONDUCTOR
+Reader now takes the newest `|reboot|` line rather than `tail -n 1`, so a trailing `skip` line can
+no longer misclassify the next real reboot. `scheduled` added to the vocabulary. B5 also checked the
+SECOND consumer and found `_ae_deliver_reboot`'s coalescer (`alert_engine.sh:379-380`) already
+filters `$2 == "reboot"` in awk — correct as-is, no change needed. Good catch; that would have been
+an easy miss.
+Consumer sweep was genuinely small and additive: `types/alerts.ts:83` (RebootCause union) +
+`components/monitoring/alerts/alerts-log-card.tsx` (4 maps) + 5 locale packs.
+crash.log now has a PRE-append cap (>200 lines -> keep last 100) sited before the existing
+post-append MAX_LINES=20 trim, because the new direct root writers bypass that helper entirely.
+Cap cannot fail the caller: `wc -l` falls back to 0, a failed `tail` skips the branch, a failed `mv`
+falls through to removing the temp — worst case a missed trim, never a lost log.
+
+CONDUCTOR'S INDEPENDENT VERIFICATION (not the report):
+- Locale packs: measured by byte (od/PowerShell, NOT `grep -c $'\r'`, which gives a FALSE NEGATIVE
+  under Git Bash) — all five packs 1459 CRLF pairs / 0 bare LF, line endings intact, `scheduled`
+  key present in all five.
+- `bun run i18n:check`: **0 errors**, 100% translated 3893/3893 in every pack. The 26 warnings are
+  pre-existing passthrough notices, none touching this key.
+NOTE: this change now carries a FRONTEND surface (union member + 4 map entries). tsc and i18n both
+pass; residual = no browser render of /monitoring/alerts. Low risk (additive map entry), tracked.
+
+B5 deviations ACCEPTED: `CalendarClockIcon` (lucide) — already used at
+`components/system-settings/status-band.tsx`, and `/monitoring/alerts` is outside the Material
+Icon-Boundary routes, so lucide is correct there. Tone `neutral` (same as `user`) is right: a
+scheduled reboot is expected behaviour, and NOT flagging it is the entire point of finding 11.
+
+### B3 — REPORTED DONE -> ACCEPTED, with a conductor field-reach verification
+B3 found and closed a `set -e` hazard IN ITS OWN NEW CODE: a bare `var=$(jq ...)` assignment is NOT
+exempt from `set -e` and aborts the installer on jq failure; likewise a trailing
+`[ -x foo ] && func` as a function's last statement. Fixed by moving the assignment inside an `if`
+condition and converting call sites to `if/fi`. Verified empirically by B3; re-swept by the Phase 5
+auditor.
+`_apply_gated_symlink` bypasses `qm_config_get` entirely and reads raw jq output + jq's exit status,
+mapping an absent key to a sentinel "unset" — so "unreadable" is distinguishable from "explicitly
+disabled" and a symlink is only ever removed on a DEFINITE disabled value. That is exactly the
+safety constraint; the Phase 5 auditor is re-deriving the truth table adversarially, including the
+jq-absent row.
+
+CONDUCTOR'S FIELD-REACH VERIFICATION (the whole point of Defect 1 — does the fix reach devices?):
+`ensure_rc_unslung_unit_ordering` only rewrites when the on-disk unit matches
+`_rc_unslung_unit_body_legacy` EXACTLY, so a too-strict gate would silently fail to reach the field.
+Checked against hardware and history:
+- LIVE unit on 61368cd2 is textually identical to the legacy body (193 bytes, LF, trailing newline).
+  My first md5 comparison MISmatched only because a PowerShell here-string omits the final newline;
+  irrelevant, because B3 compares via `$(...)` on BOTH sides and command substitution strips trailing
+  newlines symmetrically. The gate MATCHES on this device.
+- History: `git log -S 'Description=Start Entware services'` returns exactly ONE commit (29ca5c7).
+  The other hit, 2627e1d, matched only a COMMENT mentioning rc.unslung (the S80lighttpd change) and
+  did not touch the heredoc. => exactly ONE historical variant of this unit has ever existed, so the
+  equality gate reaches EVERY QManager-installed device. Defect 1's field-reach goal is met.
+- Live `systemctl show rc.unslung -p After` contains NO opt.mount — finding 8 reproduced again.
+- Device gated-service state is self-consistent (watchcat enabled=1 + symlink present; discord
+  enabled=false + symlink absent), so the symmetric pass is a no-op here — no destructive change.
+
+### PHASE 5 — VALIDATORS DISPATCHED (single parallel message, per the hard rule)
+| id | validator | scope | State |
+|---|---|---|---|
+| V1 | orchestra-verifier (BLIND) | original task verbatim + diff; must reproduce, not read reasoning | DISPATCHED |
+| V2 | installer-safety-auditor (verify mode) | install_rm520n.sh diff; `_apply_gated_symlink` truth table incl. jq-ABSENT row; `.qmbak` lockstep; `set -e` sweep | DISPATCHED |
+| V3 | busybox-portability-checker | residue only — line endings, applet coverage across BOTH BusyBox versions, ash/octal traps, jq `join`/null-test at RUNTIME, unit parse | DISPATCHED |
+All three carry explicit HARD DEVICE CONSTRAINTS: stage under /tmp only, never overwrite
+/usr/lib//usr/bin//lib/systemd//etc, and NO reboot / restart / daemon-reload / installer run /
+config write. The device has a real 04:00 reboot armed and the user's standing policy is
+ASK BEFORE EACH REBOOT.
+
+FIX-WAVE ITEM 1 deliberately HELD (not yet applied): the `sms_forwarding.sh` message reword. Editing
+the tree while three validators are diffing it would give them a moving target and invalidate their
+reports. Will be batched with whatever they return, as one fix wave.
+
+### V2 installer-safety-auditor (verify mode) — VERDICT: PASS_WITH_NOTES -> ACCEPTED
+The safety-critical invariant HOLDS. Adversarial truth table for `_apply_gated_symlink`: a symlink is
+removed ONLY on an explicitly parsed `false`/`0`. Every ambiguous state — file missing, invalid JSON,
+key absent, section absent, explicit null, wrong type, empty output, garbage value, and **jq binary
+absent (exit 127)** — falls through to leave-alone. That was the one way this change could have
+bricked a fleet, and it does not.
+Also confirmed: all four gated services read the CORRECT file+key (discord ->
+discord_bot.json .enabled; watchcat -> qmanager.conf .watchcat.enabled; tower-failover ->
+tower_lock.json .failover.enabled; sms-forward -> sms_forwarding.json .enabled), each cross-checked
+against its real runtime consumer. `set -e` sweep clean on new code. `ensure_rc_unslung_unit_ordering`
+is genuinely reached on an OTA (main():4543, no DO_* gate before it). Ordering vs dropbear is a
+non-issue: dropbear's `Before=rc.unslung.service` makes systemd derive the reverse edge either way.
+`.qmbak` is consistent with the already-shipped dropbear `.qmbak` precedent — not a new gap class.
+
+FIX WAVE (batched — one worker for the whole list, per the delegation rule):
+- F1 (from B4): `cellular/sms_forwarding.sh` — message says "settings were saved" on a path where the
+  whole config object is now deferred and nothing was saved. Reword. `watchdog.sh` NOT affected.
+- F2 (V2 risk 1): `Requires=opt.mount` is emitted unconditionally, and `_verify_rc_unslung_unit` only
+  string-matches the property, so it cannot catch a dangling requirement. CONDUCTOR PROBED THE DEVICE:
+  `/lib/systemd/system/opt.mount` IS a real QManager-written unit (144 bytes, Aug 16), `/opt` is NOT
+  in fstab, so it is not generator-produced. Decisive precedent found on the same device: the SHIPPED
+  `dropbear.service` uses `After=network.target opt.mount` with **NO `Requires=`**.
+  => Fix: keep `After=opt.mount` unconditional; emit `Requires=opt.mount` ONLY when
+  `$SYSTEMD_DIR/opt.mount` exists. Removes the dangling-requirement failure mode without weakening
+  the fix on healthy devices.
+- F3 (V2 risk 2): `_apply_gated_symlink`'s watchcat call site passes `$QM_CONFIG`, which is never
+  assigned in install_rm520n.sh — it only exists because `config.sh` was sourced ~80 lines earlier in
+  the same function. A future reorder would silently make it empty, which the function reads as
+  "file missing -> leave alone", freezing the watchdog symlink with no error. Make it explicit.
+- F4 (V2 risk 4): two comment blocks the diff ADDS exceed the project's hard 1-2 line rule
+  (`_apply_gated_symlink` header ~9 lines, `ensure_rc_unslung_unit_ordering` header ~10). Precedent in
+  the file is not an exemption — CLAUDE.md is explicit and the builders were briefed on it. Trim.
+ACCEPTED AS-IS (no fix): `finalize_version` warn-and-continue can leave `VERSION.pending`, which
+`update.sh:120-142` surfaces as `previous_install_failed: true`. That is arguably CORRECT — if the
+VERSION rename failed the install genuinely did not complete — and it is strictly better than the old
+behaviour, where the same failure aborted the installer under `set -e` with services already up.
+
+### V1 orchestra-verifier (BLIND) — VERDICT: **FAIL** -> ACCEPTED. Found 2 MAJOR defects everyone missed.
+Device-proven on 61368cd2, new lib staged in /tmp/verify9/ only, nothing system-level touched.
+It CONFIRMS the core result independently: Path A closed (04:02/up26 ALLOW->DENY), Path B closed for
+the reboot payload (15:20/up400 ALLOW->DENY), every legitimate fire preserved, both empty-sched
+callers preserved (E1/E2 ALLOW), day mask correct against real `date +%w`, 24:00-29:59 now REJECT at
+every validator, device-ash `sh -n` 13/13, i18n 0 errors / 3893 all packs, tsc exit 0, jq
+`join(",")` verified on device jq-1.7.1.
+
+**DEFECT V1-1 (MAJOR) — CONFIRMED BY CONDUCTOR FIRST-HAND. Our own regression.**
+`qmanager_watchcat:318` counts crash.log entries VERB-AGNOSTICALLY:
+  `awk -v cutoff="$cutoff" -F'|' '$1 >= cutoff { n++ } END { print n+0 }'`
+so the new `skip|` lines are counted as REBOOTS. With `max_reboots_per_hour=3`, two guard denials
+plus one real reboot exhausts the budget and the watchdog REFUSES its Tier-4 recovery rung for an
+hour — on a device that is by definition already failing. V1 reproduced it on hardware
+(2 skip + 1 reboot -> reboots_this_hour=3). It also corrupts the watchdog state JSON and the UI.
+ROOT CAUSE IS THE CONDUCTOR'S: my cross-builder contract named `alert_engine.sh` as "the reader" and
+B5 correctly fixed it, but crash.log has a SECOND reader and nobody was told to look. The census
+listed `qmanager_watchcat:620` only as a PRODUCER.
+
+**DEFECT V1-2 (MAJOR) — CONFIRMED BY CONDUCTOR FIRST-HAND.**
+The new inline `_qm_crash_log_append` (`qmanager_scheduled_reboot:43-52`) appends as ROOT into
+`/etc/qmanager/crash.log` with NO symlink guard, while the existing `qmanager_crash_log_append:47-49`
+carries exactly `[ -L "$CRASH_LOG" ] && rm -f`. `/etc/qmanager` is www-data-owned and non-sticky, so
+www-data can plant a symlink and the next scheduled fire writes through it as root. This is the exact
+hole that helper was written to close.
+
+**DEFECT V1-3 (conductor-found, not in V1's report):** temp-file COLLISION.
+`qmanager_scheduled_reboot:49` uses `${CRASH_LOG}.tmp` and `qmanager_crash_log_append:85` also uses
+`${CRASH_LOG}.tmp` — a root worker and a www-data-invoked helper sharing a temp path. B5 deliberately
+used `.precap.tmp` for its own new trim to avoid exactly this; B1's inline copy did not.
+
+V1-3(minor) ACCEPTED, NOT FIXED: the new `warning`/`detail` slugs have no UI consumer. Conductor
+verified `armed` is STILL emitted (`settings.sh:261`), and `types/system-settings.ts:35-45` +
+`hooks/use-system-settings.ts:213` already warn on `armed === false`. So the load-bearing signal is
+intact and the new field is harmless redundancy.
+
+"NOT ADDRESSED" items — adjudicated, NOT gaps:
+- Finding 16 (dpi-ensure doc row) and 5 (RELEASE_NOTES): Phase 6 has not run yet. Sequenced, not missed.
+- Finding 4 (no circuit breaker): DELIBERATE. The devil's advocate showed a breaker cannot reach an
+  already-looping device (same ~29s window that blocks the OTA), and the user chose the SIM-pull
+  remedy via RELEASE_NOTES at release. Standing decision, recorded at the Phase 3 gate.
+- Finding 2 "partial" (empty-sched callers still uptime-only): DELIBERATE and correct. The advocate
+  argued auto-update must KEEP its uptime floor rather than take a day-stamp, because a day stamp
+  permits one spurious install-and-reboot per day — a permanent nightly reboot for a repeatedly
+  failing install. Auto-update is also default-OFF (`update.auto_update_enabled` = 0) and its payload
+  no-ops once current==latest. Guard is UNCHANGED for those callers, so this is a pre-existing
+  residual, not a regression. Document it.
+- Finding 12 "partial" (only the reboot worker persists skips): intentional, and V1-1 makes it
+  positively desirable — more skip writers would inflate the watchdog miscount further.
+- Finding 19 (test harness): CONDUCTOR'S MISS — it was in no builder's write set. Added to fix wave.
+
+FIX WAVE — FINAL LIST (one worker, batched):
+ F1 sms_forwarding.sh message reword (nothing is saved on that path now)
+ F2 emit `Requires=opt.mount` only when the unit exists; keep `After=` unconditional
+ F3 make `$QM_CONFIG` explicit at the watchcat call site
+ F4 trim the 2 over-long comment blocks the diff ADDS
+ F5 **MAJOR** qmanager_watchcat:318 must filter `$2 == "reboot"`
+ F6 **MAJOR** symlink guard on the new root append
+ F7 delete scripts-dev/tests/test_timer_guard.sh
+ F8 rename the colliding temp file
+
+### V3 busybox-portability-checker — VERDICT: PASS_WITH_NOTES -> ACCEPTED. No blocking defects.
+Independently REPRODUCED the `_apply_gated_symlink` semantics by EXECUTION on the device (not
+reasoning), which is stronger evidence than V2's static truth table:
+  `{"enabled":false}` -> "false"   |  `{"enabled":null}` -> "unset"  |  `{}` -> "unset"
+  missing file -> jq exit 2        |  malformed JSON -> jq exit 5    |  `.days` absent -> "" (safe)
+So an explicit disable is genuinely never conflated with an unreadable config, on real hardware.
+Also: all 22 staged files LF/no-BOM (checked ON DEVICE, not with Git Bash whose `grep -c $'\r'` gives
+a false negative); `sh -n` 15/15 under the device's own ash and bash 3.2.57; `set -e` sweep clean,
+including live-verifying that a non-final `[ -L x ] && warn` in an `&&` chain does NOT abort.
+
+TWO CORRECTIONS TO THE PLAN (mine, not the agent's):
+1. **`systemd-analyze verify` DOES NOT EXIST on this device build.** My Phase 3 verification plan
+   named it as the way the unit changes would be proven. It is absent entirely (`find / -iname
+   'systemd-analyze*'` -> nothing; only `systemctl` ships). V3 substituted structural awk inspection
+   of all 6 units PLUS a live reproduction of the PRE-fix defect: the running `qmanager-poller.service`
+   reports `StartLimitIntervalUSec=10s` / `Burst=5` against a configured 3600 — the bug, reproduced on
+   the running system, and proof that `--value` itself works on this systemd.
+   => HONEST EVIDENCE LIMIT: the POST-fix read-back is NOT verified, because it needs `daemon-reload`,
+   which the user's "replay only, no reboot" decision excludes. Must be stated in the close-out.
+2. **The octal trap is FATAL, not merely wrong.** `$((08*60+09))` raises an arithmetic syntax error
+   that ABORTS THE ENTIRE SCRIPT (verified: statements after it never ran). So routing HH:MM through
+   `awk` is load-bearing, not stylistic — a stray `$(( ))` on a padded field would kill the worker.
+
+CONDUCTOR CORRECTION TO V3'S REPORT: V3 claimed this worktree's `.env` "carries only the bare
+`MODEM_*` alias — no RG501Q_* at all". FALSE — `grep -c 'RG501Q_IP\|RG501Q_SSH_USER\|
+RG501Q_SSH_PASSWORD' .env` returns **3**. The credentials are present. V3's CONCLUSION (RG501Q
+unreachable) is correct and matches the conductor's own ping, but the reason it gave is wrong and
+would send a future validator chasing a phantom credential problem. Recorded so it does not.
+
+CARRIED FORWARD (not a defect, but real): `install_rm520n.sh` is the SHARED installer for both
+devices (branches on `RG501Q*` at :457), so `ensure_rc_unslung_unit_ordering` and
+`_apply_gated_symlink` execute on RG501Q-EU too. Its systemd version is recorded as UNVERIFIED in
+platform-matrix.md; if it predates systemd 230 and lacks `--value`, `_verify_rc_unslung_unit` fails
+CLOSED and restores the prior unit — worst case "the ordering fix does not apply there", never
+corruption. Note for docs.
+
+### FIX WAVE DISPATCHED — one worker, 8 items (F1-F8), write set of 5 paths
+F5/F6 are the MAJOR regressions; F7 deletes the test harness (conductor's own scope miss).
+
+### FIX WAVE — REPORTED DONE -> VERIFIED BEHAVIOURALLY ON HARDWARE (serial 61368cd2)
+| fix | verification | result |
+|---|---|---|
+| F5 watchcat verb filter | synthetic crash.log: 2 `skip` + 1 `reboot` within the hour | SHIPPED filter counts **3** (budget exhausted, Tier-4 refused) / FIXED filter counts **1** |
+| F6 symlink guard | planted `crash.log` -> symlink to a VICTIM file, then ran the append | VICTIM reads `untouched`; crash.log is a REGULAR file holding the correct line. Redirection blocked |
+| F8 temp collision | grep | worker now uses `.sched.tmp`, helper keeps `.tmp`/`.precap.tmp` |
+| F1/F2/F3/F4/F7 | read back | message reworded; `Requires=` conditional; literal config path; comments trimmed to 2 lines; harness deleted, dir left empty |
+| guard regression check | full matrix re-run after the wave | up=26/04:02 DENY, up=400/15:20 DENY, up=86400/04:00 ALLOW — unchanged |
+| syntax | device's OWN ash + bash 3.2.57 | 5/5 OK |
+
+**CONDUCTOR TOOK OVER FOR ONE 3-LINE FIX (precedence table row 1 — bad ticket, not a seat failure).**
+The fix worker correctly flagged that my F2 ticket specified only `_rc_unslung_unit_body` and never
+mentioned `_verify_rc_unslung_unit`. Result: the emitter became conditional
+(`Requires=opt.mount` only when the unit exists) while the verifier still asserted `Requires`
+UNCONDITIONALLY — so on exactly the device class F2 protects, the unit would be written correctly,
+FAIL verification, and be ROLLED BACK. The fix would have silently undone itself.
+Fixed in place: the verifier's `Requires` assertion now sits behind the identical predicate
+`[ -f "$SYSTEMD_DIR/opt.mount" ]`. Emitter :4107 and verifier :4227 now use the same test.
+`bash -n` clean. Dispatching an agent for three lines would have cost more than the fix.
+
+### PHASE 6 — docs-writer DISPATCHED
+Scope: scheduled-timers.md (stale guard description + 1970-boot-window section + the mount-race and
+fatal-octal findings + accepted residuals + the missing dpi-ensure timer), alerts.md (crash.log's TWO
+line shapes, the four-member cause vocabulary, and the standing warning that crash.log has TWO
+readers — missing the second one was a real regression this round), RELEASE_NOTES.md (append to the
+existing v0.1.14-draft Unreleased block, headline = loop fixed, plus the SIM-pull field remedy for
+devices looping RIGHT NOW), and at most one CLAUDE.md routing row.
+
+### PHASE 6 — docs-writer REPORTED DONE_WITH_CONCERNS -> ACCEPTED
+Rewrote `scheduled-timers.md` (new AND composite, day mask, hard-deny pre-check, fail-closed
+fallbacks, skip trace, the /opt MOUNT RACE incl. the explicit "After=opt.mount makes it WORSE"
+warning, the fatal-octal rule, accepted residuals, and the six-timer inventory with dpi-ensure named
+as monotonic-and-excluded). Rewrote the `alerts.md` crash.log contract. Appended 6 bullets to the
+existing v0.1.14-draft Unreleased block, incl. the SIM-pull recovery bullet. CLAUDE.md deliberately
+NOT touched — both candidate rows are still accurate as routing pointers.
+
+**docs-writer CORRECTED THE CONDUCTOR TWICE — both adopted:**
+1. My brief said crash.log has TWO readers. It has **THREE read sites across TWO files**:
+   `_ae_classify_reboot`, `_ae_deliver_reboot`'s coalescer (both alert_engine.sh), and
+   `count_recent_reboots()` (qmanager_watchcat). The coalescer already filtered `$2 == "reboot"` at
+   the base commit, so it was safe — but a doc saying "two" would send the next author looking for
+   one reader too few. The verified count is documented.
+2. My brief said "HH:MM validators corrected at four MORE sites". The four are `system/settings.sh`,
+   `tower/schedule.sh` (start AND end), and `system/update.sh`. `watchdog.sh` and
+   `sms_forwarding.sh` got the svc_disable reordering, NOT a validator fix.
+
+### DOCS ROUND 2 DISPATCHED — 5 docs this branch FALSIFIED
+Two of them describe bugs this branch FIXES as still-live defects, which would invite a future
+session to re-fix them: `platform-matrix.md:966-970` (the StartLimit `[Service]` trap) and
+`BACKEND.md:913` ("purely symlink-presence detection", no longer true). Plus
+`connection-watchdog.md:207` (crash.log ownership row — and that subsystem owns the third read site,
+the one that regressed), `README.md:40` (stale index line), and `qmanager-independence.md` (the
+`if [ ! -f ]`-inside-`install_dependencies()` OTA-reach lesson has no home in the installer doc).
+
+### FINAL GATES (conductor-run, in the worktree)
+| gate | result |
+|---|---|
+| `bunx tsc --noEmit` | exit 0 |
+| `bun run i18n:check` | 0 errors, 100% (3893/3893) x5 packs |
+| `bun run build` | clean; **no CSS optimizer warnings** despite ~500 new lines of docs prose, so the Tailwind prose-extraction hazard did NOT fire. Only the pre-existing workspace-root inference warning (worktree lockfile) |
+| device ash/bash `sh -n` | 5/5 on the fix-wave files |
+| device behavioural | F5 3->1, F6 symlink refused, guard matrix unchanged |
+
+### DEVICE LEFT CLEAN
+All staging dirs removed (/tmp/issue9, /tmp/verify9, /tmp/fc2, /tmp/portcheck). Live
+`schedule_timer.sh` still md5 aaa4a3dd (ORIGINAL — never replaced), timer still `active`,
+`/etc/qmanager/crash.log` untouched since Aug 24. **The entire verification campaign left zero
+footprint on the device**, matching the user's ask-before-any-change policy.
+
+### DOCS ROUND 2 — REPORTED DONE_WITH_CONCERNS -> ACCEPTED (incl. its self-authorised 6th edit)
+Corrected 5 docs this branch falsified. It also made a SIXTH correction inside an in-write-set file
+and flagged it: `qmanager-independence.md`'s "OTA self-heal for gated services" section asserted the
+pass is "additive only", "never runs `rm -f`", and that absent config means "not enabled". All three
+are now FALSE. Leaving them would have reproduced exactly the harm the round existed to prevent — a
+future session reading the doc, believing symlink-state restore is still live, and re-adding it.
+Correct call; adopted.
+Left deliberately untouched (flagged, out of scope): a stale "twelve config reads" COUNT attached to
+a still-correct rule in the same file; BACKEND.md's poller "2 s cadence" (known-false, pre-existing,
+unrelated); a README/CLAUDE.md disagreement on connection-quality's key count (11 vs 13).
+
+### CLOSE-OUT 2026-09-08
+COMMIT: `b395eb1` on `worktree-issue9-clock-step` — 42 files, +1081/-463.
+  Body carries the full archive per the project's "commit message is the archive" rule: mechanism,
+  the before/after replay matrix, the mount-race timings, why the fire-stamp was rejected, the two
+  self-inflicted regressions and their fixes, what was deliberately NOT done, and the evidence limits.
+  `.claude/agent-memory/docs-writer/reference_crash_log_has_three_readers.md` needed **`git add -f`**
+  — `.claude/` is gitignored, so it was `!!` in status and would have been silently lost.
+  `scripts-dev/tests/test_timer_guard.sh` deleted.
+
+MERGE: `development` had ADVANCED under us while we worked — c472dd9 -> 691811a (a parallel
+about/support/donate run). Verified `c472dd9` is STILL AN ANCESTOR, i.e. a clean advance and NOT a
+rebase, before merging. Merged as `3dd8ec2`.
+  Overlap risk was real: BOTH branches touched all five `public/locales/*/common.json`. Git
+  auto-merged (different regions) and both sides are present — our `scheduled` key AND their
+  about-device keys.
+POST-MERGE GATES (the workflow requires these because a clean auto-merge can still break the build):
+  `bun run i18n:check` -> 0 errors, 100% (3966/3966, up from 3893 — their keys + ours)
+  locale CRLF measured by BYTE after the merge -> 1588 CRLF / 0 bare LF in all five packs (intact)
+  `bunx tsc --noEmit` -> exit 0
+  `bun run build` -> Compiled successfully, no CSS optimizer warnings
+
+FINAL VERDICT TRAIL: V2 PASS_WITH_NOTES, V3 PASS_WITH_NOTES, V1 **FAIL** -> fix wave (8 items) ->
+all re-verified on hardware. The FAIL was correct and is the single highest-value dispatch of this
+run: it caught two regressions we introduced, one of which (skip lines consuming the watchdog's
+reboot budget) traced to a defect in MY OWN briefing — I told the builders `alert_engine.sh` was
+"the reader" of crash.log when there are three read sites across two files.
+
+OPEN / CARRIED FORWARD:
+- The `[Unit]` StartLimit placement is NOT hardware-verified (needs `daemon-reload`, excluded by the
+  user's replay-only decision). The BROKEN state was confirmed live.
+- RG501Q-EU offline for the entire run — no cross-device verification of anything.
+- Issue #9 itself is NOT closed on GitHub. Per the user's gate answer, the SIM-pull remedy ships in
+  RELEASE_NOTES and gets ONE closing comment on the issue AT RELEASE, not now.
