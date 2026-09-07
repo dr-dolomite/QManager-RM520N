@@ -31,7 +31,7 @@ import {
   CHIP_GLYPH,
   CMD,
   FAILURE,
-  FOCUS_RING,
+  FOCUS_RING_ON_GROUP,
   METER,
   MONO_TAG,
   NOTICE,
@@ -209,8 +209,11 @@ export function PackRow({
             <button
               type="button"
               onClick={() => void copyCommand()}
-              aria-label={t(`${K}.actions.copy_command`)}
-              className={cn(CMD, FOCUS_RING)}
+              // The command IS the button's content, so a bare label would
+              // hide it: a screen reader would announce "copy" and never the
+              // line it copies. Name the button, then read the line out.
+              aria-label={`${t(`${K}.actions.copy_command`)}: ${command}`}
+              className={cn(CMD, FOCUS_RING_ON_GROUP)}
             >
               {command}
             </button>

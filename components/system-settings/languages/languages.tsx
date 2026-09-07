@@ -180,6 +180,7 @@ export function Languages(): React.JSX.Element {
         activeCode={activeCode}
         isLoading={isLoading}
         catalogError={catalogError}
+        listFailed={Boolean(listError)}
       />
 
       {isLoading ? (

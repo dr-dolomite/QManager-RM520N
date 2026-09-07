@@ -352,7 +352,8 @@
         "caption_built_in_one": "{{count}} built in",
         "caption_built_in_other": "{{count}} built in",
         "caption_with_downloaded_one": "{{builtIn}} built in, {{count}} downloaded",
-        "caption_with_downloaded_other": "{{builtIn}} built in, {{count}} downloaded"
+        "caption_with_downloaded_other": "{{builtIn}} built in, {{count}} downloaded",
+        "caption_unknown": "Couldn't read the list"
       },
       "catalog": {
         "eyebrow": "Community catalog",

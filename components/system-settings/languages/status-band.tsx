@@ -20,6 +20,7 @@ import {
 } from "./derive";
 import {
   BAND,
+  BAND_GRID,
   CAPTION,
   CATALOG_FACE,
   DISC_TONE,
@@ -93,6 +94,8 @@ export interface StatusBandProps {
   isLoading: boolean;
   /** Non-null when the list GET failed or the device couldn't reach GitHub. */
   catalogError: string | null;
+  /** True when the list GET itself failed, so `view` holds no device truth. */
+  listFailed: boolean;
 }
 
 export function StatusBand({
@@ -100,6 +103,7 @@ export function StatusBand({
   activeCode,
   isLoading,
   catalogError,
+  listFailed,
 }: StatusBandProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
 
@@ -111,9 +115,13 @@ export function StatusBand({
     : t(`${K}.display.caption_unknown`);
 
   // --- Ready to use --------------------------------------------------------
+  // A failed list read means the downloaded packs are UNKNOWN, not zero. The
+  // built-ins are still there, but the total is not a number we can stand behind.
   const ready = readyCount(view);
-  const readyCaption =
-    ready.downloaded > 0
+  const readyValue = listFailed ? VALUE_NONE : String(ready.total);
+  const readyCaption = listFailed
+    ? t(`${K}.ready.caption_unknown`)
+    : ready.downloaded > 0
       ? t(`${K}.ready.caption_with_downloaded`, {
           count: ready.downloaded,
           builtIn: ready.builtIn,
@@ -145,7 +153,7 @@ export function StatusBand({
       </div>
 
       <motion.div
-        className={TILE.GRID}
+        className={BAND_GRID}
         variants={staggerRows}
         aria-live="polite"
         aria-busy={isLoading}
@@ -173,7 +181,7 @@ export function StatusBand({
               glyph={READY_FACE.glyph}
               tone={READY_FACE.tone}
               eyebrow={t(`${K}.ready.eyebrow`)}
-              value={<span className={VALUE_TEXT}>{ready.total}</span>}
+              value={<span className={VALUE_TEXT}>{readyValue}</span>}
               caption={readyCaption}
             />
             <Tile

@@ -100,6 +100,41 @@ export const CHIP_GLYPH = "size-3";
 export const MONO_TAG = "font-mono tabular-nums";
 
 /**
+ * The band's own track floor, one step above the family's 15rem.
+ *
+ * Measured at the family floor: the text column resolves to 149px, and this
+ * band's longest everyday strings are Italian's `caption_unreachable` (174px at
+ * 12px) and Indonesian's `value_unreachable` (164px at 22px/700) — both clip,
+ * in the state every shipped device is in. 18rem gives 182px and clears both.
+ * The sibling band's strings are shorter, which is why this is local.
+ */
+export const BAND_GRID =
+  "grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]";
+
+/**
+ * The focus gap for a control hosted by `ROW_GROUP`.
+ *
+ * `FOCUS_RING` offsets against `--background`, which is the page. Every
+ * interactive control on this surface except the header's Refresh sits on
+ * `surface-container`, where the page ground cuts a visible dark halo into the
+ * lighter group. Read the host, then pick the token (DESIGN.md).
+ */
+export const FOCUS_RING_ON_GROUP = `${FOCUS_RING} focus-visible:ring-offset-surface-container`;
+
+/**
+ * The Remove button's coarse-pointer overlay — the family's idiom at an inset
+ * this row can actually hold.
+ *
+ * `COARSE_TARGET`'s `-inset-y-3.5` on a 32px button makes a 60px hit box, and
+ * the row is pinned at 52px with a 2px gap: measured, two adjacent Remove
+ * targets overlapped, and a tap 8px above a row's bottom edge opened the NEXT
+ * row's delete dialog. 10px keeps the box at exactly the row's 52px — still
+ * over the 44px floor, and it cannot reach a neighbour.
+ */
+export const ROW_REMOVE_TARGET =
+  "relative before:absolute before:-inset-x-3 before:-inset-y-2.5 before:content-['']";
+
+/**
  * A `Tag` riding a PROMOTED row. Its own neutral border and ink are measured
  * against `surface`, so on a `primary-container` row it is nearly the ground it
  * sits on. Re-grounded on the row's own ink, and the ink inherited outright.
@@ -139,6 +174,13 @@ export const LANG_ROW = {
   NATIVE: "truncate text-[0.9375rem] font-semibold",
   /** Ink is applied at the call site: a promoted row owns its own dim step. */
   ENGLISH: "hidden truncate text-[0.8125rem] @xl/card:block",
+  /**
+   * The version tag hides on the same step as the English name. Measured at
+   * 375px: the tag took 97px of a 275px row and the name got 64, so
+   * "Português (Brasil)" (121px) truncated to "Portugu…". Identity outranks
+   * metadata for width, and the version is repeated on the Community card.
+   */
+  VERSION: "hidden @xl/card:inline-flex",
   META: "flex flex-none items-center gap-1.5",
   /** The Remove affordance. 32px painted, 44px reachable via `COARSE_TARGET`. */
   REMOVE: "grid size-8 flex-none place-items-center rounded-pill",

@@ -352,7 +352,8 @@
         "caption_built_in_one": "{{count}} 种内置",
         "caption_built_in_other": "{{count}} 种内置",
         "caption_with_downloaded_one": "{{builtIn}} 种内置，{{count}} 种已下载",
-        "caption_with_downloaded_other": "{{builtIn}} 种内置，{{count}} 种已下载"
+        "caption_with_downloaded_other": "{{builtIn}} 种内置，{{count}} 种已下载",
+        "caption_unknown": "无法读取列表"
       },
       "catalog": {
         "eyebrow": "社区目录",

@@ -22,13 +22,13 @@ import { cn } from "@/lib/utils";
 
 import type { LanguageRow as LanguageRowData } from "./derive";
 import {
-  COARSE_TARGET,
-  FOCUS_RING,
+  FOCUS_RING_ON_GROUP,
   LANG_ROW,
   META_INK_ON_TONAL,
   MONO_TAG,
   PILL_ACTION,
   PILL_GLYPH,
+  ROW_REMOVE_TARGET,
   SPIN,
   TAG_ON_TONAL,
 } from "./shapes";
@@ -98,7 +98,7 @@ export function LanguageRow({
         className={cn(
           LANG_ROW.ROOT,
           LANG_ROW.TRANSITION,
-          FOCUS_RING,
+          FOCUS_RING_ON_GROUP,
           "cursor-pointer",
           isActive && LANG_ROW.ACTIVE,
         )}
@@ -141,7 +141,11 @@ export function LanguageRow({
               {row.version ? (
                 <Tag
                   variant="neutral"
-                  className={cn(MONO_TAG, isActive && TAG_ON_TONAL)}
+                  className={cn(
+                    LANG_ROW.VERSION,
+                    MONO_TAG,
+                    isActive && TAG_ON_TONAL,
+                  )}
                 >
                   {t(`${K}.display.version`, { version: row.version })}
                 </Tag>
@@ -159,8 +163,8 @@ export function LanguageRow({
                 className={cn(
                   LANG_ROW.REMOVE,
                   LANG_ROW.TRANSITION,
-                  COARSE_TARGET,
-                  FOCUS_RING,
+                  ROW_REMOVE_TARGET,
+                  FOCUS_RING_ON_GROUP,
                   isActive ? LANG_ROW.REMOVE_ACTIVE : LANG_ROW.REMOVE_REST,
                 )}
               >

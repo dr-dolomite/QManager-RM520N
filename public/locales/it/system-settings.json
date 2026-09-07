@@ -352,7 +352,8 @@
         "caption_built_in_one": "{{count}} integrata",
         "caption_built_in_other": "{{count}} integrate",
         "caption_with_downloaded_one": "{{builtIn}} integrate, {{count}} scaricata",
-        "caption_with_downloaded_other": "{{builtIn}} integrate, {{count}} scaricate"
+        "caption_with_downloaded_other": "{{builtIn}} integrate, {{count}} scaricate",
+        "caption_unknown": "Impossibile leggere l'elenco"
       },
       "catalog": {
         "eyebrow": "Catalogo della community",

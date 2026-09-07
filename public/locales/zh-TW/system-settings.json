@@ -352,7 +352,8 @@
         "caption_built_in_one": "{{count}} 種內建",
         "caption_built_in_other": "{{count}} 種內建",
         "caption_with_downloaded_one": "{{builtIn}} 種內建，{{count}} 種已下載",
-        "caption_with_downloaded_other": "{{builtIn}} 種內建，{{count}} 種已下載"
+        "caption_with_downloaded_other": "{{builtIn}} 種內建，{{count}} 種已下載",
+        "caption_unknown": "無法讀取清單"
       },
       "catalog": {
         "eyebrow": "社群目錄",

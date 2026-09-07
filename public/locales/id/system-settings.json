@@ -352,7 +352,8 @@
         "caption_built_in_one": "{{count}} bawaan",
         "caption_built_in_other": "{{count}} bawaan",
         "caption_with_downloaded_one": "{{builtIn}} bawaan, {{count}} terunduh",
-        "caption_with_downloaded_other": "{{builtIn}} bawaan, {{count}} terunduh"
+        "caption_with_downloaded_other": "{{builtIn}} bawaan, {{count}} terunduh",
+        "caption_unknown": "Tidak dapat membaca daftar"
       },
       "catalog": {
         "eyebrow": "Katalog komunitas",
