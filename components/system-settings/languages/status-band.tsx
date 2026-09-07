@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import {
   activeLanguage,
   catalogState,
+  packRows,
   readyCount,
   updateCount,
   type CatalogView,
@@ -124,14 +125,13 @@ export function StatusBand({
   const updates = updateCount(view);
   const catalogFace = CATALOG_FACE[catalog];
 
+  // The value is the Community card's own row count, so the two cannot drift.
   const catalogValue =
     catalog === "unreachable"
       ? t(`${K}.catalog.value_unreachable`)
       : catalog === "none"
         ? VALUE_NONE
-        : catalog === "updates"
-          ? String(updates)
-          : String(view.available.length);
+        : String(packRows(view).length);
 
   const catalogCaption =
     catalog === "updates"

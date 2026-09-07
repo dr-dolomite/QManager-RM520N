@@ -79,6 +79,12 @@ export function LanguageRow({
   // A nested control must not also flip the radio it sits inside.
   const swallow = (event: React.SyntheticEvent) => event.stopPropagation();
 
+  // Only the two keys the button itself consumes stop here; everything else
+  // must reach the row, or the group's arrow navigation dies on this button.
+  const swallowActivationKeys = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+  };
+
   return (
     <motion.div variants={staggerRowItem} className="min-w-0">
       <div
@@ -146,7 +152,7 @@ export function LanguageRow({
                   swallow(event);
                   setRemoveOpen(true);
                 }}
-                onKeyDown={swallow}
+                onKeyDown={swallowActivationKeys}
                 aria-label={t(`${K}.actions.remove_aria`, {
                   language: row.englishName,
                 })}

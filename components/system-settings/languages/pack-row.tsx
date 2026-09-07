@@ -90,7 +90,7 @@ export function PackRow({
   };
 
   return (
-    <motion.div variants={staggerRowItem} className="min-w-0">
+    <motion.div variants={staggerRowItem} role="listitem" className="min-w-0">
       <div className={PACK_ROW.ROOT}>
         <div className={PACK_ROW.TEXT}>
           <div className={PACK_ROW.NAMES}>

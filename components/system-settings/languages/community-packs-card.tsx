@@ -102,6 +102,7 @@ export function CommunityPacksCard({
             // The page clock has already run by the time this mounts, so this
             // cascade declares its own initial/animate rather than inheriting.
             <motion.div
+              role="list"
               aria-label={t(`${K}.community.list_aria`)}
               className={cn(ROW_GROUP, GROUP_FILL)}
               initial="hidden"

@@ -1,17 +1,8 @@
 // =============================================================================
 // Languages — the /system-settings/languages family's geometry and tone contract
 // =============================================================================
-// Two sources, and the split is deliberate.
-//
-// The page shell, band, card and condition grammar are IMPORTED from
-// `components/system-settings/shapes.ts` — the same family one level up, so
-// re-declaring its twenty names would be the duplication the restate rule
-// exists to prevent.
-//
-// Everything this surface invents (the language row, the pack row, the install
-// meter, the recovery command box) is written out below. Nothing here is ever
-// imported from a sibling family: what is shared is the SYSTEM's numbers, not a
-// module.
+// Shared names are imported and re-exported from `../shapes.ts` one level up;
+// only what this surface invents is here, and never anything from a sibling.
 // =============================================================================
 
 import type { LucideIcon } from "lucide-react";
@@ -92,12 +83,9 @@ export type { DiscTone };
 // -----------------------------------------------------------------------------
 
 /**
- * The anchor card — Display language. The family one level up has no hero
- * shell because its anchor is the status band; here the choice the page exists
- * to offer is a card, so it takes the hero radius.
- *
- * The whisper is important-marked because `twMerge` reads an arbitrary shadow
- * as a colour and cannot dedupe it against `card.tsx`'s own `shadow-sm`.
+ * The anchor card — Display language, so it takes the hero radius. The whisper
+ * is important-marked because `twMerge` reads an arbitrary shadow as a colour
+ * and cannot dedupe it against `card.tsx`'s own `shadow-sm`.
  */
 export const CARD_SHELL_HERO =
   "@container/card gap-5 rounded-hero border-0 bg-surface py-6 shadow-[var(--shadow-whisper)]!";
@@ -123,24 +111,16 @@ export const TAG_ON_TONAL = `${CHIP_ON_TONAL} border-transparent text-current`;
 // -----------------------------------------------------------------------------
 
 /**
- * The row track list, worn by `ROW_GROUP` itself.
- *
- * A PLAIN two-column flip, never `auto-fit`/`minmax`: `auto-fit` needs a
- * definite available width to count repetitions against, and given an
- * indefinite one it resolves to a SINGLE track. The group is a block-level
- * child of the card body, so its width is definite — but the fixed column count
- * is what makes that independent of how the group is ever re-parented.
+ * The row track list, worn by `ROW_GROUP` itself. A PLAIN two-column flip,
+ * never `auto-fit`/`minmax`: given an indefinite available width `auto-fit`
+ * resolves to a SINGLE track, whatever the group is re-parented into.
  */
 export const LANG_GRID = "grid grid-cols-1 @2xl/card:grid-cols-2";
 
 /**
- * One selectable language.
- *
- * `ROOT` is PINNED at 52px rather than floored: every child truncates, and a
- * floor could not mirror the skeleton that stands in for it.
- *
- * `TRANSITION` names its two properties rather than sweeping everything, and it
- * reads the duration from the scale so a retune reaches it.
+ * One selectable language. `ROOT` is PINNED at 52px rather than floored so the
+ * skeleton can mirror it; `TRANSITION` names its two properties rather than
+ * sweeping, and reads the duration from the scale so a retune reaches it.
  */
 export const LANG_ROW = {
   ROOT: "flex h-[3.25rem] w-full min-w-0 items-center gap-3 rounded-tile px-4 text-left",
@@ -213,11 +193,6 @@ export const CMD =
   "w-full max-w-full overflow-x-auto rounded-field bg-surface-container-high px-4 py-3 text-left font-mono text-xs leading-relaxed break-words select-all";
 
 /**
- * The install-failure block. The command box sits BELOW the notice rather than
- * inside it: `CMD` is `surface-container-high`, one step above the row group it
- * hangs in, and inside a `destructive-container` notice that step is a hole.
- */
-/**
  * The unreachable-catalog state: the block, with the device's own status text
  * beneath it. The raw text stays machine voice rather than being folded into
  * the sentence — a backend string does not translate.
@@ -228,6 +203,11 @@ export const ERROR_STATE = {
     "text-on-surface-variant break-words px-1 font-mono text-xs leading-relaxed",
 } as const;
 
+/**
+ * The install-failure block. The command box sits BELOW the notice rather than
+ * inside it: `CMD` is `surface-container-high`, one step above the row group it
+ * hangs in, and inside a `destructive-container` notice that step is a hole.
+ */
 export const FAILURE = {
   ROOT: "flex min-w-0 flex-col gap-2",
   MANUAL: "flex min-w-0 flex-col gap-1.5",
