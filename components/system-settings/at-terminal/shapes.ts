@@ -48,8 +48,13 @@ export {
 /** The console body: transcript, hint, gate, prompt. */
 export const CONSOLE_BODY = "flex min-w-0 flex-col gap-3";
 
-/** The header's action rail. It wraps rather than squeezing the title column. */
-export const HEAD_ACTIONS = "flex flex-wrap items-center justify-end gap-2";
+/**
+ * The header's action rail. It spans the header's full width and only pulls
+ * right at `@2xl/card` — parked in the grid's right column it starves the
+ * title, and three actions collapse the description to a ribbon on a phone.
+ */
+export const HEAD_ACTIONS =
+  "col-span-full flex flex-wrap items-center gap-2 pt-1 @2xl/card:pt-0 @2xl/card:justify-end";
 
 /** A 36px header action, the family's action pill one step down. */
 export const HEAD_ACTION =

@@ -25,7 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -296,7 +295,7 @@ export default function ATTerminalCard() {
         <CardDescription className={CARD_DESC}>
           {t(`${K}.card.description`)}
         </CardDescription>
-        <CardAction className={HEAD_ACTIONS}>
+        <div className={HEAD_ACTIONS}>
           {gameActive ? (
             <Badge variant="info">
               <Gamepad2Icon className={CHIP_GLYPH} />
@@ -327,7 +326,7 @@ export default function ATTerminalCard() {
               </Button>
             </>
           )}
-        </CardAction>
+        </div>
       </CardHeader>
 
       {/* The game keeps the full-bleed slot it has always had — it is a direct
