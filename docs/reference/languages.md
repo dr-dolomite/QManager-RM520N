@@ -120,7 +120,7 @@ telling the user their modem was broken when nothing about it was.
 
 | State | Reached when | Tile tone | Glyph | Card body |
 | ----- | ------------ | --------- | ----- | --------- |
-| `unreachable` | `listError` **or** `list.manifest_error` is non-null | `warning` | `CloudOffIcon` | `ConditionBlock tone="warning"`, `role="alert"`, with a **Check again** retry |
+| `unreachable` | `listError` **or** `list.manifest_error` is non-null | `warning` | `CloudOffIcon` | `ConditionBlock tone="neutral" discTone="warning"`, `role="alert"`, with a **Check again** retry |
 | `updates` | at least one installed pack has a newer published version | `primary` | `ArrowUpCircleIcon` | the pack list |
 | `available` | the manifest holds packs this device does not have | `primary` | `DownloadIcon` | the pack list |
 | `none` | the manifest read fine and offered nothing | `neutral` | `GlobeIcon` | `ConditionBlock tone="neutral"`, `role="status"`, same retry |
@@ -132,6 +132,15 @@ Two rules hold that table together, and both are easy to erase:
   English: the installed languages are untouched, this is a read that failed, and nothing on the
   device changed.
 - **`none` is neutral and carries no alarm at all.** It is the expected state today.
+- **A standing condition takes a NEUTRAL ground and carries its tone on the disc alone.**
+  `ConditionBlock` has a `discTone` prop for exactly this. `unreachable` first shipped as a full
+  `warning-container` fill, which on a 375px phone paints roughly 850px of saturated amber for a
+  state every device in the field sits in permanently — the same "half the page" problem the red
+  alert had, in a friendlier hue. Neutral ground, warning disc: the tone still reads, and the
+  card stops shouting. Same idiom as `system-health-check`'s `EMPTY_STATE`, whose ground is
+  `surface-container` with the block transparent over it. Note `CONDITION_TONE[tone].container`
+  bundles fill **and** ink, so overriding only the background strands `on-warning-container` ink
+  on a neutral surface — switch the whole tone and pass `discTone`, never patch the class.
 
 `available` and `updates` are both `primary`, so their two glyphs are the **only** thing
 separating "there is something new" from "something you have is out of date". That is the

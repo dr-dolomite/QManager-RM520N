@@ -74,7 +74,8 @@ export function CommunityPacksCard({
           {catalogError ? (
             <div className={ERROR_STATE.ROOT}>
               <ConditionBlock
-                tone="warning"
+                tone="neutral"
+                discTone="warning"
                 glyph={CloudOffIcon}
                 ariaRole="alert"
                 title={t(`${K}.states.unreachable.title`)}

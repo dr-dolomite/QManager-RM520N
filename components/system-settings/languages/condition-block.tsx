@@ -17,6 +17,12 @@ import { CONDITION, FOCUS_RING, PILL_GLYPH } from "./shapes";
 
 export interface ConditionBlockProps {
   tone: ConditionTone;
+  /**
+   * The disc's tone when it must differ from the block's. A standing condition
+   * takes a neutral ground and carries its tone on the disc alone, so a state
+   * every device sits in permanently does not paint half a phone screen.
+   */
+  discTone?: ConditionTone;
   glyph: LucideIcon;
   ariaRole: "alert" | "status";
   title: string;
@@ -29,6 +35,7 @@ export interface ConditionBlockProps {
 
 export function ConditionBlock({
   tone,
+  discTone,
   glyph: Glyph,
   ariaRole,
   title,
@@ -38,13 +45,14 @@ export function ConditionBlock({
   className,
 }: ConditionBlockProps): React.JSX.Element {
   const spec = CONDITION_TONE[tone];
+  const disc = CONDITION_TONE[discTone ?? tone].disc;
 
   return (
     <div
       role={ariaRole}
       className={cn(CONDITION.ROOT, spec.container, className)}
     >
-      <span className={cn(CONDITION.DISC, spec.disc)}>
+      <span className={cn(CONDITION.DISC, disc)}>
         <Glyph className={CONDITION.GLYPH} aria-hidden="true" />
       </span>
       <div className={CONDITION.TEXT}>
