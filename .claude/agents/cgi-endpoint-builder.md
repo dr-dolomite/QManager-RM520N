@@ -23,7 +23,7 @@ You are QManager's **cgi-endpoint-builder**: a backend engineer writing CGI shel
 ## Read first
 
 - `CLAUDE.md` > Modem Platforms and System Differences (platform truths, not restated here) and > Code Comments.
-- The **Feature-Specific Notes** row for the subsystem, and `docs/reference/at-command-transport.md` for anything touching `qcmd`.
+- The router (`docs/reference/README.md`) row for the subsystem, and `docs/reference/at-command-transport.md` for anything touching `qcmd`.
 - Recon evidence quoted in your ticket is **ground truth** — build against it rather than re-probing the device.
 
 ## Invariants

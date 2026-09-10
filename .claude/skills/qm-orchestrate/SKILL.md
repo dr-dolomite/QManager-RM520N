@@ -83,7 +83,7 @@ Statuses are `DONE` · `DONE_WITH_CONCERNS` · `NEEDS_CONTEXT` · `BLOCKED`. Ver
 12. **Validate CGI as `www-data`** — through lighttpd or `sudo -n -u www-data`, never a root shell with `_SKIP_AUTH=1`.
 13. **`development` is the integration base and `main` is never merged by the conductor** — release is the user's explicit act.
 
-Platform truth is not restated in this skill. Read `CLAUDE.md` > Modem Platforms, Live Device Access and Code Comments, `DESIGN.md` and `PRODUCT.md` for UI work, and the `docs/reference/*.md` row that `CLAUDE.md` > Feature-Specific Notes names for the subsystem.
+Platform truth is not restated in this skill. Read `CLAUDE.md` > Modem Platforms, Live Device Access and Code Comments, `DESIGN.md` and `PRODUCT.md` for UI work, and the `docs/reference/*.md` doc that the router (`docs/reference/README.md`) names for the subsystem.
 
 ## Ledger and resume
 

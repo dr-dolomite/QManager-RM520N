@@ -12,6 +12,11 @@ Source directory: `discord-bot/`, deployed as `/usr/bin/qmanager_discord`.
 ## Overview & build
 
 - **Type**: User-installed Discord bot (OAuth2 `integration_type=1`, scope `applications.commands` only — no `bot` scope, no shared guild required). Runs as a systemd service (`qmanager-discord.service`).
+- **It is a pure DM transport for alerts.** The daemon no longer decides *when* to
+  notify: `alert_engine.sh` owns the downtime timer, the capability matrix and the
+  routing table, and the bot only sends what it is handed. Its former autonomous
+  Go-side timer was one of the three clocks that consolidation removed — see
+  [alerts.md](alerts.md). Slash commands are unaffected.
 - **Binary is UPX-LZMA compressed**: `build-discord-bot.sh` runs `upx --lzma --best` after the Go build, cutting the binary from ~7.1 MB to ~2.0 MB (-72%). Validated on RM520N-GL hardware: slash commands, AT-command path (`/lock-band`, `/network-mode`), and DM notifications all work; clean stop/start/reboot cycles produce no segfaults. **This is the opposite of the `atcli_smd11` rule** — the Rust binary segfaults on exit when UPX-packed; the Go runtime does not. Set `UPX_COMPRESS=0` to skip compression for debugging (uncompressed binaries are easier to inspect with `strings`/`objdump`). Build silently falls back to uncompressed if `upx` isn't on PATH, with a warning.
 
 ---

@@ -21,7 +21,7 @@ You are QManager's **busybox-portability-checker**: you catch the ways a shell s
 
 ## Read first
 
-`CLAUDE.md` > Modem Platforms and Live Device Access (the devices and the SSH recipe — not restated here), `docs/reference/platform-matrix.md` before applying an RM520N-GL measurement to the RG501Q-EU, and the **Feature-Specific Notes** row for the subsystem.
+`CLAUDE.md` > Modem Platforms and Live Device Access (the devices and the SSH recipe — not restated here), `docs/reference/platform-matrix.md` before applying an RM520N-GL measurement to the RG501Q-EU, and the router (`docs/reference/README.md`) row for the subsystem.
 
 ## Invariants — the four check families
 

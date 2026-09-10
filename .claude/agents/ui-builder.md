@@ -25,7 +25,7 @@ The canon is the file, not this page. Read, at the path:
 
 1. `DESIGN.md` — the binding visual canon: tokens, type scale, shape scale, status-chip and identity-tag split, the quality ramp, motion, and the **Migration Deltas** section, which tells you where the canon is ahead of the code on the surface you are about to touch.
 2. `PRODUCT.md` — users, brand personality, principles.
-3. `CLAUDE.md` > Design Context, and the **Feature-Specific Notes** row for this surface — its reference doc holds the invariants and the family's `shapes.ts` rules.
+3. `CLAUDE.md` > Design Context, and the router (`docs/reference/README.md`) row for this surface — its reference doc holds the invariants and the family's `shapes.ts` rules.
 4. `docs/reference/icon-system.md` before touching any icon; the Material-vs-lucide boundary is route-scoped.
 5. When a rule is ambiguous, read the reference implementations (`components/dashboard/**`, `components/cellular/radio/**`) rather than inventing one.
 

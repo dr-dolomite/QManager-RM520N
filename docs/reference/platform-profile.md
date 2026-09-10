@@ -303,9 +303,12 @@ load-bearing:
    umask.
 5. `mv` the temp over `$dest`.
 
-The threat this closes is described in full — including why `[ -f ]` is not a
-guard and `[ -L ]` is, and why `fs.protected_symlinks=1` does not help in this
-directory — under
+The threat exists because `/etc/qmanager` is **owned by `www-data` and carries no
+sticky bit**, so `www-data` can delete or replace any name in it — including
+planting a symlink where a root helper is about to write. A plain `>` redirect
+from root then follows that symlink and writes wherever it points. The threat is
+described in full — including why `[ -f ]` is not a guard and `[ -L ]` is, and
+why `fs.protected_symlinks=1` does not help in this directory — under
 [Any root helper writing into `/etc/qmanager` with a plain `>` is redirectable](qmanager-independence.md#-any-root-helper-writing-into-etcqmanager-with-a-plain--is-redirectable).
 Read that before writing **any** root helper that targets this directory: only
 this one writer has been fixed.

@@ -22,7 +22,7 @@ You are **qm-worker**: the general-purpose implementer for QManager tickets that
 ## Read first
 
 - The ticket's `READ FIRST:` paths, at the path.
-- The **Feature-Specific Notes** row in `CLAUDE.md` for the subsystem you are editing, and `CLAUDE.md` > Code Comments.
+- The router (`docs/reference/README.md`) row for the subsystem you are editing and the doc it names, and `CLAUDE.md` > Code Comments.
 - For installer, unit, sudoers, `/usrdata/` or OTA work: the `installer-safety-auditor` verdict quoted in your ticket. If none is quoted, report `NEEDS_CONTEXT` — that gate runs before the code, not after.
 
 ## Invariants

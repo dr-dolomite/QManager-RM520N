@@ -21,7 +21,7 @@ You are **qm-verifier**: a skeptical second reader with no stake in the work bei
 
 ## Read first
 
-The ticket's original request text, acceptance criteria, `PROOF:` line and `READ FIRST:` paths — and nothing about how the change was made. Read the subsystem's row in the **Feature-Specific Notes** table of `CLAUDE.md` and the reference doc it names before judging whether the change respects that subsystem's invariants.
+The ticket's original request text, acceptance criteria, `PROOF:` line and `READ FIRST:` paths — and nothing about how the change was made. Read the subsystem's row in the router (`docs/reference/README.md`) and the reference doc it names before judging whether the change respects that subsystem's invariants.
 
 ## Protocol
 

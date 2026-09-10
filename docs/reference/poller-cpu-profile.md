@@ -251,11 +251,11 @@ esac
 
 ## Method
 
-The harness is **`scripts/test/qm_fork_probe.sh`**, in the repo. It is **read-only with respect to production state** — everything it writes lands in `/tmp/qmprobe/` or `/tmp/qm_fork_attribution.txt`.
+The harness was **`scripts/test/qm_fork_probe.sh`**. **It is deleted** — the whole of `scripts/test/` was removed from the repo on 2026-09-03 — so what follows is the record of how it worked, not a script you can run. Re-measuring means rebuilding it from this description. It was **read-only with respect to production state**: everything it wrote landed in `/tmp/qmprobe/` or `/tmp/qm_fork_attribution.txt`.
 
-> ℹ️ **NOTE:** it previously existed only as a copy in `/tmp` on each device, which made this document's own "gate a redeploy on `device_md5 == local_md5`" rule unsatisfiable — there was no local copy to compare against. A power outage mid-project then wiped both devices' `/tmp`, destroying the on-device copies and the original attribution reports. It lives in the repo now for exactly that reason.
+> ℹ️ **NOTE:** it first existed only as a copy in `/tmp` on each device, which made this document's own "gate a redeploy on `device_md5 == local_md5`" rule unsatisfiable — there was no local copy to compare against. A power outage mid-project then wiped both devices' `/tmp`, destroying the on-device copies and the original attribution reports. It was moved into the repo for that reason, and went with `scripts/test/` when that directory was deleted.
 
-It works by:
+It worked by:
 
 1. Sourcing a **copy** of the poller with `main "$@"` disabled, so every function and every sourced lib is defined exactly as in production.
 2. Redirecting every writable path constant (`CACHE_FILE`, `DATA_USED_FILE`, `EVENTS_FILE`, `_CRASH_LOG`, …) into `/tmp/qmprobe`, and stubbing the outbound dispatchers (`email_alert_send`, `sms_alert_send`, `_ae_dispatch`).

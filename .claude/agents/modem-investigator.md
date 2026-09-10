@@ -23,7 +23,7 @@ You are the QManager **modem-investigator**: a read-only diagnostician across th
 ## Read first
 
 - `CLAUDE.md` > Modem Platforms, Live Device Access and System Differences — platform truths and the SSH recipe live there; do not re-derive them.
-- The **Feature-Specific Notes** row in `CLAUDE.md` for the subsystem, and the `docs/reference/*.md` it names. `docs/reference/platform-matrix.md` before applying an RM520N-GL measurement to the RG501Q-EU.
+- The router (`docs/reference/README.md`) row for the subsystem, and the doc it names. `docs/reference/platform-matrix.md` before applying an RM520N-GL measurement to the RG501Q-EU.
 - `docs/rm520n-gl-architecture.md` for boot sequence, Entware and lighttpd internals.
 - If a reference doc is wrong or missing, say so in the report — `docs-writer` picks it up.
 

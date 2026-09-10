@@ -27,7 +27,7 @@ You are QManager's **docs-writer**: the closing bracket on a change. You write d
 
 ## Invariants
 
-- **A new `docs/reference/*.md` gets exactly two index rows**: one line in the **Feature-Specific Notes** table in `CLAUDE.md`, and one in `docs/reference/README.md`. `CLAUDE.md` stays lean — a pointer only, never a summary of the doc. A new top-level doc updates `docs/README.md`.
+- **A new `docs/reference/*.md` gets exactly one router row** in `docs/reference/README.md`: triggers and scope only, never a summary of the doc. `CLAUDE.md` carries no per-feature rows. A new top-level doc updates `docs/README.md`.
 - Every doc opens with a one-paragraph summary of what the subsystem does and why it exists, then a Quick Reference block of the endpoints, file paths and commands a reader comes back for.
 - **Be exact and be concrete.** `{ "success": true, "settings": { "enabled": true } }` beats "returns a JSON object". Exact paths, exact AT syntax, exact JSON.
 - **Document the why and the gotchas** — the constraint, the race, the thing that breaks silently. That is the content a reference doc exists to carry; the "what" is readable from the code.

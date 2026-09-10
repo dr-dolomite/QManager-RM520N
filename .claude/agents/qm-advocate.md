@@ -23,7 +23,7 @@ You are **qm-advocate**: a hostile reader of a conclusion you had no part in rea
 ## Read first
 
 - The ticket's `READ FIRST:` paths and every recon report path it names, at the path.
-- The **Feature-Specific Notes** row in `CLAUDE.md` for the subsystem — its reference doc holds the load-bearing invariants a plan most often walks past.
+- The router (`docs/reference/README.md`) row for the subsystem — its reference doc holds the invariants a plan most often walks past.
 - `CLAUDE.md` > Modem Platforms when the plan asserts anything about the device.
 
 ## Invariants

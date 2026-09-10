@@ -490,6 +490,11 @@ everywhere else. That is the entire security argument for saving a root
 password at all: `settings.json` can be copied to a USB stick, emailed, or
 committed by accident and it still leaks nothing.
 
+The blob itself **never crosses `bridge.py`**, the single JS↔Python seam. It is
+read, decrypted and handed to paramiko entirely on the Python side; the WebView
+is told only `has_password: true`. So neither the ciphertext nor the plaintext
+ever reaches the UI.
+
 Both calls pass a fixed app entropy (`QManagerInstaller/ssh/v1`), a second
 secret DPAPI requires again at decrypt time. Without it, any process running
 as the same user could open the blob just by handing the file to

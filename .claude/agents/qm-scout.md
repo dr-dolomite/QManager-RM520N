@@ -20,7 +20,7 @@ You are **qm-scout**: fast, cheap reconnaissance for the QManager codebase. You 
 
 ## Read first
 
-- The **Feature-Specific Notes** routing table in `CLAUDE.md` — find the row for the subsystem your ticket names and read that `docs/reference/*.md` before you search, so you grep the right nouns.
+- The router, `docs/reference/README.md` — find the row whose triggers match the subsystem your ticket names and read that doc before you search, so you grep the right nouns.
 - The ticket's `READ FIRST:` paths. Read them at the path; nothing is pasted to you.
 
 ## Invariants

@@ -1,6 +1,6 @@
 # Tailwind's Content Scan: Prose Compiles to CSS
 
-`app/globals.css` line 1 is a bare `@import "tailwindcss"` with no `@source` narrowing, so Tailwind v4's automatic content detection scans **every non-gitignored file in the repository**, and its scanner matches raw text rather than parsing the language a file is written in. A utility class quoted in a code comment, a documentation sentence or a shell failure message is therefore extracted and compiled into real CSS exactly as if it had been applied to an element. Most malformed spellings cost one dead rule and nothing else. Four of them instead make the whole stylesheet unparseable, and because `next dev` skips the error-recovery pass that the production build runs, every route in the app returns 500 — the shell, not just the page that mentioned the class. This doc records what is actually scanned, which spellings are harmless and which are fatal, the two gates that now catch them, and the recovery behaviour that has cost the most time.
+`app/globals.css` line 1 is a bare `@import "tailwindcss"` with no `@source` narrowing, so Tailwind v4's automatic content detection scans **every non-gitignored file in the repository**, and its scanner matches raw text rather than parsing the language a file is written in. A utility class quoted in a code comment, a documentation sentence or a shell failure message is therefore extracted and compiled into real CSS exactly as if it had been applied to an element. Most malformed spellings cost one dead rule and nothing else. Four of them instead make the whole stylesheet unparseable, and because `next dev` skips the error-recovery pass that the production build runs, every route in the app returns 500 — the shell, not just the page that mentioned the class. This doc records what is actually scanned, which spellings are harmless and which are fatal, why `next build`'s own optimizer report is the only thing that catches them now, and the recovery behaviour that has cost the most time.
 
 > ⚠️ WARNING: **this file is itself scanned.** Describe spellings in *words*. A concrete arbitrary value naming a custom property that actually exists is fine — it costs at most one dead utility and cannot break anything. A stand-in between the brackets is not.
 
@@ -11,10 +11,9 @@
 | Content detection | Automatic — `app/globals.css` line 1 is a bare `@import "tailwindcss"` with no `@source` |
 | Scope | Every non-gitignored file. Gitignored paths (including `.claude/`) and `node_modules` are the only exemptions |
 | Measured 2026-08-31 | **983 files, 30,513 candidates**, using Tailwind's own oxide `Scanner` |
-| Build gate | `scripts/test/build-css-gate.sh` — runs the production build, fails on the CSS optimizer's warning report. Wired into `bun run package` |
-| Prose harness | `scripts/test/tailwind-prose-candidates.sh` — repo-wide, text-only, auto-discovered by `run-harnesses.sh` |
+| Build gate | **None.** `scripts/test/` was deleted, and `bun run package` is now `icons:check && build.sh`. Read `next build`'s own report instead |
+| What to read | `next build` prints `Found N warnings while optimizing generated CSS` and names each offending class. It does not fail the run |
 | Recovering a dev server that has 500ed | **Cold restart.** Deleting the offending text is not enough |
-| Narrow sibling check | `scripts/test/ethernet-design-language.sh` assertion 1 — the same defect, but only two utility prefixes under one route family |
 
 ## What is actually scanned
 
@@ -94,25 +93,20 @@ The signal was complete and already paid for. Nothing in `package.json`, `run-al
 
 The obvious reading of that is "my fix did not work", followed by hunting a second occurrence that does not exist. Stop the dev server and start it again before concluding anything.
 
-## The two gates
+## There is no automated gate — read the build output
 
-| Gate | Catches | Runs in |
-| ---- | ------- | ------- |
-| `scripts/test/build-css-gate.sh` | All four fatal families, and any future one — by consuming Tailwind's own optimizer report rather than by guessing spellings | `bun run package` |
-| `scripts/test/tailwind-prose-candidates.sh` | The quieter dead-rule forms the build gate **cannot** see, because they emit no warning: the bare-var arbitrary, and placeholders written as an ellipsis, three dots, or an angle-bracketed word | `run-harnesses.sh` / `bun run test:harness` |
+`scripts/test/` was deleted from the repo, and both gates this section used to describe went with it: `build-css-gate.sh`, which ran the production build and failed on the CSS optimizer's warning report, and `tailwind-prose-candidates.sh`, the repo-wide text-only sweep. `bun run package` is now `bun run icons:check && bash build.sh` and checks nothing about CSS.
 
-**Why the build gate is the real defense.** A grep can only ever cover the spellings somebody thought to write down — this repo had written down exactly one of the four fatal families. Gating on the optimizer's report covers all of them with no prose heuristics. It was proven to fire against a planted defect before it was committed (`f2d9a02`), and it fails the run rather than letting the build exit 0 with a rule quietly dropped.
+**So read `next build`'s report yourself.** The optimizer prints `Found N warnings while optimizing generated CSS` and names each offending class, which covers all four fatal families and any future one with no prose heuristics. What it does not do is fail the run — a build that emits the warning still exits 0 — so nothing stops a bad spelling shipping except somebody reading the output. Do that on any change that touches a comment, a doc sentence or a failure message.
 
-**Why the build gate is excluded from `run-harnesses.sh`.** It runs a full production build, so it belongs to `bun run package` — where the build happens anyway — rather than to a suite meant to stay text-only and fast. `bun run package` therefore now gates on `run-all.sh` (syntax + CRLF), `icons:check`, **and** the CSS gate, which is the step that produces the static export.
-
-**Two notes on the prose harness.** Every bracket in its patterns is composed from variables rather than written literally, so the harness cannot emit the candidates it polices — do not "simplify" those back. And do not relax the required hyphen before the bracket in its utility pattern: that hyphen is the only thing separating a real utility from a shell glob or a regex character class, and an earlier draft without it flagged every glob in the tree.
+**The quieter forms emit no warning at all.** The bare-var arbitrary, and placeholders written as an ellipsis, three dots, or an angle-bracketed word, produce a dead rule rather than a parse error, so the optimizer stays silent. The deleted text sweep was the only thing that ever caught those. Today nothing does, and the writing rule below is the whole defence.
 
 ## The writing rule
 
 In a comment, a harness failure message, or a doc:
 
 - **Describe the spelling in words.** "A bare-var duration arbitrary", "an arbitrary shadow value", "the custom property written directly in the brackets with no `var()` wrapper".
-- **A concrete arbitrary value naming a custom property that actually exists is fine.** It costs one dead utility and breaks nothing, and it shows the correct spelling without being able to cause an outage. `scripts/test/settings-hero-design-language.sh` and `scripts/test/toggle-primitive-one-scale.sh` both keep such examples on purpose.
+- **A concrete arbitrary value naming a custom property that actually exists is fine.** It costs one dead utility and breaks nothing, and it shows the correct spelling without being able to cause an outage.
 - **A stand-in between the brackets is not fine** — an ellipsis, three dots, an angle-bracketed word, a lone asterisk. Name the tokens individually instead (`-quick` / `-standard` / `-emphasized`).
 - **Never assemble a class from parts.** The scanner reads source text, so an interpolated class compiles to nothing at all. That is a different failure with the same root cause, and it has shipped here more than once — see [cellular-settings-family.md](cellular-settings-family.md) and [cell-scanner.md](cell-scanner.md).
 
