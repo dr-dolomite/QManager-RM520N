@@ -827,5 +827,188 @@
       "auto_off": "已关闭自动更新",
       "save_failed": "无法保存该偏好设置"
     }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "AT 终端",
+      "description": "直接向调制解调器发送 AT 命令，并原样读取它返回的回复。会让射频停止工作的命令会先等待您确认，还有少数命令会被直接拒绝。"
+    },
+    "card": {
+      "title": "控制台",
+      "description": "回复以原始形式显示，就是调制解调器自己的措辞。最近 100 条命令会保存在本浏览器中，直到您清除为止。"
+    },
+    "actions": {
+      "clear": "清除",
+      "export": "导出"
+    },
+    "game": {
+      "playing": "正在玩 Signal Storm"
+    },
+    "empty": {
+      "title": "尚未发送任何命令",
+      "description": "在下方提示符处输入 AT 命令，或者打开“命令”从现成的命令中挑选一条。"
+    },
+    "transcript": {
+      "label": "命令记录",
+      "copy": "复制这条命令及其回复",
+      "copied": "已复制",
+      "status": {
+        "success": "成功",
+        "error": "失败",
+        "blocked": "已拦截"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "按 Tab 键，用历史记录补全这条命令；按 Shift+Tab 离开输入框。"
+    },
+    "gate": {
+      "title": "此命令可能切断您的连接",
+      "confirm": "仍然发送",
+      "cancel": "取消"
+    },
+    "rules": {
+      "qscanfreq": "此处拒绝执行频率扫描。扫描期间射频会停止工作数分钟，而且全程没有任何显示——请改用“小区扫描”页面，它会报告进度并且可以中止。",
+      "qscan": "此处拒绝执行网络扫描。扫描期间射频会停止工作数分钟，而且全程没有任何显示——请改用“小区扫描”页面，它会报告进度并且可以中止。",
+      "resetfactory": "此处拒绝执行恢复出厂设置。它会一次性清空调制解调器的所有设置，包括 QManager 连接设备所需的那些，并且本页面无法撤销。",
+      "reboot": "此命令会重启调制解调器。经由它的所有连接都会中断，包括本页面，正在进行的操作也会丢失——大约需要一分钟才能恢复，而且时钟会回到 1970 年 1 月，直到网络重新校时。",
+      "radio_off": "此命令会关闭调制解调器的射频。如果您是通过调制解调器自身的连接（包括 Tailscale）打开本页面的，那么在从设备端重新开启射频之前，您将失去这个页面。"
+    },
+    "input": {
+      "label": "AT 命令",
+      "placeholder": "AT+COPS?",
+      "send": "发送"
+    },
+    "responses": {
+      "failed": "命令执行失败，调制解调器没有给出原因。",
+      "unexpected": "这条命令未能发送。请查看“系统日志”了解后端的报告。",
+      "unreachable": "无法连接到调制解调器上的 QManager 后端。请确认设备仍可访问，然后重新发送。",
+      "game": "正在启动 Signal Storm…"
+    },
+    "commands": {
+      "trigger": "命令",
+      "search_placeholder": "搜索命令",
+      "empty": "没有命令符合该搜索条件。",
+      "count_one": "{{count}} 条命令",
+      "count_other": "{{count}} 条命令",
+      "manage": "管理命令",
+      "groups": {
+        "modem": "调制解调器",
+        "network": "网络模式",
+        "sim": "SIM 卡插槽",
+        "apn": "APN",
+        "bands": "频段",
+        "passthrough": "IP 透传",
+        "custom": "自定义"
+      },
+      "presets": {
+        "reboot": "重启调制解调器",
+        "disconnect": "关闭射频",
+        "connect": "开启射频",
+        "signal_info": "信号信息（服务小区）",
+        "ca_info": "载波聚合信息",
+        "imei_show": "显示 IMEI",
+        "mode_show": "显示网络模式",
+        "mode_auto": "将网络模式设为自动",
+        "mode_nr_lte": "将网络模式设为 5G NR 和 LTE",
+        "mode_nr": "将网络模式设为仅 5G NR",
+        "mode_lte": "将网络模式设为仅 LTE",
+        "nr5g_disable_status": "显示 SA 与 NSA 的启用情况",
+        "nr5g_enable_both": "同时启用 SA 和 NSA",
+        "nr5g_disable_sa": "仅禁用 SA",
+        "nr5g_disable_nsa": "仅禁用 NSA",
+        "sim_slot_get": "显示当前 SIM 卡插槽",
+        "sim_slot_1": "切换到 SIM 卡插槽 1",
+        "sim_slot_2": "切换到 SIM 卡插槽 2",
+        "apn_list": "显示 APN 列表",
+        "apn_nrbroadband": "将 APN 设为 NRBROADBAND",
+        "bands_nr_sa": "显示已启用的 5G NR SA 频段",
+        "bands_nr_nsa": "显示已启用的 5G NR NSA 频段",
+        "bands_lte": "显示已启用的 LTE 频段",
+        "ippt_addresses": "显示已分配的 IP 地址",
+        "ippt_enable": "启用 IP 透传",
+        "ippt_disable": "禁用 IP 透传"
+      },
+      "errors": {
+        "required": "名称和命令都必须填写。",
+        "must_start_at": "命令必须以 AT 开头。",
+        "duplicate_command": "该命令已在列表中。",
+        "duplicate_label": "另一条命令已经使用了这个名称。"
+      },
+      "manage_dialog": {
+        "title": "管理自定义命令",
+        "description": "您在这里添加的命令会保存在本浏览器中，并显示在列表的“自定义”分组下。",
+        "empty": "您还没有添加任何自定义命令。",
+        "label_field": "命令名称",
+        "label_placeholder": "命令名称",
+        "command_field": "AT 命令",
+        "command_placeholder": "AT+…",
+        "add": "添加",
+        "delete": "删除 {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "Web 控制台",
+      "description": "在浏览器中打开的调制解调器 root shell。您在这里输入的一切都会以 root 身份运行在提供本页面的设备上——没有任何确认步骤，也无法撤销。"
+    },
+    "card": {
+      "title": "终端",
+      "description": "会话在本页面加载时开始，在您输入 exit 或离开本页面时结束。"
+    },
+    "chip": {
+      "connecting": "连接中",
+      "reconnecting": "重新连接中",
+      "connected": "已连接",
+      "unreachable": "未运行",
+      "refused": "已拒绝",
+      "dropped": "链路已中断",
+      "ended": "会话已结束"
+    },
+    "hints": {
+      "copy": "复制",
+      "paste": "粘贴",
+      "leave": "退出全屏"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "清屏",
+      "fullscreen": "全屏",
+      "exit_fullscreen": "退出全屏",
+      "reconnect": "重新连接",
+      "retry": "重试",
+      "start_session": "开始新会话"
+    },
+    "terminal": {
+      "label": "调制解调器上的 root shell"
+    },
+    "states": {
+      "close": {
+        "code": "关闭代码 {{code}}",
+        "reason": "关闭代码 {{code}} — {{reason}}",
+        "none": "连接关闭时没有上报任何代码。"
+      },
+      "unreachable": {
+        "title": "控制台服务未在运行",
+        "description": "QManager 无法连接到 ttyd，也就是在调制解调器上提供这个终端的小程序。它是安装包中的可选组件，可能从未下载过，也可能是它的服务已经停止。重新安装或更新 QManager 会把它装回来。"
+      },
+      "refused": {
+        "title": "调制解调器拒绝了这个会话",
+        "description": "ttyd 已响应，随后用它自己给出的状态关闭了连接。通常是因为它已经在服务另一个终端，或者在握手过程中途停止。请关闭您打开的其他控制台，然后重试。"
+      },
+      "dropped": {
+        "title": "与调制解调器的连接已中断",
+        "description": "控制台原本正在运行，随后链路消失了。Wi-Fi 切换、VPN 或调制解调器重启都会造成这种情况。请确认设备仍然可以访问，然后重新连接。"
+      },
+      "ended": {
+        "title": "会话已结束",
+        "description": "调制解调器上的 shell 已退出，因此这个终端已关闭。没有任何内容丢失——需要时随时开始新会话。"
+      }
+    }
   }
 }

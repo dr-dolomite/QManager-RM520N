@@ -56,12 +56,14 @@ This file is the **router**. One row per reference doc, and each row lists only 
 
 | Doc | Triggers | Scope |
 | --- | --- | --- |
+| [at-terminal.md](at-terminal.md) | `/system-settings/at-terminal`, `constants/at-commands.ts`, `components/system-settings/at-terminal/**`, `BLOCKED_RULES` / `WARNING_RULES`, the `AT+GAME` Signal Storm launch seam, `appendEntry`'s foot-follow scroll rule | RM520N |
 | [languages.md](languages.md) | `/system-settings/languages`, `hooks/use-language-packs.ts`, `lib/i18n/resolve-error.ts`, `components/system-settings/languages/**`, `manifest_error`, `TAG_ON_TONAL` | RM520N |
 | [logs.md](logs.md) | `/system-settings/logs`, `system/logs.sh`, `hooks/use-system-logs.ts`, `types/system-logs.ts`, `components/system-settings/logs/**`, the `level` / `lines` / `total` fields | RM520N |
 | [scheduled-timers.md](scheduled-timers.md) | Any scheduled operation — `schedule_timer.sh`, `OnCalendar`, `OnBootSec`, `qmanager_scheduled_reboot_arm`, `qmanager_tower_schedule_arm`, the `armed` flag, the 1970 boot window | RM520N |
 | [software-update.md](software-update.md) | `/system-settings/software-update`, `system/update.sh`, `hooks/use-software-update.ts`, `components/system-settings/software-update/**`, `UpdateView`, `auto_update_time`, `previous_install_failed`, `download_size` | RM520N |
 | [system-settings.md](system-settings.md) | The `/system-settings` **index only** — `components/system-settings/shapes.ts` and `derive.ts`, `timezone_applied`, `formatOffset`, `useKnownSims`, `scheduled_reboot` | RM520N |
 | [timezone.md](timezone.md) | `/etc/localtime`, `qmanager_timezone_apply`, `sys_get_effective_tz`, `/opt/share/zoneinfo`, the timezone picker | RM520N |
+| [web-console.md](web-console.md) | `/system-settings/web-console`, `hooks/use-web-console.ts`, `qmanager-console.service`, `components/system-settings/web-console/**`, `ConsoleFailureKind`, `terminal-theme.ts` | RM520N |
 
 ### Dashboard
 

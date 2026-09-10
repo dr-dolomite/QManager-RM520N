@@ -1826,3 +1826,47 @@ OPEN / CARRIED FORWARD:
 - RG501Q-EU offline for the entire run — no cross-device verification of anything.
 - Issue #9 itself is NOT closed on GitHub. Per the user's gate answer, the SIM-pull remedy ships in
   RELEASE_NOTES and gets ONE closing comment on the issue AT RELEASE, not now.
+
+---
+
+## Run — Console surfaces adoption pass (AT Terminal + Web Console)
+
+**Date:** 2026-09-07
+**Worktree:** `.claude/worktrees/console-surfaces-adoption`
+**Branch:** `worktree-console-surfaces-adoption`
+**Baseline commit:** f10172f13e214be38b59ddc0aebbf797ee492444 (clean tree)
+**Mode:** Full (Agent tool + real shell). LEAD seat: Opus 5 (FRONTIER). Codex not probed / not routed.
+**Scope:** the last two un-migrated `/system-settings` sub-routes. 24 approved changes.
+**Hard exclusion:** the eight Signal Storm modules. Its launch seam inside the AT Terminal card
+is a preserved five-point contract, not a redesign target.
+
+### Tasks
+
+| ID | Task | Write set | Status |
+|---|---|---|---|
+| T1 | AT Terminal: page head, real card header, log-view transcript, gate banner, input bar, popover groups, motion, shapes+derive | components/system-settings/at-terminal/**, app/system-settings/at-terminal/page.tsx, constants/at-commands.ts | PENDING |
+| T2 | Web Console: page head, header status chip, themed xterm, honest failure states, tap targets, flex height, shapes+derive | components/system-settings/web-console/**, app/system-settings/web-console/page.tsx, hooks/use-web-console.ts | PENDING |
+| T3 | i18n: merge both routes' key maps into all five locale packs, CRLF preserved | 5 locale files | PENDING |
+| T4 | Gates: eslint / tsc / i18n:check / next build, incl. optimizer warnings | - | PENDING |
+| T5 | Blind verification against the original brief | read-only | PENDING |
+| T6 | docs/reference/at-terminal.md + web-console.md + 2 CLAUDE.md routing rows | 3 files | PENDING |
+
+### Attempts (append-only)
+
+
+**2026-09-07 20:12 — conductor handover.** The first orchestrator ended its turn with two
+`ui-builder` workers unreported. Those workers were NOT dead: at 20:09 an AT Terminal worker was
+still actively writing into this worktree (`constants/at-commands.ts` rewritten with a category
+axis, plus new `at-terminal/derive.ts`, `shapes.ts`, `transcript-row.tsx`). No web-console file
+had moved in 14 minutes, so that half of the original wave was dead or never dispatched.
+
+| Attempt | Task | Seat | Result |
+|---|---|---|---|
+| A1 | T1 (AT Terminal) | ui-builder / Opus, GHOST from the prior session | IN FLIGHT, unowned — adopt the diff, grade it, do not dispatch over it |
+| A2 | T2 (Web Console) | ui-builder / Opus | dispatched 20:12, write set disjoint from the ghost's |
+
+Write-set fence for A2: `components/system-settings/web-console/**`, `hooks/use-web-console.ts`,
+`app/system-settings/web-console/page.tsx`. Explicitly barred from `at-terminal/**`,
+`constants/at-commands.ts`, the family `shapes.ts`/`derive.ts`/`condition-block.tsx`, and all of
+`public/locales/`. Both routes emit their English key subtree to a scratchpad JSON instead of
+editing the packs, so T3 merges all five locales in one pass with no collision.

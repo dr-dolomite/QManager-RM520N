@@ -124,6 +124,8 @@
     "Google"
   ],
 
+  "keyboard": ["Ctrl", "Shift", "Alt", "Tab", "Esc", "Enter"],
+
   "universal": [
     "Ping",
     "internet",

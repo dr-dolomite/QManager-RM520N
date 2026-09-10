@@ -27,6 +27,9 @@ import type { FitAddon } from "@xterm/addon-fit";
 // ttyd will start the shell. The opening '{' of the JSON IS the command byte.
 //
 // The WebSocket MUST use the 'tty' subprotocol.
+//
+// The hook surfaces a discriminated FAILURE KIND rather than a sentence: the
+// close code is machine voice, and the copy for it belongs to the component.
 // =============================================================================
 
 // ─── Protocol constants (ASCII character codes) ────────────────────────────
@@ -47,6 +50,18 @@ const MAX_RAPID_FAILURES = 3;
 /** A close within this many ms of opening is considered "rapid" */
 const RAPID_CLOSE_WINDOW_MS = 2_000;
 
+// ─── Close-code classification ─────────────────────────────────────────────
+// 1000 is a normal close; 1005 is the code the browser reports when the peer
+// closed without sending one at all. From a session that actually ran, both
+// mean the shell exited.
+const CLEAN_CLOSE_CODES = new Set([1000, 1005]);
+
+// A status the server chose to send: protocol error, policy, internal fault,
+// or "try again later". Retrying on a schedule cannot clear any of them.
+const REFUSAL_CODES = new Set([1002, 1003, 1008, 1011, 1013]);
+/** Application-defined statuses start here; ttyd's own refusals land in range. */
+const APP_STATUS_FLOOR = 4000;
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type ConnectionState =
@@ -56,6 +71,29 @@ export type ConnectionState =
   | "reconnecting"
   | "unavailable";
 
+/**
+ * Why the console is not connected.
+ *
+ *   unreachable — the handshake never completed on any attempt: ttyd is an
+ *                 optional component, so it may not be installed or running.
+ *   refused     — the server closed with a status of its own choosing.
+ *   dropped     — a session was running and the link went away.
+ *   ended       — a clean close after a real session: the shell exited.
+ */
+export type ConsoleFailureKind =
+  | "unreachable"
+  | "refused"
+  | "dropped"
+  | "ended";
+
+export interface ConsoleFailure {
+  kind: ConsoleFailureKind;
+  /** The raw close code, machine voice. Null when none was reported. */
+  code: number | null;
+  /** The server's own close reason, verbatim. Usually empty. */
+  reason: string;
+}
+
 interface UseWebConsoleOptions {
   terminalRef: React.RefObject<Terminal | null>;
   fitAddonRef: React.RefObject<FitAddon | null>;
@@ -63,6 +101,10 @@ interface UseWebConsoleOptions {
 
 interface UseWebConsoleReturn {
   connectionState: ConnectionState;
+  /** Non-null only while the console is disconnected or unavailable. */
+  failure: ConsoleFailure | null;
+  /** True once any attempt has reached an open socket. */
+  hasOpened: boolean;
   reconnect: () => void;
   disconnect: () => void;
 }
@@ -74,6 +116,11 @@ function getWsUrl(): string {
   return `${proto}//${window.location.host}/console/ws`;
 }
 
+/** The browser's own view of the link, used only to sharpen a give-up verdict. */
+function linkIsDown(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 export function useWebConsole({
@@ -82,6 +129,8 @@ export function useWebConsole({
 }: UseWebConsoleOptions): UseWebConsoleReturn {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("connecting");
+  const [failure, setFailure] = useState<ConsoleFailure | null>(null);
+  const [hasOpened, setHasOpened] = useState(false);
 
   // Stable refs — never cause re-renders, safe in closures
   const wsRef = useRef<WebSocket | null>(null);
@@ -93,6 +142,8 @@ export function useWebConsole({
   const backoffMsRef = useRef(BACKOFF_INITIAL_MS);
   const rapidFailCountRef = useRef(0);
   const openedAtRef = useRef<number | null>(null);
+  /** Whether ANY attempt since the last manual reconnect reached an open socket. */
+  const everOpenedRef = useRef(false);
 
   // Xterm disposable refs — cleaned up on reconnect / unmount
   const onDataDisposableRef = useRef<{ dispose(): void } | null>(null);
@@ -178,6 +229,20 @@ export function useWebConsole({
     );
   }, [clearRetryTimer]);
 
+  /** Land on a terminal state: no further auto-retry, and say why. */
+  const settleFailed = useCallback(
+    (
+      kind: ConsoleFailureKind,
+      state: "disconnected" | "unavailable",
+      code: number | null,
+      reason: string
+    ) => {
+      setFailure({ kind, code, reason });
+      setConnectionState(state);
+    },
+    []
+  );
+
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
 
@@ -189,6 +254,7 @@ export function useWebConsole({
     disposeTerminalListeners();
 
     setConnectionState("connecting");
+    setFailure(null);
     openedAtRef.current = null;
 
     const ws = new WebSocket(getWsUrl(), ["tty"]);
@@ -199,8 +265,10 @@ export function useWebConsole({
       if (!mountedRef.current) return;
 
       openedAtRef.current = Date.now();
+      everOpenedRef.current = true;
       rapidFailCountRef.current = 0;
       backoffMsRef.current = BACKOFF_INITIAL_MS;
+      setHasOpened(true);
       setConnectionState("connected");
 
       // Wire up terminal → WebSocket
@@ -249,16 +317,31 @@ export function useWebConsole({
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event: CloseEvent) => {
       if (!mountedRef.current) return;
 
       disposeTerminalListeners();
       wsRef.current = null;
 
-      // Check if this was a rapid failure
+      const code = event.code;
+      const reason = event.reason;
       const openedAt = openedAtRef.current;
+      const attemptOpened = openedAt !== null;
       const wasRapid =
-        openedAt === null || Date.now() - openedAt < RAPID_CLOSE_WINDOW_MS;
+        !attemptOpened || Date.now() - openedAt < RAPID_CLOSE_WINDOW_MS;
+
+      // A clean close from a session that actually ran is the shell exiting,
+      // not a fault — reconnecting on a timer would restart it behind the user.
+      if (attemptOpened && CLEAN_CLOSE_CODES.has(code)) {
+        settleFailed("ended", "unavailable", code, reason);
+        return;
+      }
+
+      // A status the server chose to send is a refusal; a schedule cannot fix it.
+      if (REFUSAL_CODES.has(code) || code >= APP_STATUS_FLOOR) {
+        settleFailed("refused", "disconnected", code, reason);
+        return;
+      }
 
       if (wasRapid) {
         rapidFailCountRef.current += 1;
@@ -267,7 +350,13 @@ export function useWebConsole({
       }
 
       if (rapidFailCountRef.current >= MAX_RAPID_FAILURES) {
-        setConnectionState("unavailable");
+        // Never having reached an open socket is the signal that separates
+        // "ttyd is not there" from "the console was running and the link went".
+        if (everOpenedRef.current || linkIsDown()) {
+          settleFailed("dropped", "disconnected", code, reason);
+        } else {
+          settleFailed("unreachable", "unavailable", code, reason);
+        }
         return;
       }
 
@@ -284,6 +373,7 @@ export function useWebConsole({
     sendInput,
     sendResize,
     scheduleReconnect,
+    settleFailed,
     terminalRef,
     fitAddonRef,
   ]);
@@ -299,6 +389,7 @@ export function useWebConsole({
     clearRetryTimer();
     rapidFailCountRef.current = 0;
     backoffMsRef.current = BACKOFF_INITIAL_MS;
+    everOpenedRef.current = false;
     connect();
   }, [clearRetryTimer, connect]);
 
@@ -310,9 +401,9 @@ export function useWebConsole({
       wsRef.current = null;
     }
     if (mountedRef.current) {
-      setConnectionState("disconnected");
+      settleFailed("ended", "unavailable", null, "");
     }
-  }, [clearRetryTimer, disposeTerminalListeners, closeSocket]);
+  }, [clearRetryTimer, disposeTerminalListeners, closeSocket, settleFailed]);
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -333,5 +424,5 @@ export function useWebConsole({
     };
   }, [connect, clearRetryTimer, closeSocket, disposeTerminalListeners]);
 
-  return { connectionState, reconnect, disconnect };
+  return { connectionState, failure, hasOpened, reconnect, disconnect };
 }

@@ -1,123 +1,102 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Terminal } from "@xterm/xterm";
+import * as React from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import {
-  TerminalSquareIcon,
-  Trash2Icon,
   MaximizeIcon,
   MinimizeIcon,
-  LoaderCircleIcon,
-  WifiOffIcon,
-  RefreshCwIcon,
+  Trash2Icon,
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { AnimatePresence, motion, useAnimationControls } from "motion/react";
+import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
+
+import { ConditionBlock } from "@/components/system-settings/condition-block";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { useWebConsole, type ConnectionState } from "@/hooks/use-web-console";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWebConsole } from "@/hooks/use-web-console";
+import { DUR, EASE_QUICK, EASE_STANDARD } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
-// =============================================================================
-// Constants
-// =============================================================================
+import { FAILURE_ACTION, chipCopyKey, closeDetail, resolveView } from "./derive";
+import {
+  CARD_BODY,
+  CARD_DESC,
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  CHIP_GLYPH,
+  CONSOLE,
+  FAILURE_FACE,
+  PILL_ACTION,
+  PILL_GLYPH,
+  SKELETON,
+  SPIN,
+  STATE_CHIP,
+} from "./shapes";
+import { readTerminalFont, readTerminalTheme } from "./terminal-theme";
 
-const XTERM_THEME = {
-  foreground: "#e4e4e7",
-  background: "#09090b",
-  cursor: "#e4e4e7",
-  selectionBackground: "#e4e4e740",
-};
+const K = "web_console";
 
-// =============================================================================
-// StatusBar — bottom strip showing connection state
-// =============================================================================
+/** xterm's own defaults, kept for everything the theme does not name. */
+const TERMINAL_FONT_SIZE = 14;
+const TERMINAL_SCROLLBACK = 5000;
 
-interface StatusBarProps {
-  connectionState: ConnectionState;
-  onReconnect: () => void;
-}
-
-function StatusBar({ connectionState, onReconnect }: StatusBarProps) {
-  const isConnecting =
-    connectionState === "connecting" || connectionState === "reconnecting";
-  const isConnected = connectionState === "connected";
-  const isDisconnected = connectionState === "disconnected";
-
-  return (
-    <div className="bg-muted/50 flex items-center gap-2 border-t px-3 py-1.5">
-      {/* State indicator */}
-      {isConnecting && (
-        <>
-          <LoaderCircleIcon className="size-3 animate-spin text-warning" />
-          <span className="text-muted-foreground text-xs">
-            {connectionState === "reconnecting" ? "Reconnecting..." : "Connecting..."}
-          </span>
-        </>
-      )}
-      {isConnected && (
-        <>
-          <span className="bg-success size-2 rounded-full" />
-          <span className="text-muted-foreground text-xs">Connected</span>
-        </>
-      )}
-      {isDisconnected && (
-        <>
-          <span className="bg-destructive size-2 rounded-full" />
-          <span className="text-muted-foreground text-xs">Disconnected</span>
-          <div className="ml-auto">
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-5 text-xs"
-              onClick={onReconnect}
-            >
-              <RefreshCwIcon />
-              Reconnect
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// WebConsoleCard
-// =============================================================================
-
-export default function WebConsoleCard() {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+export function WebConsoleCard(): React.JSX.Element {
+  const { t } = useTranslation("system-settings");
+  const { resolvedTheme } = useTheme();
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
 
   // xterm refs — passed to the hook
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const terminalRef = React.useRef<Terminal | null>(null);
+  const fitAddonRef = React.useRef<FitAddon | null>(null);
 
   // DOM container ref for xterm to mount into
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const overlayRef = React.useRef<HTMLDivElement | null>(null);
+  const fullscreenButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const focusReturnRef = React.useRef<HTMLElement | null>(null);
+  const wasFullscreenRef = React.useRef(false);
 
-  const { connectionState, reconnect } = useWebConsole({
+  const { connectionState, failure, hasOpened, reconnect } = useWebConsole({
     terminalRef,
     fitAddonRef,
   });
 
-  const isUnavailable = connectionState === "unavailable";
+  const view = resolveView(connectionState, failure, hasOpened);
+  // One key drives the chip's label AND its face, so the two cannot disagree.
+  const chipKey = chipCopyKey(connectionState, failure);
+  const chip = STATE_CHIP[chipKey];
+  const ChipGlyph = chip.glyph;
 
   // ── xterm initialization ─────────────────────────────────────────────────
 
-  useEffect(() => {
+  React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Create terminal
     const terminal = new Terminal({
-      theme: XTERM_THEME,
+      // Both read off the host: xterm measures glyphs through a canvas, which
+      // resolves neither `oklch()` nor a custom property.
+      theme: readTerminalTheme(container),
       allowTransparency: true,
-      fontSize: 14,
-      fontFamily: "monospace",
+      fontSize: TERMINAL_FONT_SIZE,
+      fontFamily: readTerminalFont(container),
       cursorBlink: true,
-      scrollback: 5000,
+      scrollback: TERMINAL_SCROLLBACK,
     });
 
     const fitAddon = new FitAddon();
@@ -127,7 +106,6 @@ export default function WebConsoleCard() {
     terminal.loadAddon(webLinksAddon);
     terminal.open(container);
 
-    // Initial fit
     try {
       fitAddon.fit();
     } catch {
@@ -137,7 +115,6 @@ export default function WebConsoleCard() {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // ResizeObserver to refit on container size changes
     const observer = new ResizeObserver(() => {
       try {
         fitAddon.fit();
@@ -155,13 +132,34 @@ export default function WebConsoleCard() {
     };
   }, []);
 
-  // ── Fullscreen toggle ────────────────────────────────────────────────────
+  // ── Theme ────────────────────────────────────────────────────────────────
 
-  const toggleFullscreen = useCallback(() => {
+  React.useEffect(() => {
+    // `resolvedTheme` is the trigger, not the source: it changes one tick after
+    // the class lands on the root, and the tokens are read off the root itself.
+    void resolvedTheme;
+    const frame = requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (container && terminalRef.current) {
+        terminalRef.current.options.theme = readTerminalTheme(container);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [resolvedTheme]);
+
+  // ── Full screen ──────────────────────────────────────────────────────────
+
+  const controls = useAnimationControls();
+  const firstModeRef = React.useRef(true);
+
+  const toggleFullscreen = React.useCallback(() => {
+    if (!isFullscreen) {
+      focusReturnRef.current = document.activeElement as HTMLElement | null;
+    }
     setIsFullscreen((prev) => !prev);
-  }, []);
+  }, [isFullscreen]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     requestAnimationFrame(() => {
       try {
         fitAddonRef.current?.fit();
@@ -171,98 +169,218 @@ export default function WebConsoleCard() {
     });
   }, [isFullscreen]);
 
+  // The box changes shape rather than moving, so the console crossfades through
+  // its own opacity instead of snapping between two positions.
+  React.useEffect(() => {
+    if (firstModeRef.current) {
+      firstModeRef.current = false;
+      return;
+    }
+    void controls.start({
+      opacity: [0.3, 1],
+      transition: { duration: DUR.quick, ease: EASE_STANDARD },
+    });
+  }, [isFullscreen, controls]);
+
+  React.useEffect(() => {
+    if (!isFullscreen) return;
+    // xterm swallows Escape while the terminal itself has focus, so a shell
+    // editor still receives it; this only fires from the chrome around it.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isFullscreen]);
+
+  React.useEffect(() => {
+    if (isFullscreen) {
+      wasFullscreenRef.current = true;
+      return;
+    }
+    if (!wasFullscreenRef.current) return;
+    wasFullscreenRef.current = false;
+    const target = focusReturnRef.current;
+    focusReturnRef.current = null;
+    if (target && document.contains(target)) target.focus();
+    else fullscreenButtonRef.current?.focus();
+  }, [isFullscreen]);
+
+  // The sheet has no scrim by design, so nothing else stops Tab walking into a
+  // sidebar the user cannot see. Everything outside the sheet goes inert.
+  React.useEffect(() => {
+    const node = overlayRef.current;
+    if (!isFullscreen || !node) return;
+    const marked: HTMLElement[] = [];
+    for (
+      let el: HTMLElement | null = node;
+      el && el !== document.body;
+      el = el.parentElement
+    ) {
+      for (const sibling of Array.from(el.parentElement?.children ?? [])) {
+        if (sibling === el || !(sibling instanceof HTMLElement)) continue;
+        if (sibling.hasAttribute("inert")) continue;
+        sibling.setAttribute("inert", "");
+        marked.push(sibling);
+      }
+    }
+    return () => {
+      for (const el of marked) el.removeAttribute("inert");
+    };
+  }, [isFullscreen]);
+
   // ── Clear ────────────────────────────────────────────────────────────────
 
-  const handleClear = useCallback(() => {
+  const handleClear = React.useCallback(() => {
     terminalRef.current?.clear();
   }, []);
 
-  // ── Layout classes ───────────────────────────────────────────────────────
-
-  const cardClasses = isFullscreen
-    ? "fixed inset-0 z-50 rounded-none overflow-hidden gap-0 py-0 flex flex-col"
-    : "overflow-hidden gap-0 py-0 flex flex-col h-[calc(100vh-theme(spacing.16))]";
+  const failed = view === "failed" && failure !== null;
+  const face = failure ? FAILURE_FACE[failure.kind] : null;
+  const detail = failure ? closeDetail(failure) : null;
+  const FaceGlyph = face?.glyph;
 
   return (
-    <Card className={cardClasses}>
-      {/* ── Header bar ────────────────────────────────────────────────────── */}
-      <div className="bg-muted flex items-center gap-2 border-b px-3 py-2">
-        <TerminalSquareIcon className="text-muted-foreground size-4" />
-        <span className="text-muted-foreground text-sm font-medium">
-          Web Console
-        </span>
-
-        {/* Keyboard shortcut hints — hidden on narrow viewports */}
-        <div className="ml-4 hidden items-center gap-3 lg:flex">
-          <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            Copy
-            <KbdGroup>
-              <Kbd>Ctrl</Kbd>
-              <Kbd>Shift</Kbd>
-              <Kbd>C</Kbd>
-            </KbdGroup>
-          </span>
-          <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            Paste
-            <KbdGroup>
-              <Kbd>Ctrl</Kbd>
-              <Kbd>Shift</Kbd>
-              <Kbd>V</Kbd>
-            </KbdGroup>
-          </span>
-        </div>
-
-        <div className="ml-auto flex gap-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleClear}
-            disabled={isUnavailable}
-          >
-            <Trash2Icon />
-            Clear
-          </Button>
-          <Button variant="ghost" size="xs" onClick={toggleFullscreen}>
-            {isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
-            {isFullscreen ? "Exit" : "Fullscreen"}
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Terminal area ──────────────────────────────────────────────────── */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* xterm container — hidden (not removed) when unavailable */}
-        <div
-          ref={containerRef}
-          className="flex-1 min-h-0"
-          style={{
-            background: XTERM_THEME.background,
-            display: isUnavailable ? "none" : undefined,
-          }}
-        />
-
-        {/* Unavailable empty state */}
-        {isUnavailable && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-            <WifiOffIcon className="text-muted-foreground size-10 opacity-50" />
-            <div className="text-center">
-              <p className="text-sm font-medium">Web Console is not available</p>
-              <p className="text-muted-foreground text-xs">
-                ttyd is not installed or not running.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={reconnect}>
-              <RefreshCwIcon />
-              Retry
-            </Button>
-          </div>
+    <motion.div
+      ref={overlayRef}
+      animate={controls}
+      className={isFullscreen ? CONSOLE.OVERLAY : CONSOLE.SLOT}
+    >
+      <Card
+        className={cn(
+          CARD_SHELL,
+          isFullscreen ? CONSOLE.HEIGHT_FULL : CONSOLE.HEIGHT,
         )}
-      </div>
+      >
+        <CardHeader className={CARD_PAD}>
+          <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
+          <CardDescription className={CARD_DESC}>
+            {t(`${K}.card.description`)}
+          </CardDescription>
+          <CardAction>
+            <Badge variant={chip.variant} aria-live="polite">
+              <ChipGlyph
+                className={cn(CHIP_GLYPH, chip.spin && SPIN)}
+                aria-hidden="true"
+              />
+              {t(`${K}.chip.${chipKey}`)}
+            </Badge>
+          </CardAction>
 
-      {/* ── Status bar ────────────────────────────────────────────────────── */}
-      {!isUnavailable && (
-        <StatusBar connectionState={connectionState} onReconnect={reconnect} />
-      )}
-    </Card>
+          <div className={CONSOLE.TOOLS}>
+            {/* The hints ride at every width: a narrow screen is exactly where
+                pasting a command by hand is hardest. */}
+            <div className={CONSOLE.HINTS}>
+              <span className={CONSOLE.HINT}>
+                {t(`${K}.hints.copy`)}
+                <KbdGroup>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.ctrl`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.shift`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>C</Kbd>
+                </KbdGroup>
+              </span>
+              <span className={CONSOLE.HINT}>
+                {t(`${K}.hints.paste`)}
+                <KbdGroup>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.ctrl`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.shift`)}</Kbd>
+                  <Kbd className={CONSOLE.KEY}>V</Kbd>
+                </KbdGroup>
+              </span>
+              {isFullscreen && (
+                <span className={CONSOLE.HINT}>
+                  {t(`${K}.hints.leave`)}
+                  <KbdGroup>
+                    <Kbd className={CONSOLE.KEY}>{t(`${K}.keys.esc`)}</Kbd>
+                  </KbdGroup>
+                </span>
+              )}
+            </div>
+
+            <div className={CONSOLE.ACTIONS}>
+              <Button
+                type="button"
+                variant="outline"
+                className={PILL_ACTION}
+                onClick={handleClear}
+                disabled={failed}
+              >
+                <Trash2Icon className={PILL_GLYPH} aria-hidden="true" />
+                {t(`${K}.actions.clear`)}
+              </Button>
+              <Button
+                ref={fullscreenButtonRef}
+                type="button"
+                variant="outline"
+                className={PILL_ACTION}
+                onClick={toggleFullscreen}
+              >
+                {isFullscreen ? (
+                  <MinimizeIcon className={PILL_GLYPH} aria-hidden="true" />
+                ) : (
+                  <MaximizeIcon className={PILL_GLYPH} aria-hidden="true" />
+                )}
+                {isFullscreen
+                  ? t(`${K}.actions.exit_fullscreen`)
+                  : t(`${K}.actions.fullscreen`)}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className={cn(CARD_PAD, CARD_BODY)}>
+          <div className={CONSOLE.PANE}>
+            {/* Hidden, never unmounted: removing the host disposes the session. */}
+            <div
+              ref={containerRef}
+              className={CONSOLE.TERMINAL}
+              role="group"
+              aria-label={t(`${K}.terminal.label`)}
+              hidden={failed}
+            />
+
+            {/* The handoff crossfades rather than cutting: the skeleton stands
+                on the terminal's own rectangle, so an unmount is a flash. */}
+            <AnimatePresence>
+              {view === "loading" && (
+                <motion.div
+                  key="console-skeleton"
+                  className={SKELETON.PANE}
+                  initial={{ opacity: 1 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+                  aria-hidden="true"
+                >
+                  <Skeleton className={SKELETON.FILL} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {failed && failure && face && FaceGlyph && detail && (
+              <div className={CONSOLE.COVER}>
+                <ConditionBlock
+                  tone={face.tone}
+                  glyph={FaceGlyph}
+                  ariaRole={failure.kind === "ended" ? "status" : "alert"}
+                  title={t(`${K}.states.${failure.kind}.title`)}
+                  description={t(`${K}.states.${failure.kind}.description`)}
+                  detail={
+                    <p className={CONSOLE.DETAIL}>
+                      {t(`${K}.states.${detail.key}`, detail.params)}
+                    </p>
+                  }
+                  onRetry={reconnect}
+                  retryLabel={t(`${K}.actions.${FAILURE_ACTION[failure.kind]}`)}
+                  className={CONSOLE.BLOCK}
+                />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
+
+export default WebConsoleCard;

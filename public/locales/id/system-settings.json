@@ -827,5 +827,188 @@
       "auto_off": "Pembaruan otomatis dinonaktifkan",
       "save_failed": "Tidak dapat menyimpan preferensi itu"
     }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "AT Terminal",
+      "description": "Kirim perintah AT langsung ke modem dan baca balasannya persis seperti yang dikembalikan. Perintah yang akan mematikan radio ditahan dulu untuk konfirmasi, dan beberapa ditolak sepenuhnya."
+    },
+    "card": {
+      "title": "Konsol",
+      "description": "Balasan ditampilkan mentah, dalam kata-kata modem sendiri. 100 perintah terakhir tersimpan di peramban ini sampai Anda menghapusnya."
+    },
+    "actions": {
+      "clear": "Hapus",
+      "export": "Ekspor"
+    },
+    "game": {
+      "playing": "Sedang memainkan Signal Storm"
+    },
+    "empty": {
+      "title": "Belum ada yang dikirim",
+      "description": "Ketik perintah AT pada prompt di bawah, atau buka Perintah untuk memilih perintah siap pakai."
+    },
+    "transcript": {
+      "label": "Transkrip perintah",
+      "copy": "Salin perintah ini beserta balasannya",
+      "copied": "Tersalin",
+      "status": {
+        "success": "Berhasil",
+        "error": "Gagal",
+        "blocked": "Diblokir"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "Tekan Tab untuk melengkapi perintah ini dari riwayat Anda, atau Shift+Tab untuk keluar dari kolom."
+    },
+    "gate": {
+      "title": "Perintah ini dapat memutus koneksi Anda",
+      "confirm": "Tetap kirim",
+      "cancel": "Batal"
+    },
+    "rules": {
+      "qscanfreq": "Pemindaian frekuensi ditolak di sini. Pemindaian menahan radio tetap mati selama beberapa menit tanpa menampilkan apa pun — gunakan halaman Pemindai Sel, yang melaporkan kemajuan dan bisa dihentikan.",
+      "qscan": "Pemindaian jaringan ditolak di sini. Pemindaian menahan radio tetap mati selama beberapa menit tanpa menampilkan apa pun — gunakan halaman Pemindai Sel, yang melaporkan kemajuan dan bisa dihentikan.",
+      "resetfactory": "Reset pabrik ditolak di sini. Reset menghapus seluruh pengaturan modem sekaligus, termasuk yang dibutuhkan QManager untuk menjangkaunya, dan tidak ada di halaman ini yang bisa membatalkannya.",
+      "reboot": "Perintah ini me-reboot modem. Semua koneksi yang lewat modem terputus, termasuk halaman ini, dan apa pun yang sedang berjalan hilang — perlu sekitar satu menit sampai modem kembali, dengan jamnya di Januari 1970 sampai jaringan menyetelnya lagi.",
+      "radio_off": "Perintah ini mematikan radio modem. Jika Anda membuka halaman ini lewat koneksi modem itu sendiri, termasuk melalui Tailscale, halaman ini akan hilang sampai radio dinyalakan kembali dari perangkatnya langsung."
+    },
+    "input": {
+      "label": "Perintah AT",
+      "placeholder": "AT+COPS?",
+      "send": "Kirim"
+    },
+    "responses": {
+      "failed": "Perintah gagal dan modem tidak memberikan alasan.",
+      "unexpected": "Perintah ini tidak dapat dikirim. Periksa Log Sistem untuk melihat laporan dari backend.",
+      "unreachable": "Tidak dapat menjangkau backend QManager di modem. Pastikan perangkat masih terjangkau, lalu kirim ulang.",
+      "game": "Memulai Signal Storm…"
+    },
+    "commands": {
+      "trigger": "Perintah",
+      "search_placeholder": "Cari perintah",
+      "empty": "Tidak ada perintah yang cocok dengan pencarian itu.",
+      "count_one": "{{count}} perintah",
+      "count_other": "{{count}} perintah",
+      "manage": "Kelola perintah",
+      "groups": {
+        "modem": "Modem",
+        "network": "Mode jaringan",
+        "sim": "Slot SIM",
+        "apn": "APN",
+        "bands": "Band",
+        "passthrough": "IP passthrough",
+        "custom": "Kustom"
+      },
+      "presets": {
+        "reboot": "Mulai ulang modem",
+        "disconnect": "Matikan radio",
+        "connect": "Nyalakan radio",
+        "signal_info": "Info sinyal (serving cell)",
+        "ca_info": "Info carrier aggregation",
+        "imei_show": "Tampilkan IMEI",
+        "mode_show": "Tampilkan mode jaringan",
+        "mode_auto": "Setel mode jaringan ke otomatis",
+        "mode_nr_lte": "Setel mode jaringan ke 5G NR dan LTE",
+        "mode_nr": "Setel mode jaringan ke 5G NR saja",
+        "mode_lte": "Setel mode jaringan ke LTE saja",
+        "nr5g_disable_status": "Tampilkan status aktif SA dan NSA",
+        "nr5g_enable_both": "Aktifkan SA dan NSA sekaligus",
+        "nr5g_disable_sa": "Nonaktifkan SA saja",
+        "nr5g_disable_nsa": "Nonaktifkan NSA saja",
+        "sim_slot_get": "Tampilkan slot SIM aktif",
+        "sim_slot_1": "Beralih ke slot SIM 1",
+        "sim_slot_2": "Beralih ke slot SIM 2",
+        "apn_list": "Tampilkan daftar APN",
+        "apn_nrbroadband": "Setel APN ke NRBROADBAND",
+        "bands_nr_sa": "Tampilkan band 5G NR SA yang aktif",
+        "bands_nr_nsa": "Tampilkan band 5G NR NSA yang aktif",
+        "bands_lte": "Tampilkan band LTE yang aktif",
+        "ippt_addresses": "Tampilkan alamat IP yang diberikan",
+        "ippt_enable": "Aktifkan IP passthrough",
+        "ippt_disable": "Nonaktifkan IP passthrough"
+      },
+      "errors": {
+        "required": "Nama dan perintah keduanya wajib diisi.",
+        "must_start_at": "Perintah harus diawali dengan AT.",
+        "duplicate_command": "Perintah itu sudah ada di daftar.",
+        "duplicate_label": "Nama itu sudah dipakai perintah lain."
+      },
+      "manage_dialog": {
+        "title": "Kelola perintah kustom",
+        "description": "Perintah yang Anda tambahkan di sini disimpan di peramban ini dan muncul di bawah Kustom pada daftar.",
+        "empty": "Anda belum menambahkan perintah kustom apa pun.",
+        "label_field": "Nama perintah",
+        "label_placeholder": "Nama perintah",
+        "command_field": "Perintah AT",
+        "command_placeholder": "AT+…",
+        "add": "Tambah",
+        "delete": "Hapus {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "Konsol Web",
+      "description": "Shell root pada modem, dibuka di peramban Anda. Semua yang Anda ketik di sini berjalan sebagai root pada perangkat yang menyajikan halaman ini — tidak ada konfirmasi dan tidak ada yang bisa dibatalkan."
+    },
+    "card": {
+      "title": "Terminal",
+      "description": "Sesi dimulai saat halaman ini dimuat dan berakhir saat Anda mengetik exit atau meninggalkan halaman."
+    },
+    "chip": {
+      "connecting": "Menghubungkan",
+      "reconnecting": "Menghubungkan ulang",
+      "connected": "Terhubung",
+      "unreachable": "Tidak berjalan",
+      "refused": "Ditolak",
+      "dropped": "Koneksi hilang",
+      "ended": "Sesi berakhir"
+    },
+    "hints": {
+      "copy": "Salin",
+      "paste": "Tempel",
+      "leave": "Keluar dari layar penuh"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "Bersihkan",
+      "fullscreen": "Layar penuh",
+      "exit_fullscreen": "Keluar dari layar penuh",
+      "reconnect": "Hubungkan ulang",
+      "retry": "Coba lagi",
+      "start_session": "Mulai sesi baru"
+    },
+    "terminal": {
+      "label": "Shell root pada modem"
+    },
+    "states": {
+      "close": {
+        "code": "Kode penutupan {{code}}",
+        "reason": "Kode penutupan {{code}} — {{reason}}",
+        "none": "Koneksi ditutup tanpa melaporkan kode apa pun."
+      },
+      "unreachable": {
+        "title": "Layanan konsol tidak berjalan",
+        "description": "QManager tidak dapat menjangkau ttyd, program kecil yang menyajikan terminal ini dari modem. ttyd adalah bagian opsional dari instalasi, jadi mungkin belum pernah diunduh, atau layanannya berhenti. Memasang ulang atau memperbarui QManager akan mengembalikannya."
+      },
+      "refused": {
+        "title": "Modem menolak sesi ini",
+        "description": "ttyd menjawab lalu menutup koneksi dengan status pilihannya sendiri. Biasanya ttyd sedang melayani terminal lain, atau berhenti di tengah proses handshake. Tutup konsol lain yang masih terbuka, lalu coba lagi."
+      },
+      "dropped": {
+        "title": "Koneksi ke modem terputus",
+        "description": "Konsol tadinya berjalan lalu tautannya hilang. Perpindahan Wi-Fi, VPN, atau modem yang dimulai ulang sama-sama bisa menyebabkannya. Pastikan perangkat masih terjangkau, lalu hubungkan ulang."
+      },
+      "ended": {
+        "title": "Sesi berakhir",
+        "description": "Shell pada modem sudah keluar, jadi terminal ini tertutup. Tidak ada yang hilang — mulai sesi baru kapan pun Anda membutuhkannya."
+      }
+    }
   }
 }

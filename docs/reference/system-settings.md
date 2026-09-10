@@ -3,12 +3,12 @@
 > **Applies to:** RM520N-GL · re-authored onto the design canon 2026-09-05
 > Family: `components/system-settings/**` · namespace `public/locales/*/system-settings.json`
 
-The route's **index only**. Five of the seven sub-routes have taken the canon
-pass — Logs, Connection Quality, System Health Check, Languages and Software
-Update — and four of those route to their own docs: [logs.md](logs.md),
-[connection-quality.md](connection-quality.md), [languages.md](languages.md) and
-[software-update.md](software-update.md). The remaining two (AT Terminal, Web
-Console) have their own components and have **not** taken the pass.
+The route's **index only**. All seven sub-routes have now taken the canon pass —
+Logs, Connection Quality, System Health Check, Languages, Software Update, AT
+Terminal and Web Console — and six of those route to their own docs:
+[logs.md](logs.md), [connection-quality.md](connection-quality.md),
+[languages.md](languages.md), [software-update.md](software-update.md),
+[at-terminal.md](at-terminal.md) and [web-console.md](web-console.md).
 
 ---
 
