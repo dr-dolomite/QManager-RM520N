@@ -274,7 +274,7 @@ Only `id`, `networkType`, `pci` and `signalStrength` genuinely overlap, and the 
 
 ## What is shared, and what is deliberately not
 
-Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep now takes both `ScanErrorState` and `ScanEmptyState` from `scan-states.tsx` — the former `EMPTY_PANEL` shape it used instead is gone; see [The sweep's empty state owns its action](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run).)
+Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep now takes both `ScanErrorState` and `ScanEmptyState` from `scan-states.tsx` — the former `EMPTY_PANEL` shape it used instead is gone; see [The sweep's empty state owns no action](#the-sweeps-empty-state-owns-no-action).)
 
 The four added in 2026-08-12's refinement follow the same rule as the hero: **shape shared, words not**. `run-summary.tsx`, `sibling-link.tsx` and `table-note.tsx` take every string as a prop; `summaries.ts` returns numbers, tiers and identifiers and never a sentence.
 
@@ -284,7 +284,7 @@ Three of the eleven reach across to the **calculator** as well: `shapes.ts` (whi
 
 **The CSV builders are NOT shared, and should not be.** Each route keeps its own `buildCsvRows` and header constant (`scanner.tsx:41`/`:59`, `neighbour-scanner.tsx:45`/`:60`) because the two row shapes have different columns; both go through the shared `lib/download-csv.ts` for the actual download. Sharing the *builder* would require the widened type this doc argues against.
 
-> ℹ️ **The download BUTTON moved on 2026-08-24; the builders did not.** Both routes took "Download CSV" out of the hero header's `actions` slot and now render it in an end-justified row (`flex justify-end`) directly under the results table, inside the results card, only when there are rows. The header's `actions` therefore carries exactly one act — "Sweep again" / "Read again", the thing you do to the *run* — while exporting is a fact about a finished table and sits at that table's own bottom edge. It is the same `Button` (`variant="tonal-neutral"`, `PILL_ACTION`), the same `handleDownload`, and still the one shared `cell_scanner.run.download` key on both routes. Nothing about `buildCsvRows`, either header constant or `lib/download-csv.ts` changed. Both routes moved together on purpose: the two are siblings a click apart, and a control that changes rows between them is the defect the [empty panel's button](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run) was retired for.
+> ℹ️ **The download BUTTON moved on 2026-08-24; the builders did not.** Both routes took "Download CSV" out of the hero header's `actions` slot and now render it in an end-justified row (`flex justify-end`) directly under the results table, inside the results card, only when there are rows. The header's `actions` therefore carries exactly one act — "Sweep again" / "Read again", the thing you do to the *run* — while exporting is a fact about a finished table and sits at that table's own bottom edge. It is the same `Button` (`variant="tonal-neutral"`, `PILL_ACTION`), the same `handleDownload`, and still the one shared `cell_scanner.run.download` key on both routes. Nothing about `buildCsvRows`, either header constant or `lib/download-csv.ts` changed. Both routes moved together on purpose: the two are siblings a click apart, and a control that changes rows between them is the defect the [empty panel's button](#the-sweeps-empty-state-owns-no-action) was retired for.
 
 ## The calculator takes the anchor, not the run
 
@@ -294,7 +294,7 @@ Its form column's `FORM.NOTE` is now a **spec citation only**, rendered once the
 
 **This inverts what this doc and both of those files used to say**, and the old argument is worth keeping because the interesting part of it was the mistake: it held that a `rounded-hero` radius here was "a promise of importance the page cannot keep", on the grounds that the family's heroes are *run* heroes and nothing here runs. Right about runs, wrong about heroes. What an anchor promises is not that something ran — it is that **one object on the page is the thing the reader came for**, and everything else on the page reports on it. That is unambiguous here: you came to turn a channel number into a frequency, and the bands grid and the history are both readings of that one answer. The incumbent's two peer cards claimed the converter and its own history were equally important, which is the single thing this page is certain they are not.
 
-The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, as the sweep's results card does, so the page fills in rather than assembling itself. (The two empties are no longer the *same* object: see [The sweep's empty state owns its action](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run).)
+The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, as the sweep's results card does, so the page fills in rather than assembling itself. (Both are `ScanEmptyState`, and since 2026-09-10 the sweep's card is mounted before its first run too: see [The sweep's empty state owns no action](#the-sweeps-empty-state-owns-no-action).)
 
 `shapes.ts` (`components/cellular/cell-scanner/shapes.ts`, "The frequency calculator" section) carries the long form of the decision, plus module-level `IDENT` and `FIGURE` — the machine-voice pair that was previously nested inside `TABLE` and is now hoisted so the calculator's tiles and history rows can key off the same two strings the scan table does.
 
@@ -437,8 +437,8 @@ The three phases now:
 
 | Posture | The hero | The results card |
 | ------- | -------- | ---------------- |
-| `idle` | a compact **launch bar**: title with the description stacked beneath it, and the primary action in the header's `META` slot. No rail, no summary column | **not rendered at all** |
-| `scanning` | the same container **grows** into the rail-plus-summary body. The rail carries the spinning disc and the copy; the summary arrives as a skeleton | enters on the shared `staggerItem` card cascade, showing `ScannerSkeleton` |
+| `idle` | a compact **launch bar**: title with the description stacked beneath it, and the primary action in the header's `META` slot. No rail, no summary column | mounted, showing the shared `ScanEmptyState` panel (2026-09-10 — see [The sweep's empty state owns no action](#the-sweeps-empty-state-owns-no-action)) |
+| `scanning` | the same container **grows** into the rail-plus-summary body. The rail carries the spinning disc and the copy; the summary arrives as a skeleton | `ScannerSkeleton` |
 | `complete` | rail carries the 48 px count; summary carries real tiles | the table, or the empty panel if the run listed nothing |
 | `failed` | rail carries the modem's own error string, in machine voice (`RAIL.TITLE_MACHINE`) — **and the hero withholds its launch button entirely** | `ScanErrorState`, which carries the single recovery action |
 
@@ -542,9 +542,11 @@ Two mechanics worth keeping:
 - **The root is `items-start`**, which is what keeps `META` on the *title's* row however many lines the description wraps to.
 - **`META` carries `ms-auto` rather than the root carrying `justify-between`.** The row wraps, and with `justify-between` a wrap leaves the meta slot marooned against the right edge of its own line.
 
-## The sweep's empty state no longer owns an action, and no longer renders before a run
+## The sweep's empty state owns no action
 
-**One act gets one affordance.** Since 2026-08-24 (user decision) the sweep's results card is not rendered at all while the posture is `idle`, and the `Empty` panel inside it carries no button.
+**One act gets one affordance.** Since 2026-08-24 (user decision) the sweep's empty panel carries no button.
+
+> ℹ️ **The other half of that decision was reverted on 2026-09-10 (user decision).** The same pass also made the sweep's results card unmount entirely while the posture was `idle` (`{posture === "idle" ? null : …}` around the `<Card>` in `scanner.tsx`). That gate is **gone**: the card is now always mounted on both routes, and `idle` shares one `else` branch with a completed sweep that listed nothing — both render `ScanEmptyState`. The button decision below is unaffected and still holds; the reasoning for it is kept because it is still the reason no button exists.
 
 The retired shape, kept here so nobody re-derives it: from 2026-08-14 the sweep's pre-run panel was the shared `Empty` primitive (`components/ui/empty.tsx`) with its own "Sweep all bands" / "Sweep again" button in an `EmptyContent` slot, wired to the same `startScan` the hero's button used. The argument was that before a run the results card *is* the whole page, so a reader looking at an empty table should not have to travel back up to the hero to start one. The neighbour route kept the quieter `ScanEmptyState` posture stack with no button, and the two panels were described as **deliberately different objects**.
 
@@ -558,19 +560,19 @@ What holds now, on both routes:
 
 | Route | Before the first run | After a run that listed nothing |
 | ----- | -------------------- | ------------------------------- |
-| **Full sweep** | the results card is **not mounted** (`scanner.tsx` returns `null` for `posture === "idle"`); it enters on the shared `staggerItem` card cascade the moment a sweep starts, and from then on it stays through complete, failed and a re-run | `ScanEmptyState`, the same `POSTURE` stack the neighbour route renders — **and no button**. The hero directly above is already showing a `0` and a "Sweep again" action in exactly this state |
+| **Full sweep** | the results card **stays mounted** with `ScanEmptyState`, i.e. the `POSTURE` stack, and no button | the same panel — **and still no button**. The hero directly above is already showing a `0` and a "Sweep again" action in exactly this state |
 | **Neighbour read** | the results card **stays mounted** with `ScanEmptyState`, i.e. the `POSTURE` stack, and no button | the same panel |
 
-> ℹ️ **The two empty panels are still different objects, but the reason changed.** It is no longer "one owns an action and the other does not" — neither does. What differs now is *when they exist*: the sweep's panel is reachable only after a completed run that listed nothing, while the neighbour route's is also its pre-run state, because a two-second read does not earn the page rearranging itself around it. That divergence is the same cost asymmetry recorded in [the hero's morph](#the-hero-is-as-tall-as-it-has-something-to-say), not a second, independent decision.
+> ℹ️ **The two empty panels are one object again.** Both routes render `ScanEmptyState` in both states, so the sweep's pre-run panel and its completed-and-empty panel are the same branch in `scanner.tsx` and read alike — the card never has to unmount, and the reader is not shown two different treatments for "no rows here". The 2026-08-24 divergence (the sweep's panel existing only after a run) was the reverted half; the cost asymmetry it was argued from still governs the [hero's morph](#the-hero-is-as-tall-as-it-has-something-to-say), which the neighbour route still does not take.
 
 Two things about the sweep's panel that are still load-bearing:
 
-- **It cannot be reached while a run is in flight.** `scanning` renders `ScannerSkeleton` and `failed` renders `ScanErrorState`, so the branch is structurally a completed-and-empty state. That is also why it never needed a `disabled` button and now needs no button at all.
+- **It is the branch two unrelated causes fall into.** `scanning` renders `ScannerSkeleton` and `failed` renders `ScanErrorState`, so what reaches the empty panel is either the pre-run state or a completed run that listed nothing. Neither one wants a button: the first has the hero's launch action directly above it, the second the hero's "Sweep again".
 - **The panel is `ScanEmptyState` on `POSTURE.ROOT`'s `min-h-[13rem]`**, the same object and the same height the neighbour route's empty state uses, so swapping between the skeleton, the error panel and the table does not jump the card. The former `EMPTY_PANEL` shape — a second literal that had to move in step with `POSTURE.ROOT` — is gone now that both routes share one component.
 
 The dashed stroke is this codebase's vocabulary for a slot with nothing in it yet (the same idiom as `custom-profiles/empty-profile.tsx`), not a compensation for a weak fill — No-Hairline-On-Fill does not apply.
 
-> ⚠️ **Do not restore the panel's button in a later pass**, and do not restore the card at idle. Both were removed together and each one alone brings back half of the double-resize.
+> ⚠️ **Do not restore the panel's button in a later pass.** That half of the 2026-08-24 decision stands: two triggers for one act, forty pixels apart, and a trigger that only exists at one posture. The *other* half — the card not mounting at idle — was reverted on 2026-09-10 and must not be reinstated either; the card is mounted on both routes at every posture.
 
 ## The run summary, the verdict and the tally
 
