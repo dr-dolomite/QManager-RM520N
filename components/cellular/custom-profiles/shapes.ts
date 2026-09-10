@@ -340,15 +340,19 @@ export const PROFILE_STATUS_BADGE: Record<
 export const HERO_CARD =
   "@container/hero flex flex-col gap-5 rounded-hero border-0 bg-surface p-6 shadow-[var(--shadow-whisper)]";
 
-/** The hero's identity line: disc, name column, trailing chip + actions. */
+/** The hero's identity line: disc+name group, trailing chip + actions. */
 export const HERO_TOP = "flex flex-wrap items-start gap-[1.125rem]";
 
+/** The disc + name column, stretched together so the disc can match the column's height. */
+export const HERO_IDENTITY = "flex min-w-0 flex-1 items-stretch gap-[1.125rem]";
+
 /**
- * The hero's leading glyph disc — geometry only. 52px, matching the tile disc
- * one step below it so the hero and its own tiles read as one family.
+ * The hero's leading glyph disc — geometry only. Square, and its height
+ * follows the name column's (via the parent's `items-stretch`) rather than a
+ * fixed 52px, so tightening the column retunes the disc in the same edit.
  */
 export const HERO_DISC =
-  "grid size-[3.25rem] flex-none place-items-center rounded-pill";
+  "grid aspect-square flex-none place-items-center rounded-pill";
 
 /**
  * Its fill, by what the hero is currently reporting. FILL layer, per the

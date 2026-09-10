@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Dashboard",
-    "description": "A live view of your modem: what it is connected to, how strong the link is, and what has changed recently."
+    "description": "A live view of your modem: what it's connected to, how strong the link is, and what's changed."
   },
   "alert": {
     "modem_unreachable": "Unable to reach the modem. Data shown may be outdated."

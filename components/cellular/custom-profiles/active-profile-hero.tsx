@@ -24,6 +24,7 @@ import {
   HERO_DISC,
   HERO_DISC_TONE,
   HERO_EYEBROW,
+  HERO_IDENTITY,
   HERO_NAME,
   HERO_NOTICE,
   HERO_NOTICE_BODY,
@@ -334,38 +335,41 @@ export function ActiveProfileHero({
     >
       {/* --- Identity line ---------------------------------------------- */}
       <motion.div variants={staggerItem} className={HERO_TOP}>
-        <span className={cn(HERO_DISC, HERO_DISC_TONE[condition])}>
-          <MaterialSymbol
-            name={HERO_DISC_GLYPH[condition]}
-            size={26}
-            filled={condition !== "applying"}
-            className={
-              condition === "applying"
-                ? "motion-safe:animate-spin"
-                : undefined
-            }
-            aria-hidden
-          />
-        </span>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className={HERO_EYEBROW}>
-            {t("custom_profiles.hero.eyebrow")}
+        <div className={HERO_IDENTITY}>
+          <span className={cn(HERO_DISC, HERO_DISC_TONE[condition])}>
+            <MaterialSymbol
+              name={HERO_DISC_GLYPH[condition]}
+              size={26}
+              filled={condition !== "applying"}
+              className={
+                condition === "applying"
+                  ? "motion-safe:animate-spin"
+                  : undefined
+              }
+              aria-hidden
+            />
           </span>
-          <span className={HERO_NAME}>{profile.name}</span>
-          {/* The carrier and the ICCID: the two facts the name alone cannot
-              carry. Separated by layout, never by a middot — a glue character
-              belongs to a machine-voice run, and this line is half prose. */}
-          <span className="text-on-surface-variant flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem]">
-            <span className="min-w-0 truncate">
-              {profile.mno || t("custom_profiles.hero.unknown_operator")}
+
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+            <span className={cn(HERO_EYEBROW, "leading-none")}>
+              {t("custom_profiles.hero.eyebrow")}
             </span>
+            <span className={cn(HERO_NAME, "leading-tight")}>
+              {profile.name}
+            </span>
+            {/* The ICCID, in machine voice — the operator no longer repeats
+                the name shown one line up. */}
             {profile.sim_iccid ? (
-              <span className={cn(MACHINE_VALUE, "min-w-0 truncate text-xs")}>
+              <span
+                className={cn(
+                  MACHINE_VALUE,
+                  "min-w-0 truncate text-xs leading-none",
+                )}
+              >
                 {t("custom_profiles.hero.iccid", { value: profile.sim_iccid })}
               </span>
             ) : null}
-          </span>
+          </div>
         </div>
 
         <div className="ms-auto flex flex-none flex-wrap items-center gap-2">
@@ -698,11 +702,13 @@ export function ActiveProfileHeroSkeleton() {
   return (
     <div className={HERO_CARD}>
       <div className={HERO_TOP}>
-        <Skeleton className={cn(HERO_DISC, "bg-accent")} />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <Skeleton className="h-3 w-24 rounded-pill" />
-          <Skeleton className="h-6 w-56 rounded-pill" />
-          <Skeleton className="h-3.5 w-72 rounded-pill" />
+        <div className={HERO_IDENTITY}>
+          <Skeleton className={cn(HERO_DISC, "bg-accent")} />
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+            <Skeleton className="h-3 w-24 rounded-pill" />
+            <Skeleton className="h-6 w-56 rounded-pill" />
+            <Skeleton className="h-3 w-40 rounded-pill" />
+          </div>
         </div>
         <div className="ms-auto flex flex-none items-center gap-2">
           <Skeleton className="h-5 w-20 rounded-pill" />
