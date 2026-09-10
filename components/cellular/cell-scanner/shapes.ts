@@ -306,8 +306,7 @@ export const POSTURE = {
    * pins the results card to one height across its empty, error and skeleton
    * branches, so a failed run does not resize the page under the reader.
    *
-   * `EMPTY_PANEL` restates this number and the two must move together. They are
-   * written as literals rather than composed from a shared string because
+   * `SKELETON_SHAPE` mirrors of this height are literals too, because
    * Tailwind's JIT scans source text — an interpolated `min-h-[${X}]` produces
    * no class at all.
    */
@@ -377,29 +376,11 @@ export const RAIL = {
   COUNT: "text-[48px] font-semibold leading-none tabular-nums tracking-tight",
 } as const;
 
-/**
- * The full-sweep results card's "that run listed nothing" panel — the shared
- * `Empty` primitive rather than `scan-states.tsx`'s posture stack.
- *
- * IT NO LONGER CARRIES A BUTTON, AND IT IS NO LONGER REACHED BEFORE A RUN. It
- * used to own a second copy of the primary action, on the argument that before a
- * sweep the card is the whole page and a reader looking at an empty table should
- * not travel back up to the hero. Both halves of that stopped being true on
- * 2026-08-24: the results card does not render at all at idle (there are no
- * results, and a dashed box announcing their absence is furniture), so the only
- * way to see this panel is a sweep that COMPLETED and returned nothing — a state
- * in which the hero directly above is already showing a 0 and a "Sweep again"
- * button. One act, one button.
- *
- * The dashed stroke is this codebase's vocabulary for a slot with nothing in it
- * yet (see `custom-profiles/empty-profile.tsx`), not a compensation for a weak
- * fill, so No-Hairline-On-Fill does not apply. `rounded-tile` — one radius step
- * DOWN from the `rounded-card` results card that hosts it. The min-height
- * mirrors `POSTURE.ROOT`, so swapping in the skeleton or the table does not jump
- * the page.
+/*
+ * `EMPTY_PANEL` (the sweep's own dashed `Empty` box) is gone: both scanning
+ * routes now render `scan-states.tsx`'s `ScanEmptyState` on `POSTURE.ROOT`, so
+ * the two siblings' empty states are one object again.
  */
-export const EMPTY_PANEL =
-  "min-h-[13rem] rounded-tile border border-dashed border-outline";
 
 /**
  * The cross-link to the sibling scanning route, in the hero header.

@@ -274,7 +274,7 @@ Only `id`, `networkType`, `pci` and `signalStrength` genuinely overlap, and the 
 
 ## What is shared, and what is deliberately not
 
-Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep takes only `ScanErrorState` from `scan-states.tsx` — its empty panel is the shared `Empty` primitive instead; see [The sweep's empty state owns its action](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run).)
+Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep now takes both `ScanErrorState` and `ScanEmptyState` from `scan-states.tsx` — the former `EMPTY_PANEL` shape it used instead is gone; see [The sweep's empty state owns its action](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run).)
 
 The four added in 2026-08-12's refinement follow the same rule as the hero: **shape shared, words not**. `run-summary.tsx`, `sibling-link.tsx` and `table-note.tsx` take every string as a prop; `summaries.ts` returns numbers, tiers and identifiers and never a sentence.
 
@@ -415,7 +415,7 @@ Also a user decision, 2026-08-12, and the second half of the same argument. The 
 
 > ( ✓ ) · **8** · "across 3 providers on 7 bands" · "Sweep finished" · "8 cells in range."
 
-Three of those five say the same thing. The body sentence restated the figure directly above it, and the context line re-derived a provider and band breakdown that the summary panel two hundred pixels to its right already gives provider by provider. Both lines are **gone on the complete posture only** — `postureBody` is still rendered for idle, scanning and failed, where it is the only copy explaining what is happening — and the two survivors were sized up to carry the rail alone: the disc 52 → **64 px** with a 24 → **32 px** glyph, the count 28 → **48 px**. Both sizes survive the 2026-08-24 rebuild unchanged; what moved is which constant holds them — the hero's rail is now `RAIL` (a row) and the constants are `RAIL.DISC` and `RAIL.COUNT`, while `POSTURE.DISC` keeps the 64 px disc for the results card's panels. `SKELETON_SHAPE.POSTURE` is gone with the hero's use of `POSTURE.ROOT`; `EMPTY_PANEL` is what restates the 13 rem now. All of them are literals rather than a shared interpolated string because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
+Three of those five say the same thing. The body sentence restated the figure directly above it, and the context line re-derived a provider and band breakdown that the summary panel two hundred pixels to its right already gives provider by provider. Both lines are **gone on the complete posture only** — `postureBody` is still rendered for idle, scanning and failed, where it is the only copy explaining what is happening — and the two survivors were sized up to carry the rail alone: the disc 52 → **64 px** with a 24 → **32 px** glyph, the count 28 → **48 px**. Both sizes survive the 2026-08-24 rebuild unchanged; what moved is which constant holds them — the hero's rail is now `RAIL` (a row) and the constants are `RAIL.DISC` and `RAIL.COUNT`, while `POSTURE.DISC` keeps the 64 px disc for the results card's panels. `SKELETON_SHAPE.POSTURE` is gone with the hero's use of `POSTURE.ROOT`; the sweep's results card now shares `ScanEmptyState` on that same `POSTURE.ROOT`, so nothing restates the 13 rem a second time. Both remaining literals exist rather than a shared interpolated string because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
 
 What went with the lines:
 
@@ -558,7 +558,7 @@ What holds now, on both routes:
 
 | Route | Before the first run | After a run that listed nothing |
 | ----- | -------------------- | ------------------------------- |
-| **Full sweep** | the results card is **not mounted** (`scanner.tsx` returns `null` for `posture === "idle"`); it enters on the shared `staggerItem` card cascade the moment a sweep starts, and from then on it stays through complete, failed and a re-run | the `Empty` primitive on `EMPTY_PANEL` — a dashed `rounded-tile` slot with an `EmptyMedia` disc, title and description, **and no button**. The hero directly above is already showing a `0` and a "Sweep again" action in exactly this state |
+| **Full sweep** | the results card is **not mounted** (`scanner.tsx` returns `null` for `posture === "idle"`); it enters on the shared `staggerItem` card cascade the moment a sweep starts, and from then on it stays through complete, failed and a re-run | `ScanEmptyState`, the same `POSTURE` stack the neighbour route renders — **and no button**. The hero directly above is already showing a `0` and a "Sweep again" action in exactly this state |
 | **Neighbour read** | the results card **stays mounted** with `ScanEmptyState`, i.e. the `POSTURE` stack, and no button | the same panel |
 
 > ℹ️ **The two empty panels are still different objects, but the reason changed.** It is no longer "one owns an action and the other does not" — neither does. What differs now is *when they exist*: the sweep's panel is reachable only after a completed run that listed nothing, while the neighbour route's is also its pre-run state, because a two-second read does not earn the page rearranging itself around it. That divergence is the same cost asymmetry recorded in [the hero's morph](#the-hero-is-as-tall-as-it-has-something-to-say), not a second, independent decision.
@@ -566,7 +566,7 @@ What holds now, on both routes:
 Two things about the sweep's panel that are still load-bearing:
 
 - **It cannot be reached while a run is in flight.** `scanning` renders `ScannerSkeleton` and `failed` renders `ScanErrorState`, so the branch is structurally a completed-and-empty state. That is also why it never needed a `disabled` button and now needs no button at all.
-- **`EMPTY_PANEL` restates `POSTURE.ROOT`'s `min-h-[13rem]`**, so swapping between the skeleton, the error panel and the table does not jump the card. Move one and move the other; they are literals in both places because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
+- **The panel is `ScanEmptyState` on `POSTURE.ROOT`'s `min-h-[13rem]`**, the same object and the same height the neighbour route's empty state uses, so swapping between the skeleton, the error panel and the table does not jump the card. The former `EMPTY_PANEL` shape — a second literal that had to move in step with `POSTURE.ROOT` — is gone now that both routes share one component.
 
 The dashed stroke is this codebase's vocabulary for a slot with nothing in it yet (the same idiom as `custom-profiles/empty-profile.tsx`), not a compensation for a weak fill — No-Hairline-On-Fill does not apply.
 

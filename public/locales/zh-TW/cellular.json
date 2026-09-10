@@ -320,6 +320,7 @@
       "scanning_title": "正在逐一調諧頻段",
       "scanning_body": "請保持此分頁開啟——模組完成後結果會顯示在這裡。",
       "complete_title": "掃描完成",
+      "summary_total_cells": "小區總數",
       "failed_title": "掃描失敗",
       "failed_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。"
     },

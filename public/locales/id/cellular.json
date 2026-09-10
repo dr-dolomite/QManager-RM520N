@@ -320,6 +320,7 @@
       "scanning_title": "Menyetel setiap band",
       "scanning_body": "Biarkan tab ini terbuka — hasilnya muncul di sini setelah modem selesai.",
       "complete_title": "Pemindaian selesai",
+      "summary_total_cells": "Total sel",
       "failed_title": "Pemindaian gagal",
       "failed_body": "Modem mungkin sedang sibuk atau tidak dapat dihubungi. Periksa koneksi lalu pindai ulang."
     },

@@ -320,6 +320,7 @@
       "scanning_title": "Sintonizzazione di ogni banda",
       "scanning_body": "Lascia aperta questa scheda: i risultati compaiono qui quando il modem termina.",
       "complete_title": "Scansione terminata",
+      "summary_total_cells": "Celle totali",
       "failed_title": "Scansione non riuscita",
       "failed_body": "Il modem potrebbe essere occupato o irraggiungibile. Controlla la connessione e ripeti la scansione."
     },

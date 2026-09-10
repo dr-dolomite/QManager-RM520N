@@ -320,6 +320,7 @@
       "scanning_title": "Tuning every band",
       "scanning_body": "Keep this tab open — the results land here when the modem finishes.",
       "complete_title": "Sweep finished",
+      "summary_total_cells": "Total Cells",
       "failed_title": "Sweep failed",
       "failed_body": "The modem may be busy or unreachable. Check the connection and run the sweep again."
     },

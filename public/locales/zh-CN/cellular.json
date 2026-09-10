@@ -320,6 +320,7 @@
       "scanning_title": "正在逐个频段调谐",
       "scanning_body": "请保持此标签页打开——模块完成后结果会显示在这里。",
       "complete_title": "扫描完成",
+      "summary_total_cells": "小区总数",
       "failed_title": "扫描失败",
       "failed_body": "模块可能正忙或无法访问。请检查连接后重新扫描。"
     },

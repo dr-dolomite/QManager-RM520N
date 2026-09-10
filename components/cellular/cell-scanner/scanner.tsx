@@ -6,31 +6,27 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useCellScanner } from "@/hooks/use-cell-scanner";
 import { downloadCSV } from "@/lib/download-csv";
 import { staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import type { CellScanResult } from "@/types/cell-scanner";
 
 import LockCellDialog, { type LockCellTarget } from "./lock-cell-dialog";
 import RunHero from "./run-hero";
 import RunSummary, { type SummaryTile, type SummaryVerdict } from "./run-summary";
 import ScanResultView from "./scan-result";
-import { ScanErrorState } from "./scan-states";
+import { ScanEmptyState, ScanErrorState } from "./scan-states";
 import { ScannerSkeleton } from "./scanner-skeleton";
 import SiblingRouteLink from "./sibling-link";
 import {
-  EMPTY_PANEL,
   PILL_ACTION,
+  POSTURE_DISC,
+  POSTURE_GLYPH,
   RESULTS_CARD,
   SECTION_HEAD,
+  SUMMARY,
   runPosture,
   type SignalTier,
 } from "./shapes";
@@ -55,11 +51,12 @@ import { summariseSweep } from "./summaries";
 // hero grew. The card ENTERS on the standard card cascade when a run starts, and
 // from then on it stays.
 //
-// Its `Empty` panel is therefore reachable only after a sweep that COMPLETED and
-// listed nothing, and it no longer carries a button: the hero directly above it
-// is showing a 0 and a "Sweep again" action in exactly that state, and the whole
+// Its empty panel is therefore reachable only after a sweep that COMPLETED and
+// listed nothing, and it carries no button: the hero directly above it is
+// showing a 0 and a "Sweep again" action in exactly that state, and the whole
 // point of moving the primary action into the hero header was that one act gets
-// one affordance. See `EMPTY_PANEL` in `shapes.ts`.
+// one affordance. It is the shared `ScanEmptyState`, the same object the
+// neighbour route uses, so the two siblings read alike.
 // =============================================================================
 
 function buildCsvRows(results: CellScanResult[]): string[] {
@@ -193,6 +190,31 @@ export function FullScanner() {
 
   const copy = POSTURE_COPY[posture];
 
+  // The run's own count, folded into the tile grid as a peer instead of a
+  // larger rail beside it — see `RunHero`'s `hideRail` and `RunSummary`'s
+  // `leading`. Its label is its own key: the rail still says "Sweep finished".
+  const totalCellsTile = hasResults ? (
+    <div className={SUMMARY.TILE}>
+      <span className={cn(SUMMARY.DISC, POSTURE_DISC.complete)}>
+        <MaterialSymbol
+          name={POSTURE_GLYPH.complete.glyph}
+          size={26}
+          filled={POSTURE_GLYPH.complete.filled}
+        />
+      </span>
+      <div className={SUMMARY.COPY}>
+        <span className={SUMMARY.LABEL}>
+          {t("cell_scanner.run.summary_total_cells")}
+        </span>
+        <span className={SUMMARY.DETAILS}>
+          <span className={SUMMARY.DETAIL_FIGURE}>
+            {t("cell_scanner.results.count", { count: results.length })}
+          </span>
+        </span>
+      </div>
+    </div>
+  ) : null;
+
   // Every aggregate on this page, derived once. `summariseSweep` is pure and
   // total: an empty array, a single row and an all-sentinel result set all
   // return a well-formed summary rather than `NaN` or `-Infinity`.
@@ -320,6 +342,9 @@ export function FullScanner() {
           // 30-180 seconds, so the grow lands once, early, and then the reader
           // waits — the morph reads as the page committing to a long operation.
           idleCollapsed
+          // Only when there is a folded-in `totalCellsTile` to take its place —
+          // `RunHero` falls back to its own rail otherwise.
+          hideRail={hasResults}
           summary={
             isScanning || posture === "complete" ? (
               <RunSummary
@@ -329,6 +354,7 @@ export function FullScanner() {
                 tiles={summaryTiles}
                 verdict={verdict}
                 emptyText={t("cell_scanner.run.summary_empty")}
+                leading={totalCellsTile}
               />
             ) : null
           }
@@ -430,17 +456,10 @@ export function FullScanner() {
                NO button: the hero directly above is showing a 0 and a "Sweep
                again" action in exactly this state, and one act gets one
                affordance. */
-            <Empty className={EMPTY_PANEL}>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <MaterialSymbol name="radar" size={24} aria-hidden />
-                </EmptyMedia>
-                <EmptyTitle>{t("cell_scanner.results.empty_title")}</EmptyTitle>
-                <EmptyDescription className="text-pretty">
-                  {t("cell_scanner.results.empty_body")}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <ScanEmptyState
+              title={t("cell_scanner.results.empty_title")}
+              body={t("cell_scanner.results.empty_body")}
+            />
           )}
         </Card>
       </motion.div>
