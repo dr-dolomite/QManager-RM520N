@@ -14,6 +14,7 @@ import { Tag } from "@/components/ui/tag";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { ConnectionScenario } from "@/types/connection-scenario";
+import { optimizationLabelKey } from "@/types/connection-scenario";
 import type { ProfileApplyState, SimProfile } from "@/types/sim-profile";
 
 import { resolveScenarioIcon } from "./connection-scenarios/scenario-icons";
@@ -35,6 +36,7 @@ import {
   HERO_TILE_DISC_BRAND,
   HERO_TILE_DISC_NEUTRAL,
   HERO_TILE_SHAPE,
+  HERO_TILE_VALUE_MONO,
   HERO_TOP,
   MACHINE_VALUE,
   PILL_ACTION_SM,
@@ -283,6 +285,10 @@ export function ActiveProfileHero({
     activeScenario?.name ?? t("custom_profiles.hero.scenario.unknown");
   const scenarioGlyph = resolveScenarioIcon(activeScenario?.icon);
 
+  const optimization = activeScenario?.config.optimization ?? "";
+  const optimizationKey = optimization ? optimizationLabelKey(optimization) : null;
+  const optimizationLabel = optimizationKey ? t(optimizationKey) : optimization;
+
   const apnLabel =
     settings.apn.name || t("custom_profiles.pills.apn_default");
   const pdpKey = PDP_LABEL_KEY[settings.apn.pdp_type];
@@ -474,9 +480,7 @@ export function ActiveProfileHero({
             <span className={HERO_EYEBROW}>
               {t("custom_profiles.hero.tiles.identity")}
             </span>
-            <span className={cn(HERO_TILE_SHAPE.VALUE, MACHINE_VALUE)}>
-              {apnLabel}
-            </span>
+            <span className={HERO_TILE_VALUE_MONO}>{apnLabel}</span>
             <span className={HERO_TILE_SHAPE.TAGS}>
               <Tag variant="neutral">{pdpLabel}</Tag>
               {settings.apn.cid > 0 ? (
@@ -525,8 +529,8 @@ export function ActiveProfileHero({
               {t("custom_profiles.hero.tiles.scenario")}
             </span>
             <span className={HERO_TILE_SHAPE.VALUE}>{scenarioLabel}</span>
-            {schedule.enabled && schedule.blocks.length > 0 ? (
-              <span className={HERO_TILE_SHAPE.TAGS}>
+            <span className={HERO_TILE_SHAPE.TAGS}>
+              {schedule.enabled && schedule.blocks.length > 0 ? (
                 <Tag variant="neutral">
                   <MaterialSymbol
                     name="schedule"
@@ -535,20 +539,31 @@ export function ActiveProfileHero({
                   />
                   {t("custom_profiles.hero.tiles.scheduled")}
                 </Tag>
-              </span>
-            ) : null}
+              ) : (
+                <Tag variant="neutral">
+                  <MaterialSymbol
+                    name="event_busy"
+                    size={BADGE_GLYPH_SIZE}
+                    aria-hidden
+                  />
+                  {t("custom_profiles.hero.tiles.not_scheduled")}
+                </Tag>
+              )}
+            </span>
           </span>
         </div>
 
-        {/* Radio, owned by the scenario. */}
+        {/* Radio configuration — the scenario's optimization goal, owned by it. */}
         <div className={cn(HERO_TILE_SHAPE.ROOT, HERO_TILE_BODY)}>
           <span className={cn(HERO_TILE_SHAPE.DISC, HERO_TILE_DISC_NEUTRAL)}>
             <MaterialSymbol name="cell_tower" size={25} aria-hidden />
           </span>
           <span className={HERO_TILE_SHAPE.COL}>
-            {/* The one tile whose eyebrow carries an affordance: it reports a
-                lock the user cannot change from here, and the page it changes
-                it on is two clicks away in the sidebar.
+            {/* The one tile whose eyebrow row carries an affordance: it reports
+                a lock the user cannot change from here, and the page it
+                changes it on is two clicks away in the sidebar. `justify-between`
+                pins that link to the tile's trailing edge instead of letting it
+                trail the eyebrow text.
 
                 THE HREF IS `cell-locking`, NOT `band-locking`. The pre-redesign
                 hero linked `/cellular/band-locking`, which is not a route —
@@ -556,7 +571,7 @@ export function ActiveProfileHero({
                 missing route is a hard 404 off the modem's lighttpd, not a
                 soft client-side miss. The label key is unchanged; only the
                 destination is corrected. */}
-            <span className="flex min-w-0 items-baseline gap-2">
+            <span className="flex min-w-0 items-baseline justify-between gap-2">
               <span className={cn(HERO_EYEBROW, "min-w-0 truncate")}>
                 {t("custom_profiles.hero.tiles.radio")}
               </span>
@@ -566,6 +581,9 @@ export function ActiveProfileHero({
               >
                 {t("custom_profiles.hero.tiles.band_locking")}
               </Link>
+            </span>
+            <span className={HERO_TILE_SHAPE.VALUE}>
+              {optimizationLabel || "—"}
             </span>
             <span className={HERO_TILE_SHAPE.TAGS}>
               {/* The network mode names both radios in one string, so it has no

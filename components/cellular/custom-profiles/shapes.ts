@@ -347,12 +347,11 @@ export const HERO_TOP = "flex flex-wrap items-start gap-[1.125rem]";
 export const HERO_IDENTITY = "flex min-w-0 flex-1 items-stretch gap-[1.125rem]";
 
 /**
- * The hero's leading glyph disc — geometry only. Square, and its height
- * follows the name column's (via the parent's `items-stretch`) rather than a
- * fixed 52px, so tightening the column retunes the disc in the same edit.
+ * The hero's leading glyph disc — geometry only. Fixed 52px square: `aspect-square`
+ * under `items-stretch` let the cross-axis height win while the flex item's own
+ * width resolved independently, so the disc rendered as an ellipse.
  */
-export const HERO_DISC =
-  "grid aspect-square flex-none place-items-center rounded-pill";
+export const HERO_DISC = "grid size-[3.25rem] flex-none place-items-center rounded-full";
 
 /**
  * Its fill, by what the hero is currently reporting. FILL layer, per the
@@ -524,6 +523,16 @@ export const HERO_TILE_SHAPE = {
   /** The wrapping tag row every tile ends with. */
   TAGS: "flex min-w-0 flex-wrap items-center gap-1.5",
 } as const;
+
+/**
+ * A hero tile's VALUE, in machine voice. Not `cn(HERO_TILE_SHAPE.VALUE,
+ * MACHINE_VALUE)`: at an identical font-size, JetBrains Mono's wider glyphs and
+ * an all-caps device token (an APN routinely IS all-caps) read visibly larger
+ * than the sans value beside it, even though the two share one type step. This
+ * steps the mono value down to the size that reads as equal.
+ */
+export const HERO_TILE_VALUE_MONO =
+  "truncate text-[0.8125rem] font-semibold tracking-[-0.01em] font-mono tabular-nums";
 
 /**
  * THE TILE BODY IS NEUTRAL. THE DISC CARRIES THE COLOUR.
