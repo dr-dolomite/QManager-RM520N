@@ -69,9 +69,14 @@ Write-Host "[deploy-ui] Packing out/ ..." -ForegroundColor Green
 $archive = Join-Path $RootDir "qmanager-build\ui-deploy.tar.gz"
 New-Item -ItemType Directory -Force -Path (Split-Path $archive) | Out-Null
 if (Test-Path $archive) { Remove-Item $archive -Force }
+# Pin to the real Windows bsdtar. If this script is launched from a Git
+# Bash / WSL shell, Git's own tar.exe (MSYS, interprets "D:\..." as a
+# host:path SSH-style remote) can shadow it on PATH.
+$tarExe = Join-Path $env:SystemRoot "system32\tar.exe"
+if (-not (Test-Path $tarExe)) { $tarExe = "tar" }
 Push-Location $OutDir
 try {
-    tar -czf $archive .
+    & $tarExe -czf $archive .
 } finally {
     Pop-Location
 }
@@ -87,7 +92,7 @@ $session = New-SSHSession -ComputerName $modemIp -Credential $cred -AcceptKey -F
 
 try {
     Write-Host "[deploy-ui] Uploading archive ..." -ForegroundColor Green
-    Set-SCPItem -ComputerName $modemIp -Credential $cred -AcceptKey -Path $archive -Destination "/tmp"
+    Set-SCPItem -ComputerName $modemIp -Credential $cred -Force -Path $archive -Destination "/tmp"
 
     $remoteExtractScript = @'
 set -eu
