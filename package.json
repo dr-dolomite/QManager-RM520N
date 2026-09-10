@@ -6,6 +6,7 @@
     "dev": "bun --bun next dev",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
+    "ui": "bun --bun next build && pwsh -NoProfile -File scripts-dev/deploy-ui.ps1",
     "lint": "eslint",
     "i18n:check": "bun run lib/i18n/check.ts",
     "lang": "bun run scripts-dev/lang.ts",
