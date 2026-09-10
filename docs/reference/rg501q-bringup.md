@@ -243,8 +243,10 @@ that needs `jq` runs but emits nothing.
 > enough — `require_auth` is the *first* thing a browser hits, so its own inline
 > `jq -n` kept the device mute before `cgi_error`'s fallback could ever engage.
 > `require_auth` can reach `cgi_error` only because `cgi_base.sh` was reordered to
-> define it above the load-time `require_auth` call; that ordering is load-bearing and
-> is asserted by `scripts/test/cgi-error-jq-fallback.sh` section [6].
+> define it above the load-time `require_auth` call; that ordering is load-bearing.
+> This was asserted by section [6] of `scripts/test/cgi-error-jq-fallback.sh`, which
+> no longer exists — `scripts/test/` was deleted 2026-09-03 — so check the definition
+> order by hand if `cgi_base.sh` is touched again.
 >
 > ⚠️ **Only the CGI layer is covered.** Everything else that needs `jq` — the poller,
 > the alert engine, the health check — still emits nothing on a device with no

@@ -20,8 +20,7 @@ Short version: the limiter is a small JSON file in `/tmp` guarded by a lock file
 | Status endpoint | `GET /cgi-bin/quecmanager/auth/check.sh` (public, `_SKIP_AUTH=1`) |
 | Frontend hook | `hooks/use-auth.ts` → `useLogin()` returns `lockout: LockoutState` |
 | Login UI | `components/auth/login-component.tsx` |
-| Test harness | `scripts/test/auth-lockout-ladder.sh` (31 assertions) |
-| Run the harness | `bun run test:harness` (auto-discovered) or `sh scripts/test/auth-lockout-ladder.sh` |
+| Test harness | none — `scripts/test/` was deleted 2026-09-03; see [Verifying the ladder](#verifying-the-ladder) |
 | Free attempts | `MAX_ATTEMPTS=5` |
 | Ladder | `LOCKOUT_STEPS="30 120 300 900"` (seconds; last entry is the cap) |
 | Pre-ladder window | `LOCKOUT_WINDOW=300` (seconds the level-0 attempt counter lives) |
@@ -102,7 +101,7 @@ The state is written atomically (`jq -n … > "$file.tmp" && mv "$file.tmp" "$fi
 
 **1. `check.sh` must call only the read-only accessor.**
 
-`auth/check.sh` is `_SKIP_AUTH=1` and is fetched by `app/page.tsx` — the public overview splash — on **every page load**. If it called `qm_check_rate_limit` instead of `qm_get_rate_limit_status`, a user sitting on a lockout could refresh the page and push their own `locked_until` further out, or trip the gate merely by visiting. Section 8 of `scripts/test/auth-lockout-ladder.sh` is a regression test for exactly this: it snapshots the state file, calls the accessor, and asserts byte-for-byte equality.
+`auth/check.sh` is `_SKIP_AUTH=1` and is fetched by `app/page.tsx` — the public overview splash — on **every page load**. If it called `qm_check_rate_limit` instead of `qm_get_rate_limit_status`, a user sitting on a lockout could refresh the page and push their own `locked_until` further out, or trip the gate merely by visiting. This was pinned by section 8 of the now-deleted `scripts/test/auth-lockout-ladder.sh` (removed 2026-09-03), which snapshotted the state file, called the accessor, and asserted byte-for-byte equality. Verify it by hand the same way: snapshot the state file, call `check.sh`, and confirm it comes back unchanged.
 
 **2. Mutations happen inside a subshell, so their variables do not survive.**
 
@@ -244,14 +243,9 @@ The lockout label is formatted by `formatLockout()` in `login-component.tsx`: `2
 
 ---
 
-## Running the harness
+## Verifying the ladder
 
-```sh
-sh scripts/test/auth-lockout-ladder.sh     # directly
-bun run test:harness                       # via scripts/test/run-harnesses.sh (auto-discovered)
-```
-
-31 assertions across eight sections:
+No test harness — `scripts/test/` was deleted 2026-09-03. Prove the ladder by exercising `login.sh` and `check.sh` on the device (or in a shell against the real library, with a temp `ATTEMPTS_FILE`), checking each of the eight behaviors it used to assert:
 
 1. The first five failures are allowed, and `attempts_remaining` counts down
 2. Attempt 6 engages the ladder at 30 s, before the password is checked
@@ -262,14 +256,9 @@ bun run test:harness                       # via scripts/test/run-harnesses.sh (
 7. A pre-upgrade state file without `level`/`last_failure` still loads
 8. The read-only accessor used by `check.sh` never mutates state
 
-The harness **fast-forwards by rewriting timestamps** in the state file rather than sleeping, so the full 900-second ladder runs in well under a second. It sources the real library against a temp `ATTEMPTS_FILE`; no modem is needed.
+Check 6 without waiting an hour by rewriting `last_failure`/`level` directly in `/tmp/qmanager_auth_attempts.json` between attempts, the same fast-forward trick the deleted harness used instead of sleeping.
 
-Two deliberate omissions, both explained in the file's own header:
-
-- **No `set -e`** — `qm_check_rate_limit` returns `1` as the normal "you are locked" signal, so `-e` would abort on the first *correct* lockout.
-- **No `set -u`** — the library guards its own re-entry with `[ -n "$_CGI_AUTH_LOADED" ]` on an intentionally-unset variable. lighttpd never runs CGI under `-u`, so imposing it would test a shell the library never meets.
-
-Failures are counted explicitly instead. If `flock` is absent on the dev host it is stubbed with a note; on a real box the actual lock path is exercised.
+Two things to keep in mind if you re-drive this by hand: `qm_check_rate_limit` returns `1` as the normal "you are locked" signal, so don't treat that as an error; and the library guards its own re-entry with `[ -n "$_CGI_AUTH_LOADED" ]` on an intentionally-unset variable, so running it under `set -u` will misfire.
 
 ---
 
@@ -277,7 +266,7 @@ Failures are counted explicitly instead. If `flock` is absent on the dev host it
 
 - `busybox-portability-checker`: PASS on all seven categories, with live on-device confirmation that `flock -x -n` works and `-w` does not exist, that jq 1.7.1 handles `@tsv`, and that `www-data` can create and lock a file in `/tmp`.
 - `installer-safety-auditor`: CLEAR — no installer, sudoers, systemd or OTA surface is touched.
-- `scripts/test/run-all.sh`: PASS, 158 scripts. New harness 31/31.
+- `scripts/test/run-all.sh`: PASS, 158 scripts, new harness 31/31, recorded 2026-08-27 — historical only; `scripts/test/` was deleted 2026-09-03 and this is no longer re-runnable.
 
 ---
 

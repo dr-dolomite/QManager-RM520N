@@ -36,7 +36,7 @@ three-state contract, and which parts are load-bearing.
 | Icon library | **Material Symbols Rounded** (route-scoped), with three recorded exceptions |
 | i18n namespace | `dashboard` |
 | Design canon | `DESIGN.md` — Layout, Motion > Entrances, Components > Tiles / Metric rows |
-| Harness | `scripts/test/dashboard-design-language.sh` — 357 assertions, 10 sections |
+| Proof | No test harness — `scripts/test/` was deleted 2026-09-03. Verify by loading `/dashboard` and reading `next build`'s output |
 
 ---
 

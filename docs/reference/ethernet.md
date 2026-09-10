@@ -36,7 +36,7 @@ Re-authored on 2026-08-31 onto the finalized design language. The composition is
 
 `ethernet-status.tsx` is the data shell — the fetch, the 10 s poll, the speed-limit apply with its confirm-poll, and the page header with its Refresh pill. `link-state-strip.tsx` is Band A, `speed-limit-card.tsx` is Band B, and every geometry string, tone and control height they use comes from `shapes.ts`, the family's first shapes module. All copy lives in `common.json` under `ethernet.*`, keyed across all five locales. The route stays on **lucide** per the Icon-Boundary Rule.
 
-`scripts/test/ethernet-design-language.sh` pins the whole contract and was committed red before the fix.
+`scripts/test/ethernet-design-language.sh` pinned the whole contract and was committed red before the fix — historical only, `scripts/test/` was deleted 2026-09-03. Prove the contract now by loading `/local-network/ethernet` and reading `next build`'s output.
 
 ### What the old page was, and why this is a re-author
 

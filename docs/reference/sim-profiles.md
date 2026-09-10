@@ -251,8 +251,10 @@ rather than splitting on `"`. A quote-splitting parser returns an empty tuple
 from a perfectly healthy reply, which the verify poll cannot tell apart from
 "not attached yet". Details in
 [wan-profile-management.md](wan-profile-management.md) and
-[platform-matrix.md](platform-matrix.md); pinned by
-`scripts/test/apn-cgcontrdp-unquoted.sh`.
+[platform-matrix.md](platform-matrix.md); this was pinned by
+`scripts/test/apn-cgcontrdp-unquoted.sh`, which no longer exists —
+`scripts/test/` was deleted 2026-09-03. Re-verify by feeding both wire
+formats through the parser on-device.
 
 #### What runs now
 

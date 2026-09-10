@@ -28,8 +28,7 @@ The headline is counter-intuitive and worth stating up front:
 | Fork sites removed | `parse_serving_cell` 184→3 · `update_system_health` 37→4 · `update_proc_metrics` 22→0 · `qcmd_exec` 8→1 |
 | System-wide CPU busy (baseline) | 38.3% (RM520N-GL) · 39.1% (RG501Q-EU) — kernel time **1.6× user time** |
 | Go equivalent, same work | **2.39 ms/cycle** (RM520N-GL) · 2.84 ms (RG501Q-EU), **0 forks**, 6.3 MB RSS |
-| Profiling harness | `scripts/test/qm_fork_probe.sh` → report at `/tmp/qm_fork_attribution.txt` |
-| Static gates | `scripts/test/poller-defork-forkcount.sh` (fork-site ceilings) · `scripts/test/poller-defork-equivalence.sh` (byte-identical output) |
+| Proof | No harness or gates — `scripts/test/` was deleted 2026-09-03 (it held `qm_fork_probe.sh`, `poller-defork-forkcount.sh` and `poller-defork-equivalence.sh`; see [The 2026-09-02 de-fork pass](#the-2026-09-02-de-fork-pass) for what they used to check). Re-measure on the device and byte-compare output by hand |
 
 > ℹ️ **NOTE:** the "before" figures above come from the de-fork pass's own paired baseline runs (pinned AT fixtures, 2026-09-02), **not** from the original 2026-09-01 profiling run. The two used different durations and different device conditions, so their absolute numbers differ — 595 ms/cycle here against the original run's 815 ms, for instance. Never mix a number from one run with a number from the other. The original run's per-function figures are preserved below as the historical baseline they were.
 
@@ -127,9 +126,9 @@ These are behavioural differences, **not** explained by the SDX55's 2× slower e
 
 ## The 2026-09-02 de-fork pass
 
-Four functions were rewritten to remove process launches. **No emitted value changed** — that is the pass's whole contract, pinned by `scripts/test/poller-defork-equivalence.sh`, which byte-compares a golden dump against a fresh run over raw AT-response fixtures.
+Four functions were rewritten to remove process launches. **No emitted value changed** — that was the pass's whole contract, pinned by `scripts/test/poller-defork-equivalence.sh`, which byte-compared a golden dump against a fresh run over raw AT-response fixtures. `scripts/test/` (and that harness with it) was deleted 2026-09-03 — see [Method](#method) below for how it worked, since re-measuring means rebuilding it from that description.
 
-Static fork-site counts come from `scripts/test/poller-defork-forkcount.sh`. That scanner sums command substitutions, pipeline segments and applet calls independently, so a single `x=$(df -P /usrdata)` scores **2** — one substitution plus one applet. Ceilings are derived floors, not round numbers.
+Static fork-site counts came from `scripts/test/poller-defork-forkcount.sh`. That scanner summed command substitutions, pipeline segments and applet calls independently, so a single `x=$(df -P /usrdata)` scored **2** — one substitution plus one applet. Ceilings are derived floors, not round numbers.
 
 | function | fork sites | ceiling | RM520N ms/cycle | RG501Q ms/cycle |
 |---|---:|---:|---:|---:|
@@ -212,7 +211,7 @@ conn_internet_available=$(printf '%s' "$_pdata" | cut -f1)
 
 Each one is ~3 fork sites — the command substitution's subshell, the pipeline segment, and the `cut` exec — so ten of them is ≈30 fork sites and **≈78 ms**, three times what the `jq` calls cost. The fix is to split the TSV in pure bash with the same suffix/prefix-trim walk `parse_serving_cell` and the history parser already use, and to leave the two `jq` calls alone.
 
-> ⚠️ **Re-measure before optimising it.** `read_ping_data` was dropped from the 2026-09-02 pass because its baseline is stale in the strongest sense: **the repo copy and the two device copies are three different versions**, confirmed by per-function md5. The 154 / 126 ms in the historical table was measured against code that no longer exists anywhere in the repo. `scripts/test/poller-defork-forkcount.sh` deliberately asserts **no** ceiling on it for the same reason — a ceiling on a function whose baseline is unknown would be red forever and would tell nobody anything.
+> ⚠️ **Re-measure before optimising it.** `read_ping_data` was dropped from the 2026-09-02 pass because its baseline is stale in the strongest sense: **the repo copy and the two device copies are three different versions**, confirmed by per-function md5. The 154 / 126 ms in the historical table was measured against code that no longer exists anywhere in the repo. `scripts/test/poller-defork-forkcount.sh` (deleted with the rest of `scripts/test/` on 2026-09-03) deliberately asserted **no** ceiling on it for the same reason — a ceiling on a function whose baseline is unknown would have been red forever and told nobody anything.
 
 ### The zero-fork idioms
 
@@ -245,7 +244,7 @@ esac
 
 > ⚠️ **`set -- $line` is not a drop-in replacement for `awk '{print $2}'`.** Unquoted `set --` performs word splitting **and** pathname expansion; the `awk` it replaces only ever split. Disable globbing across the split (`set -f`, restoring the prior state afterwards), or a filesystem name containing a glob metacharacter shifts every positional parameter. Fixed in `a2b367a`.
 
-> ⚠️ **A vertical bar inside a `case` pattern reads as a pipeline to the fork-site scanner.** `scripts/test/poller-defork-forkcount.sh` is lexical, so write alternations as separate `case` branches rather than one alternation. It costs nothing at runtime and keeps the gate honest.
+> ⚠️ **A vertical bar inside a `case` pattern reads as a pipeline to a lexical fork-site scanner.** `scripts/test/poller-defork-forkcount.sh` counted this way before it was deleted along with the rest of `scripts/test/` on 2026-09-03; there is no gate left to keep honest, but the lesson holds if this kind of scanner is ever rebuilt: write alternations as separate `case` branches rather than one alternation. It costs nothing at runtime.
 
 ---
 

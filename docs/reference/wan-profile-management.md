@@ -166,9 +166,11 @@ anything yet". That is exactly how a landed APN got reported as rc=5
 
 All three parsers now do this: `parse_cgcontrdp` and `parse_cgcontrdp_apn` in
 `cgi_at.sh`, and the poller's `parse_cgcontrdp` in `parse_at.sh` — whose IMS
-filter was `grep -iv '"ims"'` and is now quote-agnostic too. Pinned by
+filter was `grep -iv '"ims"'` and is now quote-agnostic too. This was pinned by
 `scripts/test/apn-cgcontrdp-unquoted.sh` (13 assertions, auto-discovered by
-`scripts/test/run-harnesses.sh`); the device captures and the full symptom list
+`scripts/test/run-harnesses.sh`); `scripts/test/` was deleted 2026-09-03, so
+re-verify by feeding both wire formats through all three parsers on-device.
+The device captures and the full symptom list
 are in [platform-matrix.md](platform-matrix.md).
 
 > ℹ️ NOTE: **Only the parsing changed — the strategy did not.**

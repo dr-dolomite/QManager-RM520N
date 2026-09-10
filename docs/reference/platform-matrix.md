@@ -37,9 +37,12 @@ grep -m1 '^Branch[[:space:]]*Name[[:space:]]*:' "$f" | sed 's/^[^:]*:[[:space:]]
 ```
 
 `scripts/usr/lib/qmanager/hw_profile.sh` is the shared implementation — use it
-rather than writing a fourth ad-hoc `grep`. Its test fixtures in
-`scripts/test/hw-profile.sh` are base64 round-trips of the real bytes from both
-devices, with the capture commands recorded in the header, so the exact file
+rather than writing a fourth ad-hoc `grep`. Its test fixtures, base64
+round-trips of the real bytes from both devices with the capture commands
+recorded in the header, lived in `scripts/test/hw-profile.sh`; that harness
+(and the rest of `scripts/test/`) was deleted 2026-09-03, but the same
+base64 bytes are still recorded in
+`docs/superpowers/plans/2026-08-24-phase-a-tracker.md`, so the exact file
 contents need not be re-probed.
 
 ## Device access — both devices are reachable over SSH, at distinct addresses
@@ -376,8 +379,10 @@ each one is not optional:
    "simplify" the remap away.
 
 `qm_timeout` lives canonically in `scripts/usr/lib/qmanager/platform.sh`, with two
-deliberate local copies (`install_rm520n.sh`, `qmanager_health_check`) pinned
-against drift by `scripts/test/timeout-portability.sh`. The contract and the
+deliberate local copies (`install_rm520n.sh`, `qmanager_health_check`) that used to be
+pinned against drift by `scripts/test/timeout-portability.sh` (deleted along with the
+rest of `scripts/test/` on 2026-09-03 — diff the three copies by hand if drift is
+suspected). The contract and the
 reasons for the copies are in
 [`qmanager-independence.md`](./qmanager-independence.md#the-timeout-contract).
 
@@ -790,7 +795,7 @@ None of these block the fix; all of them bound how far it can be claimed.
 | --- | --- | --- |
 | ~~1~~ | ~~**Re-probe the RM520N-GL once reachable.**~~ | **DONE 2026-08-25.** All four preconditions confirmed present, the imposter proven never to have run, `/opt` proven to be the same `/usrdata/opt` bind as on the RG501Q-EU, and `opt.mount` present as a unit but unlinked. Answers folded into [RM520N-GL status](#rm520n-gl-status-confirmed-exposed-latent-now-fixed) above. |
 | ~~2~~ | ~~**Boot-verify the fix on the RM520N-GL.**~~ | **DONE 2026-08-25.** Rebooted after the hand-application; guard persisted, selector excludes `S80lighttpd`, imposter log mtime unchanged, QManager healthy on 80+443. See [Reboot validation](#reboot-validation--passed-2026-08-25-and-what-it-does-not-prove) — note what that result does *not* prove. |
-| 3 | **End-to-end installer run on hardware.** The fix was validated by applying, by hand, the two state changes the installer performs — not by running the installer itself on-device. | The plumbing is verified *statically*: 16 assertions in `scripts/test/installer-lighttpd-collision.sh` plus a CLEAR installer-safety audit. Static verification is not an execution. |
+| 3 | **End-to-end installer run on hardware.** The fix was validated by applying, by hand, the two state changes the installer performs — not by running the installer itself on-device. | The plumbing was verified *statically* by 16 assertions in `scripts/test/installer-lighttpd-collision.sh` (deleted along with the rest of `scripts/test/` on 2026-09-03) plus a CLEAR installer-safety audit. Static verification was not an execution, and there is now no harness to re-run it with — an end-to-end installer run on hardware is still the open item. |
 | ~~4~~ | ~~**Root-cause the `opt.mount` boot-timing jitter** (22.25s on one boot vs ~4.5s on the next two, identical device, identical config).~~ | **DONE 2026-09-03 (`fae95c0`).** It was never jitter. The distribution is **bimodal** — a won-or-lost race against the vendor kernel's `/usrdata` mount, where a lost race costs ~25 s because the retry is a separate out-of-band job. Root cause, fix and post-fix measurements in [F11](#f11-fixed-2026-09-03-fae95c0--optmounts-first-attempt-loses-a-race-against-the-vendor-kernels-usrdata-mount) below. |
 
 ### F9 (open, deliberately not fixed) — `start-opt-mount.service` never reaches `active`
@@ -1345,11 +1350,12 @@ paths behind a `[ -f ]` guard, applies a **numeric** `chmod 0644`, and `sync`s.
 - **No `daemon-reload`.** Changing a file's mode does not make systemd re-parse the
   unit, and the change is safe on an already-loaded, active unit.
 
-Pinned by `scripts/test/installer-unit-modes.sh` (13 assertions, auto-discovered by
-`run-harnesses.sh`), whose paranoid assertion is [3]: the call site must be
+This was pinned by `scripts/test/installer-unit-modes.sh` (13 assertions, auto-discovered by
+`run-harnesses.sh`), whose paranoid assertion was [3]: the call site must be
 ungated and must not sit inside `install_dependencies()`. Verified to fail against
 `git show HEAD:scripts/install_rm520n.sh` before the fix (8 failures) and pass
-after.
+after. `scripts/test/` was deleted 2026-09-03, so this is historical — re-check
+the call site by hand if `install_rm520n.sh` is touched again.
 
 ##### Checked and clear: the containing directory is NOT loose
 
@@ -1550,9 +1556,11 @@ What the quote-splitting parsers actually broke, all fixed together on
   failover and manual re-activate each ran a full `AT+COPS=2` / `AT+COPS=0`
   bracket and dropped the WAN for ~4s to change nothing.
 
-Pinned by `scripts/test/apn-cgcontrdp-unquoted.sh` (13 assertions,
-auto-discovered by `scripts/test/run-harnesses.sh`), which feeds both wire
-formats through all three parsers. Consumer-side rules live in
+This was pinned by `scripts/test/apn-cgcontrdp-unquoted.sh` (13 assertions,
+auto-discovered by `scripts/test/run-harnesses.sh`), which fed both wire
+formats through all three parsers. `scripts/test/` was deleted 2026-09-03;
+re-verify by feeding both wire formats through the three parsers on-device.
+Consumer-side rules live in
 [`wan-profile-management.md`](./wan-profile-management.md) and
 [`sim-profiles.md`](./sim-profiles.md).
 
@@ -1640,7 +1648,7 @@ gates on it; it records what the installer detected.
 
 | Fact | RM520N-GL (SDX65) | RG501Q-EU (SDX55) | How established |
 | --- | --- | --- | --- |
-| `/etc/qmanager/platform.json` | `model` `RM520NGL_VC`, `soc` `SDX6X`, `form_factor` `m2`, `tier` `official` — **MEASURED**, not derived | `model` `RG501QEU_VD`, `soc` `SDX55`, `form_factor` `lga`, `tier` `community` — derived from the header-table values | RM520N-GL: the generator was **run on the live device** 2026-08-25 to a `/tmp` scratch path (read-only w.r.t. `/etc`; output validated by device `jq` 1.7.1, `od -c` LF-only, scratch removed). RG501Q-EU: emitted byte-exactly by `scripts/test/installer-platform-json.sh` from real device bytes — not yet run on that hardware |
+| `/etc/qmanager/platform.json` | `model` `RM520NGL_VC`, `soc` `SDX6X`, `form_factor` `m2`, `tier` `official` — **MEASURED**, not derived | `model` `RG501QEU_VD`, `soc` `SDX55`, `form_factor` `lga`, `tier` `community` — derived from the header-table values | RM520N-GL: the generator was **run on the live device** 2026-08-25 to a `/tmp` scratch path (read-only w.r.t. `/etc`; output validated by device `jq` 1.7.1, `od -c` LF-only, scratch removed). RG501Q-EU: emitted byte-exactly by the now-deleted `scripts/test/installer-platform-json.sh` from real device bytes (`scripts/test/` was removed 2026-09-03) — still not yet run on that hardware; re-derive the expected bytes by hand from the header-table values if this needs re-checking |
 | Present on device | **Absent today** | **Absent today** | Neither device has been reinstalled since Phase A T2 |
 
 Schema `1`; fields `model`, `soc`, `form_factor`, `tier`, `fw_fingerprint`,

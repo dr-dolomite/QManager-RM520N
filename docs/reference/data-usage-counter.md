@@ -54,7 +54,7 @@ The SoC string itself comes from **`qm_hw_soc()` in `scripts/usr/lib/qmanager/hw
 | `SDX55` (RM502Q-AE, RG501Q-EU, RG502Q) | **`normal`** — the `reversed` arm is present but **commented out** | 2 | 10 |
 | anything else / missing / blank | `normal` | 2 | 10 |
 
-> ⚠️ **WARNING: every SoC resolves to `normal` today.** The `SDX55 → reversed` arm is deliberately inert and is pinned inert by a behavioural assertion in `scripts/test/poller-data-used.sh`. The reversal is **contradicted by a measurement** recorded in [`data-counter-platform-matrix.md`](./data-counter-platform-matrix.md) (an SDX55 part probing `Normal` on the slow path) and has never been measured on the IPA fast path. Phase B owns settling it — do not uncomment the arm before then.
+> ⚠️ **WARNING: every SoC resolves to `normal` today.** The `SDX55 → reversed` arm is deliberately inert (commented out in `detect_orientation_from_soc()`); this used to be pinned by a behavioural assertion in `scripts/test/poller-data-used.sh`, but `scripts/test/` was deleted 2026-09-03, so confirm it is still commented out with a source grep instead. The reversal is **contradicted by a measurement** recorded in [`data-counter-platform-matrix.md`](./data-counter-platform-matrix.md) (an SDX55 part probing `Normal` on the slow path) and has never been measured on the IPA fast path. Phase B owns settling it — do not uncomment the arm before then.
 
 To add a new SoC to the table, edit the `case` in `detect_orientation_from_soc()` in the poller. A change to how the SoC *string* is parsed belongs in `hw_profile.sh`, not here. There is no runtime override.
 

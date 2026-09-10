@@ -819,9 +819,10 @@ both. Per-device behaviour, the two misdiagnoses it caused, and the applet censu
   verification code that calls it) and `qmanager_health_check` (redeployed by OTA
   independently of the lib, so a device mid-upgrade can have a `platform.sh` that
   predates `qm_timeout`). **Fixes must be applied to all three.**
-  `scripts/test/timeout-portability.sh` fails the build if they diverge — it
-  compares the code with comments stripped, so comments may abbreviate but logic
-  may not.
+  `scripts/test/timeout-portability.sh` used to fail the build if they diverged — it
+  compared the code with comments stripped, so comments could abbreviate but logic
+  could not. `scripts/test/` was deleted 2026-09-03; diff the three copies by hand
+  (with comments stripped) if drift is suspected.
 - **`getent` is absent on BOTH devices**, so `qmanager_health_check`'s
   `command -v getent` DNS arm was unreachable everywhere and has been removed.
   `nslookup` is the only live DNS path. Worth knowing before "fixing" a branch

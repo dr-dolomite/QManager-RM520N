@@ -525,7 +525,7 @@ Adding a new `NetworkEventType` therefore means: extend the union in `types/mode
 
 ## Tests
 
-`scripts/test/poller-phase-bcd.sh` carries the producer-side fixtures. Two are worth knowing about by name because they encode the bug and its counterpart hazard:
+No test harness — `scripts/test/` was deleted 2026-09-03. It used to hold the producer-side fixtures in `poller-phase-bcd.sh`; two are worth rebuilding first if this area needs re-verifying, because they encode the bug and its counterpart hazard:
 
 - **The live-capture replay** — B41, nine blanks, a one-sample B8, back to B41. Must emit **zero** events. This is the exact shape that produced 44 rows before the fix.
 - **The period-2 oscillation** — a value alternating every sample. Must emit the **instability warning**, not silence. This is the fixture that caught the rate-limit latch bug.

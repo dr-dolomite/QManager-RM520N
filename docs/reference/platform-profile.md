@@ -37,7 +37,7 @@ regenerates it when it has drifted. That check is `qm_hw_self_heal`.
 | Schema constant | `QM_HW_SCHEMA` in `hw_profile.sh` (currently `1`) |
 | Source of truth for every field | `/etc/quectel-project-version` (overridable in tests via `QUECTEL_VERSION_FILE`) |
 | Log destination | `/tmp/qmanager.log` (overridable in tests via `QM_HW_LOG_FILE`) — **not** stdout |
-| Test harness | `scripts/test/hw-profile.sh` (65 assertions; 4 symlink cases SKIP on Windows) |
+| Proof | No test harness — `scripts/test/` was deleted 2026-09-03. Verify by running `qm_hw_write_profile` on the device and reading the emitted `platform.json` |
 
 Example, read live from the RG501Q-EU on 2026-08-26:
 
