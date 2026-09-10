@@ -19,7 +19,6 @@ import {
   CARRIER_NOTE_TILE,
   CARRIER_TILE,
   HERO,
-  PILL_QUIET,
   SKELETON_SHAPE,
   VERDICT,
   VERDICT_TONE,
@@ -293,7 +292,8 @@ export function FreqLockHero({
           <Button
             type="button"
             variant="tonal-neutral"
-            className={cn(PILL_QUIET, "ms-auto")}
+            size="icon"
+            className="ms-auto rounded-pill"
             onClick={onRefresh}
             disabled={isLoading || isRefreshing}
             aria-label={t("frequency_locking.a11y.refresh")}
@@ -303,7 +303,6 @@ export function FreqLockHero({
               size={16}
               className={isRefreshing ? "animate-spin" : undefined}
             />
-            {t("frequency_locking.live.refresh")}
           </Button>
         </div>
 

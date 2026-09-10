@@ -137,7 +137,12 @@ export const CARD_FOOT =
  * (the Radius-Follows-Size Rule). It holds the verdict and the carriers on air.
  */
 export const HERO = {
-  ROOT: "rounded-hero border-0 bg-surface shadow-none",
+  /**
+   * `py-0` cancels `Card`'s own `py-6` — without it that 24px stacked on top
+   * of `BODY`'s own vertical padding below, doubling the top and bottom gap.
+   * `BODY` owns the actual padding; `Card` supplies shape and fill only.
+   */
+  ROOT: "rounded-hero border-0 bg-surface py-0 shadow-none",
   /**
    * Tighter vertically than horizontally. The hero's two children are already
    * padded panels, so a symmetric `p-6` stacks 24px of card padding on top of
