@@ -15,7 +15,13 @@
 ---
 
 <div align="center">
-  <img src="docs/screenshots/dashboard.png" alt="QManager Dashboard Screenshot" width="900" />
+  <img src="docs/screenshots/dashboard-overview.png" alt="QManager Dashboard — Network Status and Device Information" width="900" />
+  <br/><br/>
+  <img src="docs/screenshots/dashboard-activity.png" alt="QManager Dashboard — Carrier Aggregation, Device Metrics, Live Latency and Recent Activities" width="900" />
+  <br/><br/>
+  <img src="docs/screenshots/cellular-radio-info.png" alt="QManager Cellular and Radio Information page" width="900" />
+  <br/><br/>
+  <img src="docs/screenshots/about-device.png" alt="QManager About Device page" width="900" />
 </div>
 
 ---
