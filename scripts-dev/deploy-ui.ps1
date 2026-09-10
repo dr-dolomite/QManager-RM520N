@@ -128,6 +128,11 @@ mv "$NEW" "$WWW_ROOT"
 echo "DEPLOY_OK"
 '@
 
+    # Strip CR — if this file was checked out with CRLF line endings, the
+    # here-string carries them into the remote command, and BusyBox ash
+    # chokes on "set -eu\r" as an illegal option.
+    $remoteExtractScript = $remoteExtractScript -replace "`r`n", "`n"
+
     Write-Host "[deploy-ui] Extracting and swapping on device ..." -ForegroundColor Green
     $result = Invoke-SSHCommand -SSHSession $session -Command $remoteExtractScript -TimeOut 120
     Write-Host $result.Output
