@@ -2,13 +2,13 @@
 
 **When this applies:** a request of the shape *"apply our finalized design language to
 surface X"*, *"redesign the Y page"*, or *"this page is on the old system — bring it
-forward."* It governs **Phase 1 (Triage & Recon) and Phase 2 (Plan)** of the
-[change workflow](change-workflow.md) for that class of request, and it front-loads a
-deliverable the standard flow does not have: **a published sample design that the user
-approves before any component is written.**
+forward."* It governs **recon and plan** of a Full-lane run under the
+[`qm-orchestrate`](../../.claude/skills/qm-orchestrate/SKILL.md) skill for that class of
+request, and it front-loads a deliverable the standard flow does not have: **a published
+sample design that the user approves before any component is written.**
 
 It does **not** apply to a bug fix on a UI surface, a copy change, or adding one card to an
-existing page. Those are ordinary Tier 1/2 work.
+existing page. Those are ordinary Lite-lane work.
 
 The approach was approved on 2026-08-21 (Custom SIM Profiles, `/cellular/custom-profiles`)
 and the user asked for it to be the reference basis for subsequent redesigns.
@@ -161,8 +161,8 @@ Then, in order:
 
 ## Then run the normal flow
 
-Approval turns this back into an ordinary [change workflow](change-workflow.md) run at the
-tier recon established — usually **Tier 2, frontend-only (Lite Path)**. Worktree discipline
+Approval turns this back into an ordinary Full-lane run under the
+[`qm-orchestrate`](../../.claude/skills/qm-orchestrate/SKILL.md) skill, frontend-only. Worktree discipline
 applies in full: verify `git merge-base HEAD development` equals `git rev-parse HEAD` before
 any builder writes, copy `.env`, run `bun install` and `bunx next typegen`, and diff against
 the **base SHA** rather than the branch name.

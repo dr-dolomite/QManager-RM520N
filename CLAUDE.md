@@ -6,15 +6,16 @@ Detailed feature and subsystem notes live in `docs/reference/`. **Do NOT read th
 
 ## Communication Style
 
-When reporting findings, diagnoses, root causes, or explaining how something works, write so the user **learns alongside the fix** — not just expert-to-expert shorthand.
+**Be direct and concise, in plain English.** Say what was found, what was done, and what happens next. Short is better than complete.
 
-- **Lead with a plain-English summary** (one line) before the technical specifics. Example: "Short version: the CGI script can't see `jq` because lighttpd starts CGI scripts with a stripped-down `PATH` that doesn't include `/opt/bin`."
-- **Briefly explain the *why*** behind the underlying mechanism — one or two sentences of context. Example: "lighttpd does this on purpose: untrusted CGI scripts shouldn't inherit the parent shell's environment, so it gives them a minimal one."
-- **Define jargon on first use**: acronyms (CGI, RLS, RSRP, EN-DC), kernel/system terms (sysctl, udev, systemd target, journald), protocol terms (flock, PTY, WebSocket upgrade) get a one-clause gloss.
-- **Use analogies** when they clarify ("`flock` is like a 'do not disturb' sign on the file — only one process can hold it at a time").
-- **Keep it additive, not bloating.** Trivial answers ("yes", "the file is at X") don't need a tutorial. The rule kicks in for findings, diagnoses, post-mortems, code review, and architecture explanations.
+- **Lead with the answer** in one line, then only the specifics the user needs to act.
+- **Explain the why in one or two sentences** when it changes what the user should do. Skip it otherwise.
+- **Jargon is fine when unavoidable** (CGI, RSRP, systemd, flock) — gloss it in a few words the first time, then use it.
+- **No idioms, metaphors, or colourful phrasing.** Not "foot gun", "smoking gun", "load-bearing", "the tell", "bites". Name the thing plainly.
+- **No lengthy explanations, tutorials, or post-mortem narrative** in a reply. If the long form matters, it goes in the commit body or `docs/reference/`, and the reply points there.
+- Trivial answers ("yes", "the file is at X") stay one line.
 
-This applies to all output that explains *what's happening* or *why* — bug investigations, debug session reports, audit findings, design rationale, and any "I traced this and found..." moments. **Exception:** `RELEASE_NOTES.md` copy targets end users — see Release Notes below; brevity wins there.
+This applies to every reply: findings, diagnoses, reviews, plans, and status updates. `RELEASE_NOTES.md` has its own end-user tone — see Release Notes below.
 
 ## Code Comments
 
@@ -27,9 +28,7 @@ This applies to all output that explains *what's happening* or *why* — bug inv
 
 ## Change Workflow
 
-Every code-change request in this repo follows a tier-routed, 6-phase flow (Triage → Plan → Approval → Execute → Validation → Docs & Close), run by the orchestrator dispatching specialist agents, with the user holding the approval gate. **Before triaging any code-change request** (i.e. before the first `**[Phase 1 — Triage]**` header), read `docs/reference/change-workflow.md` in full — it holds the 6 phases, tier routing table, Lite Path, agent roster, hard rules, branch model, worktree discipline, and Orchestration Mode. This is the project default for code changes and supersedes the generic brainstorming / writing-plans / verification skills. **No test harnesses** — a change is proved by running it: `scp` the script to the device and run it for backend work, load the page in a browser for frontend work, and treat the user's own tarball run as the authoritative result. See that doc's “Verification Comes From The Device” section. Skip phrases ("just do it" / "skip the plan" / "tier 0 it") short-circuit straight to direct execution without reading the doc.
-
-This doc is deliberately **not** inlined here: it's read once by the orchestrator per code-change request, not carried by every dispatched agent's auto-loaded `CLAUDE.md`. Builders/validators get only the relevant excerpt inlined in their brief (per the doc's Hard Rules), never the whole flow.
+Every code-change request runs under the **`qm-orchestrate`** skill (`.claude/skills/qm-orchestrate/SKILL.md`) — invoke it before triaging any change, and also when the user says "resume", "handoff", or "pick up where we left off" (it reads the run ledger in `.orchestra/runs/`). It supersedes the generic brainstorming / writing-plans / verification skills for code changes. **No test harnesses** — a change is proved by running it on the device or loading the page; the user's own tarball run is authoritative. Skip phrases ("just do it" / "skip the plan" / "direct") go straight to an inline edit.
 
 ## Design Context
 

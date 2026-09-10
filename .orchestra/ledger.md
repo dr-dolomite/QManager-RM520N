@@ -1,3 +1,5 @@
+> Frozen 2026-09-10. Runs now live in `.orchestra/runs/<date>-<slug>.md` (see the `qm-orchestrate` skill). Do not append here.
+
 # Orchestration Ledger — /monitoring/alerts re-authoring to the design canon
 
 BASELINE: 7bef685c1ca4efc4bf2e784956c043c574069c73 | dirty: ` M components/monitoring/network-events/shapes.ts` (uncommitted, NOT ours — pre-existing density change to the reference family; left untouched) | 2026-09-04
