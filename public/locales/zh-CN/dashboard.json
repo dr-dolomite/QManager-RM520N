@@ -150,7 +150,7 @@
   "latencyMonitor": {
     "page": {
       "title": "延迟监控",
-      "description": "蜂窝链路响应有多快：到探测目标，以及到你常用的网站。"
+      "description": "蜂窝链路对你的探测目标和常用网站的响应速度。"
     },
     "status": {
       "connected": "已连接",
@@ -161,13 +161,13 @@
     },
     "now": {
       "title": "当前",
-      "description": "最近 5 分钟的探测。",
+      "description": "最近 5 分钟的探测结果。",
       "eyebrow": "往返时延",
       "caption": "平均 {{average}}，最差 {{worst}}",
       "no_reply": "无响应",
       "last_answer": "最后一次响应于 {{time}}，{{value}}",
       "bar_aria": "往返时延与 {{limit}} 上限对比",
-      "strip_aria": "{{total}} 次探测，{{failed}} 次无响应",
+      "strip_aria": "{{total}} 次探测，其中 {{failed}} 次无响应",
       "probe_seconds": "{{seconds}} 秒前",
       "strip_start": "{{minutes}} 分钟前",
       "strip_end": "现在",
@@ -211,12 +211,12 @@
     },
     "sites": {
       "title": "网站",
-      "description": "各网站通过蜂窝链路响应有多快。",
+      "description": "各网站通过蜂窝链路的响应速度。",
       "range_aria": "网站时段",
       "manage": "管理",
       "not_checked": "尚未检测",
       "off_title": "网站监控已关闭",
-      "off_description": "开启后每 {{interval}} 测量一次各网站。",
+      "off_description": "开启后每隔 {{interval}} 测量各网站的响应时间。",
       "turn_on": "开启",
       "empty_title": "暂无网站",
       "empty_description": "添加你常用的网站，查看每个网站的响应速度。",
@@ -225,7 +225,7 @@
     },
     "manage": {
       "title": "管理网站",
-      "description": "最多 {{max}} 个网站，通过蜂窝链路测量。",
+      "description": "最多 {{max}} 个网站，通过蜂窝链路测量响应时间。",
       "monitor": "监控",
       "on": "开",
       "off": "关",
@@ -255,7 +255,7 @@
       "turn_on_ok": "网站监控已开启。",
       "turn_on_failed": "无法开启网站监控。"
     },
-    "notice_stale": "未在更新，显示的是最后一次读数。",
+    "notice_stale": "数据未更新，显示的是上次读数。",
     "retry": "重试",
     "unit_ms": "ms",
     "unit_s": "s",
@@ -411,11 +411,11 @@
     "reach_unreachable": "无法访问",
     "reach_no_ping_reply": "Ping 无响应",
     "reach_unknown": "未测量",
-    "reach_aria": "可达性，{{minutes}} 分钟，从最早开始",
+    "reach_aria": "可达性，{{minutes}} 分钟，按时间从早到晚",
     "jitter_label": "抖动",
     "jitter_now": "当前 {{value}} ms",
     "jitter_no_reading": "无读数",
-    "jitter_aria": "抖动，{{minutes}} 分钟，从最早开始",
+    "jitter_aria": "抖动，{{minutes}} 分钟，按时间从早到晚",
     "axis_now": "现在",
     "axis_reach_one": "{{count}} 分钟前",
     "axis_reach_other": "{{count}} 分钟前",

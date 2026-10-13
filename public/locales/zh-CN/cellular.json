@@ -302,7 +302,7 @@
         "col_cells": "小区",
         "col_bands": "频段",
         "col_best": "最佳信号",
-        "your_sim": "你的 SIM",
+        "your_sim": "当前 SIM",
         "cells_unit_one": "个小区",
         "cells_unit_other": "个小区",
         "dbm_unit": "dBm"
@@ -386,7 +386,7 @@
     },
     "actions": {
       "lock_cell": "锁定到此小区",
-      "lock_other_network": "不是你的 SIM 所属网络"
+      "lock_other_network": "非当前 SIM 的网络"
     },
     "a11y": {
       "network_codes": "网络代码",

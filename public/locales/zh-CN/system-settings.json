@@ -550,7 +550,7 @@
       "now": {
         "latency": "{{ms}} 毫秒",
         "loss": "{{pct}}%",
-        "no_reply": "无回复",
+        "no_reply": "无响应",
         "collecting": "正在收集",
         "over_latency": "超出 {{ms}} 毫秒阈值",
         "over_loss": "超出 {{pct}}% 阈值"

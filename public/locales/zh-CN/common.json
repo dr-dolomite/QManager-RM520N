@@ -497,9 +497,9 @@
         "usb": "USB 直通"
       },
       "blurb": {
-        "disabled": "调制解调器为局域网做路由",
-        "eth": "设置为将 WAN IP 交给以太网设备",
-        "usb": "设置为将 WAN IP 交给 USB 设备"
+        "disabled": "调制解调器为局域网提供路由",
+        "eth": "已设置为将 WAN IP 交给以太网设备",
+        "usb": "已设置为将 WAN IP 交给 USB 设备"
       },
       "no_target": "未选择设备",
       "gateway": "局域网网关",
@@ -547,16 +547,16 @@
       "mode_eth": "以太网",
       "mode_usb": "USB",
       "target_automatic": "自动",
-      "target_manual": "按 MAC",
+      "target_manual": "按 MAC 地址",
       "nat_on": "启用 NAT",
       "nat_off": "不启用 NAT",
       "dns_off": "关闭",
       "dns_on": "开启"
     },
     "mode_note": {
-      "rest": "以太网或 USB 会把 WAN IP 交给一台设备，调制解调器将不再在其局域网网关地址上响应。请保留 Tailscale 或其他登入方式。",
-      "to_passthrough": "应用会重启调制解调器，此标签页将与其断开。之后局域网网关不再响应，请保留 Tailscale 或其他登入方式。",
-      "to_router": "应用会重启调制解调器，此标签页将与其断开。重启后局域网网关会恢复响应。"
+      "rest": "以太网或 USB 直通会将 WAN IP 交给一台设备，调制解调器将不再在局域网网关地址上响应。请保留 Tailscale 或其他访问方式。",
+      "to_passthrough": "应用会重启调制解调器，此标签页将失去连接。之后局域网网关将停止响应，请保留 Tailscale 或其他访问方式。",
+      "to_router": "应用会重启调制解调器，此标签页将失去连接。重启后局域网网关会恢复响应。"
     },
     "dialog": {
       "title": "现在应用并重启？",
@@ -572,7 +572,7 @@
       "read_body": "未做任何更改。请重试，或检查调制解调器是否在响应。",
       "retry": "重试",
       "card_unread": "调制解调器尚未响应，在首次读取完成前没有可更改的内容。",
-      "mac_invalid": "请输入完整的 MAC 地址，即六组十六进制数字。",
+      "mac_invalid": "请输入完整的 MAC 地址，即六组两位十六进制数字。",
       "no_changes": "尚未有任何更改。"
     }
   },
@@ -759,14 +759,14 @@
       "description": "仍在持续的问题，以及反复出现的变化。",
       "ongoing_one": "{{count}} 个问题持续中",
       "ongoing_other": "{{count}} 个问题持续中",
-      "oldest_started": "最早的开始于 {{age}}",
+      "oldest_started": "最早的问题开始于 {{age}}",
       "clear": "没有持续中的问题",
       "last_problem": "上次问题：{{age}}",
       "no_problems": "没有记录到问题",
       "no_events": "尚无事件记录",
       "repeating": "反复出现",
-      "repeat_meta_one": "{{span}}内变化 {{count}} 次",
-      "repeat_meta_other": "{{span}}内变化 {{count}} 次",
+      "repeat_meta_one": "{{span}} 内有 {{count}} 次变化",
+      "repeat_meta_other": "{{span}} 内有 {{count}} 次变化",
       "nothing_repeating": "没有反复出现的变化。"
     },
     "activity": {
@@ -799,8 +799,8 @@
     },
     "run": {
       "title": "{{label}}反复变化",
-      "meta_one": "{{span}}内 {{count}} 个事件",
-      "meta_other": "{{span}}内 {{count}} 个事件",
+      "meta_one": "{{span}} 内有 {{count}} 个事件",
+      "meta_other": "{{span}} 内有 {{count}} 个事件",
       "show": "显示 {{count}} 条",
       "hide": "收起"
     },
@@ -869,7 +869,7 @@
         "reboot": "调制解调器已重启"
       },
       "notice": {
-        "stale": "显示我们最后成功读取到的活动记录。"
+        "stale": "显示上次成功读取的活动记录。"
       },
       "sr": {
         "failed": "提醒发送失败",
@@ -959,7 +959,7 @@
         "succeeded": "提醒设置已保存",
         "errors": {
           "invalid_threshold": "请输入 1 到 1440 分钟的等待时间。",
-          "invalid_phone": "请输入以国家代码开头的 7 到 15 位电话号码。",
+          "invalid_phone": "请输入以国家/地区代码开头、包含 7 到 15 位数字的电话号码。",
           "invalid_email": "请输入有效的发件人和收件人电子邮件地址。",
           "missing_app_password": "请输入电子邮件应用专用密码。",
           "invalid_discord_id": "请输入 15 到 25 位数字的 Discord 用户 ID。",
@@ -1012,7 +1012,7 @@
       "threshold_label": "提醒前等待时间",
       "threshold_unit": "分钟",
       "title": "渠道",
-      "sends_for": "发送事件",
+      "sends_for": "提醒事件",
       "error": {
         "title": "无法加载渠道",
         "description": "设备没有响应。请稍后重试。",
@@ -1427,7 +1427,7 @@
       "ago": "{{minutes}} 分钟前",
       "now": "现在",
       "empty": "调制解调器没有探测数据",
-      "aria": "{{total}} 次探测，{{missed}} 次无响应"
+      "aria": "{{total}} 次探测，其中 {{missed}} 次无响应"
     }
   },
   "aboutDevice": {
