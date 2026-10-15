@@ -106,7 +106,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 | Doc | Triggers | Scope |
 | --- | --- | --- |
 | [about-support.md](about-support.md) | `/about-device`, `/support`, `hooks/use-about-device.ts`, `components/about-device/**`, `components/support/**`, `donate-links.tsx`, `PILL_WISE` / `PILL_PAYPAL` / `PILL_SPONSOR` | RM520N |
-| [change-workflow.md](change-workflow.md) | Nothing live — **superseded** by the `qm-orchestrate` skill at `.claude/skills/qm-orchestrate/SKILL.md`. The stub only records where each retired section moved to | Both |
+| [change-workflow.md](change-workflow.md) | Any code change: the recon → plan → build → validate flow, the validation layers and gates, close-out checks (replaced the retired `qm-orchestrate` skill 2026-10-15) | Both |
 | [i18n.md](i18n.md) | Any user-visible string — `public/locales/**`, `lib/i18n/`, `bun run i18n:check`, `bun run lang`, a namespace, a language pack, any of the picker surfaces | RM520N |
 | [overview-splash.md](overview-splash.md) | The pre-auth routes `/` and `/login/`, the public CGI under `public/`, `resolveBodyMode()`, `TonalBanner`, `components/public/overview/`, the pre-auth type scale | RM520N |
 | [redesign-proposal-playbook.md](redesign-proposal-playbook.md) | Nothing live — **superseded** by the `qm-redesign-review` skill at `.claude/skills/qm-redesign-review/SKILL.md`, which now owns every "redesign / polish / bring this page onto the design language" request. The stub keeps the 2026-08-21 provenance | Both |

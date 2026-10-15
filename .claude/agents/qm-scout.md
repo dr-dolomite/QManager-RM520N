@@ -1,8 +1,8 @@
 ---
 name: qm-scout
 description: Fast read-only reconnaissance for the QManager repo — locates files and symbols, censuses call sites, traces a known path, extracts facts. Returns `file:line — fact` lines and what it did not search. Dispatch it for legwork; a judgment question comes back BLOCKED.
-model: haiku
-effort: low
+model: claude-haiku-5-5
+effort: medium
 color: yellow
 disallowedTools: Edit, Write, NotebookEdit, Agent
 ---

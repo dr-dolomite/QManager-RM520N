@@ -1,13 +1,13 @@
 ---
 name: qm-redesign-review
-description: The single entry point for redesign, polish and repolish requests on a QManager page, card or widget. It produces a published visual Artifact that diagnoses first (a pinned screenshot with measured findings: dead bands, stretched controls, key-to-value distance, container count, duplicated messages, each tied to a file, a value and a rule), then shows a working mockup in the app's real OKLCH tokens and fonts (every real state, Wide/Phone, both themes), a before/after of one real component, a "What changes" table naming real files and shapes.ts constants, "Kept as is" and "Your call before build". Use it whenever the user says redesign, polish, repolish, re-author, critique, "apply the design language to X", "bring this page forward", "this page is on the old system", "make X look better", mentions awkward whitespace, uneven cards or a stretched or cramped layout, or asks for polishing ideas, even without the word "skill" and even if they mention /impeccable. It never edits repo code; the approved design is built as a normal Full-lane run under qm-orchestrate.
+description: The single entry point for redesign, polish and repolish requests on a QManager page, card or widget. It produces a published visual Artifact that diagnoses first (a pinned screenshot with measured findings: dead bands, stretched controls, key-to-value distance, container count, duplicated messages, each tied to a file, a value and a rule), then shows a working mockup in the app's real OKLCH tokens and fonts (every real state, Wide/Phone, both themes), a before/after of one real component, a "What changes" table naming real files and shapes.ts constants, "Kept as is" and "Your call before build". Use it whenever the user says redesign, polish, repolish, re-author, critique, "apply the design language to X", "bring this page forward", "this page is on the old system", "make X look better", mentions awkward whitespace, uneven cards or a stretched or cramped layout, or asks for polishing ideas, even without the word "skill" and even if they mention /impeccable. It never edits repo code; the approved design is built on the normal change flow (docs/reference/change-workflow.md).
 ---
 
 # QManager Redesign Review
 
 This skill turns "this page looks rough" or "redesign X" into a published review page. The page
 diagnoses first, with measurements, then proposes a working mockup of the fix. The user approves or
-amends it, and only then does anything get built, as a Full-lane run under `qm-orchestrate`. It
+amends it, and only then does anything get built, on the normal change flow. It
 replaces `docs/reference/redesign-proposal-playbook.md`, which now only points here.
 
 **The diagnosis is the product.** The user asked for this shape after a Frequency Calculator review:
@@ -18,16 +18,13 @@ and the pixels, not from taste: "this would look better" invites a debate nobody
 settles it.
 
 **This skill never edits repo source.** Everything it writes goes in the session scratchpad and the
-Artifact. Worktrees, builders and commits belong to `qm-orchestrate`, after the gate.
+Artifact. Worktrees, builders and commits come after the user approves.
 
-## Where it sits in qm-orchestrate
+## Where it sits in the change flow
 
-The `qm-orchestrate` flag table routes "apply the design language to X" / "redesign X" here. This
-skill *is* the recon and plan stages of that Full run, and its Artifact is what the gate approves.
-Signal the stages with the usual headers: `**[qm-orchestrate · Full · recon]**` for steps 1–3,
-`**[qm-orchestrate · Full · plan]**` for steps 4–5, `**[qm-orchestrate · Full · gate]**` for step 6.
-Open the run ledger before the first dispatch, per `qm-orchestrate`. A UI bug fix, a copy change or
-one added card is Lite work and does not come here.
+This skill *is* the recon and plan stages of a redesign (`docs/reference/change-workflow.md`), and
+its Artifact is what the user approves. A UI bug fix, a copy change or one added card does not come
+here.
 
 ## Files in this skill
 
@@ -87,7 +84,7 @@ needs Pillow, which the Anaconda `python` on this machine has.
 
 **Recon on a wide surface.** When the tree is too big to read inline, dispatch `qm-scout` tickets
 (read-only, so two can run at once; announce the fan-out). Never `Explore`, `general-purpose`,
-`Plan` or an `orchestra-*` agent: `qm-orchestrate` hard rail 1. Two briefs, verbatim dumps rather
+`Plan` or an `orchestra-*` agent. Two briefs, verbatim dumps rather
 than summaries:
 
 - **Surface map:** route files and what each is, every component in the tree with line counts,
@@ -235,7 +232,7 @@ Short, because the artifact carries the detail. In this order:
    of scope and ask whether to fold it in.
 5. **The gate.** The open "Your call" questions, asked with `AskUserQuestion`. Do not start building.
 
-On approval (with amendments), the run continues as a normal Full-lane `qm-orchestrate` run,
+On approval (with amendments), the run is built on the normal change flow,
 frontend-only, usually built by `ui-builder` and checked by `qm-verifier`. The approved artifact is
 the brief: hand the builders its URL, the change table and the relevant excerpt, never the whole
 page. Amendments that change the design go back into the artifact first (republish), so the
@@ -259,4 +256,4 @@ approved page matches what gets built.
 - **No invented hardware claims.** Data is real or computed with the real formulas; samples are
   labelled as samples.
 - **Single HTML file.** Screenshot as a data URI, fonts only from Google Fonts, under 16MB.
-- **No repo edits, no commits, no device access.** Build only after approval, via `qm-orchestrate`.
+- **No repo edits, no commits, no device access.** Build only after approval, on the normal change flow.

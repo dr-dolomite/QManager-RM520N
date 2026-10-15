@@ -197,5 +197,5 @@ before build". Don't slip it in.
 - **Arguable, not preferred.** The 2026-08-21 Custom Profiles proposal set the standard this skill
   keeps: every decision cites a file, a value and a rule, so approval settles a question instead of
   starting a debate.
-- **Approval, then build.** The user approves or amends, then the change runs through
-  `qm-orchestrate`. The artifact never implies the code already changed.
+- **Approval, then build.** The user approves or amends, then the change is built on
+  the normal change flow. The artifact never implies the code already changed.

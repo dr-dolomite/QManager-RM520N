@@ -236,4 +236,4 @@ primitives. They mirror `components/ui/*`:
 6. **Data is real or computed.** See Data realism.
 7. **Single file.** No external scripts beyond the allowed CDNs (none are needed). The screenshot is
    a data URI. The whole page stays under 16MB.
-8. **No repo edits.** The artifact proposes changes. The build runs later through `qm-orchestrate`.
+8. **No repo edits.** The artifact proposes changes. The build runs later on the normal change flow.
