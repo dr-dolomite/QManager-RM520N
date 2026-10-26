@@ -696,9 +696,8 @@ _nr_bw_to_mhz() {
 parse_ca_info() {
     local raw="$1"
 
-    # One awk pass. Lines out: "<lte_scc> <nr_scc> <total_mhz>", details, carrier JSON, SCC key.
-    # Number fields are printed as the modem sent them (jq 1.7 keeps literals), so the JSON matches
-    # the old jq build; a non-numeric field becomes null.
+    # One awk pass; lines out: "<lte_scc> <nr_scc> <total_mhz>", details, carrier JSON, SCC key.
+    # Numbers are printed as the modem sent them (jq 1.7 keeps literals); non-numeric becomes null.
     local _ca_out lte_scc_count nr_scc_count total_mhz details _ca_json _ca_key
     _ca_out=$(printf '%s\n' "$raw" | awk '
         function num(v) { return (v ~ /^-?[0-9]+$/) ? v : "null" }

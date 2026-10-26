@@ -492,7 +492,7 @@ restore_event_state() {
 # SCC PCI change detection via temp JSON
 # ---------------------------------------------------------------------------
 # Compares current t2_carrier_components against saved state in PCI_STATE_FILE.
-# Only called when t2_carrier_components string has changed (Tier 2 refresh).
+# Called when the SCC tech|band|pci set (t2_scc_key) changes, and once per process start.
 detect_scc_pci_changes() {
     local prev_sccs curr_sccs
 
@@ -828,7 +828,7 @@ detect_events() {
     _ev_ca_check nr_ca NR "$t2_nr_ca_count"
 
     # --- SCC PCI changes: keyed on the SCC tech|band|pci set, not on the signal values ---
-    if [ "${t2_scc_key-}" != "${prev_ev_scc_key-}" ]; then
+    if [ "${t2_scc_key-}" != "${prev_ev_scc_key-_unset_}" ]; then
         detect_scc_pci_changes
         prev_ev_scc_key="${t2_scc_key-}"
     fi

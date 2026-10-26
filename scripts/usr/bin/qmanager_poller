@@ -139,8 +139,8 @@ DATA_USED_RESET_FLAG="/tmp/qmanager_data_used_reset"
 # SoC Branch Name in /etc/quectel-project-version (see
 # detect_orientation_from_soc above). v3/v4 -> v5 upgrade resets
 # accumulators to avoid mixing probe-era totals with the static-orientation
-# regime.
-DATA_USED_SCHEMA=5
+# regime. Schema 6: v5 counted packets once rx passed 8 digits, so v3-v5 reset on upgrade.
+DATA_USED_SCHEMA=6
 # Kernel network-stats virtual file. Overridable for the test harness.
 : "${DATA_USED_PROC_DEV:=/proc/net/dev}"
 
@@ -879,7 +879,7 @@ update_conn_uptime() {
 # =============================================================================
 # Tracks cumulative rx/tx bytes across modem reboots using the kernel
 # rmnet interface counters from /proc/net/dev. State persists atomically
-# to DATA_USED_FILE each tick.
+# to DATA_USED_FILE (see DATA_USED_PERSIST_SEC).
 
 # The file is on flash, so a tick only persists every DATA_USED_PERSIST_SEC
 # (health_check flags it stale at 60 s); resets and exits persist at once.
@@ -904,19 +904,14 @@ update_data_used() {
     # Step 0: lazy-load persisted state on the first call.
     if [ "$du_loaded" = "false" ]; then
         if [ -f "$DATA_USED_FILE" ]; then
-            # Schema policy (v5):
-            #   < v3  -> discard (pre-Schema-3 state is incompatible)
-            #   v3/v4 -> RESET accumulators on upgrade; historic totals
-            #            may have been recorded against a probe misverdict
-            #            and must not be carried into the static regime
-            #   = v5  -> load directly
+            # Schema policy (v6): < v3 discard; v3-v5 reset accumulators (old totals are wrong); v6 load.
             local _on_disk_schema
             _on_disk_schema=$(jq -r '.schema // 0' "$DATA_USED_FILE" 2>/dev/null)
             if [ "${_on_disk_schema:-0}" -lt 3 ]; then
                 qlog_info "data_used: schema v${_on_disk_schema:-0} too old; resetting state"
                 rm -f "$DATA_USED_FILE"
-            elif [ "${_on_disk_schema:-0}" -lt 5 ]; then
-                qlog_info "data_used: schema v${_on_disk_schema:-0} -> v5 migration; counters reset (orientation now static)"
+            elif [ "${_on_disk_schema:-0}" -lt "$DATA_USED_SCHEMA" ]; then
+                qlog_info "data_used: schema v${_on_disk_schema:-0} -> v${DATA_USED_SCHEMA} migration; counters reset"
                 du_accumulated_rx=0
                 du_accumulated_tx=0
                 du_prev_ipa_rx=0
@@ -1033,7 +1028,9 @@ update_data_used() {
     du_prev_ipa_tx="$ipa_tx"
     du_selected_counter="$NETWORK_IFACE"
     du_last_update_ts=$SECONDS
-    if [ "$_du_force" = "true" ] || [ $((SECONDS - _du_persisted_ts)) -ge "$DATA_USED_PERSIST_SEC" ]; then
+    local _du_age=$((SECONDS - _du_persisted_ts))
+    # A negative age is a backward clock step; persist rather than stall.
+    if [ "$_du_force" = "true" ] || [ "$_du_age" -ge "$DATA_USED_PERSIST_SEC" ] || [ "$_du_age" -lt 0 ]; then
         write_data_used_state
     fi
 }
