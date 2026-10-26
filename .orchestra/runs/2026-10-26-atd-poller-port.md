@@ -53,7 +53,7 @@ is taken after P1 lands and those numbers are in.
 | D12 | broker holds one smd11 fd open; `sms_tool` beside it verified on RM551E only | nothing holds smd11 between commands today; ≥7 direct openers: 6 `sms_tool` sites, `qmanager_health_check:581` (no lock), `install_rm520n.sh:3877` (atcli) | multi-opener behaviour on RM520N decides whether SMS (P5) is mandatory before go-live |
 | D13 | one device | one installer serves RM520N and RG501Q (`install_rm520n.sh:457`) | the first broker release reaches RG501Q users — installer must skip the broker there until P8 passes |
 | D15 | `safefs.rs` opens state files `O_NOFOLLOW` but blocking and without an fstat type/owner check | any local user can plant a FIFO at `/tmp/qmanager_long_running` or the PID path and stall the AT worker (security review 2026-10-26, MEDIUM); on RM520N www-data legitimately creates the long flag (`qmanager_cell_scanner:62`), so a "root-owned only" rule does not fit as-is | T2.1: open `O_NONBLOCK`, fstat, accept only regular files, owner = root or www-data; move broker-only files (PID) into a root-only dir |
-| D14 | — | uninstall misses `qsms` link + `/var/run/qmanager_atd.*` (`uninstall_rm520n.sh:373-379`); dropping atcli breaks `qmanager_health_check:358` and `install_rm520n.sh:3876` | add uninstall + health check to the installer write set; keep `atcli_smd11` shipped |
+| D14 | — | uninstall misses `qsms` link + `/var/run/qmanager_atd.*` (`uninstall_rm520n.sh:373-379`); dropping atcli breaks `qmanager_health_check:358` and `install_rm520n.sh:3876` | atcli and sms_tool are dropped (user 2026-10-26): rewire both sites onto the broker/`qcmd`; uninstall removes the old binaries |
 
 ## Phases (dependency order)
 | id | phase | depends on | exit criterion |
@@ -64,7 +64,7 @@ is taken after P1 lands and those numbers are in.
 | P2 | **Broker AT core on RM520N** — vendor crate, D1/D3/D5 deltas, www-data peer policy (D2), systemd unit + restart redesign (D4) | gate GO | broker owns smd11 inside the lock, survives restart and the 1970 window; no EACCES as root or www-data |
 | P3 | **Packaging** — build.sh, installer, uninstall, OTA rollback, RG501Q skip (D8, D13, D14) | P2 | installer-safety-auditor CLEAR before and after; fresh install + OTA + uninstall on device |
 | P4 | **qcmd cut-over** — Rust client behind `/usr/bin/qcmd`, in-process fallback, RM520N error contract (D9–D11) | P3 | rc/stdout/stderr diff = 0 vs shell `qcmd` for OK, ERROR, busy, long QSCAN, attach cycle, as root and www-data; Discord bot checked |
-| P5 | **SMS lane** — `qsms` for the `sms_tool` sites, or keep `sms_tool` under the lock; mandatory if P0's multi-opener test fails | P4 (blocks P4 go-live if multi-opener fails) | SMS read/send/forward parity; the 6.8 s hold explained and not kept |
+| P5 | **SMS lane** — port `qsms` (feature set from RM551E `at-broker.md` SMS phase 3) to every `sms_tool` site, then drop `sms_tool` and `atcli_smd11` from build + installer; no decompiling | P4 (P0's multi-opener result decides whether P4 can go live before P5) | SMS read/send/forward/storage parity; the 6.8 s hold explained and not kept; no `atcli`/`sms_tool` caller left |
 | P6 | **Activity tiers on the broker** — B5.29 tiering keyed on a UI heartbeat (`.mono`, `poller_tier`), watchcat/heartbeat outside the AT gate | P4 | touches poller, watchcat, health_check and frontend heartbeat; soak |
 | P7 | **QMI lane** (+ live 1 Hz + WDS as a later slice) — registry, `qmi_snapshot` sidecar, `qmi_merge.sh`, additive `lte.source` / `device.qmi_*` | P0 QMI GO, P4 | sidecar fresh every 2 s; overlay only when QENG missing; SSR count stable over soak |
 | P8 | **RG501Q-EU enablement** — run P2–P4 (P7 if GO) on SDX55, then lift the installer skip | P4 | portability diff clean; per-device row in `platform-matrix.md` |
@@ -85,7 +85,7 @@ is taken after P1 lands and those numbers are in.
 | T3.1 | P3 | build.sh, install, uninstall, OTA rollback, RG501Q skip | qm-worker under installer-safety-auditor | `build.sh`, `install_rm520n.sh`, `uninstall_rm520n.sh`, `dependencies/`, `qmanager_health_check` | PENDING |
 | T4.1 | P4 | qcmd cut-over + error-contract adapter + full caller census (incl. Discord bot) | cgi-endpoint-builder | `scripts/usr/bin/qcmd`, `client/qcmd.rs` | PENDING |
 | T4.2 | P4 | Portability residue on both devices | busybox-portability-checker | none | PENDING |
-| T5.1 | P5 | SMS lane decision + implementation | lead → cgi-endpoint-builder | sms CGIs, `qmanager_sms_*`, `sms_alerts.sh`, `qmanager_health_check` | PENDING — user call |
+| T5.1 | P5 | qsms port + retire `sms_tool` / `atcli_smd11` | cgi-endpoint-builder (installer part under installer-safety-auditor) | sms CGIs, `qmanager_sms_*`, `sms_alerts.sh`, `qmanager_health_check`, `build.sh`, `install_rm520n.sh`, `uninstall_rm520n.sh` | PENDING |
 | T6.1 | P6 | Activity tiers + heartbeat + watchcat outside AT gate | cgi-endpoint-builder + ui-builder | poller, `qmanager_watchcat`, `qmanager_health_check`, heartbeat hook | PENDING |
 | T7.1 | P7 | QMI lane + sidecar + overlay + types | cgi-endpoint-builder + ui-builder (types) | `native/…/qmi/**`, `qmi_merge.sh`, `types/modem-status.ts` | PENDING — gated on P0 |
 | T8.1 | P8 | RG501Q-EU validation, lift installer skip | busybox-portability-checker + modem-investigator | `install_rm520n.sh`, `platform-matrix.md` | PENDING |
@@ -101,7 +101,11 @@ the user's yes each time.
 - AT lane keeps `/dev/smd11`.
 - The RM520N `qcmd` error contract (rc 1 + stderr) wins over RM551E's rc 0 (D10).
 - Shell-only poller wins (B5.29 A + C) ship before any broker work (advocate challenge #5).
-- `atcli_smd11` stays shipped: health check and installer depend on it (D14).
+- ~~`atcli_smd11` stays shipped~~ — reversed by USER 2026-10-26: **atcli and sms_tool are fully dropped.**
+  The broker replaces atcli (same binary as RM551E's); `qsms` replaces sms_tool, built from the
+  RM551E docs' SMS feature set. Neither is decompiled.
+- USER 2026-10-26: no REA for this port. The RM520N/OpenWRT differences are in the userspace
+  (init, libc, permissions), which device probes measure; the vendor binaries are the same.
 - USER 2026-10-26: crate is **vendored** into `native/qmanager_atd/` and synced by hand. Copied
   verbatim (93 tracked files, `git archive`) from QManager `7f7d1827c9b71aaf523c51276bc837498a1baaa2`
   (crate 0.6.1). Upstream `.rs` blobs are CRLF; kept byte-identical so upstream diffs stay clean.
@@ -109,8 +113,7 @@ the user's yes each time.
 
 ## Decisions open — the user's call
 1. **Broker GO/NO-GO (G1):** after P0 + P1 numbers.
-2. **SMS (P5):** port `qsms` or keep `sms_tool` under the lock — may be forced by P0.
-3. **QMI / live / WDS scope (P7):** after the P0 probe.
+2. **QMI / live / WDS scope (P7):** after the P0 probe.
 
 ## Risks
 - QRTR absent or contended → P7 cut.
@@ -132,3 +135,9 @@ the user's yes each time.
 
 ## Device state
 Not touched. Both devices unreachable from the host on 2026-10-26.
+
+## Pause 2026-10-26
+User paused the run. T0.1 (r2, REA dropped) was stopped mid-run: no report. The probe script was
+still finishing its bounded 20 s smd11 hold on the RM520N-GL (serial 61368cd2) and self-deletes at
+the end; `qcmd ATI` answered and the poller was active at the stop check. Resume: re-dispatch T0.1
+from `.orchestra/runs/2026-10-26-atd-port-T0.1.md`.
