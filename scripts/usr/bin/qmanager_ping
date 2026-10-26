@@ -476,9 +476,10 @@ write_cache() {
             last_family: $last_family,
             last_target: $last_target,
             fail_elapsed_sec: $fail_elapsed
-        }' > "$CACHE_TMP"
-
-    mv "$CACHE_TMP" "$CACHE_FILE"
+        }' > "$CACHE_TMP" && [ -s "$CACHE_TMP" ] && mv "$CACHE_TMP" "$CACHE_FILE" && return 0
+    # Keep the last good file: readers would otherwise see an empty or partial one.
+    qlog_warn "ping cache write failed, keeping previous file"
+    rm -f "$CACHE_TMP"
 }
 
 # =============================================================================

@@ -854,11 +854,11 @@ update_conn_uptime() {
     if [ "$conn_internet_available" = "true" ]; then
         # Internet is reachable — start or continue counting
         if [ "$conn_start_time" -eq 0 ] 2>/dev/null; then
-            conn_start_time=$(date +%s)
+            conn_start_time=$SECONDS
             qlog_debug "Connection uptime timer started"
         fi
         local now
-        now=$(date +%s)
+        now=$SECONDS
         conn_uptime_seconds=$((now - conn_start_time))
     elif [ "$conn_internet_available" = "false" ]; then
         # Internet confirmed down — reset timer
@@ -880,31 +880,23 @@ update_conn_uptime() {
 # rmnet interface counters from /proc/net/dev. State persists atomically
 # to DATA_USED_FILE each tick.
 
+# The file is on flash, so a tick only persists every DATA_USED_PERSIST_SEC
+# (health_check flags it stale at 60 s); resets and exits persist at once.
+DATA_USED_PERSIST_SEC=30
+_du_persisted_ts=0
+
 write_data_used_state() {
-    mkdir -p /usrdata/qmanager 2>/dev/null
-    jq -n \
-        --argjson schema    "$DATA_USED_SCHEMA" \
-        --argjson acc_rx    "$du_accumulated_rx" \
-        --argjson acc_tx    "$du_accumulated_tx" \
-        --arg     sel       "$du_selected_counter" \
-        --arg     orient    "$orientation" \
-        --argjson prev_i_rx "$du_prev_ipa_rx" \
-        --argjson prev_i_tx "$du_prev_ipa_tx" \
-        --argjson last_upd  "$du_last_update_ts" \
-        --argjson last_rst  "$du_last_reset_ts" \
-        --argjson modem_rst "$du_modem_reset_count" \
-        '{
-            schema:               $schema,
-            accumulated_rx_bytes: $acc_rx,
-            accumulated_tx_bytes: $acc_tx,
-            selected_counter:     $sel,
-            orientation:          $orient,
-            prev_ipa_rx:          $prev_i_rx,
-            prev_ipa_tx:          $prev_i_tx,
-            last_update_ts:       $last_upd,
-            last_reset_ts:        $last_rst,
-            modem_reset_count:    $modem_rst
-        }' > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE"
+    local _v
+    for _v in "$DATA_USED_SCHEMA" "$du_accumulated_rx" "$du_accumulated_tx" "$du_prev_ipa_rx" \
+              "$du_prev_ipa_tx" "$du_last_update_ts" "$du_last_reset_ts" "$du_modem_reset_count"; do
+        case "$_v" in ''|*[!0-9]*) qlog_warn "data_used: non-numeric state '${_v}'; not persisted"; return 1 ;; esac
+    done
+    case "$du_selected_counter$orientation" in *[!A-Za-z0-9_]*) qlog_warn "data_used: bad counter/orientation; not persisted"; return 1 ;; esac
+    [ -d /usrdata/qmanager ] || mkdir -p /usrdata/qmanager 2>/dev/null
+    printf '{"schema":%s,"accumulated_rx_bytes":%s,"accumulated_tx_bytes":%s,"selected_counter":"%s","orientation":"%s","prev_ipa_rx":%s,"prev_ipa_tx":%s,"last_update_ts":%s,"last_reset_ts":%s,"modem_reset_count":%s}\n' \
+        "$DATA_USED_SCHEMA" "$du_accumulated_rx" "$du_accumulated_tx" "$du_selected_counter" "$orientation" \
+        "$du_prev_ipa_rx" "$du_prev_ipa_tx" "$du_last_update_ts" "$du_last_reset_ts" "$du_modem_reset_count" \
+        > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE" && _du_persisted_ts=$SECONDS
 }
 
 update_data_used() {
@@ -929,7 +921,7 @@ update_data_used() {
                 du_prev_ipa_rx=0
                 du_prev_ipa_tx=0
                 du_last_update_ts=0
-                du_last_reset_ts=$(date +%s)
+                du_last_reset_ts=$SECONDS
                 du_modem_reset_count=0
                 write_data_used_state
             else
@@ -965,7 +957,7 @@ update_data_used() {
     if [ -f "$DATA_USED_RESET_FLAG" ]; then
         du_accumulated_rx=0
         du_accumulated_tx=0
-        du_last_reset_ts=$(date +%s)
+        du_last_reset_ts=$SECONDS
         du_modem_reset_count=0
         rm -f "$DATA_USED_RESET_FLAG"
         qlog_info "data_used: user reset triggered (counters zeroed)"
@@ -984,14 +976,19 @@ update_data_used() {
     # SDX55 firmwares flip the fields is unsettled, not established. See the
     # note on detect_orientation_from_soc above.
     # ipa_rx is always the DOWNLOAD bytes; ipa_tx is always the UPLOAD bytes.
-    local _dev_line ipa_rx ipa_tx
-    _dev_line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
-    if [ -z "$_dev_line" ]; then
+    # Split after the colon: the kernel prints bytes as %8llu with no space once they reach 8 digits.
+    local _dl _dev_rest="" ipa_rx ipa_tx _fi
+    while IFS= read -r _dl; do
+        _dl="${_dl#"${_dl%%[! ]*}"}"
+        case "$_dl" in "${NETWORK_IFACE}:"*) _dev_rest="${_dl#*:}"; break ;; esac
+    done 2>/dev/null < "$DATA_USED_PROC_DEV"
+    if [ -z "$_dev_rest" ]; then
         qlog_warn "data_used: ${NETWORK_IFACE} not found in ${DATA_USED_PROC_DEV}; skipping tick"
         return 0
     fi
-    ipa_rx=$(printf '%s\n' "$_dev_line" | awk -v f="$orientation_dl_field" '{print $f}')
-    ipa_tx=$(printf '%s\n' "$_dev_line" | awk -v f="$orientation_ul_field" '{print $f}')
+    set -- $_dev_rest
+    _fi=$((orientation_dl_field - 1)); ipa_rx="${!_fi}"
+    _fi=$((orientation_ul_field - 1)); ipa_tx="${!_fi}"
 
     # Numeric guard — a malformed line must not poison the accumulator.
     case "$ipa_rx" in ''|*[!0-9]*)
@@ -1006,7 +1003,7 @@ update_data_used() {
         du_prev_ipa_rx="$ipa_rx"
         du_prev_ipa_tx="$ipa_tx"
         du_selected_counter="$NETWORK_IFACE"
-        du_last_update_ts=$(date +%s)
+        du_last_update_ts=$SECONDS
         write_data_used_state
         return 0
     fi
@@ -1020,9 +1017,11 @@ update_data_used() {
     # a modem reboot or interface re-creation, so a negative delta means
     # the baseline is stale. Rebase without accumulating — the bytes moved
     # while the modem was rebooting are not measurable.
+    local _du_force=false
     if [ "$delta_rx" -lt 0 ] || [ "$delta_tx" -lt 0 ]; then
         qlog_info "data_used: ${NETWORK_IFACE} counter reset detected (delta_rx=${delta_rx} delta_tx=${delta_tx}); rebasing"
         du_modem_reset_count=$((du_modem_reset_count + 1))
+        _du_force=true
     else
         du_accumulated_rx=$((du_accumulated_rx + delta_rx))
         du_accumulated_tx=$((du_accumulated_tx + delta_tx))
@@ -1032,8 +1031,10 @@ update_data_used() {
     du_prev_ipa_rx="$ipa_rx"
     du_prev_ipa_tx="$ipa_tx"
     du_selected_counter="$NETWORK_IFACE"
-    du_last_update_ts=$(date +%s)
-    write_data_used_state
+    du_last_update_ts=$SECONDS
+    if [ "$_du_force" = "true" ] || [ $((SECONDS - _du_persisted_ts)) -ge "$DATA_USED_PERSIST_SEC" ]; then
+        write_data_used_state
+    fi
 }
 
 # =============================================================================
@@ -1119,7 +1120,7 @@ collect_boot_data() {
             # previous_iccid kept for shape-compat (frontend ignores it); there
             # is no single "previous" in a set model, so it is always empty.
             jq -n -c \
-                --argjson ts "$(date +%s)" \
+                --argjson ts "$SECONDS" \
                 --arg prev "" \
                 --arg curr "$boot_iccid" \
                 --arg pid "$match_id" \
@@ -1363,7 +1364,7 @@ poll_per_antenna_signal() {
 # Capped at SIGNAL_HISTORY_MAX lines (~30 min at 10s intervals).
 append_signal_history() {
     local ts
-    ts=$(date +%s)
+    ts=$SECONDS
 
     jq -n -c \
         --argjson ts "$ts" \
@@ -1390,7 +1391,7 @@ append_signal_history() {
 # capped at PING_HISTORY_MAX lines (rows land about every 16s on device, not 10s).
 append_ping_history() {
     local ts
-    ts=$(date +%s)
+    ts=$SECONDS
 
     jq -n -c \
         --argjson ts "$ts" \
@@ -1575,6 +1576,8 @@ DNS_CACHE="${DNS_CACHE:-/tmp/qmanager_dns.json}"
 DNS_MAX_AGE_SEC=180
 dns_lookup_ms="null"
 dns_resolver=""
+DNS_STAMP="/tmp/qmanager_poller_dns.stamp"
+_dns_row=""
 
 read_dns_data() {
     dns_lookup_ms="null"
@@ -1582,8 +1585,13 @@ read_dns_data() {
     [ -f "$DNS_CACHE" ] || return 0
 
     local _row _ok _ms _mono _res _up _idle _age
-    _row=$(jq -r '[(.ok|tostring), (.ms|tostring), (.mono|tostring), (.resolver|tostring)] | @tsv' \
-        "$DNS_CACHE" 2>/dev/null </dev/null)
+    # Re-parse only when the file changed; the stamp carries the mtime of the copy last parsed.
+    if [ -z "$_dns_row" ] || [ "$DNS_CACHE" -nt "$DNS_STAMP" ]; then
+        _dns_row=$(jq -r '[(.ok|tostring), (.ms|tostring), (.mono|tostring), (.resolver|tostring)] | @tsv' \
+            "$DNS_CACHE" 2>/dev/null </dev/null)
+        touch -r "$DNS_CACHE" "$DNS_STAMP" 2>/dev/null
+    fi
+    _row="$_dns_row"
     [ -n "$_row" ] || return 0
     IFS=$'\t' read -r _ok _ms _mono _res <<< "$_row"
 
@@ -1627,7 +1635,7 @@ read_ping_data() {
 
     # One shared read + staleness verdict (empty/unreadable cache = stale).
     local ping_ts now
-    now=$(date +%s)
+    now=$SECONDS
     if ! conn_state_read; then
         qlog_warn "Ping data stale ($(conn_state_why)), marking unknown"
         conn_internet_available="null"
@@ -1821,7 +1829,8 @@ crash_watcher_check() {
     fi
 
     local new_count
-    new_count=$(cat "$_CRASH_COUNT_SYSFS" 2>/dev/null | tr -d '[:space:]')
+    new_count=""
+    { read -r new_count < "$_CRASH_COUNT_SYSFS"; } 2>/dev/null
     case "$new_count" in
         ''|*[!0-9]*)
             # Unreadable this cycle — skip silently (transient sysfs glitch)
@@ -1846,7 +1855,7 @@ crash_watcher_check() {
     # Counter incremented — log the crash event
     local prev_count="$_last_crash_count"
     local ts
-    ts=$(date +%s)
+    ts=$SECONDS
 
     # Read modem state from sysfs; lowercase-normalise; default "unknown"
     local raw_state modem_state_at_event
@@ -2037,7 +2046,7 @@ read_sim_state() {
 
 write_cache() {
     local timestamp
-    timestamp=$(date +%s)
+    timestamp=$SECONDS
 
     # Build errors array
     local errors_json="[]"
@@ -2329,9 +2338,10 @@ write_cache() {
                     end
                 )
             }
-        }' > "$CACHE_TMP"
-
-    mv "$CACHE_TMP" "$CACHE_FILE"
+        }' > "$CACHE_TMP" && [ -s "$CACHE_TMP" ] && mv "$CACHE_TMP" "$CACHE_FILE" && return 0
+    # Keep the last good status.json: readers would otherwise see an empty or partial one.
+    qlog_warn "write_cache failed, keeping previous status.json"
+    rm -f "$CACHE_TMP"
 }
 
 # =============================================================================
@@ -2346,7 +2356,7 @@ poll_cycle() {
     if [ -f "$LONG_FLAG" ]; then
         local _lf_mtime _lf_now _lf_age
         _lf_mtime=$(stat -c %Y "$LONG_FLAG" 2>/dev/null || echo 0)
-        _lf_now=$(date +%s)
+        _lf_now=$SECONDS
         _lf_age=$((_lf_now - _lf_mtime))
         if [ "$_lf_age" -gt "$LONG_FLAG_MAX_AGE" ] 2>/dev/null; then
             qlog_warn "LONG_FLAG stale (age=${_lf_age}s > ${LONG_FLAG_MAX_AGE}s) — removing"
@@ -2375,6 +2385,8 @@ poll_cycle() {
         fi
         update_conn_uptime
         write_cache
+        # Advance the tier clock, or every scan cycle re-runs the same tier.
+        cycle_count=$((cycle_count + 1))
         return
     fi
 
@@ -2459,6 +2471,11 @@ poll_cycle() {
 main() {
     local cycle_start cycle_end cycle_duration
 
+    # From here $SECONDS reads as the epoch (bash derives it from time(), so it follows clock steps).
+    SECONDS=$(date +%s)
+    # data_used persists on a timer, so flush it on a clean stop.
+    trap '[ "$du_loaded" = "true" ] && write_data_used_state; exit 0' TERM INT
+
     qlog_info "========================================"
     qlog_info "QManager Poller starting"
     qlog_info "Config: interval=${POLL_INTERVAL}s tier2_every=${TIER2_EVERY} iface=${NETWORK_IFACE}"
@@ -2488,9 +2505,9 @@ main() {
     qlog_info "Boot data collected, entering poll loop"
 
     while true; do
-        cycle_start=$(date +%s)
+        cycle_start=$SECONDS
         poll_cycle
-        cycle_end=$(date +%s)
+        cycle_end=$SECONDS
         cycle_duration=$((cycle_end - cycle_start))
         if [ "$cycle_duration" -gt "$CYCLE_TIME_BUDGET" ]; then
             qlog_warn "poll_cycle exceeded budget: ${cycle_duration}s > ${CYCLE_TIME_BUDGET}s"
