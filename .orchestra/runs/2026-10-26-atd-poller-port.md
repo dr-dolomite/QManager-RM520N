@@ -74,7 +74,7 @@ is taken after P1 lands and those numbers are in.
 | id | phase | task | seat | write set (planned) | state |
 |---|---|---|---|---|---|
 | T0.1 | P0 | Device probe: QRTR, vendor QMI holders, smd11 multi-opener, protected_regular, `/var/run` perms, space | independent Opus session (atd-t01-probe) | none (read-only) | DONE on RM520N-GL 2026-10-26; RG501Q-EU still to run (offline) |
-| T0.2 | P0 | Value baseline: qcmd vs atcli timing, sms_tool hold timings, poller real-transport CPU | modem-investigator | none | BLOCKED — devices offline |
+| T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | IN FLIGHT 2026-10-26 (RM520N-GL only; SMS recv excluded — it marks messages read) |
 | T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | cgi-endpoint-builder | scratch build only | PENDING (build can start offline; run needs device) |
 | T1.1 | P1 | Port B5.29 Phases A + C into the RM520N poller | cgi-endpoint-builder | `scripts/usr/bin/qmanager_poller` | PENDING |
 | T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | PENDING |
