@@ -1,0 +1,16 @@
+[package]
+name = "qmi_probe"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only QMI-over-QRTR probe for the RM520N-GL (NAS/DMS/UIM/WDS/DSD/WMS Get messages)"
+publish = false
+
+[dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

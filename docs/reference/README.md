@@ -93,6 +93,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 | [auth-rate-limiting.md](auth-rate-limiting.md) | `cgi_auth.sh`, `auth/check.sh`, `qm_get_rate_limit_status`, `/tmp/qmanager_auth_attempts.json`, the login lockout ladder | RM520N |
 | [gui-installer.md](gui-installer.md) | `installer-gui/`, `bridge.py`, `core/dpapi.py`, `prefs.py`, `wrap_command`, `__QM_RC=`, `stage_payload`, `tokens.css`, the frozen PyInstaller build | Both |
 | [modem-bridge.md](modem-bridge.md) | Running anything on a live device — the `modem` / `modem-rg501q` MCP servers, `tools/modem-mcp/server.ts`, `.mcp.json`, `modem_exec` / `modem_write` / `modem_cgi`, the serial check and deny-list | Both |
+| [qmi-probe.md](qmi-probe.md) | `native/qmi_probe`, any QMI-over-QRTR request (`AF_QIPCRTR`, NAS/DMS/UIM/WDS/DSD/WMS message IDs), the armv7 Rust probe build | RM520N |
 | [platform-matrix.md](platform-matrix.md) | Any fact that differs **by device** — BusyBox versions, `wget` / `timeout` / `mountpoint` availability, `PATH` under systemd, `/tmp` semantics, CPU/ABI, the F6–F14 defect register | Both |
 | [platform-profile.md](platform-profile.md) | `hw_profile.sh`, `/etc/qmanager/platform.json`, `QM_HW_SCHEMA`, `qm_hw_self_heal`, `qm_hw_write_profile`, and any root helper that writes into `/etc/qmanager` | Both |
 | [poller-cpu-profile.md](poller-cpu-profile.md) | Any performance work on `qmanager_poller` — per-function CPU attribution, fork+exec cost, `cutime` / `cstime`, the de-fork pass, the Go rewrite comparison | Both |
