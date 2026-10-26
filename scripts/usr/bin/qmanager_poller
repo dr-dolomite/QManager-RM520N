@@ -228,6 +228,7 @@ t2_nr_ca_count=0
 t2_total_bandwidth_mhz=0
 t2_bandwidth_details=""
 t2_carrier_components="[]"
+t2_scc_key=""
 t2_apn=""
 t2_primary_dns=""
 t2_secondary_dns=""
@@ -2410,6 +2411,7 @@ poll_cycle() {
         t2_total_bandwidth_mhz=0
         t2_bandwidth_details=""
         t2_carrier_components="[]"
+        t2_scc_key=""
     fi
     sleep "$SIP_DELAY"
 
