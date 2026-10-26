@@ -76,7 +76,7 @@ is taken after P1 lands and those numbers are in.
 | T0.1 | P0 | Device probe: QRTR, vendor QMI holders, smd11 multi-opener, protected_regular, `/var/run` perms, space | independent Opus session (atd-t01-probe) | none (read-only) | DONE on RM520N-GL 2026-10-26; RG501Q-EU still to run (offline) |
 | T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | DONE_WITH_CONCERNS on RM520N-GL 2026-10-26 (idle UI only; contention not measured) |
 | T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | lead | `native/qmanager_atd/{.cargo/config.toml,rust-toolchain.toml,Cargo.lock}` | DONE on RM520N-GL 2026-10-26; idle daemon RSS moved to the T2 smoke test (needs smd11) |
-| T1.1 | P1 | Re-author the RM520N poller hot path with B5.29 techniques (plan `2026-10-26-atd-port-T1.1.md`, slices S1–S7) | lead + cgi-endpoint-builder | poller, `qmanager_ping`, `parse_at.sh` | PLANNED — awaiting user OK |
+| T1.1 | P1 | Re-author the RM520N poller hot path with B5.29 techniques (plan `2026-10-26-atd-port-T1.1.md`, slices S1–S7) | lead + cgi-endpoint-builder | poller, `qmanager_ping`, `parse_at.sh` | BUILT on `t11-poller-hotpath` (S1–S6, S8, S9; S7 dropped): 874 → 344 ms CPU/cycle, 27.4 → 13.0 % core; gates passed after a verifier fix round (e7d349f6); merge + qmanager-ping deploy pending |
 | T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | PENDING |
 | G1 | gate | Broker GO/NO-GO with P0 + P1 numbers | user | — | PENDING |
 | T2.1 | P2 | Vendor crate; D1 target, D3 no-create lock/flag opens, D5 TZ | cgi-endpoint-builder | `native/qmanager_atd/**` | PENDING |
@@ -132,6 +132,7 @@ the user's yes each time.
 | R4 | 1 | modem-investigator | — | BLOCKED (both devices unreachable) | reachability only | scratchpad rm520n.txt / rg501q.txt |
 | A1 | 1 | qm-advocate | r1 | 9 challenges; D10–D14 added, P1 split out, P7→P8 gate, value case added | static | conductor transcript |
 | — | — | lead | r2 | verified D10 (`qcmd.rs:133-142` rc 0) and D3 (`qmanager_setup:72-77`) in source | static | — |
+| T1.1 | 1 | lead | plan r1 | S1–S6, S8, S9 built + deployed on RM520N-GL; 344 ms/cycle, 13.1 % core | parity scripts, 300 s measures, instrumented profile, status.json shape diff | `2026-10-26-atd-port-T1.1.md` Progress |
 
 ## Device state
 Not touched. Both devices unreachable from the host on 2026-10-26.
