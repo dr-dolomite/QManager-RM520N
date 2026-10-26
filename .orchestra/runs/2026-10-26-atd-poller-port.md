@@ -76,7 +76,7 @@ is taken after P1 lands and those numbers are in.
 | T0.1 | P0 | Device probe: QRTR, vendor QMI holders, smd11 multi-opener, protected_regular, `/var/run` perms, space | independent Opus session (atd-t01-probe) | none (read-only) | DONE on RM520N-GL 2026-10-26; RG501Q-EU still to run (offline) |
 | T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | DONE_WITH_CONCERNS on RM520N-GL 2026-10-26 (idle UI only; contention not measured) |
 | T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | lead | `native/qmanager_atd/{.cargo/config.toml,rust-toolchain.toml,Cargo.lock}` | DONE on RM520N-GL 2026-10-26; idle daemon RSS moved to the T2 smoke test (needs smd11) |
-| T1.1 | P1 | Port B5.29 Phases A + C into the RM520N poller | cgi-endpoint-builder | `scripts/usr/bin/qmanager_poller` | PENDING |
+| T1.1 | P1 | Re-author the RM520N poller hot path with B5.29 techniques (plan `2026-10-26-atd-port-T1.1.md`, slices S1–S7) | lead + cgi-endpoint-builder | poller, `qmanager_ping`, `parse_at.sh` | PLANNED — awaiting user OK |
 | T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | PENDING |
 | G1 | gate | Broker GO/NO-GO with P0 + P1 numbers | user | — | PENDING |
 | T2.1 | P2 | Vendor crate; D1 target, D3 no-create lock/flag opens, D5 TZ | cgi-endpoint-builder | `native/qmanager_atd/**` | PENDING |
