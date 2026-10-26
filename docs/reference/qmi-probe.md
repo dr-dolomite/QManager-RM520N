@@ -37,6 +37,7 @@ Deploy with `scp -O` (or Posh-SSH `Set-SCPItem`) to `/tmp`. `modem_write` strips
 | WMS 0x0034 | Returns the SMSC address |
 | WDS 0x002D current settings / 0x0024 packet stats, unbound | `0x000F` / `0x0046` |
 | The same, after `wds-bound 1 4` (mux 1 = `rmnet_data0`, IPv4) | OK: IP, DNS ×2, gateway, netmask and MTU match `AT+CGCONTRDP`; rx bytes match `/proc/net/dev` |
+| Same probe as `www-data` (`sudo -n -u www-data`) | OK for NAS, UIM and WMS; no root needed |
 | 0x001E Get Supported Messages | Answers on VOICE 9, LOC 16, SAR 17, TMD 24 and PDC 36; NAS, WDS, WMS and UIM reject it (`0x0047`) |
 
 Published but not exercised: LOC (GNSS needs the engine started) and NAS network scan (it uses the radio).
