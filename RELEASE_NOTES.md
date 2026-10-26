@@ -8,8 +8,13 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 
 - **Live "Now" view for Sites.** The **Sites** card on **Monitoring → Latency Monitor** now opens on **Now**, which re-checks every site about every 2 seconds while the page is open and visible; switching to 1 h / 24 h / 7 d, leaving the page or hiding the tab stops it within about 10 seconds, and history keeps its normal 5-minute checks. (Live checks are a light HTTP request, about 25 MB per hour while open, and are never written to history; the first live value lands about 6 seconds after opening.)
 
+## 🛠️ Improvements
+
+- **Lighter background polling.** The modem's status poller now uses about 60 % less CPU, so the dashboard and other services have more headroom on the modem's single core. (874 → 344 ms CPU per cycle on an RM520N-GL; status data is unchanged.)
+
 ## 🐛 Fixes
 
+- **Data Used counts bytes correctly.** Once more than about 10 MB had moved, **Data Used** counted packets instead of bytes and read far too low; it now counts bytes. Your Data Used total starts again from zero once after this update.
 - **Dota 2 shows its logo in Sites.** Adding `dota2.com` used to show only a letter because the site's own icon is too small to use; it now has a built-in logo.
 
 ## 📥 Installation

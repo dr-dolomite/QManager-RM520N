@@ -407,7 +407,10 @@ snapshot_event_state() {
     prev_ev_cfun="$t1_cfun"
     prev_ev_carrier_components="$t2_carrier_components"
 
-    # Persist for restart recovery (atomic .tmp + mv).
+    # Persist for restart recovery (atomic .tmp + mv), only when a field other than the
+    # carrier signal values changed; the stored carrier list is only a change baseline.
+    local _sig="$prev_ev_network_type|$prev_ev_lte_band|$prev_ev_lte_pci|$prev_ev_nr_band|$prev_ev_nr_pci|$prev_ev_nr_state|$prev_ev_modem_reachable|$prev_ev_internet|$prev_ev_ca_active|$prev_ev_ca_count|$prev_ev_nr_ca_active|$prev_ev_nr_ca_count|$prev_ev_service_status|${prev_ev_cfun:-}|${t2_scc_key-}"
+    [ "$_sig" = "${_ev_state_sig-}" ] && [ -s "$EVENT_STATE_FILE" ] && return 0
     # _tmp is derived inside the function so EVENT_STATE_FILE overrides at any
     # point (tests, future callers) keep the .tmp path in sync with the final.
     local _tmp="${EVENT_STATE_FILE}.tmp"
@@ -436,7 +439,7 @@ snapshot_event_state() {
             service_status: $svc, carrier_components: $cc,
             cfun: $cfun
         }' > "$_tmp" 2>/dev/null && \
-        mv "$_tmp" "$EVENT_STATE_FILE" 2>/dev/null
+        mv "$_tmp" "$EVENT_STATE_FILE" 2>/dev/null && _ev_state_sig="$_sig"
 }
 
 # Restore prev_ev_* from disk on poller startup. Sets events_initialized=true
@@ -489,7 +492,7 @@ restore_event_state() {
 # SCC PCI change detection via temp JSON
 # ---------------------------------------------------------------------------
 # Compares current t2_carrier_components against saved state in PCI_STATE_FILE.
-# Only called when t2_carrier_components string has changed (Tier 2 refresh).
+# Called when the SCC tech|band|pci set (t2_scc_key) changes, and once per process start.
 detect_scc_pci_changes() {
     local prev_sccs curr_sccs
 
@@ -824,9 +827,10 @@ detect_events() {
     _ev_ca_check lte_ca LTE "$t2_ca_count"
     _ev_ca_check nr_ca NR "$t2_nr_ca_count"
 
-    # --- SCC PCI changes (detected on Tier 2 refresh) ---
-    if [ "$t2_carrier_components" != "$prev_ev_carrier_components" ]; then
+    # --- SCC PCI changes: keyed on the SCC tech|band|pci set, not on the signal values ---
+    if [ "${t2_scc_key-}" != "${prev_ev_scc_key-_unset_}" ]; then
         detect_scc_pci_changes
+        prev_ev_scc_key="${t2_scc_key-}"
     fi
 
     # Data connection events run from the poller right after read_ping_data

@@ -696,9 +696,55 @@ _nr_bw_to_mhz() {
 parse_ca_info() {
     local raw="$1"
 
-    # --- CA counts ---
-    local lte_scc_count
-    lte_scc_count=$(printf '%s\n' "$raw" | grep '+QCAINFO: "SCC"' | grep -c 'LTE BAND')
+    # One awk pass; lines out: "<lte_scc> <nr_scc> <total_mhz>", details, carrier JSON, SCC key.
+    # Numbers are printed as the modem sent them (jq 1.7 keeps literals); non-numeric becomes null.
+    local _ca_out lte_scc_count nr_scc_count total_mhz details _ca_json _ca_key
+    _ca_out=$(printf '%s\n' "$raw" | awk '
+        function num(v) { return (v ~ /^-?[0-9]+$/) ? v : "null" }
+        function fnum(v) { return (v ~ /^-?[0-9]+(\.[0-9]+)?$/) ? v : "null" }
+        function lte_mhz(b) { return (b=="6")?1:(b=="15")?3:(b=="25")?5:(b=="50")?10:(b=="75")?15:(b=="100")?20:0 }
+        function nr_mhz(b,  i) { for (i = 0; i <= 16; i++) if (b == i "") return nrbw[i]; return 0 }
+        BEGIN { split("5 10 15 20 25 30 40 50 60 70 80 90 100 200 400 35 45", t, " ")
+                for (i = 0; i <= 16; i++) nrbw[i] = t[i + 1]
+                lte = 0; nr = 0; tot = 0; det = ""; js = ""; key = ""; n = 0 }
+        {
+            sub(/\r$/, "")
+            if (index($0, "+QCAINFO: \"SCC\"")) { if (index($0, "LTE BAND")) lte++; if (index($0, "NR")) nr++ }
+            if (index($0, "+QCAINFO:") != 1) next
+            csv = $0; gsub(/\+QCAINFO: /, "", csv); gsub(/["\r ]/, "", csv)
+            nf = split(csv, f, ","); if (csv ~ /,$/) nf--
+            if (nf < 4) next
+            ty = f[1]; fr = f[2]; bw = f[3]; bs = f[4]
+            pci = "null"; rsrp = "null"; rsrq = "null"; rssi = "null"; sinr = "null"
+            if (bs ~ /^LTEBAND/) {
+                tech = "LTE"; mhz = lte_mhz(bw); b = bs; sub(/LTEBAND/, "", b); band = "B" b
+                if (nf >= 6) pci = f[6]; if (nf >= 7) rsrp = f[7]; if (nf >= 8) rsrq = f[8]
+                if (nf >= 9) rssi = f[9]; if (nf >= 10) sinr = fnum(f[10])
+            } else if (bs ~ /^(NR5GBAND|NRDCBAND)/) {
+                tech = "NR"; mhz = nr_mhz(bw); b = bs; sub(/NR5GBAND/, "", b); sub(/NRDCBAND/, "", b); band = "N" b
+                rs = ""
+                if (nf >= 9) { if (nf >= 6) pci = f[6]; if (nf >= 10) rsrp = f[10]; if (nf >= 11) rsrq = f[11]; if (nf >= 12) rs = f[12] }
+                else { if (nf >= 5) pci = f[5]; if (nf >= 6) rsrp = f[6]; if (nf >= 7) rsrq = f[7]; if (nf >= 8) rs = f[8] }
+                if (rs != "" && rs != "-32768") sinr = (rs + 0 == rs) ? sprintf("%.1f", rs / 100) : "null"
+            } else next
+            # BusyBox awk reads "name (" as a call, so separators go through a variable.
+            if (mhz > 0) { tot += mhz; sep = (det == "") ? "" : " + "; det = det sep band ": " mhz " MHz" }
+            pci = num(pci); rsrp = num(rsrp); rsrq = num(rsrq); rssi = num(rssi); fr = num(fr)
+            sep = n++ ? "," : ""
+            js = js sep "{\"type\":\"" ty "\",\"technology\":\"" tech "\",\"band\":\"" band "\",\"earfcn\":" fr \
+                 ",\"bandwidth_mhz\":" mhz ",\"pci\":" pci ",\"rsrp\":" rsrp ",\"rsrq\":" rsrq ",\"rssi\":" rssi ",\"sinr\":" sinr "}"
+            if (ty == "SCC") { sep = (key == "") ? "" : " "; key = key sep tech "|" band "|" pci }
+        }
+        END { print lte, nr, tot; print det; print (n ? "[" js "]" : "[]"); print key }')
+    {
+        read -r lte_scc_count nr_scc_count total_mhz
+        IFS= read -r details
+        IFS= read -r _ca_json
+        IFS= read -r _ca_key
+    } <<EOF
+$_ca_out
+EOF
+    case "$lte_scc_count$nr_scc_count$total_mhz" in ''|*[!0-9]*) lte_scc_count=0; nr_scc_count=0; total_mhz=0 ;; esac
 
     if [ "$lte_scc_count" -gt 0 ]; then
         t2_ca_active=true
@@ -707,9 +753,6 @@ parse_ca_info() {
         t2_ca_active=false
         t2_ca_count=0
     fi
-
-    local nr_scc_count
-    nr_scc_count=$(printf '%s\n' "$raw" | grep '+QCAINFO: "SCC"' | grep -c 'NR')
 
     if [ "$nr_scc_count" -gt 0 ]; then
         # In NSA mode, the first NR SCC is the NR leg itself (LTE is PCC).
@@ -731,154 +774,10 @@ parse_ca_info() {
         t2_nr_ca_count=0
     fi
 
-    # --- Bandwidth + per-carrier component parsing ---
-    local total_mhz=0
-    local details=""
-    local cc_tmpfile="/tmp/qmanager_cc_data.tmp"
-    : > "$cc_tmpfile"
-    local qca_lines
-    qca_lines=$(printf '%s\n' "$raw" | grep '^+QCAINFO:')
-
-    if [ -z "$qca_lines" ]; then
-        t2_total_bandwidth_mhz=0
-        t2_bandwidth_details=""
-        t2_carrier_components="[]"
-        return
-    fi
-
-    # Process via file redirect to avoid BusyBox subshell trap.
-    local tmpfile="/tmp/qmanager_ca_parse.tmp"
-    printf '%s\n' "$qca_lines" > "$tmpfile"
-
-    while IFS= read -r line; do
-        # Strip prefix, quotes, spaces, carriage returns
-        local csv
-        csv=$(printf '%s' "$line" | sed 's/+QCAINFO: //g' | tr -d '"' | tr -d ' ' | tr -d '\r')
-
-        # POSIX field splitting — one substitution instead of 10 cut forks.
-        local _OLD_IFS=$IFS
-        IFS=','
-        # shellcheck disable=SC2086 # intentional word splitting on commas
-        set -- $csv
-        IFS=$_OLD_IFS
-        local nfields=$#
-
-        [ "$nfields" -lt 4 ] && continue
-
-        local cc_type="$1"
-        local freq="$2"
-        local bw_raw="$3"
-        local band_str="$4"
-
-        local tech="" band_short="" mhz=0
-        local cc_pci="null" cc_rsrp="null" cc_rsrq="null" cc_rssi="null" cc_sinr="null"
-
-        case "$band_str" in
-            LTEBAND*)
-                # ---- LTE line ----
-                # Positions: type(1),freq(2),bw(3),band(4),state(5),PCI(6),RSRP(7),RSRQ(8),RSSI(9),RSSNR(10)
-                tech="LTE"
-                mhz=$(_lte_rb_to_mhz "$bw_raw")
-                local band_num
-                band_num=$(printf '%s' "$band_str" | sed 's/LTEBAND//')
-                band_short="B${band_num}"
-
-                [ "$nfields" -ge 6 ]  && cc_pci="$6"
-                [ "$nfields" -ge 7 ]  && cc_rsrp="$7"
-                [ "$nfields" -ge 8 ]  && cc_rsrq="$8"
-                [ "$nfields" -ge 9 ]  && cc_rssi="$9"
-                [ "$nfields" -ge 10 ] && cc_sinr="${10}"
-                ;;
-            NR5GBAND*|NRDCBAND*)
-                # ---- NR line ----
-                tech="NR"
-                mhz=$(_nr_bw_to_mhz "$bw_raw")
-                local band_num
-                band_num=$(printf '%s' "$band_str" | sed 's/NR5GBAND//;s/NRDCBAND//')
-                band_short="N${band_num}"
-
-                if [ "$nfields" -ge 9 ]; then
-                    # Long form (SCC with UL info):
-                    # type(1),freq(2),bw(3),band(4),state(5),PCI(6),UL_cfg(7),UL_bw(8),UL_ARFCN(9)[,RSRP(10),RSRQ(11)[,SNR(12)]]
-                    [ "$nfields" -ge 6 ]  && cc_pci="$6"
-                    [ "$nfields" -ge 10 ] && cc_rsrp="${10}"
-                    [ "$nfields" -ge 11 ] && cc_rsrq="${11}"
-                    if [ "$nfields" -ge 12 ]; then
-                        local raw_snr="${12}"
-                        case "$raw_snr" in
-                            -32768) cc_sinr="null" ;;
-                            *) cc_sinr=$(printf '%s' "$raw_snr" | awk '{if($1+0==$1) printf "%.1f", $1/100; else print "null"}') ;;
-                        esac
-                    fi
-                else
-                    # Short form (PCC or old SCC):
-                    # type(1),freq(2),bw(3),band(4),PCI(5)[,RSRP(6),RSRQ(7)[,SNR(8)]]
-                    [ "$nfields" -ge 5 ] && cc_pci="$5"
-                    [ "$nfields" -ge 6 ] && cc_rsrp="$6"
-                    [ "$nfields" -ge 7 ] && cc_rsrq="$7"
-                    if [ "$nfields" -ge 8 ]; then
-                        local raw_snr="$8"
-                        case "$raw_snr" in
-                            -32768) cc_sinr="null" ;;
-                            *) cc_sinr=$(printf '%s' "$raw_snr" | awk '{if($1+0==$1) printf "%.1f", $1/100; else print "null"}') ;;
-                        esac
-                    fi
-                fi
-                ;;
-            *)
-                # Unrecognized band string — skip
-                continue
-                ;;
-        esac
-
-        # --- Accumulate bandwidth totals ---
-        if [ "$mhz" -gt 0 ] 2>/dev/null; then
-            total_mhz=$((total_mhz + mhz))
-            if [ -n "$details" ]; then
-                details="${details} + ${band_short}: ${mhz} MHz"
-            else
-                details="${band_short}: ${mhz} MHz"
-            fi
-        fi
-
-        # --- Sanitize numeric fields (empty / dash / non-numeric → null) ---
-        case "$cc_pci"  in ''|'-'|*[!0-9-]*) cc_pci="null"  ;; esac
-        case "$cc_rsrp" in ''|'-'|*[!0-9-]*) cc_rsrp="null" ;; esac
-        case "$cc_rsrq" in ''|'-'|*[!0-9-]*) cc_rsrq="null" ;; esac
-        case "$cc_rssi" in ''|'-'|*[!0-9-]*) cc_rssi="null" ;; esac
-        # cc_sinr may be a float (NR /100 conversion) — validated by awk above
-        case "$cc_sinr" in ''|'-') cc_sinr="null" ;; esac
-
-        # --- Write carrier data for jq processing ---
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-            "$cc_type" "$tech" "$band_short" "${freq:-null}" "$mhz" \
-            "$cc_pci" "$cc_rsrp" "$cc_rsrq" "$cc_rssi" "$cc_sinr" >> "$cc_tmpfile"
-
-    done < "$tmpfile"
-    rm -f "$tmpfile"
-
     t2_total_bandwidth_mhz=$total_mhz
     t2_bandwidth_details="$details"
-
-    if [ -s "$cc_tmpfile" ]; then
-        t2_carrier_components=$(jq -Rs '
-            split("\n") | map(select(length > 0) | split("\t")) | map({
-                type: .[0],
-                technology: .[1],
-                band: .[2],
-                earfcn: (.[3] | if . == "null" then null else tonumber end),
-                bandwidth_mhz: (.[4] | tonumber),
-                pci: (.[5] | if . == "null" then null else tonumber end),
-                rsrp: (.[6] | if . == "null" then null else tonumber end),
-                rsrq: (.[7] | if . == "null" then null else tonumber end),
-                rssi: (.[8] | if . == "null" then null else tonumber end),
-                sinr: (.[9] | if . == "null" then null else tonumber end)
-            })
-        ' "$cc_tmpfile")
-    else
-        t2_carrier_components="[]"
-    fi
-    rm -f "$cc_tmpfile"
+    t2_carrier_components="${_ca_json:-[]}"
+    t2_scc_key="$_ca_key"
 }
 
 # -----------------------------------------------------------------------------
@@ -932,13 +831,30 @@ parse_time_advance() {
 # Parse AT+QRSRP — Per-antenna RSRP
 # Populates: sig_lte_rsrp, sig_nr_rsrp (JSON array strings)
 # -----------------------------------------------------------------------------
+_PA_CR=$(printf '\r')
+
+# Fork-free form of _antenna_line_to_json on the first "+<prefix>:...<tech>" line of $1.
+# Sets _ant_json; a field that is not an integer (or is -32768) becomes null.
+_ant_json_of() {
+    local _l _csv="" _o="$IFS" _v _out=""
+    while IFS= read -r _l; do
+        case "$_l" in *"+$2:"*"$3"*) _csv="${_l#*+$2:}"; break ;; esac
+    done <<EOF
+$1
+EOF
+    if [ -z "$_csv" ]; then _ant_json="[null,null,null,null]"; return; fi
+    _csv="${_csv%"$_PA_CR"}"
+    set -f; IFS=", "; set -- $_csv; IFS="$_o"; set +f
+    for _v in "${1-}" "${2-}" "${3-}" "${4-}"; do
+        case "$_v" in -32768|''|-|*[!0-9-]*|?*-*) _v=null ;; esac
+        _out="${_out:+$_out,}$_v"
+    done
+    _ant_json="[$_out]"
+}
+
 parse_qrsrp() {
-    local raw="$1"
-    local lte_line nr_line
-    lte_line=$(printf '%s\n' "$raw" | grep '+QRSRP:.*LTE' | head -1)
-    nr_line=$(printf '%s\n' "$raw" | grep '+QRSRP:.*NR5G' | head -1)
-    sig_lte_rsrp=$(_antenna_line_to_json "$lte_line" "QRSRP")
-    sig_nr_rsrp=$(_antenna_line_to_json "$nr_line" "QRSRP")
+    _ant_json_of "$1" QRSRP LTE; sig_lte_rsrp="$_ant_json"
+    _ant_json_of "$1" QRSRP NR5G; sig_nr_rsrp="$_ant_json"
 }
 
 # -----------------------------------------------------------------------------
@@ -946,12 +862,8 @@ parse_qrsrp() {
 # Populates: sig_lte_rsrq, sig_nr_rsrq (JSON array strings)
 # -----------------------------------------------------------------------------
 parse_qrsrq() {
-    local raw="$1"
-    local lte_line nr_line
-    lte_line=$(printf '%s\n' "$raw" | grep '+QRSRQ:.*LTE' | head -1)
-    nr_line=$(printf '%s\n' "$raw" | grep '+QRSRQ:.*NR5G' | head -1)
-    sig_lte_rsrq=$(_antenna_line_to_json "$lte_line" "QRSRQ")
-    sig_nr_rsrq=$(_antenna_line_to_json "$nr_line" "QRSRQ")
+    _ant_json_of "$1" QRSRQ LTE; sig_lte_rsrq="$_ant_json"
+    _ant_json_of "$1" QRSRQ NR5G; sig_nr_rsrq="$_ant_json"
 }
 
 # -----------------------------------------------------------------------------
@@ -959,12 +871,8 @@ parse_qrsrq() {
 # Populates: sig_lte_sinr, sig_nr_sinr (JSON array strings)
 # -----------------------------------------------------------------------------
 parse_qsinr() {
-    local raw="$1"
-    local lte_line nr_line
-    lte_line=$(printf '%s\n' "$raw" | grep '+QSINR:.*LTE' | head -1)
-    nr_line=$(printf '%s\n' "$raw" | grep '+QSINR:.*NR5G' | head -1)
-    sig_lte_sinr=$(_antenna_line_to_json "$lte_line" "QSINR")
-    sig_nr_sinr=$(_antenna_line_to_json "$nr_line" "QSINR")
+    _ant_json_of "$1" QSINR LTE; sig_lte_sinr="$_ant_json"
+    _ant_json_of "$1" QSINR NR5G; sig_nr_sinr="$_ant_json"
 }
 
 # =============================================================================
