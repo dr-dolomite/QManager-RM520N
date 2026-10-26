@@ -832,13 +832,30 @@ parse_time_advance() {
 # Parse AT+QRSRP — Per-antenna RSRP
 # Populates: sig_lte_rsrp, sig_nr_rsrp (JSON array strings)
 # -----------------------------------------------------------------------------
+_PA_CR=$(printf '\r')
+
+# Fork-free form of _antenna_line_to_json on the first "+<prefix>:...<tech>" line of $1.
+# Sets _ant_json; a field that is not an integer (or is -32768) becomes null.
+_ant_json_of() {
+    local _l _csv="" _o="$IFS" _v _out=""
+    while IFS= read -r _l; do
+        case "$_l" in *"+$2:"*"$3"*) _csv="${_l#*+$2:}"; break ;; esac
+    done <<EOF
+$1
+EOF
+    if [ -z "$_csv" ]; then _ant_json="[null,null,null,null]"; return; fi
+    _csv="${_csv%"$_PA_CR"}"
+    set -f; IFS=", "; set -- $_csv; IFS="$_o"; set +f
+    for _v in "${1-}" "${2-}" "${3-}" "${4-}"; do
+        case "$_v" in -32768|''|-|*[!0-9-]*|?*-*) _v=null ;; esac
+        _out="${_out:+$_out,}$_v"
+    done
+    _ant_json="[$_out]"
+}
+
 parse_qrsrp() {
-    local raw="$1"
-    local lte_line nr_line
-    lte_line=$(printf '%s\n' "$raw" | grep '+QRSRP:.*LTE' | head -1)
-    nr_line=$(printf '%s\n' "$raw" | grep '+QRSRP:.*NR5G' | head -1)
-    sig_lte_rsrp=$(_antenna_line_to_json "$lte_line" "QRSRP")
-    sig_nr_rsrp=$(_antenna_line_to_json "$nr_line" "QRSRP")
+    _ant_json_of "$1" QRSRP LTE; sig_lte_rsrp="$_ant_json"
+    _ant_json_of "$1" QRSRP NR5G; sig_nr_rsrp="$_ant_json"
 }
 
 # -----------------------------------------------------------------------------
@@ -846,12 +863,8 @@ parse_qrsrp() {
 # Populates: sig_lte_rsrq, sig_nr_rsrq (JSON array strings)
 # -----------------------------------------------------------------------------
 parse_qrsrq() {
-    local raw="$1"
-    local lte_line nr_line
-    lte_line=$(printf '%s\n' "$raw" | grep '+QRSRQ:.*LTE' | head -1)
-    nr_line=$(printf '%s\n' "$raw" | grep '+QRSRQ:.*NR5G' | head -1)
-    sig_lte_rsrq=$(_antenna_line_to_json "$lte_line" "QRSRQ")
-    sig_nr_rsrq=$(_antenna_line_to_json "$nr_line" "QRSRQ")
+    _ant_json_of "$1" QRSRQ LTE; sig_lte_rsrq="$_ant_json"
+    _ant_json_of "$1" QRSRQ NR5G; sig_nr_rsrq="$_ant_json"
 }
 
 # -----------------------------------------------------------------------------
@@ -859,12 +872,8 @@ parse_qrsrq() {
 # Populates: sig_lte_sinr, sig_nr_sinr (JSON array strings)
 # -----------------------------------------------------------------------------
 parse_qsinr() {
-    local raw="$1"
-    local lte_line nr_line
-    lte_line=$(printf '%s\n' "$raw" | grep '+QSINR:.*LTE' | head -1)
-    nr_line=$(printf '%s\n' "$raw" | grep '+QSINR:.*NR5G' | head -1)
-    sig_lte_sinr=$(_antenna_line_to_json "$lte_line" "QSINR")
-    sig_nr_sinr=$(_antenna_line_to_json "$nr_line" "QSINR")
+    _ant_json_of "$1" QSINR LTE; sig_lte_sinr="$_ant_json"
+    _ant_json_of "$1" QSINR NR5G; sig_nr_sinr="$_ant_json"
 }
 
 # =============================================================================

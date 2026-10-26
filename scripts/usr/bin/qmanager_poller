@@ -1364,54 +1364,41 @@ poll_per_antenna_signal() {
 # Append current per-antenna values as one NDJSON line to the history file.
 # Capped at SIGNAL_HISTORY_MAX lines (~30 min at 10s intervals).
 append_signal_history() {
-    local ts
-    ts=$SECONDS
+    # The parse_q* helpers only ever produce [n|null,...] arrays, so printf is valid JSON.
+    printf '{"ts":%s,"lte_rsrp":%s,"lte_rsrq":%s,"lte_sinr":%s,"nr_rsrp":%s,"nr_rsrq":%s,"nr_sinr":%s}\n' \
+        "$SECONDS" "$sig_lte_rsrp" "$sig_lte_rsrq" "$sig_lte_sinr" \
+        "$sig_nr_rsrp" "$sig_nr_rsrq" "$sig_nr_sinr" >> "$SIGNAL_HISTORY_FILE"
+    _hist_trim "$SIGNAL_HISTORY_FILE" "$SIGNAL_HISTORY_MAX" _sig_hist_n
+}
 
-    jq -n -c \
-        --argjson ts "$ts" \
-        --argjson lte_rsrp "$sig_lte_rsrp" \
-        --argjson lte_rsrq "$sig_lte_rsrq" \
-        --argjson lte_sinr "$sig_lte_sinr" \
-        --argjson nr_rsrp "$sig_nr_rsrp" \
-        --argjson nr_rsrq "$sig_nr_rsrq" \
-        --argjson nr_sinr "$sig_nr_sinr" \
-        '{ts:$ts, lte_rsrp:$lte_rsrp, lte_rsrq:$lte_rsrq, lte_sinr:$lte_sinr,
-         nr_rsrp:$nr_rsrp, nr_rsrq:$nr_rsrq, nr_sinr:$nr_sinr}' >> "$SIGNAL_HISTORY_FILE"
-
-    # Trim to max entries
-    local count
-    count=$(wc -l < "$SIGNAL_HISTORY_FILE" 2>/dev/null || echo 0)
-    if [ "$count" -gt "$SIGNAL_HISTORY_MAX" ]; then
-        local tmp="${SIGNAL_HISTORY_FILE}.tmp"
-        tail -n "$SIGNAL_HISTORY_MAX" "$SIGNAL_HISTORY_FILE" > "$tmp"
-        mv "$tmp" "$SIGNAL_HISTORY_FILE"
+# Count lines in memory (one wc per poller start) and trim back to <max> only after
+# <max>/20 extra rows, so a full file is not rewritten on every append.
+_sig_hist_n=""
+_ping_hist_n=""
+_hist_trim() {
+    local _f="$1" _max="$2" _var="$3" _n
+    eval "_n=\${$_var}"
+    case "$_n" in ''|*[!0-9]*) _n=$(wc -l < "$_f" 2>/dev/null); _n=${_n// /} ;; *) _n=$((_n + 1)) ;; esac
+    case "$_n" in ''|*[!0-9]*) _n=0 ;; esac
+    if [ "$_n" -gt $((_max + _max / 20)) ]; then
+        tail -n "$_max" "$_f" > "${_f}.tmp" && mv "${_f}.tmp" "$_f" && _n=$_max
     fi
+    eval "$_var=\$_n"
 }
 
 # Append the conn_ stats from read_ping_data() as one NDJSON line to the ping history file,
 # capped at PING_HISTORY_MAX lines (rows land about every 16s on device, not 10s).
 append_ping_history() {
-    local ts
-    ts=$SECONDS
-
-    jq -n -c \
-        --argjson ts "$ts" \
-        --argjson lat "${conn_latency:-null}" \
-        --argjson avg "${conn_avg_latency:-null}" \
-        --argjson min "${conn_min_latency:-null}" \
-        --argjson max "${conn_max_latency:-null}" \
-        --argjson loss "${conn_packet_loss:-null}" \
-        --argjson jit "${conn_jitter:-null}" \
-        '{ts:$ts,lat:$lat,avg:$avg,min:$min,max:$max,loss:$loss,jit:$jit}' >> "$PING_HISTORY_FILE"
-
-    # Trim to max entries
-    local count
-    count=$(wc -l < "$PING_HISTORY_FILE" 2>/dev/null || echo 0)
-    if [ "$count" -gt "$PING_HISTORY_MAX" ]; then
-        local tmp="${PING_HISTORY_FILE}.tmp"
-        tail -n "$PING_HISTORY_MAX" "$PING_HISTORY_FILE" > "$tmp"
-        mv "$tmp" "$PING_HISTORY_FILE"
-    fi
+    # jq --argjson used to drop a row with a malformed number; keep that rule.
+    local _v
+    for _v in "${conn_latency:-null}" "${conn_avg_latency:-null}" "${conn_min_latency:-null}" \
+              "${conn_max_latency:-null}" "${conn_packet_loss:-null}" "${conn_jitter:-null}"; do
+        case "$_v" in null) ;; ''|*[!0-9.-]*|*.*.*|?*-*|-|.|*.|-.*) return 0 ;; esac
+    done
+    printf '{"ts":%s,"lat":%s,"avg":%s,"min":%s,"max":%s,"loss":%s,"jit":%s}\n' \
+        "$SECONDS" "${conn_latency:-null}" "${conn_avg_latency:-null}" "${conn_min_latency:-null}" \
+        "${conn_max_latency:-null}" "${conn_packet_loss:-null}" "${conn_jitter:-null}" >> "$PING_HISTORY_FILE"
+    _hist_trim "$PING_HISTORY_FILE" "$PING_HISTORY_MAX" _ping_hist_n
 }
 
 # =============================================================================
