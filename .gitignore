@@ -64,7 +64,8 @@ RELEASE_NOTE.md
 /simpleadmin-source
 
 # bundled build tools (developer-local; not part of the repo)
-/tools/
+/tools/*
+!/tools/modem-mcp/
 
 # Health check directory
 /health-checks/

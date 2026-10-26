@@ -92,6 +92,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 | [at-command-transport.md](at-command-transport.md) | Any AT path — `atcli_smd11`, `qcmd`, `/dev/smd11`, `/tmp/qmanager_at.lock`, `sms_tool`, `flock` serialization, detecting a `qcmd` failure, AT URCs and `AT+QURCCFG` | Both |
 | [auth-rate-limiting.md](auth-rate-limiting.md) | `cgi_auth.sh`, `auth/check.sh`, `qm_get_rate_limit_status`, `/tmp/qmanager_auth_attempts.json`, the login lockout ladder | RM520N |
 | [gui-installer.md](gui-installer.md) | `installer-gui/`, `bridge.py`, `core/dpapi.py`, `prefs.py`, `wrap_command`, `__QM_RC=`, `stage_payload`, `tokens.css`, the frozen PyInstaller build | Both |
+| [modem-bridge.md](modem-bridge.md) | Running anything on a live device — the `modem` / `modem-rg501q` MCP servers, `tools/modem-mcp/server.ts`, `.mcp.json`, `modem_exec` / `modem_write` / `modem_cgi`, the serial check and deny-list | Both |
 | [platform-matrix.md](platform-matrix.md) | Any fact that differs **by device** — BusyBox versions, `wget` / `timeout` / `mountpoint` availability, `PATH` under systemd, `/tmp` semantics, CPU/ABI, the F6–F14 defect register | Both |
 | [platform-profile.md](platform-profile.md) | `hw_profile.sh`, `/etc/qmanager/platform.json`, `QM_HW_SCHEMA`, `qm_hw_self_heal`, `qm_hw_write_profile`, and any root helper that writes into `/etc/qmanager` | Both |
 | [poller-cpu-profile.md](poller-cpu-profile.md) | Any performance work on `qmanager_poller` — per-function CPU attribution, fork+exec cost, `cutime` / `cstime`, the de-fork pass, the Go rewrite comparison | Both |
@@ -106,7 +107,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 | Doc | Triggers | Scope |
 | --- | --- | --- |
 | [about-support.md](about-support.md) | `/about-device`, `/support`, `hooks/use-about-device.ts`, `components/about-device/**`, `components/support/**`, `donate-links.tsx`, `PILL_WISE` / `PILL_PAYPAL` / `PILL_SPONSOR` | RM520N |
-| [change-workflow.md](change-workflow.md) | Any code change: the recon → plan → build → validate flow, the validation layers and gates, close-out checks (replaced the retired `qm-orchestrate` skill 2026-10-15) | Both |
+| [change-workflow.md](change-workflow.md) | Any code change: validation layers and gates, close-out checks (the flow itself is in CLAUDE.md, ported from QManager 2026-10-26) | Both |
 | [i18n.md](i18n.md) | Any user-visible string — `public/locales/**`, `lib/i18n/`, `bun run i18n:check`, `bun run lang`, a namespace, a language pack, any of the picker surfaces | RM520N |
 | [overview-splash.md](overview-splash.md) | The pre-auth routes `/` and `/login/`, the public CGI under `public/`, `resolveBodyMode()`, `TonalBanner`, `components/public/overview/`, the pre-auth type scale | RM520N |
 | [redesign-proposal-playbook.md](redesign-proposal-playbook.md) | Nothing live — **superseded** by the `qm-redesign-review` skill at `.claude/skills/qm-redesign-review/SKILL.md`, which now owns every "redesign / polish / bring this page onto the design language" request. The stub keeps the 2026-08-21 provenance | Both |

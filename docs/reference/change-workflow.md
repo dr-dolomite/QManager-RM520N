@@ -3,22 +3,10 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-10
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-The `qm-orchestrate` skill was retired on 2026-10-15 (user decision: it added cost without adding
-value). Code changes now run on the normal flow below, with validation at the end.
-
-## The flow
-
-1. **Recon** — read the router row's reference doc, then locate what the change touches. Broad
-   sweeps go to `qm-scout` (pinned Haiku 5.5, medium effort); never pass a `model` override to a
-   pinned agent.
-2. **Plan** — a short task list. Ask the user only for a decision that is genuinely theirs.
-   `superpowers:brainstorming` runs **only when the user explicitly asks for it**.
-3. **Build** — inline edits, or one specialist agent per independent piece (`cgi-endpoint-builder`,
-   `ui-builder`, `qm-worker`, `docs-writer`). Builds on Sonnet, judgments on Opus.
-4. **Validate** — the three layers below, then report what was and was not checked.
-
-Redesign / polish requests still go through `qm-redesign-review` first; the approved design is then
-built on this flow.
+The flow itself (Small / Large tiers, the plan stop, hard rules, worktrees, "Orchestrate", agents,
+context handoff) lives in `CLAUDE.md` > Change Workflow; it was ported from QManager on 2026-10-26,
+replacing the recon → plan → build → validate flow that followed the retired `qm-orchestrate` skill.
+This doc holds the validation detail that step 4 points to.
 
 ## Validation
 
