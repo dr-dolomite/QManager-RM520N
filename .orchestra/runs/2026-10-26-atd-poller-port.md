@@ -74,8 +74,8 @@ is taken after P1 lands and those numbers are in.
 | id | phase | task | seat | write set (planned) | state |
 |---|---|---|---|---|---|
 | T0.1 | P0 | Device probe: QRTR, vendor QMI holders, smd11 multi-opener, protected_regular, `/var/run` perms, space | independent Opus session (atd-t01-probe) | none (read-only) | DONE on RM520N-GL 2026-10-26; RG501Q-EU still to run (offline) |
-| T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | IN FLIGHT 2026-10-26 (RM520N-GL only; SMS recv excluded — it marks messages read) |
-| T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | cgi-endpoint-builder | scratch build only | PENDING (build can start offline; run needs device) |
+| T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | DONE_WITH_CONCERNS on RM520N-GL 2026-10-26 (idle UI only; contention not measured) |
+| T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | lead | `native/qmanager_atd/{.cargo/config.toml,rust-toolchain.toml,Cargo.lock}` | DONE on RM520N-GL 2026-10-26; idle daemon RSS moved to the T2 smoke test (needs smd11) |
 | T1.1 | P1 | Port B5.29 Phases A + C into the RM520N poller | cgi-endpoint-builder | `scripts/usr/bin/qmanager_poller` | PENDING |
 | T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | PENDING |
 | G1 | gate | Broker GO/NO-GO with P0 + P1 numbers | user | — | PENDING |
@@ -162,3 +162,38 @@ Lead reading (not yet a GO/NO-GO — that waits for T0.2 + P1 numbers): no block
 QMI or data-call lanes on the RM520N-GL.
 
 | T0.1 | 3 | independent Opus session r3 | r3 | DONE_WITH_CONCERNS (RG501Q offline) | 7 questions, raw capture | .orchestra/scratch/atd-T0.1-report.md |
+
+## T0.2 result — RM520N-GL, 2026-10-26
+Report `.orchestra/scratch/atd-T0.2-report.md`, raw `.orchestra/scratch/atd-T0.2-rm520n.txt` (gitignored).
+Measured with the dashboard closed; poller running throughout.
+
+| metric | value |
+|---|---|
+| `qcmd AT` per call | wall median 45 ms, CPU 40 ms |
+| locked `atcli_smd11 AT` per call | wall median 16 ms, CPU 17 ms |
+| fork floor (`/bin/true` in the harness) | CPU 12 ms |
+| qcmd CPU above floor | ≈ 28 ms: atcli spawn ≈ 5 ms, the qcmd shell wrapper ≈ 23 ms |
+| poller | 947 ms CPU per 3.25 s cycle = **29.1 % of the core**; 85 % of it in children (forks) |
+| qcmd calls per cycle | 2.53 (from code) |
+| transport share of poller CPU | 7.6–10.8 % (≈ 2.2–3.1 % of the core); atcli spawn alone ≈ 1.3 % |
+| lock busy / `modem_busy` | ≈ 1 % (code estimate; sampled 0.2 %) / 0 of 30 |
+| `sms_tool status` | 18 ms wall, 18 ms CPU |
+| memory | 54.6 MB available of 182.5 MB; poller RSS 6.9 MB |
+
+Lead reading: on CPU the broker can win at most ~3 % of the core, and most of that comes from replacing
+the **shell `qcmd` wrapper** with a native client, not from removing the atcli spawn. The poller's own
+forks (~26 % of the core) are P1's target. A resident broker is a net memory addition. Contention under
+UI load (the broker's other claim) is still unmeasured — measure it in T1.2 with the dashboard open.
+
+## T0.3 result — 2026-10-26
+Built with rustc/cargo 1.99.0 on the Windows host: `rustup target add armv7-unknown-linux-musleabihf`,
+`cargo build --release --target armv7-unknown-linux-musleabihf` with `rust-lld` + `crt-static` (now
+pinned in `.cargo/config.toml` and `rust-toolchain.toml`; `Cargo.lock` committed). 662 328 B ELF32 ARM
+EABI5 static, stripped, md5 `735c4144…`, 20 s clean build, 2 dead-code warnings (upstream).
+On RM520N-GL (serial 61368cd2) from `/tmp`: `qmanager_atd --version` → `qmanager_atd 0.6.1 proto=3`
+rc 0; `--bogus` → usage, rc 2. No daemon run, no socket created, binary removed. Idle daemon RSS is
+owed by the T2 smoke test. Vendoring note: the three build files are RM520N-local additions to the
+otherwise byte-identical crate.
+
+| T0.2 | 1 | independent Opus session | r1 | DONE_WITH_CONCERNS (no UI load) | 6 measurements | .orchestra/scratch/atd-T0.2-report.md |
+| T0.3 | 1 | lead | — | DONE (RSS deferred) | build + `--version` on device | this section |
