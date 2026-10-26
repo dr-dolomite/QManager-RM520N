@@ -1,0 +1,83 @@
+{
+  "groups": {
+    "dashboard": "Панель управления",
+    "cellular": "Сотовая связь",
+    "local_network": "Локальная сеть",
+    "monitoring": "Мониторинг",
+    "system": "Система"
+  },
+  "items": {
+    "home": "Главная",
+    "cellular_information": "Данные сети",
+    "antenna_statistics": "Статистика антенн",
+    "antenna_alignment": "Юстировка антенн",
+    "sms_center": "Центр SMS",
+    "sms_forwarding": "Пересылка SMS",
+    "custom_profiles": "Свои профили",
+    "connection_scenarios": "Сценарии",
+    "band_locking": "Диапазоны",
+    "tower_locking": "Привязка к вышке",
+    "frequency_locking": "Блокировка частот",
+    "cell_scanner": "Сканер сот",
+    "neighboring_cells": "Соседние соты",
+    "frequency_calculator": "Калькулятор",
+    "settings": "Настройки",
+    "apn_management": "Управление APN",
+    "network_priority": "Приоритет сети",
+    "imei_settings": "Настройки IMEI",
+    "fplmn_settings": "Запрещённые сети",
+    "ethernet_status": "Состояние Ethernet",
+    "local_network_settings": "Настройки",
+    "ip_passthrough": "Проброс IP",
+    "ttl_mtu_settings": "TTL и MTU",
+    "custom_dns": "Свой DNS",
+    "network_events": "Сетевые события",
+    "latency_monitor": "Задержки",
+    "alerts": "Оповещения",
+    "watchdog": "Watchdog",
+    "tailscale": "Tailscale VPN",
+    "system_settings": "Настройки",
+    "logs": "Журналы",
+    "system_health_check": "Проверка системы",
+    "connection_quality": "Качество связи",
+    "languages": "Языки",
+    "device_access": "Доступ",
+    "software_update": "Обновление ПО",
+    "terminals": "Терминалы",
+    "at_terminal": "AT-терминал",
+    "web_console": "Веб-консоль",
+    "about_device": "Об устройстве",
+    "support": "Поддержка",
+    "donate": "Поддержать проект",
+    "traffic_engine": "Traffic Engine",
+    "cellular_overview": "Обзор",
+    "sms_inbox": "Входящие",
+    "band_locking_bands": "Блокировка диапазонов",
+    "cell_scanner_full_scan": "Полный скан",
+    "cellular_settings_general": "Основные",
+    "connection_quality_overview": "Обзор",
+    "system_settings_general": "Основные"
+  },
+  "header": {
+    "role": "Администратор"
+  },
+  "user": {
+    "signed_in": "Вы вошли"
+  },
+  "actions": {
+    "toggle_section": "Свернуть/развернуть раздел {{section}}",
+    "toggle_sidebar": "Свернуть/развернуть боковую панель",
+    "skip_to_content": "Перейти к основному содержимому"
+  },
+  "status": {
+    "watchdog_acting": "активен",
+    "watchdog_acting_detail": "Watchdog восстанавливает соединение (уровень {{tier}}).",
+    "watchdog_settling": "стабилизация",
+    "watchdog_settling_detail": "Watchdog проверяет, удерживается ли соединение после восстановления."
+  },
+  "mobile": {
+    "title": "Боковая панель",
+    "description": "Основная навигация QManager."
+  },
+  "breadcrumb": "Навигационная цепочка"
+}
