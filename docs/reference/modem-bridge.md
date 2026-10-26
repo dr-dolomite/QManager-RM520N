@@ -20,6 +20,10 @@ On connect the server reads `androidboot.serialno` from `/proc/cmdline` and refu
 if it is not the expected serial (`61368cd2` RM520N-GL, `b7e3d6f1` RG501Q-EU; override with
 `<PREFIX>_SERIAL` in `.env`). A wrong-device capture therefore fails loudly instead of silently.
 
+The SSH host key is pinned before the password is sent: `<PREFIX>_HOSTKEY_SHA256` (hex) in `.env`
+if set, otherwise trust-on-first-use into the gitignored `tools/modem-mcp/.known_hosts.json`. A
+mismatch refuses the connection; after a reflash, delete that device's entry.
+
 ## Tools
 
 - `modem_exec(command, timeout_s?, stdin?)` — `{stdout, stderr, exit_code}`; default 30 s, max 600 s.

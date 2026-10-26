@@ -4,7 +4,7 @@
 // come from the repo's .env and are never logged or returned. stdout is the MCP
 // channel, so diagnostics go to stderr only.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,7 @@ const devArg = process.argv[process.argv.indexOf("--device") + 1] ?? "";
 const DEVICE = DEVICES[process.argv.includes("--device") ? devArg : "rm520n"];
 if (!DEVICE) throw new Error(`unknown --device "${devArg}" (rm520n | rg501q)`);
 
-function loadEnv(): { host: string; port: number; username: string; password: string; serial: string } {
+function loadEnv(): { host: string; port: number; username: string; password: string; serial: string; hostkey: string } {
   const vars: Record<string, string> = {};
   try {
     for (const line of readFileSync(join(REPO_ROOT, ".env"), "utf8").split(/\r?\n/)) {
@@ -54,7 +54,7 @@ function loadEnv(): { host: string; port: number; username: string; password: st
   const username = get("SSH_USER");
   const password = get("SSH_PASSWORD");
   if (!host || !username) throw new Error(`${DEVICE.prefix}_IP / ${DEVICE.prefix}_SSH_USER missing from .env`);
-  return { host, port: Number(get("SSH_PORT")) || 22, username, password, serial: get("SERIAL") || DEVICE.serial };
+  return { host, port: Number(get("SSH_PORT")) || 22, username, password, serial: get("SERIAL") || DEVICE.serial, hostkey: get("HOSTKEY_SHA256") };
 }
 
 const ENV = loadEnv();
@@ -62,6 +62,30 @@ const ENV = loadEnv();
 // Scrub any accidental echo of the password from text we return.
 function redact(s: string): string {
   return ENV.password ? s.split(ENV.password).join("[REDACTED]") : s;
+}
+
+// ---------------------------------------------------------------- host key
+
+// Pin from .env (<PREFIX>_HOSTKEY_SHA256, hex) or trust-on-first-use into a gitignored file.
+const KNOWN_HOSTS = join(dirname(fileURLToPath(import.meta.url)), ".known_hosts.json");
+let hostKeyError = "";
+
+function verifyHostKey(fp: string): boolean {
+  const id = `${DEVICE.prefix}@${ENV.host}:${ENV.port}`;
+  const pinned = ENV.hostkey.toLowerCase();
+  let known: Record<string, string> = {};
+  try { known = JSON.parse(readFileSync(KNOWN_HOSTS, "utf8")); } catch {}
+  const expected = pinned || known[id];
+  if (!expected) {
+    known[id] = fp;
+    try { writeFileSync(KNOWN_HOSTS, JSON.stringify(known, null, 2)); } catch {}
+    console.error(`[modem-mcp] recorded host key for ${DEVICE.label} (sha256 ${fp})`);
+    return true;
+  }
+  if (fp === expected) return true;
+  hostKeyError = `host key mismatch for ${DEVICE.label}: got sha256 ${fp}, expected ${expected}. ` +
+    `If the device was reflashed, remove its entry from tools/modem-mcp/.known_hosts.json.`;
+  return false;
 }
 
 // ---------------------------------------------------------------- connection
@@ -99,20 +123,23 @@ function connect(): Promise<Client> {
       if (!settled) {
         settled = true;
         connecting = null;
-        rej(new Error(`SSH connect failed: ${redact(err.message)}`));
+        rej(new Error(hostKeyError || `SSH connect failed: ${redact(err.message)}`));
       }
     });
     c.on("close", () => {
       if (conn === c) conn = null;
     });
-    // Dropbear on the modem may offer only keyboard-interactive.
-    c.on("keyboard-interactive", (_n, _i, _l, prompts, finish) => finish(prompts.map(() => ENV.password)));
+    // Dropbear on the modem may offer only keyboard-interactive; answer password prompts only.
+    c.on("keyboard-interactive", (_n, _i, _l, prompts, finish) =>
+      finish(prompts.map((pr) => (/pass(word|code)/i.test(pr.prompt) ? ENV.password : ""))));
     c.connect({
       host: ENV.host,
       port: ENV.port,
       username: ENV.username,
       password: ENV.password,
       tryKeyboard: true,
+      hostHash: "sha256",
+      hostVerifier: (fp: string) => verifyHostKey(fp),
       readyTimeout: 15000,
       keepaliveInterval: 15000,
       keepaliveCountMax: 3,
@@ -506,9 +533,11 @@ server.registerTool(
     // target is resolved so the link itself survives, as with `cat >`.
     const cmd =
       `${mkdir ? `mkdir -p ${parent} && ` : ""}` +
-      `if [ -L ${p} ]; then d=$(readlink -f ${p}); else d=${p}; fi; t="$d.tmp.$$"; o=; em=; ` +
+      `if [ -L ${p} ]; then d=$(readlink -f ${p}); else d=${p}; fi; o=; em=; ` +
       `if [ -e "$d" ]; then o=$(stat -c %u:%g "$d") && em=$(stat -c %a "$d") || exit 1; fi; ` +
       `mm=${mode ?? `\${em:-${fallback}}`}; ` +
+      // mktemp creates exclusively, so a pre-planted name or symlink in a www-data dir cannot redirect the write.
+      `t=$(mktemp "$d.tmp.XXXXXX") || exit 1; ` +
       `{ cat > "$t" && chmod "$mm" "$t" && { [ -z "$o" ] || chown "$o" "$t"; }; } || { rm -f "$t"; exit 1; }; ` +
       `echo "$mm"; n=$(wc -c < "$t" | tr -d ' '); echo "$n"; ` +
       `if [ "$n" != "${expected}" ]; then rm -f "$t"; echo NOT_REPLACED; exit 0; fi; ` +
@@ -528,7 +557,7 @@ server.registerTool(
         if (!res.syntax_ok)
           res.syntax_error =
             at >= 0
-              ? lines.slice(2, at).join("\n").replace(/\.tmp\.\d+/g, "")
+              ? lines.slice(2, at).join("\n").replace(/\.tmp\.[A-Za-z0-9]{6}/g, "")
               : "not checked (size mismatch)";
       }
       res.replaced = lines[lines.length - 1] === "REPLACED";
