@@ -73,7 +73,7 @@ is taken after P1 lands and those numbers are in.
 ## Tasks (each gets its own plan file before build: `.orchestra/runs/2026-10-26-atd-port-<id>.md`)
 | id | phase | task | seat | write set (planned) | state |
 |---|---|---|---|---|---|
-| T0.1 | P0 | Device probe: QRTR, vendor QMI holders, smd11 multi-opener, protected_regular, `/var/run` perms, space | modem-investigator | none (read-only) | BLOCKED — both devices offline 2026-10-26 |
+| T0.1 | P0 | Device probe: QRTR, vendor QMI holders, smd11 multi-opener, protected_regular, `/var/run` perms, space | independent Opus session (atd-t01-probe) | none (read-only) | DONE on RM520N-GL 2026-10-26; RG501Q-EU still to run (offline) |
 | T0.2 | P0 | Value baseline: qcmd vs atcli timing, sms_tool hold timings, poller real-transport CPU | modem-investigator | none | BLOCKED — devices offline |
 | T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | cgi-endpoint-builder | scratch build only | PENDING (build can start offline; run needs device) |
 | T1.1 | P1 | Port B5.29 Phases A + C into the RM520N poller | cgi-endpoint-builder | `scripts/usr/bin/qmanager_poller` | PENDING |
@@ -141,3 +141,24 @@ User paused the run. T0.1 (r2, REA dropped) was stopped mid-run: no report. The 
 still finishing its bounded 20 s smd11 hold on the RM520N-GL (serial 61368cd2) and self-deletes at
 the end; `qcmd ATI` answered and the poller was active at the stop check. Resume: re-dispatch T0.1
 from `.orchestra/runs/2026-10-26-atd-port-T0.1.md`.
+
+## T0.1 result — RM520N-GL, 2026-10-26 (resumed after the pause)
+Seat: independent Opus session, brief r3, modem bridge. Report `.orchestra/scratch/atd-T0.1-report.md`,
+raw capture `.orchestra/scratch/atd-T0.1-rm520n.txt` (gitignored). Lead spot-checked QRTR config,
+the root lock denial and the default route against the raw capture. RG501Q-EU offline: not measured.
+
+| delta | finding | effect on the roadmap |
+|---|---|---|
+| D1 | one core, armv7l, NEON/VFPv4, glibc 2.31; 46 MB RAM available of 182 MB, 91 MB swap | static armv7 musl target stands; RSS budget is tight — measure in T0.3 |
+| D3 | `fs.protected_regular=1`; root `exec 3>>/tmp/qmanager_at.lock` → Permission denied; read-only `9<` works | **confirmed** — broker and fallback must open the lock and long flag without O_CREAT |
+| D4 | `/run` root 0755, `/var/run`→`/run`, `/var/lock`→`/run/lock` | **confirmed** — www-data cannot claim a restart marker there |
+| D6 | **QRTR present** (`CONFIG_QRTR=y`, QIPCRTR in protocols, `qrtr-ns` running). Modem is node 3; WDS/DMS/NAS/UIM/WMS published. ~20 vendor daemons hold presumed-QRTR sockets | QMI lane **feasible on RM520N-GL as root**; www-data QRTR access untested (only matters for the in-process QMI fallback) |
+| D7 | `rmnet_ipa0` + `rmnet_data0..5,15,16`; default route on `rmnet_data0` | same names as RM551E — data-call lane feasible |
+| D12 | an idle second opener on smd11 for 20 s: `qcmd ATI` and `sms_tool status` both answered normally; nothing holds smd11 between commands today | idle multi-open is safe; a *reading* second opener is untested — cover in the T2 broker smoke test |
+| D2 | www-data is in `dialout`; smd11 `root:dialout 660` | confirmed — admit www-data on the socket |
+| new | BusyBox `flock` has no `-w`; `/usrdata` and `/opt` are one UBIFS volume, 88.9 MB free | timed waits stay on the `flock -x -n` retry loop |
+
+Lead reading (not yet a GO/NO-GO — that waits for T0.2 + P1 numbers): no blocker found for the AT,
+QMI or data-call lanes on the RM520N-GL.
+
+| T0.1 | 3 | independent Opus session r3 | r3 | DONE_WITH_CONCERNS (RG501Q offline) | 7 questions, raw capture | .orchestra/scratch/atd-T0.1-report.md |
