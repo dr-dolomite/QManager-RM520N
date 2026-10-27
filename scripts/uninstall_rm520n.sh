@@ -163,7 +163,7 @@ confirm_uninstall() {
     printf "    • Sudoers rules\n"
     printf "    • Web console (ttyd): %s\n" "$CONSOLE_DIR"
     printf "    • Speedtest CLI: /usrdata/root/bin/speedtest\n"
-    printf "    • Runtime state: /tmp/qmanager_*\n"
+    printf "    • Runtime state: /tmp/qmanager_*, /var/run/qmanager*\n"
     printf "    • Cron jobs referencing qmanager\n"
     if [ "$PURGE" = "1" ]; then
         printf "    • Config directory: %s  ${YELLOW}[--purge]${NC}\n" "$CONF_DIR"

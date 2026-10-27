@@ -1069,7 +1069,7 @@ install_dependencies() {
         info "www-data added to dialout via /etc/group fallback"
     fi
 
-    # Bundled first-party binaries (atcli_smd11, sms_tool, qmanager_discord) are
+    # Bundled first-party binaries (atcli_smd11, sms_tool, qmanager_discord, qmanager_atd) are
     # installed unconditionally by install_bundled_binaries(), called earlier in
     # main() — NOT here — so they refresh on OTA even with --skip-packages.
 

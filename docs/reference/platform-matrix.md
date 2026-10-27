@@ -1500,7 +1500,7 @@ ahead of it.~~
 | `qmanager_atd` broker (T3.1) | `/usr/bin/qmanager_atd` + `/usr/bin/qsms -> qmanager_atd` installed. `qmanager-atd.service` installed to `/lib/systemd/system/` but **not boot-linked and not started** until the qcmd cut-over (T4.1); `/usr/bin/qcmd` is still the shell script | Binary + `qsms` link installed. **No unit file** — the installer deletes `qmanager-atd.service` and its wants link, until P8 / T8.1 | static — `install_rm520n.sh` `install_bundled_binaries()` / `enable_services()`, gate `qm_hw_atd_enabled` in `hw_profile.sh` (see the note below the table) |
 
 **Why the RG501Q-EU gate is "the unit file does not exist", not a unit
-directive.** The RG501Q-EU runs systemd 239 (F11 validation below), and
+directive.** The RG501Q-EU runs systemd 239 (F11 validation above), and
 `ExecCondition=` arrived in systemd 243: 239 ignores it, so the broker would
 start anyway. A failing `ExecStartPre=` instead counts as a failed start and
 walks the unit into its `StartLimitBurst`. So the installer decides per model
