@@ -132,7 +132,7 @@ qm_hw_fw_fingerprint() {
     printf '%s\n' "$fw"
 }
 
-# qm_hw_atd_enabled — 0 iff this is an RM520N* model, else 1 (RG501Q, unknown, unreadable).
+# qm_hw_atd_enabled - 0 iff this is an RM520N* model, else 1 (RG501Q, unknown, unreadable).
 # Reads the root-owned vendor file via qm_hw_model, never platform.json.
 qm_hw_atd_enabled() {
     case "$(qm_hw_model)" in

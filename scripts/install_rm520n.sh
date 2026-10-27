@@ -860,7 +860,8 @@ install_bundled_binaries() {
         if [ -x "$BIN_DIR/qmanager_atd" ] && cmp -s "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd"; then
             info "qmanager_atd already current"
         else
-            install_file "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd" 755                 || die "Failed to install qmanager_atd"
+            install_file "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd" 755 \
+                || die "Failed to install qmanager_atd"
             info "qmanager_atd installed to $BIN_DIR/qmanager_atd"
         fi
     elif [ -x "$BIN_DIR/qmanager_atd" ]; then
