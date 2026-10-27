@@ -12,6 +12,8 @@
 export interface ModemStatus {
   /** Unix epoch (seconds) — updated every poll cycle */
   timestamp: number;
+  /** Modem uptime (s) when this snapshot was written; absent on older pollers */
+  mono?: number;
   /** Current system state */
   system_state: SystemState;
   /** Whether the modem responded to the last AT command */
@@ -302,6 +304,8 @@ export interface DeviceStatus {
   supported_nsa_nr5g_bands: string;
   /** Hardware-supported SA NR5G bands, colon-delimited (boot-only) */
   supported_sa_nr5g_bands: string;
+  /** Poller activity tier: AT reads slow down while no browser is polling; absent on older pollers */
+  poller_tier?: "active" | "idle" | "deep";
 }
 
 /**
@@ -627,6 +631,10 @@ export interface WatchcatStatus {
   total_recoveries: number;
   cooldown_remaining: number;
   reboots_this_hour: number;
+  /** Seconds since the watchdog last wrote its state (uptime delta); null when unknown */
+  age_sec?: number | null;
+  /** The watchdog's own staleness limit (s); null when unknown */
+  stale_after?: number | null;
 }
 
 export interface SimFailoverStatus {

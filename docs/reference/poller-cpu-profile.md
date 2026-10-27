@@ -391,6 +391,21 @@ A Go equivalent was built and run **on both devices** doing genuinely comparable
 
 ---
 
+## Activity tiers (T6.1, 2026-10-27)
+
+RM520N-GL `61368cd2`, 300 s windows from `/proc/<pid>/stat` (method as above), cycles counted from `status.json` `.mono` changes. Tiers are described in [`adaptive-polling.md`](./adaptive-polling.md).
+
+| window | poller ms/cycle | % of core | system busy | period |
+|---|---:|---:|---:|---:|
+| pre-T6.1 poller, no browser | 366 | 14.0 | 22.8 | 2.6 s |
+| `active` (dashboard open) | 347 | 12.9 | 37.5 | 2.7 s |
+| `idle` (20 s – 5 min after the last fetch) | 182 | 8.1 | 16.7 | 2.24 s |
+| `deep` (> 5 min) | 128 | 6.0 | 14.7–15.0 | 2.14 s |
+
+What remains in `deep` is the local work that runs every cycle in every tier (proc metrics, ping reads, alerts, Data Used, `write_cache`).
+
+---
+
 ## Recommendation
 
 **Continue the shell de-fork pass.** The 2026-09-02 pass took the four cheapest wins and realised 41–44% for a few days of low-risk work that stays reviewable and debuggable on-device.

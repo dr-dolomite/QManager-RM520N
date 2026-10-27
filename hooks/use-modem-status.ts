@@ -141,18 +141,37 @@ export function useModemStatus(
       };
     }
 
-    // Fetch immediately on mount
-    fetchData();
-
-    // Set up interval
-    intervalRef.current = setInterval(fetchData, pollInterval);
-
-    return () => {
-      mountedRef.current = false;
+    const stop = () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+    };
+    const start = () => {
+      stop();
+      intervalRef.current = setInterval(fetchData, pollInterval);
+    };
+
+    // Fetch immediately on mount, even while hidden, so the first paint has data
+    fetchData();
+    if (!document.hidden) start();
+
+    // A hidden tab stops polling: each fetch is the poller's UI heartbeat, and a
+    // forgotten tab would otherwise hold it at the full AT rate.
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        fetchData();
+        start();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      mountedRef.current = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stop();
     };
   }, [fetchData, pollInterval, enabled]);
 

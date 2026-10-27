@@ -283,6 +283,7 @@ _test_catalog_pending() {
         {id:"cfg.sms_alerts_json",category:"configuration", label:"sms_alerts.json valid",         status:"pending", duration_ms:0, detail:""},
         {id:"cfg.email_alerts_json",category:"configuration", label:"email_alerts.json valid",     status:"pending", duration_ms:0, detail:""},
         {id:"cfg.poller_cache_fresh", category:"configuration", label:"poller cache mtime < 60s",  status:"pending", duration_ms:0, detail:""},
+        {id:"cfg.ui_heartbeat",   category:"configuration", label:"UI heartbeat file owned by www-data", status:"pending", duration_ms:0, detail:""},
         {id:"cfg.cgi_path_opt",   category:"configuration", label:"lighttpd CGI PATH includes /opt/bin", status:"pending", duration_ms:0, detail:""},
         {id:"data_used.fresh",    category:"configuration", label:"data_used.json fresh (mtime < 60s)",  status:"pending", duration_ms:0, detail:""},
 
@@ -743,9 +744,19 @@ t_cfg_poller_cache_fresh() {
     if [ ! -f "$f" ]; then echo "fail|missing $f" >> "$OUTPUT_FILE"; echo "fail|missing"; return; fi
     local age; age=$(( $(date +%s) - $(stat -c %Y "$f") ))
     echo "path=$f age=${age}s" >> "$OUTPUT_FILE"
+    jq -r '"poller_tier=\(.device.poller_tier // "unknown") mono=\(.mono // "unknown")"' "$f" >> "$OUTPUT_FILE" 2>&1
     if [ "$age" -lt 60 ]; then echo "pass|age ${age}s"
     elif [ "$age" -lt 300 ]; then echo "warn|age ${age}s (>60s)"
     else echo "fail|age ${age}s (poller may be stalled)"; fi
+}
+# The status CGIs (www-data) rewrite this file in place; in sticky /tmp a file owned by anyone else locks them out.
+t_cfg_ui_heartbeat() {
+    local f=/tmp/qmanager_ui_active
+    if [ ! -e "$f" ]; then echo "pass|absent (no browser since boot)"; return; fi
+    ls -la "$f" >> "$OUTPUT_FILE"
+    local owner; owner=$(stat -c %U "$f" 2>/dev/null)
+    if [ "$owner" = "www-data" ]; then echo "pass|owned by www-data"
+    else echo "fail|owned by ${owner:-unknown}, not www-data (poller tiers stuck)"; fi
 }
 t_cfg_data_used_fresh() {
     local f=/usrdata/qmanager/data_used.json
@@ -1053,6 +1064,7 @@ _run_test cfg.qmanager_dir         configuration "/etc/qmanager exists"         
 _run_test cfg.sms_alerts_json      configuration "sms_alerts.json valid"              t_cfg_sms_alerts
 _run_test cfg.email_alerts_json    configuration "email_alerts.json valid"            t_cfg_email_alerts
 _run_test cfg.poller_cache_fresh   configuration "poller cache mtime < 60s"           t_cfg_poller_cache_fresh
+_run_test cfg.ui_heartbeat         configuration "UI heartbeat file owned by www-data" t_cfg_ui_heartbeat
 _run_test cfg.cgi_path_opt         configuration "lighttpd CGI PATH includes /opt/bin" t_cfg_cgi_path_opt
 _run_test data_used.fresh          configuration "data_used.json fresh (mtime < 60s)" t_cfg_data_used_fresh
 

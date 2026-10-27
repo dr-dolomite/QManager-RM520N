@@ -171,12 +171,23 @@ read_config() {
 # STATE FILE WRITER
 # =============================================================================
 
+# $1 = stale_after (s): how long the poller may see no fresh write before it reports the
+# daemon as not reporting. Default 3 x check_interval + 60; mono is uptime, immune to clock steps.
 write_state() {
-    local ts
+    local ts mono iv stale _rest
     ts=$(date +%s)
+    mono=""
+    read -r mono _rest < /proc/uptime 2>/dev/null
+    mono="${mono%%.*}"
+    case "$mono" in ''|*[!0-9]*) mono=0 ;; esac
+    iv="$CFG_CHECK_INTERVAL"
+    case "$iv" in ''|*[!0-9]*) iv=10 ;; esac
+    stale="${1:-$((3 * iv + 60))}"
 
     jq -n -c \
         --argjson ts "$ts" \
+        --argjson mono "$mono" \
+        --argjson stale_after "$stale" \
         --argjson enabled "$CFG_ENABLED" \
         --arg state "$state" \
         --argjson tier "$current_tier" \
@@ -200,7 +211,8 @@ write_state() {
             sim_failover_active: ($sf_active == "true"),
             original_sim_slot: $sf_orig,
             current_sim_slot: $sf_curr,
-            reboots_this_hour: $reboots
+            reboots_this_hour: $reboots,
+            mono: $mono, stale_after: $stale_after
         }' > "$STATE_TMP"
 
     mv "$STATE_TMP" "$STATE_FILE"
@@ -606,6 +618,8 @@ do_recovery() {
     qlog_info "RECOVERY: Executing Tier $current_tier"
     # PID write + touch fallback — see execute_tier1.
     printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
+    # A tier can block for minutes (Tier 3 swap) with no loop pass: publish a long window first.
+    write_state 600
 
     case "$current_tier" in
         1) execute_tier1; action_result=$? ;;
