@@ -183,7 +183,7 @@ The rules that fall out of it:
 | `crond` | Binary ships but daemon never runs; `/var/spool/cron/crontabs/` empty | *unverified* | on-device, re-confirmed twice · `scheduled-timers.md` |
 | `systemd-time-wait-sync` | Not shipped | *unverified* | on-device · `scheduled-timers.md` |
 | journald | Disabled device-wide — `systemd-journald.service` is symlinked to `/dev/null`, so `journalctl` is **always empty**. Use `/var/log/messages` for application logs and `dmesg` for systemd's own | **Same** — also symlinked to `/dev/null` | RM520N-GL: on-device · `scheduled-timers.md`. Both devices re-confirmed on-device 2026-09-03 (F11) |
-| systemd version | 244 (minimal build; `systemctl is-enabled` reads only `/etc/systemd/system/`) | Version *unverified*; the `is-enabled` behavior **reproduces** — 13 `qmanager-*.service` units report `disabled` yet start every boot | RM520N-GL: on-device · `qmanager-independence.md`. RG501Q-EU: adb 2026-08-25 (serial `b7e3d6f1`) — stock firmware behavior, observed via a post-reset install |
+| systemd version | 244 (minimal build; `systemctl is-enabled` reads only `/etc/systemd/system/`) | **239** (F11 validation, 2026-09-03 — no `ExecCondition=`, which needs 243); the `is-enabled` behavior **reproduces** — 13 `qmanager-*.service` units report `disabled` yet start every boot | RM520N-GL: on-device · `qmanager-independence.md`. RG501Q-EU: adb 2026-08-25 (serial `b7e3d6f1`) — stock firmware behavior, observed via a post-reset install |
 
 > ℹ️ NOTE: **`disabled` does not mean "will not start."** QManager's units live in
 > `/lib/systemd/system/` and their start symlinks in
@@ -1497,6 +1497,17 @@ ahead of it.~~
 | Per-context MTU write | No reliable write; `+CGCONTRDP` returns no MTU field | *unverified* | on-device · `wan-profile-management.md:400` |
 | `+CGCONTRDP` IPv6 format | 16 dotted-decimal octets; gateway quoting varies between reads | *unverified* | on-device 2026-08-03 |
 | ⚠️ `+CGCONTRDP` field quoting | **Quoted** — `1,5,"SMARTLTE","10.148.167.210",,"10.151.151.44","10.151.151.48"` | ⚠️ **Bare — no quotes on any field**: `1,5,SMARTLTE,10.167.105.28,,10.151.151.44,10.151.151.48`. `+CGCONTRDP` **only**; `+CGDCONT?`, `+CGPADDR` and `+QMAP` are still quoted on this device | on-device 2026-08-30, both devices, same SIM, minutes apart — see the section below |
+| `qmanager_atd` broker (T3.1) | `/usr/bin/qmanager_atd` + `/usr/bin/qsms -> qmanager_atd` installed. `qmanager-atd.service` installed to `/lib/systemd/system/` but **not boot-linked and not started** until the qcmd cut-over (T4.1); `/usr/bin/qcmd` is still the shell script | Binary + `qsms` link installed. **No unit file** — the installer deletes `qmanager-atd.service` and its wants link, until P8 / T8.1 | static — `install_rm520n.sh` `install_bundled_binaries()` / `enable_services()`, gate `qm_hw_atd_enabled` in `hw_profile.sh` (see the note below the table) |
+
+**Why the RG501Q-EU gate is "the unit file does not exist", not a unit
+directive.** The RG501Q-EU runs systemd 239 (F11 validation below), and
+`ExecCondition=` arrived in systemd 243: 239 ignores it, so the broker would
+start anyway. A failing `ExecStartPre=` instead counts as a failed start and
+walks the unit into its `StartLimitBurst`. So the installer decides per model
+with `qm_hw_atd_enabled`, which reads `Project Name:` from the root-owned vendor
+file — never `platform.json` (see [platform-profile.md](./platform-profile.md#consumers)).
+The unit's own `ConditionPathExists=/usr/bin/qmanager_atd` only covers a
+partial install on the RM520N-GL.
 
 ### ⚠️ `+CGCONTRDP` is quoted on SDX65 and bare on SDX55 — and only `+CGCONTRDP`
 
