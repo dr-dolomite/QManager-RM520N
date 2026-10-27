@@ -48,22 +48,13 @@ const MAX_FILES: u32 = 2;
 /// every logger in the process shares the same file.
 static WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// OpenWrt keeps the POSIX TZ string in /etc/TZ (e.g. "PHT-8") and BusyBox
-/// reads it; a static musl binary only honours $TZ. Without this, broker log
-/// lines are stamped UTC while qlog.sh lines are local time.
+/// RM520N: with $TZ unset musl loads /etc/localtime, the TZif copy that
+/// qmanager_timezone_apply writes and glibc's qlog.sh reads. It lives on /etc,
+/// not /opt, so it is there from early boot; missing or bad means UTC.
+/// (The OpenWrt /etc/TZ read is dropped: that file is inert here.)
 fn init_tz() {
     static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        if std::env::var_os("TZ").is_none() {
-            if let Ok(tz) = fs::read_to_string("/etc/TZ") {
-                let tz = tz.trim();
-                if !tz.is_empty() {
-                    std::env::set_var("TZ", tz);
-                }
-            }
-        }
-        unsafe { tzset() };
-    });
+    ONCE.call_once(|| unsafe { tzset() });
 }
 
 extern "C" {
@@ -119,13 +110,21 @@ impl Logger {
         // O_NONBLOCK makes a planted FIFO fail the open (ENXIO, no reader) or
         // open without waiting, and anything but a regular file is refused,
         // dropping the line. A regular file ignores O_NONBLOCK.
-        if let Ok(mut f) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .mode(0o644)
-            .custom_flags(crate::common::safefs::NOFOLLOW | libc::O_NONBLOCK)
-            .open(&self.path)
-        {
+        // RM520N: O_CREAT only when absent; protected_regular refuses root an
+        // O_CREAT open of a www-data-created log, which would drop every line.
+        let open = |create: bool| {
+            OpenOptions::new()
+                .create(create)
+                .append(true)
+                .mode(0o644)
+                .custom_flags(crate::common::safefs::NOFOLLOW | libc::O_NONBLOCK)
+                .open(&self.path)
+        };
+        let opened = match open(false) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => open(true),
+            r => r,
+        };
+        if let Ok(mut f) = opened {
             if f.metadata().map_or(false, |m| m.file_type().is_file()) {
                 let _ = f.write_all(line.as_bytes());
             }
@@ -160,7 +159,7 @@ impl Logger {
     }
 }
 
-/// Local wall-clock time via localtime_r (the device's TZ comes from /etc/TZ).
+/// Local wall-clock time via localtime_r (the zone comes from /etc/localtime).
 fn timestamp() -> String {
     unsafe {
         let now = libc::time(std::ptr::null_mut());

@@ -295,6 +295,7 @@ mod tests {
         // answers modem_busy without taking the lock or opening the channel.
         let log = test_log();
         let p = std::env::temp_dir().join(format!("qatd-lane-lock-{}", std::process::id()));
+        std::fs::write(&p, b"").unwrap();
         let lock = LockFile::open(p.to_str().unwrap()).unwrap();
         let ch: Channel<UnixStream> = Channel::new(Box::new(|| panic!("command was sent")));
         let mut modem = ModemRunner { ch, lock, log: log.clone() };

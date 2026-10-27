@@ -53,6 +53,10 @@ pub(crate) fn run_daemon() -> i32 {
             return 1;
         }
     };
+    // Root-only home for the PID file (D15); without it the PID is just not written.
+    if let Err(e) = crate::common::safefs::ensure_own_dir(qmi_snapshot::RUN_DIR, 0o700) {
+        log.warn(&format!("cannot make {}: {e}", qmi_snapshot::RUN_DIR));
+    }
     // Never take over a live broker: unlinking its socket would leave it
     // serving nobody while every client fell back to in-process. A stale
     // socket (no listener) refuses the connect and is replaced as before.
