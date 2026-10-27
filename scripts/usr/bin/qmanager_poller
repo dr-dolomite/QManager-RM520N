@@ -68,6 +68,8 @@ _HB_LAST=""
 _HB_SEEN_MONO=0        # seeded at start, so every start gets one Active grace without a file
 _AT_LAST_MONO=0
 _T2_LAST_MONO=0
+_LOCAL_LAST_MONO=0
+AP_LOCAL_INTERVAL=10   # ping history + watchcat state every N s, every tier
 
 # resolve_network_iface — the netdev whose /proc/net/dev byte counters feed the
 # persistent Data Used counter. Returns "rmnet_ipa0" on every device this
@@ -141,7 +143,7 @@ SIGNAL_HISTORY_MAX=180 # 30 min at 10s intervals
 
 # Ping history (NDJSON file for latency chart data)
 PING_HISTORY_FILE="/tmp/qmanager_ping_history.json"
-PING_HISTORY_MAX=8640  # ~38h at the measured ~16s row cadence (not 10s)
+PING_HISTORY_MAX=8640  # >= 24h: one row per AP_LOCAL_INTERVAL deadline (10-13s apart)
 
 # --- Persistent Data Used counter (Tier 1) -----------------------------------
 DATA_USED_FILE="/usrdata/qmanager/data_used.json"
@@ -2550,10 +2552,11 @@ poll_cycle() {
     # Persistent Data Used counter — network_type comes from the last serving-cell read.
     update_data_used
 
-    # Ping history + watchcat state (every Tier 1.5 interval), outside the AT gate.
-    if [ $((cycle_count % TIER1_5_EVERY)) -eq 0 ]; then
+    # Ping history + watchcat state on an uptime deadline; an unreadable uptime runs them every cycle.
+    if [ "$_MONO_TOP" = "0" ] || [ $((_MONO_TOP - _LOCAL_LAST_MONO)) -ge "$AP_LOCAL_INTERVAL" ]; then
         append_ping_history
         read_watchcat_state
+        _LOCAL_LAST_MONO="$_MONO_TOP"
     fi
     update_conn_uptime
     write_cache
