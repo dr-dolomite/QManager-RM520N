@@ -15,6 +15,7 @@
 //! Message bodies and numbers never reach the log: inboxes hold one-time codes.
 
 mod pdu;
+pub mod wms;
 
 use crate::at::channel::Device;
 use crate::at::exec::{Executor, Session};
@@ -58,6 +59,10 @@ pub enum Op {
     Status(Vec<Mem>),
     Send { number: String, text: String },
     Delete { mem: Mem, which: Which },
+    /// Mark messages read or unread (WMS only).
+    Tag { mem: Mem, indices: Vec<u32>, read: bool },
+    /// Long-lived new-message feed (WMS only).
+    Watch,
 }
 
 impl Op {
@@ -70,11 +75,15 @@ impl Op {
             Op::Send { .. } => "SMS send".to_string(),
             Op::Delete { mem, which: Which::All } => format!("SMS delete {} all", mem.as_str()),
             Op::Delete { mem, which: Which::Indices(v) } => format!("SMS delete {} ({} indexes)", mem.as_str(), v.len()),
+            Op::Tag { mem, indices, read } => {
+                format!("SMS tag {} ({} indexes) {}", mem.as_str(), indices.len(), if *read { "read" } else { "unread" })
+            }
+            Op::Watch => "SMS watch".to_string(),
         }
     }
 }
 
-pub const USAGE: &str = "Usage: qsms list [ME|SM|all] | status [ME|SM|all] | send <number> <text> | delete <ME|SM> <idx,...|all>";
+pub const USAGE: &str = "Usage: qsms list [ME|SM|all] | status [ME|SM|all] | send <number> <text> | delete <ME|SM> <idx,...|all> | tag <ME|SM> <idx,...> read|unread | watch";
 
 fn mems(arg: Option<&String>, default: &[Mem]) -> Result<Vec<Mem>, String> {
     match arg.map(String::as_str) {
@@ -122,6 +131,19 @@ pub fn parse_args(args: &[String]) -> Result<Op, String> {
             let mem = Mem::parse(&args[1]).ok_or_else(|| format!("unknown storage '{}'", args[1]))?;
             Ok(Op::Delete { mem, which: indices(&args[2])? })
         }
+        ("tag", 4) => {
+            let mem = Mem::parse(&args[1]).ok_or_else(|| format!("unknown storage '{}'", args[1]))?;
+            let read = match args[3].as_str() {
+                "read" => true,
+                "unread" => false,
+                _ => return Err(USAGE.into()),
+            };
+            match indices(&args[2])? {
+                Which::Indices(indices) => Ok(Op::Tag { mem, indices, read }),
+                Which::All => Err(USAGE.into()),
+            }
+        }
+        ("watch", 1) => Ok(Op::Watch),
         _ => Err(USAGE.into()),
     }
 }
@@ -506,6 +528,9 @@ fn concat_ref() -> u8 {
 pub fn run<D: Device>(ex: &mut Executor<'_, D>, op: &Op, waited: Duration) -> (bool, String) {
     let t = Instant::now();
     let label = op.label();
+    if matches!(op, Op::Tag { .. } | Op::Watch) {
+        return (false, error_json("unsupported", Some("Not available on this modem.")));
+    }
     // Encode before taking the lock: a bad number never touches the modem.
     let parts = match op {
         Op::Send { number, text } => match pdu::encode_submit(number, text, concat_ref()) {
@@ -519,6 +544,7 @@ pub fn run<D: Device>(ex: &mut Executor<'_, D>, op: &Op, waited: Duration) -> (b
         Op::Status(m) => status(s, m).map_err(|f| fail_json(f, "command_failed")),
         Op::Send { .. } => send(s, &parts),
         Op::Delete { mem, which } => delete(s, *mem, which).map_err(|f| fail_json(f, "delete_failed")),
+        Op::Tag { .. } | Op::Watch => unreachable!("rejected above"),
     });
     let (ok, json) = match r {
         Ok(Ok(j)) => (true, j),

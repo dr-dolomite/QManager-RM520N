@@ -1,5 +1,5 @@
-//! `qsms <op> ...`: the SMS client, with the same socket-first,
-//! never-run-twice transport as qcmd.
+//! `qsms <op> ...`: the SMS client. RG501Q-EU: AT through the broker socket first, never run
+//! twice, like qcmd. Everything else: QMI WMS in process (sms/wms.rs).
 
 use super::transport::{try_broker_raw, Broker};
 use crate::at::exec::{self, Executor};
@@ -12,14 +12,46 @@ use crate::sms;
 use std::io::Write;
 use std::time::Duration;
 
+const PROJECT_FILE: &str = "/etc/quectel-project-version";
+
+/// Fixed per platform, never auto-detected: WMS only on an RM520N (same allow-list as
+/// hw_profile.sh qm_hw_atd_enabled); any other or unreadable model stays on AT.
+fn use_wms() -> bool {
+    match std::env::var("QSMS_BACKEND").as_deref() {
+        Ok("wms") => return true,
+        Ok("at") => return false,
+        _ => {}
+    }
+    std::fs::read_to_string(PROJECT_FILE).map(|s| wms_model(&s)).unwrap_or(false)
+}
+
+/// The `Project Name:` value (words may be split by several spaces) starts with RM520N.
+fn wms_model(file: &str) -> bool {
+    file.lines()
+        .filter_map(|l| l.split_once(':'))
+        .find(|(k, _)| k.split_whitespace().eq(["Project", "Name"]))
+        .map(|(_, v)| v.trim().starts_with("RM520N"))
+        .unwrap_or(false)
+}
+
 /// `qsms <op> ...`: one JSON envelope on stdout, rc 0 on success, 1 on failure.
-/// Same transport rules as qcmd: socket first, in-process only if the request
-/// never reached the broker, never run twice.
+/// AT backend: socket first, in-process only if the request never reached the
+/// broker, never run twice. WMS backend: always in process.
 pub(crate) fn run_qsms(args: &[String]) -> i32 {
     let op = match sms::parse_args(args) {
         Ok(op) => op,
         Err(e) => return emit_sms(false, sms::error_json("bad_args", Some(&e))),
     };
+    if use_wms() {
+        if op == sms::Op::Watch {
+            return sms::wms::watch();
+        }
+        let (ok, json) = sms::wms::run(&op);
+        return emit_sms(ok, json);
+    }
+    if matches!(op, sms::Op::Tag { .. } | sms::Op::Watch) {
+        return emit_sms(false, sms::error_json("unsupported", Some("Not available on this modem.")));
+    }
     if exec::long_running() {
         return emit_sms(false, sms::error_json(Code::ScanInProgress.as_str(), None));
     }
@@ -51,5 +83,20 @@ fn emit_sms(ok: bool, json: String) -> i32 {
         0
     } else {
         1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wms_model;
+
+    #[test]
+    fn only_an_rm520n_project_name_selects_wms() {
+        let rm520n = "Project Name: RM520NGL_VC\nProject Rev : RM520NGLAAR03A03M4G_A0.304\nBranch  Name: SDX6X\nCustom  Name: STD\n";
+        let rg501q = "Project Name: RG501QEU_VD\nProject Rev : RG501QEUAAR12A11M4G_04.202\nBranch  Name: SDX55\n";
+        assert!(wms_model(rm520n));
+        assert!(!wms_model(rg501q));
+        assert!(!wms_model(""));
+        assert!(!wms_model("Project Rev : RM520NGLAAR03A03M4G_A0.304\n"));
     }
 }

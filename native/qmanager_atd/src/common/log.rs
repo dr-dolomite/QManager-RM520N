@@ -117,12 +117,16 @@ impl Logger {
                 .custom_flags(crate::common::safefs::NOFOLLOW | libc::O_NONBLOCK)
                 .open(&self.path)
         };
-        let opened = match open(false) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => open(true),
-            r => r,
+        let (opened, created) = match open(false) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (open(true), true),
+            r => (r, false),
         };
         if let Ok(mut f) = opened {
             if crate::common::safefs::check_trusted(&f).is_ok() {
+                // RM520N: www-data's qlog.sh shares this file; 0666 whatever the umask.
+                if created {
+                    let _ = f.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o666));
+                }
                 let _ = f.write_all(line.as_bytes());
             }
         }
@@ -189,6 +193,19 @@ mod tests {
         assert!(first.starts_with('['));
         assert!(first.contains("] INFO  [atd:"), "{first}");
         assert!(s.contains("AT_CMD: AT → AT OK"), "{s}");
+        let _ = std::fs::remove_file(p);
+    }
+
+    #[test]
+    fn a_recreated_log_is_world_writable() {
+        use std::os::unix::fs::PermissionsExt;
+        let p = std::env::temp_dir().join(format!("qatd-log-mode-{}", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        let old = unsafe { libc::umask(0o022) };
+        let l = Logger { component: "atd", min: Level::Debug, path: p.to_str().unwrap().into() };
+        l.info("created");
+        unsafe { libc::umask(old) };
+        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o666);
         let _ = std::fs::remove_file(p);
     }
 
