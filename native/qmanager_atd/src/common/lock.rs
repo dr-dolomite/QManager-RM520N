@@ -21,9 +21,8 @@ pub struct Held<'a> {
 }
 
 impl LockFile {
-    /// RM520N: the lock is www-data-owned in sticky /tmp and fs.protected_regular
-    /// refuses root an O_CREAT open of it, so open read-only and never create
-    /// (qmanager_setup owns it). flock works on a read-only fd.
+    /// RM520N: www-data-owned in sticky /tmp, so root may not O_CREAT it; open
+    /// read-only, never create (qmanager_setup does). flock works read-only.
     pub fn open(path: &str) -> io::Result<LockFile> {
         let file = OpenOptions::new()
             .read(true)

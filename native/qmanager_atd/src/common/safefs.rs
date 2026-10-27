@@ -13,11 +13,10 @@ pub const NOFOLLOW: i32 = libc::O_NOFOLLOW | libc::O_CLOEXEC;
 
 fn open_nofollow(path: &str, create_new: bool) -> io::Result<File> {
     let mut o = OpenOptions::new();
-    // O_NONBLOCK: a planted FIFO fails the open (ENXIO) or opens without
-    // waiting, and is then refused by check_trusted. A regular file ignores it.
+    // O_NONBLOCK: a planted FIFO fails (ENXIO) or opens at once and is refused.
     o.write(true).mode(0o644).custom_flags(NOFOLLOW | libc::O_NONBLOCK);
-    // RM520N: no O_CREAT on an existing file. fs.protected_regular refuses root
-    // an O_CREAT open of a www-data-owned file in sticky /tmp (the long flag).
+    // RM520N: no O_CREAT on an existing file; protected_regular refuses root
+    // that on a www-data-owned file in sticky /tmp (the long flag).
     if create_new {
         o.create_new(true);
     }
@@ -43,8 +42,8 @@ fn trusted_owner(uid: u32) -> bool {
     uid == 0 || uid == unsafe { libc::geteuid() } || Some(uid) == www_data_uid()
 }
 
-/// Refuses anything but a regular file with a trusted owner (fstat, so the
-/// check is on the file actually opened, not on whatever the path names now).
+/// Refuses anything but a regular file with a trusted owner (fstat: the file
+/// actually opened, not whatever the path names now).
 pub fn check_trusted(f: &File) -> io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let m = f.metadata()?;
@@ -55,10 +54,8 @@ pub fn check_trusted(f: &File) -> io::Result<()> {
     }
 }
 
-/// Opens an existing trusted file at `path` for writing, or creates it with
-/// O_EXCL. A symlink, FIFO, or foreign-owned file there is unlinked (unlink
-/// never follows) and recreated with O_EXCL so a racing re-plant also fails.
-/// A directory is refused. Nothing is truncated before the checks pass.
+/// Opens a trusted file at `path` for writing, else creates it O_EXCL; a link,
+/// FIFO or foreign file is unlinked and recreated, a directory refused.
 fn open_trusted(path: &str) -> io::Result<File> {
     let refused = match open_nofollow(path, false) {
         // A directory never gets here: a write open of it fails EISDIR.
@@ -216,13 +213,11 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let q = p.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(write_nofollow(&q, b"AT+QSCAN=3,1
-"));
+            let _ = tx.send(write_nofollow(&q, b"AT+QSCAN=3,1\n"));
         });
         rx.recv_timeout(std::time::Duration::from_secs(2)).expect("blocked on a FIFO").unwrap();
         assert!(std::fs::symlink_metadata(&p).unwrap().file_type().is_file());
-        assert_eq!(std::fs::read(&p).unwrap(), b"AT+QSCAN=3,1
-");
+        assert_eq!(std::fs::read(&p).unwrap(), b"AT+QSCAN=3,1\n");
         let _ = std::fs::remove_file(&p);
     }
 

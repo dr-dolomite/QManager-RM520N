@@ -48,10 +48,8 @@ const MAX_FILES: u32 = 2;
 /// every logger in the process shares the same file.
 static WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// RM520N: with $TZ unset musl loads /etc/localtime, the TZif copy that
-/// qmanager_timezone_apply writes and glibc's qlog.sh reads. It lives on /etc,
-/// not /opt, so it is there from early boot; missing or bad means UTC.
-/// (The OpenWrt /etc/TZ read is dropped: that file is inert here.)
+/// RM520N: with $TZ unset musl loads /etc/localtime, a TZif copy on /etc (not
+/// /opt), so it works from early boot; missing means UTC. /etc/TZ is inert here.
 fn init_tz() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| unsafe { tzset() });
@@ -110,8 +108,7 @@ impl Logger {
         // O_NONBLOCK makes a planted FIFO fail the open (ENXIO, no reader) or
         // open without waiting, and anything but a regular file is refused,
         // dropping the line. A regular file ignores O_NONBLOCK.
-        // RM520N: O_CREAT only when absent; protected_regular refuses root an
-        // O_CREAT open of a www-data-created log, which would drop every line.
+        // RM520N: O_CREAT only when absent (protected_regular); owner checked too.
         let open = |create: bool| {
             OpenOptions::new()
                 .create(create)
@@ -125,7 +122,7 @@ impl Logger {
             r => r,
         };
         if let Ok(mut f) = opened {
-            if f.metadata().map_or(false, |m| m.file_type().is_file()) {
+            if crate::common::safefs::check_trusted(&f).is_ok() {
                 let _ = f.write_all(line.as_bytes());
             }
         }
