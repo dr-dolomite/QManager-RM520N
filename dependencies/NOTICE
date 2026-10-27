@@ -25,3 +25,11 @@ modifications (see `dependencies/sms_tool.patch`, applied to `sms_main.c`) are:
 
 No other changes were made. A copy of the Apache License 2.0 is available at the
 URL above. This binary is redistributed under the terms of that license.
+
+--------------------------------------------------------------------------------
+qmanager_atd
+--------------------------------------------------------------------------------
+First-party QManager binary (source in `native/`). It is statically linked
+against musl libc (MIT License) and the Rust standard library (MIT License or
+Apache License, Version 2.0, at your option); both are redistributed in
+binary form under those terms.

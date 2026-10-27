@@ -17,6 +17,7 @@ Cortex-A7, kernel 5.4.210), ARM **EABI5**, AT pipe on the char device
 |--------|--------|-------|
 | `sms_tool` | [`obsy/sms_tool`](https://github.com/obsy/sms_tool) (Apache-2.0) | Patched — see below. Same build shared with the RM551E sibling project. |
 | `atcli_smd11` | internal | AT-command client bound to `/dev/smd11` |
+| `qmanager_atd` | internal (`native/`) | AT/SMS/QMI broker daemon; `/usr/bin/qsms` is a symlink to it. Static musl armhf build |
 
 ---
 
