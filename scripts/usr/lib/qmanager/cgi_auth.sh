@@ -148,6 +148,7 @@ qm_cookie_var() {
 # one forks when called as $(qm_get_cookie ...).
 qm_get_cookie() {
     qm_cookie_var "$1" _qc_out && printf '%s' "$_qc_out" && echo
+    return 0
 }
 
 # Emit Set-Cookie headers for both session and indicator cookies
