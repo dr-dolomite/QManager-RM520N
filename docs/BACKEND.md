@@ -238,7 +238,8 @@ Session tokens are 64-char hex strings (256 bits). Session TTL is 3600 seconds.
 | `qm_timing_safe_compare <a> <b>` | Constant-time string comparison via awk |
 | `qm_verify_password <pw>` | Verify password against stored hash+salt in `auth.json` |
 | `qm_save_password <pw>` | Hash and persist a new password to `auth.json` (chmod 600) |
-| `qm_get_cookie <name>` | Extract named cookie value from `$HTTP_COOKIE` |
+| `qm_cookie_var <name> <var>` | Set `<var>` to the named cookie's value from `$HTTP_COOKIE` with no subshell; returns 0 if present, 1 if absent. Prefer this |
+| `qm_get_cookie <name>` | Print the named cookie value (wrapper over `qm_cookie_var`; forks when used as `$(…)`) |
 | `qm_set_session_cookies <token>` | Emit `Set-Cookie` headers for session + indicator cookies |
 | `qm_clear_session_cookies` | Emit `Set-Cookie` headers that expire both cookies |
 | `qm_generate_token` | Generate a 64-char hex session token |
@@ -1104,7 +1105,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `at_cmd/cell_scan_status.sh` | GET | Poll cell scan progress and results (**non-destructive**: it no longer deletes the error file on read, so the result check must stay above the error check — see [reference/cell-scanner.md](reference/cell-scanner.md)) |
 | `at_cmd/fetch_data.sh` | GET | Return current poller status cache (`qmanager_status.json`) |
 | `at_cmd/fetch_events.sh` | GET | Return recent events as JSON array |
-| `at_cmd/fetch_ping_history.sh` | GET | Return ping history data for latency chart |
+| `at_cmd/fetch_ping_history.sh` | GET | Return ping history data for latency chart; optional `?last=N` returns only the newest N rows |
 | `at_cmd/fetch_signal_history.sh` | GET | Return signal history data for RSRP/SINR chart |
 | `at_cmd/neighbour_scan_start.sh` | POST | Takes the **same** `/tmp/qmanager_scan.lock` as the sweep, then spawns `qmanager_neighbour_scanner`; same four responses |
 | `at_cmd/neighbour_scan_status.sh` | GET | Poll neighbour scan progress and results (**non-destructive**) |
@@ -1162,7 +1163,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | Script | Method | Description |
 |--------|--------|-------------|
 | `network/custom_dns.sh` | GET/POST | Read or write dnsmasq upstream DNS override via sentinel block in `/etc/data/dnsmasq.conf`. See `docs/reference/custom-dns.md` |
-| `network/data_used.sh` | GET | Return `.data_used` block from poller status cache with stale flag; polled at 2 Hz by `useDataUsed` |
+| `network/data_used.sh` | GET | Return `.data_used` block from poller status cache with stale flag. No UI caller since T6.2: the dashboard reads `.data_used` from `fetch_data.sh` |
 | `network/data_used_reset.sh` | POST | Write reset flag consumed by poller on next tick; counter drops to ~0 within 4–5 s |
 | `network/ethernet.sh` | GET/POST | Read RTL8125B link state (sysfs + `ethtool`) and apply speed limit via `qmanager_ethernet_apply` root helper; uses `ethtool_helper.sh` |
 | `network/ip_passthrough.sh` | GET/POST | Read or configure IP passthrough (`AT+QMAP`, `AT+QCFG="usbnet"`) |

@@ -459,6 +459,9 @@ than trusting the write. `ensure_dropbear_unit_ordering()` is the precedent;
   - Fix 1: `cgi_base.sh` exports the full PATH including `/opt/bin`.
   - Fix 2: The installer symlinks `jq` to `/usr/bin/` so it is always found regardless of PATH.
 - **Cookie-based session auth** is used at the CGI layer. There is no HTTP Basic Auth and no `.htpasswd` file.
+- **The auth path is on every request, so keep it fork-free.** `cgi_base.sh` + `require_auth` run before every CGI's own work; an authenticated request forks twice (`date +%s` and one more), down from 19 (T6.2, measured on RM520N-GL — see [`poller-cpu-profile.md`](poller-cpu-profile.md#dashboard-cgi-cost-t62-2026-102728)).
+  - Read a cookie with **`qm_cookie_var NAME VAR`** (`cgi_auth.sh`): it sets `VAR` with no subshell and returns `0` if the cookie is present (value may be empty), `1` if not. Split rules match the old awk: `;` plus any run of spaces/tabs, exact name match, value up to the next `=`, first match wins. `qm_get_cookie NAME` still exists for `logout.sh` / `password.sh`, but `$(qm_get_cookie …)` costs a fork — prefer `qm_cookie_var` in new code.
+  - The `/opt/bin/timeout` probe in `platform.sh` is **deferred under lighttpd** (`GATEWAY_INTERFACE` set) to the first `qm_timeout` call, and stays **eager for daemons**, which call `qm_timeout` inside `$(…)` where a lazy probe would be lost with the subshell. See [The `timeout` contract](#the-timeout-contract).
 - **AT transport in CGI**: `atcli_smd11` accesses `/dev/smd11` directly — no socat-at-bridge is needed.
 
 ---
@@ -791,7 +794,8 @@ both. Per-device behaviour, the two misdiagnoses it caused, and the applet censu
 - **⚠️ Detect the interface, not the name.** The old guard was
   `command -v timeout`, which always succeeds because BusyBox ships the applet —
   so the `coreutils-timeout` package it gated was **never installed on either
-  device**. `qm_timeout` instead probes *behaviour* once at load: run
+  device**. `qm_timeout` instead probes *behaviour* once (at load in daemons,
+  at the first `qm_timeout` call in a lighttpd CGI): run
   `timeout 1 true` and check for exit **127**, which means this build could not
   exec `1` as a program and therefore wants the legacy `-t` form. Generalize the
   rule: **never detect a tool with `command -v` when what matters is which
@@ -818,7 +822,10 @@ both. Per-device behaviour, the two misdiagnoses it caused, and the applet censu
   deployed, and `--frontend-only` never deploys them while still running the
   verification code that calls it) and `qmanager_health_check` (redeployed by OTA
   independently of the lib, so a device mid-upgrade can have a `platform.sh` that
-  predates `qm_timeout`). **Fixes must be applied to all three.**
+  predates `qm_timeout`). **Fixes must be applied to all three.** Since T6.2 the
+  canonical lib wraps the probe in `_qm_timeout_probe` and defers it under
+  lighttpd; the two copies still probe at load, which is equivalent because
+  neither ever runs as a CGI. Compare the probe body, not the wrapper.
   `scripts/test/timeout-portability.sh` used to fail the build if they diverged — it
   compared the code with comments stripped, so comments could abbreviate but logic
   could not. `scripts/test/` was deleted 2026-09-03; diff the three copies by hand
