@@ -1,5 +1,5 @@
-//! /var/lock/qmanager.lock, shared with legacy qcmd (and, historically, the
-//! retired sms_tool wrappers).
+//! /tmp/qmanager_at.lock, shared with the RM520N shell qcmd (`flock -x -n` on a
+//! read-only fd 9), sms_tool callers and www-data CGIs.
 //! Same semantics as qcmd's flock_wait: non-blocking tries on a 100 ms grain
 //! until the budget runs out, then one final try.
 
@@ -10,7 +10,7 @@ use std::os::unix::io::AsRawFd;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const LOCK_FILE: &str = "/var/lock/qmanager.lock";
+pub const LOCK_FILE: &str = "/tmp/qmanager_at.lock";
 
 pub struct LockFile {
     file: File,
@@ -21,19 +21,15 @@ pub struct Held<'a> {
 }
 
 impl LockFile {
+    /// RM520N: www-data-owned in sticky /tmp, so root may not O_CREAT it; open
+    /// read-only, never create (qmanager_setup does). flock works read-only.
     pub fn open(path: &str) -> io::Result<LockFile> {
-        if let Some(dir) = std::path::Path::new(path).parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
         let file = OpenOptions::new()
             .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o644)
-            // /var/lock is 1777 on the device: never follow a planted symlink.
-            .custom_flags(crate::common::safefs::NOFOLLOW)
+            // Never follow a planted symlink; a planted FIFO must not block.
+            .custom_flags(crate::common::safefs::NOFOLLOW | libc::O_NONBLOCK)
             .open(path)?;
+        crate::common::safefs::check_trusted(&file)?;
         Ok(LockFile { file })
     }
 
@@ -77,6 +73,7 @@ mod tests {
     fn second_holder_waits_then_times_out() {
         let p = std::env::temp_dir().join(format!("qatd-lock-{}", std::process::id()));
         let p = p.to_str().unwrap();
+        std::fs::write(p, b"").unwrap();
         let a = LockFile::open(p).unwrap();
         let b = LockFile::open(p).unwrap();
         let held = a.acquire(Duration::from_millis(50)).unwrap();
@@ -85,6 +82,19 @@ mod tests {
         assert!(t.elapsed() >= Duration::from_millis(250));
         drop(held);
         assert!(b.acquire(Duration::from_millis(50)).is_some());
+        let _ = std::fs::remove_file(p);
+    }
+
+    #[test]
+    fn never_creates_and_refuses_a_fifo_without_blocking() {
+        let p = std::env::temp_dir().join(format!("qatd-lock-fifo-{}", std::process::id()));
+        let p = p.to_str().unwrap();
+        let _ = std::fs::remove_file(p);
+        assert!(LockFile::open(p).is_err(), "a missing lock is an error");
+        assert!(!std::path::Path::new(p).exists(), "never created");
+        let c = std::ffi::CString::new(p).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o666) }, 0);
+        assert!(LockFile::open(p).is_err(), "a FIFO is refused");
         let _ = std::fs::remove_file(p);
     }
 }

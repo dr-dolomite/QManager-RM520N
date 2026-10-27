@@ -11,7 +11,9 @@ use crate::common::safefs::{one_line, write_nofollow};
 use std::time::{Duration, Instant};
 
 pub const LONG_FLAG: &str = "/tmp/qmanager_long_running";
-pub const PID_FILE: &str = "/var/lock/qmanager.pid";
+/// RM520N: in the broker's root-only run dir (0700, made at daemon start), so
+/// nothing can be planted there. The www-data fallback cannot write it; nothing reads it.
+pub const PID_FILE: &str = "/var/run/qmanager/atd.pid";
 
 pub const SHORT_DEADLINE: Duration = Duration::from_secs(20);
 pub const LONG_DEADLINE: Duration = Duration::from_secs(300);
@@ -257,6 +259,7 @@ mod tests {
     #[test]
     fn request_queued_past_the_lock_budget_is_busy_and_never_sent() {
         let p = std::env::temp_dir().join(format!("qatd-exec-lock-{}", std::process::id()));
+        std::fs::write(&p, b"").unwrap();
         let lock = LockFile::open(p.to_str().unwrap()).unwrap();
         let log = Logger::new("test");
         // Opening the channel at all would mean the command reached the modem.
@@ -270,6 +273,7 @@ mod tests {
     #[test]
     fn non_at_input_is_refused_without_the_lock_or_the_modem() {
         let p = std::env::temp_dir().join(format!("qatd-exec-invalid-{}", std::process::id()));
+        std::fs::write(&p, b"").unwrap();
         let lock = LockFile::open(p.to_str().unwrap()).unwrap();
         // Hold the lock: a refusal must not wait for it.
         let _held = lock.acquire(Duration::ZERO).unwrap();

@@ -1,6 +1,6 @@
 //! File writes that never follow symlinks. /tmp and /var/lock are both 1777 on
 //! the device, so any local process can pre-plant a symlink at a well-known
-//! path (/tmp/qmanager_long_running, /var/lock/qmanager.pid). A root process
+//! path (/tmp/qmanager_long_running). A root process
 //! writing through it would clobber an arbitrary file. Legacy qcmd's
 //! `echo … > "$LONG_FLAG"` had this flaw; the broker must not.
 
@@ -13,32 +13,81 @@ pub const NOFOLLOW: i32 = libc::O_NOFOLLOW | libc::O_CLOEXEC;
 
 fn open_nofollow(path: &str, create_new: bool) -> io::Result<File> {
     let mut o = OpenOptions::new();
-    o.write(true).mode(0o644).custom_flags(NOFOLLOW);
+    // O_NONBLOCK: a planted FIFO fails (ENXIO) or opens at once and is refused.
+    o.write(true).mode(0o644).custom_flags(NOFOLLOW | libc::O_NONBLOCK);
+    // RM520N: no O_CREAT on an existing file; protected_regular refuses root
+    // that on a www-data-owned file in sticky /tmp (the long flag).
     if create_new {
         o.create_new(true);
-    } else {
-        o.create(true).truncate(true);
     }
     o.open(path)
 }
 
-fn is_symlink_refusal(e: &io::Error) -> bool {
-    // O_NOFOLLOW on a symlink fails with ELOOP.
-    e.raw_os_error() == Some(libc::ELOOP)
+/// www-data's uid, looked up once (musl reads /etc/passwd); None if unknown.
+fn www_data_uid() -> Option<u32> {
+    static UID: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    *UID.get_or_init(|| unsafe {
+        let pw = libc::getpwnam(c"www-data".as_ptr());
+        if pw.is_null() {
+            None
+        } else {
+            Some((*pw).pw_uid)
+        }
+    })
 }
 
-/// Writes `contents` to `path` without ever following a symlink at `path`. If
-/// a symlink is planted there, it is unlinked (unlink never follows) and the
-/// file is recreated with O_CREAT|O_EXCL so a racing re-plant also fails.
-pub fn write_nofollow(path: &str, contents: &[u8]) -> io::Result<()> {
-    let mut f = match open_nofollow(path, false) {
-        Ok(f) => f,
-        Err(e) if is_symlink_refusal(&e) => {
-            std::fs::remove_file(path)?;
-            open_nofollow(path, true)?
-        }
+/// State files may be owned by root, this process, or www-data (CGIs and
+/// qmanager_cell_scanner create the long flag and the lock as www-data).
+fn trusted_owner(uid: u32) -> bool {
+    uid == 0 || uid == unsafe { libc::geteuid() } || Some(uid) == www_data_uid()
+}
+
+/// Refuses anything but a regular file with a trusted owner (fstat: the file
+/// actually opened, not whatever the path names now).
+pub fn check_trusted(f: &File) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let m = f.metadata()?;
+    if m.file_type().is_file() && trusted_owner(m.uid()) {
+        Ok(())
+    } else {
+        Err(io::Error::new(io::ErrorKind::PermissionDenied, "untrusted state file"))
+    }
+}
+
+/// Opens a trusted file at `path` for writing, else creates it O_EXCL; a link,
+/// FIFO or foreign file is unlinked and recreated, a directory refused.
+fn open_trusted(path: &str) -> io::Result<File> {
+    let refused = match open_nofollow(path, false) {
+        // A directory never gets here: a write open of it fails EISDIR.
+        Ok(f) => match check_trusted(&f) {
+            Ok(()) => return Ok(f),
+            Err(_) => true,
+        },
+        // O_NOFOLLOW on a symlink fails with ELOOP; a FIFO without a reader
+        // fails with ENXIO under O_NONBLOCK.
+        Err(e) if matches!(e.raw_os_error(), Some(libc::ELOOP) | Some(libc::ENXIO)) => true,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => false,
         Err(e) => return Err(e),
     };
+    if refused {
+        std::fs::remove_file(path)?;
+    }
+    match open_nofollow(path, true) {
+        Err(e) if !refused && e.kind() == io::ErrorKind::AlreadyExists => {
+            // Lost a create race to another writer: open theirs, if trusted.
+            let f = open_nofollow(path, false)?;
+            check_trusted(&f)?;
+            Ok(f)
+        }
+        r => r,
+    }
+}
+
+/// Writes `contents` to `path` without ever following a symlink at `path` or
+/// blocking on a FIFO there; see `open_trusted`.
+pub fn write_nofollow(path: &str, contents: &[u8]) -> io::Result<()> {
+    let mut f = open_trusted(path)?;
+    f.set_len(0)?;
     f.write_all(contents)
 }
 
@@ -153,6 +202,33 @@ mod tests {
         assert_eq!(std::fs::read(&flag).unwrap(), b"attacker text");
         let _ = std::fs::remove_file(&victim);
         let _ = std::fs::remove_file(&flag);
+    }
+
+    #[test]
+    fn a_planted_fifo_is_replaced_without_blocking() {
+        let p = tmp("fifo");
+        let _ = std::fs::remove_file(&p);
+        let c = std::ffi::CString::new(p.as_str()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o644) }, 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let q = p.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(write_nofollow(&q, b"AT+QSCAN=3,1\n"));
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(2)).expect("blocked on a FIFO").unwrap();
+        assert!(std::fs::symlink_metadata(&p).unwrap().file_type().is_file());
+        assert_eq!(std::fs::read(&p).unwrap(), b"AT+QSCAN=3,1\n");
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn a_directory_is_refused_and_left_alone() {
+        let d = tmp("flagdir");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir(&d).unwrap();
+        assert!(write_nofollow(&d, b"x").is_err());
+        assert!(std::fs::symlink_metadata(&d).unwrap().file_type().is_dir());
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

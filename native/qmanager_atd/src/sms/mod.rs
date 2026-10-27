@@ -690,6 +690,7 @@ mod tests {
 
     fn run_op(ch: &mut Channel<UnixStream>, args: &[&str]) -> (bool, String) {
         let p = std::env::temp_dir().join(format!("qatd-sms-lock-{}-{:?}", std::process::id(), thread::current().id()));
+        std::fs::write(&p, b"").unwrap();
         let lock = LockFile::open(p.to_str().unwrap()).unwrap();
         let log = Logger::new("test");
         let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
