@@ -65,7 +65,7 @@ is taken after P1 lands and those numbers are in.
 | P3 | **Packaging** — build.sh, installer, uninstall, OTA rollback, RG501Q skip (D8, D13, D14) | P2 | installer-safety-auditor CLEAR before and after; fresh install + OTA + uninstall on device |
 | P4 | **qcmd cut-over** — Rust client behind `/usr/bin/qcmd`, in-process fallback, RM520N error contract (D9–D11) | P3 | rc/stdout/stderr diff = 0 vs shell `qcmd` for OK, ERROR, busy, long QSCAN, attach cycle, as root and www-data; Discord bot checked |
 | P5 | **SMS lane** — port `qsms` (feature set from RM551E `at-broker.md` SMS phase 3) to every `sms_tool` site, then drop `sms_tool` and `atcli_smd11` from build + installer; no decompiling | P4 (P0's multi-opener result decides whether P4 can go live before P5) | SMS read/send/forward/storage parity; the 6.8 s hold explained and not kept; no `atcli`/`sms_tool` caller left |
-| P6 | **Activity tiers on the broker** — B5.29 tiering keyed on a UI heartbeat (`.mono`, `poller_tier`), watchcat/heartbeat outside the AT gate | P4 | touches poller, watchcat, health_check and frontend heartbeat; soak |
+| P6 | **Activity tiers** — B5.29 tiering keyed on a UI heartbeat (`.mono`, `poller_tier`), watchcat/heartbeat outside the AT gate. G1 (2026-10-27): the shell-only part runs **before P4**; any part that truly needs the broker waits for P4 (T6.1 plan decides the split) | P1 (shell part); P4 (broker part, if any) | touches poller, watchcat, health_check and frontend heartbeat; soak |
 | P7 | **QMI lane** (+ live 1 Hz + WDS as a later slice) — registry, `qmi_snapshot` sidecar, `qmi_merge.sh`, additive `lte.source` / `device.qmi_*`; bound WDS 0x002D (gateway, MTU) | P0 QMI GO (RM520N-GL: GO 2026-10-26), P4 | sidecar fresh every 2 s; overlay only when QENG missing; SSR count stable over soak |
 | P8 | **RG501Q-EU enablement** — run P2–P4 (P7 if GO) on SDX55, then lift the installer skip | P4 | portability diff clean; per-device row in `platform-matrix.md` |
 | P9 | **Docs + release** — each phase closes its own docs; P9 is the final sweep (router rows, `at-command-transport.md` rewrite, RELEASE_NOTES) | all | router rows present; release entry on template |
@@ -77,8 +77,8 @@ is taken after P1 lands and those numbers are in.
 | T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | DONE_WITH_CONCERNS on RM520N-GL 2026-10-26 (idle UI only; contention not measured) |
 | T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | lead | `native/qmanager_atd/{.cargo/config.toml,rust-toolchain.toml,Cargo.lock}` | DONE on RM520N-GL 2026-10-26; idle daemon RSS moved to the T2 smoke test (needs smd11) |
 | T1.1 | P1 | Re-author the RM520N poller hot path with B5.29 techniques (plan `2026-10-26-atd-port-T1.1.md`, slices S1–S7) | lead + cgi-endpoint-builder | poller, `qmanager_ping`, `parse_at.sh` | DONE 2026-10-26 (S1–S6, S8, S9; S7 dropped): 874 → 344 ms CPU/cycle, 27.4 → 13.0 % core; verifier fix round e7d349f6; all four files deployed on RM520N-GL; merged to development |
-| T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | DONE_WITH_CONCERNS 2026-10-27: 12 h soak clean (0 restarts, 0 bad lines); CPU 353–379 ms/cycle (13.1–14.2 % core) but drifts up ~7 %, poller RSS +552 kB |
-| G1 | gate | Broker GO/NO-GO with P0 + P1 numbers | user | — | PENDING |
+| T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | DONE_WITH_CONCERNS 2026-10-27: 12 h soak clean (0 restarts, 0 bad lines); CPU 353–379 ms/cycle (13.1–14.2 % core) but drifts up ~7 %, poller RSS +552 kB — cause found: bash 3.2 `read` leak at `qmanager_poller:606,782` (pre-T1.1), fixed and deployed 2026-10-27 |
+| G1 | gate | Broker GO/NO-GO with P0 + P1 numbers | user | — | DONE 2026-10-27: **GO**, with P6 shell tiers moved ahead of P4 and a dashboard CGI cost task added (see Decisions taken) |
 | T2.1 | P2 | Vendor crate; D1 target, D3 no-create lock/flag opens, D5 TZ | cgi-endpoint-builder | `native/qmanager_atd/**` | PENDING |
 | T2.2 | P2 | www-data peer policy (D2) | cgi-endpoint-builder | `native/…/daemon/mod.rs` | PENDING |
 | T2.3 | P2 | systemd unit + restart redesign (D4) | cgi-endpoint-builder | `scripts/etc/systemd/system/qmanager-atd.service`, `client/transport.rs` | PENDING |
@@ -86,7 +86,8 @@ is taken after P1 lands and those numbers are in.
 | T4.1 | P4 | qcmd cut-over + error-contract adapter + full caller census (incl. Discord bot) | cgi-endpoint-builder | `scripts/usr/bin/qcmd`, `client/qcmd.rs` | PENDING |
 | T4.2 | P4 | Portability residue on both devices | busybox-portability-checker | none | PENDING |
 | T5.1 | P5 | qsms port + retire `sms_tool` / `atcli_smd11` — **transport open: AT `qsms` vs QMI WMS (decision 3)** | cgi-endpoint-builder (installer part under installer-safety-auditor) | sms CGIs, `qmanager_sms_*`, `sms_alerts.sh`, `qmanager_health_check`, `build.sh`, `install_rm520n.sh`, `uninstall_rm520n.sh` | PENDING |
-| T6.1 | P6 | Activity tiers + heartbeat + watchcat outside AT gate | cgi-endpoint-builder + ui-builder | poller, `qmanager_watchcat`, `qmanager_health_check`, heartbeat hook | PENDING |
+| T6.1 | P6 | Activity tiers + heartbeat + watchcat outside AT gate | cgi-endpoint-builder + ui-builder | poller, `qmanager_watchcat`, `qmanager_health_check`, heartbeat hook | PENDING — moved ahead of P4 (G1) |
+| T6.2 | P6 | Dashboard CGI cost: +13 points of the core while the dashboard is open (T1.2 replay, 38.5 % vs 25.7 % busy); measure per-CGI cost, then cut forks | lead (plan first) | TBD in its plan | PENDING — added at G1 |
 | T7.1 | P7 | QMI lane + sidecar + overlay + types; add bound WDS 0x002D (IP/DNS/gateway/netmask/MTU) beside RM551E's bound 0x0024 | cgi-endpoint-builder + ui-builder (types) | `native/…/qmi/**`, `qmi_merge.sh`, `types/modem-status.ts` | PENDING — P0 gate GO on RM520N-GL (needs P4) |
 | T8.1 | P8 | RG501Q-EU validation, lift installer skip | busybox-portability-checker + modem-investigator | `install_rm520n.sh`, `platform-matrix.md` | PENDING |
 | T9.1 | P9 | Docs + router + release notes | docs-writer | `docs/reference/**`, `RELEASE_NOTES.md` | PENDING |
@@ -110,9 +111,13 @@ the user's yes each time.
   verbatim (93 tracked files, `git archive`) from QManager `7f7d1827c9b71aaf523c51276bc837498a1baaa2`
   (crate 0.6.1). Upstream `.rs` blobs are CRLF; kept byte-identical so upstream diffs stay clean.
   To sync: `git -C ../QManager diff 7f7d1827..<new> -- native/qmanager_atd`, then record the new base here.
+- USER 2026-10-27, **G1 = GO**, chose "GO, reorder P6 (Recommended)": proceed P2 → P5 and P7; move the
+  shell-only activity tiers (P6) ahead of P4; add a dashboard CGI cost task (T6.2). Basis: poller 27.4 →
+  13–14 % (P1); broker CPU gain only ≈ 2.5–3 points; the case is atcli/sms_tool retirement, the 6.8 s SMS
+  lock hold and the QMI lane. Still owed: broker RSS (T2 smoke test), SMS-under-UI contention.
 
 ## Decisions open — the user's call
-1. **Broker GO/NO-GO (G1):** after P0 + P1 numbers.
+1. ~~**Broker GO/NO-GO (G1)**~~ — decided GO 2026-10-27; moved to Decisions taken (numbering kept for references).
 2. **QMI / live / WDS scope (P7):** P0 gate is GO on RM520N-GL (see "QMI probe result"); scope
    (live 1 Hz, WDS) still the user's call when P7 starts.
 3. **SMS transport for T5.1:** AT `qsms` (RM551E design) or QMI WMS. WMS list/read measured at
@@ -203,6 +208,8 @@ otherwise byte-identical crate.
 | T0.2 | 1 | independent Opus session | r1 | DONE_WITH_CONCERNS (no UI load) | 6 measurements | .orchestra/scratch/atd-T0.2-report.md |
 | T0.3 | 1 | lead | — | DONE (RSS deferred) | build + `--version` on device | this section |
 | T1.2 | 1 | lead (soak session) | — | DONE_WITH_CONCERNS (slow CPU and RSS drift; 3 AT ERRORs) | ~11 h soak + dashboard replay | this section |
+| T1.2 | 2 | lead | — | DONE (leak cause found; AT ERRORs = scenario timer) | heap read + isolated bash 3.2 `read` probes on device | T1.2 result, Concerns |
+| G1 | 1 | user (G1 side session prepared the page) | — | GO, P6 shell tiers before P4, T6.2 added | numbers checked against T0.1–T1.2 sections; no device run | Decisions taken |
 
 ## QMI probe result — RM520N-GL, 2026-10-26
 Tool: `native/qmi_probe` (RM551E probe ported to armv7, commit 73c06e34); full table in
@@ -240,12 +247,28 @@ Raw: `/tmp/t12/{soak,cpu}.log` on the device (not copied to the repo). Poller bu
 | dashboard open (replay, from brief) | poller 339 ms / 12.7 % unchanged; system 38.5 % vs 25.7 % closed (CGI forks) |
 
 Concerns, not blockers:
-- CPU per cycle rises steadily (≈ 353 → 379 ms, ≈ +7 % over 12 h) and RSS grows linearly. Likely cause is the growing history files (ping_history grows until its 8640-line cap) but this is not proven. The cap is ~38 h, so the soak did not reach a steady state. Worth one look in a longer run.
-- The three AT rejections hit at 06:00 and 22:00 (8 h apart), which looks like something scheduled firing the same queries. Not investigated; the poller carried on normally.
+- **RSS leak, cause found (corrected 2026-10-27; the ping-history guess was wrong — the poller only
+  appends to that file and keeps a line counter, never reads it back).** Growth is in bash's heap and
+  stays linear at ≈ 45 kB/h (2408 → 2960 → 3388 kB at 20:40 / 08:38 / 18:27). Bash 3.2 leaks ≈ 17 B
+  every time `read` puts more than one word into its last variable under the default IFS (isolated
+  40 000-call probes on the device: 17 B/call; `IFS= read` or an exact field count: ≈ 1 B/call, noise).
+  Two per-cycle reads in `poll_cycle` hit it: `update_proc_metrics` (`qmanager_poller:606`,
+  `_pm_tail` gets `guest guest_nice` from `/proc/stat`) and `update_system_health`
+  (`:782`, `_rest` gets `1/383 29191` from `/proc/loadavg`). 2 × 17 B × ≈ 1350 cycles/h ≈ 46 kB/h,
+  matching the soak. Both lines predate T1.1 (2026-05-11, 2026-09-02), so the old poller leaked too.
+  ≈ 1.1 MB/day, unbounded until the poller restarts. **Fixed 2026-10-27:** both reads now take the
+  line with `IFS= read -r` and split with `set --`; same values on device, probe 1 B/iter vs 32 B old;
+  blind verifier PASS after one fix (`_pm_tail` kept local). Deployed 19:32 (md5 `0449ef11`), poller
+  restarted with the user's OK; RSS 2360 → 2396 kB over the first 25 min (warm-up), one-hour check pending.
+- CPU per cycle rises slowly (≈ 353 → 379 ms, ≈ +7 % over 12 h). Likely the same leak: each fork
+  copies a larger parent. Not proven; re-measure after the fix.
+- The three AT rejections (22:00, 06:00) are explained: `qmanager-scenario-schedule.timer` fires at
+  06:00 and 22:00 and switches network mode; the per-antenna query hits the modem mid-switch. Not a
+  poller defect.
 
 ### G1 input (the decision is the user's)
 - Poller CPU is now ≈ 13–14 % of the core, down from 27–29 %, and held for 12 h with no restarts, no corrupt data and no AT lock failures.
 - The broker's CPU gain is small: about 2.5–3 points of the core (saves ≈ 28 ms of the 40 ms `qcmd` cost × ≈ 2.5 calls/cycle). It also adds a resident process on ≈ 55 MB free.
 - Its real case is not CPU: retiring `atcli_smd11`/`sms_tool` (already decided), shorter AT lock holds (the 6.8 s SMS inbox read), and the QMI lane (probe passed).
 - The biggest remaining CPU levers do not need the broker: activity tiers (P6, shell-only) and the dashboard CGI fork cost (+13 points of system busy while the dashboard is open), which no phase covers yet.
-- Unmeasured: AT contention under UI load with SMS reads; the CPU/RSS drift cause.
+- Unmeasured: AT contention under UI load with SMS reads; whether fixing the `read` leak also stops the CPU drift.
