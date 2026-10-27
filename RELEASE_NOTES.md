@@ -11,6 +11,7 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 ## 🛠️ Improvements
 
 - **Lighter background polling.** The modem's status poller now uses about 60 % less CPU, so the dashboard and other services have more headroom on the modem's single core. (874 → 344 ms CPU per cycle on an RM520N-GL; status data is unchanged.)
+- **The modem rests when nobody is looking.** With no QManager page open (or the tab hidden), the status poller asks the modem for signal data every 15 seconds, then every minute after 5 minutes, and goes back to full speed as soon as you open the dashboard. Signal history has fewer points while no browser is open. (Poller CPU on an RM520N-GL: 12.9 % of the core with the dashboard open, 8.1 % idle, 6.0 % after 5 minutes.)
 
 ## 🐛 Fixes
 
