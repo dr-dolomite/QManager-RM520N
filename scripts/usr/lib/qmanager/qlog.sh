@@ -58,7 +58,11 @@ qlog_init() {
 
     # Ensure log directory exists (should be /tmp/ which always exists)
     local log_dir
-    log_dir=$(dirname "$QLOG_FILE")
+    # ${QLOG_FILE%/*} replaces dirname (no fork); a bare filename has no dir part -> ".".
+    case "$QLOG_FILE" in
+        */*) log_dir="${QLOG_FILE%/*}"; [ -n "$log_dir" ] || log_dir="/" ;;
+        *)   log_dir="." ;;
+    esac
     [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null
 }
 

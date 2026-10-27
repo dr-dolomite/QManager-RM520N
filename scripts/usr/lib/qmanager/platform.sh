@@ -11,9 +11,25 @@
 [ -n "${_PLATFORM_LOADED:-}" ] && return 0
 _PLATFORM_LOADED=1
 
+# Effective uid (what `id -u` prints) = 2nd value on the Uid: line; a builtin
+# read loop saves a fork per request. Falls back to `id -u` if /proc is bare.
+_qm_euid=""
+if [ -r /proc/self/status ]; then
+    while read -r _qm_k _qm_ruid _qm_euid_f _qm_rest; do
+        if [ "$_qm_k" = "Uid:" ]; then
+            _qm_euid="$_qm_euid_f"
+            break
+        fi
+    done < /proc/self/status
+fi
+case "$_qm_euid" in
+    ''|*[!0-9]*) _qm_euid=$(id -u) ;;
+esac
+unset _qm_k _qm_ruid _qm_euid_f _qm_rest
+
 # Detect sudo path — Entware (/opt/bin/sudo) or system (/usr/bin/sudo)
 # When running as root (daemons), sudo is skipped entirely.
-if [ "$(id -u)" -eq 0 ]; then
+if [ "$_qm_euid" -eq 0 ]; then
     _SUDO=""
 elif [ -x /opt/bin/sudo ]; then
     _SUDO="/opt/bin/sudo"
@@ -208,28 +224,37 @@ pid_alive() {
 # that's SUPPOSED to be testing for exactly that non-zero exit.
 _QM_TIMEOUT_BIN=""
 _QM_TIMEOUT_FORM=""   # "positional" (coreutils/BusyBox >=1.30) or "legacy" (-t, BusyBox <1.30)
+_QM_TIMEOUT_PROBED=""
 
-if [ -x /opt/bin/timeout ]; then
-    _qm_probe_rc=0
-    /opt/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
-    if [ "$_qm_probe_rc" -ne 127 ]; then
-        _QM_TIMEOUT_BIN="/opt/bin/timeout"
-        _QM_TIMEOUT_FORM="positional"
+_qm_timeout_probe() {
+    if [ -x /opt/bin/timeout ]; then
+        _qm_probe_rc=0
+        /opt/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+        if [ "$_qm_probe_rc" -ne 127 ]; then
+            _QM_TIMEOUT_BIN="/opt/bin/timeout"
+            _QM_TIMEOUT_FORM="positional"
+        fi
     fi
-fi
 
-if [ -z "$_QM_TIMEOUT_BIN" ] && [ -x /usr/bin/timeout ]; then
-    _qm_probe_rc=0
-    /usr/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
-    if [ "$_qm_probe_rc" -eq 127 ]; then
-        _QM_TIMEOUT_BIN="/usr/bin/timeout"
-        _QM_TIMEOUT_FORM="legacy"
-    else
-        _QM_TIMEOUT_BIN="/usr/bin/timeout"
-        _QM_TIMEOUT_FORM="positional"
+    if [ -z "$_QM_TIMEOUT_BIN" ] && [ -x /usr/bin/timeout ]; then
+        _qm_probe_rc=0
+        /usr/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+        if [ "$_qm_probe_rc" -eq 127 ]; then
+            _QM_TIMEOUT_BIN="/usr/bin/timeout"
+            _QM_TIMEOUT_FORM="legacy"
+        else
+            _QM_TIMEOUT_BIN="/usr/bin/timeout"
+            _QM_TIMEOUT_FORM="positional"
+        fi
     fi
-fi
-unset _qm_probe_rc
+    unset _qm_probe_rc
+    _QM_TIMEOUT_PROBED=1
+}
+
+# Daemons probe now (they call qm_timeout inside $(...), where a lazy probe
+# would be lost with the subshell). lighttpd CGIs (GATEWAY_INTERFACE set)
+# defer to the first qm_timeout call, so requests that never time out skip it.
+[ -n "${GATEWAY_INTERFACE:-}" ] || _qm_timeout_probe
 
 # qm_timeout SECS COMMAND [ARGS...]
 # Callers always write the coreutils (positional) form; this dispatches to
@@ -254,6 +279,7 @@ unset _qm_probe_rc
 # for a warn-only diagnostic caller than misreporting a real timeout as a
 # clean exit.
 qm_timeout() {
+    [ -n "$_QM_TIMEOUT_PROBED" ] || _qm_timeout_probe
     local secs="$1"
     shift
     local rc=0

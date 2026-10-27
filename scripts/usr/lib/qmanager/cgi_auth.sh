@@ -98,15 +98,56 @@ qm_save_password() {
 # Cookie helpers
 # ---------------------------------------------------------------------------
 
-# Extract a named cookie value from HTTP_COOKIE
-# Usage: _cookie_val=$(qm_get_cookie "cookie_name")
+# Literal TAB, for the cookie separator test below.
+_QC_TAB='	'
+
+# qm_cookie_var NAME VARNAME — set VARNAME to the named cookie's value, with no
+# subshell. Returns 0 if the cookie is present (value may be empty), 1 if not
+# (VARNAME is then empty). HTTP_COOKIE format: "name1=val1; name2=val2".
+# Same rules as the old awk (RS=";[ TAB]*" FS="="): split on ';' plus any run of
+# spaces/tabs, exact name match on the text before the first '=', value = text
+# up to the next '=', first match wins. Parameter expansion only: no glob, no IFS.
+qm_cookie_var() {
+    _qc_rest="${HTTP_COOKIE-}"
+    _qc_val=""
+    _qc_found=1
+    while :; do
+        case "$_qc_rest" in
+            *\;*)
+                _qc_pair="${_qc_rest%%;*}"
+                _qc_rest="${_qc_rest#*;}"
+                while :; do
+                    case "$_qc_rest" in
+                        " "*|"$_QC_TAB"*) _qc_rest="${_qc_rest#?}" ;;
+                        *) break ;;
+                    esac
+                done
+                _qc_more=1
+                ;;
+            *)
+                _qc_pair="$_qc_rest"
+                _qc_more=0
+                ;;
+        esac
+        _qc_name="${_qc_pair%%=*}"
+        if [ "$_qc_name" = "$1" ]; then
+            if [ "$_qc_name" != "$_qc_pair" ]; then
+                _qc_val="${_qc_pair#*=}"
+                _qc_val="${_qc_val%%=*}"
+            fi
+            _qc_found=0
+            break
+        fi
+        [ "$_qc_more" -eq 1 ] || break
+    done
+    eval "$2=\$_qc_val"
+    return "$_qc_found"
+}
+
+# Print the named cookie value (nothing if absent). Prefer qm_cookie_var: this
+# one forks when called as $(qm_get_cookie ...).
 qm_get_cookie() {
-    _cookie_name="$1"
-    # HTTP_COOKIE format: "name1=val1; name2=val2"
-    printf '%s' "$HTTP_COOKIE" | awk -v name="$_cookie_name" '
-    BEGIN { RS=";[ \t]*"; FS="=" }
-    $1 == name { print $2; exit }
-    '
+    qm_cookie_var "$1" _qc_out && printf '%s' "$_qc_out" && echo
 }
 
 # Emit Set-Cookie headers for both session and indicator cookies
@@ -132,7 +173,11 @@ qm_generate_token() {
 
 # Validate token is safe for use as a filename (hex chars only)
 _is_valid_token() {
-    printf '%s' "$1" | grep -qE '^[0-9a-f]{64}$'
+    [ "${#1}" -eq 64 ] || return 1
+    case "$1" in
+        *[!0-9a-f]*) return 1 ;;
+    esac
+    return 0
 }
 
 # Create a new session. Prints the token to stdout.
@@ -153,7 +198,9 @@ qm_validate_session() {
     _session_file="${SESSIONS_DIR}/${_check_token}"
     [ ! -f "$_session_file" ] && return 1
 
-    _created=$(cat "$_session_file" 2>/dev/null)
+    # read, not $(cat): no fork. `|| [ -n ]` accepts a file with no trailing newline.
+    _created=""
+    IFS= read -r _created 2>/dev/null < "$_session_file" || [ -n "$_created" ] || return 1
     [ -z "$_created" ] && return 1
 
     _now=$(date +%s)
@@ -516,7 +563,7 @@ require_auth() {
     [ "$REQUEST_METHOD" = "OPTIONS" ] && return 0
 
     # Read session token from cookie
-    _token=$(qm_get_cookie "$COOKIE_SESSION")
+    qm_cookie_var "$COOKIE_SESSION" _token
     if [ -z "$_token" ] || ! qm_validate_session "$_token"; then
         echo "Status: 401 Unauthorized"
         cgi_headers
