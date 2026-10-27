@@ -19,8 +19,9 @@
 //! on stdout. Broker first when its capability file says `proto>=3` and
 //! `qmi=1`, else the same reads in-process (see client/qmi.rs).
 //!
-//! Invoked as `qsms`: the SMS client (list / status / send / delete, JSON on
-//! stdout, see sms.rs), with the same socket-first, never-run-twice transport.
+//! Invoked as `qsms`: the SMS client (list / status / send / delete / tag / watch,
+//! JSON on stdout, see sms.rs). RG501Q-EU: AT, socket-first, never run twice;
+//! otherwise QMI WMS in process (sms/wms.rs).
 //!
 //! The AT path is the same `exec::Executor` in both the daemon and the
 //! fallback, so there is one behaviour, not two.
