@@ -52,6 +52,23 @@ TIER1_5_EVERY=5        # Tier 1.5 (per-antenna signal) runs every N cycles (10s)
 TIER2_EVERY=15         # Tier 2 runs every N cycles
 CYCLE_TIME_BUDGET=10   # seconds; warn if poll_cycle exceeds this
 
+# --- Activity tiers (docs/reference/adaptive-polling.md) ----------------------
+# Status CGIs rewrite UI_ACTIVE_FILE on every hit; any content change is a heartbeat. Ages and
+# deadlines are uptime seconds, so the boot-time clock step cannot flip a tier.
+UI_ACTIVE_FILE="/tmp/qmanager_ui_active"
+AP_ACTIVE_GRACE=20     # s since the last heartbeat that stays Active (AT every cycle)
+AP_IDLE_THRESHOLD=300  # s since the last heartbeat before Idle drops to Deep
+AP_IDLE_INTERVAL=15    # Idle: serving cell + CA + per-antenna every N s
+AP_DEEP_INTERVAL=60    # Deep: serving cell only every N s
+AP_T2_IDLE=60          # Tier 2 at most every N s in Idle
+AP_T2_DEEP=300         # Tier 2 at most every N s in Deep
+ap_tier="active"       # emitted as .device.poller_tier
+_MONO_TOP=0            # uptime at the top of the cycle (0 = unreadable: stay Active)
+_HB_LAST=""
+_HB_SEEN_MONO=0        # seeded at start, so every start gets one Active grace without a file
+_AT_LAST_MONO=0
+_T2_LAST_MONO=0
+
 # resolve_network_iface — the netdev whose /proc/net/dev byte counters feed the
 # persistent Data Used counter. Returns "rmnet_ipa0" on every device this
 # daemon can run on.
@@ -2047,6 +2064,8 @@ write_cache() {
 
     jq -n \
         --argjson timestamp "$timestamp" \
+        --argjson mono "${_MONO_TOP:-0}" \
+        --arg poller_tier "${ap_tier:-active}" \
         --arg system_state "$system_state" \
         --argjson modem_reachable "$modem_reachable" \
         --argjson errors "$errors_json" \
@@ -2187,6 +2206,7 @@ write_cache() {
         --arg     du_orient    "${orientation:-normal}" \
         '{
             timestamp: $timestamp,
+            mono: $mono,
             system_state: $system_state,
             modem_reachable: $modem_reachable,
             last_successful_poll: $timestamp,
@@ -2248,7 +2268,8 @@ write_cache() {
                 ippt_mac: $ippt_mac,
                 ippt_nat: $ippt_nat,
                 ippt_usbnet: $ippt_usb,
-                ippt_dhcpv4dns: $ippt_dns
+                ippt_dhcpv4dns: $ippt_dns,
+                poller_tier: $poller_tier
             },
             data_used: {
                 accumulated_rx_bytes: $du_acc_rx,
@@ -2339,6 +2360,38 @@ write_cache() {
 # POLL CYCLE
 # =============================================================================
 
+# decide_tier — sets ap_tier, _at_due (1 = run the AT block) and _t2_due (idle/deep only).
+# $1 = 1 forces Active (TIER2_REFRESH_FLAG). Builtins only.
+decide_tier() {
+    local _hb="" _age
+    _at_due=1
+    _t2_due=0
+    { IFS= read -r _hb < "$UI_ACTIVE_FILE"; } 2>/dev/null
+    # An empty read is a CGI mid-write: no change.
+    if [ -n "$_hb" ] && [ "$_hb" != "$_HB_LAST" ]; then
+        _HB_LAST="$_hb"
+        _HB_SEEN_MONO="$_MONO_TOP"
+    fi
+
+    if [ "$1" = "1" ] || [ "$_MONO_TOP" -eq 0 ]; then
+        ap_tier="active"
+        return 0
+    fi
+    _age=$((_MONO_TOP - _HB_SEEN_MONO))
+    if [ "$_age" -le "$AP_ACTIVE_GRACE" ]; then
+        ap_tier="active"
+    elif [ "$_age" -le "$AP_IDLE_THRESHOLD" ]; then
+        ap_tier="idle"
+        [ $((_MONO_TOP - _AT_LAST_MONO)) -ge "$AP_IDLE_INTERVAL" ] || _at_due=0
+        [ $((_MONO_TOP - _T2_LAST_MONO)) -ge "$AP_T2_IDLE" ] && _t2_due=1
+    else
+        ap_tier="deep"
+        [ $((_MONO_TOP - _AT_LAST_MONO)) -ge "$AP_DEEP_INTERVAL" ] || _at_due=0
+        [ $((_MONO_TOP - _T2_LAST_MONO)) -ge "$AP_T2_DEEP" ] && _t2_due=1
+    fi
+    return 0
+}
+
 poll_cycle() {
     # --- LONG_FLAG expiry guard ---
     # If a CGI sets the flag and dies before clearing it, the poller would
@@ -2359,6 +2412,8 @@ poll_cycle() {
     # --- Ping-based checks FIRST (no modem dependency) ---
     # These must run before AT commands in case qcmd blocks on serial I/O.
     update_proc_metrics
+    _MONO_TOP="${uptime_seconds:-0}"
+    case "$_MONO_TOP" in ''|*[!0-9]*) _MONO_TOP=0 ;; esac
     update_system_health
     read_ping_data
     read_dns_data
@@ -2370,6 +2425,7 @@ poll_cycle() {
             qlog_state_change "system_state" "$system_state" "scan_in_progress"
         fi
         system_state="scan_in_progress"
+        ap_tier="active"
         # Ping history (every Tier 1.5 interval — 10s)
         if [ $((cycle_count % TIER1_5_EVERY)) -eq 0 ]; then
             append_ping_history
@@ -2381,76 +2437,100 @@ poll_cycle() {
         return
     fi
 
-    errors=""
-    system_state="normal"
-
-    # Tier 1 (AT commands — may block if modem is unresponsive)
-    poll_serving_cell
-    sleep "$SIP_DELAY"
-
-    # Carrier Aggregation — QCAINFO reporting enabled at boot (Group B).
-    local ca_result
-    ca_result=$(qcmd_exec 'AT+QCAINFO')
-    if [ $? -eq 0 ] && [ -n "$ca_result" ]; then
-        parse_ca_info "$ca_result"
-    else
-        t2_ca_active=false
-        t2_ca_count=0
-        t2_nr_ca_active=false
-        t2_nr_ca_count=0
-        t2_total_bandwidth_mhz=0
-        t2_bandwidth_details=""
-        t2_carrier_components="[]"
-        t2_scc_key=""
-    fi
-    sleep "$SIP_DELAY"
-
-    # Tier 1 — modem crash watcher (pure sysfs reads; no-op when disabled)
-    crash_watcher_check
-
-    # Persistent Data Used counter (Tier 1) — network_type is set by
-    # poll_serving_cell above; must run before write_cache below.
-    update_data_used
-
-    # Tier 1.5 (per-antenna signal history + watchcat state)
-    if [ $((cycle_count % TIER1_5_EVERY)) -eq 0 ]; then
-        poll_per_antenna_signal
-        sleep "$SIP_DELAY"
-        read_watchcat_state
-    fi
-
-    # Tier 2 (warm data + SIM state + CFUN)
     # Honor the on-demand refresh flag so a SIM-slot change picks up the
-    # new carrier name within ~2s instead of up to ~30s.
+    # new carrier name within ~2s instead of up to ~30s. It also forces Active.
     force_tier2=false
     if [ -f "$TIER2_REFRESH_FLAG" ]; then
         force_tier2=true
         rm -f "$TIER2_REFRESH_FLAG"
     fi
-    if [ "$force_tier2" = "true" ] || [ $((cycle_count % TIER2_EVERY)) -eq 0 ]; then
-        poll_tier2
-        read_sim_state
-        [ "$force_tier2" = "true" ] && read_sim_identity
+    local _prev_tier="$ap_tier" _force=0
+    [ "$force_tier2" = "true" ] && _force=1
+    decide_tier "$_force"
+    system_state="normal"
 
-        # CFUN — standalone query (compound commands timeout in CFUN=0).
-        # Cadence is Tier 2 because airplane-mode toggles are user-driven and rare.
-        local cfun_result
-        cfun_result=$(qcmd 'AT+CFUN?' 2>/dev/null)
-        if [ -n "$cfun_result" ]; then
-            local cfun_val
-            cfun_val=$(printf '%s\n' "$cfun_result" | grep '+CFUN:' | head -1 | tr -d '\r' | awk -F': ' '{print $2}' | tr -d ' ')
-            [ -n "$cfun_val" ] && t1_cfun="$cfun_val"
+    # --- AT block: every cycle in Active, on the tier deadline in Idle/Deep ---
+    if [ "$_at_due" = "1" ]; then
+        local _t15=0 _t2=0
+        if [ "$ap_tier" = "active" ]; then
+            [ $((cycle_count % TIER1_5_EVERY)) -eq 0 ] && _t15=1
+            { [ "$force_tier2" = "true" ] || [ $((cycle_count % TIER2_EVERY)) -eq 0 ]; } && _t2=1
+            # Back from Idle/Deep: one full refresh for the returning user.
+            [ "$_prev_tier" != "active" ] && { _t15=1; _t2=1; }
+        else
+            [ "$ap_tier" = "idle" ] && _t15=1
+            _t2="$_t2_due"
         fi
+        _AT_LAST_MONO="$_MONO_TOP"
+        errors=""
+
+        # Tier 1 (AT commands — may block if modem is unresponsive). Deep runs only
+        # this: its RSRP feeds qmanager_tower_failover.
+        poll_serving_cell
         sleep "$SIP_DELAY"
+
+        # Carrier Aggregation — QCAINFO reporting enabled at boot (Group B).
+        # Deep keeps the last CA values, so the zeroing branch stays inside this guard.
+        if [ "$ap_tier" != "deep" ]; then
+            local ca_result
+            ca_result=$(qcmd_exec 'AT+QCAINFO')
+            if [ $? -eq 0 ] && [ -n "$ca_result" ]; then
+                parse_ca_info "$ca_result"
+            else
+                t2_ca_active=false
+                t2_ca_count=0
+                t2_nr_ca_active=false
+                t2_nr_ca_count=0
+                t2_total_bandwidth_mhz=0
+                t2_bandwidth_details=""
+                t2_carrier_components="[]"
+                t2_scc_key=""
+            fi
+            sleep "$SIP_DELAY"
+        fi
+
+        # Tier 1.5 (per-antenna signal history)
+        if [ "$_t15" = "1" ]; then
+            poll_per_antenna_signal
+            sleep "$SIP_DELAY"
+        fi
+
+        # Tier 2 (warm data + SIM state + CFUN)
+        if [ "$_t2" = "1" ]; then
+            _T2_LAST_MONO="$_MONO_TOP"
+            poll_tier2
+            read_sim_state
+            [ "$force_tier2" = "true" ] && read_sim_identity
+
+            # CFUN — standalone query (compound commands timeout in CFUN=0).
+            # Cadence is Tier 2 because airplane-mode toggles are user-driven and rare.
+            local cfun_result
+            cfun_result=$(qcmd 'AT+CFUN?' 2>/dev/null)
+            if [ -n "$cfun_result" ]; then
+                local cfun_val
+                cfun_val=$(printf '%s\n' "$cfun_result" | grep '+CFUN:' | head -1 | tr -d '\r' | awk -F': ' '{print $2}' | tr -d ' ')
+                [ -n "$cfun_val" ] && t1_cfun="$cfun_val"
+            fi
+            sleep "$SIP_DELAY"
+        fi
+
+        determine_service_status
+        detect_events
     fi
 
-    # Ping history (every Tier 1.5 interval — 10s)
+    # --- Local work: every cycle in every tier ---
+    # Tier 1 — modem crash watcher (pure sysfs reads; no-op when disabled)
+    crash_watcher_check
+
+    # Persistent Data Used counter — network_type comes from the last serving-cell read.
+    update_data_used
+
+    # Ping history + watchcat state (every Tier 1.5 interval), outside the AT gate.
     if [ $((cycle_count % TIER1_5_EVERY)) -eq 0 ]; then
         append_ping_history
+        read_watchcat_state
     fi
     update_conn_uptime
-    determine_service_status
-    detect_events
     write_cache
 
     cycle_count=$((cycle_count + 1))
@@ -2488,6 +2568,8 @@ main() {
     collect_boot_data
     update_proc_metrics
     update_system_health
+    _MONO_TOP="${uptime_seconds:-0}"
+    _HB_SEEN_MONO="$_MONO_TOP"
     cq_thresholds_refresh
     alert_engine_init
     restore_event_state
