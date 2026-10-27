@@ -85,7 +85,8 @@ is taken after P1 lands and those numbers are in.
 | T3.1 | P3 | build.sh, install, uninstall, OTA rollback, RG501Q skip | qm-worker under installer-safety-auditor | `build.sh`, `install_rm520n.sh`, `uninstall_rm520n.sh`, `dependencies/`, `qmanager_health_check` | PENDING |
 | T4.1 | P4 | qcmd cut-over + error-contract adapter + full caller census (incl. Discord bot) | cgi-endpoint-builder | `scripts/usr/bin/qcmd`, `client/qcmd.rs` | PENDING |
 | T4.2 | P4 | Portability residue on both devices | busybox-portability-checker | none | PENDING |
-| T5.1 | P5 | qsms port + retire `sms_tool` / `atcli_smd11` — **transport open: AT `qsms` vs QMI WMS (decision 3)** | cgi-endpoint-builder (installer part under installer-safety-auditor) | sms CGIs, `qmanager_sms_*`, `sms_alerts.sh`, `qmanager_health_check`, `build.sh`, `install_rm520n.sh`, `uninstall_rm520n.sh` | PENDING |
+| T5.1 | P5 | qsms port + retire `sms_tool` / `atcli_smd11` — **transport = QMI WMS (decision 3); planned after T5.0** | cgi-endpoint-builder (installer part under installer-safety-auditor) | sms CGIs, `qmanager_sms_*`, `sms_alerts.sh`, `qmanager_health_check`, `build.sh`, `install_rm520n.sh`, `uninstall_rm520n.sh` | PENDING |
+| T5.0 | P5 | WMS probe: send, delete, new-message indications, storage, as root and www-data; extend `native/qmi_probe` | independent Opus session | `native/qmi_probe/**`, `docs/reference/qmi-probe.md` | IN PROGRESS 2026-10-27 |
 | T6.1 | P6 | Activity tiers + heartbeat + watchcat outside AT gate | cgi-endpoint-builder + ui-builder | poller, `qmanager_watchcat`, `qmanager_health_check`, heartbeat hook | PENDING — moved ahead of P4 (G1) |
 | T6.2 | P6 | Dashboard CGI cost: +13 points of the core while the dashboard is open (T1.2 replay, 38.5 % vs 25.7 % busy); measure per-CGI cost, then cut forks | lead (plan first) | TBD in its plan | PENDING — added at G1 |
 | T7.1 | P7 | QMI lane + sidecar + overlay + types; add bound WDS 0x002D (IP/DNS/gateway/netmask/MTU) beside RM551E's bound 0x0024 | cgi-endpoint-builder + ui-builder (types) | `native/…/qmi/**`, `qmi_merge.sh`, `types/modem-status.ts` | PENDING — P0 gate GO on RM520N-GL (needs P4) |
@@ -116,13 +117,14 @@ the user's yes each time.
   13–14 % (P1); broker CPU gain only ≈ 2.5–3 points; the case is atcli/sms_tool retirement, the 6.8 s SMS
   lock hold and the QMI lane. Still owed: broker RSS (T2 smoke test), SMS-under-UI contention.
 
+- USER 2026-10-27, **decision 3 = QMI WMS** for T5.1 SMS, not AT `qsms`. Probe send, delete and
+  new-message indications first (T5.0); T5.1 is planned from that result. WMS reads need no AT lock (~1 / ~4 ms).
+
 ## Decisions open — the user's call
 1. ~~**Broker GO/NO-GO (G1)**~~ — decided GO 2026-10-27; moved to Decisions taken (numbering kept for references).
 2. **QMI / live / WDS scope (P7):** P0 gate is GO on RM520N-GL (see "QMI probe result"); scope
    (live 1 Hz, WDS) still the user's call when P7 starts.
-3. **SMS transport for T5.1:** AT `qsms` (RM551E design) or QMI WMS. WMS list/read measured at
-   ~1 ms / ~4 ms with no AT lock, and works as www-data; send, delete and new-message indications
-   are not yet probed. Decide before T5.1 is planned.
+3. ~~**SMS transport for T5.1**~~ — decided 2026-10-27: QMI WMS; moved to Decisions taken.
 
 ## Risks
 - ~~QRTR absent or contended → P7 cut.~~ Retired on RM520N-GL 2026-10-26; still open for RG501Q-EU.
