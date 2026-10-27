@@ -117,7 +117,7 @@ impl<D: Device> AtRunner for ModemRunner<D> {
 pub(crate) struct AtLane {
     tx: SyncSender<Job>,
     /// Production: a lane whose worker is gone means a broker that would
-    /// accept forever and never answer, so the process exits for procd.
+    /// accept forever and never answer, so the process exits for systemd.
     exit_if_dead: bool,
     /// CLOCK_MONOTONIC ms the running job started, 0 while idle (the watchdog reads it).
     busy: Arc<AtomicU64>,
