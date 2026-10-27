@@ -1,5 +1,5 @@
-//! `qsms <op> ...`: the SMS client, with the same socket-first,
-//! never-run-twice transport as qcmd.
+//! `qsms <op> ...`: the SMS client. RG501Q-EU: AT through the broker socket first, never run
+//! twice, like qcmd. Everything else: QMI WMS in process (sms/wms.rs).
 
 use super::transport::{try_broker_raw, Broker};
 use crate::at::exec::{self, Executor};
@@ -12,14 +12,36 @@ use crate::sms;
 use std::io::Write;
 use std::time::Duration;
 
+const PROJECT_FILE: &str = "/etc/quectel-project-version";
+
+/// Fixed per platform, never auto-detected: RG501Q stays on AT until WMS is proven there.
+fn use_wms() -> bool {
+    match std::env::var("QSMS_BACKEND").as_deref() {
+        Ok("wms") => return true,
+        Ok("at") => return false,
+        _ => {}
+    }
+    !std::fs::read_to_string(PROJECT_FILE).map(|s| s.trim_start().starts_with("RG501Q")).unwrap_or(false)
+}
+
 /// `qsms <op> ...`: one JSON envelope on stdout, rc 0 on success, 1 on failure.
-/// Same transport rules as qcmd: socket first, in-process only if the request
-/// never reached the broker, never run twice.
+/// AT backend: socket first, in-process only if the request never reached the
+/// broker, never run twice. WMS backend: always in process.
 pub(crate) fn run_qsms(args: &[String]) -> i32 {
     let op = match sms::parse_args(args) {
         Ok(op) => op,
         Err(e) => return emit_sms(false, sms::error_json("bad_args", Some(&e))),
     };
+    if use_wms() {
+        if op == sms::Op::Watch {
+            return sms::wms::watch();
+        }
+        let (ok, json) = sms::wms::run(&op);
+        return emit_sms(ok, json);
+    }
+    if matches!(op, sms::Op::Tag { .. } | sms::Op::Watch) {
+        return emit_sms(false, sms::error_json("unsupported", Some("Not available on this modem.")));
+    }
     if exec::long_running() {
         return emit_sms(false, sms::error_json(Code::ScanInProgress.as_str(), None));
     }
