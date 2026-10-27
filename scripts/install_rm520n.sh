@@ -876,10 +876,12 @@ install_bundled_binaries() {
         ln -sf qmanager_atd "$BIN_DIR/qsms" || warn "Failed to link $BIN_DIR/qsms"
     fi
 
+    # No model boot-links the broker until T4.1; this also covers --no-enable runs.
+    rm -f "$WANTS_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd boot link"
+
     # Undefined function (hw_profile.sh failed to load) counts as not enabled.
     if ! { command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled; }; then
         rm -f "$SYSTEMD_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd.service"
-        rm -f "$WANTS_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd boot link"
         info "qmanager-atd not used on this model ($(qm_hw_model 2>/dev/null || echo unknown))"
     fi
 
