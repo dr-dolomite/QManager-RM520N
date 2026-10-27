@@ -262,6 +262,9 @@ Concerns, not blockers:
   line with `IFS= read -r` and split with `set --`; same values on device, probe 1 B/iter vs 32 B old;
   blind verifier PASS after one fix (`_pm_tail` kept local). Deployed 19:32 (md5 `0449ef11`), poller
   restarted with the user's OK; RSS 2360 → 2396 kB over the first 25 min (warm-up), one-hour check pending.
+  One-hour check (19:33–20:48, 16 samples, pid 10560, NRestarts 0): 2396 kB flat 19:53–20:13, one
+  +68 kB step at 20:18, then 2464 kB flat to 20:48. The old leak would have added ≈ 4 kB every 5 min
+  (≈ 40 kB over 19:53–20:48) as a steady ramp; the single step reads as a one-off allocation. Leak fixed.
 - CPU per cycle rises slowly (≈ 353 → 379 ms, ≈ +7 % over 12 h). Likely the same leak: each fork
   copies a larger parent. Not proven; re-measure after the fix.
 - The three AT rejections (22:00, 06:00) are explained: `qmanager-scenario-schedule.timer` fires at
