@@ -16,9 +16,13 @@
 //!   qmi_probe watch <secs>                                NAS indications
 //!   qmi_probe [--allow-config] siginfo2 <secs> <hz> [live|tt=hex ..]
 //!                                                         0x0051 + polled 0x004F
+//!   qmi_probe sms list|info|scan|limits|watch             WMS reads (no bodies printed)
+//!   qmi_probe --allow-sms-write sms tag|del ..            WMS store writes
+//!   qmi_probe --allow-sms-send sms send <num> <text..>    WMS Raw Send
 
 mod decode;
 mod qrtr;
+mod wms;
 
 use decode::{arr, J};
 use qrtr::{Client, Msg, Tlv};
@@ -61,9 +65,10 @@ const WHITELIST: &[(u32, u16)] = &[
     (SVC_DSD, 0x0024), // Get System Status
     (SVC_WMS, 0x0031), // List Messages
     (SVC_WMS, 0x0022), // Raw Read
-    (SVC_WMS, 0x0020), // Get Message Protocol
-    (SVC_WMS, 0x0034), // Get Routes
-    (SVC_WMS, 0x0024), // Get SMSC Address
+    (SVC_WMS, 0x0030), // Get Message Protocol
+    (SVC_WMS, 0x0033), // Get Routes
+    (SVC_WMS, 0x0034), // Get SMSC Address
+    (SVC_WMS, 0x0036), // Get Store Max Size
     (SVC_LOC, 0x0020), // Get Service Revision (LOC)
 ];
 
@@ -75,9 +80,15 @@ const CONFIG_WHITELIST: &[(u32, u16)] = &[
     (SVC_WDS, 0x00AF), // Bind Subscription (client-local)
 ];
 
+/// SMS store writes, refused unless `--allow-sms-write`; Raw Send needs `--allow-sms-send`.
+const SMS_WRITE: &[(u32, u16)] = &[(SVC_WMS, 0x0023), (SVC_WMS, 0x0024)];
+const SMS_SEND: (u32, u16) = (SVC_WMS, 0x0020);
+
 struct Svc {
     clients: HashMap<u32, Client>,
     allow_config: bool,
+    allow_sms_write: bool,
+    allow_sms_send: bool,
 }
 
 impl Svc {
@@ -98,7 +109,9 @@ impl Svc {
     fn call(&mut self, svc: u32, id: u16, tlvs: &[Tlv]) -> Result<(Msg, Duration), String> {
         let config = CONFIG_WHITELIST.contains(&(svc, id));
         let discover = id == 0x001E && DISCOVER.contains(&svc);
-        if !discover && !WHITELIST.contains(&(svc, id)) && !(config && self.allow_config) {
+        let sms_w = SMS_WRITE.contains(&(svc, id)) && self.allow_sms_write;
+        let sms_s = (svc, id) == SMS_SEND && self.allow_sms_send;
+        if !discover && !WHITELIST.contains(&(svc, id)) && !(config && self.allow_config) && !sms_w && !sms_s {
             let why = if config { "config write, needs --allow-config" } else { "not whitelisted" };
             return Err(format!("refused {}:{:#06x} ({})", svc, id, why));
         }
@@ -475,8 +488,10 @@ fn cmd_wds_bound(s: &mut Svc, mux: u8, fam: u8, n: u32, gap: u64) {
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let allow_config = args.iter().any(|a| a == "--allow-config");
-    args.retain(|a| a != "--allow-config");
-    let mut s = Svc { clients: HashMap::new(), allow_config };
+    let allow_sms_write = args.iter().any(|a| a == "--allow-sms-write");
+    let allow_sms_send = args.iter().any(|a| a == "--allow-sms-send");
+    args.retain(|a| !matches!(a.as_str(), "--allow-config" | "--allow-sms-write" | "--allow-sms-send"));
+    let mut s = Svc { clients: HashMap::new(), allow_config, allow_sms_write, allow_sms_send };
     match args.first().map(|x| x.as_str()) {
         Some("json") => cmd_json(&mut s, &args[1..]),
         Some("get") => {
@@ -536,6 +551,7 @@ fn main() {
             };
             cmd_siginfo2(&mut s, secs, hz, cfg);
         }
+        Some("sms") => wms::cmd_sms(&mut s, &args[1..]),
         Some("wds-bound") if s.allow_config => {
             let mux = args.get(1).and_then(|x| x.parse().ok()).unwrap_or(1);
             let fam = args.get(2).and_then(|x| x.parse().ok()).unwrap_or(0);
