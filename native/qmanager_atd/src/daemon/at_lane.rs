@@ -32,6 +32,7 @@ use crate::sms;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -118,6 +119,8 @@ pub(crate) struct AtLane {
     /// Production: a lane whose worker is gone means a broker that would
     /// accept forever and never answer, so the process exits for procd.
     exit_if_dead: bool,
+    /// CLOCK_MONOTONIC ms the running job started, 0 while idle (the watchdog reads it).
+    busy: Arc<AtomicU64>,
 }
 
 impl AtLane {
@@ -131,13 +134,20 @@ impl AtLane {
         exit_if_dead: bool,
     ) -> std::io::Result<AtLane> {
         let (tx, rx) = mpsc::sync_channel::<Job>(cap);
+        let busy = Arc::new(AtomicU64::new(0));
+        let b = busy.clone();
         // Default stack (as large as the single-threaded broker's ever needed
         // to be on the main thread): this thread runs the whole AT and SMS path.
         std::thread::Builder::new().name("atd-at-lane".into()).spawn(move || {
             let _exit = exit_if_dead.then(|| ExitOnDrop(log.clone()));
-            work(rx, runner, &log);
+            work(rx, runner, &log, &b);
         })?;
-        Ok(AtLane { tx, exit_if_dead })
+        Ok(AtLane { tx, exit_if_dead, busy })
+    }
+
+    /// Shared view of when the running job started (0 = idle).
+    pub(crate) fn busy_since(&self) -> Arc<AtomicU64> {
+        self.busy.clone()
     }
 
     /// Queues `job`, or answers it modem_busy at once when the queue is full.
@@ -168,9 +178,11 @@ impl Drop for ExitOnDrop {
     }
 }
 
-fn work<R: AtRunner>(rx: Receiver<Job>, mut runner: R, log: &Logger) {
+fn work<R: AtRunner>(rx: Receiver<Job>, mut runner: R, log: &Logger, busy: &AtomicU64) {
     for job in rx {
+        busy.store(proto::mono_ms().max(1), Ordering::Relaxed);
         serve_job(job, &mut runner, log);
+        busy.store(0, Ordering::Relaxed);
     }
 }
 
@@ -247,6 +259,25 @@ mod tests {
         lane.submit(j, log);
         started.recv_timeout(Duration::from_secs(5)).expect("worker never started HOLD");
         c
+    }
+
+    #[test]
+    fn busy_since_is_set_while_a_job_runs_and_cleared_after() {
+        let log = test_log();
+        let (lane, _seen, started, release) = fake_lane(QUEUE_CAP);
+        let busy = lane.busy_since();
+        assert_eq!(busy.load(Ordering::Relaxed), 0);
+        let before = proto::mono_ms();
+        let h = hold(&lane, &started, &log);
+        let b = busy.load(Ordering::Relaxed);
+        assert!(b >= before && b <= proto::mono_ms(), "{b}");
+        release.send(()).unwrap();
+        assert_eq!(read_reply(h), b"OK 4\nHOLD");
+        let t = Instant::now();
+        while busy.load(Ordering::Relaxed) != 0 && t.elapsed() < Duration::from_secs(2) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(busy.load(Ordering::Relaxed), 0);
     }
 
     #[test]

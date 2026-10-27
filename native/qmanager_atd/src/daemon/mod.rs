@@ -19,6 +19,7 @@ pub(crate) mod data_call;
 pub(crate) mod qmi_lane;
 pub(crate) mod live;
 pub(crate) mod qmi_snapshot;
+pub(crate) mod watchdog;
 
 use crate::at::exec;
 use crate::at::new_channel;
@@ -96,6 +97,9 @@ pub(crate) fn run_daemon() -> i32 {
     // After the AT lane, off this thread: the registry's startup lookup is
     // bounded at 500 ms and AT serving must never wait on it.
     let qmi = QmiLane::start(log.clone());
+    // RM520N (D4): systemd restarts a broker whose AT lane froze; no client does.
+    watchdog::start(at.busy_since(), log.clone());
+    watchdog::ready();
     accept_loop(listener, Arc::new(Ctx { log, at, qmi, peers }))
 }
 

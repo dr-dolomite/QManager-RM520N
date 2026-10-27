@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 /// Longest an exchange can take inside the broker: the long deadline, the long
 /// lock budget, the warm-up and a worst-case resync with reopen, plus margin.
-const CLIENT_REPLY_TIMEOUT: Duration = Duration::from_secs(340);
+pub(crate) const CLIENT_REPLY_TIMEOUT: Duration = Duration::from_secs(340);
 
 pub(crate) enum Broker {
     Reply(proto::Reply),
