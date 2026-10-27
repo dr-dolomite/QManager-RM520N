@@ -246,6 +246,7 @@ _test_catalog_pending() {
         {id:"bin.tailscale",      category:"binaries", label:"tailscale binary",            status:"pending", duration_ms:0, detail:""},
         {id:"bin.msmtp",          category:"binaries", label:"msmtp binary",                status:"pending", duration_ms:0, detail:""},
         {id:"bin.ttyd",           category:"binaries", label:"ttyd binary",                 status:"pending", duration_ms:0, detail:""},
+        {id:"bin.qmanager_atd",   category:"binaries", label:"qmanager_atd binary present", status:"pending", duration_ms:0, detail:""},
 
         {id:"perm.smd11",         category:"permissions", label:"/dev/smd11 mode 660 root:dialout", status:"pending", duration_ms:0, detail:""},
         {id:"perm.www_dialout",   category:"permissions", label:"www-data is in dialout group",     status:"pending", duration_ms:0, detail:""},
@@ -272,6 +273,7 @@ _test_catalog_pending() {
         {id:"svc.setup",          category:"services", label:"qmanager-setup.service",            status:"pending", duration_ms:0, detail:""},
         {id:"svc.lighttpd",       category:"services", label:"lighttpd.service",                  status:"pending", duration_ms:0, detail:""},
         {id:"svc.tailscaled",     category:"services", label:"tailscaled.service (optional)",     status:"pending", duration_ms:0, detail:""},
+        {id:"svc.atd",            category:"services", label:"qmanager-atd.service (broker)",     status:"pending", duration_ms:0, detail:""},
 
         {id:"net.dns",            category:"network", label:"DNS resolves install.speedtest.net", status:"pending", duration_ms:0, detail:""},
         {id:"net.ping",           category:"network", label:"IPv4 reachability (1.1.1.1)",        status:"pending", duration_ms:0, detail:""},
@@ -387,6 +389,8 @@ t_bin_msmtp() {
     fi
 }
 t_bin_ttyd()       { _check_bin ttyd /usrdata/qmanager/console/ttyd 1; }
+# --version exits without opening /dev/smd11, so the default probe is safe here.
+t_bin_qmanager_atd() { _check_bin qmanager_atd /usr/bin/qmanager_atd 0; }
 
 t_perm_smd11() {
     if [ ! -e /dev/smd11 ]; then echo "fail|/dev/smd11 missing"; return; fi
@@ -643,6 +647,24 @@ t_svc_console()   { _svc_check qmanager-console.service 1; }
 t_svc_setup()     { _svc_check qmanager-setup.service 1; }
 t_svc_lighttpd()  { _svc_check lighttpd.service 1; }
 t_svc_tailscaled(){ _svc_check tailscaled.service 0; }
+# Broker unit is RM520N-only and unlinked until the qcmd cut-over (T4.1).
+t_svc_atd() {
+    if [ -r /usr/lib/qmanager/hw_profile.sh ]; then . /usr/lib/qmanager/hw_profile.sh 2>/dev/null; fi
+    if ! command -v qm_hw_atd_enabled >/dev/null 2>&1; then
+        echo "warn|cannot determine model"; return
+    fi
+    if ! qm_hw_atd_enabled; then
+        echo "skip|not used on this model"; return
+    fi
+    local active; active=$(systemctl is-active qmanager-atd.service 2>/dev/null || true)
+    echo "unit=qmanager-atd.service active=${active:-unknown}" >> "$OUTPUT_FILE"
+    case "$active" in
+        active)   echo "pass|active" ;;
+        failed)   echo "warn|failed" ;;
+        inactive) echo "skip|installed; starts with the qcmd cut-over (T4.1)" ;;
+        *)        echo "warn|state=${active:-unknown}" ;;
+    esac
+}
 
 t_net_dns() {
     # Bound the test to 5s — nslookup against unreachable DNS can stall 30s+
@@ -860,7 +882,7 @@ _collect_system_info() {
 _collect_services() {
     local dir="$1"
     mkdir -p "$dir"
-    local units="qmanager-firewall.service qmanager-poller.service qmanager-console.service qmanager-setup.service lighttpd.service tailscaled.service qmanager-tailscale-watchdog.service"
+    local units="qmanager-firewall.service qmanager-poller.service qmanager-console.service qmanager-setup.service lighttpd.service tailscaled.service qmanager-tailscale-watchdog.service qmanager-atd.service"
     for u in $units; do
         {
             echo "# systemctl status $u"
@@ -1026,6 +1048,7 @@ _run_test bin.speedtest       binaries     "speedtest CLI"                      
 _run_test bin.tailscale       binaries     "tailscale binary"                      t_bin_tailscale
 _run_test bin.msmtp           binaries     "msmtp binary"                          t_bin_msmtp
 _run_test bin.ttyd            binaries     "ttyd binary"                           t_bin_ttyd
+_run_test bin.qmanager_atd    binaries     "qmanager_atd binary present"           t_bin_qmanager_atd
 
 _run_test perm.smd11          permissions  "/dev/smd11 mode 660 root:dialout"      t_perm_smd11
 _run_test perm.www_dialout    permissions  "www-data is in dialout group"          t_perm_www_dialout
@@ -1052,6 +1075,7 @@ _run_test svc.console         services     "qmanager-console.service"           
 _run_test svc.setup           services     "qmanager-setup.service"                t_svc_setup
 _run_test svc.lighttpd        services     "lighttpd.service"                      t_svc_lighttpd
 _run_test svc.tailscaled      services     "tailscaled.service (optional)"         t_svc_tailscaled
+_run_test svc.atd             services     "qmanager-atd.service (broker)"         t_svc_atd
 
 _run_test net.dns             network      "DNS resolves install.speedtest.net"    t_net_dns
 _run_test net.ping            network      "IPv4 reachability (1.1.1.1)"           t_net_ping
