@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { startVisibleInterval } from "@/lib/visible-interval";
 import type { NetworkEvent } from "@/types/modem-status";
 
 // =============================================================================
@@ -58,7 +59,7 @@ export function useRecentActivities(
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopTimerRef = useRef<(() => void) | null>(null);
   const hasLoadedOnce = useRef(false);
 
   const fetchEvents = useCallback(async () => {
@@ -106,23 +107,23 @@ export function useRecentActivities(
     }
 
     fetchEvents();
-    intervalRef.current = setInterval(fetchEvents, pollInterval);
+    // Paused while the tab is hidden; refetches at once when shown.
+    stopTimerRef.current = startVisibleInterval(fetchEvents, pollInterval);
 
     return () => {
       mountedRef.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      stopTimerRef.current?.();
+      stopTimerRef.current = null;
     };
   }, [fetchEvents, pollInterval, enabled]);
 
   const refresh = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
     fetchEvents();
-    intervalRef.current = setInterval(fetchEvents, pollInterval);
+    // Restart the timer so the next poll is a full interval away.
+    if (stopTimerRef.current) {
+      stopTimerRef.current();
+      stopTimerRef.current = startVisibleInterval(fetchEvents, pollInterval);
+    }
   }, [fetchEvents, pollInterval]);
 
   return { events, isLoading, isRefreshing, error, refresh };

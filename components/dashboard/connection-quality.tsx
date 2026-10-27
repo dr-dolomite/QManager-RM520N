@@ -392,7 +392,8 @@ const ConnectionQualityComponent = ({
   modemReachable,
 }: ConnectionQualityProps) => {
   const { t } = useTranslation("dashboard");
-  const { data: history } = useLatencyHistory();
+  // The strip folds only the newest 30 min; 400 rows covers it at the 10-16 s row cadence.
+  const { data: history } = useLatencyHistory({ last: 400 });
   const [speedtestOpen, setSpeedtestOpen] = useState(false);
   // One watching instance: a run started elsewhere shows up here too.
   const {
