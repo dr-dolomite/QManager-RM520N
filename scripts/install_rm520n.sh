@@ -18,6 +18,7 @@
 #   dependencies/           — Bundled binaries and packages
 #     atcli_smd11           — ARM binary (AT command transport via /dev/smd11)
 #     sms_tool              — ARM binary (SMS send/recv/delete via /dev/smd11)
+#     qmanager_atd          — ARM binary (AT/SMS/QMI broker; /usr/bin/qsms links to it)
 #     jq.ipk                — JSON processor (Entware package)
 #     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
@@ -804,7 +805,7 @@ ensure_zoneinfo_packages() {
 # --- Install Bundled Binaries -------------------------------------------------
 
 # Copies the first-party binaries bundled in dependencies/ (atcli_smd11,
-# sms_tool, qmanager_discord) into $BIN_DIR.
+# sms_tool, qmanager_atd + its qsms link, qmanager_discord) into $BIN_DIR.
 #
 # Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
 # and ensure_zoneinfo_packages() above in main()): OTA upgrades invoke this
@@ -850,6 +851,35 @@ install_bundled_binaries() {
         info "sms_tool already installed"
     else
         warn "sms_tool not found — SMS features will not work"
+    fi
+
+    # --- qmanager_atd (AT/SMS/QMI broker) + qsms link --------------------------
+    # Binary ships on both models; the unit is RM520N-only (systemd 239 on the
+    # RG501Q ignores ExecCondition) and stays unlinked/unstarted until T4.1.
+    if [ -f "$SRC_DEPS/qmanager_atd" ]; then
+        if [ -x "$BIN_DIR/qmanager_atd" ] && cmp -s "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd"; then
+            info "qmanager_atd already current"
+        else
+            install_file "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd" 755                 || die "Failed to install qmanager_atd"
+            info "qmanager_atd installed to $BIN_DIR/qmanager_atd"
+        fi
+    elif [ -x "$BIN_DIR/qmanager_atd" ]; then
+        info "qmanager_atd already installed"
+    else
+        die "qmanager_atd not found in $SRC_DEPS and not installed on device"
+    fi
+
+    if [ -d "$BIN_DIR/qsms" ] && [ ! -L "$BIN_DIR/qsms" ]; then
+        warn "$BIN_DIR/qsms is a directory — not creating the qsms link"
+    else
+        ln -sf qmanager_atd "$BIN_DIR/qsms" || warn "Failed to link $BIN_DIR/qsms"
+    fi
+
+    # Undefined function (hw_profile.sh failed to load) counts as not enabled.
+    if ! { command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled; }; then
+        rm -f "$SYSTEMD_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd.service"
+        rm -f "$WANTS_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd boot link"
+        info "qmanager-atd not used on this model ($(qm_hw_model 2>/dev/null || echo unknown))"
     fi
 
     # --- qmanager_discord (optional Discord bot binary) -----------------------
@@ -1699,6 +1729,12 @@ install_backend() {
         # Copy service files to /lib/systemd/system/ (persistent on RM520N-GL)
         for f in "$SRC_SCRIPTS/etc/systemd/system"/qmanager*.service; do
             [ -f "$f" ] || continue
+            # qmanager-atd.service is RM520N-only (see install_bundled_binaries).
+            if [ "$(basename "$f")" = "qmanager-atd.service" ]; then
+                if ! { command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled; }; then
+                    continue
+                fi
+            fi
             install_file "$f" "$SYSTEMD_DIR/$(basename "$f")" 644 \
                 || die "Failed to install $(basename "$f")"
         done
@@ -3636,6 +3672,13 @@ enable_services() {
         # enabled scenario schedule becomes active, so there is nothing to
         # gate here beyond skipping the boot-symlink for the .service itself.
         [ "$svc" = "qmanager-scenario-schedule" ] && continue
+
+        # qmanager-atd stays off until the qcmd cut-over (T4.1) links it; also
+        # drop a link an earlier development OTA may have created.
+        if [ "$svc" = "qmanager-atd" ]; then
+            rm -f "$WANTS_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd boot link"
+            continue
+        fi
 
         # qmanager-scheduled-reboot.service / qmanager-tower-schedule-apply.service /
         # qmanager-tower-schedule-clear.service are the same shape: no
