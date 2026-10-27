@@ -1929,6 +1929,10 @@ wc_last_recovery_tier="null"
 wc_total_recoveries=0
 wc_cooldown_remaining=0
 wc_reboots_this_hour=0
+wc_mono=0
+wc_stale_after=0
+_WC_HB_AGE=null
+_WC_HB_STALE=null
 WATCHCAT_CACHE="/tmp/qmanager_watchcat.json"
 
 # SIM failover state variables
@@ -1945,7 +1949,12 @@ sim_swap_profile_name=""
 
 read_watchcat_state() {
     if [ ! -f "$WATCHCAT_CACHE" ]; then
+        # No daemon, no numbers: a stopped watchdog must not leave its last tier, counters or heartbeat behind.
         wc_enabled="false"; wc_state="disabled"
+        wc_current_tier=0; wc_failure_count=0
+        wc_last_recovery_time="null"; wc_last_recovery_tier="null"
+        wc_total_recoveries=0; wc_cooldown_remaining=0
+        wc_reboots_this_hour=0; wc_mono=0; wc_stale_after=0
         return
     fi
     local _wdata
@@ -1958,20 +1967,32 @@ read_watchcat_state() {
         ((.last_recovery_tier) | if . == null then "null" else tostring end),
         ((.total_recoveries) | if . == null then "0" else tostring end),
         ((.cooldown_remaining) | if . == null then "0" else tostring end),
-        ((.reboots_this_hour) | if . == null then "0" else tostring end)
-    ] | @tsv' "$WATCHCAT_CACHE" 2>/dev/null)
+        ((.reboots_this_hour) | if . == null then "0" else tostring end),
+        ((.mono) | if . == null then "0" else tostring end),
+        ((.stale_after) | if . == null then "0" else tostring end)
+    ] | @tsv' "$WATCHCAT_CACHE" 2>/dev/null </dev/null)
 
     [ -z "$_wdata" ] && return
 
-    wc_enabled=$(printf '%s' "$_wdata" | cut -f1)
-    wc_state=$(printf '%s' "$_wdata" | cut -f2)
-    wc_current_tier=$(printf '%s' "$_wdata" | cut -f3)
-    wc_failure_count=$(printf '%s' "$_wdata" | cut -f4)
-    wc_last_recovery_time=$(printf '%s' "$_wdata" | cut -f5)
-    wc_last_recovery_tier=$(printf '%s' "$_wdata" | cut -f6)
-    wc_total_recoveries=$(printf '%s' "$_wdata" | cut -f7)
-    wc_cooldown_remaining=$(printf '%s' "$_wdata" | cut -f8)
-    wc_reboots_this_hour=$(printf '%s' "$_wdata" | cut -f9)
+    # Every field is non-empty and the last var gets one word (bash 3.2 read leak).
+    IFS=$'\t' read -r wc_enabled wc_state wc_current_tier wc_failure_count \
+        wc_last_recovery_time wc_last_recovery_tier wc_total_recoveries \
+        wc_cooldown_remaining wc_reboots_this_hour wc_mono wc_stale_after <<< "$_wdata"
+}
+
+# Sets _WC_HB_AGE / _WC_HB_STALE for write_cache: uptime delta since the daemon's last write, null when unknown.
+watchcat_heartbeat() {
+    _WC_HB_AGE=null
+    _WC_HB_STALE=null
+    case "${wc_mono:-0}" in ''|0|0*|*[!0-9]*) return 0 ;; esac
+    [ "$_MONO_TOP" -gt 0 ] || return 0
+    if [ "$_MONO_TOP" -ge "$wc_mono" ]; then
+        _WC_HB_AGE=$((_MONO_TOP - wc_mono))
+    else
+        _WC_HB_AGE=0
+    fi
+    case "${wc_stale_after:-0}" in ''|0|0*|*[!0-9]*) ;; *) _WC_HB_STALE="$wc_stale_after" ;; esac
+    return 0
 }
 
 read_sim_state() {
@@ -2055,6 +2076,7 @@ read_sim_state() {
 write_cache() {
     local timestamp
     timestamp=$SECONDS
+    watchcat_heartbeat
 
     # Build errors array
     local errors_json="[]"
@@ -2173,6 +2195,8 @@ write_cache() {
         --argjson wc_total "${wc_total_recoveries:-0}" \
         --argjson wc_cooldown "${wc_cooldown_remaining:-0}" \
         --argjson wc_reboots "${wc_reboots_this_hour:-0}" \
+        --argjson wc_age "${_WC_HB_AGE:-null}" \
+        --argjson wc_stale "${_WC_HB_STALE:-null}" \
         --arg sim_status "${t2_sim_status:-unknown}" \
         --argjson sim_inserted "${t2_sim_inserted:-null}" \
         --argjson sf_active "${sim_fo_active:-false}" \
@@ -2301,7 +2325,8 @@ write_cache() {
                 last_recovery_tier: $wc_last_tier,
                 total_recoveries: $wc_total,
                 cooldown_remaining: $wc_cooldown,
-                reboots_this_hour: $wc_reboots
+                reboots_this_hour: $wc_reboots,
+                age_sec: $wc_age, stale_after: $wc_stale
             },
             sim: {
                 status: $sim_status,
