@@ -24,7 +24,7 @@ fn open_nofollow(path: &str, create_new: bool) -> io::Result<File> {
 }
 
 /// www-data's uid, looked up once (musl reads /etc/passwd); None if unknown.
-fn www_data_uid() -> Option<u32> {
+pub(crate) fn www_data_uid() -> Option<u32> {
     static UID: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
     *UID.get_or_init(|| unsafe {
         let pw = libc::getpwnam(c"www-data".as_ptr());
@@ -34,6 +34,18 @@ fn www_data_uid() -> Option<u32> {
             Some((*pw).pw_uid)
         }
     })
+}
+
+/// The `dialout` gid (owns /dev/smd11; lighttpd runs its CGIs with it); None if unknown.
+pub(crate) fn dialout_gid() -> Option<u32> {
+    unsafe {
+        let gr = libc::getgrnam(c"dialout".as_ptr());
+        if gr.is_null() {
+            None
+        } else {
+            Some((*gr).gr_gid)
+        }
+    }
 }
 
 /// State files may be owned by root, this process, or www-data (CGIs and
