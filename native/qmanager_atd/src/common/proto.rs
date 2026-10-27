@@ -29,8 +29,8 @@ use crate::at::output::Code;
 
 pub const SOCKET_PATH: &str = "/var/run/qmanager_atd.sock";
 
-/// Capability file, written by the daemon after it binds the socket and
-/// removed by `init.d/qmanager_atd` stop. Scripts read it with a builtin
+/// Capability file, written by the daemon after it binds the socket. RM520N:
+/// left behind on stop; a client that cannot connect falls back. Scripts read it with a builtin
 /// `read` instead of running the binary: an older `qmanager_atd` given any
 /// argument starts a second daemon, and an older `qcmd` sends unknown flags to
 /// the modem as a command.

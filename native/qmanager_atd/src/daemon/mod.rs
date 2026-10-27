@@ -19,6 +19,7 @@ pub(crate) mod data_call;
 pub(crate) mod qmi_lane;
 pub(crate) mod live;
 pub(crate) mod qmi_snapshot;
+pub(crate) mod watchdog;
 
 use crate::at::exec;
 use crate::at::new_channel;
@@ -65,10 +66,8 @@ pub(crate) fn run_daemon() -> i32 {
         return 1;
     }
     let _ = std::fs::remove_file(proto::SOCKET_PATH);
-    // Root-only from the instant it exists: /dev/smd11 is crw------- root, and
-    // uhttpd runs CGIs as root, so no legitimate caller needs more. Setting the
-    // umask before bind (not chmod after) leaves no window where the socket is
-    // reachable by other users. /var/run is root:root 0755.
+    // Root-only from the instant it exists (umask before bind); opened to the
+    // dialout group below. /var/run is root:root 0755.
     let old_mask = unsafe { libc::umask(0o177) };
     let bound = UnixListener::bind(proto::SOCKET_PATH);
     unsafe { libc::umask(old_mask) };
@@ -79,6 +78,7 @@ pub(crate) fn run_daemon() -> i32 {
             return 1;
         }
     };
+    let peers = open_to_cgis(proto::SOCKET_PATH, &log);
     log.info(&format!("broker up, listening on {}", proto::SOCKET_PATH));
     // After the bind: the file promises a broker that is already reachable.
     if let Err(e) = proto::write_proto_file(proto::PROTO_PATH) {
@@ -97,7 +97,29 @@ pub(crate) fn run_daemon() -> i32 {
     // After the AT lane, off this thread: the registry's startup lookup is
     // bounded at 500 ms and AT serving must never wait on it.
     let qmi = QmiLane::start(log.clone());
-    accept_loop(listener, Arc::new(Ctx { log, at, qmi, uid: 0 }))
+    // RM520N (D4): systemd restarts a broker whose AT lane froze; no client does.
+    watchdog::start(at.busy_since(), log.clone());
+    watchdog::ready();
+    accept_loop(listener, Arc::new(Ctx { log, at, qmi, peers }))
+}
+
+/// RM520N (D2): CGIs run as www-data with gid dialout, which already opens
+/// /dev/smd11. Socket -> root:dialout 0660, peers root + www-data; else root only.
+fn open_to_cgis(path: &str, log: &Logger) -> Vec<u32> {
+    use std::os::unix::fs::PermissionsExt;
+    let (Some(www), Some(gid)) = (crate::common::safefs::www_data_uid(), crate::common::safefs::dialout_gid()) else {
+        log.warn("www-data or dialout unknown; socket stays root-only");
+        return vec![0];
+    };
+    let opened = std::os::unix::fs::chown(path, Some(0), Some(gid))
+        .and_then(|_| std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o660)));
+    match opened {
+        Ok(()) => vec![0, www],
+        Err(e) => {
+            log.warn(&format!("cannot open {path} to dialout ({e}); socket stays root-only"));
+            vec![0]
+        }
+    }
 }
 
 /// What every reader shares.
@@ -105,8 +127,8 @@ struct Ctx {
     log: Arc<Logger>,
     at: AtLane,
     qmi: QmiLane,
-    /// The only peer uid served: root in production.
-    uid: u32,
+    /// Peer uids served: root and www-data in production.
+    peers: Vec<u32>,
 }
 
 /// Counting semaphore over reader threads.
@@ -255,12 +277,11 @@ fn route(buf: &[u8]) -> Route {
 /// One connection, on a reader thread: authenticate, read, route.
 fn handle_conn(mut stream: UnixStream, ctx: &Ctx) {
     let log = &*ctx.log;
-    // Defense in depth behind the 0600 socket: only root may drive the modem,
-    // the same boundary /dev/smd11 itself enforces.
+    // Defense in depth behind the 0660 socket: the kernel's peer uid decides.
     match peer_uid(&stream) {
-        Some(u) if u == ctx.uid => {}
+        Some(u) if ctx.peers.contains(&u) => {}
         other => {
-            log.warn(&format!("rejected AT request from non-root peer (uid {other:?})"));
+            log.warn(&format!("rejected AT request from peer uid {other:?}"));
             let _ = stream.write_all(&proto::encode_reply(&Reply::Err(Code::CommandFailed)));
             return;
         }
@@ -323,7 +344,7 @@ mod tests {
         let listener = UnixListener::bind(&path).unwrap();
         let log = Arc::new(Logger::new("test"));
         let at = AtLane::spawn(runner, at_lane::QUEUE_CAP, log.clone(), false).unwrap();
-        let ctx = Arc::new(Ctx { log, at, qmi, uid: unsafe { libc::getuid() } });
+        let ctx = Arc::new(Ctx { log, at, qmi, peers: vec![unsafe { libc::getuid() }] });
         let c = ctx.clone();
         std::thread::spawn(move || accept_loop(listener, c));
         (path, ctx)
@@ -338,6 +359,28 @@ mod tests {
         let mut v = Vec::new();
         let _ = s.read_to_end(&mut v);
         v
+    }
+
+    #[test]
+    fn a_peer_uid_outside_the_set_is_refused_and_never_reaches_the_lane() {
+        let ran = Arc::new(Mutex::new(false));
+        let r2 = ran.clone();
+        let runner = move |_r: &AtRequest, _w: Duration| {
+            *r2.lock().unwrap() = true;
+            Reply::Ok(b"x".to_vec())
+        };
+        let path = std::env::temp_dir().join(format!("qatd-peers-{}.sock", std::process::id()));
+        let path = path.to_str().unwrap().to_string();
+        let _ = std::fs::remove_file(&path);
+        let listener = UnixListener::bind(&path).unwrap();
+        let log = Arc::new(Logger::new("test"));
+        let at = AtLane::spawn(runner, at_lane::QUEUE_CAP, log.clone(), false).unwrap();
+        let me = unsafe { libc::getuid() };
+        let ctx = Arc::new(Ctx { log, at, qmi: QmiLane::starting(), peers: vec![me.wrapping_add(1)] });
+        std::thread::spawn(move || accept_loop(listener, ctx));
+        assert_eq!(call(&path, &proto::encode_request("AT", proto::mono_ms())), b"ERR command_failed\n");
+        assert!(!*ran.lock().unwrap());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

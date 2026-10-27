@@ -1,21 +1,18 @@
 //! Client side of the broker socket, shared by qcmd and qsms: send one
-//! request, wait for the reply (watching the long flag), and restart a broker
-//! that accepted a request but froze.
+//! request and wait for the reply (watching the long flag). RM520N (D4): a
+//! frozen broker is restarted by the systemd watchdog, not by its clients.
 
 use crate::at::exec;
 use crate::at::output::Code;
 use crate::common::log::Logger;
 use crate::common::proto;
-use crate::common::safefs;
 use std::io::{Read, Write};
-use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::net::UnixStream;
-use std::os::unix::process::CommandExt;
 use std::time::{Duration, Instant};
 
 /// Longest an exchange can take inside the broker: the long deadline, the long
 /// lock budget, the warm-up and a worst-case resync with reopen, plus margin.
-const CLIENT_REPLY_TIMEOUT: Duration = Duration::from_secs(340);
+pub(crate) const CLIENT_REPLY_TIMEOUT: Duration = Duration::from_secs(340);
 
 pub(crate) enum Broker {
     Reply(proto::Reply),
@@ -76,7 +73,10 @@ fn settle(w: Wait, capped: bool, label: &str) -> Broker {
         // says the broker is stuck.
         Wait::TimedOut if capped => Broker::Lost(Code::ModemBusy),
         Wait::TimedOut => {
-            restart_frozen_broker(label);
+            Logger::new("qcmd").error(&format!(
+                "broker gave no reply in {}s for: {label}",
+                CLIENT_REPLY_TIMEOUT.as_secs()
+            ));
             Broker::Lost(Code::CommandTimeout)
         }
         Wait::Failed => Broker::Lost(Code::CommandFailed),
@@ -122,70 +122,6 @@ fn await_reply(stream: &mut UnixStream, deadline: Instant, give_up: &dyn Fn() ->
     }
 }
 
-/// Marker that serialises restarts of a frozen broker across clients.
-const RESTART_MARKER: &str = "/var/run/qmanager_atd.restart";
-/// At most one restart per this window, however many clients time out.
-const RESTART_GAP: Duration = Duration::from_secs(120);
-
-/// True if this caller won the right to restart: it created `marker` with
-/// O_EXCL, or replaced one older than `gap`. Every other caller in the window
-/// sees a fresh marker and leaves the restart to the winner.
-fn claim_restart(marker: &str, gap: Duration) -> bool {
-    let create = || {
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .custom_flags(safefs::NOFOLLOW)
-            .open(marker)
-            .is_ok()
-    };
-    if create() {
-        return true;
-    }
-    let age = std::fs::symlink_metadata(marker)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.elapsed().ok());
-    match age {
-        Some(a) if a < gap => false,
-        // Old (or unreadable) marker: remove it and race for a fresh one.
-        _ => std::fs::remove_file(marker).is_ok() && create(),
-    }
-}
-
-/// The broker accepted our request but sent nothing back within the longest
-/// possible exchange: it is alive but stuck, and procd never restarts a
-/// process that has not exited. Ask the init script to restart it, detached so
-/// it outlives this client, and leave the request unanswered: it may have run.
-fn restart_frozen_broker(cmd: &str) {
-    let log = Logger::new("qcmd");
-    if !claim_restart(RESTART_MARKER, RESTART_GAP) {
-        log.warn(&format!("broker gave no reply for: {cmd}; restart already requested"));
-        return;
-    }
-    log.error(&format!(
-        "broker gave no reply in {}s for: {cmd}; restarting it",
-        CLIENT_REPLY_TIMEOUT.as_secs()
-    ));
-    let mut c = std::process::Command::new("/etc/init.d/qmanager_atd");
-    c.arg("restart")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    // New session: a CGI timeout killing our process group must not kill the
-    // restart half-way.
-    unsafe {
-        c.pre_exec(|| {
-            libc::setsid();
-            Ok(())
-        });
-    }
-    if let Err(e) = c.spawn() {
-        log.error(&format!("could not restart the broker: {e}"));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,8 +137,7 @@ mod tests {
 
     #[test]
     fn a_capped_wait_that_runs_out_is_busy_not_a_frozen_broker() {
-        // Capped: modem_busy, and settle must not reach restart_frozen_broker
-        // (which would spawn the init script).
+        // Capped: modem_busy, never the uncapped command_timeout.
         assert!(matches!(settle(Wait::TimedOut, true, "AT+CSQ"), Broker::Lost(Code::ModemBusy)));
         assert!(matches!(settle(Wait::Abandoned, true, "AT+CSQ"), Broker::Lost(Code::ScanInProgress)));
         assert!(matches!(settle(Wait::Failed, true, "AT+CSQ"), Broker::Lost(Code::CommandFailed)));
@@ -274,19 +209,5 @@ mod tests {
         let t = Instant::now();
         assert!(matches!(await_reply(&mut client, soon(600), &|| false), Wait::TimedOut));
         assert!(t.elapsed() >= Duration::from_millis(600));
-    }
-
-    #[test]
-    fn only_one_restart_per_window() {
-        let p = std::env::temp_dir().join(format!("qatd-restart-{}", std::process::id()));
-        let p = p.to_str().unwrap();
-        let _ = std::fs::remove_file(p);
-        assert!(claim_restart(p, Duration::from_secs(120)));
-        assert!(!claim_restart(p, Duration::from_secs(120)));
-        // An old marker (a restart long ago) is replaced.
-        let old = std::time::SystemTime::now() - Duration::from_secs(300);
-        std::fs::File::options().write(true).open(p).unwrap().set_modified(old).unwrap();
-        assert!(claim_restart(p, Duration::from_secs(120)));
-        let _ = std::fs::remove_file(p);
     }
 }
