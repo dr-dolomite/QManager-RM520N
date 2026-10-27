@@ -77,7 +77,7 @@ is taken after P1 lands and those numbers are in.
 | T0.2 | P0 | Value baseline: qcmd vs atcli timing, lock occupancy, sms_tool status cost, poller real-transport CPU | independent Opus session (brief `2026-10-26-atd-port-T0.2.md`) | none | DONE_WITH_CONCERNS on RM520N-GL 2026-10-26 (idle UI only; contention not measured) |
 | T0.3 | P0 | armv7 musl cross-build (pinned toolchain); `--version` + idle RSS on device | lead | `native/qmanager_atd/{.cargo/config.toml,rust-toolchain.toml,Cargo.lock}` | DONE on RM520N-GL 2026-10-26; idle daemon RSS moved to the T2 smoke test (needs smd11) |
 | T1.1 | P1 | Re-author the RM520N poller hot path with B5.29 techniques (plan `2026-10-26-atd-port-T1.1.md`, slices S1–S7) | lead + cgi-endpoint-builder | poller, `qmanager_ping`, `parse_at.sh` | DONE 2026-10-26 (S1–S6, S8, S9; S7 dropped): 874 → 344 ms CPU/cycle, 27.4 → 13.0 % core; verifier fix round e7d349f6; all four files deployed on RM520N-GL; merged to development |
-| T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | PENDING |
+| T1.2 | P1 | Soak + CPU vs P0 baseline | modem-investigator | none | DONE_WITH_CONCERNS 2026-10-27: 12 h soak clean (0 restarts, 0 bad lines); CPU 353–379 ms/cycle (13.1–14.2 % core) but drifts up ~7 %, poller RSS +552 kB |
 | G1 | gate | Broker GO/NO-GO with P0 + P1 numbers | user | — | PENDING |
 | T2.1 | P2 | Vendor crate; D1 target, D3 no-create lock/flag opens, D5 TZ | cgi-endpoint-builder | `native/qmanager_atd/**` | PENDING |
 | T2.2 | P2 | www-data peer policy (D2) | cgi-endpoint-builder | `native/…/daemon/mod.rs` | PENDING |
@@ -202,6 +202,7 @@ otherwise byte-identical crate.
 
 | T0.2 | 1 | independent Opus session | r1 | DONE_WITH_CONCERNS (no UI load) | 6 measurements | .orchestra/scratch/atd-T0.2-report.md |
 | T0.3 | 1 | lead | — | DONE (RSS deferred) | build + `--version` on device | this section |
+| T1.2 | 1 | lead (soak session) | — | DONE_WITH_CONCERNS (slow CPU and RSS drift; 3 AT ERRORs) | ~11 h soak + dashboard replay | this section |
 
 ## QMI probe result — RM520N-GL, 2026-10-26
 Tool: `native/qmi_probe` (RM551E probe ported to armv7, commit 73c06e34); full table in
@@ -217,3 +218,34 @@ Tool: `native/qmi_probe` (RM551E probe ported to armv7, commit 73c06e34); full t
 | LOC, SAR, PDC, VOICE | published, answer 0x001E | not in scope |
 
 | QMI | 1 | lead | — | DONE (RG501Q not run) | probe on device, root + www-data | docs/reference/qmi-probe.md |
+
+## T1.2 result — RM520N-GL, 2026-10-27
+Read-only soak on serial 61368cd2, 2026-10-26 20:40 → 2026-10-27 08:42 (≈ 12 h, 153 samples, 26 CPU windows of 300 s).
+Raw: `/tmp/t12/{soak,cpu}.log` on the device (not copied to the repo). Poller build = T1.1 final.
+
+| metric | result |
+|---|---|
+| restarts | poller pid 10730 and ping pid 1224 unchanged, NRestarts 0; device uptime unbroken |
+| status.json | 153/153 valid; age ≤ 4 s; last_successful_poll age ≤ 4 s; `system_state` always `normal` |
+| history files (signal, ping, events, sites) | 0 bad NDJSON lines in any sample |
+| data_used | schema 6 throughout; age ≤ 32 s; rx/tx never decreased |
+| CPU per cycle | min 353 / median ≈ 371 / max 379 ms (T1.1 final 344; before T1.1 874) |
+| poller core share | 13.1 / ≈ 13.9 / 14.2 % (before 27.4 %) |
+| system busy | 23.3 – 34.3 %, median ≈ 23.8 % (the 34.3 % is one window, soak7, early; dashboard replay in the brief gave 38.5 %) |
+| poller RSS | 2408 → 2960 kB (+552 kB, steady ≈ 46 kB/h) |
+| MemAvailable | 52.0 – 59.3 MB, no downward trend in the final samples (58.4 → 57.5 MB first to last) |
+| load1 | max 2.31 |
+| AT lock | busy ≤ 3 %, mean 0.4 %; 0 "Lock acquisition failed" |
+| WARN/ERROR after 20:40 | 3 ERROR, 0 WARN: `AT+QRSRP;+QRSRQ;+QSINR` rejected at 22:00:24 and 06:00:20; `AT+QNWCFG="lte_time_advance";…"lte_mimo_layers"` rejected at 06:00:22. The 2 older WARN lines are from boot (18:53/18:54) |
+| dashboard open (replay, from brief) | poller 339 ms / 12.7 % unchanged; system 38.5 % vs 25.7 % closed (CGI forks) |
+
+Concerns, not blockers:
+- CPU per cycle rises steadily (≈ 353 → 379 ms, ≈ +7 % over 12 h) and RSS grows linearly. Likely cause is the growing history files (ping_history grows until its 8640-line cap) but this is not proven. The cap is ~38 h, so the soak did not reach a steady state. Worth one look in a longer run.
+- The three AT rejections hit at 06:00 and 22:00 (8 h apart), which looks like something scheduled firing the same queries. Not investigated; the poller carried on normally.
+
+### G1 input (the decision is the user's)
+- Poller CPU is now ≈ 13–14 % of the core, down from 27–29 %, and held for 12 h with no restarts, no corrupt data and no AT lock failures.
+- The broker's CPU gain is small: about 2.5–3 points of the core (saves ≈ 28 ms of the 40 ms `qcmd` cost × ≈ 2.5 calls/cycle). It also adds a resident process on ≈ 55 MB free.
+- Its real case is not CPU: retiring `atcli_smd11`/`sms_tool` (already decided), shorter AT lock holds (the 6.8 s SMS inbox read), and the QMI lane (probe passed).
+- The biggest remaining CPU levers do not need the broker: activity tiers (P6, shell-only) and the dashboard CGI fork cost (+13 points of system busy while the dashboard is open), which no phase covers yet.
+- Unmeasured: AT contention under UI load with SMS reads; the CPU/RSS drift cause.
