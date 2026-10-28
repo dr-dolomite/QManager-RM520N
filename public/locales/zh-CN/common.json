@@ -109,6 +109,48 @@
       "toast_success": "链路速度已更新",
       "toast_error": "设置链路速度失败",
       "toast_confirm_error": "无法确认新速度。请检查链路。"
+    },
+    "lan_config": {
+      "card_title": "LAN 地址",
+      "card_description": "设置路由器的 LAN IP 地址（设备所用的网关）以及本地网络的大小。",
+      "label_gateway": "网关 IP 地址",
+      "help_gateway": "路由器在 LAN 上的自身地址。设备将其用作默认网关。",
+      "label_subnet": "子网掩码",
+      "help_subnet": "以 CIDR 前缀形式选择 LAN 网络的大小。",
+      "action_apply": "应用更改",
+      "confirm_title": "更改 LAN 地址？",
+      "confirm_body": "LAN 将切换为 {{address}}（掩码 {{netmask}}）。调制解调器将重启以应用此更改，您当前的连接会中断。",
+      "confirm_reconnect": "调制解调器重启期间约 1–2 分钟无法访问。使用 DHCP 的路由器或设备会自动重新连接；使用静态 IP 的设备则需手动改到新子网。调制解调器恢复后，此页面会打开新地址。",
+      "confirm_action": "应用并重启",
+      "applied_title": "LAN 地址正在更改",
+      "applied_body": "调制解调器正在重启并切换到 {{address}}，但新地址尚未响应。重启约需 {{seconds}} 秒。如有需要，请重新插拔 LAN 或以太网线缆，然后打开新地址：",
+      "applied_body_auto": "调制解调器正在重启并切换到 {{address}}，但新地址尚未响应。设置为 DHCP 的路由器应会在约 {{seconds}} 秒内自动重新连接并获取新网关。若未自动连接，请重新插拔线缆，然后打开新地址：",
+      "reconnecting_title": "正在重启并切换到新地址…",
+      "reconnecting_auto_note": "调制解调器正在重启，约需 1–2 分钟。恢复后此页面会打开新地址。",
+      "reconnecting_opening": "正在打开新地址…",
+      "toast_error_save": "应用 LAN 设置失败",
+      "error_invalid_ipaddr": "请输入有效的单播 IPv4 地址（例如 192.168.1.1）。",
+      "error_invalid_host_in_subnet": "这是所选子网的网络地址或广播地址。请选择可用的主机地址。",
+      "error_invalid_prefix": "请选择 /16 到 /30 之间的子网前缀。",
+      "errors": {
+        "fetch_failed": "加载 LAN 设置失败",
+        "save_failed": "保存 LAN 设置失败",
+        "parse_failed": "无法读取保存响应"
+      },
+      "action_discard": "放弃",
+      "toast_no_change": "LAN 地址已是该设置",
+      "error_invalid_private": "请使用私有地址：10.x.x.x、172.16–31.x.x 或 192.168.x.x。",
+      "server_errors": {
+        "no_body": "请求到达调制解调器时为空，请重试",
+        "invalid_ipaddr": "IP 地址无效",
+        "invalid_prefix": "子网前缀超出范围",
+        "invalid_host_in_subnet": "该地址不能用作所选子网中的主机",
+        "lan_read_failed": "无法读取当前 LAN 设置",
+        "lan_save_failed": "无法保存 LAN 设置",
+        "invalid_private_address": "地址必须位于私有地址范围内（10.x、172.16–31.x 或 192.168.x）",
+        "update_in_progress": "正在进行软件更新，请在更新完成后重试",
+        "lan_busy": "已有另一项 LAN 更改正在应用"
+      }
     }
   },
   "profile_override": {

@@ -109,6 +109,48 @@
       "toast_success": "Velocità collegamento aggiornata",
       "toast_error": "Impossibile impostare la velocità del collegamento",
       "toast_confirm_error": "Impossibile confermare la nuova velocità. Controlla il collegamento."
+    },
+    "lan_config": {
+      "card_title": "Indirizzo LAN",
+      "card_description": "Imposta l'indirizzo IP LAN del router (il gateway usato dai tuoi dispositivi) e la dimensione della rete locale.",
+      "label_gateway": "Indirizzo IP Gateway",
+      "help_gateway": "L'indirizzo del router sulla LAN. I dispositivi lo usano come gateway predefinito.",
+      "label_subnet": "Maschera di Sottorete",
+      "help_subnet": "Scegli la dimensione della rete LAN come prefisso CIDR.",
+      "action_apply": "Applica Modifiche",
+      "confirm_title": "Cambiare l'indirizzo LAN?",
+      "confirm_body": "La LAN passerà a {{address}} (maschera {{netmask}}). Il modem si riavvia per applicare la modifica, quindi la connessione attuale verrà interrotta.",
+      "confirm_reconnect": "Il modem resta irraggiungibile per circa 1–2 minuti durante il riavvio. Un router o dispositivo in DHCP si riconnette da solo; uno con IP statico va spostato manualmente sulla nuova sottorete. Questa pagina aprirà il nuovo indirizzo quando il modem sarà di nuovo attivo.",
+      "confirm_action": "Applica e Riavvia",
+      "applied_title": "L'indirizzo LAN sta cambiando",
+      "applied_body": "Il modem si sta riavviando su {{address}} e non ha ancora risposto. Un riavvio richiede circa {{seconds}} secondi. Se necessario ricollega il cavo LAN o Ethernet, quindi apri il nuovo indirizzo:",
+      "applied_body_auto": "Il modem si sta riavviando su {{address}} e non ha ancora risposto. Un router impostato su DHCP dovrebbe riconnettersi da solo entro circa {{seconds}} secondi e acquisire il nuovo gateway. In caso contrario, ricollega il cavo, quindi apri il nuovo indirizzo:",
+      "reconnecting_title": "Riavvio sul nuovo indirizzo…",
+      "reconnecting_auto_note": "Il modem si sta riavviando, ci vogliono circa 1–2 minuti. Questa pagina aprirà il nuovo indirizzo quando sarà di nuovo attivo.",
+      "reconnecting_opening": "Apertura del nuovo indirizzo…",
+      "toast_error_save": "Impossibile applicare le impostazioni LAN",
+      "error_invalid_ipaddr": "Inserisci un indirizzo IPv4 unicast valido (es. 192.168.1.1).",
+      "error_invalid_host_in_subnet": "Questo è l'indirizzo di rete o di broadcast per la sottorete scelta. Scegli un indirizzo host utilizzabile.",
+      "error_invalid_prefix": "Scegli un prefisso di sottorete tra /16 e /30.",
+      "errors": {
+        "fetch_failed": "Impossibile caricare le impostazioni LAN",
+        "save_failed": "Impossibile salvare le impostazioni LAN",
+        "parse_failed": "Impossibile leggere la risposta di salvataggio"
+      },
+      "action_discard": "Annulla modifiche",
+      "toast_no_change": "L'indirizzo LAN è già impostato così",
+      "error_invalid_private": "Usa un indirizzo privato: 10.x.x.x, 172.16–31.x.x o 192.168.x.x.",
+      "server_errors": {
+        "no_body": "La richiesta è arrivata al modem vuota. Riprova",
+        "invalid_ipaddr": "L'indirizzo IP non è valido",
+        "invalid_prefix": "Il prefisso di sottorete è fuori intervallo",
+        "invalid_host_in_subnet": "Questo indirizzo non può essere usato come host nella sottorete scelta",
+        "lan_read_failed": "Impossibile leggere le impostazioni LAN attuali",
+        "lan_save_failed": "Impossibile salvare le impostazioni LAN",
+        "invalid_private_address": "L'indirizzo deve essere in un intervallo privato (10.x, 172.16–31.x o 192.168.x)",
+        "update_in_progress": "È in corso un aggiornamento software. Riprova al termine",
+        "lan_busy": "Un'altra modifica LAN è già in corso"
+      }
     }
   },
   "profile_override": {

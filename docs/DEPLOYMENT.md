@@ -78,12 +78,12 @@ bun install
 bun run dev
 ```
 
-Opens at `http://localhost:3000`. API requests are proxied to `http://192.168.224.1` (the modem's IP).
+Opens at `http://localhost:3000`. API requests are proxied to `http://192.168.225.1` (the modem's IP).
 
 To change the proxy target, edit `next.config.ts`:
 
 ```typescript
-destination: "http://192.168.224.1/cgi-bin/:path*",
+destination: "http://192.168.225.1/cgi-bin/:path*",
 // or for Tailscale:
 // destination: "http://your-device.ts.net/cgi-bin/:path*",
 ```

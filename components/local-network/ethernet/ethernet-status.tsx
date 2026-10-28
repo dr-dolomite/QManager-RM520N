@@ -12,7 +12,8 @@ import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { LinkStateStrip } from "./link-state-strip";
 import { SpeedLimitCard } from "./speed-limit-card";
-import { PAGE_ROOT } from "./shapes";
+import LanConfigCard from "@/components/local-network/lan-config-card";
+import { CARD_GRID, PAGE_ROOT } from "./shapes";
 import type { EthernetStatus } from "./types";
 
 // =============================================================================
@@ -295,7 +296,7 @@ const EthernetStatusComponent = () => {
         />
       </motion.div>
 
-      <motion.div variants={staggerItem}>
+      <motion.div variants={staggerItem} className={CARD_GRID}>
         <SpeedLimitCard
           // NOT `?? "auto"`. A defaulted value here would render the modem's
           // most common setting as a confirmed selection on a page that has
@@ -308,6 +309,7 @@ const EthernetStatusComponent = () => {
           interfacePresent={status?.interface_present !== false}
           onSpeedChange={handleSpeedChange}
         />
+        <LanConfigCard />
       </motion.div>
     </motion.div>
   );

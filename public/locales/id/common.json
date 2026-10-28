@@ -109,6 +109,48 @@
       "toast_success": "Kecepatan tautan diperbarui",
       "toast_error": "Gagal mengatur kecepatan tautan",
       "toast_confirm_error": "Tidak dapat mengonfirmasi kecepatan baru. Periksa tautan."
+    },
+    "lan_config": {
+      "card_title": "Alamat LAN",
+      "card_description": "Atur alamat IP LAN router (gateway yang digunakan perangkat Anda) dan ukuran jaringan lokal.",
+      "label_gateway": "Alamat IP Gateway",
+      "help_gateway": "Alamat router itu sendiri di LAN. Perangkat menggunakannya sebagai gateway default.",
+      "label_subnet": "Masker Subnet",
+      "help_subnet": "Pilih ukuran jaringan LAN sebagai prefiks CIDR.",
+      "action_apply": "Terapkan Perubahan",
+      "confirm_title": "Ubah alamat LAN?",
+      "confirm_body": "LAN akan beralih ke {{address}} (netmask {{netmask}}). Modem akan dimulai ulang untuk menerapkannya, sehingga koneksi Anda saat ini akan terputus.",
+      "confirm_reconnect": "Modem tidak dapat dijangkau sekitar 1–2 menit selama dimulai ulang. Router atau perangkat yang memakai DHCP akan tersambung kembali sendiri; yang memakai IP statis harus dipindahkan ke subnet baru secara manual. Halaman ini akan membuka alamat baru setelah modem aktif kembali.",
+      "confirm_action": "Terapkan & Mulai Ulang",
+      "applied_title": "Alamat LAN sedang berubah",
+      "applied_body": "Modem sedang dimulai ulang ke {{address}} dan belum merespons di sana. Mulai ulang memakan waktu sekitar {{seconds}} detik. Jika perlu, sambungkan ulang kabel LAN atau Ethernet, lalu buka alamat baru:",
+      "applied_body_auto": "Modem sedang dimulai ulang ke {{address}} dan belum merespons di sana. Router yang diatur ke DHCP akan tersambung kembali sendiri dalam sekitar {{seconds}} detik dan mengambil gateway baru. Jika tidak, sambungkan ulang kabel, lalu buka alamat baru:",
+      "reconnecting_title": "Memulai ulang ke alamat baru…",
+      "reconnecting_auto_note": "Modem sedang dimulai ulang, sekitar 1–2 menit. Halaman ini akan membuka alamat baru setelah modem aktif kembali.",
+      "reconnecting_opening": "Membuka alamat baru…",
+      "toast_error_save": "Gagal menerapkan pengaturan LAN",
+      "error_invalid_ipaddr": "Masukkan alamat IPv4 unicast yang valid (mis. 192.168.1.1).",
+      "error_invalid_host_in_subnet": "Ini adalah alamat jaringan atau broadcast untuk subnet yang dipilih. Pilih alamat host yang dapat digunakan.",
+      "error_invalid_prefix": "Pilih prefiks subnet antara /16 dan /30.",
+      "errors": {
+        "fetch_failed": "Gagal memuat pengaturan LAN",
+        "save_failed": "Gagal menyimpan pengaturan LAN",
+        "parse_failed": "Gagal membaca respons penyimpanan"
+      },
+      "action_discard": "Buang",
+      "toast_no_change": "Alamat LAN sudah diatur seperti itu",
+      "error_invalid_private": "Gunakan alamat privat: 10.x.x.x, 172.16–31.x.x, atau 192.168.x.x.",
+      "server_errors": {
+        "no_body": "Permintaan sampai ke modem dalam keadaan kosong. Coba lagi",
+        "invalid_ipaddr": "Alamat IP tidak valid",
+        "invalid_prefix": "Prefiks subnet di luar rentang",
+        "invalid_host_in_subnet": "Alamat itu tidak dapat digunakan sebagai host di subnet yang dipilih",
+        "lan_read_failed": "Tidak dapat membaca pengaturan LAN saat ini",
+        "lan_save_failed": "Tidak dapat menyimpan pengaturan LAN",
+        "invalid_private_address": "Alamat harus berada di rentang privat (10.x, 172.16–31.x, atau 192.168.x)",
+        "update_in_progress": "Pembaruan perangkat lunak sedang berjalan. Coba lagi setelah selesai",
+        "lan_busy": "Perubahan LAN lain sedang diterapkan"
+      }
     }
   },
   "profile_override": {

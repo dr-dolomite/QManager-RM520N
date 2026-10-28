@@ -52,7 +52,7 @@ retire every "adb is the only path" and "they collide on one IP" note below:
 
 | | RM520N-GL | RG501Q-EU |
 | --- | --- | --- |
-| Address | `192.168.225.1` (stock default) | **`192.168.120.1`** — changed manually, see [`lan-gateway-ip.md`](./lan-gateway-ip.md) |
+| Address | `192.168.225.1` (stock default). Factory mask is a /22 (`255.255.252.0`, covers `192.168.224.0`–`227.255`); the QManager installer normalizes it to /24, effective at the next reboot — see [`lan-gateway-ip.md`](./lan-gateway-ip.md) | **`192.168.120.1`** /24 — changed manually, see [`lan-gateway-ip.md`](./lan-gateway-ip.md) |
 | Transport | SSH | **SSH** — same user and password as the RM520N-GL |
 | `.env` vars | `RM520N_IP` / `RM520N_SSH_USER` / `RM520N_SSH_PASSWORD` | `RG501Q_IP` / `RG501Q_SSH_USER` / `RG501Q_SSH_PASSWORD` |
 | Serial | `61368cd2` | `b7e3d6f1` |

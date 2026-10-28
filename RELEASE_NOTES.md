@@ -7,11 +7,13 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 ## ✨ New Features
 
 - **Live "Now" view for Sites.** The **Sites** card on **Monitoring → Latency Monitor** now opens on **Now**, which re-checks every site about every 2 seconds while the page is open and visible; switching to 1 h / 24 h / 7 d, leaving the page or hiding the tab stops it within about 10 seconds, and history keeps its normal 5-minute checks. (Live checks are a light HTTP request, about 25 MB per hour while open, and are never written to history; the first live value lands about 6 seconds after opening.)
+- **Change the modem's LAN address.** **Local Network → Ethernet** has a new **LAN Address** card where you set the gateway IP and subnet; applying it reboots the modem, and the page opens the new address on its own once the modem is back. (Edits `mobileap_cfg.xml`; the DHCP range moves into the new subnet.)
 
 ## 🛠️ Improvements
 
 - **Lighter background polling.** The modem's status poller now uses about 60 % less CPU, so the dashboard and other services have more headroom on the modem's single core. (874 → 344 ms CPU per cycle on an RM520N-GL; status data is unchanged.)
 - **The modem rests when nobody is looking.** With no QManager page open (or the tab hidden), the status poller asks the modem for signal data every 15 seconds, then every minute after 5 minutes, and goes back to full speed as soon as you open the dashboard. Signal history has fewer points while no browser is open. (Poller CPU on an RM520N-GL: 12.9 % of the core with the dashboard open, 8.1 % idle, 6.0 % after 5 minutes.)
+- **The LAN no longer overlaps 192.168.224.x.** The modem's factory LAN mask is a /22 (192.168.224.0–227.255), which clashes with routers on 192.168.224.1; QManager now sets it to /24 (192.168.225.0–255) and keeps the 192.168.225.1 address. It applies on the next reboot, and only if you never changed the LAN yourself. (Devices with a fixed IP in 192.168.224.x, .226.x or .227.x must move into 192.168.225.x.)
 
 ## 🐛 Fixes
 

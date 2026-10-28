@@ -87,6 +87,7 @@ For AT command access, QManager uses the `atcli_smd11` binary talking to `/dev/s
 | **Firewall** | iptables (direct rules, no framework like fw4) |
 | **TTL interface** | `rmnet+` (wildcard, not `wwan0`) |
 | **Default gateway** | `192.168.225.1` |
+| **LAN mask** | Factory `255.255.252.0` (/22, `192.168.224.0`–`227.255`); the installer normalizes an unmodified factory layout to `255.255.255.0` (/24), effective at the next reboot. Mask is settable only in `mobileap_cfg.xml` — see [lan-gateway-ip.md](reference/lan-gateway-ip.md) |
 
 ---
 
