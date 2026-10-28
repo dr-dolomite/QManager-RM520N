@@ -1,9 +1,22 @@
 # AT Command Transport (RM520N-GL)
 
-> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
-> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+> **Applies to:** RM520N-GL (SDX65) · qcmd cut-over (T4.1) verified 2026-10-28 on `61368cd2`
+> **RG501Q-EU (SDX55):** keeps the shell `qcmd` over `atcli_smd11` — see [`platform-matrix.md`](./platform-matrix.md#at-transport)
 
-> How AT commands are issued on the RM520N-GL: the atcli_smd11 binary and qcmd serialization via flock. SMS no longer uses this path (see SMS operations).
+> Every AT command QManager sends goes through `qcmd`. On the RM520N-GL `qcmd` is a client of the `qmanager_atd` broker, with an in-process fallback when the broker is down; on the RG501Q-EU it is still the shell script over `atcli_smd11`. Both serialise on one `flock`, and both keep the same error contract, which is what every caller in the tree is written against. SMS no longer uses this path (see SMS operations).
+
+### Quick reference
+
+| Item | Value |
+| ---- | ----- |
+| `/usr/bin/qcmd` | RM520N-GL: symlink to `qmanager_atd`. RG501Q-EU or unknown model: the shell script `scripts/usr/bin/qcmd` |
+| Broker unit | `qmanager-atd.service` (RM520N-GL only, boot-linked, started after `qmanager-setup`) |
+| Broker socket | `/var/run/qmanager_atd.sock` |
+| AT lock | `/tmp/qmanager_at.lock` (0666) |
+| Long-command flag | `/tmp/qmanager_long_running` (exists while a long command runs) |
+| Extra long-command patterns | `/etc/qmanager/long_commands.list` (seeded by `qmanager_setup`; read by the Rust `qcmd` only) |
+| Log | `/tmp/qmanager.log` (component `qcmd`) |
+| Failure signal | exit 1, empty stdout, stderr `ERROR: modem_busy` or `ERROR: command_failed` |
 
 ---
 
@@ -12,11 +25,14 @@
 | Modem | Transport | Wrapper |
 |-------|-----------|---------|
 | RM551E | `sms_tool` via USB | `qcmd` |
-| RM520N-GL | `atcli_smd11` on `/dev/smd11` (direct access, no socat-at-bridge) | `qcmd` |
+| RM520N-GL | `qmanager_atd` broker on `/dev/smd11`; in-process exchange on `/dev/smd11` when the broker is unreachable | `qcmd` (link to `qmanager_atd`) |
+| RG501Q-EU | `atcli_smd11` on `/dev/smd11` | `qcmd` (shell script) |
 
 ---
 
 ## atcli_smd11
+
+`atcli_smd11` now serves the RG501Q-EU shell `qcmd`, the rollback target (an older release's shell `qcmd`), and the `bin.atcli` presence check in `qmanager_health_check`. Nothing on the RM520N-GL AT path calls it after the cut-over. It stays installed on both models until task S6 retires it.
 
 `atcli_smd11` is a Rust reimplementation from [1alessandro1/atcli_rust](https://github.com/1alessandro1/atcli_rust). It replaces the original Compal C `atcli` binary.
 
@@ -37,11 +53,72 @@ Note: this is the **opposite** of the Discord bot rule — the Go binary (`qmana
 
 ## qcmd serialization
 
-`qcmd` is the shell wrapper that serializes all AT command access via `flock` (a POSIX advisory file lock — like a "do not disturb" sign on the lock file; only one process holds it at a time).
+All AT access is serialised by an exclusive `flock` (a POSIX advisory file lock; one holder at a time) on **`/tmp/qmanager_at.lock`**. The broker, the Rust `qcmd`'s in-process fallback and the shell `qcmd` all take the same lock, so they exclude each other.
 
-- **Lock file**: `/tmp/qmanager_at.lock`
-- **flock pattern**: Uses `flock` with a read-only file descriptor (`9<`) for the lock — this handles the kernel's `fs.protected_regular=1` restriction, which would otherwise block root from creating a lock file owned by another user.
-- **BusyBox flock limitation**: BusyBox `flock` on this platform lacks the `-w` (timeout) flag. Use `flock -x -n` in a polling loop instead. See `flock_wait()` in `qcmd` for the canonical implementation.
+### RM520N-GL: `qcmd` is the broker client
+
+On a model where `qm_hw_atd_enabled` is true, `install_backend()` makes `/usr/bin/qcmd` a symlink to `qmanager_atd`. The binary picks its role from `argv[0]`: called as `qcmd`, it is the client. The link is replaced atomically (`ln -sf` to a temp name, then `mv -f`), so a caller never finds `qcmd` missing mid-install. An unknown model keeps the shell script and the installer warns.
+
+Each call runs in this order:
+
+1. **Refuse non-AT input.** A command that does not start with `AT` (any case) or contains a control character answers `command_failed` at once and touches nothing. The broker checks again, because its socket is the trust boundary.
+2. **Long-flag gate.** If `/tmp/qmanager_long_running` exists and the command is not long, answer `modem_busy` at once.
+3. **Try the broker** on `/var/run/qmanager_atd.sock`. The broker takes the lock, runs the exchange on the `/dev/smd11` fd it keeps open, and returns the raw reply.
+4. **Fall back in-process** only if the broker is unreachable: no socket, a stale socket, or connect refused. The client then opens `/dev/smd11` itself under the same lock. It does not need `atcli_smd11`.
+5. **Judge the reply** with the RM520N contract below and print it.
+
+A request that reached the broker is **never re-run in-process**. If the broker accepts the request and then dies or times out, the caller gets an error, not a second send. Re-running a write such as `AT+COPS=2` after a lost reply could apply it twice.
+
+If the lock file does not exist yet (early boot, or an install run with `--no-start` before `qmanager_setup` ran), the fallback creates it with mode 0666, as the shell did.
+
+| Budget | Value | Applies to |
+| ------ | ----- | ---------- |
+| Lock wait, short | 5 s | every command not listed below |
+| Lock wait, long | 10 s | long commands |
+| Exchange deadline, short | 20 s | everything else |
+| Exchange deadline, slow | 60 s | `COPS=?`, `CFUN=`, `QMBNCFG`, `CGATT=`, `QPRTPARA` |
+| Exchange deadline, long | 300 s | long commands |
+
+**Long commands** are a case-sensitive substring match on `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus any non-comment line of `/etc/qmanager/long_commands.list`. A long command writes `/tmp/qmanager_long_running` for its duration, sends a warm-up `AT` first, and is never cut short by a caller cap.
+
+The broker unit `qmanager-atd.service` is boot-linked on the RM520N-GL. `start_services()` runs `systemctl reset-failed qmanager-atd` and starts it after `qmanager-setup` (which creates the lock file) and before the poller. It is in the install verify list, and the install-time AT probe runs through `qcmd`, because the broker may hold `/dev/smd11`.
+
+> ℹ️ NOTE: A stopped broker does not stop AT traffic: every call falls back in-process. That is why `qmanager_health_check` reports `svc.atd` as **fail** when the unit is `failed` or `inactive` on the RM520N-GL: nothing else would show it. Other states warn; other models skip.
+
+### RG501Q-EU and older releases: the shell `qcmd`
+
+The shell script `scripts/usr/bin/qcmd` sends through `atcli_smd11`.
+
+- **flock pattern**: Uses `flock` with a read-only file descriptor (`9<`) for the lock. This handles the kernel's `fs.protected_regular=1` restriction, which would otherwise block root from creating a lock file owned by another user. The same applies to any shell caller that takes the lock itself.
+- **BusyBox flock limitation**: BusyBox `flock` on this platform lacks the `-w` (timeout) flag. Use `flock -x -n` in a polling loop instead. See `flock_wait()` in the shell `qcmd` for the canonical implementation.
+- Lock waits are the same 5 s / 10 s, but its long list is only `*QSCAN*`, `*QSCANFREQ*`, `*QFOTADL*`, and it has no exchange deadline of its own.
+
+### Error codes
+
+Callers in this tree know exactly two codes, so the Rust `qcmd` folds the broker's wider set into them. The real code is logged to `/tmp/qmanager.log` as `<code> reported as <shown>: <cmd>`.
+
+| Broker code | Shown to the caller |
+| ----------- | ------------------- |
+| `modem_busy` | `modem_busy` |
+| `scan_in_progress` | `modem_busy` |
+| `command_failed` | `command_failed` |
+| `modem_not_ready` | `command_failed` |
+| `command_timeout` | `command_failed` |
+| `invalid_command` | `command_failed` |
+
+The reply itself is judged on the whole buffer, exactly as the shell did: it contains `ERROR` (which covers `+CME ERROR:` and `+CMS ERROR:`) → `command_failed`; it is empty → `command_failed`; otherwise (an `OK`, or any other non-empty text) it is passed through with exit 0. The broker itself passes a modem `ERROR` back as a reply; the RM520N mapping lives in the client.
+
+Differences from the shell `qcmd`, all deliberate:
+
+- **Long-flag gate.** While `/tmp/qmanager_long_running` exists, a short command answers `modem_busy` at once instead of waiting 5 s for the lock.
+- **Non-AT input is refused.** The shell sent it to `atcli_smd11`, which never returned and held the AT lock until killed (reproduced 2026-10-28 with `qcmd hello`).
+- **A wait cap exists.** `qcmd -t MS` or `QCMD_WAIT_MS=MS` (50–60000) caps a short command's wait. No RM520N caller uses it.
+- **`COPS=2` and `COPS=0` are long commands.** They get the 10 s lock budget and set the long flag, so short commands answer `modem_busy` while an attach cycle runs.
+- **The client creates the lock file** (0666) when `qmanager_setup` has not yet.
+
+Parity was measured on the RM520N-GL on 2026-10-28: 14 cases byte-identical in exit code, stdout and stderr between the shell and Rust `qcmd`, as root and as `www-data`, with the broker down and up. A held lock gave the same `modem_busy` after the same 5 s wait; `AT+QSCAN` had the same shape; the `AT+COPS=2` / `AT+COPS=0` attach cycle returned exit 0 with echo and `OK`.
+
+> ℹ️ NOTE: Moving the lock into a `root:www-data` 0770 directory is split out to task T4.3 and not done. The lock is still the world-writable `/tmp/qmanager_at.lock`.
 
 ---
 
@@ -49,22 +126,22 @@ Note: this is the **opposite** of the Discord bot rule — the Go binary (`qmana
 
 **Short version: `qcmd` reports failure through its exit status and `stderr`. It never puts the word `ERROR` on `stdout`, and it never returns a non-empty `stdout` on failure. Check `$?`. Everything else is guesswork.**
 
-Why it works that way: `qcmd` is a gatekeeper, not a pass-through. It classifies the modem's raw reply itself (`qcmd:174-196`) and then re-emits a *clean* result — payload on `stdout` for the caller to parse, or a diagnostic on `stderr` plus `exit 1`. Keeping the two streams separate is deliberate: a CGI script's `stdout` **is** its HTTP response body, so anything diagnostic that leaks there corrupts the JSON.
+Why it works that way: `qcmd` is a gatekeeper, not a pass-through. It classifies the modem's raw reply itself (see [Error codes](#error-codes)) and then re-emits a *clean* result — payload on `stdout` for the caller to parse, or a diagnostic on `stderr` plus `exit 1`. Keeping the two streams separate is deliberate: a CGI script's `stdout` **is** its HTTP response body, so anything diagnostic that leaks there corrupts the JSON.
 
 ### The four outcomes
 
 | Outcome | exit | stdout | stderr |
 | ------- | ---- | ------ | ------ |
 | Success | 0 | **command echo** + payload + `OK` | — |
-| Lock timeout | 1 | *empty* | `ERROR: modem_busy` |
-| Modem returned `ERROR` / `+CME ERROR:` | 1 | *empty* | `ERROR: command_failed` |
-| Empty modem response | 1 | *empty* | `ERROR: command_failed` |
+| Lock timeout, or a long command in progress | 1 | *empty* | `ERROR: modem_busy` |
+| Modem returned `ERROR` / `+CME ERROR:` / `+CMS ERROR:` | 1 | *empty* | `ERROR: command_failed` |
+| Empty modem response, timeout, or non-AT input | 1 | *empty* | `ERROR: command_failed` |
 
-Lock wait before the timeout fires is **5 s** (`LOCK_WAIT_SHORT`), or **10 s** (`LOCK_WAIT_LONG`) for the long commands `*QSCAN*`, `*QSCANFREQ*`, `*QFOTADL*` (`qcmd:41-42`, `is_long_command()` at `qcmd:104-109`). The wait is a poll loop of one-second `flock -x -n` attempts plus one final try (`flock_wait()`, `qcmd:116-131`), because BusyBox `flock` has no `-w`.
+Lock wait before `modem_busy` is **5 s**, or **10 s** for long commands. The two implementations differ in which commands are long and in the long-flag fast path; see [qcmd serialization](#qcmd-serialization). In the shell `qcmd` the wait is a poll loop of one-second `flock -x -n` attempts plus one final try (`flock_wait()`), because BusyBox `flock` has no `-w`.
 
 ### Two consequences that bite
 
-**1. Empty `stdout` ⇔ failure, unconditionally.** `atcli_smd11` echoes the command line back before the payload, so a *successful* read structurally cannot produce empty output — even a query that matches nothing still returns the echo and `OK`. There is no "succeeded but returned nothing" case to worry about.
+**1. Empty `stdout` ⇔ failure, unconditionally.** The reply carries the echoed command line before the payload on both transports, so a *successful* read structurally cannot produce empty output — even a query that matches nothing still returns the echo and `OK`. There is no "succeeded but returned nothing" case to worry about.
 
 **2. `case "$result" in *ERROR*)` is dead code.** Wherever that idiom is matched against `qcmd`'s captured `stdout`, the first arm can never be taken: on failure `stdout` is empty, and on success the modem's own reply contained no `ERROR` (that is precisely what `qcmd` already checked). Every rejected write silently falls through to the `*)` "success" arm.
 
@@ -95,14 +172,14 @@ rc=$?                                    # must be the very next statement
 
 ### The cleaner option for new callers: `qcmd -j`
 
-`qcmd -j "AT+..."` wraps the outcome in JSON on **`stdout`** in both directions (`output_result()`, `qcmd:81-101`):
+`qcmd -j "AT+..."` wraps the outcome in JSON on **`stdout`** in both directions (shell `output_result()`; Rust `json_success` / `json_error` in `native/qmanager_atd/src/at/output.rs`):
 
 ```json
 {"success": true,  "response": "...", "command": "AT+QUIMSLOT?"}
 {"success": false, "error": "modem_busy", "command": "AT+QUIMSLOT?"}
 ```
 
-New callers that already have `jq` in hand should prefer this — one stream, one shape, no `$?` discipline to get wrong. (The exit status is still `1` on the error envelope in non-JSON mode only; in `-j` mode read the `success` field.)
+New callers that already have `jq` in hand should prefer this — one stream, one shape, no `$?` discipline to get wrong. (Both implementations still exit `1` with the error envelope, but read the `success` field rather than `$?`.)
 
 ### Read failures must not become fabricated values
 
@@ -131,7 +208,7 @@ if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
 
 It is **`grep -qx`, line-exact, never a `*OK*` glob.** A `qcmd` response echoes the issued command back on its own line, so a glob would match any argument containing the letters "OK" and confirm a write against its own echo. The `tr -d '\r'` is there because the modem terminates lines with CRLF and `-x` anchors the whole line. Current call sites: `qmanager_imei_check:116`, `cellular/imei.sh:127`, `cellular/mbn.sh:142`, `cellular/network_priority.sh:95`, `network/ip_passthrough.sh:132`.
 
-**Open follow-up: the assertion is not universal yet.** The write sites in `tower/lock.sh`, `frequency/lock.sh`, `bands/lock.sh`, `tower/settings.sh`, `qmanager_tower_schedule` and `qmanager_tower_failover` are `rc`-guarded but carry **no** `OK` assertion. `rc` alone is not quite enough, because `qcmd`'s third exit arm returns **0 with unconfirmed data**: a response that contains neither `OK` nor `ERROR` and is non-empty is passed through for the caller to judge (`qcmd:184-194`), on purpose, since some compound queries answer without a trailing `OK`. A write that lands in that arm reports success it has not been told about.
+**Open follow-up: the assertion is not universal yet.** The write sites in `tower/lock.sh`, `frequency/lock.sh`, `bands/lock.sh`, `tower/settings.sh`, `qmanager_tower_schedule` and `qmanager_tower_failover` are `rc`-guarded but carry **no** `OK` assertion. `rc` alone is not quite enough, because `qcmd`'s third exit arm returns **0 with unconfirmed data**: a response that contains neither `OK` nor `ERROR` and is non-empty is passed through for the caller to judge (see [Error codes](#error-codes)), on purpose, since some compound queries answer without a trailing `OK`. A write that lands in that arm reports success it has not been told about.
 
 **Safe by accident: leave alone, but know why they are safe.**
 
@@ -151,7 +228,7 @@ Both are fragile in the same way: delete the emptiness half and the failure dete
 - `qcmd_exec`'s `*ERROR*` arm (`:441`) sits behind the correct guard, so it is unreachable; its `return 2` is therefore dead, and so is the `[ $rc -eq 2 ]` branch in `poll_serving_cell` (`:1044`) that treats rc 2 as "modem reachable". Harmless today. It was left alone because this is the ~4s hot path that feeds the entire app, and touching it is a change with its own blast radius.
 - `:2114` seeds carrier-aggregation defaults on a failed read: `ca_active:false`, `count:0`, `carrier_components:[]`. That is the **same fabrication class** the sweep just removed elsewhere, published as fact into `/tmp/qmanager_status.json`. A separate change; see [carrier-aggregation.md](carrier-aggregation.md).
 
-**Not qcmd output at all — leave alone.** `qcmd` itself (`qcmd:175`) classifies `atcli_smd11`'s raw reply, which is exactly where `ERROR` legitimately appears. `parse_at.sh:337` classifies raw `AT+CPIN?` text handed to it by the poller.
+**Not qcmd output at all — leave alone.** `qcmd` itself classifies the raw modem reply (the shell's `case "$result"`, the Rust client's `rm520n_reply()`), which is exactly where `ERROR` legitimately appears. `parse_at.sh:337` classifies raw `AT+CPIN?` text handed to it by the poller.
 
 Separately, roughly **26 `qcmd` call sites across 19 files** never capture `$?` at all. Many are the pipe form (`qcmd ... | grep ...`), where an empty result is falsy and the caller happens to handle it; that is luck, not contract.
 
@@ -164,7 +241,7 @@ On the RM520N-GL, SMS list/send/delete go through `qsms` over QMI WMS, not the A
 - The one AT command left on the SMS path is the CPMS routing write, `qcmd 'AT+CPMS="ME","ME","ME"'` — once per inbox GET and once at boot (`qmanager_sms_storage`, which also uses `qcmd AT` as its readiness probe).
 - The forwarding daemon's registration check (`AT+CREG?` / `AT+CGREG?`) also goes through `qcmd`.
 - On a non-RM520N model `qsms` uses its AT backend, which serialises on the same lock and can return `modem_busy`.
-- `sms_tool` and `atcli_smd11` stay installed, but no SMS code calls them. `atcli_smd11` remains `qcmd`'s transport.
+- `sms_tool` and `atcli_smd11` stay installed, but no SMS code calls them. `atcli_smd11` remains `qcmd`'s transport on the RG501Q-EU only; on the RM520N-GL `qcmd` goes through `qmanager_atd`.
 
 ---
 
@@ -174,10 +251,11 @@ On the RM520N-GL, SMS list/send/delete go through `qsms` over QMI WMS, not the A
 
 A **URC** (Unsolicited Result Code) is the modem spontaneously pushing a line onto the AT channel without being asked — a doorbell rather than a conversation. `AT+QSIMSTAT=1`, `AT+CREG=2`, `AT+QINDCFG` and friends all work this way: you enable them once, and the modem emits a line whenever the underlying state changes.
 
-Catching one requires a process **sitting on the AT channel with the device held open**. QManager has none, by design:
+Catching one requires a process **reading the AT channel between commands**. QManager has none, by design:
 
-- `qcmd` opens `/dev/smd11`, sends one command, reads to its terminator, and closes. Between commands, nothing holds the device.
-- A live scan of every `/proc/*/fd/*` on the device — with the poller, the ping daemon, and lighttpd all running — found **zero** processes holding `smd11` open.
+- The shell `qcmd` (and the Rust `qcmd`'s in-process fallback) opens `/dev/smd11`, sends one command, reads to its terminator, and closes.
+- On the RM520N-GL the `qmanager_atd` broker keeps one `/dev/smd11` fd open for its lifetime, but it **never reads outside an exchange**. Before each send it drains whatever is waiting (a late reply or a URC) and logs it rather than returning it; bytes glued after a terminator are kept for that next drain. So a URC is discarded, never delivered.
+- Before the broker existed, a live scan of every `/proc/*/fd/*` on the RM520N-GL (poller, ping daemon and lighttpd running) found **zero** processes holding `smd11` open. With the broker running, `qmanager_atd` is the one holder.
 - `AT+QURCCFG="urcport"` offers only `usbat`, `usbmodem`, `uart1`, and `all`. **`smd11` is not a selectable URC destination**, so even a hypothetical listener could not be pointed at the channel QManager uses.
 
 ### Enabling URCs would be worse than useless
@@ -186,7 +264,7 @@ Turning on a URC source (e.g. `AT+QSIMSTAT=1`) does not merely fail to deliver e
 
 Most QManager parsers survive that, because they `grep` for their own token and ignore everything else. Two do not:
 
-- **`qcmd:175-180`** classifies the *whole* response buffer with `case "$result" in *ERROR*)`. Any unsolicited line containing `ERROR` anywhere in the buffer turns a successful command into a reported failure.
+- **`qcmd`** (shell and Rust alike) classifies the *whole* reply: it fails the command if `ERROR` appears anywhere in it. Any unsolicited line containing `ERROR` anywhere in the buffer turns a successful command into a reported failure.
 - **`qmanager_poller:1028`** (`read_sim_identity`) picks the IMSI out of a bare-number response with `grep -x '[0-9]\{15\}'` — there is no `+CIMI:` prefix to key on. Any unsolicited bare 15-digit line would be adopted as the device's IMSI.
 
 ### The polled alternative
