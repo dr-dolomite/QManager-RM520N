@@ -370,6 +370,17 @@ apart when reading the list below:
 | `qmanager_setup` (every boot) | writer | `qm_hw_self_heal` |
 | `qmanager_poller` | parser | `qm_hw_soc` (Phase A / T4) |
 | `about.sh` → `resolve_firmware_revision()` | parser | `qm_hw_fw_fingerprint` (Phase A / T5) |
+| `install_rm520n.sh` → `install_bundled_binaries()` and the `install_backend()` unit-copy loop | parser | `qm_hw_atd_enabled` (T3.1) — removes / skips `qmanager-atd.service` off RM520N |
+| `qmanager_health_check` → `t_svc_atd` | parser | `qm_hw_atd_enabled` (T3.1) — `skip` off RM520N, `warn` if the library will not load |
+
+`qm_hw_atd_enabled` is a predicate, not a field accessor: it returns 0 only when
+`qm_hw_model` matches `RM520N*`, and 1 for the RG501Q-EU, any other model, and
+`unknown`. It is fail-closed on purpose, because it decides whether a root
+service unit exists on the device. Both callers wrap it as
+`command -v qm_hw_atd_enabled && qm_hw_atd_enabled`, so a missing library reads
+as "not enabled", and only ever call it inside `if` / `if !`, never bare under
+`set -e`. The Rust `qsms` client applies the same `RM520N*` rule to the same
+field; lift both together when the RG501Q gets the broker (P8 / T8.1).
 
 So `platform.json` still has **two writers and zero readers**, deliberately. The
 profile is `www-data`-owned whatever its mode — `qmanager_setup` chowns

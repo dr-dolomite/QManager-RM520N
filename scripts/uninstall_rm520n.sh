@@ -155,7 +155,7 @@ confirm_uninstall() {
     printf "\n  ${BOLD}QManager — RM520N-GL Uninstaller${NC}\n\n"
     printf "  The following will be removed:\n"
     printf "    • All QManager systemd services and boot symlinks\n"
-    printf "    • Daemons and binaries: /usr/bin/qmanager_*, qcmd, atcli_smd11, sms_tool\n"
+    printf "    • Daemons and binaries: /usr/bin/qmanager_* (incl. the qmanager_atd broker), qcmd, qsms, atcli_smd11, sms_tool\n"
     printf "    • Shared libraries: %s\n" "$LIB_DIR"
     printf "    • udev rule: /etc/udev/rules.d/99-qmanager-smd11.rules\n"
     printf "    • CGI endpoints and frontend: %s\n" "$WWW_ROOT"
@@ -163,7 +163,7 @@ confirm_uninstall() {
     printf "    • Sudoers rules\n"
     printf "    • Web console (ttyd): %s\n" "$CONSOLE_DIR"
     printf "    • Speedtest CLI: /usrdata/root/bin/speedtest\n"
-    printf "    • Runtime state: /tmp/qmanager_*\n"
+    printf "    • Runtime state: /tmp/qmanager_*, /var/run/qmanager*\n"
     printf "    • Cron jobs referencing qmanager\n"
     if [ "$PURGE" = "1" ]; then
         printf "    • Config directory: %s  ${YELLOW}[--purge]${NC}\n" "$CONF_DIR"
@@ -378,6 +378,12 @@ rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test"
 rm -f "$BIN_DIR/atcli_smd11" "$BIN_DIR/sms_tool"
 info "Removed qcmd, atcli_smd11, sms_tool"
 
+# qsms is a symlink to qmanager_atd; remove the link only, never a real directory
+if [ -L "$BIN_DIR/qsms" ]; then
+    rm -f "$BIN_DIR/qsms"
+    info "Removed qsms"
+fi
+
 # Shared libraries (includes staged tailscaled.service + qmanager_smd11_udev.sh)
 rm -rf "$LIB_DIR"
 info "Removed $LIB_DIR"
@@ -555,6 +561,11 @@ step "Removing runtime state and temporary files"
 rm -f  /tmp/qmanager_*   2>/dev/null || true
 rm -f  /tmp/qmanager.log* 2>/dev/null || true
 rm -rf "$SESSION_DIR"
+
+# qmanager_atd broker runtime (/var/run, not /tmp) and the QMI sidecar
+rm -f  /var/run/qmanager_atd.sock /var/run/qmanager_atd.proto 2>/dev/null || true
+rm -rf /var/run/qmanager 2>/dev/null || true
+rm -f  /tmp/qmanager_qmi.json 2>/dev/null || true
 
 # Update artifacts that live under /etc/qmanager but are runtime, not config
 rm -f "$CONF_DIR/VERSION.pending"                2>/dev/null || true

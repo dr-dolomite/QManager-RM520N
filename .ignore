@@ -25,3 +25,4 @@ bun.lock
 # reader's benefit, not because rg needs the hint.
 dependencies/atcli_smd11
 dependencies/sms_tool
+dependencies/qmanager_atd

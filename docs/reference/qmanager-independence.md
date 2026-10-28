@@ -14,6 +14,7 @@
 - **Installs lighttpd + modules** from Entware: `lighttpd-mod-cgi`, `lighttpd-mod-openssl`, `lighttpd-mod-redirect`, `lighttpd-mod-proxy`. This happens **even where the vendor firmware ships its own `/usr/sbin/lighttpd`** (RG501Q-EU): QManager's config, TLS cert and module set are built against the Entware server, and lighttpd rejects modules whose version does not match it.
 - **lighttpd module version sync**: The installer runs `opkg upgrade` on lighttpd and all its modules together when they are already installed — this prevents `plugin-version doesn't match` errors that occur if modules are at different versions during upgrades.
 - **Creates `www-data:dialout`** user and group if missing. The `dialout` group membership grants `www-data` access to `/dev/smd11`.
+- **Bundled first-party binaries** are copied from `dependencies/` by `install_bundled_binaries()`, which runs even with `--skip-packages` (so on every OTA): `atcli_smd11`, `sms_tool`, `qmanager_atd` (the Rust AT/SMS/QMI broker, plus the relative link `/usr/bin/qsms -> qmanager_atd`), and the optional `qmanager_discord`. A missing `qmanager_atd` is fatal (`die`), like `atcli_smd11`; `build.sh` refuses to package without it. The broker binary and `qsms` land on **both** models, but `qmanager-atd.service` ships on the RM520N-GL only and stays unlinked and unstarted until the qcmd cut-over (T4.1) — see [Service persistence](#service-persistence-systemd-symlinks) and [platform-matrix.md](./platform-matrix.md#at-transport). `/usr/bin/qcmd` is still the shell script.
 - **Installer stops socat-smd11** services if they are running — `atcli_smd11` requires exclusive access to `/dev/smd11` and cannot co-exist with a socat bridge holding it open.
 - **Windows line ending safety**: The installer strips `\r` from all deployed shell scripts, systemd units, and sudoers rules using `sed -i 's/\r$//'`. This prevents BusyBox and sudoers parse failures that occur when tarballs are built on Windows.
 
@@ -470,6 +471,7 @@ than trusting the write. `ensure_dropbear_unit_ordering()` is the precedent;
 
 - **Boot persistence is implemented via direct symlinks** into `/lib/systemd/system/multi-user.target.wants/` (and `timers.target.wants/` for timer units), managed through `svc_enable`/`svc_disable`/`svc_is_enabled` in `platform.sh` — use those helpers everywhere; do not mix in raw `systemctl enable/disable`, because they write to a *different* wants dir (see next point). The same `/lib` manual-symlink mechanism is what the root helper `qmanager_auto_update_arm` uses to arm/disarm the auto-update timer live (see [Auto-update timer](#auto-update-timer)).
 - **Those symlinks live on the rootfs, which boots read-only.** `svc_enable`/`svc_disable` ensure `rw` (root path only — `www-data` has no `mount` grant), verify the symlink's presence/absence rather than trusting the exit code, and **return 0/1**. Every call site must check that return and surface a `service_enable_failed` / `service_disable_failed` error; an unchecked call loses boot persistence silently. Read [BACKEND.md §2.1 — Rootfs mount-mode contract](../BACKEND.md#21-rootfs-mount-mode-contract) before touching any of this.
+- **`qmanager-atd.service` is the one shipped unit `enable_services()` never links.** Until T4.1 the enable loop skips it and deletes any existing `multi-user.target.wants/qmanager-atd.service` (a development OTA may have created one), and `start_services()` does not start it. Off RM520N the unit file itself is removed (`qm_hw_atd_enabled`, see [platform-profile.md](./platform-profile.md#consumers)). The health check reports `svc.atd` as `skip` while it is inactive or on another model, `pass` when active, `warn` when failed; T4.1 lifts the skip and makes `failed` a `fail`.
 - **The `/lib` manual symlink is the deliberate single source of truth — do NOT migrate to `systemctl enable`.** A live-probed migration to `systemctl enable/disable/is-enabled` was evaluated and **rejected**; see [The `systemctl enable` migration was evaluated and rejected](#the-systemctl-enable-migration-was-evaluated-and-rejected) below. The `platform.sh` comment above `svc_enable` records the same verdict.
 
 ### `systemctl is-enabled` is unreliable here
@@ -497,6 +499,8 @@ Two QManager units — `qmanager-ethernet.service` and `qmanager-imei-check.serv
 
 - **`Condition*=` (e.g. `ConditionPathExists=`) MUST live in `[Unit]`.** systemd **silently ignores** a `Condition*=` placed in `[Service]` — the guard never fires, the unit's real command runs and exits non-zero, and the unit lands in `failed`. Moved to `[Unit]`, systemd skips the unit cleanly when the precondition isn't met (the unit reports `condition failed`/inactive, not `failed`). This was the Ethernet-unit fix.
 - **`ExecCondition=` belongs in `[Service]`** and behaves differently on purpose: a non-zero `ExecCondition` marks the run **`skipped`**, not `failed`. `qmanager-imei-check.service` uses `ExecCondition=` so an idle "nothing to check" exit reads as skipped.
+
+> ⚠️ WARNING: `ExecCondition=` needs systemd 243. The RM520N-GL runs 244; the RG501Q-EU runs **239**, which ignores the directive and runs the service anyway. Never use `ExecCondition=` to keep a unit off a model — remove the unit file on that model instead, as the installer does for `qmanager-atd.service`.
 
 Net effect after the fix: `systemctl --failed` comes back clean on a healthy box, on both a fresh install and an OTA upgrade of an existing device. When authoring a unit that should no-op under some condition, decide up front which directive you want and put it in the correct section.
 
@@ -726,6 +730,18 @@ The Step 1/Step 2 globs only match `qmanager-*.service` and `qmanager*.target` i
 - **The auto-update timer is different: it is static — shipped by the installer as a real unit file** that exists whether or not the feature is enabled. So it is caught by *neither* the `.service` glob (wrong extension) *nor* any arm-helper teardown (the helper `qmanager_auto_update_arm` only ever adds/drops the boot symlink — it never removes the unit file). Its block removes both the `timers.target.wants/` symlink and the unit file directly.
 
 > ℹ️ NOTE: If you add a new static-shipped `.timer` in the future, it needs its own explicit removal block here — the Step 2 glob will silently leave the unit file and its `timers.target.wants/` symlink behind, and the orphaned symlink will still try to start a now-deleted unit at every boot.
+
+### The broker's files the globs miss
+
+The Step 2 / Step 3 globs already remove `qmanager-atd.service`, its wants link and `/usr/bin/qmanager_atd`, and Step 10's `/tmp/qmanager_*` covers `/tmp/qmanager_qmi.json` (also removed by name). Three things need their own lines:
+
+| Artifact | Step | Why |
+| -------- | ---- | --- |
+| `/usr/bin/qsms` | 3 | Not `qmanager_*`. Removed only if it is a symlink (`[ -L ]`), never a real directory |
+| `/var/run/qmanager_atd.sock`, `/var/run/qmanager_atd.proto` | 10 | Broker runtime lives in `/var/run`, not `/tmp` |
+| `/var/run/qmanager/` | 10 | Same; `rm -rf` |
+
+**Rollback to v0.1.17** (`qmanager_update` re-runs the previous release's own installer) removes the binary, the unit and its wants link through that installer's `cleanup_legacy_scripts()`, because neither exists in its source. It leaves a **dangling `/usr/bin/qsms`** — nothing in v0.1.17 calls it. A later install that ships the broker re-points it, and an uninstall removes it.
 
 ### Artifacts that strand the final `rmdir`
 
