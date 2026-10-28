@@ -649,7 +649,7 @@ t_svc_console()   { _svc_check qmanager-console.service 1; }
 t_svc_setup()     { _svc_check qmanager-setup.service 1; }
 t_svc_lighttpd()  { _svc_check lighttpd.service 1; }
 t_svc_tailscaled(){ _svc_check tailscaled.service 0; }
-# Broker unit is RM520N-only and unlinked until the qcmd cut-over (T4.1).
+# Broker unit is RM520N-only; there qcmd is its client, so a stopped broker fails.
 t_svc_atd() {
     if [ -r /usr/lib/qmanager/hw_profile.sh ]; then . /usr/lib/qmanager/hw_profile.sh 2>/dev/null; fi
     if ! command -v qm_hw_atd_enabled >/dev/null 2>&1; then
@@ -662,8 +662,7 @@ t_svc_atd() {
     echo "unit=qmanager-atd.service active=${active:-unknown}" >> "$OUTPUT_FILE"
     case "$active" in
         active)   echo "pass|active" ;;
-        failed)   echo "warn|failed" ;;
-        inactive) echo "skip|installed; starts with the qcmd cut-over (T4.1)" ;;
+        failed|inactive) echo "fail|$active" ;;
         *)        echo "warn|state=${active:-unknown}" ;;
     esac
 }
