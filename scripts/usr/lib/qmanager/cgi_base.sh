@@ -158,6 +158,7 @@ cgi_error() {
     require_auth()          { :; }
     is_setup_required()     { return 1; }
     qm_get_cookie()         { :; }
+    qm_cookie_var()         { eval "$2="; return 1; }
     qm_set_session_cookies(){ :; }
     qm_clear_session_cookies(){ :; }
     qm_create_session()     { :; }

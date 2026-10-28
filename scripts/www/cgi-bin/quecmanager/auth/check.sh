@@ -6,14 +6,16 @@ _SKIP_AUTH=1
 qlog_init "cgi_auth_check"
 cgi_headers
 
+# Bodies are printf, not jq -n: fixed shapes on a per-page-load endpoint, and
+# the layout below is byte-for-byte what jq pretty-prints (2-space, LF).
 if is_setup_required; then
-    jq -n '{"authenticated":false,"setup_required":true}'
+    printf '{\n  "authenticated": false,\n  "setup_required": true\n}\n'
     exit 0
 fi
 
-_token=$(qm_get_cookie "$COOKIE_SESSION")
+qm_cookie_var "$COOKIE_SESSION" _token
 if [ -n "$_token" ] && qm_validate_session "$_token"; then
-    jq -n '{"authenticated":true}'
+    printf '{\n  "authenticated": true\n}\n'
     exit 0
 fi
 
@@ -31,7 +33,5 @@ else
     _rate_limited="false"
 fi
 
-jq -n --argjson limited "$_rate_limited" \
-    --argjson retry "$RATE_LIMIT_RETRY_AFTER" \
-    --argjson remaining "$RATE_LIMIT_ATTEMPTS_REMAINING" \
-    '{"authenticated":false,"rate_limited":$limited,"retry_after":$retry,"attempts_remaining":$remaining}'
+printf '{\n  "authenticated": false,\n  "rate_limited": %s,\n  "retry_after": %d,\n  "attempts_remaining": %d\n}\n' \
+    "$_rate_limited" "$RATE_LIMIT_RETRY_AFTER" "$RATE_LIMIT_ATTEMPTS_REMAINING"

@@ -40,14 +40,27 @@ export interface ModemStatus {
   sim_failover: SimFailoverStatus;
   /** SIM swap detection (physical SIM card change at boot) */
   sim_swap: SimSwapStatus;
-  /** Persistent data-usage counter (optional — absent on older firmware or before first poller write) */
-  data_used?: DataUsedBlock;
+  /** Persistent data-usage counter (optional — absent on older firmware or before first poller write). `stale` is added only by data_used.sh. */
+  data_used?: Omit<DataUsedBlock, "stale">;
+  /** System health block (optional — absent on older pollers); only the fields the UI reads are typed here */
+  system_health?: StatusSystemHealth;
   /**
    * SIM readiness snapshot (optional — a device OTA-upgraded from an older
    * poller will not emit this block, so every consumer must tolerate `undefined`
    * rather than assuming a card is present).
    */
   sim?: SimBlock;
+}
+
+/** The slice of `status.json.system_health` read straight from the status payload. */
+export interface StatusSystemHealth {
+  /** /usrdata partition usage from df -P; null when the mount is absent or df fails */
+  storage?: {
+    mount: string;
+    total_kb: number;
+    used_kb: number;
+    available_kb: number;
+  } | null;
 }
 
 /** SIM readiness block published by the poller from AT+CPIN?. */

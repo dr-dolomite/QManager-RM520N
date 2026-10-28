@@ -46,6 +46,8 @@ Schema v5 keeps the v3 storage model and adds an `orientation` field. **v3/v4 �
 
 **CGI response:** the `data_used` block in `scripts/www/cgi-bin/quecmanager/network/data_used.sh` output includes `stale: true` when the file mtime is stale, and surfaces `orientation` (rather than v4's `orientation_state`) for diagnostics. `orientation` is surfaced by **passthrough, not by name**: the poller emits it inside the `data_used` object and the CGI forwards that object wholesale (`jq '.data_used // empty'`, then `. + { stale: $stale }`), so the string `orientation` never appears in the CGI — a grep that comes up empty there is not evidence the field is unsurfaced. The legacy v2 fields (`orientation_calibrated`, `orientation_attempts`, `divergence_count`, `mode_transition_count`) remain gone; do not reference them.
 
+> ℹ️ NOTE: since T6.2 (2026-10-28) the dashboard card reads rx/tx from `.data_used` in the shared `useModemStatus` payload (`fetch_data.sh`) and no longer calls `data_used.sh`, which now has no UI caller. Its `stale` flag was never read by the card; a frozen status cache shows as the dashboard's page-level stale notice (`isStale` in `home-component.tsx`). The reset POST is `useDataUsedReset` (`hooks/use-data-used.ts`).
+
 ---
 
 ## Orientation map
