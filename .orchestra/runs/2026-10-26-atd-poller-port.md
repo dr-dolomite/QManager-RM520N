@@ -277,3 +277,6 @@ Concerns, not blockers:
 - Its real case is not CPU: retiring `atcli_smd11`/`sms_tool` (already decided), shorter AT lock holds (the 6.8 s SMS inbox read), and the QMI lane (probe passed).
 - The biggest remaining CPU levers do not need the broker: activity tiers (P6, shell-only) and the dashboard CGI fork cost (+13 points of system busy while the dashboard is open), which no phase covers yet.
 - Unmeasured: AT contention under UI load with SMS reads; whether fixing the `read` leak also stops the CPU drift.
+
+## Side task: RM520N LAN subnet (2026-10-28, merged 12221fef)
+Outside the atd port, done on request. The factory /22 (192.168.225.1, 224.0–227.255) overlapped the user's RM551E at 192.168.224.1 on Tailscale. The mask is now /24 on install/OTA, factory value only, once (marker `/usrdata/.qm_lan_subnet_set`); there is a LAN card and a root apply helper. Device proof on 61368cd2: bridge0 192.168.225.1/24 after reboot, DHCP .20–.170, CGI and web UI OK; verifier PASS_WITH_NOTES. Tailscale route is now 192.168.225.0/24 on GL-X2000. Device left on the lan-subnet build (T3.1 + T6.2 code + LAN). Not run: full installer/uninstaller end to end, real LAN save through sudo.
