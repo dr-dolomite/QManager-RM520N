@@ -21,12 +21,15 @@ heal_routing() {
 
 # Plain-language text from a qsms failure envelope: .detail, else a fixed sentence per code.
 qsms_detail() {
-    printf '%s' "$1" | jq -r '
+    local d
+    d=$(printf '%s' "$1" | jq -r '
         .detail // (
             if .error == "bad_number" then "That phone number is not valid."
             elif .error == "message_too_long" then "The message is too long to send."
             else "The modem did not answer." end
-        )' 2>/dev/null || printf 'The modem did not answer.'
+        )' 2>/dev/null)
+    # Empty or non-JSON output (qsms missing or crashed) leaves jq silent.
+    printf '%s' "${d:-The modem did not answer.}"
 }
 
 # --- MCC to country calling code lookup --------------------------------------
@@ -299,7 +302,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             [.[] | sort_by(.part) | {
                 indexes: [.[].index],
                 sender: .[0].sender,
-                content: ([.[].content] | join("")),
+                content: ([unique_by(.part)[].content] | join("")),
                 timestamp: .[0].timestamp,
                 storage: .[0].storage
             }]

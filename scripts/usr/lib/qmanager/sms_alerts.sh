@@ -41,7 +41,6 @@ _SA_MAX_SKIPS=3
 _sa_enabled="false"
 _sa_recipient=""
 _sa_threshold_minutes=5
-_sa_last_error=""    # plain-language reason from the last failed send
 
 # =============================================================================
 # _sa_send_error — Plain-language error text from a failed `qsms send` envelope
@@ -142,11 +141,9 @@ _sa_do_send() {
     local attempt=0
     local attempted_real=0
     local skips=0
-    local rc out
+    local rc out err
 
-    _sa_last_error=""
     if [ ! -x "$_SA_QSMS" ]; then
-        _sa_last_error="SMS service is not installed."
         qlog_error "SMS alerts: qsms not found at $_SA_QSMS"
         return 1
     fi
@@ -180,8 +177,8 @@ _sa_do_send() {
             qlog_info "SMS alerts: qsms send succeeded on attempt $attempt"
             return 0
         fi
-        _sa_last_error=$(_sa_send_error "$out")
-        qlog_warn "SMS alerts: qsms send failed on attempt $attempt/$_SA_MAX_ATTEMPTS (rc=$rc): $_sa_last_error"
+        err=$(_sa_send_error "$out")
+        qlog_warn "SMS alerts: qsms send failed on attempt $attempt/$_SA_MAX_ATTEMPTS (rc=$rc): $err"
     done
 
     if [ "$attempted_real" -eq 0 ]; then

@@ -582,6 +582,7 @@ t_at_lock_serial() {
 t_sms_list() {
     # Counts only: message text must not reach the report. A WMS list never marks messages read.
     local out; out=$(qsms list ME 2>/dev/null | jq -c '{success, count: ((.msg // []) | length), skipped, error, detail}' 2>/dev/null)
+    [ -n "$out" ] || out='{"success":false,"detail":"no reply from qsms"}'
     echo "$out" >> "$OUTPUT_FILE"
     if [ "$(echo "$out" | jq -r '.success' 2>/dev/null)" = "true" ]; then
         echo "pass|$(echo "$out" | jq -r '.count') messages in ME"

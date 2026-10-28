@@ -74,24 +74,29 @@ CK_SM=""
 SCAN_SEED=0
 SCAN_FAILING=0
 
-# Merge one storage's `qsms list` output: singles pass through; concatenated
-# parts group by sender|reference|total and carry a completeness flag.
+# Merge one storage's `qsms list` output: singles pass through; concatenated parts group by
+# sender|reference|total, split where part timestamps are >24 h apart (reference reuse).
 SF_MERGE_JQ='
 def s: if . == null then "" else tostring end;
+def ep: try (strptime("%m/%d/%y %H:%M:%S") | mktime) catch 0;
+def clusters: reduce .[] as $m ([]; if length > 0 and ($m.ep - .[-1][-1].ep) <= 86400
+    then .[-1] += [$m] else . + [[$m]] end);
 [.msg[]? | . + {storage: $st}] as $all
 | [ $all[] | select(.reference == null)
     | {sender: (.sender|s), content: (.content|s), timestamp: (.timestamp|s),
-       storage: .storage, gkey: "", complete: true, parts: 1, total: 0} ] as $singles
-| ( [ $all[] | select(.reference != null) ]
+       storage: .storage, gkey: "", gts: 0, complete: true, parts: 1, total: 0} ] as $singles
+| ( [ $all[] | select(.reference != null) | . + {ep: (.timestamp|s|ep)} ]
     | group_by((.sender|s) + "|" + (.reference|tostring) + "|" + (.total|s))
-    | map( unique_by(.part) | . as $p
+    | map(sort_by(.ep) | clusters[])
+    | map( (map(.ep) | min) as $gts | unique_by(.part) | . as $p
         | (if $p[0].total == null then 0 else $p[0].total end) as $t
         | { sender: ($p[0].sender|s),
             content: ([$p[].content|s] | join("")),
             timestamp: ($p[0].timestamp|s),
             storage: $p[0].storage,
             gkey: ($p[0].storage + "|" + ($p[0].sender|s) + "|" + ($p[0].reference|tostring)
-                   + "|" + ($t|tostring) + "|" + ($p[0].timestamp|s)),
+                   + "|" + ($t|tostring)),
+            gts: $gts,
             complete: ($t <= 0 or ($p|length) >= $t),
             parts: ($p|length),
             total: $t } ) ) as $grouped
@@ -293,9 +298,17 @@ sf_send_with_retry() {
 }
 
 # --- Seen-set ----------------------------------------------------------------
+# A group id "g <fp> <epoch>" matches a seen group within 24 h, so a late part 1 never re-forwards.
 sf_is_seen() {
     [ -f "$SEEN_FILE" ] || return 1
-    grep -q -x -F "$1" "$SEEN_FILE" 2>/dev/null
+    case "$1" in
+        "g "*)
+            set -- $1
+            awk -v f="$2" -v t="$3" '$1 == "g" && $2 == f && $3 - t <= 86400 && t - $3 <= 86400 { m = 1; exit }
+                END { exit m ? 0 : 1 }' "$SEEN_FILE"
+            ;;
+        *) grep -q -x -F "$1" "$SEEN_FILE" 2>/dev/null ;;
+    esac
 }
 
 sf_mark_seen() {
@@ -324,7 +337,7 @@ sf_pending_due() {
 # =============================================================================
 
 # Handle one merged message (called from the eval in sf_scan).
-# Args: storage sender timestamp content gkey complete parts total
+# Args: storage sender timestamp content gkey complete parts total gts
 sf_handle() {
     _h_st="$1"
     _h_sender="$2"
@@ -334,6 +347,7 @@ sf_handle() {
     _h_complete="$6"
     _h_parts="$7"
     _h_total="$8"
+    _h_gts="$9"
 
     if [ -n "$_h_gkey" ]; then
         _fp=$(sf_fingerprint "$_h_gkey")
@@ -343,12 +357,17 @@ sf_handle() {
     case "$_fp" in
         ''|*[!0-9]*) return 0 ;;
     esac
+    _id="$_fp"
+    if [ -n "$_h_gkey" ]; then
+        case "$_h_gts" in ''|*[!0-9]*) _h_gts=0 ;; esac
+        _id="g $_fp $_h_gts"
+    fi
 
-    sf_is_seen "$_fp" && return 0
+    sf_is_seen "$_id" && return 0
 
     # Seeding pass: record everything currently present, forward nothing.
     if [ "$SCAN_SEED" = "1" ]; then
-        sf_mark_seen "$_fp"
+        sf_mark_seen "$_id"
         return 0
     fi
 
@@ -366,7 +385,7 @@ sf_handle() {
     # Loop guard: don't forward our own relays, but mark them seen.
     if sf_is_relay "$_h_content"; then
         qlog_debug "SMS forward: skipping relay-shaped message (loop guard)"
-        sf_mark_seen "$_fp"
+        sf_mark_seen "$_id"
         return 0
     fi
 
@@ -374,11 +393,11 @@ sf_handle() {
     qlog_info "SMS forward: forwarding message from ${_h_sender} to ${SF_SEND_TARGET}"
 
     if _err=$(sf_send_with_retry "$SF_SEND_TARGET" "$_body"); then
-        sf_mark_seen "$_fp"
+        sf_mark_seen "$_id"
     else
         # 3 attempts exhausted: mark seen so we don't retry forever, and
         # record the failure for the CGI/UI. Feature stays enabled.
-        sf_mark_seen "$_fp"
+        sf_mark_seen "$_id"
         _now_ts=$(date +%s)
         [ -z "$_h_ts" ] && _h_ts="$_now_ts"
         [ -z "$_err" ] && _err="send failed"
@@ -419,10 +438,10 @@ sf_scan() {
 
     : > "$PENDING_NEW"
     # @sh quotes every field, so the generated calls are safe to eval.
-    eval "$(printf '%s' "$_sc_json" | jq -r '.[] | "sf_handle " + ([.storage, .sender, .timestamp, .content, .gkey, (if .complete then "1" else "0" end), (.parts | tostring), (.total | tostring)] | @sh)' 2>/dev/null)"
+    eval "$(printf '%s' "$_sc_json" | jq -r '.[] | "sf_handle " + ([.storage, .sender, .timestamp, .content, .gkey, (if .complete then "1" else "0" end), (.parts | tostring), (.total | tostring), (.gts | tostring)] | @sh)' 2>/dev/null)"
 
     if [ "$SCAN_SEED" = "1" ]; then
-        printf '#seeded %s\n' "$_sc_st" >> "$SEEN_FILE"
+        printf '#seeded2 %s\n' "$_sc_st" >> "$SEEN_FILE"
         qlog_info "SMS forward: seeded ${_sc_st} (no forwarding)"
         case "$_sc_st" in
             ME) SEEDED_ME=1 ;;
@@ -458,8 +477,9 @@ sf_ensure_seen() {
         CK_SM=""
         qlog_info "SMS forward: seeding seen-set from existing inbox (no forwarding)"
     fi
-    grep -q -x -F '#seeded ME' "$SEEN_FILE" 2>/dev/null && SEEDED_ME=1
-    grep -q -x -F '#seeded SM' "$SEEN_FILE" 2>/dev/null && SEEDED_SM=1
+    # "#seeded2" marks the 24 h group ids; an older seen-set is re-seeded, never forwarded.
+    grep -q -x -F '#seeded2 ME' "$SEEN_FILE" 2>/dev/null && SEEDED_ME=1
+    grep -q -x -F '#seeded2 SM' "$SEEN_FILE" 2>/dev/null && SEEDED_SM=1
     return 0
 }
 
@@ -545,18 +565,17 @@ sf_wait() {
 # Run whatever the last wake-up asks for.
 sf_dispatch() {
     sf_now
-    if [ "$WATCH_UP" = "1" ]; then
-        _due="$SAFETY_INTERVAL"
-    else
-        _due="$SF_INTERVAL"
-    fi
-
-    if [ "$EV_FULL" = "1" ] || [ $((NOW - LAST_FULL)) -ge "$_due" ]; then
+    if [ "$EV_FULL" = "1" ] || { [ "$WATCH_UP" != "1" ] && [ $((NOW - LAST_FULL)) -ge "$SF_INTERVAL" ]; }; then
         sf_scan ME
         sf_scan SM
         sf_now
         LAST_FULL="$NOW"
     else
+        # Safety list while watch is up: ME only; SM is listed when an indication names it.
+        if [ "$WATCH_UP" = "1" ] && [ $((NOW - LAST_FULL)) -ge "$SAFETY_INTERVAL" ]; then
+            EV_ME=1
+            LAST_FULL="$NOW"
+        fi
         [ "$EV_ME" = "1" ] && sf_scan ME
         [ "$EV_SM" = "1" ] && sf_scan SM
         for _st in $(sf_pending_due); do
