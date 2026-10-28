@@ -293,7 +293,8 @@ qm_lan_write() {
 
 # qm_lan_mark_set — record that the LAN mask is settled; failure only logs.
 qm_lan_mark_set() {
-    : > "$QM_LAN_MARKER" 2>/dev/null || _qm_lan_log warn "cannot write $QM_LAN_MARKER"
+    # Subshell: BusyBox sh exits outright when a redirect on the `:` builtin fails.
+    ( : > "$QM_LAN_MARKER" ) 2>/dev/null || _qm_lan_log warn "cannot write $QM_LAN_MARKER"
     return 0
 }
 
