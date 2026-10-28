@@ -68,7 +68,7 @@ The `out/` directory contains the complete static frontend. The installer (`scri
 | **Forms** | React Hook Form + Zod validation |
 | **Animations** | Motion (Framer Motion) |
 | **Backend** | CGI shell scripts on vanilla Linux, run as `www-data` by lighttpd (bash available, many commands are BusyBox applets) |
-| **AT Commands** | `qcmd` wrapper serializing access (via `flock`) to `atcli_smd11` on `/dev/smd11` (direct, no socat/PTY bridge); SMS via `sms_tool` |
+| **AT Commands** | `qcmd` wrapper serializing access (via `flock`) to `atcli_smd11` on `/dev/smd11` (direct, no socat/PTY bridge); SMS via `qsms` (QMI WMS) |
 | **Package Manager** | Bun |
 
 ---

@@ -1,13 +1,13 @@
 # SMS Center (RM520N-GL)
 
-> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
-> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+> **Applies to:** RM520N-GL (SDX65) · UI verified 2026-08 · `qsms` transport verified 2026-10-28 on serial 61368cd2
+> **RG501Q-EU (SDX55):** `qsms` uses its AT backend there; unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-> The SMS inbox: read / send / delete over the modem's AT channel via the bundled `sms_tool`. Merges messages across ME (modem) and SM (SIM) storage, tracks read/unread in the browser, and self-heals CPMS routing so incoming SMS are never stranded on the SIM.
+> The SMS inbox: read / send / delete through `qsms`, which talks QMI WMS directly and takes no AT lock. Merges messages across ME (modem) and SM (SIM) storage, tracks read/unread in the browser, and keeps CPMS routing on ME so incoming SMS are never stranded on the SIM.
 
-The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. All modem access runs through the bundled `sms_tool` binary, serialized against every other AT consumer (`qcmd`, the poller, the watchdog) by the shared `flock` on `/tmp/qmanager_at.lock`. This doc covers the inbox CGI, the `sms_tool` binary/patch, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.
+The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS operation runs through `/usr/bin/qsms`, a link to the `qmanager_atd` multicall binary. On an RM520N it speaks QMI WMS (the modem's Wireless Messaging Service) over a QRTR socket, so it never touches `/dev/smd11` or `/tmp/qmanager_at.lock`. This doc covers the inbox CGI, the `qsms` contract and its error mapping, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.
 
-> ℹ️ NOTE: SMS **downtime alerts** (connection-lost/restored notifications sent over SMS) are a separate feature — the SMS channel of the centralized Alerts system, driven by `monitoring/sms_alerts.sh`. This doc covers only the inbox. **SMS Forwarding** (auto-relay of incoming messages to another number) is also separate — see [`sms-forwarding.md`](sms-forwarding.md).
+> ℹ️ NOTE: SMS **downtime alerts** (connection-lost/restored notifications sent over SMS) are a separate feature — the SMS channel of the centralized Alerts system, driven by `sms_alerts.sh`. This doc covers only the inbox. **SMS Forwarding** (auto-relay of incoming messages to another number) is also separate — see [`sms-forwarding.md`](sms-forwarding.md).
 
 ---
 
@@ -17,12 +17,12 @@ The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. All modem ac
 |---|---|
 | Route | `/cellular/sms` |
 | Inbox CGI | `GET/POST /cgi-bin/quecmanager/cellular/sms.sh` |
-| AT channel | `/dev/smd11` (Qualcomm SMD char device, not a UART/TTY) |
-| Shared AT lock | `/tmp/qmanager_at.lock` (the same lock `qcmd` holds) |
-| Binary | `/usr/bin/sms_tool` (patched, static **armhf**, ~440 KB) |
+| SMS client | `/usr/bin/qsms` → `qmanager_atd` (relative symlink, laid down by `install_bundled_binaries()`) |
+| Backend | QMI WMS when `Project Name:` in `/etc/quectel-project-version` starts with `RM520N`; AT otherwise. `QSMS_BACKEND=wms\|at` overrides |
+| AT use per GET | One `qcmd 'AT+CPMS="ME","ME","ME"'` (routing self-heal) |
 | Boot routing oneshot | `/usr/bin/qmanager_sms_storage` + `qmanager-sms-storage.service` |
 | Read-state hook | `hooks/use-sms-read-state.ts` (browser `localStorage`, key `qmanager.sms.read.v1`) |
-| Data hook | `hooks/use-sms.ts` (`useSms` — no polling, single-flight, see [GET is not free](#the-get-is-not-side-effect-free)) |
+| Data hook | `hooks/use-sms.ts` (`useSms` — no polling, single-flight, see [The GET is not free](#the-get-is-not-free)) |
 | Types | `types/sms.ts` |
 | Inbox UI | `components/cellular/sms/` — see [Inbox UI](#inbox-ui) for the file split |
 | Shape module | `components/cellular/sms/shapes.ts` — the family's one geometry/tone source, read by the loaded views **and** their skeletons |
@@ -30,87 +30,142 @@ The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. All modem ac
 
 ---
 
-## `sms_tool` Binary
+## Transport: `qsms`
 
-The bundled `/usr/bin/sms_tool` is a patched fork of [`obsy/sms_tool`](https://github.com/obsy/sms_tool) (Apache-2.0), statically linked. It is the **same verified binary the RM551E sibling ships** and runs natively on RM520N-GL's Cortex-A7. Full provenance, the patch, and the rebuild recipe are in [`dependencies/README.md`](../../dependencies/README.md) / [`dependencies/NOTICE`](../../dependencies/NOTICE); the diff itself is [`dependencies/sms_tool.patch`](../../dependencies/sms_tool.patch). Summary of the four patches and why:
+`qsms` is `argv[0]` of the `qmanager_atd` binary (source: `native/qmanager_atd/src/client/qsms.rs`, `src/sms/wms.rs`, `src/sms/pdu.rs`). It prints exactly one JSON envelope on stdout and exits 0 on success, 1 on failure. Callers decide success from the envelope's `.success` or the exit code, never from stderr.
 
-1. **Default device `/dev/ttyUSB0` → `/dev/smd11`.** Upstream's default does not exist on this modem, so a bare `sms_tool recv` used to segfault. Now bare calls talk to the right device and no CGI caller needs `-d /dev/smd11`.
-2. **`isatty()` guard in `setserial()`.** `/dev/smd11` is an SMD char device, not a serial line, so `tcgetattr`/`tcsetattr` return `ENOTTY` ("Inappropriate ioctl for device"). Skipping termios setup on non-TTY devices removes that stderr noise at the source.
-3. **`isatty()` guard in `resetserial()`.** Same guard on the exit-time termios restore — no `failed tcsetattr` line on clean exit.
-4. **`exit(1)` on open/reopen/fdopen failure.** Upstream fell through to `setvbuf(NULL,…)` and SIGSEGV'd on a missing port; it now exits cleanly. The verbose `open()`/`reopen()` traces are gated behind the existing `-D` debug flag.
+### Backend selection
 
-> ℹ️ NOTE: This build is **hard-float (armhf)**, ELF `e_flags 0x05000400`. RM520N-GL's Cortex-A7 exposes `vfp vfpv3 vfpv4 neon` in `/proc/cpuinfo`, so the VFP instructions run natively — verified live (identical `recv -j` output, exit 0, no `SIGILL`). The older soft-float bundling was a conservative default, not a hardware requirement.
+The backend is fixed per model, never auto-detected:
 
-Because the patched binary defaults to `/dev/smd11` and stays silent on the SMD device, the CGI callers dropped the `-d /dev/smd11` flag and the `2>/dev/null` termios-noise crutch that the previous unpatched binary needed.
+| Model | Backend | Why |
+|---|---|---|
+| RM520N-GL (`Project Name:` starts with `RM520N`) | QMI WMS, in process over `AF_QIPCRTR` | No AT lock, no `/dev/smd11`, and a list never marks messages read |
+| Anything else, or the file is unreadable | AT (`AT+CMGL` etc. under `/tmp/qmanager_at.lock`) | WMS is unproven on the RG501Q-EU |
 
-### Deployment (install + OTA)
+`QSMS_BACKEND=wms` or `QSMS_BACKEND=at` in the environment overrides the file. The match reads the `Project Name:` line, not the start of the file: the file begins with `Project Name: …` on both models, so a prefix test on the whole file matches nothing.
 
-`/usr/bin/sms_tool` is laid down by `install_bundled_binaries()` in `install_rm520n.sh`, alongside `atcli_smd11` and `qmanager_discord`. That function runs **unconditionally** in `main()` — outside the `--skip-packages` gate — so every OTA / in-app "Software Update" upgrade (which always passes `--skip-packages`) refreshes the binary, `cmp -s`-skipping the copy only when the on-device file is already byte-identical. This matters because the CGI callers rely on the patched binary's `/dev/smd11` default (they invoke `sms_tool` with **no** `-d` flag): previously the copy was stranded inside `install_dependencies()`, which `--skip-packages` skips, so OTA-upgraded devices kept the old unpatched binary (compiled default `/dev/ttyUSB0`) and the inbox came up empty. See [`../DEPLOYMENT.md`](../DEPLOYMENT.md).
+> ⚠️ WARNING: Do not add an AT fallback to the WMS path. A WMS lookup that times out at boot or during a modem subsystem restart looks the same as "WMS absent", and the AT path marks every listed message read. A missing WMS service is retried for up to 10 s (list, status, delete) or 60 s per part (send), then reported as `sms_unavailable` / `send_failed`.
 
-### Command surface used by QManager
+### Commands
 
 ```sh
-sms_tool [-s ME|SM] recv -j        # JSON: {"msg":[...]}
-sms_tool send <phone> <msg>        # Send an SMS
-sms_tool [-s ME|SM] delete <index> # Delete one message
-sms_tool [-s ME|SM] delete all     # Clear all messages in that storage
-sms_tool [-s ME|SM] status         # "Storage type: ME, used: 0, total: 255"
-sms_tool at '<AT command>'         # Raw AT passthrough (talks to /dev/smd11)
+qsms list [ME|SM|all]          # default ME
+qsms status [ME|SM|all]        # default all
+qsms send <number> <text>      # number without '+'
+qsms delete <ME|SM> <i,j,..|all>
+qsms tag <ME|SM> <i,j,..> read|unread   # WMS only; not used by QManager
+qsms watch                     # WMS only; used by the forwarding daemon
 ```
 
----
+`www-data` can open the QRTR socket, so the CGI runs `qsms` directly with no sudo.
 
-## Shared AT Lock (`/tmp/qmanager_at.lock`)
+### Output contract
 
-Every `sms_tool` call runs inside a `flock -x` on `/tmp/qmanager_at.lock` — the **same** lock `qcmd` and `atcli_smd11` use. (`flock` is a POSIX advisory lock, like a "do not disturb" sign on the lock file: only one holder at a time.) This keeps a `recv -j` fetch from colliding with a poller or watchdog AT call on `/dev/smd11`.
+| Command | Success | Failure |
+|---|---|---|
+| `list all` | `{"success":true,"msg":[...],"skipped":0}`, plus `"storage_errors":{"SM":"storage unavailable"}` when one storage failed | `{"success":false,"error":"command_failed","detail":"No reply from the modem."}` |
+| `status all` | `{"success":true,"storages":[{"storage":"ME","used":153,"total":255},{"storage":"SM","used":31,"total":35}]}` | as above |
+| `status ME` (one storage) | `{"success":true,"storage":"ME","used":153,"total":255}` (flat, no array) | as above |
+| `send` | `{"success":true,"parts":2,"refs":[41,42]}` | `{"success":false,"error":"send_failed","detail":"…","parts":2,"sent_parts":1,"refs":[41]}` |
+| `delete ME 3,4` | `{"success":true,"storage":"ME","deleted":[3,4],"failed":[]}` | `"success":false,"error":"delete_failed"`, with `"failed":[{"index":4,"error":"no such message"}]` |
+| `delete SM all` | `{"success":true,"storage":"SM","deleted":31,"remaining":0}` | `"success":false,"error":"delete_failed"`, `"remaining":N` |
+| `watch` | prints `ready`, then one `<ME\|SM> <index>` line per new message; prints `ready` again after every reconnect | exits 1 only when QRTR is unsupported; exits 0 when its stdout closes |
 
-BusyBox `flock` lacks `-w` (timeout), so the wrappers poll with `flock -x -n` in a loop with a 10-second budget — see `flock_wait()` in `sms.sh` (the canonical implementation shared with `qcmd`). The lock is opened read-only on fd 9 (`9<"$LOCK_FILE"`), which works around the kernel's `fs.protected_regular=1` restriction.
+Each `msg` entry:
 
-The wrapper (`sms_locked` in `sms.sh`) deliberately does **not** use `2>/dev/null` (would hide real errors) or `2>&1` (a merged stream can interleave stray bytes into a `recv -j` payload larger than the stdout block buffer, corrupting the JSON). Instead it captures stderr to a per-call temp file and, on failure, returns the cleaned stderr (the harmless `tcgetattr`/`tcsetattr` noise stripped — a no-op with the patched binary, kept as defense-in-depth). The lock-timeout return code is `SMS_LOCK_TIMEOUT_RC=99`, which maps to the `modem_busy` error response. It is **99 and not `2`** because `sms_locked` propagates `sms_tool`'s own exit code on the path where the lock *was* acquired, and `sms_tool` exits `2` on a genuine send failure (measured: `sms_tool send "notanumber" …` → rc 2, `sms not sent, code:  350`). While the sentinel was `2`, every real send failure was reported to the user as "Could not acquire AT lock". Any replacement sentinel must stay clear of `sms_tool`'s own `0`/`1`/`2`, the exec failures `126`/`127`, and the signal codes `128+N` — a segfault is `139` and must keep surfacing as `send_failed`.
+```json
+{ "index": 148, "storage": "ME", "stat": 0, "sender": "GLOBE",
+  "timestamp": "10/28/26 02:41:07", "reference": 92, "part": 1, "total": 2,
+  "encoding": "gsm7", "content": "…" }
+```
+
+- `reference` / `part` / `total` appear only on a concatenated part. A single message has no `reference` key.
+- `reference` is the full 16-bit concat reference. `sms_tool` truncated it to its low byte (18028 → 108); the merged view does not change because grouping also keys on sender and storage (parity run 2026-10-27: 134 = 134 merged messages, 0 fingerprint differences).
+- `stat` uses the AT numbering: `0` unread, `1` read, `2` stored unsent, `3` stored sent. The CGI does not pass it on.
+- A PDU that cannot be decoded is listed with `"error":"error decoding pdu"` and empty `sender`/`timestamp`/`content`. A non-DELIVER PDU (for example a stored outgoing message) is left out and counted in `skipped`.
+- An empty storage is success with an empty `msg` array, not an error.
+
+### Error and detail mapping
+
+`detail` is shown raw in the UI (inbox banner, forwarding failure list, test-send toast), so every WMS outcome maps to one plain English sentence. QMI error codes go to `/tmp/qmanager.log` (tag `qsms`) only.
+
+| WMS outcome | `error` | `detail` |
+|---|---|---|
+| Send refused with an RP cause (result 0x0036 + TLV 0x12) | `send_failed` | `The network rejected the message (cause N).` |
+| Send refused, no RP cause | `send_failed` | `The modem refused the message.` |
+| No reply to a send within 60 s | `send_failed` | `No reply from the modem.` |
+| WMS not reachable before the deadline | `send_failed` (send), `sms_unavailable` (other ops) | `SMS service is not ready yet. Try again in a minute.` |
+| Other QMI error on list/status/delete | `command_failed` / `delete_failed` | `The modem refused the request.` |
+| No reply on list/status/delete | `command_failed` / `delete_failed` | `No reply from the modem.` |
+| Number fails the encoder | `bad_number` | none |
+| Text needs too many parts | `message_too_long` | none |
+| Bad arguments | `bad_args` | parser text, e.g. `bad index 'x'` |
+
+On a multi-part send, the first failed part stops the send and `detail` is prefixed `Part 2 of 3: `. Measured on the RM520N-GL with no SIM credit: `The network rejected the message (cause 21).`
+
+**Shell callers extract `.detail`; they never store or return the envelope.** Each caller has a fixed sentence for empty or non-JSON output (`qsms` missing or crashed):
+
+| Caller | Extraction | Fallback |
+|---|---|---|
+| `sms.sh` `qsms_detail()` | `.detail`, else a sentence per code (`bad_number` → `That phone number is not valid.`, `message_too_long` → `The message is too long to send.`) | `The modem did not answer.` |
+| `sms_forwarding.sh` `send_test` | `.detail // .error` | `No reply from the SMS service.` |
+| `sms_alerts.sh` `_sa_send_error()` | `.detail // .error` | `No reply from the SMS service.` |
+| `qmanager_sms_forward` `sf_send_with_retry()` | `.detail` when it is a string | `The message could not be sent.` |
+
+### No AT lock
+
+The WMS backend takes no lock and never opens `/dev/smd11`. The CGI's own lock wrapper (`sms_locked`, `flock_wait`, the `SMS_LOCK_TIMEOUT_RC=99` sentinel) is gone, and so is `modem_busy` from the inbox on an RM520N. The only AT call left on the SMS path is the CPMS self-heal, which goes through `qcmd` and takes the lock for that one command.
+
+On the AT backend (non-RM520N), `qsms` still serialises on `/tmp/qmanager_at.lock` and can still return `modem_busy` or `scan_in_progress`; the scan gate applies to that backend only.
+
+### `sms_tool` and `atcli_smd11`
+
+Both stay installed (`install_bundled_binaries()` still copies them) but no SMS code path calls them. Their removal waits for the `qcmd` cut-over, because `atcli_smd11` is still `qcmd`'s transport. `sms_tool`'s provenance and patch remain in [`dependencies/README.md`](../../dependencies/README.md) until then.
 
 ---
 
 ## SMS Storage Routing (`AT+CPMS`)
 
-`AT+CPMS` controls three storage pointers: mem1 (read/delete source), mem2 (send destination), and mem3 (incoming-message routing). The carrier/modem can route incoming SMS to **SM** (SIM) storage while `sms_tool`'s bare reads default to **ME** (modem) — so new messages land on the SIM and the inbox appears empty. This is the load-bearing bug the parity port fixes.
+`AT+CPMS` controls three storage pointers: mem1 (read/delete), mem2 (sent messages) and mem3 (where incoming SMS are stored). If mem3 points at **SM** (SIM), new messages land in the SIM's 35 slots, and once those fill the modem silently discards further incoming messages.
 
-The fix is three-pronged: assert `AT+CPMS="ME","ME","ME"` at boot (oneshot), re-assert it on every GET (self-heal), and read **both** ME and SM, tagging and merging the results.
+**mem3 is also the WMS route.** On the RM520N-GL, `AT+CPMS` mem3 and WMS Get Routes (0x0033) are the same setting: `AT+CPMS="ME","ME","SM"` moved classes 0/1/3/none from NV to UIM in the 0x0033 reply, and restoring ME moved them back byte-identically (probe 2026-10-28). So `qsms` reading over WMS does not make the CPMS write obsolete; it still decides where new messages go.
+
+QManager keeps routing on ME in two places: a boot oneshot, and one self-heal per inbox GET. It reads **both** ME and SM and merges them.
 
 ### mem1/mem2/mem3 model
 
 | Pointer | Controls | QManager target |
 |---|---|---|
-| mem1 | Storage read/delete operations | `ME` (255 slots) |
+| mem1 | Storage read/delete operations (AT only) | `ME` (255 slots) |
 | mem2 | Storage used for sent messages | `ME` |
-| mem3 | Storage for incoming SMS routing | `ME` |
+| mem3 | Storage for incoming SMS (and the WMS route) | `ME` |
 
-**Why `ME` and not `SM`:** the live RM520N-GL reports **ME 255 slots** and **SM 35 slots** (`sms_tool -s ME status` / `-s SM status`), and `ME` is modem-resident so it survives SIM swaps. If mem3 stays `SM` and the SIM's 35 slots fill up, the modem silently discards further incoming messages.
+**Why `ME` and not `SM`:** the RM520N-GL reports **ME 255 slots** and **SM 35 slots** (`qsms status all`), and `ME` is modem-resident so it survives SIM swaps.
+
+WMS addresses a storage explicitly in each request (NV = ME, UIM = SM), so reading or deleting SM no longer moves mem1. The old ritual of re-asserting CPMS after every SM read or delete is gone.
 
 ### Boot routing oneshot (`qmanager_sms_storage`)
 
-`/usr/bin/qmanager_sms_storage` guarantees correct routing even if the SMS page is never opened. It polls `sms_tool status` under the shared lock until the modem answers (up to ~60 s, acquiring and releasing the lock **per attempt** so a slow-booting modem never starves `qcmd`), asserts `AT+CPMS="ME","ME","ME"`, logs, and exits. It never reboots or calls `AT+CFUN`.
+`/usr/bin/qmanager_sms_storage` sets routing even if the SMS page is never opened. It runs `qcmd AT` until the modem answers (20 tries, 3 s apart, ~60 s; `qcmd` takes the AT lock per call, so a slow-booting modem never starves other AT users), then runs `qcmd 'AT+CPMS="ME","ME","ME"'`, logs, and exits 0 on success or 1 on failure. It never reboots or calls `AT+CFUN`.
 
 The unit `qmanager-sms-storage.service` is `Type=oneshot`, `RemainAfterExit=yes`, `TimeoutStartSec=90`, ordered `After=qmanager-setup.service qmanager-cfun-fix.service` (so the lock file exists and the radio is confirmed on) and `Before=qmanager-poller.service`. It is **not** in `UCI_GATED_SERVICES`, so the installer enables it unconditionally.
 
-### GET-time self-healing
+### GET-time self-heal
 
-Any `-s SM` call flips modem mem1 to `SM` as a side effect. The inbox GET sequence therefore re-asserts ME at the end:
+Each inbox GET runs, in order:
 
-1. Assert `AT+CPMS="ME","ME","ME"` (routes future incoming to ME).
-2. Read ME: `sms_locked -s ME recv -j` + `-s ME status`.
-3. Read SM: `sms_locked -s SM recv -j` + `-s SM status`.
-4. **Re-assert** `AT+CPMS="ME","ME","ME"` to counteract the mem1 flip from step 3.
-5. Merge and return.
+1. `qcmd 'AT+CPMS="ME","ME","ME"'` (`heal_routing()`), output discarded. A failed heal does not fail the GET.
+2. `qsms list all` — both storages in one call.
+3. Merge, then `qsms status all`.
 
-> ℹ️ NOTE: The re-assert matters because the SMS **alerts** channel (`sms_alerts.sh`) issues bare `recv`/`status` with no `-s` flag. If mem1 were left on `SM` after a GET, the alert library would read the SIM until the next GET or reboot.
+Keep the heal until a WMS route write replaces it: 0x0033 is not independent of mem3, so dropping it would let a carrier or a third-party tool leave routing on SM unnoticed.
 
 ### Dual-storage merge
 
-Each message from `-s ME recv -j` is tagged `storage:"ME"`; each from `-s SM` is tagged `storage:"SM"`. Multi-part reassembly groups by `sender + reference + storage` (not just `sender + reference`), so ME index 0 and SM index 0 never collapse into one message. Singles carry no `reference` key at all (confirmed against live `sms_tool -j`), so they pass through via `select(has("reference") | not)`. Each output object's `indexes` array lists every storage slot for that message, so one `delete` clears them all.
+`qsms list all` tags every message with `storage`. Multi-part reassembly groups by `sender + reference + storage`, so ME index 0 and SM index 0 never collapse into one message. Singles carry no `reference` key, so they pass through via `select(has("reference") | not)`. Parts are ordered by `part`, and a part stored twice contributes its text once (`unique_by(.part)`) while `indexes` keeps every slot, so one `delete` still removes both copies.
 
-`storage.used` / `storage.total` in the response are the **sum** of ME and SM, and the response *also* carries a per-memory breakdown under `storage.me` / `storage.sm` — see [Per-memory storage breakdown](#per-memory-storage-breakdown) for why the sum alone was not enough.
-
-> ⚠️ WARNING: `sms_tool status` output is word format — `Storage type: ME, used: 0, total: 255` — **not** slash-separated. Parse with `grep -o 'used: [0-9]*'` / `'total: [0-9]*'`. A `[0-9]*/[0-9]*` pattern never matches and reads `0/0`.
+`storage.used` / `storage.total` in the response are the **sum** of ME and SM, and the response *also* carries a per-memory breakdown under `storage.me` / `storage.sm` — see [Per-memory storage breakdown](#per-memory-storage-breakdown) for why the sum alone was not enough. If `qsms status all` fails, both storages read `0/0`.
 
 ### Per-memory storage breakdown
 
@@ -127,27 +182,26 @@ The GET response's `storage` object carries the summed keys **plus** a per-memor
 
 **Why the sum alone was insufficient.** `290` is the arithmetic sum of two capacities in *physically different memories*, and a message cannot spill from one store into the other — the modem does not overflow ME into SM when ME fills. So 290 is not a capacity, and a single meter built on it implies headroom that does not exist in whichever store is actually filling up. On the live device the honest reading is "ME is 25% full, SM is empty", which the combined `64 / 290` (22%) actively obscures.
 
-The change is **purely additive** and confined to the `jq -n` at the end of the GET handler. All four values (`me_used`, `me_total`, `sm_used`, `sm_total`) were already parsed and zero-defaulted earlier in the same handler for the summing step — there are **no new AT calls, no extra lock acquisitions, and no change to the ordered CPMS ritual** described above.
-
-`SmsStorage` in `types/sms.ts` declares `me?` and `sm?` as **optional**, deliberately. A device that has not taken the OTA update runs the old CGI and returns only the sum, so the UI is required to degrade to a single combined meter. A required field would make the type assert something the wire cannot guarantee.
+`SmsStorage` in `types/sms.ts` declares `me?` and `sm?` as **optional**, deliberately. A device that has not taken the OTA update runs an old CGI and returns only the sum, so the UI is required to degrade to a single combined meter. A required field would make the type assert something the wire cannot guarantee.
 
 > ℹ️ NOTE: `components/cellular/sms/summary-tiles.tsx` requires **both** halves to be present before drawing two meters (`const hasSplit = !!me && !!sm`) — half a breakdown is not a breakdown. In the degraded path the combined tile spans two grid tracks and its caption says "slots used across both memories" rather than labelling 290 as a capacity.
 
-### The GET is not side-effect-free
+### The GET is not free
 
-An inbox GET is a comparatively expensive, **stateful** operation, and this is the reason `hooks/use-sms.ts` still does not poll:
+`hooks/use-sms.ts` still does not poll. An inbox GET costs:
 
 | Cost | Detail |
 |---|---|
-| `AT+CPMS` writes | **2 per call** (assert before the reads, re-assert after the `-s SM` reads) |
-| `/tmp/qmanager_at.lock` acquisitions | **6 per call** — CPMS write, ME `recv`, SM `recv`, ME `status`, SM `status`, CPMS write |
+| `AT+CPMS` writes | **1 per call** (the heal), through `qcmd` |
+| `/tmp/qmanager_at.lock` acquisitions | **1 per call** (the heal); `qsms` takes none |
+| WMS time | ME ~80–100 ms for ~150 messages; SM ~1.6 s for 31 messages (~50 ms per read, SIM I/O) |
 | Response body | ~13 KB measured on the live device with 64 slots occupied |
 
-Every one of those six acquisitions contends with `qmanager_poller`, `qmanager_watchcat`, `sms_alerts.sh` and `qmanager_sms_forward` for the *same* `flock`. Adding an inbox poll is therefore a **lock-contention decision against the poller**, not a free UI nicety — weigh it as one. The current UI refreshes only on mount and on explicit user action (the Refresh button, and after a send/delete).
+The remaining cost is SIM I/O on every SM read, so an inbox poll would keep the SIM busy for ~1.6 s per cycle, plus one AT lock hold per heal. The UI refreshes only on mount and on explicit user action (the Refresh button, and after a send/delete).
 
 ### Storage-aware delete
 
-The `delete` POST requires a `storage` field (`"ME"` or `"SM"`, defaulting to `"ME"`, constrained to exactly those two so it can never inject other args into the `sms_tool` call). After any `-s SM` delete, `AT+CPMS="ME","ME","ME"` is re-asserted. `delete_all` clears ME then SM and re-asserts ME routing unconditionally (even on partial failure).
+The `delete` POST requires a `storage` field (`"ME"` or `"SM"`, defaulting to `"ME"`, constrained to exactly those two). Only non-negative integers from `indexes` reach `qsms`, joined into one `qsms delete <storage> i,j,…` call; anything else counts as a failed slot. `delete_all` runs `qsms delete ME all` then `qsms delete SM all`. No CPMS write follows either action.
 
 ---
 
@@ -155,7 +209,7 @@ The `delete` POST requires a `storage` field (`"ME"` or `"SM"`, defaulting to `"
 
 `sms.sh` normalizes outbound numbers (`send` action) in `normalize_phone()`:
 
-1. Strip a single leading `+` (`sms_tool send` wants no `+` prefix).
+1. Strip a single leading `+` (`qsms send` takes the number without it).
 2. If the number starts with `0` (local format), read the SIM's MCC via `qcmd 'AT+CIMI'` (first 3 digits of the IMSI), map it to the ITU-T country calling code via an in-script `mcc_to_calling_code()` lookup table, and replace the leading `0`. An unknown MCC or unreadable IMSI logs a warning and sends the number as-is.
 
 This lets a user type a local number (e.g. `0917…`) and have it dialed internationally based on the inserted SIM's country.
@@ -164,12 +218,12 @@ This lets a user type a local number (e.g. `0917…`) and have it dialed interna
 
 ## Read/Unread State (Client-Side)
 
-The modem **cannot** be the source of truth for per-message read/unread, for two reasons:
+The modem is not the source of truth for per-message read/unread in the UI:
 
-1. `sms_tool -j` strips the `REC READ`/`REC UNREAD` field from message objects, so it never reaches the CGI.
-2. Every inbox GET issues `AT+CMGL=4`, which the modem treats as "mark all read" — any modem-side unread flag self-erases on each fetch.
+1. `qsms list` reports each message's `stat`, but the CGI's merge drops it, so it never reaches the browser.
+2. A WMS list never changes a message's read tag, so on the RM520N-GL a page load no longer clears the modem's unread flags. Under `sms_tool` (and still on the AT backend) every list ran `AT+CMGL=4`, which marks every listed message read.
 
-Read state is therefore tracked entirely in the browser by `hooks/use-sms-read-state.ts` (exports `useSmsReadState`, `smsFingerprint`, `parseSmsTimestamp`), persisted to `localStorage` under `qmanager.sms.read.v1` as a JSON array of fingerprint strings.
+Showing the modem's unread state in the inbox is possible now but not built. Read state is therefore tracked entirely in the browser by `hooks/use-sms-read-state.ts` (exports `useSmsReadState`, `smsFingerprint`, `parseSmsTimestamp`), persisted to `localStorage` under `qmanager.sms.read.v1` as a JSON array of fingerprint strings.
 
 ### Fingerprinting
 
@@ -189,7 +243,7 @@ On every write, the stored set is intersected with the fingerprints of the **cur
 
 ## Timestamp Sorting
 
-> ⚠️ WARNING: `sms_tool` emits timestamps as `"MM/DD/YY HH:MM:SS"` (zero-padded, fixed-width). A plain lexicographic sort mis-orders across month/year boundaries — `"12/31/25 23:59:59"` sorts **after** `"01/01/26 00:00:00"` because `"12" > "01"`. Never sort on the raw timestamp.
+> ⚠️ WARNING: `qsms` emits timestamps as `"MM/DD/YY HH:MM:SS"` (zero-padded, fixed-width). A plain lexicographic sort mis-orders across month/year boundaries — `"12/31/25 23:59:59"` sorts **after** `"01/01/26 00:00:00"` because `"12" > "01"`. Never sort on the raw timestamp.
 
 The backend reorders the fixed-width slices into a sortable `"YYMMDD HH:MM:SS"` key before reversing for newest-first:
 
@@ -205,7 +259,7 @@ The frontend (`parseSmsTimestamp`) parses the same `MM/DD/YY HH:MM:SS` into epoc
 
 ### GET
 
-Asserts ME routing, reads ME then SM, re-asserts ME, and returns the merged list plus storage (summed **and** per-memory). Response envelope:
+Runs the CPMS heal, lists ME and SM with one `qsms list all`, and returns the merged list plus storage (summed **and** per-memory). Response envelope:
 
 ```json
 {
@@ -228,17 +282,17 @@ Asserts ME routing, reads ME then SM, re-asserts ME, and returns the merged list
 }
 ```
 
-A lock failure on the primary ME read returns `{ "success": false, "error": "modem_busy", "detail": "..." }`. A lock failure on the SM read degrades gracefully — the ME results are still returned.
+A failed list returns `{ "success": false, "error": "sms_unavailable", "detail": "SMS service is not ready yet. Try again in a minute." }`; the `detail` is whatever `qsms_detail()` extracted (see [Error and detail mapping](#error-and-detail-mapping)). A QMI error on one storage degrades instead: `qsms` reports it under `storage_errors`, still succeeds, and the GET returns the other storage's messages. A timeout on either storage fails the whole list.
 
 ### POST actions
 
 | Action | Required fields | Notes |
 |---|---|---|
-| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<stderr>"}` (HTTP 200) |
-| `delete` | `indexes` (array), `storage` (`"ME"`\|`"SM"`, default `"ME"`) | Deletes each slot; re-asserts ME after SM deletes; returns `partial_failure` if any slot fails |
-| `delete_all` | — | Clears ME then SM; re-asserts ME routing unconditionally |
+| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<plain sentence>"}` (HTTP 200), for `bad_number` and `message_too_long` too |
+| `delete` | `indexes` (array), `storage` (`"ME"`\|`"SM"`, default `"ME"`) | One `qsms delete` for all valid slots; `partial_failure` (`"N message(s) failed to delete"`) when `.deleted` is shorter than `indexes` |
+| `delete_all` | — | Clears ME then SM; on failure `delete_all_failed` with a `detail` such as `ME: ok \| SM: 3 left` |
 
-Error codes: `missing_action`, `missing_phone`, `missing_message`, `missing_indexes`, `invalid_action`, `modem_busy`, `send_failed`, `partial_failure`, `delete_all_failed`.
+Error codes: `missing_action`, `missing_phone`, `missing_message`, `missing_indexes`, `invalid_action`, `sms_unavailable`, `send_failed`, `partial_failure`, `delete_all_failed`.
 
 ---
 
@@ -283,13 +337,13 @@ Two conventions matter when editing it:
 
 **`useSms` exposes `lastSuccessfulFetch`** (epoch ms), set on the success branch and deliberately *preserved* on the error branch. It is the client's own clock on purpose: a server-side timestamp would report when the CGI ran, not when the browser last saw good data, which is the wrong question for a staleness indicator. It is captured inside the fetch callback and read back as data, never derived from `Date.now()` during render — a render-time clock read is a `react-hooks/purity` violation, and one purity error suppresses every later diagnostic in the same component.
 
-**A read failure keeps the table.** On a failed GET the rows stay on screen, with a destructive `TonalBanner` above them and a `warning` "Stale, HH:MM:SS" chip in the card description dating them. A failed inbox GET here is usually transient `modem_busy` lock contention — another AT consumer holding `/tmp/qmanager_at.lock` for a cycle — and blanking an inbox for that is a functional regression, not honesty. This follows the Carrier Aggregation precedent: the list *freezes* while stale rather than announcing changes that never happened. Only a genuinely empty inbox with no error gets the empty state. (The previous code had the opposite defect: it silently swallowed a refresh failure whenever cached data existed, so stale rows were never labelled.)
+**A read failure keeps the table.** On a failed GET the rows stay on screen, with a destructive `TonalBanner` above them and a `warning` "Stale, HH:MM:SS" chip in the card description dating them. A failed inbox GET here is usually transient — WMS not yet up after boot or a modem subsystem restart (`sms_unavailable`) — and blanking an inbox for that is a functional regression, not honesty. This follows the Carrier Aggregation precedent: the list *freezes* while stale rather than announcing changes that never happened. Only a genuinely empty inbox with no error gets the empty state. (The previous code had the opposite defect: it silently swallowed a refresh failure whenever cached data existed, so stale rows were never labelled.)
 
 **Refresh must be silent, or it destroys the state the freeze rule protects.** `refresh()` in `hooks/use-sms.ts` takes a `silent` argument and defaults it to **false**; a non-silent fetch raises `isLoading`, and `isLoading` is what flips the ternary in `sms-center.tsx` that swaps the whole card for `InboxLoadingState`. Unmounting `SmsInboxCard` discards every piece of state it owns — the active tab, the search text, the sort direction, the row selection and the pagination page. So the Refresh button was wiping exactly what the paragraph above exists to preserve. The call site is now `onRefresh={() => refresh(true)}`, and the in-flight state shows on the button itself (a spinning `progress_activity` glyph) instead of on the whole card.
 
 > ⚠️ WARNING: **any** new caller of `refresh()` on this surface must pass `true`. A bare `refresh()` is not a smaller version of the same thing — it is a card teardown.
 
-**One inbox GET at a time, with a queued re-fetch.** `fetchInbox` holds a single-flight guard (`inFlightRef`). One GET takes the shared AT lock **six times** (see [the cost table](#the-get-is-not-side-effect-free)); concurrent GETs do not go faster, they queue behind each other on `/tmp/qmanager_at.lock` while contending with the poller, the watchdog and `sms_alerts.sh` for the same lock — so a burst of Refresh clicks starves unrelated subsystems for the duration.
+**One inbox GET at a time, with a queued re-fetch.** `fetchInbox` holds a single-flight guard (`inFlightRef`). One GET costs a CPMS write through `qcmd` and ~1.6 s of SIM I/O for the SM list (see [the cost table](#the-get-is-not-free)); concurrent GETs do not go faster, they repeat that work, and each heal takes `/tmp/qmanager_at.lock` away from the poller and the watchdog for one command.
 
 The second half is `queuedRef`, and it is **not** optional. A fetch requested while another is in flight is usually a *post-mutation* refresh, whose whole job is to replace rows the in-flight GET was issued *before* the delete or send happened. Dropping it would leave a just-deleted message on screen until the next manual refresh. So a coincident request is remembered and run once, silently, after the current one lands. The guard is released in `finally` **unconditionally** — gating it on `mountedRef` would strand it on unmount and a remounted card would refuse to fetch for the life of the page.
 
@@ -374,10 +428,10 @@ Everywhere else the strings were left alone and `withSlot` from `components/auth
 ## On-Device Smoke Test
 
 ```sh
-sms_tool status                      # defaults to smd11, silent, exit 0
-sms_tool recv -j                     # no tcgetattr/tcsetattr noise, valid JSON
-sms_tool -s SM recv -j               # read SIM storage (flips mem1 to SM)
-sms_tool at 'AT+CPMS="ME","ME","ME"' # re-assert modem routing
+qsms status all                      # {"success":true,"storages":[...]}
+qsms list ME | jq '.msg | length'    # counts only; keep message text out of transcripts
+qcmd 'AT+CPMS?'                      # mem1/mem2/mem3 should all read "ME"
+grep '\[qsms:' /tmp/qmanager.log | tail  # per-call timing and QMI error codes
 curl -sS http://127.0.0.1/cgi-bin/quecmanager/cellular/sms.sh   # via lighttpd (as www-data)
 ```
 
@@ -387,8 +441,9 @@ curl -sS http://127.0.0.1/cgi-bin/quecmanager/cellular/sms.sh   # via lighttpd (
 
 ## Related
 
-- [`at-command-transport.md`](at-command-transport.md) — `qcmd`, `atcli_smd11`, the shared `flock` on `/tmp/qmanager_at.lock`.
+- [`at-command-transport.md`](at-command-transport.md) — `qcmd`, `atcli_smd11`, the shared `flock` on `/tmp/qmanager_at.lock` (used here only by the CPMS heal).
+- [`qmi-probe.md`](qmi-probe.md) — the WMS measurements behind `qsms` (list timing, routes, send refusal, delete).
 - [`sms-forwarding.md`](sms-forwarding.md) — the forwarding daemon, the **only** server-side inbox reader in the project.
 - [`icon-system.md`](icon-system.md) — the Material/lucide boundary this route sits inside, and the two glyphs (`mark_email_unread`, `delete_sweep`) added for it.
 - [`carrier-aggregation.md`](carrier-aggregation.md) — the freeze-while-stale precedent the inbox error state follows.
-- [`../../dependencies/README.md`](../../dependencies/README.md) — `sms_tool` provenance, patch, rebuild recipe.
+- [`../../dependencies/README.md`](../../dependencies/README.md) — `sms_tool` provenance and patch (installed, unused by SMS).
