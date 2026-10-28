@@ -3,25 +3,22 @@
 # sms_alerts.sh — SMS Alert Library for QManager
 # =============================================================================
 # Sourced by qmanager_poller and CGI scripts. Provides config parsing, the
-# sms_tool transport (under the shared AT flock), and NDJSON logging for the
-# SMS channel. Downtime tracking and threshold evaluation now live in
-# alert_engine.sh (the unified alert engine) — this library only knows how
-# to SEND, not when to send.
+# qsms (QMI WMS) send path, and NDJSON logging for the SMS channel. Downtime
+# tracking and threshold evaluation live in alert_engine.sh; this library
+# only knows how to SEND, not when to send.
 #
 # Poller globals read (by _sa_is_registered, used at send time):
 #   modem_reachable  ("true"/"false")
 #   lte_state        ("connected"/"searching"/"inactive"/"unknown")
 #   nr_state         ("connected"/"searching"/"inactive"/"unknown")
 #
-# Dependencies: jq, sms_tool (bundled at /usr/bin/sms_tool), flock,
-#               qlog_* functions (optional)
+# Dependencies: jq, qsms (/usr/bin/qsms), qlog_* functions (optional)
 # Install location: /usr/lib/qmanager/sms_alerts.sh
 #
 # Config:  /etc/qmanager/sms_alerts.json
 # Log:     /tmp/qmanager_sms_log.json (NDJSON, max 100 entries)
 # Reload:  /tmp/qmanager_sms_reload   (flag file, touched by CGI, consumed
 #          by alert_engine.sh's check_alerts)
-# Lock:    /tmp/qmanager_at.lock      (shared with qcmd + sms.sh)
 # =============================================================================
 
 [ -n "$_SMS_ALERTS_LOADED" ] && return 0
@@ -34,9 +31,7 @@ _SMS_ALERTS_LOADED=1
 _SA_CONFIG="/etc/qmanager/sms_alerts.json"
 _SA_LOG_FILE="/tmp/qmanager_sms_log.json"
 _SA_RELOAD_FLAG="/tmp/qmanager_sms_reload"
-_SA_LOCK_FILE="/tmp/qmanager_at.lock"
-_SA_SMS_TOOL="/usr/bin/sms_tool"
-_SA_AT_DEVICE="/dev/smd11"
+_SA_QSMS="/usr/bin/qsms"
 _SA_MAX_LOG=100
 _SA_MAX_ATTEMPTS=3
 _SA_RETRY_DELAY_SECS=5
@@ -46,30 +41,17 @@ _SA_MAX_SKIPS=3
 _sa_enabled="false"
 _sa_recipient=""
 _sa_threshold_minutes=5
+_sa_last_error=""    # plain-language reason from the last failed send
 
 # =============================================================================
-# _sa_flock_wait — BusyBox-compatible flock with timeout (polling loop)
+# _sa_send_error — Plain-language error text from a failed `qsms send` envelope
 # =============================================================================
-# Usage: _sa_flock_wait <fd> <timeout_seconds>
-# Returns: 0 = lock acquired, non-zero = timed out
-_sa_flock_wait() {
-    local _fd="$1" _wait="$2" _elapsed=0
-    while [ "$_elapsed" -lt "$_wait" ]; do
-        if flock -x -n "$_fd" 2>/dev/null; then return 0; fi
-        sleep 1
-        _elapsed=$((_elapsed + 1))
-    done
-    flock -x -n "$_fd" 2>/dev/null
-}
-
-# =============================================================================
-# _sa_sms_locked — Run sms_tool under the shared AT lock
-# =============================================================================
-# Mirrors sms_locked() in scripts/www/cgi-bin/quecmanager/cellular/sms.sh.
-# Prevents simultaneous /dev/smd11 access from poller AT commands, SMS Center,
-# and SMS Alerts. Suppresses stderr (tcsetattr warnings on smd devices).
-_sa_sms_locked() {
-    (_sa_flock_wait 9 10 || exit 2; "$_SA_SMS_TOOL" -d "$_SA_AT_DEVICE" "$@" 2>/dev/null) 9<"$_SA_LOCK_FILE"
+# Prefers .detail, falls back to .error; non-JSON output gets a fixed sentence.
+_sa_send_error() {
+    local msg
+    msg=$(printf '%s' "$1" | jq -r '.detail // .error // ""' 2>/dev/null)
+    [ -n "$msg" ] || msg="No reply from the SMS service."
+    printf '%s' "$msg"
 }
 
 # =============================================================================
@@ -149,21 +131,23 @@ sms_alert_send() {
 # _sa_do_send — Send SMS with up to _SA_MAX_ATTEMPTS real attempts
 # =============================================================================
 # Return codes:
-#   0 — success (sms_tool exited 0 on at least one attempt)
-#   1 — failed: at least one real sms_tool call was made and all failed
+#   0 — success (qsms exited 0 on at least one attempt)
+#   1 — failed: at least one real qsms call was made and all failed
 #   2 — not attempted: every iteration was skipped because the modem was
 #       not registered. Caller should leave state as "pending" and retry
 #       on the next poll cycle.
 _sa_do_send() {
     local body="$1"
-    local phone="${_sa_recipient#+}"   # sms_tool send needs no + prefix
+    local phone="${_sa_recipient#+}"   # numbers are sent without the +
     local attempt=0
     local attempted_real=0
     local skips=0
-    local rc
+    local rc out
 
-    if [ ! -x "$_SA_SMS_TOOL" ]; then
-        qlog_error "SMS alerts: sms_tool not found at $_SA_SMS_TOOL"
+    _sa_last_error=""
+    if [ ! -x "$_SA_QSMS" ]; then
+        _sa_last_error="SMS service is not installed."
+        qlog_error "SMS alerts: qsms not found at $_SA_QSMS"
         return 1
     fi
 
@@ -190,13 +174,14 @@ _sa_do_send() {
         skips=0
 
         attempted_real=$((attempted_real + 1))
-        _sa_sms_locked send "$phone" "$body" >/dev/null 2>&1
+        out=$("$_SA_QSMS" send "$phone" "$body" 2>/dev/null)
         rc=$?
         if [ "$rc" -eq 0 ]; then
-            qlog_info "SMS alerts: sms_tool send succeeded on attempt $attempt"
+            qlog_info "SMS alerts: qsms send succeeded on attempt $attempt"
             return 0
         fi
-        qlog_warn "SMS alerts: sms_tool send failed on attempt $attempt/$_SA_MAX_ATTEMPTS (rc=$rc)"
+        _sa_last_error=$(_sa_send_error "$out")
+        qlog_warn "SMS alerts: qsms send failed on attempt $attempt/$_SA_MAX_ATTEMPTS (rc=$rc): $_sa_last_error"
     done
 
     if [ "$attempted_real" -eq 0 ]; then
