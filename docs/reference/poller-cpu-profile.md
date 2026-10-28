@@ -475,7 +475,32 @@ At the dashboard's census cadence the CGIs alone cost **13.8 points of the core*
 
 ### After-build device numbers
 
-Pending. The after-build run measures the plan's §4 targets: CGI CPU with the dashboard open (target ≤ 2 % of the core), the floor (target ≤ 15 ms, ≤ 3 forks), system busy open minus closed (target ≤ +5 points), 0 CGI requests from a tab hidden 30 s, the poller staying `active` at `interval_sec=30`, and lighttpd's own CPU with a real browser (decides whether lighttpd keep-alive needs raising, a Tier 4 follow-up).
+Measured on RM520N-GL 61368cd2, 2026-10-28 10:43–11:08 PST, on T3.1's install tree (v0.1.18-draft). Backend only (4 libs + 2 CGIs) was deployed for the run and then restored. The frontend was not deployed: the "new" window replays the built dashboard's request pattern (`fetch_data.sh` every 5 s, the four 10 s pollers, `fetch_ping_history.sh?last=400` every 30 s). Every window ran at 0.98–0.99 of its nominal cadence, with `curl` in the background so ticks stayed 1 s apart.
+
+| window (300 s) | system busy | CGI (lighttpd cutime) | lighttpd own |
+|---|---:|---:|---:|
+| closed (heartbeat only) | 20.9 % | 0.0 % | 0.0 % |
+| open, old pattern, old backend | 36.0 % | 12.5 % | 1.5 % |
+| open, old pattern, new backend | 30.7 % | 7.2 % | 1.6 % |
+| **open, new pattern, new backend** | **22.3 %** | **1.4 %** | 0.5 % |
+
+The CGIs went from 12.5 % to 1.4 % of the core with the dashboard open. About 5 points of that came from the backend de-fork and the rest from the frontend cuts. System busy is now 1.4 points above closed, against 15.1 points before.
+
+| per call (20 calls, CGI CPU) | before | after |
+|---|---:|---:|
+| `speedtest_status.sh` (the floor) | 39.0 ms | 15.0 ms |
+| `fetch_data.sh` | 41.5 ms | 17.5 ms |
+| `auth/check.sh` | 50.0 ms | 14.0 ms |
+| `fetch_events.sh` | 53.5 ms | 29.0 ms |
+
+Forks per authenticated request: 19 → 2 (portability checker, direct runs). The fork column of the 20-call loop is too noisy for this, because the poller adds 16–27 forks/s in the background.
+
+Tier: with `fetch_data.sh` every 10 s (the shared store's cap), the poller stayed `active` in all 12 samples over 60 s, so a 30–60 s ping interval cannot drop an open page out of `active`. No `interval_sec` write was needed, because the tier depends only on heartbeat age.
+
+Not measured on the device:
+- The 1 MB ping-history cut: T3.1's install had cleared `/tmp`, so the archive was 17 KB.
+- A real browser's lighttpd own CPU (keep-alive). The replay's 0.5 % is an upper bound with one TLS handshake per tick.
+- The hidden-tab gate. It was verified in the browser pane off-device: 0 requests while hidden.
 
 Not yet cut: pages other than `/dashboard` that call `useModemStatus()` with the 2 s default (antenna alignment, antenna statistics, band locking, others) still poll at 2 s; the one-shot `system/settings.sh` (296 ms, 71 forks) and `device/about.sh` on every dashboard mount.
 
