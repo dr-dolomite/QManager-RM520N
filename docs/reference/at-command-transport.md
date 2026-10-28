@@ -64,10 +64,10 @@ Each call runs in this order:
 1. **Refuse non-AT input.** A command that does not start with `AT` (any case) or contains a control character answers `command_failed` at once and touches nothing. The broker checks again, because its socket is the trust boundary.
 2. **Long-flag gate.** If `/tmp/qmanager_long_running` exists and the command is not long, answer `modem_busy` at once.
 3. **Try the broker** on `/var/run/qmanager_atd.sock`. The broker takes the lock, runs the exchange on the `/dev/smd11` fd it keeps open, and returns the raw reply.
-4. **Fall back in-process** only if the broker is unreachable: no socket, a stale socket, or connect refused. The client then opens `/dev/smd11` itself under the same lock. It does not need `atcli_smd11`.
+4. **Fall back in-process** only if the broker is unreachable: no socket, a stale socket, connect refused, or `/var/run/qmanager_atd.proto` missing or naming another protocol version (an old broker mid-OTA). The client then opens `/dev/smd11` itself under the same lock. It does not need `atcli_smd11`.
 5. **Judge the reply** with the RM520N contract below and print it.
 
-A request that reached the broker is **never re-run in-process**. If the broker accepts the request and then dies or times out, the caller gets an error, not a second send. Re-running a write such as `AT+COPS=2` after a lost reply could apply it twice.
+A request that reached the broker is **never re-run in-process**. If the broker accepts the request and then dies, times out or sends a reply the client cannot decode (an older protocol), the caller gets `command_failed`, not a second send. Re-running a write such as `AT+COPS=2` after a lost reply could apply it twice.
 
 If the lock file does not exist yet (early boot, or an install run with `--no-start` before `qmanager_setup` ran), the fallback creates it with mode 0666, as the shell did.
 

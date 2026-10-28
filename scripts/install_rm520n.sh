@@ -825,7 +825,8 @@ ensure_zoneinfo_packages() {
 # --- Install Bundled Binaries -------------------------------------------------
 
 # Copies the first-party binaries bundled in dependencies/ (atcli_smd11,
-# sms_tool, qmanager_atd + its qsms link, qmanager_discord) into $BIN_DIR.
+# sms_tool, qmanager_atd + its qsms link, qmanager_discord) into $BIN_DIR;
+# install_backend() links qcmd to qmanager_atd on RM520N.
 #
 # Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
 # and ensure_zoneinfo_packages() above in main()): OTA upgrades invoke this
@@ -914,7 +915,7 @@ install_bundled_binaries() {
         rm -f "$WANTS_DIR/qmanager-atd.service" "$SYSTEMD_DIR/qmanager-atd.service" \
             || warn "Could not remove qmanager-atd.service"
         info "qmanager-atd not used on this model ($(qm_hw_model 2>/dev/null || echo unknown))"
-    elif ! _atd_on; then
+    elif [ "$DO_BACKEND" = "1" ] && ! _atd_on; then
         warn "Model unknown — qmanager-atd unit left as is, qcmd stays the shell script"
     fi
 

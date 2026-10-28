@@ -103,6 +103,10 @@ fn cap_from_env(v: Option<&str>) -> Option<Duration> {
 }
 
 fn try_broker(cmd: &str, cap: Option<Duration>) -> Broker {
+    // Mid-OTA the broker may be the previous binary: never send it a request it may misread.
+    if !proto::broker_speaks_ours(std::fs::read_to_string(proto::PROTO_PATH).ok().as_deref()) {
+        return Broker::Unreachable;
+    }
     try_broker_raw(&proto::encode_request(cmd, proto::mono_ms()), !classify::is_long(cmd), cmd, cap)
 }
 

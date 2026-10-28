@@ -101,6 +101,12 @@ pub fn broker_serves_qmi(caps_text: Option<&str>) -> bool {
     })
 }
 
+/// True only if the running broker speaks exactly this wire format. Any other
+/// answer (none, older, newer) means `qcmd` runs in-process under the same lock.
+pub fn broker_speaks_ours(caps_text: Option<&str>) -> bool {
+    caps_text.map_or(false, |t| parse_capability(t).proto == PROTO_VERSION)
+}
+
 pub enum Reply {
     Ok(Vec<u8>),
     Err(Code),
@@ -380,6 +386,16 @@ mod tests {
         assert!(!broker_serves_qmi(Some("proto=x\nqmi=1\n")));
         assert!(!broker_serves_qmi(Some("")));
         assert!(!broker_serves_qmi(None));
+    }
+
+    #[test]
+    fn at_gate_needs_the_same_proto() {
+        assert!(broker_speaks_ours(Some(&capability_body())));
+        assert!(!broker_speaks_ours(Some(&format!("proto={}\n", PROTO_VERSION - 1))));
+        assert!(!broker_speaks_ours(Some(&format!("proto={}\n", PROTO_VERSION + 1))));
+        assert!(!broker_speaks_ours(Some("proto=x\n")));
+        assert!(!broker_speaks_ours(Some("")));
+        assert!(!broker_speaks_ours(None));
     }
 
     #[test]
