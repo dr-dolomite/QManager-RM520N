@@ -14,8 +14,8 @@
 #
 # Wake-up: `qsms watch` prints "<ME|SM> <index>" per arrival; the supervisor
 # feeds it through a FIFO. Without a live watch the loop polls every
-# SF_INTERVAL; with one it lists only the named storage, plus a full list
-# every SAFETY_INTERVAL.
+# SF_INTERVAL; with one it lists only the named storage, plus ME (and an unseeded
+# or failed SM) every SAFETY_INTERVAL.
 #
 # Install location: /usr/bin/qmanager_sms_forward
 # Dependencies: qsms, jq, awk, md5sum, mkfifo, qcmd
@@ -73,6 +73,7 @@ CK_ME=""
 CK_SM=""
 SCAN_SEED=0
 SCAN_FAILING=0
+SM_RETRY=0
 
 # Merge one storage's `qsms list` output: singles pass through; concatenated parts group by
 # sender|reference|total, split where part timestamps are >24 h apart (reference reuse).
@@ -177,7 +178,7 @@ sf_fingerprint() {
 }
 
 # --- Read + merge one storage's inbox into a JSON array ----------------------
-# Prints [{sender,content,timestamp,storage,gkey,complete,parts,total}].
+# Prints [{sender,content,timestamp,storage,gkey,gts,complete,parts,total}].
 # Returns 1 when qsms fails, so a failed read is never mistaken for an empty inbox.
 sf_read_inbox() {
     _ri=$("$QSMS" list "$1" 2>/dev/null </dev/null)
@@ -567,17 +568,20 @@ sf_dispatch() {
     sf_now
     if [ "$EV_FULL" = "1" ] || { [ "$WATCH_UP" != "1" ] && [ $((NOW - LAST_FULL)) -ge "$SF_INTERVAL" ]; }; then
         sf_scan ME
-        sf_scan SM
+        sf_scan SM && SM_RETRY=0 || SM_RETRY=1
         sf_now
         LAST_FULL="$NOW"
     else
-        # Safety list while watch is up: ME only; SM is listed when an indication names it.
+        # Safety list while watch is up: ME, plus SM only if it is unseeded or its last list failed.
         if [ "$WATCH_UP" = "1" ] && [ $((NOW - LAST_FULL)) -ge "$SAFETY_INTERVAL" ]; then
             EV_ME=1
+            { [ "$SEEDED_SM" != "1" ] || [ "$SM_RETRY" = "1" ]; } && EV_SM=1
             LAST_FULL="$NOW"
         fi
         [ "$EV_ME" = "1" ] && sf_scan ME
-        [ "$EV_SM" = "1" ] && sf_scan SM
+        if [ "$EV_SM" = "1" ]; then
+            sf_scan SM && SM_RETRY=0 || SM_RETRY=1
+        fi
         for _st in $(sf_pending_due); do
             sf_scan "$_st"
         done
