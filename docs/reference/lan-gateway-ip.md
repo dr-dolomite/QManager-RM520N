@@ -19,6 +19,7 @@ QManager lets the user change the modem's own LAN address (the gateway LAN clien
 | Factory copy (firmware) | `/etc/data/factory_mobileap_cfg.xml` |
 | QManager backup | `/etc/data/mobileap_cfg.xml.qm-bak` — written once, never restored automatically |
 | Lock | `/etc/data/.qm_lan_apply.lock` (`flock -n`) |
+| Settled marker | `/usrdata/.qm_lan_subnet_set` (`QM_LAN_MARKER`) — set by the first normalize run or any UI apply; while present, install and OTA never touch the mask |
 | Per-run copy | `/etc/data/mobileap_cfg.xml.qm-run.<pid>` (removed on every failure, renamed over the file on success) |
 | Tooling | `/usr/bin/xmllint` (system-bundled). `xmlstarlet` is not installed |
 
@@ -177,13 +178,15 @@ The math works on octets 3 and 4 only, because RFC1918 addresses exceed 2^31 and
 
 `normalize_lan_subnet()` sources `lan_subnet.sh` from the staging tree (`$SRC_SCRIPTS/usr/lib/qmanager/lan_subnet.sh`) and calls `qm_lan_subnet_normalize /etc/data/mobileap_cfg.xml`. It runs in `main()` before `stop_services`, on fresh install and OTA alike. It is advisory: every failure path warns and returns 0, so it never aborts an install.
 
+It runs once. If `/usrdata/.qm_lan_subnet_set` exists it does nothing. The helper sets that marker on every successful UI apply, and normalize sets it after a successful rewrite or when it finds a non-factory layout, so a user's choice (even a /22 that looks like the factory one) is never undone by a later install or OTA. A missing file, a read failure or missing `xmllint` leaves no marker, so the next install retries.
+
 It changes the file only when all four values match the exact factory layout:
 
 | Field | Required value |
 | --- | --- |
 | `APIPAddr` | `192.168.225.1` |
 | `SubNetMask` | `255.255.252.0` |
-| `StartIP`, `EndIP` | both in `192.168.225.x` |
+| `StartIP`, `EndIP` | both in `192.168.225.2`–`.254`, start ≤ end (valid /24 hosts) |
 
 Then it rewrites **only** the mask to `255.255.255.0`; address and pool stay as they are. Any other layout (already /24, a user-chosen address, a different pool) is logged and left alone. A missing file or missing `xmllint` is skipped with return 0. The new mask takes effect at the next reboot; the installer does not reboot for it.
 
@@ -207,9 +210,11 @@ Either of these works over SSH as root:
 
 2. Without touching the modem, give the PC a static address in the subnet the modem is actually on (for example `192.168.225.10/24`, gateway `192.168.225.1`) and change the LAN back from the UI.
 
-> ⚠️ WARNING: `.qm-bak` replaces the whole file, so any other QCMAP setting changed after QManager's first edit is lost. It also holds the factory /22 layout, so the next install or OTA normalizes it to /24 again. To keep the /22 permanently, change any one of the four fields (for example the DHCP pool) so the file no longer matches the factory layout.
+> ⚠️ WARNING: `.qm-bak` replaces the whole file, so any other QCMAP setting changed after QManager's first edit is lost. It holds the factory /22 layout; the settled marker keeps install and OTA from normalizing it again. Deleting the marker, or uninstalling, re-arms the one-time normalize.
 
-`uninstall_rm520n.sh` leaves the LAN as it is. When `.qm-bak` exists it prints its path. It removes `/etc/data/.qm_lan_apply.lock`.
+`uninstall_rm520n.sh` leaves the LAN as it is. When `.qm-bak` exists it prints its path. It removes `/etc/data/.qm_lan_apply.lock` and the settled marker `/usrdata/.qm_lan_subnet_set`, so a later reinstall normalizes a factory /22 again.
+
+> ℹ️ NOTE: Between an OTA that normalized the mask (`--no-reboot`) and the next reboot, the file says /24 while `bridge0` is still /22. GET reports the file, and a POST of the same address and /24 counts as unchanged, so nothing applies until the user reboots.
 
 ## RG501Q-EU
 

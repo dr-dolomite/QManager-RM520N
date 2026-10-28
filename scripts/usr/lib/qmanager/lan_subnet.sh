@@ -18,6 +18,8 @@
 _QM_LAN_SUBNET_LOADED=1
 
 : "${QM_LAN_CFG:=/etc/data/mobileap_cfg.xml}"
+# Present = normalize already ran or the user saved a LAN from the UI; install/OTA then never touch the mask.
+: "${QM_LAN_MARKER:=/usrdata/.qm_lan_subnet_set}"
 
 # Scratch results of qm_lan_split / qm_lan_calc (globals by design: no subshell forks).
 QM_LAN_O1="" QM_LAN_O2="" QM_LAN_O3="" QM_LAN_O4=""
@@ -289,22 +291,39 @@ qm_lan_write() {
     return 0
 }
 
-# qm_lan_subnet_normalize [file] — installer one-shot: factory layout (225.1 + /22 + pool in 225.x) -> /24.
-# Anything else (already /24, user-changed, unreadable xmllint) is left alone and returns 0.
+# qm_lan_mark_set — record that the LAN mask is settled; failure only logs.
+qm_lan_mark_set() {
+    : > "$QM_LAN_MARKER" 2>/dev/null || _qm_lan_log warn "cannot write $QM_LAN_MARKER"
+    return 0
+}
+
+# qm_lan_subnet_normalize [file] — runs once: factory layout (225.1 + /22 + pool in 225.2-254) -> /24.
+# Skips when QM_LAN_MARKER exists; any other layout is left alone and marked. Returns 0 unless the write fails.
 qm_lan_subnet_normalize() {
     _qmn_f=${1:-$QM_LAN_CFG}
+    [ -e "$QM_LAN_MARKER" ] && { _qm_lan_log info "LAN subnet already settled, left as is"; return 0; }
     [ -f "$_qmn_f" ] || { _qm_lan_log info "no $_qmn_f, nothing to normalize"; return 0; }
     command -v xmllint >/dev/null 2>&1 || { _qm_lan_log warn "xmllint missing, LAN subnet not normalized"; return 0; }
     _qmn_cur=$(qm_lan_read "$_qmn_f") || { _qm_lan_log error "cannot read $_qmn_f"; return 1; }
     set -- $_qmn_cur
+    _qmn_ok=0
     case "$1 $2 $3 $4" in
-        "192.168.225.1 255.255.252.0 192.168.225."[0-9]*" 192.168.225."[0-9]*) ;;
-        *) _qm_lan_log info "LAN layout is not the factory /22, left as is: $_qmn_cur"; return 0 ;;
+        "192.168.225.1 255.255.252.0 192.168.225."[0-9]*" 192.168.225."[0-9]*)
+            # Pool must stay valid hosts under /24: 2..254, start <= end (gateway is .1).
+            _qmn_s=${3##*.} _qmn_e=${4##*.}
+            qm_lan_split "$3" && qm_lan_split "$4" &&
+                [ "$_qmn_s" -ge 2 ] && [ "$_qmn_e" -le 254 ] && [ "$_qmn_s" -le "$_qmn_e" ] && _qmn_ok=1
+            ;;
     esac
+    if [ "$_qmn_ok" -ne 1 ]; then
+        _qm_lan_log info "LAN layout is not the factory /22, left as is: $_qmn_cur"
+        qm_lan_mark_set
+        return 0
+    fi
     _qmn_rc=0
     qm_lan_write "$_qmn_f" "$1" "255.255.255.0" "$3" "$4" || _qmn_rc=$?
     case $_qmn_rc in
-        0) _qm_lan_log info "LAN subnet normalized 255.255.252.0 -> 255.255.255.0"; return 0 ;;
+        0) _qm_lan_log info "LAN subnet normalized 255.255.252.0 -> 255.255.255.0"; qm_lan_mark_set; return 0 ;;
         2) return 0 ;;
         *) return 1 ;;
     esac

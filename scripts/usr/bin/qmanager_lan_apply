@@ -44,6 +44,7 @@ esac
 [ -r "$LIB" ] || fail 5 "lib_missing" "lan_subnet.sh is not installed"
 . "$LIB"
 QM_LAN_CFG="/etc/data/mobileap_cfg.xml"
+QM_LAN_MARKER="/usrdata/.qm_lan_subnet_set"
 
 qm_lan_split "$ipaddr" || fail 2 "invalid_ipaddr" "ipaddr must be four octets 0-255 without leading zeros"
 if [ "${#prefix}" -gt 2 ] || [ "$prefix" -lt 16 ] || [ "$prefix" -gt 30 ]; then
@@ -81,6 +82,8 @@ case $write_rc in
     2) fail 5 "xmllint_missing" "xmllint is not available" ;;
     *) fail 5 "write_failed" "Could not update the LAN config" ;;
 esac
+# A user's choice: future installs and OTAs must never normalize it.
+qm_lan_mark_set
 
 printf '{"success":true,"ipaddr":"%s","netmask":"%s","prefix":%s,"dhcp_start":"%s","dhcp_end":"%s"}\n' \
     "$ipaddr" "$netmask" "$prefix" "$dhcp_start" "$dhcp_end"
