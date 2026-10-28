@@ -5,8 +5,7 @@
 //
 // Backend endpoint: GET/POST /cgi-bin/quecmanager/cellular/sms.sh
 //
-// Note: The SmsMessage shape matches the JSON output of `sms_tool -j recv`.
-// Verify field names against actual device output and adjust if needed.
+// Note: The SmsMessage shape is the CGI's merged view of `qsms list all`.
 // =============================================================================
 
 /** A single (possibly merged multi-part) SMS message */

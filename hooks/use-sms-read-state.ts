@@ -6,11 +6,8 @@ import type { SmsMessage } from "@/types/sms";
 // =============================================================================
 // useSmsReadState — client-side read/unread tracking for SMS messages
 // =============================================================================
-// The modem cannot be the source of truth for read/unread:
-//   1. `sms_tool -j` drops the per-message status field, so the CGI never sees
-//      REC READ / REC UNREAD.
-//   2. Every inbox GET issues `AT+CMGL=4`, which the modem treats as "mark all
-//      read" — so any unread state self-erases on each fetch.
+// The modem is not the source of truth for read/unread: the CGI does not pass the
+// per-message status through, and the AT era marked every message read on each fetch.
 // We therefore track "has THIS browser opened this message" locally. "Unread"
 // means the message's fingerprint is absent from the persisted read-set. New
 // incoming messages are unread by default.

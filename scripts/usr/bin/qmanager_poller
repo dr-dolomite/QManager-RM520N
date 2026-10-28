@@ -526,7 +526,7 @@ fi
 # =============================================================================
 # HELPER: SAFE QCMD CALL
 # =============================================================================
-# Calls qcmd and strips the echoed AT command + trailing OK from sms_tool output.
+# Calls qcmd and strips the echoed AT command + trailing OK from its output.
 # Returns exit codes:
 #   0 = success
 #   1 = modem unreachable / timeout
@@ -544,7 +544,7 @@ qcmd_exec() {
         return 1
     fi
 
-    # Strip echoed AT command and trailing OK from sms_tool output.
+    # Strip echoed AT command and trailing OK from qcmd output.
     #
     # ZERO FORKS. This used to be
     #   result=$(printf '%s\n' "$result" | grep -v '^AT' | grep -v '^OK$' | grep -v '^$')

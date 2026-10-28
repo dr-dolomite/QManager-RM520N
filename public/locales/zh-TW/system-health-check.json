@@ -157,7 +157,7 @@
     },
     "sms": {
       "label": "SMS 子系統",
-      "description": "sms_tool 就緒狀態與 SIM 卡存在情況"
+      "description": "SMS 服務就緒狀態與 SIM 卡存在情況"
     },
     "sudoers": {
       "label": "Sudoers",

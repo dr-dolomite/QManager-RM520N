@@ -237,7 +237,7 @@ _init_status() {
 _test_catalog_pending() {
     jq -n '[
         {id:"bin.atcli",          category:"binaries", label:"atcli_smd11 binary present",  status:"pending", duration_ms:0, detail:""},
-        {id:"bin.sms_tool",       category:"binaries", label:"sms_tool binary present",     status:"pending", duration_ms:0, detail:""},
+        {id:"bin.qsms",           category:"binaries", label:"qsms present",                status:"pending", duration_ms:0, detail:""},
         {id:"bin.qcmd",           category:"binaries", label:"qcmd wrapper present",        status:"pending", duration_ms:0, detail:""},
         {id:"bin.jq",             category:"binaries", label:"jq present",                  status:"pending", duration_ms:0, detail:""},
         {id:"bin.curl",           category:"binaries", label:"curl present",                status:"pending", duration_ms:0, detail:""},
@@ -261,7 +261,7 @@ _test_catalog_pending() {
         {id:"at.cfun",            category:"at_transport", label:"AT+CFUN? radio state",            status:"pending", duration_ms:0, detail:""},
         {id:"at.lock_serial",     category:"at_transport", label:"qcmd serializes back-to-back",    status:"pending", duration_ms:0, detail:""},
 
-        {id:"sms.recv_listing",   category:"sms", label:"sms_tool -j recv returns valid JSON", status:"pending", duration_ms:0, detail:""},
+        {id:"sms.list",           category:"sms", label:"qsms list ME answers",                status:"pending", duration_ms:0, detail:""},
         {id:"sms.flock",          category:"sms", label:"flock on shared AT lock works",        status:"pending", duration_ms:0, detail:""},
         {id:"sms.cpin",           category:"sms", label:"AT+CPIN? returns READY",               status:"pending", duration_ms:0, detail:""},
 
@@ -300,7 +300,7 @@ _test_catalog_pending() {
 _check_bin() {
     # _check_bin <name> <path> <warn-if-missing?> [version-cmd]
     # version-cmd defaults to "--version". Pass "" to skip version probing
-    # entirely (for binaries like atcli_smd11/sms_tool/qcmd that interpret
+    # entirely (for binaries like atcli_smd11/qcmd that interpret
     # arbitrary argv as AT commands and hang waiting for a modem reply).
     local name="$1" path="$2" soft="${3:-0}" vflag="${4---version}"
     if [ -x "$path" ]; then
@@ -359,7 +359,7 @@ _check_bin() {
 # Modem-side binaries: skip version probe — they pass argv as AT commands
 # and block forever waiting on /dev/smd11. Existence + executable bit only.
 t_bin_atcli()      { _check_bin atcli_smd11 /usr/bin/atcli_smd11 0 ""; }
-t_bin_sms_tool()   { _check_bin sms_tool    /usr/bin/sms_tool    0 ""; }
+t_bin_qsms()       { _check_bin qsms        /usr/bin/qsms        0 ""; }
 t_bin_qcmd()       { _check_bin qcmd        /usr/bin/qcmd        0 ""; }
 t_bin_jq()         { _check_bin jq          /opt/bin/jq          0; }
 t_bin_curl()       { _check_bin curl        /opt/bin/curl        0; }
@@ -579,14 +579,15 @@ t_at_lock_serial() {
     fi
 }
 
-t_sms_recv_listing() {
-    # The bundled sms_tool is patched to default to /dev/smd11 and is silent
-    # on smd devices (no tcgetattr/tcsetattr noise) — see dependencies/README.md.
-    # No -d flag or stderr suppression needed.
-    local out; out=$(sms_tool -j recv)
+t_sms_list() {
+    # Counts only: message text must not reach the report. A WMS list never marks messages read.
+    local out; out=$(qsms list ME 2>/dev/null | jq -c '{success, count: ((.msg // []) | length), skipped, error, detail}' 2>/dev/null)
     echo "$out" >> "$OUTPUT_FILE"
-    if echo "$out" | jq -e . >/dev/null 2>&1; then echo "pass|valid JSON"
-    else echo "fail|invalid JSON or sms_tool error"; fi
+    if [ "$(echo "$out" | jq -r '.success' 2>/dev/null)" = "true" ]; then
+        echo "pass|$(echo "$out" | jq -r '.count') messages in ME"
+    else
+        echo "fail|$(echo "$out" | jq -r '.detail // .error // "no reply"' 2>/dev/null)"
+    fi
 }
 t_sms_flock() {
     if flock -x -n /tmp/qmanager_at.lock true 2>>"$OUTPUT_FILE"; then
@@ -1039,7 +1040,7 @@ _init_status
 _pause_poller_if_running
 
 _run_test bin.atcli           binaries     "atcli_smd11 binary present"            t_bin_atcli
-_run_test bin.sms_tool        binaries     "sms_tool binary present"               t_bin_sms_tool
+_run_test bin.qsms            binaries     "qsms present"                          t_bin_qsms
 _run_test bin.qcmd            binaries     "qcmd wrapper present"                  t_bin_qcmd
 _run_test bin.jq              binaries     "jq present"                            t_bin_jq
 _run_test bin.curl            binaries     "curl present"                          t_bin_curl
@@ -1063,7 +1064,7 @@ _run_test at.cgsn             at_transport "AT+CGSN returns IMEI"               
 _run_test at.cfun             at_transport "AT+CFUN? radio state"                  t_at_cfun
 _run_test at.lock_serial      at_transport "qcmd serializes back-to-back"          t_at_lock_serial
 
-_run_test sms.recv_listing    sms          "sms_tool -j recv returns valid JSON"   t_sms_recv_listing
+_run_test sms.list            sms          "qsms list ME answers"                  t_sms_list
 _run_test sms.flock           sms          "flock on shared AT lock works"         t_sms_flock
 _run_test sms.cpin            sms          "AT+CPIN? returns READY"                t_sms_cpin
 
