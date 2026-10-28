@@ -51,7 +51,7 @@ The /22 is the firmware default, not something an earlier QManager wrote. `facto
 - `AT+QMAP="LANIP"` reports `+QMAP: "LANIP",<dhcp_start>,<dhcp_end>,<gateway>` and `AT+QMAP="LAN"` sets the gateway; neither has a mask field. The mask can only be set in the XML.
 - QCMAP generates `/var/run/data/dnsmasq.conf.bridge0` (including `dhcp-range`) from the XML at boot. There is no live reload: `bridge0` keeps its old address until a reboot.
 - `/etc` is the same persistent, always-`rw` UBIFS volume as `/usrdata`, so the edit needs no rootfs remount and survives the reboot.
-- `/etc/data/ipa/IPACM_cfg.xml` carries `IPACMPrivateSubnet` `192.168.224.0` / `255.255.252.0`. It is a superset of the factory /24 and is intentionally not edited.
+- `/etc/data/ipa/IPACM_cfg.xml` carries `IPACMPrivateSubnet` `192.168.225.0` / `255.255.255.0` (factory copy too), so it matches the /24. QManager never edits it; a LAN moved off 192.168.225.x leaves it stale, effect on IPA offload unverified.
 
 ## CGI contract
 
