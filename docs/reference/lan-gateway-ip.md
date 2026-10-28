@@ -1,170 +1,235 @@
-# LAN Gateway IP (planned feature — feasibility notes)
+# LAN Gateway IP and Subnet
 
-> **Status: not built.** No CGI endpoint, hook, or UI exists yet. This doc
-> records what was learned while manually validating the mechanism on both
-> reference devices, so a future implementation doesn't have to re-derive it.
-> **Applies to:** RM520N-GL and RG501Q-EU — confirmed live on both, 2026-08-25.
+QManager lets the user change the modem's own LAN address (the gateway LAN clients use) and its subnet from the **LAN Address** card on **Local Network → Ethernet** (`/local-network/ethernet/`). The address and mask live only in the Quectel vendor file `/etc/data/mobileap_cfg.xml`, which QCMAP reads once at boot, so every change is a file edit followed by a deferred reboot. The installer also fixes the firmware's factory /22 LAN mask down to a /24 once, because the /22 covers 192.168.224.0–227.255 and clashes with any router on 192.168.224.1 (for example a sibling RM551E), which made the RM520N-GL unreachable over a Tailscale subnet route.
 
-> The idea: let the user change the modem's LAN gateway IP (default
-> `192.168.225.1` on both platforms) from the QManager UI — the same use case
-> as the SimpleAdmin-era `LAN_settings.sh` console menu, but as a proper CGI +
-> frontend feature. Motivating case: running an RM520N-GL and an RG501Q-EU on
-> the same Ethernet segment, where both defaulting to `192.168.225.1` collide.
-
-> ### ✅ The motivating case has been resolved by hand — and it paid off immediately
->
-> **2026-08-25:** the RG501Q-EU's `bridge0` was moved to **`192.168.120.1/24`**
-> using the mechanism documented below, and the RM520N-GL was left on
-> `192.168.225.1`. SSH to the RG501Q at its new address is **verified working**.
-> Recorded in [`platform-matrix.md`](./platform-matrix.md) > Device access.
->
-> **Simultaneous reachability is proven as of 2026-08-25** — both devices answered
-> from the same host minutes apart, each identity-proven from `/proc/cmdline`
-> (`61368cd2` and `b7e3d6f1`). The earlier reading (host holding only
-> `192.168.120.34`, RM520N-GL offline) was a transient host-addressing state.
-> ⚠️ Still **check** it rather than assuming it: the host must hold an address on
-> *both* subnets and does not do so automatically, and either device may be
-> powered down.
->
-> This is worth more than convenience. Every cross-device defect found so far
-> (`wget`, `timeout`, `mountpoint`) was found by running one command on both
-> devices and comparing — and none was found by reading code. While the two
-> collided on one address they could not be compared without physically swapping
-> cables, which is precisely why the divergences went unnoticed until a second
-> device existed. `change-workflow.md`'s *device-diff before agents* rule depends
-> on this state holding.
->
-> **It also means this feature now has a validated end-to-end precedent**: the
-> edit, the `AT+CFUN=1,1` apply, and the post-reboot recovery (blocker **F8**)
-> have all been exercised on real hardware rather than reasoned about.
->
-> **F8 is fixed as of 2026-08-25 (`952309e`) — the blocker is lifted for the
-> RG501Q-EU**, validated on that device across three reboots. The **RM520N-GL was
-> measured the same day and is confirmed exposed too** (all four preconditions
-> present; the defect was observed firing on the captured boot and won only by an
-> accidental timing shield). The fix has since been applied to that device and
-> **reboot-validated 2026-08-25** — guard persisted, `rc.unslung`'s selector no
-> longer matches `S80lighttpd`, QManager healthy on 80 and 443. **The blocker is
-> lifted on both platforms.** Note the RM520N-GL was fixed by hand rather than by an
-> installer run, so the installer's own end-to-end path is still unexercised on it
-> (F8 follow-up 3).
-
----
+> **Applies to:** RM520N-GL (measured on firmware `RM520NGLAAR03A03M4G_A0.304`, 2026-10-28). On the RG501Q-EU the feature does not work as shipped; see [RG501Q-EU](#rg501q-eu).
 
 ## Quick Reference
 
 | Item | Value |
-|------|-------|
-| Config file | `/etc/data/mobileap_cfg.xml` (same file Custom DNS reads — see [`custom-dns.md`](./custom-dns.md)) |
-| Gateway IP field | `//MobileAPLanCfg/APIPAddr` |
-| Companion fields that must move with it | `//MobileAPLanCfg/DHCPCfg/StartIP`, `.../EndIP` (must stay inside the new subnet) |
-| Unrelated but adjacent field | `//MobileAPLanCfg/GatewayURL` (a hostname alias, e.g. `mobileap.qualcomm.com` — cosmetic, not the IP) |
-| Editing tool, RM520N-GL | `/usr/bin/xmllint` is system-bundled; `xmlstarlet` is **not** installed by default (see `docs/BACKEND.md`) |
-| Editing tool, RG501Q-EU | **Neither** `xmllint` nor `xmlstarlet` present (checked directly, 2026-08-25) — use `sed -i` on the known-format lines, same as this investigation did |
-| Apply mechanism | Full modem reboot (`AT+CFUN=1,1`) — the live `bridge0`/LAN interface does not pick up the new IP until then; no live-reload path exists |
-| Former blocker (now fixed) | **F8** in [`platform-matrix.md`](./platform-matrix.md) — a reboot could leave QManager's web UI unreachable regardless of the IP change, because Entware's own `lighttpd` sometimes took port 80 first. **Fixed 2026-08-25 in `952309e`; boot-validated on the RG501Q-EU over 3 reboots and on the RM520N-GL over 1. Lifted on both platforms.** |
+| --- | --- |
+| UI | **Local Network → Ethernet** → **LAN Address** card (`components/local-network/lan-config-card.tsx`, reconnect view `components/local-network/lan-reconnecting.tsx`, hook `hooks/use-lan-config.ts`, types `types/lan-config.ts`) |
+| CGI | `GET` / `POST /cgi-bin/quecmanager/network/lan_config.sh` (source `scripts/www/cgi-bin/quecmanager/network/lan_config.sh`) |
+| Root helper | `/usr/bin/qmanager_lan_apply <ipaddr> <prefix>` via `sudo -n` (source `scripts/usr/bin/qmanager_lan_apply`) |
+| Sudoers rule | `www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_lan_apply` in `scripts/etc/sudoers.d/qmanager` |
+| Shared library | `/usr/lib/qmanager/lan_subnet.sh` — `qm_lan_read`, `qm_lan_write`, `qm_lan_subnet_normalize`, `qm_lan_split`, `qm_lan_prefix_to_mask`, `qm_lan_mask_to_prefix`, `qm_lan_is_private`, `qm_lan_calc`, `qm_lan_host_ok`, `qm_lan_dhcp_range` |
+| Installer hook | `normalize_lan_subnet()` in `scripts/install_rm520n.sh`, called from `main()` on fresh install and OTA |
+| Config file | `/etc/data/mobileap_cfg.xml` (owner `radio:radio`, mode `0755` on the reference device) |
+| Edited fields | `//MobileAPLanCfg/APIPAddr`, `//MobileAPLanCfg/SubNetMask`, `//MobileAPLanCfg/DHCPCfg/StartIP`, `//MobileAPLanCfg/DHCPCfg/EndIP` |
+| Factory copy (firmware) | `/etc/data/factory_mobileap_cfg.xml` |
+| QManager backup | `/etc/data/mobileap_cfg.xml.qm-bak` — written once, never restored automatically |
+| Lock | `/etc/data/.qm_lan_apply.lock` (`flock -n`) |
+| Settled marker | `/usrdata/.qm_lan_subnet_set` (`QM_LAN_MARKER`) — set by the first normalize run or any UI apply; while present, install and OTA never touch the mask |
+| Per-run copy | `/etc/data/mobileap_cfg.xml.qm-run.<pid>` (removed on every failure, renamed over the file on success) |
+| Tooling | `/usr/bin/xmllint` (system-bundled). `xmlstarlet` is not installed |
 
----
-
-## What was verified live (2026-08-25)
-
-Both devices carry the identical XML schema for this file — this is Quectel
-vendor format, not something either platform's QManager port introduced:
-
-```
-/etc/data/mobileap_cfg.xml
-  <APIPAddr>192.168.225.1</APIPAddr>      <!-- gateway IP, both devices, stock default -->
-  <GatewayURL>mobileap.qualcomm.com</GatewayURL>
-  <SubNetMask>255.255.255.0</SubNetMask>
-  <StartIP>192.168.225.20</StartIP>
-  <EndIP>192.168.225.60</EndIP>
-```
-
-The RG501Q-EU was moved from `192.168.225.1` to `192.168.120.1` (chosen to
-stop colliding with the RM520N-GL, which stays at its default) using:
+Read the live state:
 
 ```sh
-sed -i 's|<APIPAddr>192.168.225.1</APIPAddr>|<APIPAddr>192.168.120.1</APIPAddr>|' /etc/data/mobileap_cfg.xml
-sed -i 's|<StartIP>192.168.225.20</StartIP>|<StartIP>192.168.120.20</StartIP>|'   /etc/data/mobileap_cfg.xml
-sed -i 's|<EndIP>192.168.225.60</EndIP>|<EndIP>192.168.120.60</EndIP>|'         /etc/data/mobileap_cfg.xml
-atcli_smd11 'AT+CFUN=1,1'   # full reboot — required to apply
+grep -nE '<(APIPAddr|SubNetMask|StartIP|EndIP)>' /etc/data/mobileap_cfg.xml
+ip -4 addr show bridge0
+grep dhcp-range /var/run/data/dnsmasq.conf.bridge0
 ```
 
-Post-reboot, `bridge0` came up as `192.168.120.1/24` (confirmed via
-`ip addr show bridge0`), and the edited XML file survived the reboot
-unchanged — `/etc` is a persistent UBIFS volume on both platforms (see the
-Filesystem & partitions table in `platform-matrix.md`), so no remount step
-was needed before the edit.
+## Factory values (RM520N-GL)
 
-**A backup of the pre-edit file was left on-device** at
-`/etc/data/mobileap_cfg.xml.bak-1787634825` (RG501Q-EU only, from this
-session) — delete it once a real implementation lands, or fold it into
-whatever backup convention that implementation adopts.
+Measured 2026-10-28 on serial `61368cd2`, firmware `RM520NGLAAR03A03M4G_A0.304`, before any QManager edit:
 
-## Why the DHCP range has to move too
+| Field | Factory value |
+| --- | --- |
+| `APIPAddr` | `192.168.225.1` |
+| `SubNetMask` | `255.255.252.0` (/22, covers `192.168.224.0`–`192.168.227.255`) |
+| `StartIP` / `EndIP` | `192.168.225.20` / `192.168.225.170` |
+| `bridge0` | `inet 192.168.225.1/22 brd 192.168.227.255` |
+| dnsmasq | `dhcp-range=bridge0,192.168.225.20,192.168.225.170,255.255.252.0,43200` |
 
-`StartIP`/`EndIP` are absolute addresses, not offsets from `APIPAddr`. If a
-future implementation only rewrites `APIPAddr`, the modem hands out DHCP
-leases (`192.168.225.20`–`.60`) that are unreachable from a gateway now
-sitting on a different subnet (`192.168.120.1/24`). Any real feature must
-compute new `StartIP`/`EndIP` values inside the new subnet (this investigation
-mirrored the existing offset: `.20` and `.60` on the new /24) rather than
-exposing a single "gateway IP" field that silently leaves DHCP broken.
+The /22 is the firmware default, not something an earlier QManager wrote. `factory_mobileap_cfg.xml` carries the same four values.
 
-## The `GatewayURL` field is a decoy
+> ℹ️ NOTE: An earlier version of this doc listed the stock values as `/24` and `.20`–`.60`. Those were never correct for the RM520N-GL.
 
-`//MobileAPLanCfg/GatewayURL` (`mobileap.qualcomm.com` on both devices,
-stock) is a separate, cosmetic hostname alias — not the mechanism for
-changing the actual gateway address. Don't let a future implementation
-conflate the two nodes; they're siblings in the same `MobileAPLanCfg` block,
-which is exactly how the older SimpleAdmin console menu
-(`simpleadmin-source/simpleadmin/console/menu/LAN_settings.sh`) exposed them
-as two separate options ("Edit Gateway IPV4 Address" vs. "Edit Gateway URL").
+## Why the XML is the only path
 
-## Former blocker: the reboot itself was unreliable on the RG501Q-EU
+- `AT+QMAP="LANIP"` reports `+QMAP: "LANIP",<dhcp_start>,<dhcp_end>,<gateway>` and `AT+QMAP="LAN"` sets the gateway; neither has a mask field. The mask can only be set in the XML.
+- QCMAP generates `/var/run/data/dnsmasq.conf.bridge0` (including `dhcp-range`) from the XML at boot. There is no live reload: `bridge0` keeps its old address until a reboot.
+- `/etc` is the same persistent, always-`rw` UBIFS volume as `/usrdata`, so the edit needs no rootfs remount and survives the reboot.
+- `/etc/data/ipa/IPACM_cfg.xml` carries `IPACMPrivateSubnet` `192.168.225.0` / `255.255.255.0` (factory copy too), so it matches the /24. QManager never edits it; a LAN moved off 192.168.225.x leaves it stale, effect on IPA offload unverified.
 
-> ✅ **Status: fixed 2026-08-25 in commit `952309e`, validated on the RG501Q-EU
-> across three reboot cycles. The blocker is lifted for that platform.**
-> **RM520N-GL re-verification is still outstanding** — that device was offline
-> during the fix work, and repo evidence says it is exposed rather than immune.
-> Confirm there before calling this prerequisite closed on both platforms.
+## CGI contract
 
-This was the more important finding from the session that produced this doc, and it
-is **independent of the gateway-IP change** — it would surface on any reboot of the
-device. See **F8** in [`platform-matrix.md`](./platform-matrix.md) for the corrected
-writeup. In brief: Entware's `rc.unslung.service` starts `S80lighttpd`, the
-vendor-default empty-docroot Entware lighttpd, which decides whether to run by asking
-`pidof lighttpd` — a process-**name** check. On a boot where no process happens to
-carry that name at the moment it looks, it starts and takes port 80 ahead of
-QManager's own `lighttpd.service`. QManager's UI is then unreachable on **both** HTTP
-(403, empty docroot) and HTTPS (connection refused, nothing bound to 443) until
-someone intervenes over SSH.
+`lan_config.sh`. "Gateway" in the UI is `APIPAddr`, the modem's own address on `bridge0`.
 
-> ⚠️ Note the correction: this is **not** a port race between two servers, and it is
-> **not** every boot. Measured `n=2` — one loss, one win, identical config. The
-> original framing in this doc and in F8 was wrong on both counts.
+### GET
 
-**The reasoning that made this a prerequisite still stands, and should be re-applied
-per platform.** Any UI-driven gateway-IP change requires a reboot to apply, and a
-feature that sometimes reboots the user out of their own management UI — on the very
-platform this feature is meant to help — is a regression, not a convenience. That
-argument is now satisfied on the RG501Q-EU and unsatisfied on the RM520N-GL.
+```json
+{ "success": true, "device": "bridge0", "ipaddr": "192.168.225.1", "netmask": "255.255.255.0", "prefix": 24 }
+```
 
-## Open questions for a real implementation
+`device` is a constant. `prefix` is derived from `SubNetMask` by `qm_lan_mask_to_prefix`; a non-contiguous mask fails the read.
 
-- Should the CGI validate the new IP doesn't collide with the WAN-side
-  address space, or with well-known ranges the user's upstream router might
-  already use?
-- Confirm whether `xmllint` can *write* (not just query) on the RM520N-GL —
-  it was only ever used for reads elsewhere in QManager (Custom DNS reads
-  `<DNSMode>` with it). If not, both platforms end up on the same `sed`-based
-  write path, which simplifies the implementation (one code path instead of
-  an per-platform branch).
-- Does changing the gateway IP need to also update anything under
-  `/etc/data/mobileap_cfg.xml`'s NAT or DHCPv6 sibling blocks (`IPv4NATDisable`,
-  `ULAIPv6BaseAddr`), or are those independent enough to leave alone? Not
-  investigated this session — scoped out.
-- A reboot triggered from the QManager UI already has an established pattern
-  (deferred via dialog + persistent banner, per `CLAUDE.md`'s modem-platform
-  section) — reuse it rather than inventing a new reboot flow for this
-  feature.
+### POST
+
+Body:
+
+```json
+{ "ipaddr": "192.168.2.1", "prefix": 24 }
+```
+
+`ipaddr` must be a JSON string and `prefix` a JSON integer. Success when the value changed:
+
+```json
+{ "success": true, "apply_in_progress": true, "disconnect_window_seconds": 120, "carrier_bounce": true, "new_ipaddr": "192.168.2.1", "netmask": "255.255.255.0", "prefix": 24 }
+```
+
+Success when `ipaddr` and `prefix` both equal the stored values (no helper call, no write, no reboot):
+
+```json
+{ "success": true, "apply_in_progress": false, "disconnect_window_seconds": 0, "carrier_bounce": false, "new_ipaddr": "192.168.225.1", "netmask": "255.255.255.0", "prefix": 24 }
+```
+
+The no-change test compares only address and prefix. A stored DHCP range that differs from what `qm_lan_dhcp_range` would compute is not touched by a no-change save.
+
+`carrier_bounce` is a constant `true` on an applied change. The CGI does not bounce the carrier itself; the reboot drops the link. The field keeps the response shape the RM551E card expects.
+
+### Errors
+
+Every error is `{ "success": false, "error": "<code>", "detail": "<text>" }` from `cgi_error`, HTTP 200 unless noted.
+
+| `error` | Cause |
+| --- | --- |
+| `lan_read_failed` | GET: `lan_subnet.sh` missing, XML unreadable or incomplete, `xmllint` missing, or a malformed stored mask |
+| `no_body` | POST with an empty or missing `CONTENT_LENGTH` |
+| `invalid_ipaddr` | `ipaddr` missing, not a string, or not a strict dotted quad (4 octets 0–255, no leading zeros) |
+| `invalid_prefix` | `prefix` missing, not an integer, or outside 16–30 |
+| `invalid_private_address` | Not in `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16` (so `100.64/10` and `169.254/16` fail) |
+| `invalid_host_in_subnet` | `ipaddr` is the network or broadcast address of the requested subnet |
+| `update_in_progress` | HTTP **409**. A live `/tmp/qmanager_update.pid` (checked in the CGI, and again in the helper as exit 3) |
+| `lan_busy` | Helper exit 4: another apply holds the lock |
+| `lan_save_failed` | Any other helper failure (exit 2 or 5) |
+
+The CGI validates everything the helper validates, so a helper exit 2 is not expected in practice; it maps to `lan_save_failed`.
+
+### Deferred reboot
+
+On a successful write the CGI:
+
+1. Runs `sudo -n /usr/bin/qmanager_crash_log_append user`, so the coming reboot is classified as user-initiated (same as `system/reboot.sh`). A failure here never blocks the reboot.
+2. Calls `cgi_reboot_response "<body>"`. The optional argument is new in `scripts/usr/lib/qmanager/cgi_base.sh`: it prints the given JSON body instead of `{"success":true}`, then a detached subshell waits for `/tmp/qmanager_reboot_ack` and reboots.
+
+The reboot is released by `GET /cgi-bin/quecmanager/system/update.sh?action=reboot_ack` (which touches `/tmp/qmanager_reboot_ack`) or by the `QM_REBOOT_ACK_TIMEOUT` of 20 s, plus `QM_REBOOT_POST_ACK_DELAY` (1 s). The hook sends the ack itself as soon as the POST reply is parsed; a failed ack is harmless because of the timeout.
+
+`disconnect_window_seconds: 120` covers the ack wait, the reboot and margin.
+
+## Root helper: `qmanager_lan_apply`
+
+```sh
+sudo -n /usr/bin/qmanager_lan_apply 192.168.2.1 24
+```
+
+On success it prints one line and exits 0:
+
+```json
+{"success":true,"ipaddr":"192.168.2.1","netmask":"255.255.255.0","prefix":24,"dhcp_start":"192.168.2.20","dhcp_end":"192.168.2.170"}
+```
+
+The CGI discards this output and uses only the exit code.
+
+| Exit | Meaning | `error` on stdout |
+| --- | --- | --- |
+| 0 | Written | — |
+| 2 | Usage or validation failure | `usage`, `invalid_ipaddr`, `invalid_prefix`, `invalid_private_address`, `invalid_host_in_subnet` |
+| 3 | An OTA update is running | `update_in_progress` |
+| 4 | Lock held by another apply | `lan_busy` |
+| 5 | Write failed; the original file is untouched | `lib_missing`, `lock_failed`, `xmllint_missing`, `write_failed` |
+
+Order of checks: charset gates, strict dotted quad, prefix 16–30, RFC1918, host-in-subnet, then the OTA guard, then the lock, then the write. The OTA guard tests `/proc/<pid>` for the pid in `/tmp/qmanager_update.pid` rather than `kill -0`, because the helper runs as root and a stale pid file could name any process. BusyBox `flock` has no `-w`, so the lock is `flock -n` and fails fast.
+
+The helper never reboots and never restarts anything. Running it by hand over SSH leaves the change pending until the next reboot.
+
+## DHCP range rule
+
+`StartIP` / `EndIP` are absolute addresses, so they must move with the gateway; a gateway on a new subnet with the old pool would hand out leases nobody can route to. `qm_lan_dhcp_range <gateway> <prefix>` computes them:
+
+1. Keep `<gateway's /24>.20`–`.170` when that range is inside the usable hosts of the new subnet and does not contain the gateway.
+2. Otherwise take the larger gap beside the gateway (above it on a tie), capped at 151 addresses.
+
+| Request | DHCP range |
+| --- | --- |
+| `192.168.225.1/24` | `192.168.225.20`–`192.168.225.170` |
+| `10.0.0.1/24` | `10.0.0.20`–`10.0.0.170` |
+| `172.16.0.1/16` | `172.16.0.20`–`172.16.0.170` |
+| `192.168.1.100/24` | `192.168.1.101`–`192.168.1.251` (gateway sits inside .20–.170) |
+| `192.168.1.1/30` | `192.168.1.2`–`192.168.1.2` |
+
+The math works on octets 3 and 4 only, because RFC1918 addresses exceed 2^31 and shell arithmetic is not safe there. That is why the prefix floor is 16: it makes octets 1 and 2 pure network bits and keeps the subnet inside its private block.
+
+## Write invariants (`qm_lan_write`)
+
+`qm_lan_write <file> <ip> <mask> <start> <end>` must run as root. Return codes: 0 written, 1 error (original untouched), 2 `xmllint` missing (skipped).
+
+- **Exactly one line per tag.** The file must hold exactly one `<APIPAddr>`, `<SubNetMask>`, `<StartIP>` and `<EndIP>` line before the edit, or nothing is written.
+- **`SubNetMask` is anchored.** The match is `^[[:space:]]*<SubNetMask>…` on a whole line, so `<WebServerSubNetMask>` (line 288 on the reference device, value `255.255.255.0`) is never touched. An unanchored `sed 's|<SubNetMask>…'` would also be unsafe if the vendor ever reflowed the file.
+- **Per-run copy in the same directory.** `sed` writes `mobileap_cfg.xml.qm-run.<pid>` next to the original, so the final `mv -f` is a same-filesystem rename and atomic. The original is never edited in place.
+- **The copy is verified before it replaces anything:** each new line appears exactly once, every other line is byte-identical (`cksum` of the file minus the four tags), `xmllint --noout` passes, and `qm_lan_read` on the copy returns exactly the four requested values.
+- **Owner and mode are re-pinned** from `ls -ln` of the original onto the copy before the `mv`. If that cannot be parsed, it falls back to `radio:radio` `0755`. QCMAP runs as `radio`, so a root-owned result would break it.
+- **`.qm-bak` is a record, not a rollback.** The first write ever (installer normalize or UI apply) copies the file to `mobileap_cfg.xml.qm-bak` with `cp -p`. Later writes never overwrite it, and nothing restores it automatically. If the backup cannot be written, the edit is refused.
+- `GatewayURL` (`mobileap.qualcomm.com`) is a sibling hostname alias, not the address. It is never edited.
+
+## Installer normalize rule
+
+`normalize_lan_subnet()` sources `lan_subnet.sh` from the staging tree (`$SRC_SCRIPTS/usr/lib/qmanager/lan_subnet.sh`) and calls `qm_lan_subnet_normalize /etc/data/mobileap_cfg.xml`. It runs in `main()` before `stop_services`, on fresh install and OTA alike. It is advisory: every failure path warns and returns 0, so it never aborts an install.
+
+It runs once. If `/usrdata/.qm_lan_subnet_set` exists it does nothing. The helper sets that marker on every successful UI apply, and normalize sets it after a successful rewrite or when it finds a non-factory layout, so a user's choice (even a /22 that looks like the factory one) is never undone by a later install or OTA. A missing file, a read failure or missing `xmllint` leaves no marker, so the next install retries.
+
+It changes the file only when all four values match the exact factory layout:
+
+| Field | Required value |
+| --- | --- |
+| `APIPAddr` | `192.168.225.1` |
+| `SubNetMask` | `255.255.252.0` |
+| `StartIP`, `EndIP` | both in `192.168.225.2`–`.254`, start ≤ end (valid /24 hosts) |
+
+Then it rewrites **only** the mask to `255.255.255.0`; address and pool stay as they are. Any other layout (already /24, a user-chosen address, a different pool) is logged and left alone. A missing file or missing `xmllint` is skipped with return 0. The new mask takes effect at the next reboot; the installer does not reboot for it.
+
+> ⚠️ WARNING: After the /24 takes effect, a LAN device with a static address in `192.168.224.x`, `192.168.226.x` or `192.168.227.x` can no longer reach the modem. It must move into `192.168.225.x`.
+
+## Frontend
+
+The **LAN Address** card sits beside the speed-limit card on `/local-network/ethernet/` (rendered from `components/local-network/ethernet/ethernet-status.tsx`) and is a port of the RM551E card. The user edits the address and picks a prefix. Applying POSTs to `lan_config.sh`; on `apply_in_progress: true` the hook sends the `reboot_ack`, and the card switches to a reconnect view. That view waits out a reboot grace period, then polls the new address once a second with a `no-cors` fetch (any HTTP reply counts as reachable), and navigates to it, keeping the page's protocol and port because the web port is user-configurable. If the address never answers, it falls back to a manual link.
+
+## Rolling back
+
+Either of these works over SSH as root:
+
+1. Restore the record copy and reboot (you approve the reboot; agents never run it):
+
+   ```sh
+   cp -p /etc/data/mobileap_cfg.xml.qm-bak /etc/data/mobileap_cfg.xml
+   ```
+
+   Then reboot the modem.
+
+2. Without touching the modem, give the PC a static address in the subnet the modem is actually on (for example `192.168.225.10/24`, gateway `192.168.225.1`) and change the LAN back from the UI.
+
+> ⚠️ WARNING: `.qm-bak` replaces the whole file, so any other QCMAP setting changed after QManager's first edit is lost. It holds the factory /22 layout; the settled marker keeps install and OTA from normalizing it again. Deleting the marker, or uninstalling, re-arms the one-time normalize.
+
+`uninstall_rm520n.sh` leaves the LAN as it is. When `.qm-bak` exists it prints its path. It removes `/etc/data/.qm_lan_apply.lock` and the settled marker `/usrdata/.qm_lan_subnet_set`, so a later reinstall normalizes a factory /22 again.
+
+> ℹ️ NOTE: Between an OTA that normalized the mask (`--no-reboot`) and the next reboot, the file says /24 while `bridge0` is still /22. GET reports the file, and a POST of the same address and /24 counts as unchanged, so nothing applies until the user reboots.
+
+## RG501Q-EU
+
+The vendor schema of `mobileap_cfg.xml` is the same on the RG501Q-EU. Its `bridge0` was moved by hand on 2026-08-25 to `192.168.120.1/24` with `sed -i` on `APIPAddr`, `StartIP` and `EndIP` plus `AT+CFUN=1,1`; see [`platform-matrix.md`](./platform-matrix.md) > Device access. A pre-edit copy was left at `/etc/data/mobileap_cfg.xml.bak-1787634825`.
+
+`xmllint` was absent on that device when measured (2026-08-25, post-reset state; see `platform-matrix.md`). Every path here depends on it, so on the RG501Q-EU:
+
+- GET returns `lan_read_failed`.
+- POST reaches the helper, which exits 5 (`xmllint_missing`), and the CGI returns `lan_save_failed`. Nothing is written.
+- The installer normalize step logs a warning and skips.
+
+These outcomes are read from the code and not exercised on that device.
+
+## Related
+
+- [`ethernet.md`](./ethernet.md) — the rest of the Ethernet page and `qmanager_ethernet_apply`.
+- [`custom-dns.md`](./custom-dns.md) — reads the same file and the dnsmasq layering QCMAP generates from it.
+- [`platform-matrix.md`](./platform-matrix.md) — per-device addresses and the `xmllint` row.

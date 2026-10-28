@@ -345,14 +345,14 @@ It's a thin wrapper around `fetch()` that:
 
 ### Development Proxy
 
-In development, `next.config.ts` proxies `/cgi-bin/*` to the modem at `192.168.224.1`:
+In development, `next.config.ts` proxies `/cgi-bin/*` to the modem at `192.168.225.1`:
 
 ```typescript
 // next.config.ts
 async rewrites() {
   return [{
     source: "/cgi-bin/:path*",
-    destination: "http://192.168.224.1/cgi-bin/:path*",
+    destination: "http://192.168.225.1/cgi-bin/:path*",
   }];
 }
 ```

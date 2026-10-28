@@ -717,6 +717,11 @@ printf "  ${GREEN}${BOLD}  QManager uninstalled successfully.${NC}\n"
 printf "  ══════════════════════════════════════════\n\n"
 printf "  ${DIM}Log: %s${NC}\n\n" "$LOG_FILE"
 
+rm -f /etc/data/.qm_lan_apply.lock /usrdata/.qm_lan_subnet_set
+if [ -f /etc/data/mobileap_cfg.xml.qm-bak ]; then
+    info "LAN settings left as they are; original LAN config saved at /etc/data/mobileap_cfg.xml.qm-bak"
+fi
+
 if [ "$NO_REBOOT" = "1" ]; then
     info "Skipping reboot (--no-reboot). Some changes (udev, kernel modules) require a reboot to take full effect."
     exit 0

@@ -109,6 +109,48 @@
       "toast_success": "Link speed updated",
       "toast_error": "Failed to set link speed",
       "toast_confirm_error": "Couldn't confirm the new speed. Check the link."
+    },
+    "lan_config": {
+      "card_title": "LAN Address",
+      "card_description": "Set the router's LAN IP address (the gateway your devices use) and the size of the local network.",
+      "label_gateway": "Gateway IP Address",
+      "help_gateway": "The router's own address on the LAN. Devices use it as their default gateway.",
+      "label_subnet": "Subnet Mask",
+      "help_subnet": "Choose the size of the LAN network as a CIDR prefix.",
+      "action_apply": "Apply Changes",
+      "confirm_title": "Change LAN address?",
+      "confirm_body": "The LAN will switch to {{address}} (netmask {{netmask}}). The modem reboots to apply it, so your current connection will drop.",
+      "confirm_reconnect": "The modem is unreachable for about 1–2 minutes while it reboots. A router or device using DHCP reconnects on its own; one with a static IP must be moved to the new subnet manually. This page opens the new address once the modem is back.",
+      "confirm_action": "Apply & Reboot",
+      "applied_title": "LAN address is changing",
+      "applied_body": "The modem is rebooting onto {{address}} and hasn't answered there yet. A reboot takes about {{seconds}} seconds. Reconnect your LAN or Ethernet cable if needed, then open the new address:",
+      "applied_body_auto": "The modem is rebooting onto {{address}} and hasn't answered there yet. A router set to DHCP should reconnect on its own within about {{seconds}} seconds and pick up the new gateway. If it doesn't, reconnect your cable, then open the new address:",
+      "reconnecting_title": "Rebooting onto the new address…",
+      "reconnecting_auto_note": "The modem is rebooting, which takes about 1–2 minutes. This page opens the new address when it's back.",
+      "reconnecting_opening": "Opening the new address…",
+      "toast_error_save": "Failed to apply LAN settings",
+      "error_invalid_ipaddr": "Enter a valid unicast IPv4 address (e.g. 192.168.1.1).",
+      "error_invalid_host_in_subnet": "This is the network or broadcast address for the chosen subnet. Pick a usable host address.",
+      "error_invalid_prefix": "Choose a subnet prefix between /16 and /30.",
+      "errors": {
+        "fetch_failed": "Failed to load LAN settings",
+        "save_failed": "Failed to save LAN settings",
+        "parse_failed": "Failed to read the save response"
+      },
+      "action_discard": "Discard",
+      "toast_no_change": "The LAN address is already set to that",
+      "error_invalid_private": "Use a private address: 10.x.x.x, 172.16–31.x.x or 192.168.x.x.",
+      "server_errors": {
+        "no_body": "The request reached the modem empty. Try again",
+        "invalid_ipaddr": "The IP address is not valid",
+        "invalid_prefix": "The subnet prefix is out of range",
+        "invalid_host_in_subnet": "That address can't be used as a host in the chosen subnet",
+        "lan_read_failed": "Couldn't read the current LAN settings",
+        "lan_save_failed": "Couldn't save the LAN settings",
+        "invalid_private_address": "The address must be in a private range (10.x, 172.16–31.x or 192.168.x)",
+        "update_in_progress": "A software update is in progress. Try again when it finishes",
+        "lan_busy": "Another LAN change is already being applied"
+      }
     }
   },
   "profile_override": {

@@ -284,9 +284,15 @@ export const FIELD =
 /** The glyph riding inside the trigger during the applying state. */
 export const FIELD_GLYPH = "size-3.5";
 
+/** The 42px control box, mirrored by the LAN card's field and footer skeletons. */
+export const CONTROL_HEIGHT = "h-[2.625rem]";
+
 // -----------------------------------------------------------------------------
 // Page shell
 // -----------------------------------------------------------------------------
 
 /** The route wrapper. Container queries key off `@container/main`. */
 export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-5 p-2";
+
+/** The two write cards, stacked until the page is wide enough to set them side by side. */
+export const CARD_GRID = "grid grid-cols-1 items-stretch gap-4 @5xl/main:grid-cols-2";

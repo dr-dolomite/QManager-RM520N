@@ -563,6 +563,26 @@ preflight() {
     info "Pre-flight checks passed"
 }
 
+# Mask-only LAN fix (/22 -> /24) for factory configs; applies on next reboot.
+# Sourced from the staging tree; advisory, so every failure returns 0.
+normalize_lan_subnet() {
+    local lan_lib="$SRC_SCRIPTS/usr/lib/qmanager/lan_subnet.sh"
+    if [ ! -f "$lan_lib" ] || ! . "$lan_lib"; then
+        warn "LAN subnet library unavailable — skipping (it is advisory)"
+        return 0
+    fi
+    if ! command -v qm_lan_subnet_normalize >/dev/null 2>&1; then
+        warn "LAN subnet function missing — skipping (it is advisory)"
+        return 0
+    fi
+    if qm_lan_subnet_normalize /etc/data/mobileap_cfg.xml; then
+        info "LAN subnet check done (takes effect on next reboot if changed)"
+    else
+        warn "LAN subnet normalization failed — config left untouched"
+    fi
+    return 0
+}
+
 # --- Remove Conflicts --------------------------------------------------------
 
 # Removes packages that must not coexist with QManager (e.g. socat-at-bridge
@@ -4581,6 +4601,9 @@ main() {
     # stop_services so a broken rc.unslung ordering is fixed even on a run
     # that never reaches install_dependencies.
     ensure_rc_unslung_unit_ordering
+
+    # One-time LAN mask fix (/22 -> /24); runs on fresh install and OTA alike.
+    normalize_lan_subnet || warn "LAN subnet normalization skipped"
 
     stop_services
 

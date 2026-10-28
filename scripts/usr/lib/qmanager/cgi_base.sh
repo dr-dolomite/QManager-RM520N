@@ -214,7 +214,8 @@ cgi_read_post() {
 : "${QM_REBOOT_POST_ACK_DELAY:=1}"
 
 cgi_reboot_response() {
-    echo '{"success":true}'
+    # Optional $1: JSON body to print instead of {"success":true}.
+    if [ -n "${1:-}" ]; then printf '%s\n' "$1"; else echo '{"success":true}'; fi
     _reboot_cmd="reboot"
     command -v run_reboot >/dev/null 2>&1 && _reboot_cmd="run_reboot"
     (

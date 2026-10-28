@@ -128,6 +128,10 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_health_check
 # Ethernet link speed limit management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_ethernet_apply
 
+# LAN gateway IP / subnet (Local Network -> LAN Address). Bare path; the helper
+# validates RFC1918, prefix, OTA guard and edits mobileap_cfg.xml itself. No reboot.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_lan_apply
+
 # Timezone apply (copies resolved TZif over /etc/localtime)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_timezone_apply
 

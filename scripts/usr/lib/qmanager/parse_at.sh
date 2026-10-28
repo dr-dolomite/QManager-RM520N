@@ -1126,7 +1126,7 @@ parse_ippt_dhcpv4dns() {
 # Response format (canonical):
 #   +QMAP: "LANIP",<dhcp_start_ip>,<dhcp_end_ip>,<gateway_ip>
 # Example:
-#   +QMAP: "LANIP",192.168.225.100,192.168.227.99,192.168.225.1
+#   +QMAP: "LANIP",192.168.225.20,192.168.225.170,192.168.225.1
 #
 # Some firmwares may quote the IPs or omit fields; treat anything that
 # doesn't dot-decimal-shape as missing rather than emitting garbage.
