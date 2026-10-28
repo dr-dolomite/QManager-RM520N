@@ -172,6 +172,7 @@ const { data, isLoading, isStale, error, refresh } = useModemStatus({
 ```
 
 - **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_data.sh`
+- **Shared store**: every caller reads one module-level snapshot fetched by one timer, at the shortest interval any mounted caller asks for, capped at 10 s; a new caller fetches at once; no polling while the tab is hidden. See `docs/reference/adaptive-polling.md`
 - **Returns**: `ModemStatus | null` (null before first fetch)
 - **Staleness**: Data marked stale if timestamp > 10 seconds old
 - **Error handling**: Preserves last good data on error, sets `isStale: true`
@@ -187,17 +188,16 @@ Fetches per-antenna signal history for charting.
 
 Fetches ping history for latency charts.
 
-- **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh`
+- **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh` (`last` option → `?last=N`; the dashboard asks for 400)
 - **Returns**: `PingHistoryEntry[]`
 - **Consumers**: the dashboard Connection Quality card and the Latency Monitor's History card (1 h / 6 h / 24 h)
 
-#### `useDataUsed(options?)`
+#### `useDataUsedReset()`
 
-Persistent session data-usage counter. Polls at 2 s to stay in sync with the poller's write rate. Provides a `resetCounter()` mutation.
+Reset mutation for the persistent data-usage counter. It does not poll: the counter itself comes from `.data_used` in `useModemStatus`'s payload.
 
-- **Fetch endpoint**: `GET /cgi-bin/quecmanager/network/data_used.sh`
 - **Reset endpoint**: `POST /cgi-bin/quecmanager/network/data_used_reset.sh`
-- **Returns**: `{ data, isLoading, isResetting, error, resetCounter, refresh }`
+- **Returns**: `{ isResetting, resetCounter }` (`resetCounter()` resolves `true` on a 2xx)
 
 ### One-Shot Hooks (Fetch + Save)
 

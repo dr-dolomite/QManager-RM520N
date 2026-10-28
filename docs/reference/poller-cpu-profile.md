@@ -27,6 +27,7 @@ The headline is counter-intuitive and worth stating up front:
 | Measured cycle cadence | **3.39 → 3.18 s** (RM520N-GL) · **5.00 → 4.01 s** (RG501Q-EU) — **not** the 2 s `POLL_INTERVAL` |
 | Fork sites removed | `parse_serving_cell` 184→3 · `update_system_health` 37→4 · `update_proc_metrics` 22→0 · `qcmd_exec` 8→1 |
 | System-wide CPU busy (baseline) | 38.3% (RM520N-GL) · 39.1% (RG501Q-EU) — kernel time **1.6× user time** |
+| Dashboard CGI per-request floor | **39 ms CPU**, 19 → 2 forks after T6.2 S1 (RM520N-GL) — see [Dashboard CGI cost](#dashboard-cgi-cost-t62-2026-102728) |
 | Go equivalent, same work | **2.39 ms/cycle** (RM520N-GL) · 2.84 ms (RG501Q-EU), **0 forks**, 6.3 MB RSS |
 | Proof | No harness or gates — `scripts/test/` was deleted 2026-09-03 (it held `qm_fork_probe.sh`, `poller-defork-forkcount.sh` and `poller-defork-equivalence.sh`; see [The 2026-09-02 de-fork pass](#the-2026-09-02-de-fork-pass) for what they used to check). Re-measure on the device and byte-compare output by hand |
 
@@ -403,6 +404,105 @@ RM520N-GL `61368cd2`, 300 s windows from `/proc/<pid>/stat` (method as above), c
 | `deep` (> 5 min) | 128 | 6.0 | 14.7–15.0 | 2.14 s |
 
 What remains in `deep` is the local work that runs every cycle in every tier (proc metrics, ping reads, alerts, Data Used, `write_cache`).
+
+## Dashboard CGI cost (T6.2, 2026-10-27/28)
+
+RM520N-GL `61368cd2`. Plan, census and raw numbers: `.orchestra/runs/2026-10-26-atd-port-T6.2.md`.
+
+With `/dashboard` open, the CGIs the page polls cost about as much again as the poller's own `active`-tier work. The poller is not the only fork-heavy shell on the device: every CGI is a fresh `#!/bin/sh` (BusyBox ash) process that sources `cgi_base.sh` and runs `require_auth` before it does anything, so the same fork+exec cost described above is paid **per HTTP request**.
+
+### Method
+
+- **CGI CPU per request.** lighttpd's `mod_cgi` reaps each CGI, so a CGI's CPU (and its children's) lands in lighttpd's `cutime`+`cstime` (`/proc/<lighttpd pid>/stat` fields 16–17). 20 sequential `curl -sk` calls per endpoint through lighttpd as www-data, with a throwaway minted session; the delta divided by 20. Resolution 0.5 ms.
+- **Forks.** Delta of the `processes` line in `/proc/stat`. `/proc/sys/kernel/ns_last_pid` does not exist on this kernel, so there is no exact per-PID counter. Under live traffic the counter carries the poller's background (14.4 forks/s, in bursts of ≈ 39 per cycle), so the census column below is ± ≈ 2 per call. The before/after fork figures for the floor come from direct runs under `sudo -n -u www-data` with no browser open, reported as the minimum/median.
+- **System busy.** 300 s windows of the `/proc/stat` `cpu` line, poller held in `active`, as in T1.2.
+
+### The per-request floor
+
+The cheapest endpoint, `at_cmd/speedtest_status.sh`, costs **39 ms of CPU**: that is `cgi_base.sh` + auth before the script does any work. An authenticated trivial GET forked **19 times before S1, 2 after** (direct runs, 2026-10-28). Removed:
+
+| fork site | file | replaced by |
+|---|---|---|
+| `$(id -u)` | `platform.sh` | builtin `read` loop over `/proc/self/status` (`Uid:` line, 2nd value); falls back to `id -u` if unreadable |
+| `/opt/bin/timeout 1 true` probe (2 processes) | `platform.sh` | deferred to the first `qm_timeout` call when `GATEWAY_INTERFACE` is set (lighttpd CGI); still eager for daemons |
+| `$(dirname "$QLOG_FILE")` | `qlog.sh` | `${QLOG_FILE%/*}` |
+| `$(printf … \| awk …)` cookie read | `cgi_auth.sh` | `qm_cookie_var NAME VAR` (parameter expansion, no subshell) |
+| `printf … \| grep -qE '^[0-9a-f]{64}$'` token check | `cgi_auth.sh` | `${#1}` = 64 plus `case *[!0-9a-f]*` |
+| `$(cat "$_session_file")` | `cgi_auth.sh` | `IFS= read -r`, accepting a file with no trailing newline |
+| two `jq -n` response bodies | `auth/check.sh` | `printf` of the same bytes (2-space, LF) |
+
+What is left: `$(date +%s)` in `qm_validate_session` (kept on purpose) and one fork not identified.
+
+### Per-endpoint cost (before, 2026-10-27 23:24 PST)
+
+| endpoint | wall ms | CGI CPU ms | lighttpd own ms | forks | bytes |
+|---|---:|---:|---:|---:|---:|
+| `at_cmd/fetch_data.sh` | 111 | 41.5 | 20.5 | 19.5 | 6 190 |
+| `network/data_used.sh` | 165 | 82.0 | 20.5 | 28.1 | 245 |
+| `system/modem-subsys.sh` | 118 | 58.5 | 20.5 | 18.1 | 564 |
+| `at_cmd/fetch_signal_history.sh` | 149 | 73.5 | 26.5 | 16.8 | 79 051 |
+| `at_cmd/fetch_events.sh` | 112 | 54.5 | 20.0 | 16.8 | 4 506 |
+| `at_cmd/fetch_ping_history.sh` | 678 | **428.5** | **96.0** | 20.0 | **1 011 274** |
+| `auth/check.sh` | 106 | 49.5 | 20.0 | 15.0 | 28 |
+| `at_cmd/speedtest_status.sh` | 90 | 39.0 | 20.0 | 12.7 | 18 |
+| `speedtest_check.sh` (one-shot) | 107 | 49.5 | 20.5 | 15.3 | 24 |
+| `system/settings.sh` (one-shot) | 378 | 296.0 | 20.5 | 71.3 | 684 |
+
+"lighttpd own" is mostly the TLS handshake `curl` makes on every call. A browser reuses its connection, so that column overstates the browser's cost and was left out of the ranking.
+
+At the dashboard's census cadence the CGIs alone cost **13.8 points of the core** (137.8 ms/s at 2.19 req/s). The largest single items were `data_used.sh` and `modem-subsys.sh` (both 2 s, both reshapes of `/tmp/qmanager_status.json`, which `fetch_data.sh` already returns whole) and three separate `useModemStatus` timers.
+
+### System busy, dashboard closed vs open
+
+| window (PST, 2026-10-27) | what ran | system busy | lighttpd tree | poller tree |
+|---|---|---:|---:|---:|
+| 23:25:24–23:30:28 | closed: heartbeat only, as www-data every 10 s | **21.0 %** | 0.0 % | 14.1 % |
+| 23:30:31–23:36:41 | open: replay of the census cadence, one `curl` per 1 s tick | **36.6 %** | **13.0 %** | 13.2 % |
+
++15.6 points open. The replay ran at 0.81 of the census cadence, so at full cadence the lighttpd tree is ≈ 16 %; the tree includes lighttpd's own TLS time; ≈ 2.6 points of the rest are the on-device `curl`, which a real browser does not cost the modem.
+
+### What changed
+
+| slice | commit | change |
+|---|---|---|
+| S1 | `acd61473`, `fc8a49dc` | The per-request floor de-fork above. Affects every CGI on every page. |
+| S2 | `8990154e` | `fetch_ping_history.sh?last=N` (digits only, else ignored) serves the newest N rows through `serve_ndjson_as_array`'s existing cap. No parameter = the whole 24 h file, byte-identical to before. |
+| S3 | `b220c169` | `useModemStatus` is one module-level store with one timer; see [`adaptive-polling.md`](./adaptive-polling.md) invariant 6. The SIM-swap banner and the sidebar watchdog row now ask for 10 s instead of 2 s / 15 s. |
+| S4 | `38ac76b8` | The dashboard's device-metrics card reads `.data_used` and `.system_health.storage` from the shared status payload. `useDataUsed` became `useDataUsedReset` (the reset POST only), so `data_used.sh` and `modem-subsys.sh` are no longer polled from `/dashboard`. |
+| S5 | `86fb7006` | Signal history, recent events, latency history and the auto-logout check run on `lib/visible-interval.ts`; the speedtest status loop has its own hidden-tab gate. The dashboard's latency strip asks for `?last=400` (30 min needs ≤ 240 rows at the 10–16 s row cadence). |
+
+> ⚠️ WARNING: the timeout-probe deferral is scoped to CGI context on purpose. Root daemons (`qmanager_ping`, `qmanager_health_check`) call `qm_timeout` inside `$(…)`; a lazy probe there would run in the subshell and be thrown away, so it would re-probe on every call. Keep `[ -n "${GATEWAY_INTERFACE:-}" ] || _qm_timeout_probe` as it is.
+
+### After-build device numbers
+
+Measured on RM520N-GL 61368cd2, 2026-10-28 10:43–11:08 PST, on T3.1's install tree (v0.1.18-draft). Backend only (4 libs + 2 CGIs) was deployed for the run and then restored. The frontend was not deployed: the "new" window replays the built dashboard's request pattern (`fetch_data.sh` every 5 s, the four 10 s pollers, `fetch_ping_history.sh?last=400` every 30 s). Every window ran at 0.98–0.99 of its nominal cadence, with `curl` in the background so ticks stayed 1 s apart.
+
+| window (300 s) | system busy | CGI (lighttpd cutime) | lighttpd own |
+|---|---:|---:|---:|
+| closed (heartbeat only) | 20.9 % | 0.0 % | 0.0 % |
+| open, old pattern, old backend | 36.0 % | 12.5 % | 1.5 % |
+| open, old pattern, new backend | 30.7 % | 7.2 % | 1.6 % |
+| **open, new pattern, new backend** | **22.3 %** | **1.4 %** | 0.5 % |
+
+The CGIs went from 12.5 % to 1.4 % of the core with the dashboard open. About 5 points of that came from the backend de-fork and the rest from the frontend cuts. System busy is now 1.4 points above closed, against 15.1 points before.
+
+| per call (20 calls, CGI CPU) | before | after |
+|---|---:|---:|
+| `speedtest_status.sh` (the floor) | 39.0 ms | 15.0 ms |
+| `fetch_data.sh` | 41.5 ms | 17.5 ms |
+| `auth/check.sh` | 50.0 ms | 14.0 ms |
+| `fetch_events.sh` | 53.5 ms | 29.0 ms |
+
+Forks per authenticated request: 19 → 2 (portability checker, direct runs). The fork column of the 20-call loop is too noisy for this, because the poller adds 16–27 forks/s in the background.
+
+Tier: with `fetch_data.sh` every 10 s (the shared store's cap), the poller stayed `active` in all 12 samples over 60 s, so a 30–60 s ping interval cannot drop an open page out of `active`. No `interval_sec` write was needed, because the tier depends only on heartbeat age.
+
+Not measured on the device:
+- The 1 MB ping-history cut: T3.1's install had cleared `/tmp`, so the archive was 17 KB.
+- A real browser's lighttpd own CPU (keep-alive). The replay's 0.5 % is an upper bound with one TLS handshake per tick.
+- The hidden-tab gate. It was verified in the browser pane off-device: 0 requests while hidden.
+
+Not yet cut: pages other than `/dashboard` that call `useModemStatus()` with the 2 s default (antenna alignment, antenna statistics, band locking, others) still poll at 2 s; the one-shot `system/settings.sh` (296 ms, 71 forks) and `device/about.sh` on every dashboard mount.
 
 ---
 

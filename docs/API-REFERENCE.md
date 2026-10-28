@@ -321,7 +321,9 @@ Returns signal history entries as a JSON array.
 
 ### GET `/at_cmd/fetch_ping_history.sh`
 
-Returns ping history entries as a JSON array.
+Returns ping history entries as a JSON array, oldest first.
+
+**Query:** `last=N` (optional, digits only; anything else is ignored) returns only the newest N rows. Without it the whole 24 h file is returned (≈ 1 MB on RM520N-GL).
 
 **Response:**
 ```json

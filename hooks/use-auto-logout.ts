@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const CHECK_ENDPOINT = "/cgi-bin/quecmanager/auth/check.sh";
 
@@ -23,7 +24,7 @@ function clearSessionCookie() {
 }
 
 /**
- * Polls auth/check.sh every POLL_INTERVAL_MS while the dashboard is mounted.
+ * Polls auth/check.sh every POLL_INTERVAL_MS while the dashboard is mounted and visible.
  *
  * - 401 response   → authFetch already redirects to /login/ (session gone after reboot)
  * - Network error  → starts the offline clock
@@ -53,13 +54,23 @@ export function useAutoLogout() {
       }
     };
 
-    const id = setInterval(() => {
-      if (!cancelled) tick();
-    }, POLL_INTERVAL_MS);
+    // Paused while hidden (check.sh never answers 401, so nothing is missed); the
+    // offline clock restarts on hide because nobody was watching the gap.
+    const stop = startVisibleInterval(
+      () => {
+        if (!cancelled) tick();
+      },
+      POLL_INTERVAL_MS,
+      {
+        onHide: () => {
+          offlineSinceRef.current = null;
+        },
+      },
+    );
 
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
     };
   }, []);
 }

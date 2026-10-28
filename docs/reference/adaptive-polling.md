@@ -1,6 +1,6 @@
 # Adaptive polling (poller activity tiers)
 
-> **Applies to:** RM520N-GL · built 2026-10-27 (T6.1, plan `.orchestra/runs/2026-10-26-atd-port-T6.1.md`)
+> **Applies to:** RM520N-GL · built 2026-10-27 (T6.1, plan `.orchestra/runs/2026-10-26-atd-port-T6.1.md`); shared status store 2026-10-28 (T6.2)
 > **RG501Q-EU:** unverified. Port of RM551E adaptive polling (70c157d3) and B5.29 heartbeat work, without the AT broker.
 
 When no browser is polling, `qmanager_poller` stops asking the modem every cycle. Local work keeps the base cadence.
@@ -26,7 +26,7 @@ When no browser is polling, `qmanager_poller` stops asking the modem every cycle
 3. **Nothing but www-data may create that file.** `/tmp` is sticky with `fs.protected_regular=1`, so a root-owned copy locks the CGIs out and the tier never returns to Active. The poller seeds the heartbeat in memory at start (`_HB_SEEN_MONO`), never by writing the file. Health check `cfg.ui_heartbeat` fails on any other owner.
 4. **Inside the AT gate:** AT reads and their parsers, `determine_service_status`, `detect_events`. **Every cycle, every tier:** proc metrics, system health, ping/DNS reads, connection events, `check_alerts`, `crash_watcher_check`, `update_data_used`, `update_conn_uptime`, `write_cache`. Every `AP_LOCAL_INTERVAL` (10 s, uptime deadline): `append_ping_history`, `read_watchcat_state`. `status.json` is written every cycle in every tier.
 5. **Deep keeps the last CA values.** The QCAINFO failure branch that zeroes the `t2_ca_*` fields sits inside the not-deep guard.
-6. **A hidden tab does not poll.** `useModemStatus` stops its interval on `document.hidden` and fetches at once when visible again. Without this a forgotten tab holds Active forever.
+6. **One status poll per tab, at least every 10 s, none while hidden.** `useModemStatus` (`hooks/use-modem-status.ts`) is one module-level store with one timer for every caller (T6.2). The interval is the shortest any mounted caller asks for, capped at `MAX_POLL_INTERVAL` (10 s, half of `AP_ACTIVE_GRACE`), so an open page keeps the tier `active` even when the dashboard's ping-profile cadence is 30–60 s. A new caller fetches at once; until that lands it reads the shared snapshot (≤ 10 s old). The timer stops on `document.hidden` and fetches at once when visible again; without this a forgotten tab holds Active forever. Every other dashboard poll (signal history, events, latency history, auto-logout check) runs on `lib/visible-interval.ts` and also stops while hidden; the speedtest status loop has its own gate.
 
 ## Who sees older data
 

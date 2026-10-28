@@ -14,10 +14,10 @@ import type { WatchcatState } from "@/types/modem-status";
 // shell is mounted on every page — it has no business doing that once per
 // session, let alone on a timer.
 //
-// Cadence is 15s, not the dashboard's 2s. The nav row answers "is the watchdog
-// doing something right now", a question whose answer changes on the order of
-// the watchdog's own probe interval. Polling it faster would spend the modem's
-// CPU to tell the user nothing new.
+// Cadence is 10s (the shared status store's cap), not a page's 2s. The nav
+// row answers "is the watchdog doing something right now", a question whose
+// answer changes on the order of the watchdog's own probe interval. Polling it
+// faster would spend the modem's CPU to tell the user nothing new.
 //
 // PRODUCT.md principle 3, "interfaces that never lie", is the whole reason this
 // hook is narrow: the row must reflect what the device is actually doing, so it
@@ -25,7 +25,8 @@ import type { WatchcatState } from "@/types/modem-status";
 // disabled, or a state we do not recognise.
 // =============================================================================
 
-const POLL_INTERVAL_MS = 15_000;
+// The shared status store caps every timer at 10 s anyway.
+const POLL_INTERVAL_MS = 10_000;
 
 export type WatchdogActivity = "recovery" | "cooldown";
 

@@ -371,6 +371,9 @@ export function useSpeedtest(
 
     const tick = async () => {
       if (cancelled || !mountedRef.current) return;
+      // A hidden tab books no further polls; showing it resumes the loop. The
+      // result file persists on the device, so a run that ends meanwhile is not lost.
+      if (document.hidden) return;
       if (!inFlightRef.current) {
         inFlightRef.current = true;
         try {
@@ -379,17 +382,27 @@ export function useSpeedtest(
           inFlightRef.current = false;
         }
       }
-      if (cancelled || !mountedRef.current) return;
+      if (cancelled || !mountedRef.current || document.hidden) return;
       const delay = isRunningPhase(phaseRef.current)
         ? LIVE_INTERVAL_MS
         : DETECT_INTERVAL_MS;
+      // One chain only: a resume during an in-flight poll would otherwise book two.
+      if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(tick, delay);
     };
 
+    const handleVisibility = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      if (!document.hidden) tick();
+    };
+
     tick();
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibility);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
     };

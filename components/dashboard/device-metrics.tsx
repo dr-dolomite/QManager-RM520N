@@ -33,7 +33,13 @@ import { Button } from "@/components/ui/button";
 import { TickingValue } from "@/components/ui/ticking-value";
 import { TickGroup } from "@/components/ui/tick-group";
 
-import type { DeviceStatus, LteStatus, NrStatus } from "@/types/modem-status";
+import type {
+  DataUsedBlock,
+  DeviceStatus,
+  LteStatus,
+  NrStatus,
+  StatusSystemHealth,
+} from "@/types/modem-status";
 import {
   formatBytes,
   calculateLteDistance,
@@ -42,8 +48,7 @@ import {
   formatTemperature,
 } from "@/types/modem-status";
 import { useUnitPreferences } from "@/hooks/use-system-settings";
-import { useDataUsed } from "@/hooks/use-data-used";
-import { useModemSubsys } from "@/hooks/use-modem-subsys";
+import { useDataUsedReset } from "@/hooks/use-data-used";
 import { DUR, staggerRows, staggerRowItem } from "@/lib/motion";
 import {
   ABSENT,
@@ -62,6 +67,10 @@ interface DeviceMetricsComponentProps {
   deviceData: DeviceStatus | null;
   lteData: LteStatus | null;
   nrData: NrStatus | null;
+  /** `.data_used` from the shared status payload (no separate poll) */
+  dataUsed: Omit<DataUsedBlock, "stale"> | null;
+  /** `.system_health.storage` from the shared status payload */
+  storage: StatusSystemHealth["storage"] | null;
   isLoading: boolean;
   /**
    * Whether the last poll actually reached the modem.
@@ -145,6 +154,8 @@ const DeviceMetricsComponent = ({
   deviceData,
   lteData,
   nrData,
+  dataUsed,
+  storage,
   isLoading,
   modemReachable,
 }: DeviceMetricsComponentProps) => {
@@ -168,13 +179,11 @@ const DeviceMetricsComponent = ({
   const isCpuHigh = cpu !== null && cpu >= CPU_WARN;
   const memPct = memTotal > 0 ? (memUsed / memTotal) * 100 : 0;
 
-  // Persistent data-usage counter — polled independently at 2 s cadence
-  const { data: dataUsed, isResetting, resetCounter } = useDataUsed();
-
-  // /usrdata partition usage — sourced from the poller cache via modem-subsys
-  const { data: subsysData } = useModemSubsys();
-  const storageTotalKb = subsysData?.storage?.total_kb ?? 0;
-  const storageUsedKb = subsysData?.storage?.used_kb ?? 0;
+  // Data counter and /usrdata usage both ride the status poll; only the
+  // counter's reset is its own request.
+  const { isResetting, resetCounter } = useDataUsedReset();
+  const storageTotalKb = storage?.total_kb ?? 0;
+  const storageUsedKb = storage?.used_kb ?? 0;
   const storagePct =
     storageTotalKb > 0 ? (storageUsedKb / storageTotalKb) * 100 : 0;
 
@@ -215,8 +224,8 @@ const DeviceMetricsComponent = ({
   // survives, so what is on screen is a photograph. Step 03 made this same
   // call for the two uptimes.
   //
-  // NOT GATED — CPU (/proc/stat), memory (/proc/meminfo) and storage (a
-  // different hook against a different endpoint) are measured locally and are
+  // NOT GATED — CPU (/proc/stat), memory (/proc/meminfo) and storage (df on
+  // /usrdata, in the same status payload) are measured locally and are
   // still fresh; the poller reads the first two unconditionally, before it
   // ever talks to the modem. Blanking them would be inventing an outage this
   // box is not having. The data counter below is cumulative and monotone: a

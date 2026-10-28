@@ -36,7 +36,8 @@ import { postSimDismissal } from "@/hooks/use-sim-registry";
 
 export function SimSwapBanner() {
   const { t } = useTranslation("common");
-  const { data: modemStatus } = useModemStatus();
+  // 10 s: the shared status store's cap; a page asking for less still wins.
+  const { data: modemStatus } = useModemStatus({ pollInterval: 10_000 });
 
   const [showDismissDialog, setShowDismissDialog] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);

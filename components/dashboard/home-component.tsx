@@ -35,6 +35,8 @@ const HomeComponent = () => {
   // Tie poll cadence to the ping daemon's write interval (Connection Sensitivity).
   // history_interval_sec comes straight from the active profile, so this adapts
   // automatically when the user changes Sensitivity in System Settings.
+  // The shared status store caps any request at 10 s, so a 30-60 s profile still
+  // keeps the poller's active tier alive.
   const daemonIntervalSec = data?.connectivity?.history_interval_sec;
   React.useEffect(() => {
     if (!daemonIntervalSec || daemonIntervalSec <= 0) return;
@@ -185,6 +187,8 @@ const HomeComponent = () => {
             deviceData={data?.device ?? null}
             lteData={data?.lte ?? null}
             nrData={data?.nr ?? null}
+            dataUsed={data?.data_used ?? null}
+            storage={data?.system_health?.storage ?? null}
             isLoading={isLoading}
             modemReachable={data?.modem_reachable ?? false}
           />
