@@ -121,7 +121,7 @@ On the AT backend (non-RM520N), `qsms` still serialises on `/tmp/qmanager_at.loc
 
 ### `sms_tool` and `atcli_smd11`
 
-Both stay installed (`install_bundled_binaries()` still copies them) but no SMS code path calls them. Their removal waits for the `qcmd` cut-over, because `atcli_smd11` is still `qcmd`'s transport. `sms_tool`'s provenance and patch remain in [`dependencies/README.md`](../../dependencies/README.md) until then.
+Both stay installed (`install_bundled_binaries()` still copies them) but no SMS code path calls them. On the RM520N-GL `qcmd` no longer uses `atcli_smd11` (it links to `qmanager_atd` since the cut-over, T4.1), but the RG501Q-EU shell `qcmd` and the rollback path still do, so their removal waits for task S6. `sms_tool`'s provenance and patch remain in [`dependencies/README.md`](../../dependencies/README.md) until then.
 
 ---
 

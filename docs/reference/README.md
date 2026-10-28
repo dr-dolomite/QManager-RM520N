@@ -90,7 +90,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 | Doc | Triggers | Scope |
 | --- | --- | --- |
 | [adaptive-polling.md](adaptive-polling.md) | The poller's activity tiers — `decide_tier`, `ap_tier`, `AP_*`, `.device.poller_tier`, `.mono`, `/tmp/qmanager_ui_active` and any CGI that writes it, the shared `useModemStatus` store (10 s cap, visibility pause), `lib/visible-interval.ts`, `watchcat.age_sec` / `stale_after`, which poller work sits inside the AT gate | RM520N |
-| [at-command-transport.md](at-command-transport.md) | Any AT path — `atcli_smd11`, `qcmd`, `/dev/smd11`, `/tmp/qmanager_at.lock`, `flock` serialization, detecting a `qcmd` failure, AT URCs and `AT+QURCCFG` | Both |
+| [at-command-transport.md](at-command-transport.md) | Any AT path — `atcli_smd11`, `qcmd`, `qmanager_atd` as the `qcmd` client, `qmanager-atd.service`, `/var/run/qmanager_atd.sock`, `/dev/smd11`, `/tmp/qmanager_at.lock`, `/tmp/qmanager_long_running`, `flock` serialization, detecting a `qcmd` failure, the `modem_busy` / `command_failed` code mapping, AT URCs and `AT+QURCCFG` | Both |
 | [auth-rate-limiting.md](auth-rate-limiting.md) | `cgi_auth.sh`, `auth/check.sh`, `qm_get_rate_limit_status`, `/tmp/qmanager_auth_attempts.json`, the login lockout ladder | RM520N |
 | [gui-installer.md](gui-installer.md) | `installer-gui/`, `bridge.py`, `core/dpapi.py`, `prefs.py`, `wrap_command`, `__QM_RC=`, `stage_payload`, `tokens.css`, the frozen PyInstaller build | Both |
 | [modem-bridge.md](modem-bridge.md) | Running anything on a live device — the `modem` / `modem-rg501q` MCP servers, `tools/modem-mcp/server.ts`, `.mcp.json`, `modem_exec` / `modem_write` / `modem_cgi`, the serial check and deny-list | Both |

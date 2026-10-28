@@ -9,7 +9,9 @@ use crate::at::output::{json_error, json_success, shell_capture, Code};
 use crate::common::lock::{self, LockFile};
 use crate::common::log::Logger;
 use crate::common::proto;
+use crate::common::safefs;
 use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::time::{Duration, Instant};
 
 pub(crate) fn run_qcmd(args: &[String]) -> i32 {
@@ -101,6 +103,10 @@ fn cap_from_env(v: Option<&str>) -> Option<Duration> {
 }
 
 fn try_broker(cmd: &str, cap: Option<Duration>) -> Broker {
+    // Mid-OTA the broker may be the previous binary: never send it a request it may misread.
+    if !proto::broker_speaks_ours(std::fs::read_to_string(proto::PROTO_PATH).ok().as_deref()) {
+        return Broker::Unreachable;
+    }
     try_broker_raw(&proto::encode_request(cmd, proto::mono_ms()), !classify::is_long(cmd), cmd, cap)
 }
 
@@ -109,15 +115,75 @@ fn try_broker(cmd: &str, cap: Option<Duration>) -> Broker {
 /// keeps its deadline, as the broker does.
 fn run_in_process(cmd: &str, left: Option<Duration>) -> proto::Reply {
     let log = Logger::new("qcmd");
-    let lock = match LockFile::open(lock::LOCK_FILE) {
+    let lock = match open_or_create_lock() {
         Ok(l) => l,
-        Err(_) => return proto::Reply::Err(Code::ModemBusy),
+        Err(e) => {
+            log.error(&format!("AT lock {} refused: {e}", lock::LOCK_FILE));
+            return proto::Reply::Err(Code::ModemBusy);
+        }
     };
     let waited = left.map_or(Duration::ZERO, |l| exec::LOCK_WAIT_SHORT.saturating_sub(l));
     let mut ch = new_channel();
     match (Executor { ch: &mut ch, lock: &lock, log: &log }).run_after(cmd, waited) {
         Outcome::Ok(raw) => proto::Reply::Ok(raw),
         Outcome::Err(code) => proto::Reply::Err(code),
+    }
+}
+
+/// Shell parity: the shell qcmd created the lock (0666) when qmanager_setup
+/// had not run yet (boot, `--no-start` installs).
+fn open_or_create_lock() -> std::io::Result<LockFile> {
+    match LockFile::open(lock::LOCK_FILE) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let made = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o666)
+                .custom_flags(safefs::NOFOLLOW)
+                .open(lock::LOCK_FILE);
+            if let Ok(f) = made {
+                let _ = f.set_permissions(std::fs::Permissions::from_mode(0o666));
+            }
+            LockFile::open(lock::LOCK_FILE)
+        }
+        r => r,
+    }
+}
+
+/// RM520N contract (D10): a modem ERROR or empty reply is rc 1 +
+/// `command_failed`, judged as the shell qcmd did; never stdout.
+fn rm520n_reply(command: &str, reply: proto::Reply) -> proto::Reply {
+    match reply {
+        proto::Reply::Ok(raw) => {
+            let body = shell_capture(&raw);
+            if body.contains("ERROR") {
+                Logger::new("qcmd").error(&format!("Command returned ERROR: {command}"));
+                proto::Reply::Err(Code::CommandFailed)
+            } else if body.is_empty() {
+                Logger::new("qcmd").error(&format!("Empty response for: {command}"));
+                proto::Reply::Err(Code::CommandFailed)
+            } else {
+                proto::Reply::Ok(raw)
+            }
+        }
+        proto::Reply::Err(code) => {
+            let shown = rm520n_code(code);
+            if shown != code {
+                Logger::new("qcmd").info(&format!("{} reported as {}: {command}", code.as_str(), shown.as_str()));
+            }
+            proto::Reply::Err(shown)
+        }
+        r => r,
+    }
+}
+
+/// RM520N callers know only the shell's two codes (D11).
+fn rm520n_code(code: Code) -> Code {
+    match code {
+        Code::ModemBusy | Code::ScanInProgress => Code::ModemBusy,
+        Code::CommandFailed | Code::ModemNotReady | Code::CommandTimeout | Code::InvalidCommand => {
+            Code::CommandFailed
+        }
     }
 }
 
@@ -129,6 +195,7 @@ fn emit(json: bool, command: &str, reply: proto::Reply) -> i32 {
     if let proto::Reply::Res(..) = reply {
         return emit(json, command, proto::Reply::Err(Code::CommandFailed));
     }
+    let reply = rm520n_reply(command, reply);
     let mut out = std::io::stdout().lock();
     match reply {
         proto::Reply::Ok(raw) => {
@@ -171,6 +238,22 @@ mod tests {
 
     fn sv(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn rm520n_contract_matches_the_shell_qcmd() {
+        let ok = |s: &str| proto::Reply::Ok(s.as_bytes().to_vec());
+        let failed = |r| matches!(r, proto::Reply::Err(Code::CommandFailed));
+        assert!(failed(rm520n_reply("AT+X", ok("AT+X\r\r\nERROR\r\n"))));
+        assert!(failed(rm520n_reply("AT+CPIN?", ok("AT+CPIN?\r\r\n+CME ERROR: 10\r\n"))));
+        assert!(failed(rm520n_reply("AT", ok("\n\n"))));
+        assert!(matches!(rm520n_reply("AT", ok("AT\r\r\nOK\r\n")), proto::Reply::Ok(_)));
+        // Neither OK nor ERROR: passed through for the caller to judge.
+        assert!(matches!(rm520n_reply("AT+Q", ok("AT+Q\r\r\n+Q: 1\r\n")), proto::Reply::Ok(_)));
+        assert_eq!(rm520n_code(Code::ScanInProgress), Code::ModemBusy);
+        for c in [Code::ModemNotReady, Code::CommandTimeout, Code::InvalidCommand] {
+            assert_eq!(rm520n_code(c), Code::CommandFailed);
+        }
     }
 
     #[test]

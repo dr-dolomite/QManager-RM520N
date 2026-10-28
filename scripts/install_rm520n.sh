@@ -18,7 +18,7 @@
 #   dependencies/           — Bundled binaries and packages
 #     atcli_smd11           — ARM binary (AT command transport via /dev/smd11)
 #     sms_tool              — ARM binary (SMS send/recv/delete via /dev/smd11)
-#     qmanager_atd          — ARM binary (AT/SMS/QMI broker; /usr/bin/qsms links to it)
+#     qmanager_atd          — ARM binary (AT/SMS/QMI broker; qsms and, on RM520N, qcmd link to it)
 #     jq.ipk                — JSON processor (Entware package)
 #     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
@@ -825,7 +825,8 @@ ensure_zoneinfo_packages() {
 # --- Install Bundled Binaries -------------------------------------------------
 
 # Copies the first-party binaries bundled in dependencies/ (atcli_smd11,
-# sms_tool, qmanager_atd + its qsms link, qmanager_discord) into $BIN_DIR.
+# sms_tool, qmanager_atd + its qsms link, qmanager_discord) into $BIN_DIR;
+# install_backend() links qcmd to qmanager_atd on RM520N.
 #
 # Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
 # and ensure_zoneinfo_packages() above in main()): OTA upgrades invoke this
@@ -840,6 +841,19 @@ ensure_zoneinfo_packages() {
 #
 # Each binary is skipped via `cmp -s` if the bundled copy is byte-identical to
 # what's already installed, avoiding a needless UBIFS rewrite on every OTA.
+_atd_on() {
+    command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled
+}
+
+# 0 only for a definite non-RM520N model; unknown model or no hw_profile.sh = 1.
+_atd_definitely_off() {
+    command -v qm_hw_model >/dev/null 2>&1 || return 1
+    case "$(qm_hw_model 2>/dev/null)" in
+        ""|unknown|RM520N*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 install_bundled_binaries() {
     step "Installing bundled binaries"
 
@@ -875,7 +889,7 @@ install_bundled_binaries() {
 
     # --- qmanager_atd (AT/SMS/QMI broker) + qsms link --------------------------
     # Binary ships on both models; the unit is RM520N-only (systemd 239 on the
-    # RG501Q ignores ExecCondition) and stays unlinked/unstarted until T4.1.
+    # RG501Q ignores ExecCondition).
     if [ -f "$SRC_DEPS/qmanager_atd" ]; then
         if [ -x "$BIN_DIR/qmanager_atd" ] && cmp -s "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd"; then
             info "qmanager_atd already current"
@@ -896,13 +910,13 @@ install_bundled_binaries() {
         ln -sf qmanager_atd "$BIN_DIR/qsms" || warn "Failed to link $BIN_DIR/qsms"
     fi
 
-    # No model boot-links the broker until T4.1; this also covers --no-enable runs.
-    rm -f "$WANTS_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd boot link"
-
-    # Undefined function (hw_profile.sh failed to load) counts as not enabled.
-    if ! { command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled; }; then
-        rm -f "$SYSTEMD_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd.service"
+    # Remove the unit only on a definite non-RM520N answer, never when the model is unknown.
+    if _atd_definitely_off; then
+        rm -f "$WANTS_DIR/qmanager-atd.service" "$SYSTEMD_DIR/qmanager-atd.service" \
+            || warn "Could not remove qmanager-atd.service"
         info "qmanager-atd not used on this model ($(qm_hw_model 2>/dev/null || echo unknown))"
+    elif [ "$DO_BACKEND" = "1" ] && ! _atd_on; then
+        warn "Model unknown — qmanager-atd unit left as is, qcmd stays the shell script"
     fi
 
     # --- qmanager_discord (optional Discord bot binary) -----------------------
@@ -1706,6 +1720,14 @@ install_backend() {
         for f in "$SRC_SCRIPTS/usr/bin"/*; do
             [ -f "$f" ] || continue
             local fname; fname=$(basename "$f")
+            # RM520N: qcmd is the broker client (argv[0] link); elsewhere the shell script.
+            if [ "$fname" = "qcmd" ] && [ -x "$BIN_DIR/qmanager_atd" ] && _atd_on; then
+                local qtmp="$BIN_DIR/qcmd.qm_install.$$"
+                ln -sf qmanager_atd "$qtmp" && mv -f "$qtmp" "$BIN_DIR/qcmd" \
+                    || die "Failed to link $BIN_DIR/qcmd"
+                bin_count=$(( bin_count + 1 ))
+                continue
+            fi
             install_file "$f" "$BIN_DIR/$fname" 755 \
                 || die "Failed to install $fname"
             bin_count=$(( bin_count + 1 ))
@@ -1754,7 +1776,7 @@ install_backend() {
             [ -f "$f" ] || continue
             # qmanager-atd.service is RM520N-only (see install_bundled_binaries).
             if [ "$(basename "$f")" = "qmanager-atd.service" ]; then
-                if ! { command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled; }; then
+                if ! _atd_on; then
                     continue
                 fi
             fi
@@ -3427,6 +3449,12 @@ cleanup_legacy_scripts() {
 
     local removed=0
 
+    # qcmd_test was the atcli smoke test; retired with the qcmd cut-over.
+    if [ -f "$BIN_DIR/qcmd_test" ]; then
+        rm -f "$BIN_DIR/qcmd_test" || warn "Could not remove $BIN_DIR/qcmd_test"
+        removed=$(( removed + 1 ))
+    fi
+
     # /usr/bin/qmanager_* — remove if not in source (scripts/usr/bin/) AND not bundled in dependencies/
     for installed in "$BIN_DIR"/qmanager_*; do
         [ -f "$installed" ] || continue
@@ -3696,10 +3724,8 @@ enable_services() {
         # gate here beyond skipping the boot-symlink for the .service itself.
         [ "$svc" = "qmanager-scenario-schedule" ] && continue
 
-        # qmanager-atd stays off until the qcmd cut-over (T4.1) links it; also
-        # drop a link an earlier development OTA may have created.
-        if [ "$svc" = "qmanager-atd" ]; then
-            rm -f "$WANTS_DIR/qmanager-atd.service" || warn "Could not remove qmanager-atd boot link"
+        # The broker is boot-linked only where qcmd is its client (RM520N).
+        if [ "$svc" = "qmanager-atd" ] && ! _atd_on; then
             continue
         fi
 
@@ -3880,6 +3906,15 @@ start_services() {
     # description, not the mode bits) and any open fd both survive untouched.
     systemctl restart qmanager-setup 2>/dev/null || true
 
+    # Broker after setup (it needs the lock file), before the poller. StartLimitBurst
+    # counts start attempts, so repeated installs reset it first.
+    local atd_on=0
+    if [ -f "$SYSTEMD_DIR/qmanager-atd.service" ] && [ -x "$BIN_DIR/qmanager_atd" ] && _atd_on; then
+        atd_on=1
+        systemctl reset-failed qmanager-atd 2>/dev/null || true
+        systemctl start qmanager-atd 2>/dev/null || warn "Could not start qmanager-atd (qcmd runs in-process)"
+    fi
+
     # Start always-on services with verification
     for svc in qmanager-cfun-fix qmanager-ping qmanager-sites qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check; do
         systemctl start "$svc" 2>/dev/null || true
@@ -3929,7 +3964,11 @@ start_services() {
 
     # Verify critical services
     local svc_errors=0
-    for svc in qmanager-firewall lighttpd qmanager-setup qmanager-ping qmanager-poller; do
+    local verify_svcs="qmanager-firewall lighttpd qmanager-setup qmanager-ping qmanager-poller"
+    if [ "$atd_on" = "1" ]; then
+        verify_svcs="$verify_svcs qmanager-atd"
+    fi
+    for svc in $verify_svcs; do
         if systemctl is-active "$svc" >/dev/null 2>&1; then
             info "$svc is running"
         else
@@ -3938,10 +3977,10 @@ start_services() {
         fi
     done
 
-    # Verify AT device access
-    if [ -x "$BIN_DIR/atcli_smd11" ] && [ -e /dev/smd11 ]; then
-        if qm_timeout 3 "$BIN_DIR/atcli_smd11" "AT" >/dev/null 2>&1; then
-            info "AT device responds (atcli_smd11 → /dev/smd11)"
+    # Verify AT device access through qcmd (the broker may hold /dev/smd11)
+    if [ -x "$BIN_DIR/qcmd" ] && [ -e /dev/smd11 ]; then
+        if qm_timeout 8 "$BIN_DIR/qcmd" "AT" >/dev/null 2>&1; then
+            info "AT device responds (qcmd → /dev/smd11)"
         else
             warn "AT device not responding — modem may not be ready yet"
         fi
