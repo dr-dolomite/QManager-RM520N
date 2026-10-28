@@ -72,7 +72,7 @@
 ### Reliability & Monitoring
 - **Connection Watchdog** — 4-tier auto-recovery: AT+COPS deregister/reregister -> CFUN toggle -> SIM failover -> full reboot (with token bucket rate limiting)
 - **Email Alerts** — Downtime notifications via Gmail SMTP (msmtp), sent on recovery with duration details
-- **SMS Alerts** — Downtime and recovery notifications delivered over the cellular control channel via `sms_tool`; reaches you even while the data link is offline. Registration-guarded retry with dedup collapse, threshold-based suppression of transient blips, bounded failure logging
+- **SMS Alerts** — Downtime and recovery notifications delivered over the cellular control channel via `qsms` (QMI WMS); reaches you even while the data link is offline. Registration-guarded retry with dedup collapse, threshold-based suppression of transient blips, bounded failure logging
 - **Low Power Mode** — Scheduled CFUN power-down windows via cron
 - **Software Updates** — In-app OTA update checking, download, verification, installation, and rollback
 - **System Logs** — Centralized log viewer with search

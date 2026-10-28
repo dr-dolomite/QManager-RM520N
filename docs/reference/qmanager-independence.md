@@ -613,15 +613,15 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 
 ### SMS alerts
 
-- Transport: bundled `sms_tool` binary on `/dev/smd11` — no package install needed.
+- Transport: `qsms send` (the bundled `qmanager_atd` binary; QMI WMS on the RM520N-GL) — no package install needed.
 - `sms_alerts.sh` is sourced by the poller and reads poller globals directly: `conn_internet_available`, `modem_reachable`, `lte_state`, `nr_state`.
 - **Registration guard is mandatory before every send.** The modem must be reachable AND (`lte_state="connected"` OR `nr_state="connected"`). Waiting for registration is unbounded at the state machine level, but `_sa_do_send` caps real send attempts at 3. Unregistered skips do not consume the retry budget — they are bounded separately by `_SA_MAX_SKIPS`.
 - **Recovery path has two branches**:
   - If `downtime-start` status is `"sent"`: send a separate recovery SMS.
   - Otherwise: send a combined dedup message ("was down for X, now restored").
 - **Recovery is silenced** when `status="none" && duration < threshold_secs` — sub-threshold blips never generate notifications.
-- Phone numbers are stored with a leading `+` but stripped via `${_sa_recipient#+}` before passing to `sms_tool send` (matches the convention in `scripts/www/cgi-bin/quecmanager/cellular/sms.sh:265`).
-- The shared lock `/tmp/qmanager_at.lock` serializes `sms_tool` calls with `qcmd` and the SMS Center CGI.
+- Phone numbers are stored with a leading `+` but stripped via `${_sa_recipient#+}` before passing to `qsms send` (same convention as `normalize_phone()` in `scripts/www/cgi-bin/quecmanager/cellular/sms.sh`).
+- No AT lock is taken for the send on the RM520N-GL; a failed send logs `qsms`'s `.detail` via `_sa_send_error`.
 - **Test sends from the CGI** override `_sa_is_registered() { return 0; }` because CGI context lacks poller globals. The override must be placed **after** sourcing the library — the library has a `_SMS_ALERTS_LOADED` guard that prevents re-sourcing from clobbering the override.
 - Config file: `/etc/qmanager/sms_alerts.json`
 - NDJSON log: `/tmp/qmanager_sms_log.json` (capped at 100 entries)

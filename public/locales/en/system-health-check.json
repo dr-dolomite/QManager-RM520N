@@ -157,7 +157,7 @@
     },
     "sms": {
       "label": "SMS Subsystem",
-      "description": "sms_tool readiness and SIM presence"
+      "description": "SMS service readiness and SIM presence"
     },
     "sudoers": {
       "label": "Sudoers",

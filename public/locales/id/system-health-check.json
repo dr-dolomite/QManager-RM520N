@@ -157,7 +157,7 @@
     },
     "sms": {
       "label": "Subsistem SMS",
-      "description": "Kesiapan sms_tool dan keberadaan SIM"
+      "description": "Kesiapan layanan SMS dan keberadaan SIM"
     },
     "sudoers": {
       "label": "Sudoers",

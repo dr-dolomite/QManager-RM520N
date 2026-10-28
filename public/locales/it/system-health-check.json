@@ -157,7 +157,7 @@
     },
     "sms": {
       "label": "Sottosistema SMS",
-      "description": "Prontezza di sms_tool e presenza della SIM"
+      "description": "Prontezza del servizio SMS e presenza della SIM"
     },
     "sudoers": {
       "label": "Sudoers",

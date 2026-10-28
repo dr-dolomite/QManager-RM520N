@@ -33,12 +33,6 @@ CONFIG="/etc/qmanager/sms_forwarding.json"
 RELOAD_FLAG="/tmp/qmanager_sms_forward_reload"
 FAILURES_FILE="/tmp/qmanager_sms_forward_failures.json"
 
-# Shared AT lock — the SAME lock qcmd holds (/tmp/qmanager_at.lock), so
-# sms_tool here is serialized against qcmd, the poller, the SMS Center CGI,
-# and the forwarding daemon itself.
-LOCK_FILE="/tmp/qmanager_at.lock"
-SMS_TOOL="/usr/bin/sms_tool"
-
 # --- Validation: E.164-ish — optional +, first digit 1-9, 7-15 digits. -------
 # Reused verbatim from monitoring/sms_alerts.sh / cellular/sms.sh conventions.
 _validate_phone() {
@@ -53,49 +47,6 @@ _validate_phone() {
     _vp_first=$(printf '%s' "$_vp" | cut -c1)
     [ "$_vp_first" = "0" ] && return 1
     return 0
-}
-
-# --- BusyBox-compatible flock with timeout (polling loop) --------------------
-# BusyBox flock lacks -w (timeout). Polls with -n (non-blocking) in a loop.
-flock_wait() {
-    _fd="$1"; _wait="$2"; _elapsed=0
-    while [ "$_elapsed" -lt "$_wait" ]; do
-        if flock -x -n "$_fd" 2>/dev/null; then return 0; fi
-        sleep 1
-        _elapsed=$((_elapsed + 1))
-    done
-    flock -x -n "$_fd" 2>/dev/null
-}
-
-# --- Locked sms_tool wrapper (mirrors cellular/sms.sh:sms_locked) -----------
-# Runs sms_tool under the same /tmp/qmanager_at.lock flock qcmd uses. We do NOT
-# use 2>/dev/null (would hide real sms_tool errors, leaving send_test with an
-# empty error detail) or 2>&1 (a merged stream can interleave stray bytes into
-# a JSON payload). Instead: capture stderr to a per-call temp file, then on
-# failure return the cleaned stderr (harmless tcgetattr/tcsetattr smd-device
-# noise stripped — only emitted by the unpatched binary; the patched build is
-# silent) so the caller gets a meaningful error string.
-sms_locked() {
-    _sms_err="/tmp/qmanager_sms_forward_err.$$"
-    (
-        flock_wait 9 10 || exit 2
-        _sms_out=$("$SMS_TOOL" "$@" 2>"$_sms_err")
-        _sms_rc=$?
-
-        if [ "$_sms_rc" -eq 0 ]; then
-            printf '%s' "$_sms_out"
-        else
-            _sms_err_clean=$(grep -v -e '^tcgetattr(' -e '^tcsetattr(' -e 'Inappropriate ioctl for device$' < "$_sms_err" 2>/dev/null)
-            if [ -n "$_sms_err_clean" ]; then
-                printf '%s' "$_sms_err_clean"
-            else
-                printf '%s' "$_sms_out"
-            fi
-        fi
-
-        rm -f "$_sms_err"
-        exit "$_sms_rc"
-    ) 9<"$LOCK_FILE"
 }
 
 # =============================================================================
@@ -248,12 +199,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         BODY="From QManager: SMS forwarding test"
 
         qlog_info "SMS forwarding test send to $PHONE"
-        result=$(sms_locked send "$PHONE" "$BODY")
+        result=$(/usr/bin/qsms send "$PHONE" "$BODY" 2>/dev/null)
         rc=$?
 
         if [ "$rc" -ne 0 ]; then
-            qlog_error "SMS forwarding test send failed (rc=$rc): $result"
-            cgi_error "send_failed" "$result"
+            # Show qsms's plain-language .detail, never the raw JSON envelope.
+            detail=$(printf '%s' "$result" | jq -r '.detail // .error // ""' 2>/dev/null)
+            [ -n "$detail" ] || detail="No reply from the SMS service."
+            qlog_error "SMS forwarding test send failed (rc=$rc): $detail"
+            cgi_error "send_failed" "$detail"
             exit 0
         fi
 

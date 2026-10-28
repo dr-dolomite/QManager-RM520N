@@ -2,46 +2,23 @@
 # =============================================================================
 # qmanager_sms_forward — QManager SMS Forwarding Daemon (RM520N-GL / systemd)
 # =============================================================================
-# Polls the modem inbox (ME + SM) every cycle and forwards each NEW inbound SMS
-# to a configured target phone number as "From <sender>: <content>".
+# Forwards each NEW inbound SMS (ME + SM) to a configured phone number as
+# "From <sender>: <content>". Reads and sends through qsms (QMI WMS), which
+# needs no AT lock. Design and invariants: docs/reference/sms-forwarding.md.
 #
-# Design notes (load-bearing):
-#   - Settings live in /etc/qmanager/sms_forwarding.json (NOT UCI):
-#       { "enabled": bool, "target_phone": string }
-#     Lazy-create semantics — a missing file is read as enabled=false,
-#     target_phone="". There is no installer seed; the CGI's own tmp+mv is
-#     the first write. Started/stopped by systemd (qmanager-sms-forward.service,
-#     Restart=on-failure) — this script itself never respawns.
-#   - Talks to /dev/smd11 via the bundled sms_tool, ALWAYS under the shared
-#     /tmp/qmanager_at.lock — the SAME lock qcmd holds — so it serializes
-#     against qcmd, the poller, and the SMS Center / SMS Alerts CGIs. The
-#     lock is acquired and released PER sms_tool call (one read pass, then
-#     each send attempt individually), never held across the 15s poll cycle
-#     or the multi-second send-retry loop.
-#   - Fingerprints messages with a djb2 scheme (djb2 over
-#     "storage|sender|timestamp|content"), so seen-tracking is stable across
-#     cycles. This is an internal-only hash (see sf_fingerprint below) — it
-#     never crosses the wire, so it does not need to match the frontend's
-#     JS djb2 implementation byte-for-byte.
-#   - Seed-on-first-run: when SEEN_FILE is absent (first start / first
-#     enable), record every currently-present fingerprint WITHOUT
-#     forwarding, so we never blast the existing inbox. Only messages that
-#     appear in later cycles ship.
-#   - Loop guard: never forward our own relays. Any message whose content
-#     looks like "From <number>: ..." is skipped (but still marked seen).
-#   - Send uses a 3-attempt / 5s-retry model, re-checking registration via
-#     qcmd (AT+CREG?/AT+CGREG?, stat 1|5) each attempt. After 3 fails the
-#     message is marked seen (so it is not retried forever) and a failure
-#     record is appended to FAILURES_FILE (capped at MAX_FAILURES). Feature
-#     stays enabled — a bad send never disables forwarding.
-#
-# Config: /etc/qmanager/sms_forwarding.json
-# Output: /tmp/qmanager_sms_forward_failures.json (JSON array, read by the CGI)
+# Config: /etc/qmanager/sms_forwarding.json  { "enabled": bool, "target_phone": string }
+# Output: /tmp/qmanager_sms_forward_failures.json (array, read by the CGI)
 # State:  /tmp/qmanager_sms_forward_seen (one fingerprint per line, tmpfs)
+#         /tmp/qmanager_sms_forward_pending (incomplete multi-part groups, tmpfs)
 # Reload: /tmp/qmanager_sms_forward_reload (flag file, touched by the CGI)
 #
+# Wake-up: `qsms watch` prints "<ME|SM> <index>" per arrival; the supervisor
+# feeds it through a FIFO. Without a live watch the loop polls every
+# SF_INTERVAL; with one it lists only the named storage, plus ME (and an unseeded
+# or failed SM) every SAFETY_INTERVAL.
+#
 # Install location: /usr/bin/qmanager_sms_forward
-# Dependencies: sms_tool, jq, awk, flock (busybox), qcmd
+# Dependencies: qsms, jq, awk, md5sum, mkfifo, qcmd
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
@@ -62,73 +39,82 @@ qlog_init "sms_forward"
 SF_ENABLED=0
 SF_TARGET=""
 SF_INTERVAL=15
+SAFETY_INTERVAL=300
+GROUP_TIMEOUT=600
 
 # --- File Paths ---------------------------------------------------------------
 CONFIG="/etc/qmanager/sms_forwarding.json"
 PID_FILE="/tmp/qmanager_sms_forward.pid"
 RELOAD_FLAG="/tmp/qmanager_sms_forward_reload"
 SEEN_FILE="/tmp/qmanager_sms_forward_seen"
+PENDING_FILE="/tmp/qmanager_sms_forward_pending"
+PENDING_NEW="/tmp/qmanager_sms_forward_pending.new"
+PENDING_TMP="/tmp/qmanager_sms_forward_pending.tmp"
+EVENT_FIFO="/tmp/qmanager_sms_forward_events"
 FAILURES_FILE="/tmp/qmanager_sms_forward_failures.json"
 FAILURES_TMP="/tmp/qmanager_sms_forward_failures.json.tmp"
-LOCK_FILE="/tmp/qmanager_at.lock"
-LOCK_WAIT=10
 
-# sms_tool transport (hard-wired to /dev/smd11, like sms.sh / sms_alerts.sh).
-SMS_TOOL="/usr/bin/sms_tool"
-AT_DEVICE="/dev/smd11"
+QSMS="/usr/bin/qsms"
 
 MAX_FAILURES=20
+
+# --- Runtime state -----------------------------------------------------------
+NOW=0
+LAST_FULL=0
+WATCH_UP=0
+WATCHER_PID=""
+FIFO_OK=0
+EV_ME=0
+EV_SM=0
+EV_FULL=0
+SEEDED_ME=0
+SEEDED_SM=0
+CK_ME=""
+CK_SM=""
+SCAN_SEED=0
+SCAN_FAILING=0
+SM_RETRY=0
+
+# Merge one storage's `qsms list` output: singles pass through; concatenated parts group by
+# sender|reference|total, split where part timestamps are >24 h apart (reference reuse).
+SF_MERGE_JQ='
+def s: if . == null then "" else tostring end;
+def ep: try (strptime("%m/%d/%y %H:%M:%S") | mktime) catch 0;
+def clusters: reduce .[] as $m ([]; if length > 0 and ($m.ep - .[-1][-1].ep) <= 86400
+    then .[-1] += [$m] else . + [[$m]] end);
+[.msg[]? | . + {storage: $st}] as $all
+| [ $all[] | select(.reference == null)
+    | {sender: (.sender|s), content: (.content|s), timestamp: (.timestamp|s),
+       storage: .storage, gkey: "", gts: 0, complete: true, parts: 1, total: 0} ] as $singles
+| ( [ $all[] | select(.reference != null) | . + {ep: (.timestamp|s|ep)} ]
+    | group_by((.sender|s) + "|" + (.reference|tostring) + "|" + (.total|s))
+    | map(sort_by(.ep) | clusters[])
+    | map( (map(.ep) | min) as $gts | unique_by(.part) | . as $p
+        | (if $p[0].total == null then 0 else $p[0].total end) as $t
+        | { sender: ($p[0].sender|s),
+            content: ([$p[].content|s] | join("")),
+            timestamp: ($p[0].timestamp|s),
+            storage: $p[0].storage,
+            gkey: ($p[0].storage + "|" + ($p[0].sender|s) + "|" + ($p[0].reference|tostring)
+                   + "|" + ($t|tostring)),
+            gts: $gts,
+            complete: ($t <= 0 or ($p|length) >= $t),
+            parts: ($p|length),
+            total: $t } ) ) as $grouped
+| $singles + $grouped
+'
 
 # =============================================================================
 # HELPERS
 # =============================================================================
 
-# --- BusyBox-compatible flock with timeout (polling loop) --------------------
-# Usage: sf_flock_wait <fd> <timeout_seconds>
-sf_flock_wait() {
-    _fd="$1"
-    _wait="$2"
-    _elapsed=0
-    while [ "$_elapsed" -lt "$_wait" ]; do
-        if flock -x -n "$_fd" 2>/dev/null; then
-            return 0
-        fi
-        sleep 1
-        _elapsed=$((_elapsed + 1))
-    done
-    flock -x -n "$_fd" 2>/dev/null
-}
-
-# --- Strip sms_tool's harmless char-device noise -----------------------------
-sf_strip_noise() {
-    grep -v -e '^tcgetattr(' -e '^tcsetattr(' -e 'Inappropriate ioctl for device$'
-}
-
-# --- Run sms_tool under the shared AT lock (per-invocation, not per-cycle) ---
-# stderr is captured to a temp file (NOT 2>&1) so noise can never land
-# mid-JSON when a recv -j payload exceeds the stdout block buffer. On success
-# returns pure stdout; on failure returns noise-stripped stderr.
-sf_sms_locked() {
-    [ -e "$LOCK_FILE" ] || : > "$LOCK_FILE" 2>/dev/null
-    _sf_err="/tmp/qmanager_sms_forward_err.$$"
-
-    (
-        sf_flock_wait 9 "$LOCK_WAIT" || exit 2
-        _sf_out=$("$SMS_TOOL" -d "$AT_DEVICE" "$@" 2>"$_sf_err")
-        _sf_rc=$?
-        if [ "$_sf_rc" -eq 0 ]; then
-            printf '%s' "$_sf_out"
-        else
-            _sf_err_clean=$(sf_strip_noise < "$_sf_err" 2>/dev/null)
-            if [ -n "$_sf_err_clean" ]; then
-                printf '%s' "$_sf_err_clean"
-            else
-                printf '%s' "$_sf_out"
-            fi
-        fi
-        rm -f "$_sf_err"
-        exit "$_sf_rc"
-    ) 9<"$LOCK_FILE"
+# --- Monotonic seconds (the wall clock steps from 1970 shortly after boot) ---
+sf_now() {
+    read -r _up _ < /proc/uptime 2>/dev/null
+    NOW="${_up%%.*}"
+    case "$NOW" in
+        ''|*[!0-9]*) NOW=0 ;;
+    esac
 }
 
 # --- Load config from /etc/qmanager/sms_forwarding.json ----------------------
@@ -168,15 +154,8 @@ sf_target_valid() {
 }
 
 # --- djb2 fingerprint --------------------------------------------------------
-# djb2 over "storage|sender|timestamp|content", reduced mod 2^32 (unsigned
-# 32-bit) via BusyBox awk. The running value is kept inside 32 bits with
-# % 4294967296 each step so it never overflows awk's double mantissa (2^53)
-# and diverges.
-#
-# NOT a byte-for-byte cross-check against any frontend hash — the seen-set is
-# internal to this daemon and never crosses the wire, so only consistency
-# WITHIN this daemon (stable hash for the same message across cycles) matters
-# for dedup.
+# djb2 mod 2^32 in BusyBox awk (% 4294967296 each step keeps it inside the
+# double mantissa). Internal to this daemon; never compared with the frontend.
 sf_fingerprint() {
     awk -v s="$1" '
         BEGIN {
@@ -184,7 +163,6 @@ sf_fingerprint() {
             n = length(s)
             for (i = 1; i <= n; i++) {
                 c = substr(s, i, 1)
-                # h = ((h * 33) + byte) & 0xFFFFFFFF
                 h = (h * 33 + sf_ord(c)) % 4294967296
             }
             printf "%.0f", h
@@ -199,59 +177,13 @@ sf_fingerprint() {
     '
 }
 
-# --- Read + merge inbound messages from ME and SM into one JSON array --------
-# Mirrors the sms.sh merge: tag each storage, concat, group multi-part by
-# sender|reference|storage, pass singles through. Output is a JSON array of
-# {sender, content, timestamp, storage}. On any failure prints "[]".
+# --- Read + merge one storage's inbox into a JSON array ----------------------
+# Prints [{sender,content,timestamp,storage,gkey,gts,complete,parts,total}].
+# Returns 1 when qsms fails, so a failed read is never mistaken for an empty inbox.
 sf_read_inbox() {
-    # Re-assert routing so future incoming SMS land in ME (255 slots).
-    sf_sms_locked at 'AT+CPMS="ME","ME","ME"' >/dev/null 2>&1
-
-    _me=$(sf_sms_locked -s ME recv -j)
-    if [ -n "$_me" ]; then
-        _me=$(printf '%s' "$_me" | jq 'if .msg == null then [] else .msg end' 2>/dev/null)
-    fi
-    printf '%s' "$_me" | jq empty 2>/dev/null || _me="[]"
-    [ -z "$_me" ] && _me="[]"
-    _me=$(printf '%s' "$_me" | jq 'map(. + {storage:"ME"})' 2>/dev/null)
-    [ -z "$_me" ] && _me="[]"
-
-    _sm=$(sf_sms_locked -s SM recv -j)
-    if [ -n "$_sm" ]; then
-        _sm=$(printf '%s' "$_sm" | jq 'if .msg == null then [] else .msg end' 2>/dev/null)
-    fi
-    printf '%s' "$_sm" | jq empty 2>/dev/null || _sm="[]"
-    [ -z "$_sm" ] && _sm="[]"
-    _sm=$(printf '%s' "$_sm" | jq 'map(. + {storage:"SM"})' 2>/dev/null)
-    [ -z "$_sm" ] && _sm="[]"
-
-    # A `-s SM` read flips mem1 to SM; re-assert ME so a bare recv elsewhere
-    # keeps reading modem storage.
-    sf_sms_locked at 'AT+CPMS="ME","ME","ME"' >/dev/null 2>&1
-
-    _raw=$(printf '%s\n%s' "$_me" "$_sm" | jq -s 'add' 2>/dev/null)
-    [ -z "$_raw" ] && _raw="[]"
-    printf '%s' "$_raw" | jq empty 2>/dev/null || _raw="[]"
-
-    _merged=$(printf '%s' "$_raw" | jq -c '
-        [.[] | select(has("reference") | not) |
-            {sender, content, timestamp, storage}
-        ] as $singles |
-        ([.[] | select(has("reference"))] |
-            group_by(.sender + "|" + (.reference | tostring) + "|" + .storage) |
-            [.[] | sort_by(.part) | {
-                sender: .[0].sender,
-                content: ([.[].content] | join("")),
-                timestamp: .[0].timestamp,
-                storage: .[0].storage
-            }]
-        ) as $grouped |
-        ($singles + $grouped)
-    ' 2>/dev/null)
-    [ -z "$_merged" ] && _merged="[]"
-    printf '%s' "$_merged" | jq empty 2>/dev/null || _merged="[]"
-
-    printf '%s' "$_merged"
+    _ri=$("$QSMS" list "$1" 2>/dev/null </dev/null)
+    printf '%s' "$_ri" | jq -e '.success == true and ((.storage_errors // {}) | length == 0)' >/dev/null 2>&1 || return 1
+    printf '%s' "$_ri" | jq -c --arg st "$1" "$SF_MERGE_JQ" 2>/dev/null
 }
 
 # --- Loop-guard test: does content look like one of OUR relays? --------------
@@ -300,57 +232,9 @@ sf_record_failure() {
     fi
 }
 
-# --- Send one forwarded message with 3-attempt / 5s-retry --------------------
-# Re-checks registration each attempt via qcmd (AT+CREG?/AT+CGREG?). Returns 0
-# on success; on failure prints the last error to stdout and returns 1. Each
-# send re-acquires the shared lock (per call, not across the retry loop).
-sf_send_with_retry() {
-    _send_target="$1"
-    _send_body="$2"
-    _attempt=0
-    _max_attempts=3
-    _retry_delay=5
-    _last_err=""
-
-    if [ ! -x "$SMS_TOOL" ]; then
-        printf '%s' "sms_tool not found at $SMS_TOOL"
-        return 1
-    fi
-
-    while [ "$_attempt" -lt "$_max_attempts" ]; do
-        _attempt=$((_attempt + 1))
-
-        if [ "$_attempt" -gt 1 ]; then
-            sleep "$_retry_delay"
-        fi
-
-        if ! sf_is_registered; then
-            qlog_warn "SMS forward: attempt $_attempt/$_max_attempts skipped (not registered)"
-            _last_err="modem not registered"
-            continue
-        fi
-
-        _out=$(sf_sms_locked send "$_send_target" "$_send_body" 2>&1)
-        _rc=$?
-
-        if [ "$_rc" -eq 0 ]; then
-            qlog_info "SMS forward: send succeeded on attempt $_attempt"
-            return 0
-        fi
-
-        [ -z "$_out" ] && _out="sms_tool send failed (rc=$_rc)"
-        _last_err="$_out"
-        qlog_warn "SMS forward: send failed attempt $_attempt/$_max_attempts (rc=$_rc) — $_out"
-    done
-
-    printf '%s' "$_last_err"
-    return 1
-}
-
 # --- Registration check (via qcmd, never raw atcli_smd11) -------------------
-# Considered registered when AT+CREG? or AT+CGREG? reports stat 1 (home) or
-# 5 (roaming). qcmd holds /tmp/qmanager_at.lock itself for the duration of
-# the AT command, so no separate flock is taken here.
+# Registered when AT+CREG? or AT+CGREG? reports stat 1 (home) or 5 (roaming).
+# qcmd takes the AT lock itself.
 sf_is_registered() {
     _reg=$(qcmd 'AT+CREG?' 2>/dev/null)
     _stat=$(printf '%s' "$_reg" | grep '+CREG:' | head -n 1 | sed 's/.*+CREG:[[:space:]]*[0-9]*,\([0-9]*\).*/\1/')
@@ -367,88 +251,354 @@ sf_is_registered() {
     return 1
 }
 
-# --- Is a fingerprint already recorded as seen? ------------------------------
-sf_is_seen() {
-    [ -f "$SEEN_FILE" ] || return 1
-    grep -q -x -F "$1" "$SEEN_FILE" 2>/dev/null
+# --- Send one forwarded message with 3-attempt / 5s-retry --------------------
+# Returns 0 on success; on failure prints a plain-language reason (qsms's
+# .detail, never raw JSON) to stdout and returns 1.
+sf_send_with_retry() {
+    _send_target="$1"
+    _send_body="$2"
+    _attempt=0
+    _max_attempts=3
+    _retry_delay=5
+    _last_err=""
+
+    if [ ! -x "$QSMS" ]; then
+        printf '%s' "The SMS service is not installed."
+        return 1
+    fi
+
+    while [ "$_attempt" -lt "$_max_attempts" ]; do
+        _attempt=$((_attempt + 1))
+
+        if [ "$_attempt" -gt 1 ]; then
+            sleep "$_retry_delay"
+        fi
+
+        if ! sf_is_registered; then
+            qlog_warn "SMS forward: attempt $_attempt/$_max_attempts skipped (not registered)"
+            _last_err="modem not registered"
+            continue
+        fi
+
+        _out=$("$QSMS" send "$_send_target" "$_send_body" 2>/dev/null </dev/null)
+        _rc=$?
+
+        if [ "$_rc" -eq 0 ]; then
+            qlog_info "SMS forward: send succeeded on attempt $_attempt"
+            return 0
+        fi
+
+        _detail=$(printf '%s' "$_out" | jq -r 'if (.detail | type) == "string" then .detail else "" end' 2>/dev/null)
+        [ -z "$_detail" ] && _detail="The message could not be sent."
+        _last_err="$_detail"
+        qlog_warn "SMS forward: send failed attempt $_attempt/$_max_attempts (rc=$_rc) — $_detail"
+    done
+
+    printf '%s' "$_last_err"
+    return 1
 }
 
-# --- Mark a fingerprint seen -------------------------------------------------
+# --- Seen-set ----------------------------------------------------------------
+# A group id "g <fp> <epoch>" matches a seen group within 24 h, so a late part 1 never re-forwards.
+sf_is_seen() {
+    [ -f "$SEEN_FILE" ] || return 1
+    case "$1" in
+        "g "*)
+            set -- $1
+            awk -v f="$2" -v t="$3" '$1 == "g" && $2 == f && $3 - t <= 86400 && t - $3 <= 86400 { m = 1; exit }
+                END { exit m ? 0 : 1 }' "$SEEN_FILE"
+            ;;
+        *) grep -q -x -F "$1" "$SEEN_FILE" 2>/dev/null ;;
+    esac
+}
+
 sf_mark_seen() {
     printf '%s\n' "$1" >> "$SEEN_FILE"
 }
 
+# --- Pending multi-part groups: lines of "<storage> <fingerprint> <uptime>" ---
+sf_pending_first() {
+    [ -s "$PENDING_FILE" ] || return 0
+    awk -v s="$1" -v f="$2" '$1 == s && $2 == f { print $3; exit }' "$PENDING_FILE"
+}
+
+sf_has_pending() {
+    [ -s "$PENDING_FILE" ] || return 1
+    awk -v s="$1" '$1 == s { f = 1 } END { exit f ? 0 : 1 }' "$PENDING_FILE"
+}
+
+# Storages that hold a group past GROUP_TIMEOUT.
+sf_pending_due() {
+    [ -s "$PENDING_FILE" ] || return 0
+    awk -v now="$NOW" -v to="$GROUP_TIMEOUT" '$3 + to <= now && !d[$1]++ { print $1 }' "$PENDING_FILE"
+}
+
 # =============================================================================
-# CYCLE
+# SCAN
 # =============================================================================
 
-# Process one inbox snapshot. $1 = seeding ("1" to record-only, no forwarding).
-process_cycle() {
-    _seeding="$1"
+# Handle one merged message (called from the eval in sf_scan).
+# Args: storage sender timestamp content gkey complete parts total gts
+sf_handle() {
+    _h_st="$1"
+    _h_sender="$2"
+    _h_ts="$3"
+    _h_content="$4"
+    _h_gkey="$5"
+    _h_complete="$6"
+    _h_parts="$7"
+    _h_total="$8"
+    _h_gts="$9"
 
-    _inbox=$(sf_read_inbox)
-    _count=$(printf '%s' "$_inbox" | jq 'length' 2>/dev/null)
-    case "$_count" in
-        ''|*[!0-9]*) _count=0 ;;
+    if [ -n "$_h_gkey" ]; then
+        _fp=$(sf_fingerprint "$_h_gkey")
+    else
+        _fp=$(sf_fingerprint "${_h_st}|${_h_sender}|${_h_ts}|${_h_content}")
+    fi
+    case "$_fp" in
+        ''|*[!0-9]*) return 0 ;;
     esac
-    [ "$_count" -eq 0 ] && return 0
+    _id="$_fp"
+    if [ -n "$_h_gkey" ]; then
+        case "$_h_gts" in ''|*[!0-9]*) _h_gts=0 ;; esac
+        _id="g $_fp $_h_gts"
+    fi
 
-    _i=0
-    while [ "$_i" -lt "$_count" ]; do
-        _obj=$(printf '%s' "$_inbox" | jq -c ".[$_i]" 2>/dev/null)
-        _i=$((_i + 1))
-        [ -z "$_obj" ] && continue
+    sf_is_seen "$_id" && return 0
 
-        _sender=$(printf '%s' "$_obj" | jq -r 'if .sender == null then "" else .sender end' 2>/dev/null)
-        _content=$(printf '%s' "$_obj" | jq -r 'if .content == null then "" else .content end' 2>/dev/null)
-        _ts=$(printf '%s' "$_obj" | jq -r 'if .timestamp == null then "" else .timestamp end' 2>/dev/null)
-        _storage=$(printf '%s' "$_obj" | jq -r 'if .storage == null then "" else .storage end' 2>/dev/null)
+    # Seeding pass: record everything currently present, forward nothing.
+    if [ "$SCAN_SEED" = "1" ]; then
+        sf_mark_seen "$_id"
+        return 0
+    fi
 
-        _fp=$(sf_fingerprint "${_storage}|${_sender}|${_ts}|${_content}")
-        case "$_fp" in
-            ''|*[!0-9]*) continue ;;
+    # Incomplete multi-part group: hold until all parts arrive or GROUP_TIMEOUT.
+    if [ "$_h_complete" != "1" ]; then
+        _first=$(sf_pending_first "$_h_st" "$_fp")
+        [ -z "$_first" ] && _first="$NOW"
+        if [ $((NOW - _first)) -lt "$GROUP_TIMEOUT" ]; then
+            printf '%s %s %s\n' "$_h_st" "$_fp" "$_first" >> "$PENDING_NEW"
+            return 0
+        fi
+        qlog_warn "SMS forward: group from ${_h_sender} timed out with ${_h_parts}/${_h_total} parts, forwarding partial"
+    fi
+
+    # Loop guard: don't forward our own relays, but mark them seen.
+    if sf_is_relay "$_h_content"; then
+        qlog_debug "SMS forward: skipping relay-shaped message (loop guard)"
+        sf_mark_seen "$_id"
+        return 0
+    fi
+
+    _body="From ${_h_sender}: ${_h_content}"
+    qlog_info "SMS forward: forwarding message from ${_h_sender} to ${SF_SEND_TARGET}"
+
+    if _err=$(sf_send_with_retry "$SF_SEND_TARGET" "$_body"); then
+        sf_mark_seen "$_id"
+    else
+        # 3 attempts exhausted: mark seen so we don't retry forever, and
+        # record the failure for the CGI/UI. Feature stays enabled.
+        sf_mark_seen "$_id"
+        _now_ts=$(date +%s)
+        [ -z "$_h_ts" ] && _h_ts="$_now_ts"
+        [ -z "$_err" ] && _err="send failed"
+        sf_record_failure "$_h_sender" "$_h_ts" "$_err"
+        qlog_error "SMS forward: all attempts failed forwarding from ${_h_sender} — ${_err}"
+    fi
+}
+
+# List one storage and forward what is new. An unseeded storage is seeded
+# instead (record only). Returns 1 when the list failed.
+sf_scan() {
+    _sc_st="$1"
+    case "$_sc_st" in
+        ME) _sc_seeded="$SEEDED_ME"; _sc_prev="$CK_ME" ;;
+        *)  _sc_seeded="$SEEDED_SM"; _sc_prev="$CK_SM" ;;
+    esac
+    SCAN_SEED=0
+    [ "$_sc_seeded" = "1" ] || SCAN_SEED=1
+
+    if ! _sc_json=$(sf_read_inbox "$_sc_st"); then
+        if [ "$SCAN_FAILING" != "1" ]; then
+            SCAN_FAILING=1
+            qlog_warn "SMS forward: could not read the ${_sc_st} inbox"
+        fi
+        SCAN_SEED=0
+        return 1
+    fi
+    if [ "$SCAN_FAILING" = "1" ]; then
+        SCAN_FAILING=0
+        qlog_info "SMS forward: inbox readable again"
+    fi
+
+    sf_now
+    _sc_ck=$(printf '%s' "$_sc_json" | md5sum | cut -d' ' -f1)
+    if [ "$SCAN_SEED" != "1" ] && [ "$_sc_ck" = "$_sc_prev" ] && ! sf_has_pending "$_sc_st"; then
+        return 0
+    fi
+
+    : > "$PENDING_NEW"
+    # @sh quotes every field, so the generated calls are safe to eval.
+    eval "$(printf '%s' "$_sc_json" | jq -r '.[] | "sf_handle " + ([.storage, .sender, .timestamp, .content, .gkey, (if .complete then "1" else "0" end), (.parts | tostring), (.total | tostring), (.gts | tostring)] | @sh)' 2>/dev/null)"
+
+    if [ "$SCAN_SEED" = "1" ]; then
+        printf '#seeded2 %s\n' "$_sc_st" >> "$SEEN_FILE"
+        qlog_info "SMS forward: seeded ${_sc_st} (no forwarding)"
+        case "$_sc_st" in
+            ME) SEEDED_ME=1 ;;
+            *)  SEEDED_SM=1 ;;
         esac
-
-        # Already handled — nothing to do.
-        if sf_is_seen "$_fp"; then
-            continue
-        fi
-
-        # Seeding pass: record everything currently present, forward nothing.
-        if [ "$_seeding" = "1" ]; then
-            sf_mark_seen "$_fp"
-            continue
-        fi
-
-        # Loop guard: don't forward our own relays, but mark them seen.
-        if sf_is_relay "$_content"; then
-            qlog_debug "SMS forward: skipping relay-shaped message (loop guard)"
-            sf_mark_seen "$_fp"
-            continue
-        fi
-
-        # Forward.
-        _body="From ${_sender}: ${_content}"
-        qlog_info "SMS forward: forwarding message from ${_sender} to ${SF_SEND_TARGET}"
-
-        if _err=$(sf_send_with_retry "$SF_SEND_TARGET" "$_body"); then
-            sf_mark_seen "$_fp"
+        SCAN_SEED=0
+    else
+        # Replace this storage's pending entries with the ones still waiting.
+        if [ -f "$PENDING_FILE" ]; then
+            awk -v s="$_sc_st" '$1 != s' "$PENDING_FILE" > "$PENDING_TMP" 2>/dev/null
         else
-            # 3 attempts exhausted: mark seen so we don't retry forever, and
-            # record the failure for the CGI/UI. Feature stays enabled.
-            sf_mark_seen "$_fp"
-            _now=$(date +%s)
-            [ -z "$_ts" ] && _ts="$_now"
-            [ -z "$_err" ] && _err="send failed"
-            sf_record_failure "$_sender" "$_ts" "$_err"
-            qlog_error "SMS forward: all attempts failed forwarding from ${_sender} — ${_err}"
+            : > "$PENDING_TMP"
         fi
+        cat "$PENDING_NEW" >> "$PENDING_TMP" 2>/dev/null
+        mv "$PENDING_TMP" "$PENDING_FILE"
+    fi
+
+    case "$_sc_st" in
+        ME) CK_ME="$_sc_ck" ;;
+        *)  CK_SM="$_sc_ck" ;;
+    esac
+    return 0
+}
+
+# Create the seen-set when absent (first start / first enable) and rebuild the
+# seeded flags from its markers, so a daemon restart does not re-seed.
+sf_ensure_seen() {
+    if [ ! -f "$SEEN_FILE" ]; then
+        : > "$SEEN_FILE"
+        SEEDED_ME=0
+        SEEDED_SM=0
+        CK_ME=""
+        CK_SM=""
+        qlog_info "SMS forward: seeding seen-set from existing inbox (no forwarding)"
+    fi
+    # "#seeded2" marks the 24 h group ids; an older seen-set is re-seeded, never forwarded.
+    grep -q -x -F '#seeded2 ME' "$SEEN_FILE" 2>/dev/null && SEEDED_ME=1
+    grep -q -x -F '#seeded2 SM' "$SEEN_FILE" 2>/dev/null && SEEDED_SM=1
+    return 0
+}
+
+# =============================================================================
+# WATCH (wake-up source)
+# =============================================================================
+
+# Background supervisor: runs `qsms watch` into the event FIFO (fd 3), prints
+# "down" when it ends, and respawns with a growing delay. Never exits on its own.
+sf_watch_supervisor() {
+    _w_qp=""
+    _w_fail=0
+    trap 'kill $_w_qp 2>/dev/null; exit 0' INT TERM
+    while :; do
+        sf_now
+        _w_t0="$NOW"
+        "$QSMS" watch >&3 2>/dev/null </dev/null &
+        _w_qp=$!
+        wait "$_w_qp"
+        printf 'down\n' >&3
+        sf_now
+        if [ $((NOW - _w_t0)) -ge 60 ]; then
+            _w_fail=0
+        else
+            _w_fail=$((_w_fail + 1))
+        fi
+        _w_delay=$((_w_fail + 1))
+        [ "$_w_delay" -gt 60 ] && _w_delay=60
+        sleep "$_w_delay" &
+        _w_qp=$!
+        wait "$_w_qp"
     done
+}
+
+sf_start_watcher() {
+    [ "$FIFO_OK" = "1" ] || return 1
+    if [ -n "$WATCHER_PID" ] && kill -0 "$WATCHER_PID" 2>/dev/null; then
+        return 0
+    fi
+    sf_watch_supervisor &
+    WATCHER_PID=$!
+    qlog_info "SMS forward: started qsms watch supervisor (PID $WATCHER_PID)"
+}
+
+sf_stop_watcher() {
+    WATCH_UP=0
+    [ -n "$WATCHER_PID" ] || return 0
+    kill "$WATCHER_PID" 2>/dev/null
+    wait "$WATCHER_PID" 2>/dev/null
+    WATCHER_PID=""
+}
+
+sf_note_event() {
+    case "$1" in
+        "ME "*) EV_ME=1 ;;
+        "SM "*) EV_SM=1 ;;
+        ready)
+            WATCH_UP=1
+            EV_FULL=1
+            qlog_info "SMS forward: qsms watch ready"
+            ;;
+        down)
+            WATCH_UP=0
+            qlog_warn "SMS forward: qsms watch ended, polling every ${SF_INTERVAL}s until it is back"
+            ;;
+    esac
+}
+
+# Wait for a wake-up event (or SF_INTERVAL), then coalesce a burst.
+sf_wait() {
+    if [ "$FIFO_OK" = "1" ]; then
+        if read -r -t "$SF_INTERVAL" _ev <&3; then
+            sf_note_event "$_ev"
+            while read -r -t 1 _ev <&3; do
+                sf_note_event "$_ev"
+            done
+        fi
+    else
+        sleep "$SF_INTERVAL"
+    fi
+}
+
+# Run whatever the last wake-up asks for.
+sf_dispatch() {
+    sf_now
+    if [ "$EV_FULL" = "1" ] || { [ "$WATCH_UP" != "1" ] && [ $((NOW - LAST_FULL)) -ge "$SF_INTERVAL" ]; }; then
+        sf_scan ME
+        sf_scan SM && SM_RETRY=0 || SM_RETRY=1
+        sf_now
+        LAST_FULL="$NOW"
+    else
+        # Safety list while watch is up: ME, plus SM only if it is unseeded or its last list failed.
+        if [ "$WATCH_UP" = "1" ] && [ $((NOW - LAST_FULL)) -ge "$SAFETY_INTERVAL" ]; then
+            EV_ME=1
+            { [ "$SEEDED_SM" != "1" ] || [ "$SM_RETRY" = "1" ]; } && EV_SM=1
+            LAST_FULL="$NOW"
+        fi
+        [ "$EV_ME" = "1" ] && sf_scan ME
+        if [ "$EV_SM" = "1" ]; then
+            sf_scan SM && SM_RETRY=0 || SM_RETRY=1
+        fi
+        for _st in $(sf_pending_due); do
+            sf_scan "$_st"
+        done
+    fi
+    EV_ME=0
+    EV_SM=0
+    EV_FULL=0
 }
 
 # =============================================================================
 # MAIN LOOP
 # =============================================================================
+
+sf_cleanup() {
+    sf_stop_watcher
+    rm -f "$PID_FILE" "$FAILURES_TMP" "$EVENT_FIFO" "$PENDING_NEW" "$PENDING_TMP"
+}
 
 main() {
     # Prevent duplicate instances. This is a same-user (root) self-check at
@@ -464,7 +614,18 @@ main() {
     fi
     echo $$ > "$PID_FILE"
 
-    trap 'rm -f "$PID_FILE" "$FAILURES_TMP"' EXIT INT TERM
+    trap sf_cleanup EXIT
+    trap 'exit 0' INT TERM
+
+    # Event FIFO on fd 3, opened read-write so writers never block. Without it
+    # the loop polls.
+    rm -f "$EVENT_FIFO"
+    if mkfifo "$EVENT_FIFO" 2>/dev/null && ( exec 3<>"$EVENT_FIFO" ) 2>/dev/null; then
+        exec 3<>"$EVENT_FIFO"
+        FIFO_OK=1
+    else
+        qlog_warn "SMS forward: no event FIFO, polling only"
+    fi
 
     load_config
 
@@ -481,12 +642,14 @@ main() {
         fi
 
         if [ "$SF_ENABLED" != "1" ]; then
+            sf_stop_watcher
             sleep "$SF_INTERVAL"
             continue
         fi
 
         if ! sf_target_valid; then
             qlog_warn "SMS forward: enabled but target_phone is invalid/empty — idling"
+            sf_stop_watcher
             sleep "$SF_INTERVAL"
             continue
         fi
@@ -495,17 +658,10 @@ main() {
         # sms.sh). The full international number is the user's responsibility.
         SF_SEND_TARGET=$(printf '%s' "$SF_TARGET" | sed 's/^+//')
 
-        # Seed-on-first-run: if the seen-set doesn't exist yet, record every
-        # currently-present message WITHOUT forwarding, then continue.
-        if [ ! -f "$SEEN_FILE" ]; then
-            : > "$SEEN_FILE"
-            qlog_info "SMS forward: seeding seen-set from existing inbox (no forwarding)"
-            process_cycle 1
-        else
-            process_cycle 0
-        fi
-
-        sleep "$SF_INTERVAL"
+        sf_ensure_seen
+        sf_start_watcher
+        sf_dispatch
+        sf_wait
     done
 }
 

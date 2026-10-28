@@ -53,7 +53,7 @@ Two independent matrices decide whether a `(event, channel)` pair fires. Keeping
 
 ### Capability (physical possibility — hardcoded)
 
-`connection_lost` alerts fire *while the internet is down*. Email (SMTP over the WAN) and Discord (Gateway API over the WAN) physically cannot be delivered in that state, so only SMS — which rides the cellular control channel via `sms_tool`, independent of the data bearer — is capable. Both `connection_restored` and `reboot` fire *after* connectivity is back, so all three channels are capable.
+`connection_lost` alerts fire *while the internet is down*. Email (SMTP over the WAN) and Discord (Gateway API over the WAN) physically cannot be delivered in that state, so only SMS — which rides the cellular control channel via `qsms`, independent of the data bearer — is capable. Both `connection_restored` and `reboot` fire *after* connectivity is back, so all three channels are capable.
 
 This lives in `alert_engine.sh`:
 
@@ -660,7 +660,7 @@ Left open on purpose:
 - Scheduled timers — the `scheduled` reboot cause, the `skip` line shape, and the clock-step fire guard that produces it — [scheduled-timers.md](scheduled-timers.md#the-skip-trace-a-denied-fire-leaves-evidence)
 - Connection Quality — the `qmanager_ping` producer and the latency/loss thresholds surface — [connection-quality.md](connection-quality.md)
 - Discord bot internals (daemon lifecycle, DM channel resolution, OAuth) — [discord-bot.md](discord-bot.md)
-- AT command transport (`sms_tool`, `flock` serialization for the SMS channel) — [at-command-transport.md](at-command-transport.md)
+- SMS transport (`qsms` contract and `.detail` error mapping) — [sms.md](sms.md#transport-qsms)
 - QManager independence (email/SMS alert install, msmtp, poller PATH, sudoers) — [qmanager-independence.md](qmanager-independence.md)
 - `/tmp` cross-UID ownership rules (why the SMS and Discord logs are seeded and every writer of `/tmp/qmanager_email_log.json` is root) — [tmp-file-ownership.md](tmp-file-ownership.md#the-alert-channel-logs)
 - Platform architecture, poller, boot sequence — `../rm520n-gl-architecture.md`

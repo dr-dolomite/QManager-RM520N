@@ -3,7 +3,7 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-> How AT commands are issued on the RM520N-GL: the atcli_smd11 binary, qcmd serialization via flock, and SMS operations via sms_tool.
+> How AT commands are issued on the RM520N-GL: the atcli_smd11 binary and qcmd serialization via flock. SMS no longer uses this path (see SMS operations).
 
 ---
 
@@ -41,7 +41,7 @@ Note: this is the **opposite** of the Discord bot rule — the Go binary (`qmana
 
 - **Lock file**: `/tmp/qmanager_at.lock`
 - **flock pattern**: Uses `flock` with a read-only file descriptor (`9<`) for the lock — this handles the kernel's `fs.protected_regular=1` restriction, which would otherwise block root from creating a lock file owned by another user.
-- **BusyBox flock limitation**: BusyBox `flock` on this platform lacks the `-w` (timeout) flag. Use `flock -x -n` in a polling loop instead. See `flock_wait()` in `qcmd` and `sms.sh` for the canonical implementation.
+- **BusyBox flock limitation**: BusyBox `flock` on this platform lacks the `-w` (timeout) flag. Use `flock -x -n` in a polling loop instead. See `flock_wait()` in `qcmd` for the canonical implementation.
 
 ---
 
@@ -159,11 +159,12 @@ Separately, roughly **26 `qcmd` call sites across 19 files** never capture `$?` 
 
 ## SMS operations
 
-SMS send/receive/delete operations use `sms_tool`, a bundled ARM binary (not `atcli_smd11`).
+On the RM520N-GL, SMS list/send/delete go through `qsms` over QMI WMS, not the AT channel: no `flock` on `/tmp/qmanager_at.lock`, no `/dev/smd11`. Contract and error mapping: [`sms.md` > Transport](sms.md#transport-qsms).
 
-- `sms_tool` handles multi-part message reassembly natively.
-- It is wrapped with the **same `flock` on `/tmp/qmanager_at.lock`** as `qcmd`, so AT access is fully serialized across both tools.
-- **Suppress stderr** with `2>/dev/null` — `sms_tool` emits harmless `tcsetattr` warnings on smd devices that would otherwise pollute CGI output.
+- The one AT command left on the SMS path is the CPMS routing write, `qcmd 'AT+CPMS="ME","ME","ME"'` — once per inbox GET and once at boot (`qmanager_sms_storage`, which also uses `qcmd AT` as its readiness probe).
+- The forwarding daemon's registration check (`AT+CREG?` / `AT+CGREG?`) also goes through `qcmd`.
+- On a non-RM520N model `qsms` uses its AT backend, which serialises on the same lock and can return `modem_busy`.
+- `sms_tool` and `atcli_smd11` stay installed, but no SMS code calls them. `atcli_smd11` remains `qcmd`'s transport.
 
 ---
 

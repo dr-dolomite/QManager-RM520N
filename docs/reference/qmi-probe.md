@@ -64,3 +64,17 @@ Findings and the T5.1 design inputs: `.orchestra/runs/2026-10-26-atd-port-T5.0.m
 | 0x0001 Set Event Report + 0x0001 indication | One indication per stored message (TLV 0x10 storage + index, 0x12 mode, 0x16), to two clients at once (root + www-data) while vendor daemons run; `AT+CPMS` sees the message too |
 | Incoming 3-part message | Three indices, three indications ~0.6 s apart, 8-bit concat IE (ref, part, total) in each |
 | WMS while `sms_tool` holds the AT lock | No WMS call takes the lock; ME scan unchanged during an ME `sms_tool` read, slowed to 1.3 s during an SM (UIM) `sms_tool` read |
+
+## WMS follow-up probes (T5.1, 2026-10-28)
+
+Run against the shipped `qsms` and a scratch probe build. Findings: `.orchestra/runs/2026-10-26-atd-port-T5.1.md`.
+
+| Request | Result |
+| --- | --- |
+| 0x0031 list with a tag filter that matches nothing | Success, count 0 (TLV 0x01 = `00000000`), not error 0x32. `qsms` treats both as an empty storage |
+| 0x0033 routes vs `AT+CPMS` mem3 | Same setting: `AT+CPMS="ME","ME","SM"` moves classes 0/1/3/none from NV to UIM; restoring ME restores the routes byte-identically. The CPMS write stays |
+| 0x0021 Raw Write of one SMS-DELIVER to NV | Stored and decoded by `qsms list`; raises **no** 0x0001 indication. Used only to make a message to delete: 0x0021 is not in `WHITELIST`, and the scratch build that allowed it was not committed |
+| 0x0024 delete of that message, then again | `deleted`, then `no such message` (0x0032) |
+| 0x0020 Raw Send to the modem's own number, no SIM credit | RP cause 21 for GSM-7 and UCS-2; `sms_tool send` got `+CMS ERROR: 350` on the same SIM |
+| 0x0020 Raw Send with credit | 2-part GSM-7 (185 chars) and a UCS-2 single delivered; `qsms watch` printed one line per stored part |
+| 0x0023 Modify Tag, unread then read | `qsms list` `stat` 0 and `AT+CMGL=0` lists only that index; WMS tag 1 = AT stat 0 |

@@ -252,7 +252,7 @@ All modem communication funnels through one gatekeeper, `qcmd` (`/usr/bin/qcmd`)
 | Locking | `flock` on `/tmp/qmanager_at.lock` via a read-only FD (`9<`), so root and `www-data` share it under `fs.protected_regular=1` |
 | Timeout | BusyBox `flock` has no `-w`; `qcmd` polls with `flock -x -n` in a loop (`flock_wait`) |
 | Exit code | `atcli_smd11` **always exits 0** — error detection parses the response text for `OK`/`ERROR`, never `$?` |
-| SMS | `sms_tool` (separate ARM binary) under the *same* lock file |
+| SMS | `qsms` over QMI WMS on the RM520N-GL, no AT lock — see [`reference/sms.md`](reference/sms.md#transport-qsms) |
 
 Full detail — including the "do NOT UPX-compress the Rust binary" rule and `pid_alive()` for cross-user PID checks — is in [`reference/at-command-transport.md`](reference/at-command-transport.md).
 

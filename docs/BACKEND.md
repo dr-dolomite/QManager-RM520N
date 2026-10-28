@@ -497,13 +497,13 @@ Semantic version comparison. Used by `qmanager_update` and `qmanager_auto_update
 
 ### 4.12 `sms_alerts.sh`
 
-SMS alert **transport** library. Sourced by `qmanager_poller` (via `alert_engine.sh`) and by the `monitoring/alerts.sh` CGI. Mirrors `email_alerts.sh`: since the centralized-alerts consolidation it only knows how to **send** an SMS via `sms_tool` — downtime tracking and threshold evaluation moved to `alert_engine.sh`. SMS is the only channel capable of `connection_lost` alerts, since `sms_tool` rides the cellular control channel and works while the data bearer is down. Shares `/tmp/qmanager_at.lock` with `qcmd` and the SMS Center CGI to serialize `/dev/smd11` access.
+SMS alert **transport** library. Sourced by `qmanager_poller` (via `alert_engine.sh`) and by the `monitoring/alerts.sh` CGI. Mirrors `email_alerts.sh`: since the centralized-alerts consolidation it only knows how to **send** an SMS via `qsms send` — downtime tracking and threshold evaluation moved to `alert_engine.sh`. SMS is the only channel capable of `connection_lost` alerts, since it rides the cellular control channel and works while the data bearer is down. On the RM520N-GL `qsms` uses QMI WMS and takes no AT lock; see [`reference/sms.md`](reference/sms.md#transport-qsms).
 
 Config: `/etc/qmanager/sms_alerts.json`. Log: `/tmp/qmanager_sms_log.json` (NDJSON, max 100 entries). Reload flag: `/tmp/qmanager_sms_reload` (touched by the CGI, consumed by `alert_engine.sh`).
 
 **Registration guard:** Before every send attempt, `_sa_is_registered()` verifies that `modem_reachable="true"` AND (`lte_state="connected"` OR `nr_state="connected"`).
 
-**Phone number format:** Stored with leading `+` in config; `+` is stripped via `${_sa_recipient#+}` before calling `sms_tool send` (sms_tool does not accept `+` prefix).
+**Phone number format:** Stored with leading `+` in config; `+` is stripped via `${_sa_recipient#+}` before calling `qsms send`.
 
 **CGI test send override:** CGI sets `_sa_is_registered() { return 0; }` after sourcing the library (the `_SMS_ALERTS_LOADED` guard prevents re-source clobber) because CGI context lacks poller globals.
 
@@ -513,8 +513,7 @@ Config: `/etc/qmanager/sms_alerts.json`. Log: `/tmp/qmanager_sms_log.json` (NDJS
 | `sms_alert_send <body>` | Send one SMS now (the transport entry point called by `alert_engine.sh` and the CGI test) |
 | `_sa_read_config` | Read `sms_alerts.json` into `_sa_*` state variables (`_sa_enabled`, `_sa_recipient`, `_sa_threshold_minutes`, …) |
 | `_sa_is_registered` | Check modem reachable + LTE or NR connected; return 0/1 |
-| `_sa_flock_wait <fd> <timeout>` | BusyBox-compatible flock polling loop |
-| `_sa_sms_locked [sms_tool_args...]` | Run sms_tool under the shared AT lock |
+| `_sa_send_error <qsms-output>` | Plain-language reason from a failed `qsms send` envelope (`.detail // .error`, else a fixed sentence) |
 | `_sa_do_send <body>` | Send SMS with retry; returns 0=success, 1=failed, 2=not attempted |
 | `_sa_send_test_sms` | Send test SMS (called by CGI) |
 | `_sa_log_event <trigger> <status> <recipient>` | Append NDJSON entry to SMS log |
@@ -1134,7 +1133,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `cellular/mbn.sh` | GET/POST | Read or select MBN profile |
 | `cellular/network_priority.sh` | GET/POST | Read or set network mode priority (`AT+QNWPREFCFG`) |
 | `cellular/settings.sh` | GET/POST | Combined cellular settings (network search mode, etc.) |
-| `cellular/sms.sh` | GET/POST/DELETE | SMS center: list, read, send, delete messages via `sms_tool` |
+| `cellular/sms.sh` | GET/POST/DELETE | SMS center: list, read, send, delete messages via `qsms` |
 
 `cellular/sms.sh` uses the same `/tmp/qmanager_at.lock` lock as `qcmd` and `sms_alerts.sh` to prevent concurrent `/dev/smd11` access.
 
@@ -1371,8 +1370,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 
 All processes that access `/dev/smd11` share this lock. Holders:
 - `qcmd` (for all AT commands from the poller, CGI scripts, and daemons)
-- `sms_tool` invocations in `sms_alerts.sh` (via `_sa_sms_locked()`)
-- `sms_tool` invocations in `cellular/sms.sh` (via `sms_locked()`)
+- `qsms` on its AT backend only (non-RM520N models). On the RM520N-GL, SMS uses QMI WMS and holds no lock; the SMS path's only AT command is the CPMS write through `qcmd`.
 
 **Lock pattern (BusyBox `flock` lacks `-w`):**
 
