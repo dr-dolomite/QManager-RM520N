@@ -16,3 +16,4 @@
 - [A `systemctl show` readback on a MOUNT unit cannot fail](reference_mount_unit_property_readback_cannot_fail.md) — systemd derives the ordering properties from mountinfo, so it passes on an untouched device; the inverse holds for hand-written .service units
 - [Worktree Bash guard refuses computed args and compound git](reference_worktree_bash_guard_refuses_variables.md) — spell paths literally with `--`, use Edit, run each git call alone
 - [An OTA re-runs qmanager_setup, so /tmp seeds land without a reboot](reference_ota_reruns_qmanager_setup_seeds.md) — `--no-reboot` keeps DO_START=1; only `--no-start` skips the setup restart
+- [Python heredoc reads UTF-8 as cp1252 here; docs are CRLF](reference_python_heredoc_mangles_utf8_on_windows.md) — run splice scripts from a file with `-X utf8`; normalise and restore CRLF
