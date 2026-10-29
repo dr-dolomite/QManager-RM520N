@@ -112,14 +112,15 @@ interface UseWebConsoleReturn {
 
 // ─── URL helper ────────────────────────────────────────────────────────────
 
-function getWsUrl(): string {
+/** ttyd -a hands `arg` to console.sh, which refuses the shell without a valid token. */
+function getWsUrl(token: string): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/console/ws`;
+  return `${proto}//${window.location.host}/console/ws?arg=${encodeURIComponent(token)}`;
 }
 
 const TOKEN_URL = "/cgi-bin/quecmanager/system/console_token.sh";
 
-/** ttyd's per-start credential; "" on any failure, which ttyd then refuses. */
+/** A single-use console token; "" on any failure, which console.sh refuses. */
 async function fetchConsoleToken(): Promise<string> {
   try {
     const res = await authFetch(TOKEN_URL);
@@ -264,7 +265,7 @@ export function useWebConsole({
   const openSocket = useCallback(() => {
     if (!mountedRef.current) return;
 
-    const ws = new WebSocket(getWsUrl(), ["tty"]);
+    const ws = new WebSocket(getWsUrl(tokenRef.current), ["tty"]);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
@@ -302,7 +303,7 @@ export function useWebConsole({
         // The opening '{' of the JSON IS the command byte (0x7B = JSON_DATA).
         // No separate prefix byte — send the raw JSON string.
         const handshake = JSON.stringify({
-          AuthToken: tokenRef.current,
+          AuthToken: "",
           columns: terminal.cols,
           rows: terminal.rows,
         });

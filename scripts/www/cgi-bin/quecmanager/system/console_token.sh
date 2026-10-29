@@ -1,10 +1,10 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 # =============================================================================
-# console_token.sh — CGI Endpoint: Web Console credential (GET only)
+# console_token.sh — CGI Endpoint: Web Console token (GET only)
 # =============================================================================
-# Hands a logged-in browser the per-start ttyd credential written by
-# console/ttyd_start.sh. The token is ttyd's only gate, so this fails closed.
+# Issues a single-use, 30-second token that console/console.sh requires before
+# it starts the root shell. It is the console's only gate, so this fails closed.
 #
 # Endpoint: GET /cgi-bin/quecmanager/system/console_token.sh
 # =============================================================================
@@ -24,13 +24,22 @@ fi
 cgi_headers
 cgi_handle_options
 
-TOKEN_FILE="/tmp/qmanager_console.token"
+TOKEN_DIR="/tmp/qmanager_console_tokens"
+TOKEN_MAX_AGE=30
 
 if [ "$REQUEST_METHOD" = "GET" ]; then
-    token=""
-    [ -r "$TOKEN_FILE" ] && IFS= read -r token < "$TOKEN_FILE"
-    if [ -z "$token" ]; then
-        cgi_error "console_unavailable" "Web console is not running"
+    umask 077
+    mkdir -p "$TOKEN_DIR" 2>/dev/null
+    now=$(date +%s)
+    for f in "$TOKEN_DIR"/*; do
+        [ -f "$f" ] || continue
+        IFS= read -r issued < "$f"
+        case "$issued" in ""|*[!0-9]*) rm -f "$f"; continue ;; esac
+        [ $((now - issued)) -gt "$TOKEN_MAX_AGE" ] && rm -f "$f"
+    done
+    token=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    if [ ${#token} -ne 64 ] || ! printf '%s\n' "$now" > "$TOKEN_DIR/$token"; then
+        cgi_error "token_failed" "Could not start a console session"
         exit 0
     fi
     jq -n --arg token "$token" '{success: true, token: $token}'

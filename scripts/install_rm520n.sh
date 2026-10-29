@@ -3921,7 +3921,7 @@ start_services() {
         info "Downloading ttyd for web console..."
         /usr/bin/qmanager_console_mgr install 2>/dev/null || warn "ttyd download failed — web console unavailable"
     elif [ -L "$SYSTEMD_DIR/multi-user.target.wants/qmanager-console.service" ]; then
-        # stop_services stopped it; restart so an update's new credential launcher applies now.
+        # stop_services stopped it; restart so an update's console gate applies now.
         systemctl start qmanager-console 2>/dev/null || warn "Could not start qmanager-console"
     fi
 
