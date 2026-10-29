@@ -10,7 +10,7 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "qmanager_atd"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "libc",
 ]

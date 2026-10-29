@@ -1,5 +1,5 @@
-//! `qsms <op> ...`: the SMS client. RG501Q-EU: AT through the broker socket first, never run
-//! twice, like qcmd. Everything else: QMI WMS in process (sms/wms.rs).
+//! `qsms <op> ...`: the SMS client. RM520N and RG501Q: QMI WMS in process (sms/wms.rs).
+//! Any other model: AT through the broker socket first, never run twice, like qcmd.
 
 use super::transport::{try_broker_raw, Broker};
 use crate::at::exec::{self, Executor};
@@ -14,7 +14,7 @@ use std::time::Duration;
 
 const PROJECT_FILE: &str = "/etc/quectel-project-version";
 
-/// Fixed per platform, never auto-detected: WMS only on an RM520N (same allow-list as
+/// Fixed per platform, never auto-detected: WMS on an RM520N or RG501Q (same allow-list as
 /// hw_profile.sh qm_hw_atd_enabled); any other or unreadable model stays on AT.
 fn use_wms() -> bool {
     match std::env::var("QSMS_BACKEND").as_deref() {
@@ -25,12 +25,15 @@ fn use_wms() -> bool {
     std::fs::read_to_string(PROJECT_FILE).map(|s| wms_model(&s)).unwrap_or(false)
 }
 
-/// The `Project Name:` value (words may be split by several spaces) starts with RM520N.
+/// The `Project Name:` value (words may be split by several spaces) starts with RM520N or RG501Q.
 fn wms_model(file: &str) -> bool {
     file.lines()
         .filter_map(|l| l.split_once(':'))
         .find(|(k, _)| k.split_whitespace().eq(["Project", "Name"]))
-        .map(|(_, v)| v.trim().starts_with("RM520N"))
+        .map(|(_, v)| {
+            let v = v.trim();
+            v.starts_with("RM520N") || v.starts_with("RG501Q")
+        })
         .unwrap_or(false)
 }
 
@@ -91,11 +94,12 @@ mod tests {
     use super::wms_model;
 
     #[test]
-    fn only_an_rm520n_project_name_selects_wms() {
+    fn only_an_rm520n_or_rg501q_project_name_selects_wms() {
         let rm520n = "Project Name: RM520NGL_VC\nProject Rev : RM520NGLAAR03A03M4G_A0.304\nBranch  Name: SDX6X\nCustom  Name: STD\n";
         let rg501q = "Project Name: RG501QEU_VD\nProject Rev : RG501QEUAAR12A11M4G_04.202\nBranch  Name: SDX55\n";
         assert!(wms_model(rm520n));
-        assert!(!wms_model(rg501q));
+        assert!(wms_model(rg501q));
+        assert!(!wms_model("Project Name: RM551E_GL\n"));
         assert!(!wms_model(""));
         assert!(!wms_model("Project Rev : RM520NGLAAR03A03M4G_A0.304\n"));
     }

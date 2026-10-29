@@ -20,8 +20,8 @@
 //! `qmi=1`, else the same reads in-process (see client/qmi.rs).
 //!
 //! Invoked as `qsms`: the SMS client (list / status / send / delete / tag / watch,
-//! JSON on stdout, see sms.rs). RG501Q-EU: AT, socket-first, never run twice;
-//! otherwise QMI WMS in process (sms/wms.rs).
+//! JSON on stdout, see sms.rs). RM520N and RG501Q: QMI WMS in process (sms/wms.rs);
+//! any other model: AT, socket-first, never run twice.
 //!
 //! The AT path is the same `exec::Executor` in both the daemon and the
 //! fallback, so there is one behaviour, not two.

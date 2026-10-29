@@ -657,7 +657,7 @@ t_svc_console()   { _svc_check qmanager-console.service 1; }
 t_svc_setup()     { _svc_check qmanager-setup.service 1; }
 t_svc_lighttpd()  { _svc_check lighttpd.service 1; }
 t_svc_tailscaled(){ _svc_check tailscaled.service 0; }
-# Broker unit is RM520N-only; there qcmd is its client, so a stopped broker fails.
+# Broker unit runs where qm_hw_atd_enabled (RM520N, RG501Q); a stopped broker fails there.
 t_svc_atd() {
     if [ -r /usr/lib/qmanager/hw_profile.sh ]; then . /usr/lib/qmanager/hw_profile.sh 2>/dev/null; fi
     if ! command -v qm_hw_atd_enabled >/dev/null 2>&1; then

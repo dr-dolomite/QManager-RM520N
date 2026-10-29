@@ -906,11 +906,11 @@ _atd_on() {
     command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled
 }
 
-# 0 only for a definite non-RM520N model; unknown model or no hw_profile.sh = 1.
+# 0 only for a definite model without the broker; unknown model or no hw_profile.sh = 1.
 _atd_definitely_off() {
     command -v qm_hw_model >/dev/null 2>&1 || return 1
     case "$(qm_hw_model 2>/dev/null)" in
-        ""|unknown|RM520N*) return 1 ;;
+        ""|unknown|RM520N*|RG501Q*) return 1 ;;
         *) return 0 ;;
     esac
 }
@@ -919,8 +919,7 @@ install_bundled_binaries() {
     step "Installing bundled binaries"
 
     # --- qmanager_atd (AT/SMS/QMI broker) + qsms link --------------------------
-    # Binary ships on both models; the unit is RM520N-only (systemd 239 on the
-    # RG501Q ignores ExecCondition).
+    # Binary ships on every model; the unit only where qm_hw_atd_enabled (RM520N, RG501Q).
     if [ -f "$SRC_DEPS/qmanager_atd" ]; then
         if [ -x "$BIN_DIR/qmanager_atd" ] && cmp -s "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd"; then
             info "qmanager_atd already current"
@@ -941,7 +940,7 @@ install_bundled_binaries() {
         ln -sf qmanager_atd "$BIN_DIR/qsms" || warn "Failed to link $BIN_DIR/qsms"
     fi
 
-    # Remove the unit only on a definite non-RM520N answer, never when the model is unknown.
+    # Remove the unit only on a definite no-broker model, never when the model is unknown.
     if _atd_definitely_off; then
         rm -f "$WANTS_DIR/qmanager-atd.service" "$SYSTEMD_DIR/qmanager-atd.service" \
             || warn "Could not remove qmanager-atd.service"
@@ -1815,7 +1814,7 @@ install_backend() {
         # Copy service files to /lib/systemd/system/ (persistent on RM520N-GL)
         for f in "$SRC_SCRIPTS/etc/systemd/system"/qmanager*.service; do
             [ -f "$f" ] || continue
-            # qmanager-atd.service is RM520N-only (see install_bundled_binaries).
+            # qmanager-atd.service only where qm_hw_atd_enabled (see install_bundled_binaries).
             if [ "$(basename "$f")" = "qmanager-atd.service" ]; then
                 if ! _atd_on; then
                     continue
@@ -3765,7 +3764,7 @@ enable_services() {
         # gate here beyond skipping the boot-symlink for the .service itself.
         [ "$svc" = "qmanager-scenario-schedule" ] && continue
 
-        # The broker is boot-linked only where qcmd is its client (RM520N).
+        # The broker is boot-linked only where qcmd is its client (RM520N, RG501Q).
         if [ "$svc" = "qmanager-atd" ] && ! _atd_on; then
             continue
         fi
