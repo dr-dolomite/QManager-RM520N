@@ -15,10 +15,8 @@
 //! IP Family for the IPv6 client). Those binds are per-client state on the
 //! broker's own sockets (released when they close) and change nothing about
 //! the data call, but they are writes: they sit in `BROKER_CONFIG`, and the
-//! stats read in `BROKER_READ`, with the same rule as 0x006C. The same
-//! bound clients read WDS 0x002D (Get Runtime Settings: IP, gateway, DNS,
-//! MTU; broker 0.7.0). WDS 0x0086 (Reset) and every call-control message
-//! are never sent.
+//! stats read in `BROKER_READ`, with the same rule as 0x006C, and so is 0x002D (runtime settings).
+//! WDS 0x0086 (Reset) and every call-control message are never sent.
 
 use super::error::QmiError;
 use super::{SVC_DMS, SVC_DSD, SVC_NAS, SVC_UIM, SVC_WDS};

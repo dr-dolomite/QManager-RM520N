@@ -8,10 +8,8 @@
 //!   TLV 0x19 `tx_ok_bytes u64`, TLV 0x1A `rx_ok_bytes u64`. Without a call
 //!   on the client's IP family the result is 0x000F (out of call) and only
 //!   the last-call TLVs 0x1B / 0x1C come back.
-//! - 0x002D Get Runtime Settings (broker-internal, bound client only) request
-//!   TLV 0x10 `mask u32` (0xFFFF); response TLVs in `Settings`. Device-proven
-//!   on the RM520N-GL 2026-10-29 (IPv4 call); the IPv6 TLVs follow the Qualcomm
-//!   layout (16 network-order bytes) and are not device-proven (no IPv6 PDN).
+//! - 0x002D Get Runtime Settings (bound client only): request TLV 0x10 `mask u32`.
+//!   IPv4 TLVs device-proven 2026-10-29; the IPv6 ones are not (no IPv6 PDN).
 //! - 0x00A2 Bind Mux Data Port  TLV 0x10 `{ep_type u32, iface_id u32}`,
 //!   TLV 0x11 `mux_id u8`. 0x00AF Bind Subscription TLV 0x01 `u32` (1 =
 //!   primary). 0x004D Set Client IP Family TLV 0x01 `u8` (4 / 6).

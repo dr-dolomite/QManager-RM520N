@@ -955,9 +955,8 @@ impl Registry {
         wds::pkt_bytes(&m).ok_or(QmiError::CommandFailed(None))
     }
 
-    /// Internal only: the default call's runtime settings (IP, gateway, DNS,
-    /// MTU), read with WDS 0x002D on the `fam` internal client, bound to `t`
-    /// first. Same errors as `wds_packet_bytes`.
+    /// Internal only: WDS 0x002D runtime settings on the `fam` client, bound to `t` first.
+    /// Same errors as `wds_packet_bytes`.
     pub fn wds_settings(&self, fam: IpFamily, t: BindTarget) -> Result<Settings, QmiError> {
         if !allow::broker_allowed(SVC_WDS, allow::WDS_GET_RUNTIME_SETTINGS) {
             return Err(QmiError::Refused { svc: SVC_WDS, msg: allow::WDS_GET_RUNTIME_SETTINGS });

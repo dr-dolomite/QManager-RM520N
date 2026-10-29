@@ -18,9 +18,8 @@
 //! - `/tmp/qmanager_qmi.json`: the same data for CGIs, plus the full bundle.
 //!   The same JSON is also written to `/var/run/qmanager/qmi.json` (0.7.0), the
 //!   copy the poller reads, so a `/tmp` plant cannot feed status.
-//! - `wds.settings` (0.7.0, JSON only): WDS Get Runtime Settings of the default
-//!   call, read after each rebind or call change and every 10 s, else cached;
-//!   null when out of call (0x000F) or while `qmi_state` is not `up`.
+//! - `wds.settings` (0.7.0, JSON only): WDS 0x002D, re-read on a call change and every 10 s;
+//!   null out of call (0x000F) or while `qmi_state` is not `up`.
 //!
 //! Semantics.
 //! - `qmi_mono` is the CLOCK_BOOTTIME second (the same clock as

@@ -29,10 +29,10 @@ qmi_gate() {
             qmi_lte_rsrp) rsrp=$v ;; qmi_lte_rsrq) rsrq=$v ;; qmi_lte_rssi) rssi=$v; break ;;
         esac
     done < "$QMI_ENV_FILE"
-    _qmi_int "$m" || return 0
-    QMI_MONO=$m
     case "$st" in up|down|unavailable) QMI_STATE=$st ;; *) QMI_STATE="" ;; esac
     _qmi_int "$ssr" && QMI_SSR=$ssr
+    _qmi_int "$m" || return 0
+    QMI_MONO=$m
 
     [ "$1" = 0 ] && [ "$system_state" != "scan_in_progress" ] && [ "$QMI_STATE" = up ] && [ "$reg" = 1 ] || return 0
     _qmi_int "$_MONO_TOP" && [ "$_MONO_TOP" -gt 0 ] || return 0
