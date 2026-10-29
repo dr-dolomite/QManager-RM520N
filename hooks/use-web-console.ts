@@ -274,8 +274,8 @@ export function useWebConsole({
 
       openedAtRef.current = Date.now();
       everOpenedRef.current = true;
-      rapidFailCountRef.current = 0;
-      backoffMsRef.current = BACKOFF_INITIAL_MS;
+      // Counter and backoff reset on a non-rapid close, not here: a refused token
+      // still upgrades, so resetting on open would retry forever.
       setHasOpened(true);
       setConnectionState("connected");
 
@@ -355,6 +355,7 @@ export function useWebConsole({
         rapidFailCountRef.current += 1;
       } else {
         rapidFailCountRef.current = 0;
+        backoffMsRef.current = BACKOFF_INITIAL_MS;
       }
 
       if (rapidFailCountRef.current >= MAX_RAPID_FAILURES) {
@@ -402,10 +403,15 @@ export function useWebConsole({
     const attempt = ++attemptRef.current;
     void fetchConsoleToken().then((token) => {
       if (!mountedRef.current || attempt !== attemptRef.current) return;
+      // No token means console.sh would refuse anyway; don't spawn it.
+      if (!token) {
+        settleFailed("refused", "disconnected", null, "");
+        return;
+      }
       tokenRef.current = token;
       openSocket();
     });
-  }, [closeSocket, disposeTerminalListeners, openSocket]);
+  }, [closeSocket, disposeTerminalListeners, openSocket, settleFailed]);
 
   // Keep the ref in sync so scheduleReconnect can always call the latest connect
   useEffect(() => {

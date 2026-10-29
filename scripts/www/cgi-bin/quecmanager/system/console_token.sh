@@ -31,7 +31,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     umask 077
     mkdir -p "$TOKEN_DIR" 2>/dev/null
     # console.sh trusts only a www-data 0700 dir; refuse one another account planted.
-    if [ -L "$TOKEN_DIR" ] || [ "$(stat -c '%U %a' "$TOKEN_DIR" 2>/dev/null)" != "www-data 700" ]; then
+    # Numeric uid: on RG501Q-EU /etc/passwd is 0600, so %U reads UNKNOWN as www-data.
+    if [ -L "$TOKEN_DIR" ] || [ "$(stat -c '%u %a' "$TOKEN_DIR" 2>/dev/null)" != "$(id -u) 700" ]; then
         cgi_error "token_failed" "Could not start a console session"
         exit 0
     fi

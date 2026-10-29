@@ -100,13 +100,15 @@ the connection is dropped before `101`). Browsers cannot set that header on a
 WebSocket, so `-c` locks out the real UI too. The handshake's `AuthToken`
 therefore stays `""`.
 
-**Known limits:** a refused token shows as a quick close (code 1006), so the
-hook's rapid-failure ladder handles it — a logged-in user gets a fresh token on
-every retry, and an expired login 401s into `/login/`. A shell that is already
+**Known limits:** a refused token still completes the WebSocket upgrade, then
+closes within a second (code 1006). So `onopen` must not reset the rapid-failure
+counter — only a non-rapid close does — or a refusal retries forever. A failed
+token fetch settles as `refused` without opening a socket, and an expired login
+401s into `/login/`. A shell that is already
 open survives logout until it exits. Anything already running as `www-data` can
 mint tokens, so a `www-data` compromise is still a root compromise through this
 path (see the sudoers finding, #7). A token issued just before the 1970 boot
-clock step can read as negative age and be refused once; a reload fixes it.
+clock step reads as decades old and is refused once; a reload fixes it.
 
 **Install is explicitly optional and non-fatal.** `install_rm520n.sh` downloads
 the `ttyd` binary via `qmanager_console_mgr install` and, on failure, logs a
