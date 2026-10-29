@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
+import { authFetch } from "@/lib/auth-fetch";
 
 // =============================================================================
 // useWebConsole — WebSocket + ttyd Protocol Hook
@@ -116,6 +117,20 @@ function getWsUrl(): string {
   return `${proto}//${window.location.host}/console/ws`;
 }
 
+const TOKEN_URL = "/cgi-bin/quecmanager/system/console_token.sh";
+
+/** ttyd's per-start credential; "" on any failure, which ttyd then refuses. */
+async function fetchConsoleToken(): Promise<string> {
+  try {
+    const res = await authFetch(TOKEN_URL);
+    if (!res.ok) return "";
+    const body = (await res.json()) as { success?: boolean; token?: unknown };
+    return body.success && typeof body.token === "string" ? body.token : "";
+  } catch {
+    return "";
+  }
+}
+
 /** The browser's own view of the link, used only to sharpen a give-up verdict. */
 function linkIsDown(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -144,6 +159,9 @@ export function useWebConsole({
   const openedAtRef = useRef<number | null>(null);
   /** Whether ANY attempt since the last manual reconnect reached an open socket. */
   const everOpenedRef = useRef(false);
+  const tokenRef = useRef("");
+  /** Bumped per connect/disconnect so a slow token fetch can't open a stale socket. */
+  const attemptRef = useRef(0);
 
   // Xterm disposable refs — cleaned up on reconnect / unmount
   const onDataDisposableRef = useRef<{ dispose(): void } | null>(null);
@@ -243,19 +261,8 @@ export function useWebConsole({
     []
   );
 
-  const connect = useCallback(() => {
+  const openSocket = useCallback(() => {
     if (!mountedRef.current) return;
-
-    // Tear down any existing socket
-    if (wsRef.current) {
-      closeSocket(wsRef.current);
-      wsRef.current = null;
-    }
-    disposeTerminalListeners();
-
-    setConnectionState("connecting");
-    setFailure(null);
-    openedAtRef.current = null;
 
     const ws = new WebSocket(getWsUrl(), ["tty"]);
     ws.binaryType = "arraybuffer";
@@ -295,7 +302,7 @@ export function useWebConsole({
         // The opening '{' of the JSON IS the command byte (0x7B = JSON_DATA).
         // No separate prefix byte — send the raw JSON string.
         const handshake = JSON.stringify({
-          AuthToken: "",
+          AuthToken: tokenRef.current,
           columns: terminal.cols,
           rows: terminal.rows,
         });
@@ -368,7 +375,6 @@ export function useWebConsole({
       // Just ensure we don't stay "connecting" indefinitely if open never fired
     };
   }, [
-    closeSocket,
     disposeTerminalListeners,
     sendInput,
     sendResize,
@@ -377,6 +383,28 @@ export function useWebConsole({
     terminalRef,
     fitAddonRef,
   ]);
+
+  const connect = useCallback(() => {
+    if (!mountedRef.current) return;
+
+    // Tear down any existing socket
+    if (wsRef.current) {
+      closeSocket(wsRef.current);
+      wsRef.current = null;
+    }
+    disposeTerminalListeners();
+
+    setConnectionState("connecting");
+    setFailure(null);
+    openedAtRef.current = null;
+
+    const attempt = ++attemptRef.current;
+    void fetchConsoleToken().then((token) => {
+      if (!mountedRef.current || attempt !== attemptRef.current) return;
+      tokenRef.current = token;
+      openSocket();
+    });
+  }, [closeSocket, disposeTerminalListeners, openSocket]);
 
   // Keep the ref in sync so scheduleReconnect can always call the latest connect
   useEffect(() => {
@@ -394,6 +422,7 @@ export function useWebConsole({
   }, [clearRetryTimer, connect]);
 
   const disconnect = useCallback(() => {
+    attemptRef.current += 1;
     clearRetryTimer();
     disposeTerminalListeners();
     if (wsRef.current) {
