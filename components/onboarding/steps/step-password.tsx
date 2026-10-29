@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { setupPassword } from "@/hooks/use-auth";
 import { authFetch } from "@/lib/auth-fetch";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,7 @@ interface StepPasswordProps {
 }
 
 export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPasswordProps) {
+  const { t } = useTranslation("common");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -81,6 +84,9 @@ export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPa
     try {
       const result = await setupPassword(password, confirm);
       if (result.success) {
+        if (result.sshSynced === false) {
+          toast.warning(t("login.ssh_sync_failed"), { duration: 20000 });
+        }
         const name = displayName.trim();
         if (name) {
           // Save display name as device hostname
@@ -102,7 +108,7 @@ export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPa
       setIsSubmitting(false);
       onLoadingChange(false);
     }
-  }, [displayName, password, confirm, onSuccess, onLoadingChange]);
+  }, [displayName, password, confirm, onSuccess, onLoadingChange, t]);
 
   useEffect(() => {
     onSubmitRef(handleSubmit);

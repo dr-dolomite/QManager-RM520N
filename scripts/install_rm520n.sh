@@ -117,6 +117,7 @@ WATCHCAT_LOCK="/tmp/qmanager_watchcat.lock"
 # Status of early SSH bootstrap; set by setup_ssh_early(), read by print_summary().
 # Values: installed | skipped_ota | skipped_existing | failed_install | failed_start | failed_password | not_run
 SSH_BOOTSTRAP_STATUS="not_run"
+SSH_BOOTSTRAP_PASSWORD=""  # printed once by print_summary; never logged
 
 # Install log (qmanager_update tails this for step progress)
 LOG_FILE="/tmp/qmanager_install.log"
@@ -1454,12 +1455,15 @@ stop_services() {
         rm -f "$WANTS_DIR/${svc}.service"
     done
 
-    # Collect all qmanager-* units (excluding watchcat — already stopped above)
+    # Collect all qmanager-* units (excluding watchcat — already stopped above).
+    # The firewall stays up so 22/80/443 are never open on the WAN mid-OTA;
+    # start_services reloads it in place.
     _units=""
     for unit in "$SYSTEMD_DIR"/qmanager-*.service; do
         [ -f "$unit" ] || continue
         svc=$(basename "$unit" .service)
         [ "$svc" = "qmanager-watchcat" ] && continue
+        [ "$svc" = "qmanager-firewall" ] && continue
         _units="$_units $svc"
     done
     # Single batched stop — systemd processes these in parallel internally
@@ -3835,8 +3839,9 @@ start_services() {
         info "Set /dev/smd11 permissions for dialout group"
     fi
 
-    # Start firewall before lighttpd (protects web UI before accepting connections)
-    systemctl start qmanager-firewall 2>/dev/null || true
+    # Firewall before lighttpd. reload-or-restart, not start: the unit is kept
+    # running across OTA, so `start` would be a no-op and skip the new rules.
+    systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
     # Restart lighttpd to pick up new config
     systemctl restart lighttpd 2>/dev/null || warn "Could not restart lighttpd"
@@ -4341,8 +4346,8 @@ _verify_rc_unslung_unit() {
 # Runs once, right after install_dependencies (so Entware/dropbear are available)
 # and before the rest of the install. On fresh installs with no existing SSH,
 # installs dropbear, writes a systemd unit, starts it, and sets root's password
-# to "qmanager" so the user can SSH in immediately. Web-UI onboarding overwrites
-# this temporary password later.
+# to a random per-install value (shown once in the summary) so the user can SSH
+# in immediately. Web-UI onboarding overwrites this temporary password later.
 #
 # Skips entirely on OTA upgrades (VERSION file present) or when port 22 is
 # already in use by another SSH server.
@@ -4419,7 +4424,15 @@ setup_ssh_early() {
     ln -sf "$SYSTEMD_DIR/dropbear.service" "$WANTS_DIR/dropbear.service"
     systemctl daemon-reload 2>/dev/null || true
 
-    # 5. Start dropbear and verify it's active.
+    # 5. Block SSH on the cellular WAN before dropbear listens. The installed
+    #    firewall service does not exist yet on a fresh install, so run the
+    #    shipped script; start_services re-applies it via the service later.
+    if [ -f "$SRC_SCRIPTS/usr/bin/qmanager_firewall" ]; then
+        sh "$SRC_SCRIPTS/usr/bin/qmanager_firewall" start 2>/dev/null \
+            || warn "Early firewall apply failed — SSH is open on the WAN until services start"
+    fi
+
+    # 6. Start dropbear and verify it's active.
     systemctl start dropbear 2>/dev/null || true
     # Poll rather than `sleep 1`: RestartSec=2s means a single transient failure
     # (a late /opt) now takes longer to recover than one second, and the old
@@ -4437,43 +4450,27 @@ setup_ssh_early() {
     fi
     info "dropbear started on port 22"
 
-    # 6. Set root's password to "qmanager" inline. The qmanager_set_ssh_password
-    #    helper isn't installed at this point in the install (backend hasn't run),
-    #    so we replicate its core logic here. Onboarding will overwrite the
-    #    password on first web login.
-    local _password="qmanager"
-    local _salt _hash _escaped_hash
-    _salt=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    _hash=$(printf '%s\n' "$_password" | openssl passwd -1 -salt "$_salt" -stdin 2>/dev/null)
-
-    if [ -z "$_hash" ]; then
-        warn "openssl passwd failed — root password not set"
+    # 7. Set root's password to a random per-install value through the shipped
+    #    helper (not installed yet). Never pass it to info()/warn(): the install
+    #    log is world-readable. print_summary shows it once on the console.
+    local _password _result
+    _password=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    if [ ${#_password} -ne 16 ]; then
+        warn "Could not generate a random password — root password not set"
         SSH_BOOTSTRAP_STATUS="failed_password"
         return 0
     fi
 
-    if [ ! -f /etc/shadow ]; then
-        warn "/etc/shadow not found — root password not set"
+    _result=$(printf '%s\n' "$_password" | sh "$SRC_SCRIPTS/usr/bin/qmanager_set_ssh_password" 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        warn "Root password not set: $_result"
         SSH_BOOTSTRAP_STATUS="failed_password"
         return 0
     fi
 
-    mount -o remount,rw / 2>/dev/null || true
-
-    # Escape sed-special chars in the hash. Using | as the sed delimiter so /
-    # in the hash isn't a problem; only &, \, and | need escaping.
-    _escaped_hash=$(printf '%s' "$_hash" | sed 's/[&\\|]/\\&/g')
-
-    # Match locked (root:!:...), passwordless (root::...), or any-existing-hash forms.
-    if ! sed -i "s|^root:[^:]*:|root:${_escaped_hash}:|" /etc/shadow 2>/dev/null; then
-        warn "Failed to update /etc/shadow"
-        SSH_BOOTSTRAP_STATUS="failed_password"
-        return 0
-    fi
-    sync
-
+    SSH_BOOTSTRAP_PASSWORD="$_password"
     SSH_BOOTSTRAP_STATUS="installed"
-    info "Root password set to 'qmanager' (will be replaced on web onboarding)"
+    info "Root password set to a random temporary value (shown in the summary)"
 }
 
 # --- Summary -----------------------------------------------------------------
@@ -4500,7 +4497,8 @@ print_summary() {
 
     case "$SSH_BOOTSTRAP_STATUS" in
         installed)
-            printf "  SSH:              ${BOLD}ssh root@192.168.225.1${NC} ${DIM}(temp password: qmanager — replaced on web onboarding)${NC}\n"
+            printf "  SSH:              ${BOLD}ssh root@192.168.225.1${NC}\n"
+            printf "  SSH password:     ${BOLD}%s${NC} ${DIM}(temporary — shown once, replaced on web onboarding)${NC}\n" "$SSH_BOOTSTRAP_PASSWORD"
             ;;
         failed_install|failed_start|failed_password)
             printf "  ${YELLOW}SSH bootstrap failed${NC} (${SSH_BOOTSTRAP_STATUS}). Re-run installer or set up dropbear manually.\n"

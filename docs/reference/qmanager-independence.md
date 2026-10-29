@@ -510,18 +510,23 @@ Net effect after the fix: `systemctl --failed` comes back clean on a healthy box
 ## SSH password management
 
 - Helper: `qmanager_set_ssh_password`
-- Reads the new password from stdin and updates `/etc/shadow` using `openssl passwd -1`.
+- Reads the new password from stdin (`IFS= read -r`, so leading/trailing spaces are kept; 6–128 bytes) and writes a SHA-512 (`$6$`) hash via `openssl passwd -6`, falling back to MD5 (`$1$`) only if openssl cannot make `$6$`. The `/etc/shadow` update is atomic (`cp -p` + `awk` + `mv`). dropbear checks passwords through Entware's glibc 2.27 `libcrypt` (`/opt/lib`), which accepts `$6$`; existing `$1$` hashes keep working.
 - Whitelisted in sudoers for `www-data` so the CGI layer can invoke it without a password.
-- Called automatically during onboarding to sync the web UI password to the root account.
+- Called automatically during onboarding to sync the web UI password to the root account. A failed sync no longer fails silently: first-time setup in `auth/login.sh` returns `ssh_synced:false` and the onboarding password step shows a warning toast (`common:login.ssh_sync_failed`).
+- **No fixed default password.** On a fresh install, `setup_ssh_early` sets root to a random 16-hex password through the shipped copy of this helper and prints it **once** in the install summary. It never goes through `info()`/`warn()`, because `/tmp/qmanager_install.log` is world-readable. (Before this, every fresh install set root to `qmanager`.)
 - Also callable independently from **System Settings > SSH Password** card.
 
 ---
 
 ## Networking & firewall
 
-- **Port firewall**: `qmanager-firewall.service` restricts the web UI (ports 80 and 443) to trusted interfaces: `lo`, `bridge0`, `eth0`, and `tailscale0` (if installed). Cellular-side access is blocked.
+- **Port firewall**: `qmanager-firewall.service` keeps a `QMANAGER_FW` chain hooked at `INPUT` 1 in **both** `iptables` and `ip6tables`.
+  - Web UI (80, 443), IPv4: allowed on `lo`, `bridge0`, `eth0`, and `tailscale0` (if installed), dropped everywhere else. IPv6: dropped on `rmnet+` (lighttpd binds IPv4 only today; this is defence in depth).
+  - SSH (22): dropped on `rmnet+` (the cellular WAN) for IPv4 and IPv6, open on every other interface. This is a **block list on the WAN, not an allow list**, on purpose: SSH is the emergency path, and an allow list would lock out LAN-side interfaces QManager does not know about (QCMAP VLAN bridges `bridge+`, USB dial-up `ppp0`).
+  - Before this, ip6tables `INPUT` had no rules at all and dropbear listens on `:::22`, so on a carrier that hands out a public IPv6 without inbound filtering, SSH was reachable from the internet.
+- `start`/`reload` build the rules in a `QMANAGER_FW_NEW` staging chain, insert its jump, retire the old chain and rename (`-E`), so re-applying never leaves a window with no rules. Matching is by interface name, so rules apply to `rmnet_data*` whenever it comes up — no re-apply on data-call events.
+- Lifecycle: the OTA keeps the firewall **running** (`stop_services` skips it) and `start_services` runs `systemctl reload-or-restart` (a plain `start` is a no-op on an active `RemainAfterExit` oneshot). On a fresh install `setup_ssh_early` runs the shipped script before dropbear first listens. The unit is ordered `Before=dropbear.service`. Uninstall removes both families' chains.
 - This service replaces SimpleAdmin's `simplefirewall` — it is QManager-owned and installed by default.
-- SSH (port 22) is intentionally left open on all interfaces for emergency access.
 
 ---
 

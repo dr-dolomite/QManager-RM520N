@@ -513,6 +513,40 @@ func runQcmd(atCmd string) (string, bool) {
 	return response, strings.Contains(response, "OK")
 }
 
+// interactionUserID resolves the invoking user — User in DM context, Member.User in guild context.
+func interactionUserID(i *discordgo.InteractionCreate) string {
+	if i.User != nil {
+		return i.User.ID
+	}
+	if i.Member != nil && i.Member.User != nil {
+		return i.Member.User.ID
+	}
+	return ""
+}
+
+// isOwner reports whether the interaction came from the configured owner. Fails closed on empty IDs.
+func isOwner(i *discordgo.InteractionCreate, ownerID string) bool {
+	userID := interactionUserID(i)
+	return ownerID != "" && userID != "" && userID == ownerID
+}
+
+// rejectNonOwner logs the attempt and answers privately so the interaction does not hang.
+func rejectNonOwner(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	log.Printf("[interaction] rejected non-owner user=%s type=%d id=%s", interactionUserID(i), i.Type, i.ID)
+	if i.Type != discordgo.InteractionApplicationCommand && i.Type != discordgo.InteractionMessageComponent {
+		return // autocomplete/modal: none registered, nothing to answer
+	}
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "⛔ This bot only responds to its owner.",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	}); err != nil {
+		log.Printf("InteractionRespond error (reject non-owner): %v", err)
+	}
+}
+
 func handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
@@ -533,14 +567,7 @@ func handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 // Any other DM (e.g. a shared-DM channel that isn't ours) can't be targeted by
 // ChannelMessageSend anyway, so the GuildID check is sufficient in practice.
 func captureDMFromInteraction(i *discordgo.InteractionCreate, dmCh *dmChannelHolder, ownerID string) {
-	// Resolve the invoking user — User is populated in DM context, Member.User in guild context.
-	var userID string
-	if i.User != nil {
-		userID = i.User.ID
-	} else if i.Member != nil && i.Member.User != nil {
-		userID = i.Member.User.ID
-	}
-	if userID != ownerID {
+	if !isOwner(i, ownerID) {
 		return
 	}
 	// Only capture when invoked in a DM (no guild). GuildID is empty for both
@@ -644,6 +671,11 @@ func handleEvents(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	respondEmbedWithButtons(s, i, buildEventsEmbed(events, crit, warn, info, total), "events")
 }
 
+// isAutoBandInput reports an explicit "auto" (unlock). Unparseable input is NOT auto.
+func isAutoBandInput(input string) bool {
+	return strings.EqualFold(strings.TrimSpace(input), "auto")
+}
+
 // parseBandOption converts user input (e.g. "B3,B28" or "n78") to AT format
 // (e.g. "3:28" or "78"). Accepts commas (preferred) or colons (legacy) as
 // separators. Strips B/b (LTE) and n/N (NR) prefixes. Sorts band numbers
@@ -651,7 +683,7 @@ func handleEvents(s *discordgo.Session, i *discordgo.InteractionCreate) {
 // user typed them. Duplicate band numbers and non-numeric tokens are dropped.
 // Returns "" for "auto" (caller sends "0" = all bands = unlock).
 func parseBandOption(input string) string {
-	if strings.EqualFold(strings.TrimSpace(input), "auto") {
+	if isAutoBandInput(input) {
 		return ""
 	}
 	// Accept either "," (preferred) or ":" (legacy) as separator.
@@ -790,7 +822,9 @@ func handleLockBand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	var results []string
 
-	if lteBandInput, ok := optMap["lte_bands"]; ok {
+	if lteBandInput, ok := optMap["lte_bands"]; ok && !isAutoBandInput(lteBandInput) && parseBandOption(lteBandInput) == "" {
+		results = append(results, "LTE: no valid bands given, nothing changed")
+	} else if ok {
 		parsed := parseBandOption(lteBandInput)
 		atVal := parsed
 		if atVal == "" {
@@ -809,7 +843,9 @@ func handleLockBand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		}
 	}
 
-	if nrBandInput, ok := optMap["nr_bands"]; ok {
+	if nrBandInput, ok := optMap["nr_bands"]; ok && !isAutoBandInput(nrBandInput) && parseBandOption(nrBandInput) == "" {
+		results = append(results, "NR: no valid bands given, nothing changed")
+	} else if ok {
 		parsed := parseBandOption(nrBandInput)
 		atVal := parsed
 		if atVal == "" {
@@ -839,14 +875,30 @@ func handleLockBand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 }
 
+// validNetworkModes mirrors the /network-mode choices; nothing else reaches the AT command.
+var validNetworkModes = map[string]bool{"AUTO": true, "LTE": true, "NR5G": true, "NR5G:LTE": true}
+
+// networkModeOption returns the mode option if it is one of validNetworkModes.
+func networkModeOption(opts []*discordgo.ApplicationCommandInteractionDataOption) (string, bool) {
+	if len(opts) == 0 || opts[0].Type != discordgo.ApplicationCommandOptionString {
+		return "", false
+	}
+	mode := opts[0].StringValue()
+	return mode, validNetworkModes[mode]
+}
+
 func handleNetworkMode(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	mode, valid := networkModeOption(i.ApplicationCommandData().Options)
+	if !valid {
+		respondError(s, i, "Unknown network mode.")
+		return
+	}
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	}); err != nil {
 		log.Printf("InteractionRespond error (network-mode defer): %v", err)
 	}
 
-	mode := i.ApplicationCommandData().Options[0].StringValue()
 	_, ok := runQcmd(fmt.Sprintf(`AT+QNWPREFCFG="mode_pref",%s`, mode))
 
 	modeLabel := map[string]string{

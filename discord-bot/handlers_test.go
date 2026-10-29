@@ -451,10 +451,8 @@ func TestParseBandOption_DropsDuplicatesAcrossSeparatorsAndOrder(t *testing.T) {
 }
 
 func TestParseBandOption_AllInvalidReturnsEmpty(t *testing.T) {
-	// Documenting test: if every token is non-numeric, the function returns "" —
-	// the caller (handleLockBand) treats this the same as "auto" and unlocks
-	// all bands. This is intentional but worth pinning down with a test so it
-	// can't regress silently.
+	// Every token non-numeric → "". handleLockBand uses isAutoBandInput to tell
+	// this apart from "auto", so junk input no longer unlocks all bands.
 	got := parseBandOption("Bxx,Nyy")
 	if got != "" {
 		t.Errorf("got %q, want empty string", got)

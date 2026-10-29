@@ -226,7 +226,7 @@ export function useLogin() {
 export async function setupPassword(
   password: string,
   confirm: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; sshSynced?: boolean }> {
   try {
     const resp = await fetch(LOGIN_ENDPOINT, {
       method: "POST",
@@ -236,7 +236,8 @@ export async function setupPassword(
     const data = await resp.json();
 
     if (data.success) {
-      return { success: true };
+      // Older backends omit ssh_synced; treat only an explicit false as failure.
+      return { success: true, sshSynced: data.ssh_synced !== false };
     }
 
     return {

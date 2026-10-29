@@ -512,12 +512,18 @@ rm -f /etc/firewall.user.ttl /etc/firewall.user.mtu 2>/dev/null || true
 # already gone before uninstall started — both the new chain-based layout
 # and any pre-chain INPUT-direct rules from older installs are cleaned.
 if command -v iptables >/dev/null 2>&1; then
-    # New layout: tear down the QMANAGER_FW chain
-    while iptables -C INPUT -j QMANAGER_FW 2>/dev/null; do
-        iptables -D INPUT -j QMANAGER_FW 2>/dev/null || break
+    # New layout: tear down the QMANAGER_FW chain (and a staging chain left by
+    # an interrupted reload) in both IPv4 and IPv6
+    for _ipt in iptables ip6tables; do
+        command -v "$_ipt" >/dev/null 2>&1 || continue
+        for _chain in QMANAGER_FW QMANAGER_FW_NEW; do
+            while "$_ipt" -C INPUT -j "$_chain" 2>/dev/null; do
+                "$_ipt" -D INPUT -j "$_chain" 2>/dev/null || break
+            done
+            "$_ipt" -F "$_chain" 2>/dev/null || true
+            "$_ipt" -X "$_chain" 2>/dev/null || true
+        done
     done
-    iptables -F QMANAGER_FW 2>/dev/null || true
-    iptables -X QMANAGER_FW 2>/dev/null || true
 
     # Legacy layout: drain INPUT-direct rules from pre-chain installs
     for port in 80 443; do

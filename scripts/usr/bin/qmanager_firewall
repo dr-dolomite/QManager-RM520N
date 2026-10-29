@@ -1,20 +1,31 @@
 #!/bin/sh
-# qmanager_firewall — Port firewall for QManager web UI (chain-based)
+# qmanager_firewall — Port firewall for QManager web UI and SSH (chain-based)
 #
-# Restricts HTTP/HTTPS access to trusted interfaces only. All rules live in
-# a dedicated user chain (QMANAGER_FW) hooked into INPUT, so start/stop is
+# Restricts HTTP/HTTPS access to trusted interfaces only, and blocks SSH on
+# the cellular WAN (rmnet+). All rules live in a dedicated user chain
+# (QMANAGER_FW) hooked into INPUT for both IPv4 and IPv6, so start/stop is
 # atomic and cannot leak rules across upgrades. Replaces SimpleAdmin's
 # simplefirewall as a QManager-managed service.
 #
-# Usage: qmanager_firewall {start|stop|restart}
+# Usage: qmanager_firewall {start|stop|restart|reload}
 #
-# Protected ports: 80 (HTTP), 443 (HTTPS)
-# Trusted interfaces: lo, bridge0, eth0, tailscale0 (if installed)
-# SSH (22) is intentionally NOT blocked — emergency access must remain open.
+# Web UI (80, 443): allowed on lo, bridge0, eth0, tailscale0 (if installed);
+#   dropped everywhere else (IPv4). Dropped on rmnet+ (IPv6 — lighttpd binds
+#   IPv4 only today; this is defence in depth).
+# SSH (22): dropped on rmnet+ only, IPv4 and IPv6. Every other interface keeps
+#   SSH so an unknown LAN-side interface (QCMAP VLAN bridge, ppp0) never loses
+#   the emergency path.
+#
+# start/reload build the new rules in a staging chain and swap the INPUT jump,
+# so re-applying never opens a window with no rules.
 #
 # Service: qmanager-firewall.service (Type=oneshot, RemainAfterExit=yes)
 
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
 PORTS="80 443"
+SSH_PORT="22"
+WAN_IFACE="rmnet+"
 TRUSTED="lo bridge0 eth0"
 
 if [ -x /usrdata/tailscale/tailscale ]; then
@@ -22,21 +33,22 @@ if [ -x /usrdata/tailscale/tailscale ]; then
 fi
 
 CHAIN="QMANAGER_FW"
+STAGE="QMANAGER_FW_NEW"
 
-ensure_chain() {
-    iptables -t filter -N "$CHAIN" 2>/dev/null || true
+have_ip6() {
+    command -v ip6tables >/dev/null 2>&1
 }
 
+# $1 = iptables | ip6tables, $2 = chain
 unhook_chain() {
-    # Remove every existing INPUT->CHAIN jump (handles past duplicate hooks)
-    while iptables -C INPUT -j "$CHAIN" 2>/dev/null; do
-        iptables -D INPUT -j "$CHAIN" 2>/dev/null || break
+    while "$1" -C INPUT -j "$2" 2>/dev/null; do
+        "$1" -D INPUT -j "$2" 2>/dev/null || break
     done
 }
 
 drop_chain() {
-    iptables -F "$CHAIN" 2>/dev/null || true
-    iptables -X "$CHAIN" 2>/dev/null || true
+    "$1" -F "$2" 2>/dev/null || true
+    "$1" -X "$2" 2>/dev/null || true
 }
 
 # Drain INPUT-direct rules from the pre-chain implementation.
@@ -61,34 +73,62 @@ cleanup_legacy_input_rules() {
     done
 }
 
-do_start() {
-    cleanup_legacy_input_rules
-    ensure_chain
-    iptables -F "$CHAIN" 2>/dev/null || true
+fill_v4() {
     for iface in $TRUSTED; do
         for port in $PORTS; do
-            iptables -A "$CHAIN" -i "$iface" -p tcp --dport "$port" -j ACCEPT
+            iptables -A "$1" -i "$iface" -p tcp --dport "$port" -j ACCEPT
         done
     done
     for port in $PORTS; do
-        iptables -A "$CHAIN" -p tcp --dport "$port" -j DROP
+        iptables -A "$1" -p tcp --dport "$port" -j DROP
     done
-    unhook_chain
-    iptables -I INPUT 1 -j "$CHAIN"
+    iptables -A "$1" -i "$WAN_IFACE" -p tcp --dport "$SSH_PORT" -j DROP
+}
+
+fill_v6() {
+    for port in $SSH_PORT $PORTS; do
+        ip6tables -A "$1" -i "$WAN_IFACE" -p tcp --dport "$port" -j DROP
+    done
+}
+
+# $1 = iptables | ip6tables, $2 = fill function. Build in STAGE, hook it at
+# INPUT 1, then retire the old chain and rename STAGE into its place. A STAGE
+# left hooked by an interrupted run is unhooked first, or -X/-N would fail.
+swap_in() {
+    unhook_chain "$1" "$STAGE"
+    drop_chain "$1" "$STAGE"
+    "$1" -N "$STAGE" 2>/dev/null || return 1
+    "$2" "$STAGE"
+    "$1" -I INPUT 1 -j "$STAGE"
+    unhook_chain "$1" "$CHAIN"
+    drop_chain "$1" "$CHAIN"
+    "$1" -E "$STAGE" "$CHAIN"
+}
+
+do_start() {
+    cleanup_legacy_input_rules
+    swap_in iptables fill_v4
+    have_ip6 && swap_in ip6tables fill_v6
+    return 0
 }
 
 do_stop() {
-    unhook_chain
-    drop_chain
+    for t in iptables ip6tables; do
+        [ "$t" = ip6tables ] && ! have_ip6 && continue
+        unhook_chain "$t" "$CHAIN"
+        unhook_chain "$t" "$STAGE"
+        drop_chain "$t" "$CHAIN"
+        drop_chain "$t" "$STAGE"
+    done
     cleanup_legacy_input_rules
 }
 
 case "${1:-}" in
-    start)   do_start ;;
-    stop)    do_stop ;;
-    restart) do_stop; do_start ;;
+    start|reload) do_start ;;
+    stop)         do_stop ;;
+    restart)      do_stop; do_start ;;
     *)
-        echo "Usage: qmanager_firewall {start|stop|restart}" >&2
+        echo "Usage: qmanager_firewall {start|stop|restart|reload}" >&2
         exit 1
         ;;
 esac
