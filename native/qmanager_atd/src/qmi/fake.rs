@@ -9,7 +9,7 @@ use super::transport::{
 };
 use std::collections::{HashMap, VecDeque};
 use std::io;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering::SeqCst};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
@@ -324,6 +324,8 @@ pub struct WdsModel {
     pub rx6: AtomicU64,
     pub tx6: AtomicU64,
     pub v6_call: AtomicBool,
+    /// The IPv4 call's address as a host u32 (0: no IPv4 settings, 0x000F).
+    pub ip4: AtomicU32,
     /// When set, Bind Mux Data Port fails with this QMI error code.
     pub bind_err: Mutex<Option<u16>>,
     /// When set, Bind Subscription fails with this QMI error code.
@@ -351,6 +353,34 @@ impl WdsModel {
                 r(vec![result_tlv(None)])
             }
             0x00AF => r(vec![result_tlv(*self.subs_err.lock().unwrap())]),
+            0x002D => {
+                let (mux, fam) = *st;
+                let ip4 = self.ip4.load(SeqCst);
+                let v6 = |a: &str, p: Option<u8>| {
+                    let mut b = a.parse::<std::net::Ipv6Addr>().unwrap().octets().to_vec();
+                    b.extend(p);
+                    b
+                };
+                match (mux, fam, self.v6_call.load(SeqCst), ip4) {
+                    (None, _, _, _) | (_, 4, _, 0) | (_, 6, false, _) => r(vec![result_tlv(Some(0x000F))]),
+                    (Some(_), 6, true, _) => r(vec![
+                        result_tlv(None),
+                        Tlv::new(0x25, &v6("2001:db8:1:2::5", Some(64))),
+                        Tlv::new(0x26, &v6("fe80::1", Some(64))),
+                        Tlv::new(0x27, &v6("2001:4860:4860::8888", None)),
+                        Tlv::new(0x29, &1400u32.to_le_bytes()),
+                    ]),
+                    _ => r(vec![
+                        result_tlv(None),
+                        Tlv::new(0x15, &u32::from_be_bytes([10, 151, 151, 44]).to_le_bytes()),
+                        Tlv::new(0x16, &u32::from_be_bytes([10, 151, 151, 48]).to_le_bytes()),
+                        Tlv::new(0x1E, &ip4.to_le_bytes()),
+                        Tlv::new(0x20, &(ip4 & !3 | 1).to_le_bytes()),
+                        Tlv::new(0x21, &0xFFFF_FFFCu32.to_le_bytes()),
+                        Tlv::new(0x29, &1500u32.to_le_bytes()),
+                    ]),
+                }
+            }
             0x004D => {
                 st.1 = m.tlv(0x01).and_then(|v| v.first().copied()).unwrap_or(4);
                 r(vec![result_tlv(None)])
@@ -384,7 +414,7 @@ pub fn wds_net() -> (Arc<FakeNet>, Arc<WdsModel>) {
     let model = Arc::new(WdsModel::default());
     let md = model.clone();
     net.set_responder_by_sock(move |sock, svc, m| match (svc, m.id) {
-        (SVC_WDS, 0x00A2 | 0x00AF | 0x004D | 0x0024) => md.reply(sock, m),
+        (SVC_WDS, 0x00A2 | 0x00AF | 0x004D | 0x0024 | 0x002D) => md.reply(sock, m),
         _ => r1_reply(svc, m),
     });
     (net, model)

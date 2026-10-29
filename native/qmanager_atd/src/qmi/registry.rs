@@ -63,7 +63,7 @@
 //! fail `modem_not_ready` rather than reach an unbound socket.
 
 use super::allow;
-use super::codec::wds::{self, Endpoint, PktBytes};
+use super::codec::wds::{self, Endpoint, PktBytes, Settings};
 use super::error::QmiError;
 use super::msg::{self, Msg, Tlv, KIND_IND, KIND_REQ, KIND_RESP};
 use super::transport::{self, Ctrl, Datagram, QrtrTransport, Transport, QRTR_PORT_CTL};
@@ -955,6 +955,18 @@ impl Registry {
         wds::pkt_bytes(&m).ok_or(QmiError::CommandFailed(None))
     }
 
+    /// Internal only: WDS 0x002D runtime settings on the `fam` client, bound to `t` first.
+    /// Same errors as `wds_packet_bytes`.
+    pub fn wds_settings(&self, fam: IpFamily, t: BindTarget) -> Result<Settings, QmiError> {
+        if !allow::broker_allowed(SVC_WDS, allow::WDS_GET_RUNTIME_SETTINGS) {
+            return Err(QmiError::Refused { svc: SVC_WDS, msg: allow::WDS_GET_RUNTIME_SETTINGS });
+        }
+        let i = self.shared.idx_internal(fam).ok_or(QmiError::Unavailable)?;
+        let link = self.shared.ensure_bound(i, t)?;
+        let m = self.shared.call(i, allow::WDS_GET_RUNTIME_SETTINGS, &wds::settings_request_tlvs(), None, Some(&link))?;
+        Ok(wds::settings(&m))
+    }
+
     /// The bind on internal client `fam`'s current socket (for logging).
     pub fn wds_bind_state(&self, fam: IpFamily) -> WdsBind {
         let i = match self.shared.idx_internal(fam) {
@@ -1623,8 +1635,29 @@ mod tests {
         assert!(reg.request(SVC_WDS, 0x002A, &[]).is_ok());
         let public = wds_by_sock(&net).into_iter().find(|(_, ids)| ids.contains(&0x002A)).unwrap();
         assert_eq!(public.1, vec![0x002A]);
-        // Never a Reset or anything outside the four broker messages.
-        assert!(net.sent().iter().all(|s| s.svc != SVC_WDS || [0x00A2, 0x00AF, 0x004D, 0x0024, 0x002A].contains(&s.msg.id)));
+        // Never a Reset or anything outside the broker messages.
+        assert!(net.sent().iter().all(|s| s.svc != SVC_WDS || [0x00A2, 0x00AF, 0x004D, 0x0024, 0x002D, 0x002A].contains(&s.msg.id)));
+    }
+
+    #[test]
+    fn runtime_settings_are_read_on_a_bound_client_and_out_of_call_is_0x000f() {
+        let (net, md, reg) = wds_model();
+        md.ip4.store(u32::from_be_bytes([10, 110, 187, 26]), SeqCst);
+        let s = reg.wds_settings(IpFamily::V4, T1).unwrap();
+        assert_eq!(s.ip4, Some(std::net::Ipv4Addr::new(10, 110, 187, 26)));
+        assert_eq!(s.gw4, Some(std::net::Ipv4Addr::new(10, 110, 187, 25)));
+        assert_eq!((s.mtu, s.dns4[1]), (Some(1500), Some(std::net::Ipv4Addr::new(10, 151, 151, 48))));
+        // The bind goes first, then the read; the IPv6 client has no call.
+        assert_eq!(wds_by_sock(&net)[0].1, vec![0x00A2, 0x00AF, 0x002D]);
+        let e = reg.wds_settings(IpFamily::V6, T1).unwrap_err();
+        assert_eq!(e.qmi_code(), Some(wds::ERR_OUT_OF_CALL));
+        md.v6_call.store(true, SeqCst);
+        let s6 = reg.wds_settings(IpFamily::V6, T1).unwrap();
+        assert_eq!((s6.ip6_prefix, s6.mtu), (Some(64), Some(1400)));
+        assert_eq!(wds::Settings::merge(s, s6).mtu, Some(1500));
+        // No call at all on the IPv4 client: 0x000F, not a failure of the bind.
+        md.ip4.store(0, SeqCst);
+        assert_eq!(reg.wds_settings(IpFamily::V4, T1).unwrap_err().qmi_code(), Some(wds::ERR_OUT_OF_CALL));
     }
 
     #[test]
@@ -1716,7 +1749,7 @@ mod tests {
     #[test]
     fn clients_are_refused_the_wds_binds_and_the_stats_read() {
         let (net, _md, reg) = wds_model();
-        for m in [0x00A2u16, 0x00AF, 0x004D, 0x0024, 0x0086] {
+        for m in [0x00A2u16, 0x00AF, 0x004D, 0x0024, 0x002D, 0x0086] {
             assert_eq!(reg.request(SVC_WDS, m, &[]).unwrap_err(), QmiError::Refused { svc: SVC_WDS, msg: m });
         }
         assert!(net.sent().is_empty());
@@ -1730,6 +1763,7 @@ mod tests {
         let reg = super::super::fake::start_registry(&net);
         assert_eq!(net.open_sockets(), 6);
         assert_eq!(reg.wds_packet_bytes(IpFamily::V4, T1).unwrap_err(), QmiError::Unavailable);
+        assert_eq!(reg.wds_settings(IpFamily::V4, T1).unwrap_err(), QmiError::Unavailable);
         assert!(net.sent().is_empty());
         assert_eq!(reg.wds_bind_state(IpFamily::V6), WdsBind::Unbound);
     }
