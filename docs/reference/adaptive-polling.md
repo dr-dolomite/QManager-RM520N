@@ -30,8 +30,10 @@ When no browser is polling, `qmanager_poller` stops asking the modem every cycle
 
 ## Who sees older data
 
-- `qmanager_tower_failover` reads `.lte.rsrp` / `.nr.rsrp` every 20 s: up to 60 s old in Deep (same as RM551E).
-- Discord bot status: signal up to 60 s old in Deep (accepted, user 2026-10-27).
+**QMI fills the gaps in LTE signal (T7.1, 2026-10-29).** On a write with no good `AT+QENG="servingcell"` read, `lte.rsrp` / `lte.rsrq` / `lte.rssi` come from the broker's QMI snapshot (≤ 5 s old, same LTE PCI and EARFCN as the last AT read) and `lte.source` is `"qmi"`. In Idle and Deep that is most writes. NR values, CA, per-antenna data and every AT-only field keep their tier ages below. Gate and invariants: [`qmi-lane.md`](qmi-lane.md).
+
+- `qmanager_tower_failover` reads `.lte.rsrp` / `.nr.rsrp` every 20 s: LTE RSRP is QMI-fresh (≤ 5 s) while the lane is up; NR RSRP, and LTE without QMI, are up to 60 s old in Deep (same as RM551E).
+- Discord bot status: LTE signal is QMI-fresh while the lane is up; otherwise up to 60 s old in Deep (accepted, user 2026-10-27 and 2026-10-29).
 - Signal history gets a per-antenna point every 15 s in Idle and none in Deep. Events (band, PCI, SCC) are detected at touch time.
 
 ## Watchdog heartbeat

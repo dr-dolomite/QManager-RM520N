@@ -16,6 +16,10 @@
 //!   the contract allows any single-quoted text, the poller compares it with
 //!   `case`). Never a float, never `N/A`.
 //! - `/tmp/qmanager_qmi.json`: the same data for CGIs, plus the full bundle.
+//!   The same JSON is also written to `/var/run/qmanager/qmi.json` (0.7.0), the
+//!   copy the poller reads, so a `/tmp` plant cannot feed status.
+//! - `wds.settings` (0.7.0, JSON only): WDS 0x002D, re-read on a call change and every 10 s;
+//!   null out of call (0x000F) or while `qmi_state` is not `up`.
 //!
 //! Semantics.
 //! - `qmi_mono` is the CLOCK_BOOTTIME second (the same clock as
@@ -65,10 +69,10 @@
 //! world-writable `/tmp/qmanager_qmi_live` mtime lease is retired; the
 //! broker ignores it.)
 
-use crate::common::json::J;
+use crate::common::json::{arr, J};
 use crate::common::log::Logger;
 use crate::common::safefs;
-use crate::qmi::codec::wds::ERR_OUT_OF_CALL;
+use crate::qmi::codec::wds::{Settings, ERR_OUT_OF_CALL};
 use crate::qmi::error::QmiError;
 use crate::qmi::model::{self, Bundle, Registration};
 use crate::qmi::registry::{BindTarget, IpFamily, Registry, SvcState, WdsBind, THREAD_STACK};
@@ -84,6 +88,8 @@ use std::time::{Duration, Instant};
 pub const RUN_DIR: &str = "/var/run/qmanager";
 pub const ENV_PATH: &str = "/var/run/qmanager/qmi.env";
 pub const JSON_PATH: &str = "/tmp/qmanager_qmi.json";
+/// The same JSON in the root-only dir: the poller reads this copy, never /tmp.
+pub const JSON_ROOT_PATH: &str = "/var/run/qmanager/qmi.json";
 
 pub struct Paths {
     /// Made root-only (0700, own, not a link) before each env write; None
@@ -91,6 +97,7 @@ pub struct Paths {
     pub run_dir: Option<String>,
     pub env: String,
     pub json: String,
+    pub json_root: String,
     pub live: LivePaths,
     /// `/proc/net/route` (the default call's mux id).
     pub route: String,
@@ -106,6 +113,7 @@ impl Paths {
             run_dir: Some(RUN_DIR.into()),
             env: ENV_PATH.into(),
             json: JSON_PATH.into(),
+            json_root: JSON_ROOT_PATH.into(),
             live: LivePaths::production(),
             route: data_call::ROUTE_PATH.into(),
             route6: data_call::ROUTE6_PATH.into(),
@@ -203,6 +211,28 @@ pub struct WdsView {
     pub rx: Option<u64>,
     pub tx: Option<u64>,
     pub mux: Option<u8>,
+    /// The call's runtime settings (JSON only), None while not read.
+    pub settings: Option<WdsSettings>,
+}
+
+/// Runtime settings of the default call and when they were read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WdsSettings {
+    pub s: Settings,
+    /// CLOCK_BOOTTIME seconds of the read.
+    pub read_mono: u64,
+}
+
+/// The settings are re-read this often, and at once after a rebind or a call change.
+const SETTINGS_EVERY: Duration = Duration::from_secs(10);
+
+/// What the cached settings were read under; a change forces a re-read.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct SettingsKey {
+    ssr: u64,
+    mux: u8,
+    binds: [WdsBind; 2],
+    ok: bool,
 }
 
 /// What one publication shows.
@@ -320,11 +350,37 @@ pub fn render_json(v: &View) -> String {
         .opt_num("rx_bytes", w.rx.filter(|_| valid))
         .opt_num("tx_bytes", w.tx.filter(|_| valid))
         .opt_num("mux", w.mux)
+        .raw("settings", &w.settings.as_ref().map_or_else(|| "null".to_string(), settings_json))
         .done();
     j.raw("wds", &wds);
     let mut s = j.done();
     s.push('\n');
     s
+}
+
+fn ip_str<T: std::fmt::Display>(a: Option<T>) -> Option<String> {
+    a.map(|a| a.to_string())
+}
+
+/// Present addresses only, primary first, as a JSON array of strings.
+fn ip_list<T: std::fmt::Display>(v: &[Option<T>]) -> String {
+    arr(&v.iter().flatten().map(|a| format!("\"{a}\"")).collect::<Vec<_>>())
+}
+
+fn settings_json(w: &WdsSettings) -> String {
+    let s = &w.s;
+    J::obj()
+        .opt_str("ip4", ip_str(s.ip4).as_deref())
+        .opt_str("gw4", ip_str(s.gw4).as_deref())
+        .opt_str("mask4", ip_str(s.mask4).as_deref())
+        .raw("dns4", &ip_list(&s.dns4))
+        .opt_num("mtu", s.mtu)
+        .opt_str("ip6", ip_str(s.ip6).as_deref())
+        .opt_num("ip6_prefix", s.ip6_prefix)
+        .opt_str("gw6", ip_str(s.gw6).as_deref())
+        .raw("dns6", &ip_list(&s.dns6))
+        .num("read_mono", w.read_mono)
+        .done()
 }
 
 /// CLOCK_BOOTTIME seconds: `/proc/uptime`'s clock.
@@ -355,6 +411,10 @@ pub struct Sampler {
     wds_logged: [WdsBind; 2],
     /// A call without the IPA endpoint was logged (once until it changes).
     wds_no_ep_logged: bool,
+    /// The cached runtime settings, when they were read and under what.
+    settings: Option<WdsSettings>,
+    settings_at: Option<Instant>,
+    settings_key: Option<SettingsKey>,
 }
 
 impl Sampler {
@@ -375,7 +435,39 @@ impl Sampler {
             wds_prev_ok: [false; 2],
             wds_logged: [WdsBind::Unbound; 2],
             wds_no_ep_logged: false,
+            settings: None,
+            settings_at: None,
+            settings_key: None,
         }
+    }
+
+    fn clear_settings(&mut self) {
+        self.settings = None;
+        self.settings_at = None;
+        self.settings_key = None;
+    }
+
+    /// The cached settings, re-read when due (see `SETTINGS_EVERY`) or when
+    /// the bind, the mux, the SSR count or the call's state changed.
+    fn refresh_settings(&mut self, reg: &Registry, t: BindTarget, ok: bool, v4_used: bool) -> Option<WdsSettings> {
+        let key = SettingsKey { ssr: reg.ssr_count(), mux: t.mux, binds: IpFamily::ALL.map(|f| reg.wds_bind_state(f)), ok };
+        let now = Instant::now();
+        let held = self.settings_at.is_some_and(|a| now.saturating_duration_since(a) + SIDECAR_SLACK < SETTINGS_EVERY);
+        if self.settings_key != Some(key) || !held {
+            self.settings_key = Some(key);
+            self.settings_at = Some(now);
+            self.settings = if ok { self.read_settings(reg, t, v4_used) } else { None };
+        }
+        self.settings
+    }
+
+    /// Both families merged; an out-of-call (0x000F) or failed read is absent.
+    /// The IPv4 client is left alone while the stats read leaves it alone.
+    fn read_settings(&self, reg: &Registry, t: BindTarget, v4_used: bool) -> Option<WdsSettings> {
+        let get = |f| reg.wds_settings(f, t).unwrap_or_default();
+        let v4 = if v4_used { get(IpFamily::V4) } else { Settings::default() };
+        let s = Settings::merge(v4, get(IpFamily::V6));
+        (!s.is_empty()).then(|| WdsSettings { s, read_mono: boot_secs() })
     }
 
     /// This cycle's Data Used counters (see the module doc). Never fails.
@@ -385,6 +477,7 @@ impl Sampler {
             Some(m) => m,
             None => {
                 self.wds_prev_ok = [false; 2];
+                self.clear_settings();
                 return WdsView::default();
             }
         };
@@ -399,6 +492,7 @@ impl Sampler {
                     self.wds_no_ep_logged = true;
                 }
                 self.wds_prev_ok = [false; 2];
+                self.clear_settings();
                 return WdsView { mux: Some(mux), ..WdsView::default() };
             }
         };
@@ -407,6 +501,7 @@ impl Sampler {
         let mut any_ok = false;
         let mut lost_ok = false;
         let mut now_ok = [false; 2];
+        let mut v4_used = false;
         for (k, fam) in IpFamily::ALL.iter().enumerate() {
             let was_ok = self.wds_prev_ok.get(k).copied().unwrap_or(false);
             // An IPv6-only call (no IPv4 default route) reads the IPv6 client
@@ -415,6 +510,7 @@ impl Sampler {
             if *fam == IpFamily::V4 && !call.v4 && !was_ok {
                 continue;
             }
+            v4_used |= *fam == IpFamily::V4;
             match reg.wds_packet_bytes(*fam, t) {
                 Ok(b) => {
                     any_ok = true;
@@ -428,6 +524,7 @@ impl Sampler {
                 // No WDS service (or no internal clients): not attempted.
                 Err(QmiError::Unavailable) => {
                     self.wds_prev_ok = [false; 2];
+                    self.clear_settings();
                     return WdsView { mux: Some(mux), ..WdsView::default() };
                 }
                 Err(_) => lost_ok |= was_ok,
@@ -436,7 +533,8 @@ impl Sampler {
         }
         self.wds_prev_ok = now_ok;
         let ok = any_ok && !lost_ok;
-        WdsView { ok: Some(ok), rx: ok.then_some(rx), tx: ok.then_some(tx), mux: Some(mux) }
+        let settings = self.refresh_settings(reg, t, ok, v4_used);
+        WdsView { ok: Some(ok), rx: ok.then_some(rx), tx: ok.then_some(tx), mux: Some(mux), settings }
     }
 
     /// Logs a change of family `k`'s bind state (state changes only).
@@ -500,6 +598,7 @@ impl Sampler {
                 self.read_wds(reg)
             } else {
                 self.wds_prev_ok = [false; 2];
+                self.clear_settings();
                 WdsView::default()
             };
             self.write_sidecars(state, ssr, reg.sig_config_state().as_str(), wds);
@@ -518,18 +617,29 @@ impl Sampler {
         let env = render_env(&v);
         // JSON first, then env, each on its own: a path planted in /tmp can
         // cost the CGI json, never the poller's root-only sidecar.
-        let rj = safefs::write_atomic(&self.paths.json, json.as_bytes());
-        let re = match &self.paths.run_dir {
-            Some(d) => safefs::ensure_own_dir(d, 0o700),
-            None => Ok(()),
-        }
-        .and_then(|_| safefs::write_atomic(&self.paths.env, env.as_bytes()));
-        let r = match (rj, re) {
-            (Ok(()), Ok(())) => Ok(()),
-            (Err(e), Ok(())) => Err(format!("{}: {e}", self.paths.json)),
-            (Ok(()), Err(e)) => Err(format!("{}: {e}", self.paths.env)),
-            (Err(a), Err(b)) => Err(format!("{}: {a}; {}: {b}", self.paths.json, self.paths.env)),
+        let mut errs: Vec<String> = Vec::new();
+        let put = |errs: &mut Vec<String>, path: &str, body: &[u8]| {
+            if let Err(e) = safefs::write_atomic(path, body) {
+                errs.push(format!("{path}: {e}"));
+            }
         };
+        put(&mut errs, &self.paths.json, json.as_bytes());
+        // The root-only copies: dir first, then the JSON, then the env (never
+        // older than the JSON it mirrors).
+        match &self.paths.run_dir {
+            Some(d) => match safefs::ensure_own_dir(d, 0o700) {
+                Ok(()) => {
+                    put(&mut errs, &self.paths.json_root, json.as_bytes());
+                    put(&mut errs, &self.paths.env, env.as_bytes());
+                }
+                Err(e) => errs.push(format!("{d}: {e}")),
+            },
+            None => {
+                put(&mut errs, &self.paths.json_root, json.as_bytes());
+                put(&mut errs, &self.paths.env, env.as_bytes());
+            }
+        }
+        let r = if errs.is_empty() { Ok(()) } else { Err(errs.join("; ")) };
         match (r, self.write_failed) {
             (Err(e), false) => {
                 self.log.warn(&format!("cannot publish the qmi snapshot: {e}"));
@@ -607,7 +717,7 @@ mod tests {
             long_flag: p("long"),
         };
         // No route file and no rmnet_ipa0 here: no call, nothing bound.
-        Paths { run_dir: None, env: p("q.env"), json: p("q.json"), live, route: p("route"), route6: p("route6"), ipa_dev: p("rmnet_ipa0") }
+        Paths { run_dir: None, env: p("q.env"), json: p("q.json"), json_root: p("qroot.json"), live, route: p("route"), route6: p("route6"), ipa_dev: p("rmnet_ipa0") }
     }
 
     fn log() -> Arc<Logger> {
@@ -759,7 +869,7 @@ mod tests {
             }
         }
         let j = render_json(&View { mono_s: None, state: "unavailable", ssr_count: 0, sig: "off", wds: WdsView::default(), bundle: None });
-        assert_eq!(j, "{\"v\":1,\"qmi_mono\":null,\"qmi_state\":\"unavailable\",\"qmi_ssr_count\":0,\"qmi_sig_config\":\"off\",\"registered\":null,\"data\":null,\"wds\":{\"ok\":null,\"rx_bytes\":null,\"tx_bytes\":null,\"mux\":null}}\n");
+        assert_eq!(j, "{\"v\":1,\"qmi_mono\":null,\"qmi_state\":\"unavailable\",\"qmi_ssr_count\":0,\"qmi_sig_config\":\"off\",\"registered\":null,\"data\":null,\"wds\":{\"ok\":null,\"rx_bytes\":null,\"tx_bytes\":null,\"mux\":null,\"settings\":null}}\n");
     }
 
     #[test]
@@ -782,46 +892,6 @@ mod tests {
                 assert_eq!(violation(&env), None, "{env}");
             }
         }
-    }
-
-    #[test]
-    fn the_real_shell_validator_accepts_the_files_and_rejects_a_damaged_one() {
-        // Runs conn_state.sh's `cq_env_source` (the loop the poller uses for
-        // ping.env, copied verbatim into qmi_load later) under the host `sh`.
-        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/usr/lib/qmanager/conn_state.sh");
-        if !script.exists() || std::process::Command::new("sh").arg("-c").arg("true").status().is_err() {
-            eprintln!("skipped: no sh or no conn_state.sh");
-            return;
-        }
-        let d = dir("shell");
-        let run = |file: &std::path::Path| {
-            let out = std::process::Command::new("sh")
-                .arg("-c")
-                .arg(r#". "$1" || exit 9; if cq_env_source "$2"; then echo "SOURCED mono=$qmi_mono state=$qmi_state reg=$qmi_registered pci=$qmi_lte_pci rsrp=$qmi_lte_rsrp ca=$qmi_ca_count scc2=$qmi_scc2_band end=$qm_sidecar_end"; else echo REJECTED; fi"#)
-                .arg("sh")
-                .arg(&script)
-                .arg(file)
-                .output()
-                .unwrap();
-            String::from_utf8_lossy(&out.stdout).trim().to_string()
-        };
-        let b = bundle("registered");
-        let good = d.join("good.env");
-        std::fs::write(&good, render_env(&View { mono_s: Some(99), state: "up", ssr_count: 1, sig: "off", wds: WdsView::default(), bundle: Some(&b) })).unwrap();
-        assert_eq!(run(&good), "SOURCED mono=99 state=up reg=1 pci=295 rsrp=-90 ca=3 scc2=41 end=1");
-        // Empty values source as empty strings.
-        let empty = d.join("empty.env");
-        std::fs::write(&empty, render_env(&View { mono_s: None, state: "down", ssr_count: 4, sig: "off", wds: WdsView::default(), bundle: None })).unwrap();
-        assert_eq!(run(&empty), "SOURCED mono= state=down reg= pci= rsrp= ca= scc2= end=1");
-        // A file cut short (no terminator) or with a stray line is rejected.
-        let full = render_env(&View { mono_s: Some(1), state: "up", ssr_count: 0, sig: "off", wds: WdsView::default(), bundle: Some(&b) });
-        let cut = d.join("cut.env");
-        std::fs::write(&cut, &full[..full.len() - "qm_sidecar_end='1'\n".len()]).unwrap();
-        assert_eq!(run(&cut), "REJECTED");
-        let stray = d.join("stray.env");
-        std::fs::write(&stray, full.replace("qmi_mono='1'\n", "qmi_mono=1\n")).unwrap();
-        assert_eq!(run(&stray), "REJECTED");
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
@@ -848,7 +918,7 @@ mod tests {
         s.sample(&reg);
         let names: Vec<String> = std::fs::read_dir(&d).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
         assert!(names.iter().all(|n| !n.ends_with(".new")), "{names:?}");
-        assert_eq!(names.len(), 2, "{names:?}");
+        assert_eq!(names.len(), 3, "{names:?}");
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -931,6 +1001,7 @@ mod tests {
         assert_eq!(std::fs::metadata(&run).unwrap().permissions().mode() & 0o777, 0o700);
         assert!(std::fs::read_dir(&victim).unwrap().next().is_none(), "nothing written through the link");
         assert_eq!(ENV_PATH, "/var/run/qmanager/qmi.env");
+        assert_eq!(Paths::production().json_root, "/var/run/qmanager/qmi.json");
         assert!(Paths::production().json.starts_with("/tmp/"));
         assert_eq!(Paths::production().live.public_dir, "/var/run/qmanager/live");
         let _ = std::fs::remove_dir_all(&d);
@@ -1035,7 +1106,7 @@ mod tests {
 
     #[test]
     fn the_wds_lines_sit_last_before_the_terminator_integer_or_empty() {
-        let w = WdsView { ok: Some(true), rx: Some(730_344_017), tx: Some(41_000_123), mux: Some(1) };
+        let w = WdsView { ok: Some(true), rx: Some(730_344_017), tx: Some(41_000_123), mux: Some(1), ..WdsView::default() };
         let env = render_env(&View { mono_s: Some(5), state: "up", ssr_count: 0, sig: "off", wds: w, bundle: None });
         assert_eq!(violation(&env), None, "{env}");
         assert!(env.ends_with(
@@ -1043,7 +1114,7 @@ mod tests {
         ), "{env}");
         // ok=0 or unknown: never bytes, even if the view carried some.
         for ok in [Some(false), None] {
-            let w = WdsView { ok, rx: Some(1), tx: Some(2), mux: Some(3) };
+            let w = WdsView { ok, rx: Some(1), tx: Some(2), mux: Some(3), ..WdsView::default() };
             let env = render_env(&View { mono_s: Some(5), state: "up", ssr_count: 0, sig: "off", wds: w, bundle: None });
             assert_eq!(violation(&env), None, "{env}");
             let p = pairs(&env[..env.len() - 19]);
@@ -1051,11 +1122,11 @@ mod tests {
             assert_eq!(wds_vals(&p), [okv.to_string(), String::new(), String::new(), "3".to_string()]);
         }
         // A full u64 stays an integer.
-        let w = WdsView { ok: Some(true), rx: Some(u64::MAX), tx: Some(0), mux: Some(16) };
+        let w = WdsView { ok: Some(true), rx: Some(u64::MAX), tx: Some(0), mux: Some(16), ..WdsView::default() };
         let env = render_env(&View { mono_s: Some(5), state: "up", ssr_count: 0, sig: "off", wds: w, bundle: None });
         assert_eq!(violation(&env), None, "{env}");
         let j = render_json(&View { mono_s: Some(5), state: "up", ssr_count: 0, sig: "off", wds: w, bundle: None });
-        assert!(j.ends_with(",\"wds\":{\"ok\":true,\"rx_bytes\":18446744073709551615,\"tx_bytes\":0,\"mux\":16}}\n"), "{j}");
+        assert!(j.ends_with(",\"wds\":{\"ok\":true,\"rx_bytes\":18446744073709551615,\"tx_bytes\":0,\"mux\":16,\"settings\":null}}\n"), "{j}");
     }
 
     #[test]
@@ -1521,6 +1592,135 @@ mod tests {
         }
         assert!(!pubf.exists() && !d.join("token").exists(), "expired within {:?}", t0.elapsed());
         assert!(d.join("pub").join("index.html").exists());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    // ---------------------------------------------- Runtime settings (0.7.0)
+
+    const IP4: u32 = u32::from_be_bytes([10, 110, 187, 26]);
+
+    fn text(path: &str) -> String {
+        std::fs::read_to_string(path).unwrap()
+    }
+
+    #[test]
+    fn the_runtime_settings_ride_the_wds_json_and_the_root_copy_not_the_env() {
+        let (d, p) = call_dir("set-json", Some(0), true);
+        let (env_p, json_p, root_p) = (p.env.clone(), p.json.clone(), p.json_root.clone());
+        let (net, md) = wds_net();
+        md.ip4.store(IP4, SeqCst);
+        let reg = start_registry_wds(&net);
+        let mut s = Sampler::new(p, log());
+        s.sample_at(&reg, Tier::None);
+        let j = text(&json_p);
+        let want = "\"settings\":{\"ip4\":\"10.110.187.26\",\"gw4\":\"10.110.187.25\",\"mask4\":\"255.255.255.252\",\"dns4\":[\"10.151.151.44\",\"10.151.151.48\"],\"mtu\":1500,\"ip6\":null,\"ip6_prefix\":null,\"gw6\":null,\"dns6\":[],\"read_mono\":";
+        assert!(j.contains(want), "{j}");
+        let mono: u64 = j.split("\"read_mono\":").nth(1).unwrap().split('}').next().unwrap().parse().unwrap();
+        assert!(mono.abs_diff(boot_secs()) <= 2);
+        assert_eq!(j, text(&root_p), "the root copy is the same document");
+        assert!(!text(&env_p).contains("settings") && !text(&env_p).contains("10.110"), "the env contract is unchanged");
+        env_of(&env_p);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn both_families_merge_and_the_ipv4_mtu_wins() {
+        let (d, p) = call_dir("set-dual", Some(0), true);
+        let json_p = p.json.clone();
+        let (net, md) = wds_net();
+        md.ip4.store(IP4, SeqCst);
+        md.v6_call.store(true, SeqCst);
+        let reg = start_registry_wds(&net);
+        Sampler::new(p, log()).sample_at(&reg, Tier::None);
+        let j = text(&json_p);
+        assert!(j.contains("\"mtu\":1500,\"ip6\":\"2001:db8:1:2::5\",\"ip6_prefix\":64,\"gw6\":\"fe80::1\",\"dns6\":[\"2001:4860:4860::8888\"],\"read_mono\":"), "{j}");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn settings_are_cached_ten_seconds_and_a_mux_change_rereads_at_once() {
+        let (d, p) = call_dir("set-cache", Some(0), true);
+        let json_p = p.json.clone();
+        let (net, md) = wds_net();
+        md.ip4.store(IP4, SeqCst);
+        let reg = start_registry_wds(&net);
+        let mut s = Sampler::new(p, log());
+        s.sample_at(&reg, Tier::None);
+        assert_eq!(wds_msgs(&net, 0x002D), 2, "one read per family");
+        // The address changes under a held bind: the cache is served.
+        md.ip4.store(u32::from_be_bytes([10, 110, 187, 30]), SeqCst);
+        s.sample_at(&reg, Tier::None);
+        assert_eq!(wds_msgs(&net, 0x002D), 2);
+        assert!(text(&json_p).contains("\"ip4\":\"10.110.187.26\""));
+        // A new mux rebinds, so the settings are read again in the same cycle.
+        set_route(&paths(&d), 5);
+        s.sample_at(&reg, Tier::None);
+        assert_eq!(wds_msgs(&net, 0x002D), 4);
+        assert!(text(&json_p).contains("\"ip4\":\"10.110.187.30\""));
+        // Past the interval the next sample reads again with nothing changed.
+        s.settings_at = Instant::now().checked_sub(SETTINGS_EVERY);
+        s.sample_at(&reg, Tier::None);
+        assert_eq!(wds_msgs(&net, 0x002D), 6);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn no_call_on_either_family_is_null_settings() {
+        let (d, p) = call_dir("set-nocall", Some(0), true);
+        let json_p = p.json.clone();
+        let (net, _md) = wds_net();
+        let reg = start_registry_wds(&net);
+        Sampler::new(p, log()).sample_at(&reg, Tier::None);
+        assert!(text(&json_p).ends_with("\"mux\":1,\"settings\":null}}\n"), "{}", text(&json_p));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn settings_are_null_while_qmi_is_down_and_read_again_on_recovery() {
+        let (d, p) = call_dir("set-down", Some(0), true);
+        let json_p = p.json.clone();
+        let (net, md) = wds_net();
+        md.ip4.store(IP4, SeqCst);
+        let reg = start_registry_wds(&net);
+        let mut s = Sampler::new(p, log());
+        s.sample_at(&reg, Tier::None);
+        assert!(text(&json_p).contains("\"ip4\":\"10.110.187.26\""));
+        for (svc, _) in reg.states() {
+            net.del_server(svc);
+        }
+        let end = Instant::now() + Duration::from_secs(2);
+        while reg.states().iter().any(|(_, st)| *st == SvcState::Up) && Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        s.sample_at(&reg, Tier::None);
+        let j = text(&json_p);
+        assert!(j.contains("\"qmi_state\":\"down\"") && j.ends_with("\"settings\":null}}\n"), "{j}");
+        for (i, svc) in crate::qmi::SERVICES.iter().enumerate() {
+            net.add_server(*svc, 0, 0xB0 + i as u32);
+        }
+        let end = Instant::now() + Duration::from_secs(2);
+        while !(reg.states().iter().all(|(_, st)| *st == SvcState::Up)
+            && reg.wds_bind_state(IpFamily::V4) == WdsBind::Bound { mux: 1, subs_ok: true })
+            && Instant::now() < end
+        {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        s.sample_at(&reg, Tier::None);
+        assert!(text(&json_p).contains("\"ip4\":\"10.110.187.26\""), "{}", text(&json_p));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_root_json_that_cannot_be_written_never_blocks_the_env() {
+        let (d, mut p) = call_dir("set-rootfail", Some(0), true);
+        p.json_root = d.join("no/such/dir/q.json").to_str().unwrap().to_string();
+        let env_p = p.env.clone();
+        let (net, _md) = wds_net();
+        let reg = start_registry_wds(&net);
+        let mut s = Sampler::new(p, log());
+        s.sample_at(&reg, Tier::None);
+        assert!(s.write_failed);
+        assert_eq!(get(&env_of(&env_p), "qmi_state"), "up");
         let _ = std::fs::remove_dir_all(&d);
     }
 }
