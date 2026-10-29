@@ -11,8 +11,7 @@
 
 qlog_init "cgi_console_token"
 
-# Re-check the session here: cgi_base.sh's fallback require_auth is a no-op,
-# but its fallback qm_validate_session refuses, so this fails closed.
+# Re-check the session here too: this token is the console's only gate.
 qm_cookie_var "${COOKIE_SESSION:-qm_session}" _qm_tok
 if [ -z "$_qm_tok" ] || ! qm_validate_session "$_qm_tok"; then
     echo "Status: 401 Unauthorized"
