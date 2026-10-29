@@ -301,11 +301,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
-    # Release tags: letters, digits, ".", "_", "-"; no leading dot, no "..".
+    # Release tags: letters, digits, ".", "_", "-"; no leading dot or dash, no "..".
     # Keeps "../" out of the release URLs built below.
     is_safe_tag() {
         case "$1" in
-            ""|.*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
+            ""|.*|-*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
         esac
         return 0
     }

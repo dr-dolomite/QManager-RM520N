@@ -149,10 +149,10 @@ STAGED_VERSION="$STAGE_DIR/version"
 STAGED_SHA="$STAGE_DIR/sha256"
 INSTALL_SRC="$STAGE_DIR/qmanager_install"
 
-# Tags: letters, digits, ".", "_", "-"; no leading dot and no "..".
+# Tags: letters, digits, ".", "_", "-"; no leading dot or dash, no "..".
 is_safe_tag() {
     case "$1" in
-        ""|.*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
+        ""|.*|-*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
     esac
     return 0
 }
@@ -183,6 +183,14 @@ reset_stage_dir() {
     cd /
     rm -rf "$STAGE_DIR"
     mkdir -m 0711 "$STAGE_DIR" 2>/dev/null && stage_dir_ok
+}
+
+# Keep a valid stage dir (and any staged download in it); rebuild it otherwise.
+# Only root can write inside, so its contents need no wipe.
+ensure_stage_dir() {
+    stage_dir_ok || reset_stage_dir || return 1
+    cd /
+    rm -rf "$INSTALL_SRC" "$STAGE_DIR/download.tar.gz"
 }
 
 # A regular, root-owned file inside the stage dir (no symlinks).
@@ -411,7 +419,7 @@ if [ "$MODE" = "install" ]; then
     if ! validate_url "$URL"; then
         die "Invalid download URL"
     fi
-    reset_stage_dir || die "Could not create a private staging directory"
+    ensure_stage_dir || die "Could not create a private staging directory"
 
     # 1. Download
     write_status "downloading" "Downloading update..." "$VERSION" "$SIZE"
@@ -601,7 +609,7 @@ if [ "$MODE" = "rollback" ]; then
     if ! validate_url "$URL"; then
         die "Invalid rollback URL"
     fi
-    reset_stage_dir || die "Could not create a private staging directory"
+    ensure_stage_dir || die "Could not create a private staging directory"
 
     # 1. Download rollback archive
     write_status "downloading" "Downloading previous version..." "$VERSION" ""
