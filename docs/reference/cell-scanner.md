@@ -80,16 +80,16 @@ The frequency calculator issues **nothing**. It has no fetch and no AT contact, 
 
 ## The cost asymmetry, and why the routes are not merged
 
-`qcmd` serialises every AT command in the product on `flock` over `/tmp/qmanager_at.lock` (`scripts/usr/bin/qcmd:39`). "flock" is an advisory file lock — a do-not-disturb sign on the file that only one process may hold at a time — so while a sweep holds it, nothing else on the device can reach the modem.
+`qcmd` serialises every AT command in the product on `flock` over `/tmp/qmanager_at.lock` (see [at-command-transport.md > qcmd serialization](at-command-transport.md#qcmd-serialization)). "flock" is an advisory file lock — a do-not-disturb sign on the file that only one process may hold at a time — so while a sweep holds it, nothing else on the device can reach the modem.
 
-`qcmd` classifies commands into two wait budgets (`qcmd:104-109`, `qcmd:41-42`):
+`qcmd` classifies commands into two wait budgets:
 
 | Class | Match | Lock wait |
 | ----- | ----- | --------- |
-| Long | `*QSCAN*`, `*QSCANFREQ*`, `*QFOTADL*` | `LOCK_WAIT_LONG=10` s |
-| Everything else | — | `LOCK_WAIT_SHORT=5` s |
+| Long | substring `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus `/etc/qmanager/long_commands.list` | 10 s |
+| Everything else | — | 5 s |
 
-`AT+QENG` is **not** long. So firing a neighbour read while a sweep is in flight gives the neighbour worker five seconds against a lock that will be held for up to three minutes; `flock_wait` gives up, `qcmd` exits 2, and `output_result "" "modem_busy"` (`qcmd:165-169`) is what the worker sees. The neighbour worker treats a non-zero `qcmd` exit as "skip this half" (`qmanager_neighbour_scanner:62`, `:122`).
+`AT+QENG` is **not** long. A sweep's `AT+QSCAN` sets `/tmp/qmanager_long_running` for its whole run, so a neighbour read fired during a sweep gets `modem_busy` at once (exit 1, `ERROR: modem_busy` on stderr) instead of waiting out a lock that will be held for up to three minutes. The neighbour worker treats a non-zero `qcmd` exit as "skip this half" (`qmanager_neighbour_scanner:62`, `:122`).
 
 **What that produced depended on how the two runs overlapped, and the distinction matters when you are debugging one.** A neighbour read makes *two* separately-locked AT calls with a `sleep 1` between them, so a sweep can block one leg and miss the other:
 
@@ -549,7 +549,7 @@ Both hooks receive `{"status":"idle"}` in two unrelated situations, and answerin
 
 ## Related
 
-- [at-command-transport.md](at-command-transport.md) — `qcmd`, `atcli_smd11`, the AT mutex, the "sip, don't gulp" convention
+- [at-command-transport.md](at-command-transport.md) — `qcmd`, the AT mutex, the "sip, don't gulp" convention
 - [tmp-file-ownership.md](tmp-file-ownership.md) — which direction `fs.protected_regular=1` actually blocks
 - [tower-locking.md](tower-locking.md) — `tower/lock.sh`, the payload shapes this surface targets, the failover watcher a scan-initiated lock arms
 - [connection-watchdog.md](connection-watchdog.md) — the `LOCKED` maintenance state the marker drives

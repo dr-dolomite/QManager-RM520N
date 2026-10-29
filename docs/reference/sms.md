@@ -119,9 +119,11 @@ The WMS backend takes no lock and never opens `/dev/smd11`. The CGI's own lock w
 
 On the AT backend (non-RM520N), `qsms` still serialises on `/tmp/qmanager_at.lock` and can still return `modem_busy` or `scan_in_progress`; the scan gate applies to that backend only.
 
-### `sms_tool` and `atcli_smd11`
+### `sms_tool` is retired
 
-Both stay installed (`install_bundled_binaries()` still copies them) but no SMS code path calls them. On the RM520N-GL `qcmd` no longer uses `atcli_smd11` (it links to `qmanager_atd` since the cut-over, T4.1), but the RG501Q-EU shell `qcmd` and the rollback path still do, so their removal waits for task S6. `sms_tool`'s provenance and patch remain in [`dependencies/README.md`](../../dependencies/README.md) until then.
+`sms_tool` no longer ships (T5.1 S6); `qsms` handles every SMS operation on both models. On a device upgraded from an older release the installer's `retire_legacy_at_binaries()` deletes `/usr/bin/sms_tool` only after `qsms status` answers, and an OTA rollback reinstalls it from the older tarball. See [`at-command-transport.md` > Retired binaries](at-command-transport.md#retired-binaries-atcli_smd11-and-sms_tool).
+
+The `settings.sms_tool_device` key is a different thing: an informational field still on the System Settings wire ([`system-settings.md`](system-settings.md)).
 
 ---
 
@@ -441,9 +443,8 @@ curl -sS http://127.0.0.1/cgi-bin/quecmanager/cellular/sms.sh   # via lighttpd (
 
 ## Related
 
-- [`at-command-transport.md`](at-command-transport.md) — `qcmd`, `atcli_smd11`, the shared `flock` on `/tmp/qmanager_at.lock` (used here only by the CPMS heal).
+- [`at-command-transport.md`](at-command-transport.md) — `qcmd`, the retired `sms_tool` / `atcli_smd11`, the shared `flock` on `/tmp/qmanager_at.lock` (used here only by the CPMS heal).
 - [`qmi-probe.md`](qmi-probe.md) — the WMS measurements behind `qsms` (list timing, routes, send refusal, delete).
 - [`sms-forwarding.md`](sms-forwarding.md) — the forwarding daemon, the **only** server-side inbox reader in the project.
 - [`icon-system.md`](icon-system.md) — the Material/lucide boundary this route sits inside, and the two glyphs (`mark_email_unread`, `delete_sweep`) added for it.
 - [`carrier-aggregation.md`](carrier-aggregation.md) — the freeze-while-stale precedent the inbox error state follows.
-- [`../../dependencies/README.md`](../../dependencies/README.md) — `sms_tool` provenance and patch (installed, unused by SMS).

@@ -232,7 +232,7 @@ sf_record_failure() {
     fi
 }
 
-# --- Registration check (via qcmd, never raw atcli_smd11) -------------------
+# --- Registration check (via qcmd) -------------------------------------------
 # Registered when AT+CREG? or AT+CGREG? reports stat 1 (home) or 5 (roaming).
 # qcmd takes the AT lock itself.
 sf_is_registered() {

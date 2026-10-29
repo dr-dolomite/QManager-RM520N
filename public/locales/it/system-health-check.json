@@ -153,7 +153,7 @@
     },
     "at_transport": {
       "label": "Trasporto AT",
-      "description": "Controlli di andata e ritorno qcmd / atcli_smd11 verso il modem"
+      "description": "Controlli di andata e ritorno qcmd verso il modem"
     },
     "sms": {
       "label": "Sottosistema SMS",

@@ -54,12 +54,12 @@ Both default to `false` and are always present on those envelopes.
 
 ### RM520N-GL Variant
 
-On the RM520N-GL, CGI endpoints are served by lighttpd instead of uhttpd, and AT commands go through `atcli_smd11` on `/dev/smd11` directly via the `qcmd` wrapper — no socat PTY bridge. The API contract (request/response format) is the same across platforms.
+On the RM520N-GL, CGI endpoints are served by lighttpd instead of uhttpd, and AT commands go through `qcmd` (a link to the `qmanager_atd` broker binary) on `/dev/smd11` directly — no socat PTY bridge. The API contract (request/response format) is the same across platforms.
 
 Key differences:
 - **Base URL**: Same (`/cgi-bin/quecmanager/`), served from `/usrdata/qmanager/www/cgi-bin/quecmanager/`
 - **Auth**: Same cookie-based session mechanism
-- **AT execution**: `qcmd` wrapping `atcli_smd11` on `/dev/smd11`
+- **AT execution**: `qcmd` → `qmanager_atd` on `/dev/smd11`
 - **Config**: File-based (`/etc/qmanager/`) instead of UCI
 
 ---

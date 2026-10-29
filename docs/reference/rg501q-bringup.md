@@ -274,8 +274,7 @@ already has an offline code path for them:
 | --- | --- | --- |
 | `jq.ipk` | 148888 | `install_rm520n.sh:891-893` — "jq installed from bundled package" |
 | `dropbear_2024.86-1_armv7-3.2.ipk` | 108240 | `:921-923` and `:3040-3041` |
-| `atcli_smd11` | 661616 | first-party binary, installed unconditionally |
-| `sms_tool` | 439556 | first-party binary |
+| `qmanager_atd` | 667200 | first-party binary, installed unconditionally (`qcmd` and `qsms` link to it; it replaced `atcli_smd11` and `sms_tool` in T5.1 S6) |
 
 Entware packages the installer fetches **online only** today:
 `entware-opt` (base), `lighttpd` + `lighttpd-mod-{cgi,openssl,redirect,proxy}`,

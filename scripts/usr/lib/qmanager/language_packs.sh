@@ -39,7 +39,7 @@ LP_INPUT_FILE="/tmp/qmanager_language_install_input.json"
 # own copy of the fd. The kernel releases the lock automatically if the
 # holder dies, so there is no PID file, no staleness heuristic, and no
 # TOCTOU window to reason about — matches the flock_wait pattern already
-# used by scripts/usr/bin/qcmd and scripts/usr/lib/qmanager/sms_alerts.sh
+# used by scripts/usr/lib/qmanager/sms_alerts.sh
 # (BusyBox flock has no -w, hence -x -n; here we want a single non-blocking
 # attempt — 409 immediately if busy — rather than that pattern's poll loop).
 LP_LOCK_FILE="/tmp/qmanager_language_install.lock"

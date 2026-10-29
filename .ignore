@@ -23,6 +23,4 @@ bun.lock
 
 # Binary deps are auto-skipped by ripgrep's binary detection; listed for the
 # reader's benefit, not because rg needs the hint.
-dependencies/atcli_smd11
-dependencies/sms_tool
 dependencies/qmanager_atd
