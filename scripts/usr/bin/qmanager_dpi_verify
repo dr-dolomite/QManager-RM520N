@@ -102,7 +102,7 @@ _dpi_verify_error() {
 _dpi_fast_url() {
     # One fresh signed Netflix-CDN target URL from fast.com's API, or nothing.
     local api url
-    api=$(curl -ksS -m 15 "$DPI_FAST_API" 2>/dev/null) || return 1
+    api=$(curl -sS -m 15 "$DPI_FAST_API" 2>/dev/null) || return 1
     url=$(printf '%s' "$api" | jq -r '.targets[0].url // empty' 2>/dev/null)
     case "$url" in
         https://*) printf '%s' "$url" ;;
@@ -118,7 +118,7 @@ _dpi_reference_url() {
     # unreachable, blocked, or the shape changed. Fails only when neither
     # source produces a usable URL.
     local api url base
-    api=$(curl -ksS -m 15 "$DPI_REF_OOKLA_API" 2>/dev/null)
+    api=$(curl -sS -m 15 "$DPI_REF_OOKLA_API" 2>/dev/null)
     url=$(printf '%s' "$api" | jq -r 'if type == "array" then .[0].url else empty end' 2>/dev/null)
     case "$url" in
         http://*|https://*) ;;
@@ -151,7 +151,7 @@ _dpi_reference_bw() {
         if [ $((now - t0)) -ge "$DPI_VERIFY_SAMPLE_SECS" ] && [ "$it" -gt 0 ]; then
             break
         fi
-        out=$(curl -ksS -m 30 \
+        out=$(curl -sS -m 30 \
             -o /dev/null -w '%{speed_download} %{size_download} %{time_total}' "$url" 2>/dev/null) || true
         bw=$(printf '%s' "$out" | awk '{print $1}')
         size=$(printf '%s' "$out" | awk '{print $2}')
@@ -178,7 +178,7 @@ _dpi_curl_bw() {
     local url socks out bw size
     url="$1"
     socks="${2:-}"
-    out=$(curl -ksS -m "$DPI_VERIFY_SAMPLE_SECS" \
+    out=$(curl -sS -m "$DPI_VERIFY_SAMPLE_SECS" \
         ${socks:+--socks5-hostname "127.0.0.1:$socks"} \
         -o /dev/null -w '%{speed_download} %{size_download}' "$url" 2>/dev/null) || true
     bw=$(printf '%s' "$out" | awk '{print $1}')

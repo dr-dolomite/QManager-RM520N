@@ -146,7 +146,13 @@ lp_list_installed() {
 lp_manifest_url_is_safe() {
     _u="$1"
     [ -z "$_u" ] && return 1
+    # curl collapses "../" (and decodes %2e) before sending, so a prefix match
+    # alone would let a URL escape this repo's release feed.
     case "$_u" in
+        *..*|*%*|*'?'*|*'#'*|*'\'*|*[[:space:]]*) return 1 ;;
+    esac
+    case "$_u" in
+        "$LP_MANIFEST_URL_PREFIX"*//*) return 1 ;;
         "$LP_MANIFEST_URL_PREFIX"*) return 0 ;;
         *) return 1 ;;
     esac

@@ -67,9 +67,9 @@ fi
 # =============================================================================
 if command -v curl >/dev/null 2>&1; then
     # -L: follow redirects; -k: tolerate missing CA certs
-    ( curl -sLk --max-time "$PUB_IP_TIMEOUT" https://api.ipify.org > "$pub4_file" 2>/dev/null ) &
+    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api.ipify.org > "$pub4_file" 2>/dev/null ) &
     pid4=$!
-    ( curl -sLk --max-time "$PUB_IP_TIMEOUT" https://api6.ipify.org > "$pub6_file" 2>/dev/null ) &
+    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api6.ipify.org > "$pub6_file" 2>/dev/null ) &
     pid6=$!
 else
     pid4=""

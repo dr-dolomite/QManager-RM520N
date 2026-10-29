@@ -95,6 +95,8 @@ TAILSCALE_VERSION="1.92.5"
 TAILSCALE_ARCH="arm"
 TAILSCALE_TARBALL="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}.tgz"
 TAILSCALE_URL="https://pkgs.tailscale.com/stable/${TAILSCALE_TARBALL}"
+# Pinned SHA-256 of the 1.92.5 arm tarball (pkgs.tailscale.com .sha256). Update with the version.
+TAILSCALE_SHA256="db77be7b897fea0b783a378a22d90330a0aa23ade1e545aaeaffe47ad08da107"
 TAILSCALE_EXTRACT_DIR="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}"
 TAILSCALE_DIR="/usrdata/tailscale"
 TAILSCALE_SYSD_DIR="/usrdata/tailscale/systemd"
@@ -180,6 +182,13 @@ fi
 
 if [ ! -f "$TAILSCALE_TARBALL" ]; then
     write_status '{"success":false,"status":"error","message":"Downloaded tarball not found"}'
+    exit 1
+fi
+
+actual_sha=$(sha256sum "$TAILSCALE_TARBALL" 2>/dev/null | awk '{ print $1 }')
+if [ -z "$actual_sha" ] || [ "$actual_sha" != "$TAILSCALE_SHA256" ]; then
+    rm -f "$TAILSCALE_TARBALL"
+    write_status '{"success":false,"status":"error","message":"Tailscale download failed verification","detail":"SHA-256 mismatch or sha256sum missing"}'
     exit 1
 fi
 

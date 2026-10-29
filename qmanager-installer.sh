@@ -202,7 +202,8 @@ do_install() {
         actual_sha256=$(sha256sum "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1}')
 
         if [ -z "$actual_sha256" ]; then
-            warn "sha256sum not available — skipping integrity check"
+            rm -f "$ARCHIVE_PATH" "$CHECKSUM_PATH"
+            die "sha256sum not available — refusing to install an unverified archive"
         elif [ "$actual_sha256" != "$expected_sha256" ]; then
             err "SHA-256 mismatch!"
             err "  Expected: $expected_sha256"
@@ -213,7 +214,8 @@ do_install() {
             info "SHA-256 verified"
         fi
     else
-        warn "Checksum file not available — skipping integrity check"
+        rm -f "$ARCHIVE_PATH" "$CHECKSUM_PATH"
+        die "Checksum file not available — refusing to install an unverified archive"
     fi
     rm -f "$CHECKSUM_PATH"
 
