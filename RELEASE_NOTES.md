@@ -1,10 +1,8 @@
 # 🚀 QManager RM520N BETA v0.1.18-draft
 
-QManager now talks to the modem through its own broker on the RM520N-GL: lighter background polling, a faster SMS inbox and fresher signal readings, plus a live **Now** view for Sites.
+QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so both modems get lighter polling, a faster SMS inbox and fresher signal readings, plus a live **Now** view for Sites.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
-
-> **RG501Q-EU:** this release is for the RM520N-GL only. If you run QManager on an RG501Q-EU, stay on v0.1.17 and wait for the follow-up release.
 
 ## ✨ New Features
 
@@ -18,7 +16,8 @@ QManager now talks to the modem through its own broker on the RM520N-GL: lighter
 - **A lighter dashboard.** An open dashboard now uses much less of the modem's CPU, and a dashboard left in a background tab stops polling entirely until you switch back to it. (One shared status poll instead of three, Data Used and storage read from it, a 30-minute latency slice instead of the full 24 h history, and about 2 forks per request instead of 19; the SIM-swap banner now checks every 10 seconds instead of 2.)
 - **Fresher LTE signal while nobody is looking.** When no QManager page is open, LTE signal strength (RSRP, RSRQ, RSSI) now updates every few seconds instead of every 15 seconds to a minute, so tower failover and the Discord bot act on current readings. (Read over QMI by the modem broker, without extra AT commands; values run about 1 dB lower than the AT reading.)
 - **Faster SMS inbox and forwarding.** **Cellular → SMS Center** now reads and sends messages over the modem's own messaging service instead of the AT channel, so opening the inbox no longer pauses signal updates, and SMS Forwarding relays a new text within moments instead of up to 15 seconds later. (QMI WMS through `qsms`; an inbox read used to hold the AT channel for about 7 seconds.)
-- **Two old helper programs retired.** On the RM520N-GL every AT command now goes through QManager's own modem broker and SMS through the modem's messaging service, so the install is smaller and nothing changes in the app. (`atcli_smd11` and `sms_tool` are no longer shipped; an upgrade removes the old copies only after `qcmd` and `qsms` answer.)
+- **RG501Q-EU joins the new modem broker.** The RG501Q-EU now gets everything this release brought to the RM520N-GL: AT commands go through QManager's own broker, the SMS inbox and forwarding use the modem's messaging service, and LTE signal stays fresh when no page is open. (`qmanager-atd` now runs on both models; checked on an RG501Q-EU upgraded from v0.1.14.)
+- **Two old helper programs retired.** On both the RM520N-GL and the RG501Q-EU every AT command now goes through QManager's own modem broker and SMS through the modem's messaging service, so the install is smaller and nothing changes in the app. (`atcli_smd11` and `sms_tool` are no longer shipped; an upgrade removes the old copies only after `qcmd` and `qsms` answer.)
 
 ## 🐛 Fixes
 
