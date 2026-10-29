@@ -67,6 +67,7 @@ _MONO_TOP=0            # uptime at the top of the cycle (0 = unreadable: stay Ac
 _HB_LAST=""
 _HB_SEEN_MONO=0        # seeded at start, so every start gets one Active grace without a file
 _AT_LAST_MONO=0
+_QENG_OK=0             # 1 only when this cycle parsed a good AT+QENG reply (gates the QMI overlay)
 _T2_LAST_MONO=0
 _LOCAL_LAST_MONO=0
 AP_LOCAL_INTERVAL=10   # ping history + watchcat state every N s, every tier
@@ -522,6 +523,16 @@ fi
     sim_registry_refresh_active() { :; }
     SIM_REGISTRY_FILE="/etc/qmanager/sim_registry.json"
 }
+
+# QMI overlay jq defs. Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qmi_merge.sh ]; then
+    . /usr/lib/qmanager/qmi_merge.sh
+else
+    qlog_warn "qmi_merge.sh not found, QMI overlay disabled"
+    QMI_JSON_FILE="/var/run/qmanager/qmi.json"
+    QMI_JQ_DEFS='def qmi_ctx: {use: false, rsrp: null, rsrq: null, rssi: null, read_mono: null, state: "", ssr: null, wds: null};'
+    QMI_JQ_DEFS_LITE="$QMI_JQ_DEFS"
+fi
 
 # =============================================================================
 # HELPER: SAFE QCMD CALL
@@ -1345,6 +1356,7 @@ poll_serving_cell() {
         local prev_lte_state="$lte_state"
         local prev_nr_state="$nr_state"
         parse_serving_cell "$result"
+        case "$result" in *'+QENG:'*) _QENG_OK=1 ;; esac
         # Log state transitions
         qlog_state_change "network_type" "$prev_network_type" "$network_type"
         qlog_state_change "lte_state" "$prev_lte_state" "$lte_state"
@@ -2080,6 +2092,17 @@ write_cache() {
     timestamp=$SECONDS
     watchcat_heartbeat
 
+    # QMI sidecar text for the jq overlay; /dev/null (empty) when absent or unreadable.
+    local _qmi_f=/dev/null
+    [ -f "$QMI_JSON_FILE" ] && [ -r "$QMI_JSON_FILE" ] && _qmi_f="$QMI_JSON_FILE"
+    # $1 = 1 forces the overlay off (boot write: no AT-vs-QMI cycle yet).
+    local _qeng_ok="${1:-${_QENG_OK:-0}}"
+    # The overlay gate only runs on cycles that can overlay; the rest take the cheaper facts-only defs.
+    local _qmi_defs="$QMI_JQ_DEFS"
+    if [ "$_qeng_ok" = "1" ] || [ "$system_state" = "scan_in_progress" ] || [ "$_qmi_f" = "/dev/null" ]; then
+        _qmi_defs="$QMI_JQ_DEFS_LITE"
+    fi
+
     # Build errors array
     local errors_json="[]"
     if [ -n "$errors" ]; then
@@ -2230,7 +2253,10 @@ write_cache() {
         --argjson du_last_rst  "${du_last_reset_ts:-0}" \
         --argjson du_modem_rst "${du_modem_reset_count:-0}" \
         --arg     du_orient    "${orientation:-normal}" \
-        '{
+        --rawfile qmi "$_qmi_f" \
+        --argjson qeng_ok "$_qeng_ok" \
+        --argjson at_mono "${_AT_LAST_MONO:-null}" \
+        "$_qmi_defs"'qmi_ctx as $qc | {
             timestamp: $timestamp,
             mono: $mono,
             system_state: $system_state,
@@ -2256,15 +2282,20 @@ write_cache() {
                 primary_dns: $dns1,
                 secondary_dns: $dns2,
                 device_ip: $lan_ip,
-                lan_gateway: $lan_gw
+                lan_gateway: $lan_gw,
+                wds: $qc.wds
             },
             lte: {
                 state: $lte_st, band: $lte_b,
                 earfcn: $lte_earfcn, bandwidth: $lte_bw,
                 pci: $lte_pci, cell_id: $lte_cid,
                 enodeb_id: $lte_enb, sector_id: $lte_sec, tac: $lte_tac,
-                rsrp: $lte_rsrp, rsrq: $lte_rsrq,
-                sinr: $lte_sinr, rssi: $lte_rssi, ta: $lte_ta
+                rsrp: (if $qc.use then $qc.rsrp else $lte_rsrp end),
+                rsrq: (if $qc.use then $qc.rsrq else $lte_rsrq end),
+                sinr: $lte_sinr,
+                rssi: (if $qc.use then $qc.rssi else $lte_rssi end),
+                ta: $lte_ta,
+                source: (if $qc.use then "qmi" else "at" end)
             },
             nr: {
                 state: $nr_st, band: $nr_b,
@@ -2295,7 +2326,11 @@ write_cache() {
                 ippt_nat: $ippt_nat,
                 ippt_usbnet: $ippt_usb,
                 ippt_dhcpv4dns: $ippt_dns,
-                poller_tier: $poller_tier
+                poller_tier: $poller_tier,
+                qmi_read_mono: $qc.read_mono,
+                qmi_state: $qc.state,
+                qmi_ssr_count: $qc.ssr,
+                at_read_mono: $at_mono
             },
             data_used: {
                 accumulated_rx_bytes: $du_acc_rx,
@@ -2420,6 +2455,7 @@ decide_tier() {
 }
 
 poll_cycle() {
+    _QENG_OK=0
     # --- LONG_FLAG expiry guard ---
     # If a CGI sets the flag and dies before clearing it, the poller would
     # otherwise stay in scan_in_progress mode forever. Treat any flag older
@@ -2602,7 +2638,7 @@ main() {
     alert_engine_init
     restore_event_state
     crash_watcher_init
-    write_cache
+    write_cache 1
 
     qlog_info "Boot data collected, entering poll loop"
 
