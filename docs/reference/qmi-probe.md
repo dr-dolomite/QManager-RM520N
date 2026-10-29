@@ -38,7 +38,7 @@ Deploy with `scp -O` (or Posh-SSH `Set-SCPItem`) to `/tmp`. `modem_write` strips
 | WMS 0x0031, `01=00` (UIM storage) | OK |
 | WMS 0x0022 Raw Read, `01=01<idx u32 LE> 10=01` | OK, ~4 ms; the read/unread tag is unchanged |
 | WMS 0x0034 | Returns the SMSC address (an earlier whitelist mislabelled 0x0020 Raw Send and 0x0024 Delete as reads; fixed 2026-10-27) |
-| WDS 0x002D current settings / 0x0024 packet stats, unbound | `0x000F` / `0x0046` |
+| WDS 0x002D current settings / 0x0024 packet stats, unbound | `0x000F` / `0x0046`. Both are now broker reads on the broker's own bound clients (`BROKER_READ`; 0x002D since broker 0.7.0, TLV ids re-confirmed by a raw dump 2026-10-29) and stay refused to socket clients: [`qmi-lane.md`](qmi-lane.md) |
 | The same, after `wds-bound 1 4` (mux 1 = `rmnet_data0`, IPv4) | OK: IP, DNS ×2, gateway, netmask and MTU match `AT+CGCONTRDP`; rx bytes match `/proc/net/dev` |
 | Same probe as `www-data` (`sudo -n -u www-data`) | OK for NAS, UIM and WMS; no root needed |
 | 0x001E Get Supported Messages | Answers on VOICE 9, LOC 16, SAR 17, TMD 24 and PDC 36; NAS, WDS, WMS and UIM reject it (`0x0047`) |
