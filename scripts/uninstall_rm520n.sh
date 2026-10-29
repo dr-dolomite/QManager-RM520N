@@ -562,6 +562,7 @@ step "Removing runtime state and temporary files"
 rm -f  /tmp/qmanager_*   2>/dev/null || true
 rm -f  /tmp/qmanager.log* 2>/dev/null || true
 rm -rf "$SESSION_DIR"
+rm -rf /tmp/qmanager_stage   # OTA stage dir (a staged download is tens of MB of RAM)
 
 # qmanager_atd broker runtime (/var/run, not /tmp) and the QMI sidecar
 rm -f  /var/run/qmanager_atd.sock /var/run/qmanager_atd.proto 2>/dev/null || true

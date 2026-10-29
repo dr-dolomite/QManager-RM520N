@@ -4700,8 +4700,8 @@ main() {
     finalize_version
 
     # Staging-dir cleanup is intentionally NOT done here. On the OTA path the
-    # worker (qmanager_update) cd's into /tmp/qmanager_install before invoking
-    # us and owns the `rm -rf /tmp/qmanager_install` afterward. If the installer
+    # worker (qmanager_update) cd's into /tmp/qmanager_stage/qmanager_install
+    # before invoking us and owns removing /tmp/qmanager_stage afterward. If the installer
     # deleted it here it would (a) race that owner and (b) yank the CWD out from
     # under whoever is sitting inside it — the OTA worker, or a human who ran
     # `cd /tmp/qmanager_install && sh install_rm520n.sh` — producing
