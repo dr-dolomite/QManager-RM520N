@@ -36,9 +36,11 @@ LEVEL_DECAY=3600         # quiet seconds after which the ladder level resets to 
 # ---------------------------------------------------------------------------
 # Setup check
 # ---------------------------------------------------------------------------
+# Only a MISSING auth.json means setup. An empty one is a failed write, not a
+# reset: treat it as locked so setup can't be re-run unauthenticated.
+# Recovery is qmanager_reset_password (deletes the file) over SSH.
 is_setup_required() {
-    [ ! -f "$AUTH_CONFIG" ] && return 0
-    [ ! -s "$AUTH_CONFIG" ] && return 0
+    [ ! -e "$AUTH_CONFIG" ] && return 0
     return 1
 }
 
@@ -85,13 +87,23 @@ qm_verify_password() {
     qm_timing_safe_compare "$_computed_hash" "$_stored_hash"
 }
 
+# Atomic: write a 0600 temp file, check it, then mv. Returns 1 and leaves the old
+# auth.json untouched if openssl/jq fail (a truncated file used to reopen setup).
 qm_save_password() {
     _new_salt=$(qm_generate_salt)
     _new_hash=$(qm_hash_password "$1" "$_new_salt")
+    [ "${#_new_salt}" -eq 32 ] && [ "${#_new_hash}" -eq 64 ] || return 1
 
-    jq -n --arg hash "$_new_hash" --arg salt "$_new_salt" \
-        '{"hash":$hash,"salt":$salt,"version":1}' > "$AUTH_CONFIG"
-    chmod 600 "$AUTH_CONFIG"
+    _auth_tmp="${AUTH_CONFIG}.tmp.$$"
+    if ( umask 077; jq -n --arg hash "$_new_hash" --arg salt "$_new_salt" \
+            '{"hash":$hash,"salt":$salt,"version":1}' > "$_auth_tmp" ) 2>/dev/null \
+        && [ "$(jq -r '.hash // empty' "$_auth_tmp" 2>/dev/null)" = "$_new_hash" ] \
+        && mv -f "$_auth_tmp" "$AUTH_CONFIG"; then
+        chmod 600 "$AUTH_CONFIG"
+        return 0
+    fi
+    rm -f "$_auth_tmp"
+    return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -204,9 +216,12 @@ qm_validate_session() {
     IFS= read -r _created 2>/dev/null < "$_session_file" || [ -n "$_created" ] || return 1
     [ -z "$_created" ] && return 1
 
+    case "$_created" in *[!0-9]*) return 1 ;; esac
+
     _now=$(date +%s)
     _age=$(( _now - _created ))
-    [ "$_age" -gt "$SESSION_MAX_AGE" ] && {
+    # Negative age = clock stepped back; refuse rather than extend the session.
+    { [ "$_age" -lt 0 ] || [ "$_age" -gt "$SESSION_MAX_AGE" ]; } && {
         rm -f "$_session_file"
         return 1
     }
@@ -572,3 +587,6 @@ require_auth() {
         exit 0
     fi
 }
+
+# Load-complete marker — must stay the LAST line; cgi_base.sh fails closed without it.
+_CGI_AUTH_COMPLETE=1
