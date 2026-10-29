@@ -19,6 +19,7 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 
 ## 🐛 Fixes
 
+- **The Web Console now requires you to be logged in.** Before, anyone who could reach the modem's web address on your network could open a root shell at `/console` without signing in; now **System Settings → Web Console** only starts a shell for a logged-in QManager session. Thanks to Chris (Flachzange) for reporting it. (Each connection uses a single-use, 30-second token from a login-checked endpoint; ttyd refuses the shell without one.)
 - **Data Used counts bytes correctly.** Once more than about 10 MB had moved, **Data Used** counted packets instead of bytes and read far too low; it now counts bytes. Your Data Used total starts again from zero once after this update.
 - **Dota 2 shows its logo in Sites.** Adding `dota2.com` used to show only a letter because the site's own icon is too small to use; it now has a built-in logo.
 

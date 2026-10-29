@@ -16,8 +16,8 @@ pseudo-terminal, the same OS primitive a real terminal emulator or SSH session
 talks to — in a WebSocket server) run as its own systemd unit, reverse-proxied by
 lighttpd. The frontend speaks ttyd's binary WebSocket protocol directly and
 drives an [xterm.js](https://xtermjs.org/) terminal emulator painted into the
-page. Nothing here was touched on the backend by this pass; the systemd unit,
-the shell script it execs, and the lighttpd proxy block are exactly as they were.
+page. Access is gated by a single-use token that `console.sh` checks before it
+starts the shell — see "The single-use token gate" below.
 
 ---
 
@@ -33,9 +33,10 @@ the shell script it execs, and the lighttpd proxy block are exactly as they were
 | Live-theme reader | `components/system-settings/web-console/terminal-theme.ts` |
 | WebSocket + ttyd protocol hook | `hooks/use-web-console.ts` |
 | ttyd process unit | `scripts/etc/systemd/system/qmanager-console.service` — no `User=`, so it runs as **root** |
-| The shell ttyd execs | `scripts/usrdata/qmanager/console/console.sh` — sets `PATH`/`HOME`/`TERM`, prints a banner, `exec /bin/bash --login` |
+| The shell ttyd execs | `scripts/usrdata/qmanager/console/console.sh` — checks and consumes the single-use token in `$1`, then sets `PATH`/`HOME`/`TERM`, prints a banner, `exec /bin/bash --login` |
+| Token issuer | `scripts/www/cgi-bin/quecmanager/system/console_token.sh` — login-gated, writes `/tmp/qmanager_console_tokens/<64-hex>` |
 | Reverse proxy | `scripts/usrdata/qmanager/lighttpd.conf`, the `/console` block — WebSocket upgrade, no auth of its own |
-| Socket endpoint | `wss://<host>/console/ws` (or `ws:` over plain HTTP) |
+| Socket endpoint | `wss://<host>/console/ws?arg=<token>` (or `ws:` over plain HTTP) |
 | Install | `qmanager_console_mgr install`, called from `install_rm520n.sh` — **non-fatal**: a failed ttyd download leaves the feature unavailable, not the install |
 | Icon family | **lucide** — `/system-settings` is a lucide route, no Material Symbols here |
 
@@ -46,7 +47,7 @@ the shell script it execs, and the lighttpd proxy block are exactly as they were
 `qmanager-console.service` runs:
 
 ```
-ExecStart=/usrdata/qmanager/console/ttyd -i 127.0.0.1 -p 8080 \
+ExecStart=/usrdata/qmanager/console/ttyd -i 127.0.0.1 -p 8080 -a \
   -t 'theme={"foreground":"#e4e4e7","background":"#09090b","cursor":"#e4e4e7"}' \
   -t fontSize=14 --writable /usrdata/qmanager/console/console.sh
 ```
@@ -74,11 +75,38 @@ feature this project documents reads a JSON envelope from a shell script; this
 one opens a socket straight to a systemd-managed binary and stays open for the
 life of the session.
 
-**ttyd's own authentication is unused.** The hook's connect handshake sends
-`AuthToken: ""` — an intentionally empty credential — because ttyd's built-in
-auth is not how this feature is gated. Access control is upstream, at whatever
-already sits in front of `/console`: the page itself is behind QManager's own
-session cookie, the same as every other `/system-settings` route.
+### The single-use token gate
+
+Nothing in front of `/console` checks the QManager session — lighttpd has no
+`mod_auth`, `mod_magnet` or `mod_setenv` on the device, and the page's own
+login redirect is client-side only. Until 2026-10-29 that made `/console` an
+unauthenticated root shell for anyone on the LAN (external security report #1).
+The gate now lives in the shell launcher:
+
+1. Before every connect, `useWebConsole` GETs `system/console_token.sh`. The CGI
+   re-validates the session cookie itself (`cgi_base.sh`'s fallback
+   `require_auth` is a no-op, but its fallback `qm_validate_session` refuses, so
+   this fails closed), prunes tokens older than 30 s, and writes a fresh
+   64-hex token file holding the issue time.
+2. The hook opens `/console/ws?arg=<token>`. ttyd runs with `-a`, which passes
+   `arg` values to `console.sh` as arguments.
+3. `console.sh` (root) requires `$1` to be exactly 64 lowercase hex, the file
+   to exist and not be a symlink, deletes it, then refuses unless it is 0–30 s
+   old. Only then does it `exec bash`.
+
+**Why not ttyd's own `-c` credential:** ttyd 1.7.7 checks it as an HTTP
+`Authorization: Basic` header on the WebSocket upgrade (measured: no header →
+the connection is dropped before `101`). Browsers cannot set that header on a
+WebSocket, so `-c` locks out the real UI too. The handshake's `AuthToken`
+therefore stays `""`.
+
+**Known limits:** a refused token shows as a quick close (code 1006), so the
+hook's rapid-failure ladder handles it — a logged-in user gets a fresh token on
+every retry, and an expired login 401s into `/login/`. A shell that is already
+open survives logout until it exits. Anything already running as `www-data` can
+mint tokens, so a `www-data` compromise is still a root compromise through this
+path (see the sudoers finding, #7). A token issued just before the 1970 boot
+clock step can read as negative age and be refused once; a reload fixes it.
 
 **Install is explicitly optional and non-fatal.** `install_rm520n.sh` downloads
 the `ttyd` binary via `qmanager_console_mgr install` and, on failure, logs a

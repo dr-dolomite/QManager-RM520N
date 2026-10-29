@@ -65,7 +65,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 | [software-update.md](software-update.md) | `/system-settings/software-update`, `system/update.sh`, `hooks/use-software-update.ts`, `components/system-settings/software-update/**`, `UpdateView`, `auto_update_time`, `previous_install_failed`, `download_size` | RM520N |
 | [system-settings.md](system-settings.md) | The `/system-settings` **index only** — `components/system-settings/shapes.ts` and `derive.ts`, `timezone_applied`, `formatOffset`, `useKnownSims`, `scheduled_reboot` | RM520N |
 | [timezone.md](timezone.md) | `/etc/localtime`, `qmanager_timezone_apply`, `sys_get_effective_tz`, `/opt/share/zoneinfo`, the timezone picker | RM520N |
-| [web-console.md](web-console.md) | `/system-settings/web-console`, `hooks/use-web-console.ts`, `qmanager-console.service`, `components/system-settings/web-console/**`, `ConsoleFailureKind`, `terminal-theme.ts` | RM520N |
+| [web-console.md](web-console.md) | `/system-settings/web-console`, `hooks/use-web-console.ts`, `qmanager-console.service`, `console_token.sh`, `console.sh`, `components/system-settings/web-console/**`, `ConsoleFailureKind`, `terminal-theme.ts` | RM520N |
 
 ### Dashboard
 
