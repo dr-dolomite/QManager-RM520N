@@ -103,7 +103,7 @@ This table contrasts every major subsystem between the **legacy RM551E-on-OpenWR
 | **Root FS** | Writable (SquashFS + overlay) | Read-only (remount required) | Must stage writes, prefer `/usrdata/` |
 | **AT transport** | `sms_tool` via USB CDC ACM | `qcmd` → `qmanager_atd` on `/dev/smd11` (direct SMD access, no socat) | `qcmd` serializes via `flock` on `/tmp/qmanager_at.lock` |
 | **AT device** | USB device (host-side) | `/dev/smd7`, `/dev/smd11` (internal) | No USB enumeration dependency |
-| **AT locking** | Implicit (single `sms_tool` call) | `flock` in `qcmd` (read-only FD for `fs.protected_regular`) | Implemented: `qcmd` serializes all access |
+| **AT locking** | Implicit (single `sms_tool` call) | `flock` inside `qmanager_atd` (read-only, no-create open for `fs.protected_regular`) | Implemented: `qcmd` and the broker serialize all access |
 | **Web server** | uhttpd (built-in) | lighttpd (Entware) | Different CGI config, auth mechanism |
 | **Firewall** | nftables (fw4) | iptables (direct) | Rewrite all firewall rules |
 | **TTL interface** | `wwan0` | `rmnet+` (wildcard) | Update interface names in rules |
@@ -138,7 +138,7 @@ This section consolidates everything an automation author needs to know about th
 | `jq` | jq-1.7.1 | `/opt/bin/jq` | Full jq. Remember the `// "default"` gotcha for `false` (treated as absent — see BACKEND.md §2). |
 | `xmllint` | libxml2 | `/usr/bin/xmllint` | System-bundled. Use this for XML on-device. |
 | `xmlstarlet` | **MISSING** | — | Not installed. Earlier docs referencing `xmlstarlet` for `mobileap_cfg.xml` are aspirational; current code uses `xmllint`/`sed`. |
-| `flock` | util-linux | `/usr/bin/flock` | BusyBox `flock` lacks `-w` (timeout). Use `flock -x -n` in a polling loop — see `flock_wait()` in `qcmd`. |
+| `flock` | util-linux | `/usr/bin/flock` | BusyBox `flock` lacks `-w` (timeout). Use `flock -x -n` in a polling loop — see `sim_registry_flock_wait()` in `sim_registry.sh`. (`qcmd` is now the Rust `qmanager_atd` binary, which calls `flock(2)` directly on the same 100 ms grain — `native/qmanager_atd/src/common/lock.rs`.) |
 | `pgrep` / `pkill` | procps-ng | `/usr/bin/pgrep` | Standard. |
 | `ps` | procps-ng | `/usr/bin/ps` | **No `-o etimes`** — only `etime` (HH:MM:SS). Read `/proc/<pid>/stat` for jiffies. |
 | `mktemp` | BusyBox | `/bin/mktemp` | **No `--tmpdir=` flag.** Use `mktemp /tmp/prefix.XXXXXX`. |
@@ -833,20 +833,20 @@ Since `/tmp` is owned by `root`:
 
 Note also that a root-owned `0644` file blocks `www-data` through **plain Unix mode bits**, not through this sysctl. The two mechanisms are routinely conflated; they fail in opposite directions.
 
-This affects **every file in `/tmp/` that both root processes (daemons, setup scripts) and `www-data` processes (CGI scripts via lighttpd) need to access**. Shell `>` and `>>` redirects include the `O_CREAT` flag internally, triggering this protection even on existing files. The `9>"$LOCK_FILE"` pattern used by `qcmd` for `flock` serialization is especially affected.
+This affects **every file in `/tmp/` that both root processes (daemons, setup scripts) and `www-data` processes (CGI scripts via lighttpd) need to access**. Shell `>` and `>>` redirects include the `O_CREAT` flag internally, triggering this protection even on existing files. A `9>"$LOCK_FILE"` redirect used for `flock` serialization is especially affected.
 
 **Affected shared files:**
 
 | File | Purpose | Accessed By | Seeded as |
 |------|---------|-------------|-----------|
-| `/tmp/qmanager_at.lock` | AT command `flock` serialization | `qcmd` (www-data CGI + root daemons) | `www-data:www-data 0666` |
-| `/tmp/qmanager_at.pid` | Current AT command PID tracking | `qcmd` (www-data CGI + root daemons) | `www-data:www-data 0666` |
+| `/tmp/qmanager_at.lock` | AT command `flock` serialization | `qmanager_atd` as broker (root), `qcmd` / `qsms` (www-data CGI + root daemons), and the shell scan/APN/CFUN paths | `www-data:www-data 0666` |
+| `/tmp/qmanager_at.pid` | Was the shell `qcmd`'s PID record; still seeded, but nothing reads or writes it since the shell `qcmd` was retired (the broker keeps its PID in `/var/run/qmanager/atd.pid`) | — | `www-data:www-data 0666` |
 | `/tmp/qmanager.log` | Centralized `qlog` output | All daemons (root) + log viewer CGI (www-data) | `root:root 0666` |
 | `/tmp/qmanager_events.json` | Recent Activities NDJSON ring | Root daemons + every CGI that sources `events.sh` | `root:root 0666` |
 | `/tmp/qmanager_profile_state.json` | Profile-apply progress | `qmanager_profile_apply` (both UIDs) + `profiles/*.sh` | `root:root 0666` |
 | `/tmp/qmanager_profile_apply.pid` | Profile-apply singleton lock | `qmanager_profile_apply` (both UIDs) | `root:root 0666` |
 
-The two `qmanager_at.*` files are the exception that proves the rule: they are `www-data`-owned only because root never opens them for **write** — `qcmd` holds the `flock` on a read-only FD (`9<`), so no `O_CREAT` write from root ever happens and the sysctl never engages. Every genuinely dual-writer file is `root:root 0666`.
+The two `qmanager_at.*` files are the exception that proves the rule: they are `www-data`-owned only because root never opens them for **write** — `qmanager_atd` opens the lock read-only and never with `O_CREAT` (`common/lock.rs`), and shell lockers use a read-only FD (`9<`), so no `O_CREAT` write from root ever happens and the sysctl never engages. Every genuinely dual-writer file is `root:root 0666`.
 
 **Two-part fix (confirmed working in deployment):**
 
@@ -854,7 +854,7 @@ The two `qmanager_at.*` files are the exception that proves the rule: they are `
 
 ```bash
 # qmanager_setup — pre-create shared /tmp files for fs.protected_regular
-# www-data-owned: root only ever opens these READ-ONLY (qcmd's `9<`)
+# www-data-owned: opened READ-ONLY by root, so protected_regular never engages
 touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid
 chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid
 chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
@@ -871,13 +871,13 @@ chmod 666 /tmp/qmanager.log /tmp/qmanager_events.json \
 
 > ⚠️ WARNING: seeding is only half the contract. Every writer of a seeded file must write **in place** (`>`, `>>`, `cat tmp > file`, `: >`) and never tmp-file + `mv`, and must never `rm` the file to reset it. `rename(2)` and `unlink(2)` both replace the seeded inode with one owned by whoever wrote it, at their umask — which locks the other UID out for the rest of the boot. See [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md).
 
-**2. Use read-only FD redirects for flock.** `9>"$LOCK_FILE"` fails for a cross-UID caller because shell `>` always passes `O_CREAT` to the `open()` syscall, regardless of whether the file exists. The fix in `qcmd` is to use `9<` (read-only open) instead of `9>`:
+**2. Use read-only FD redirects for flock.** `9>"$LOCK_FILE"` fails for a cross-UID caller because shell `>` always passes `O_CREAT` to the `open()` syscall, regardless of whether the file exists. The fix in shell is to use `9<` (read-only open) instead of `9>`; the Rust `qmanager_atd` does the same with `OpenOptions::new().read(true)` and `O_NOFOLLOW | O_NONBLOCK`, never `create`:
 
 ```bash
-# RM520N-GL (qcmd) — read-only FD, no O_CREAT
+# RM520N-GL — read-only FD, no O_CREAT
 ( flock_wait 9 "$LOCK_WAIT_LONG"; ...; ) 9<"$LOCK_FILE"
 
-# OpenWRT (qcmd) — write FD works fine (no protected_regular)
+# OpenWRT — write FD works fine (no protected_regular)
 ( flock_wait 9 "$LOCK_WAIT_LONG"; ...; ) 9>"$LOCK_FILE"
 ```
 
@@ -944,7 +944,7 @@ removal takes effect immediately.
 
 ## AT Command Transport Layer
 
-> ⚠️ HISTORICAL — ABANDONED APPROACH. This entire section documents the **socat-based PTY bridge** that was explored during the initial port to the RM520N-GL and then **abandoned**. It is **not** how QManager ships. The shipped transport is the `atcli_smd11` binary talking to `/dev/smd11` **directly** — no socat, no PTY bridge, no `ttyIN`/`ttyOUT`/`ttyOUT2` — serialized by the `qcmd` wrapper via `flock` on `/tmp/qmanager_at.lock`. For the current transport see **[AT Command Transport](reference/at-command-transport.md)** and [CGI AT Command Execution](#cgi-at-command-execution) below. Treat every `socat`/`ttyOUT`/`microcom`/`atcmd` reference in this section as describing the abandoned design, not current behavior.
+> ⚠️ HISTORICAL — ABANDONED APPROACH. This entire section documents the **socat-based PTY bridge** that was explored during the initial port to the RM520N-GL and then **abandoned**. It is **not** how QManager ships. The shipped transport is `qcmd`, a link to the Rust `qmanager_atd` binary, talking to `/dev/smd11` **directly** (through the broker daemon, or in-process when it is not running) — no socat, no PTY bridge, no `ttyIN`/`ttyOUT`/`ttyOUT2` — serialized by `flock` on `/tmp/qmanager_at.lock`. For the current transport see **[AT Command Transport](reference/at-command-transport.md)** and [CGI AT Command Execution](#cgi-at-command-execution) below. Treat every `socat`/`ttyOUT`/`microcom`/`atcmd` reference in this section as describing the abandoned design, not current behavior.
 >
 > The physical-layer facts in [Physical Layer: SMD Ports](#physical-layer-smd-ports) below (SMD character devices, `port_bridge`, `/dev/smd7` vs `/dev/smd11`) remain accurate; only the socat PTY layering that was built on top of them was abandoned.
 

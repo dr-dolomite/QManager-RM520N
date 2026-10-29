@@ -39,7 +39,7 @@ QManager runs as two different users. Root owns the daemons (`qmanager_poller`, 
 | `/tmp/qmanager_discord_spool/` | Directory, `root:root` `1777`. **Writers:** the alert engine (root) and the CGI's Discord test (www-data), one new file per DM. **Remover:** `qmanager_discord` (root). See [The Discord spool directory](#the-discord-spool-directory) |
 | `/tmp/qmanager_email_log.json` | **Not seeded.** Every writer is root (the engine, and `qmanager_email_send` for test sends); www-data only reads it |
 | `/tmp/qmanager_tower_write_inflight` | `root:root` `0666`. **Writers:** `tower/lock.sh` (www-data, via `tower_write_begin`) and `qmanager_tower_schedule` (root). **Reader:** `qmanager_tower_failover` (root). Content-bearing — a UNIX deadline, not a flag — so it **is** seeded; see [The tower-lock in-flight marker](#the-tower-lock-in-flight-marker) |
-| Seeded www-data-only files | `/tmp/qmanager_at.lock`, `/tmp/qmanager_at.pid` (root opens these **read-only**, `9<`) |
+| Seeded www-data-only files | `/tmp/qmanager_at.lock` (root opens it **read-only**: `qmanager_atd` without `O_CREAT`, shell lockers with `9<`), `/tmp/qmanager_at.pid` (still seeded, no reader or writer since the shell `qcmd` was retired) |
 | Forbidden on any seeded file | tmp-file + `mv` (`rename(2)` swaps the inode and destroys the seed) |
 | Required instead | write **in place** — `>`, `>>`, `cat tmp > file`, `: >` |
 | Deliberately **not** seeded | `/tmp/qmanager_recovery_active` (a flag; see [The recovery flag](#the-recovery-flag-the-deliberate-exception)) |

@@ -76,6 +76,7 @@ Key mechanics verified from the poller source:
 - **Single atomic cache write.** Each cycle ends in `write_cache`, which builds `/tmp/qmanager_status.json` with `jq` into a `.tmp` file and `mv`s it into place — readers never see a half-written file.
 - **`system_health` is precomputed.** Tier 1 runs `update_system_health()`, a no-AT, sysfs-only collector (modem subsystem state, crash counters, load, CPU freq, `/usrdata` storage) that fills the top-level `system_health` block. The `/system/modem-subsys.sh` CGI is a thin reader over that block — no live computation at request time.
 - **Data-usage counter.** Tier 1 also runs `update_data_used()`, which accumulates kernel RX/TX bytes from `/proc/net/dev` (`rmnet_ipa0`) into a persistent, reboot-surviving JSON at `/usrdata/qmanager/data_used.json`. Counter orientation (which raw field is download vs upload) is resolved once at startup from the SoC branch name. Full detail: [`reference/data-usage-counter.md`](reference/data-usage-counter.md).
+- **Activity tiers.** The table above is the `active` tier, which holds while a browser has fetched `fetch_data.sh` or `overview.sh` within 20 s (those CGIs rewrite `/tmp/qmanager_ui_active`). With no browser the poller drops to `idle` and then `deep`, running the AT reads on longer uptime deadlines; local work still runs every cycle. The tier is published as `.device.poller_tier`. Full detail: [`reference/adaptive-polling.md`](reference/adaptive-polling.md).
 - **On-demand refresh flags.** Touching `/tmp/qmanager_tier2_refresh` (e.g. from a SIM-slot-change CGI) pulls the warm refresh into the next cycle instead of waiting up to ~30s.
 
 ### Frontend Polling
@@ -84,7 +85,8 @@ The frontend never touches the modem. Each polling hook fetches a CGI endpoint t
 
 ```
 useModemStatus()    ── GET /at_cmd/fetch_data.sh           ── reads /tmp/qmanager_status.json
-  (every 2s)
+  (one shared timer per tab: the shortest interval any caller asks for,
+   2s by default, never longer than 10s; stopped while the tab is hidden)
 
 useSignalHistory()  ── GET /at_cmd/fetch_signal_history.sh ── reads signal-history NDJSON
   (every 10s)
@@ -193,7 +195,7 @@ Runtime state is coordinated entirely through files — **no IPC sockets or sign
 | `/tmp/qmanager_ping.json` | ping daemon | JSON | Current connectivity/latency result |
 | `/tmp/qmanager_watchcat.json` | watchcat | JSON | Watchdog state machine |
 | `/tmp/qmanager_profile_state.json` | profile_apply | JSON | SIM-profile apply progress |
-| `/tmp/qmanager_at.lock` | qcmd (shared) | flock target | Serializes all AT access across daemons + CGIs |
+| `/tmp/qmanager_at.lock` | qmanager_setup seeds it; `qmanager_atd` (broker, `qcmd`) locks it | flock target | Serializes all AT access across daemons + CGIs |
 | `/tmp/qmanager_sessions/<token>` | auth | one file/session | Session store (RAM, cleared on reboot) |
 | `/etc/qmanager/` | CGI + daemons | Various | Persistent configuration (see below) |
 
@@ -209,6 +211,9 @@ Core long-running services:
 
 ```
 qmanager-setup.service      one-shot bootstrap (dirs, perms, lock files) — ordered before the rest
+  │
+  ├── qmanager-atd.service       qmanager_atd — AT broker that qcmd talks to (RM520N-GL only;
+  │                                Type=notify, WatchdogSec=30, Before= poller)
   │
   ├── qmanager-ping.service      qmanager_ping — connectivity/latency probe (writes qmanager_ping.json)
   │
@@ -249,7 +254,7 @@ All modem communication funnels through one gatekeeper, `qcmd` (`/usr/bin/qcmd`)
 |--------|----------|
 | Tool | `qcmd` is a symlink to `qmanager_atd` (a static ARMv7 Rust binary) on every model; it talks to the `qmanager_atd` broker on the RM520N-GL and runs AT in-process when no broker runs (RG501Q-EU, or the broker is down) |
 | Device | `/dev/smd11`, opened directly — **no socat/PTY bridge** |
-| Locking | `flock` on `/tmp/qmanager_at.lock` via a read-only FD (`9<`), so root and `www-data` share it under `fs.protected_regular=1` |
+| Locking | `flock` on `/tmp/qmanager_at.lock`, opened read-only and never created by `qmanager_atd` (`qmanager_setup` seeds it), so root and `www-data` share it under `fs.protected_regular=1` |
 | Timeout | Lock wait 5 s, 10 s for long commands (`QSCAN`, `COPS=2`, …); then `modem_busy` |
 | Exit code | Failure is **exit 1** with empty stdout and `ERROR: modem_busy` / `ERROR: command_failed` on stderr — check `$?`, never match `ERROR` in stdout |
 | SMS | `qsms` over QMI WMS on the RM520N-GL, no AT lock — see [`reference/sms.md`](reference/sms.md#transport-qsms) |

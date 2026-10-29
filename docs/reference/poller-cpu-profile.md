@@ -21,7 +21,8 @@ The headline is counter-intuitive and worth stating up front:
 | Item | Value |
 |------|-------|
 | Daemon | `qmanager_poller` (`scripts/usr/bin/qmanager_poller`, installed `/usr/bin/qmanager_poller`) |
-| Poller share of one core | **30% → 23%** (RM520N-GL) · **31% → 26%** (RG501Q-EU) after the de-fork pass |
+| Current poller cost (RM520N-GL, live transport) | **344 ms/cycle, 13.0 % of core** after T1.1; `active` 12.9 % / `idle` 8.1 % / `deep` 6.0 % after T6.1 — see [Hot-path re-author](#hot-path-re-author-t11-2026-10-26) and [Activity tiers](#activity-tiers-t61-2026-10-27) |
+| Poller share of one core (2026-09, stubbed AT) | **30% → 23%** (RM520N-GL) · **31% → 26%** (RG501Q-EU) after the de-fork pass |
 | Attributed child CPU per cycle | **595 → 351 ms** (RM520N-GL, −41%) · **877 → 487 ms** (RG501Q-EU, −44%) |
 | Same, incl. unattributed residual | 769 → 500 ms (RM520N-GL) · 1079 → 664 ms (RG501Q-EU) |
 | Measured cycle cadence | **3.39 → 3.18 s** (RM520N-GL) · **5.00 → 4.01 s** (RG501Q-EU) — **not** the 2 s `POLL_INTERVAL` |
@@ -392,6 +393,21 @@ A Go equivalent was built and run **on both devices** doing genuinely comparable
 
 ---
 
+## Hot-path re-author (T1.1, 2026-10-26)
+
+RM520N-GL `61368cd2`, 300 s windows against the live AT transport (no replay stub), so these figures include the `qcmd` cost the 2026-09 runs stubbed out. Plan and raw numbers: `.orchestra/runs/2026-10-26-atd-port-T1.1.md`.
+
+| step | poller CPU/cycle | % of core | period |
+|---|---:|---:|---:|
+| before (HEAD at 2026-10-26) | 874 ms | 27.4 | 3.19 s |
+| one `date +%s` per cycle, `data_used` printf write + change-gated persist, DNS read gated on mtime, crash counter via `read` | 759 ms | 24.6 | 3.09 s |
+| single-awk `parse_ca_info`, builtin `parse_serving_cell`, SCC checks gated | 426 ms | 15.6 | 2.73 s |
+| per-antenna parse and history appends without forks | **344 ms** | **13.0–13.1** | 2.63–2.65 s |
+
+Profile of the final build (55 cycles, 371 ms instrumented): `AT+QCAINFO` 70 ms, serving cell 54, Tier 2 52 (≈ 700 per run, every ~14 cycles), `write_cache` 38, `read_ping_data` 25, `update_system_health` 21, `detect_events` 18, per-antenna 10.5. A printf `write_cache` composer was dropped: it saves at most ~30 ms and would rebuild every `status.json` field.
+
+> ⚠️ WARNING: **bash 3.2 `read` leaks memory when its last variable receives several words.** On the RM520N-GL each such `read` keeps ~17 bytes, which grew the poller's RSS by ~45 kB per hour (found in the 12 h soak, 2026-10-27). `update_proc_metrics` (`/proc/stat`) and the `/proc/loadavg` read now take the whole line with `IFS= read -r` and split it with `set --`. Any new `read` in a long-running daemon must give its last variable a single word, or read the line whole.
+
 ## Activity tiers (T6.1, 2026-10-27)
 
 RM520N-GL `61368cd2`, 300 s windows from `/proc/<pid>/stat` (method as above), cycles counted from `status.json` `.mono` changes. Tiers are described in [`adaptive-polling.md`](./adaptive-polling.md).
@@ -508,11 +524,13 @@ Not yet cut: pages other than `/dashboard` that call `useModemStatus()` with the
 
 ## Recommendation
 
+> ℹ️ NOTE: this section was written after the 2026-09 pass. T1.1 (2026-10-26) has since done items A and C (single-awk `parse_ca_info`, fork-free per-antenna parse) and measured `read_ping_data` at 25 ms/cycle; see [Hot-path re-author](#hot-path-re-author-t11-2026-10-26) for what is left.
+
 **Continue the shell de-fork pass.** The 2026-09-02 pass took the four cheapest wins and realised 41–44% for a few days of low-risk work that stays reviewable and debuggable on-device.
 
 The next step is **item A, the CA block** — but the first move there is *not* a rewrite. Wrap `AT+QCAINFO` and `parse_ca_info` into a named function so the harness attributes them, and re-profile. Until that is done, 149 ms is the cost of a bucket that also contains `poll_cycle`'s own inline body, and nobody knows how it splits. **Item B (`read_ping_data`)** is the largest cleanly-measured cost and needs its three drifted copies reconciled before any optimisation; **item C (`poll_per_antenna_signal`)** is the same kind of mechanical change the pass has already done four times. Those three are worth roughly another 60% of what remains.
 
-A rewrite's case rests on **where the architecture should go** — a resident AT transport, event-driven rather than polling — not on whether the CPU is recoverable. It plainly is, and the de-fork pass has now demonstrated that on hardware. At 1.7 MB measured, binary size is not the obstacle either.
+A rewrite's case rests on **where the architecture should go** — a resident AT transport, event-driven rather than polling — not on whether the CPU is recoverable. (The resident AT transport now exists: `qmanager_atd` serves `qcmd` on the RM520N-GL since T4.1, see [`at-command-transport.md`](./at-command-transport.md). Its CPU gain for the poller was estimated at only ≈ 2.5–3 points of a core; it was adopted to retire `atcli_smd11` / `sms_tool` and to remove the SMS lock hold.) It plainly is, and the de-fork pass has now demonstrated that on hardware. At 1.7 MB measured, binary size is not the obstacle either.
 
 Whichever path is taken, a port must reproduce these contracts exactly, and they — not the coding — are the real cost:
 

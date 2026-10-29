@@ -370,7 +370,7 @@ apart when reading the list below:
 | `qmanager_setup` (every boot) | writer | `qm_hw_self_heal` |
 | `qmanager_poller` | parser | `qm_hw_soc` (Phase A / T4) |
 | `about.sh` → `resolve_firmware_revision()` | parser | `qm_hw_fw_fingerprint` (Phase A / T5) |
-| `install_rm520n.sh` → `install_bundled_binaries()` and the `install_backend()` unit-copy loop | parser | `qm_hw_atd_enabled` (T3.1, T4.1) — on RM520N installs and boot-links `qmanager-atd.service` and links `/usr/bin/qcmd` to `qmanager_atd`; `qm_hw_model` removes the unit only on a definite non-RM520N model, and an unknown model leaves it as is |
+| `install_rm520n.sh` → `install_bundled_binaries()` and the `install_backend()` unit-copy loop | parser | `qm_hw_atd_enabled` through `_atd_on()` (T3.1, T4.1) — on RM520N installs, boot-links and starts `qmanager-atd.service`; `qm_hw_model` through `_atd_definitely_off()` removes the unit only on a definite non-RM520N model, and an unknown model leaves it as is. Neither gates the binary or the links: `qmanager_atd`, `/usr/bin/qsms` and `/usr/bin/qcmd` (both links to `qmanager_atd`) are installed on every model since T5.1 S6 |
 | `qmanager_health_check` → `t_svc_atd` | parser | `qm_hw_atd_enabled` (T3.1) — `skip` off RM520N, `warn` if the library will not load |
 
 `qm_hw_atd_enabled` is a predicate, not a field accessor: it returns 0 only when

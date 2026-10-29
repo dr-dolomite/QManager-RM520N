@@ -1,7 +1,7 @@
 # Adaptive polling (poller activity tiers)
 
 > **Applies to:** RM520N-GL · built 2026-10-27 (T6.1, plan `.orchestra/runs/2026-10-26-atd-port-T6.1.md`); shared status store 2026-10-28 (T6.2)
-> **RG501Q-EU:** unverified. Port of RM551E adaptive polling (70c157d3) and B5.29 heartbeat work, without the AT broker.
+> **RG501Q-EU:** unverified. Port of RM551E adaptive polling (70c157d3) and B5.29 heartbeat work. The tiers are shell-only and do not depend on the AT broker.
 
 When no browser is polling, `qmanager_poller` stops asking the modem every cycle. Local work keeps the base cadence.
 
@@ -38,6 +38,6 @@ When no browser is polling, `qmanager_poller` stops asking the modem every cycle
 
 `qmanager_watchcat` writes `mono` (uptime s) and `stale_after` into `/tmp/qmanager_watchcat.json` on every write: `3 × check_interval + 60`, or `600` just before a recovery tier runs. The poller publishes `watchcat.age_sec` (uptime delta, never negative) and `watchcat.stale_after`; both are `null` when unknown. A missing state file resets every `watchcat.*` field. The watchdog page does not read these yet.
 
-## Waits for the broker (P4)
+## Not ported yet (RM551E B5.29 Phase B)
 
-The capped `qcmd` read wait and per-cycle busy latch (RM551E B5.29 Phase B), dropping `SIP_DELAY`, and a fixed 2 s cycle.
+The broker has run behind `qcmd` since T4.1, and the client accepts a capped wait (`qcmd -t <ms>`, or `QCMD_WAIT_MS=<ms>` for one call; a cap that runs out returns `modem_busy`). The poller does not use it yet: it still calls plain `qcmd`, keeps `SIP_DELAY=0.1` between commands and sleeps `POLL_INTERVAL` after each cycle. Still to port: the capped read wait, the per-cycle busy latch, dropping `SIP_DELAY`, and a fixed 2 s cycle.

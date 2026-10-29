@@ -1,7 +1,7 @@
 # AT Command Transport (RM520N-GL)
 
 > **Applies to:** RM520N-GL (SDX65) · qcmd cut-over (T4.1) verified 2026-10-28 on `61368cd2`
-> **RG501Q-EU (SDX55):** same Rust `qcmd`, but no broker runs, so every call is in-process — **not yet verified on RG501Q-EU hardware** · see [`platform-matrix.md`](./platform-matrix.md#at-transport)
+> **RG501Q-EU (SDX55):** same Rust `qcmd`, but no broker runs, so every call is in-process — **not yet verified on RG501Q-EU hardware** with the current binary (a read-only scan on 2026-10-28 used an older build) · see [`platform-matrix.md`](./platform-matrix.md#at-transport)
 
 > Every AT command QManager sends goes through `qcmd`, which on every model is a symlink to the Rust `qmanager_atd` binary. On the RM520N-GL it is a client of the `qmanager_atd` broker, with an in-process fallback when the broker is down; on the RG501Q-EU (no broker) it always runs the exchange in-process on `/dev/smd11`. Both paths serialise on one `flock` and keep the same error contract, which is what every caller in the tree is written against. SMS no longer uses this path (see SMS operations).
 
@@ -201,7 +201,7 @@ What the sweep bought, in the terms a user would have seen it: `qmanager_tower_s
 if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
 ```
 
-It is **`grep -qx`, line-exact, never a `*OK*` glob.** A `qcmd` response echoes the issued command back on its own line, so a glob would match any argument containing the letters "OK" and confirm a write against its own echo. The `tr -d '\r'` is there because the modem terminates lines with CRLF and `-x` anchors the whole line. Current call sites: `qmanager_imei_check:116`, `cellular/imei.sh:127`, `cellular/mbn.sh:142`, `cellular/network_priority.sh:95`, `network/ip_passthrough.sh:132`.
+It is **`grep -qx`, line-exact, never a `*OK*` glob.** A `qcmd` response echoes the issued command back on its own line, so a glob would match any argument containing the letters "OK" and confirm a write against its own echo. The `tr -d '\r'` is there because the modem terminates lines with CRLF and `-x` anchors the whole line. Current call sites: `qmanager_imei_check:119`, `cellular/imei.sh:127`, `cellular/mbn.sh:142`, `cellular/network_priority.sh:95`, `network/ip_passthrough.sh:132`.
 
 **Open follow-up: the assertion is not universal yet.** The write sites in `tower/lock.sh`, `frequency/lock.sh`, `bands/lock.sh`, `tower/settings.sh`, `qmanager_tower_schedule` and `qmanager_tower_failover` are `rc`-guarded but carry **no** `OK` assertion. `rc` alone is not quite enough, because `qcmd`'s third exit arm returns **0 with unconfirmed data**: a response that contains neither `OK` nor `ERROR` and is non-empty is passed through for the caller to judge (see [Error codes](#error-codes)), on purpose, since some compound queries answer without a trailing `OK`. A write that lands in that arm reports success it has not been told about.
 
@@ -210,7 +210,7 @@ It is **`grep -qx`, line-exact, never a `*OK*` glob.** A `qcmd` response echoes 
 | File | Why it works |
 | ---- | ------------ |
 | `cellular/fplmn.sh` (2 sites) | Guards with `[ -z "$resp" ]` **before** the `case`. Empty stdout ⇔ failure, so that guard catches every failure and the `*ERROR*` arm is merely unreachable |
-| `qmanager_band_failover` (3 sites, `:122`, `:136`, `:150`) | The `case` arms are `*ERROR*\|""`: the **empty-string arm** is what catches every real failure. Correct behaviour reached through the wrong test |
+| `qmanager_band_failover` (3 sites, `:124`, `:138`, `:152`) | The `case` arms are `*ERROR*\|""`: the **empty-string arm** is what catches every real failure. Correct behaviour reached through the wrong test |
 
 Both are fragile in the same way: delete the emptiness half and the failure detection goes with it, silently, with no gate able to see it. `qmanager_band_failover` is the weaker of the two, because all three of its sites are **writes** (`AT+QNWPREFCFG="lte_band"` and friends) and none of them assert the modem's `OK`, so a `qcmd` third-arm pass-through still logs "LTE bands reset OK".
 
@@ -220,10 +220,10 @@ Both are fragile in the same way: delete the emptiness half and the failure dete
 
 **`qmanager_poller` was deliberately excluded from the sweep**, and both of its issues are recorded here rather than fixed:
 
-- `qcmd_exec`'s `*ERROR*` arm (`:441`) sits behind the correct guard, so it is unreachable; its `return 2` is therefore dead, and so is the `[ $rc -eq 2 ]` branch in `poll_serving_cell` (`:1044`) that treats rc 2 as "modem reachable". Harmless today. It was left alone because this is the ~4s hot path that feeds the entire app, and touching it is a change with its own blast radius.
-- `:2114` seeds carrier-aggregation defaults on a failed read: `ca_active:false`, `count:0`, `carrier_components:[]`. That is the **same fabrication class** the sweep just removed elsewhere, published as fact into `/tmp/qmanager_status.json`. A separate change; see [carrier-aggregation.md](carrier-aggregation.md).
+- `qcmd_exec`'s `*ERROR*` arm sits behind the correct guard, so it is unreachable; its `return 2` is therefore dead, and so is the `[ $rc -eq 2 ]` branch in `poll_serving_cell` that treats rc 2 as "modem reachable". Harmless today. It was left alone because this is the ~4s hot path that feeds the entire app, and touching it is a change with its own blast radius.
+- The `AT+QCAINFO` read seeds carrier-aggregation defaults on a failed read: `ca_active:false`, `count:0`, `carrier_components:[]`. That is the **same fabrication class** the sweep just removed elsewhere, published as fact into `/tmp/qmanager_status.json`. A separate change; see [carrier-aggregation.md](carrier-aggregation.md).
 
-**Not qcmd output at all — leave alone.** `qcmd` itself classifies the raw modem reply (`rm520n_reply()` in `native/qmanager_atd/src/client/qcmd.rs`), which is exactly where `ERROR` legitimately appears. `parse_at.sh:337` classifies raw `AT+CPIN?` text handed to it by the poller.
+**Not qcmd output at all — leave alone.** `qcmd` itself classifies the raw modem reply (`rm520n_reply()` in `native/qmanager_atd/src/client/qcmd.rs`), which is exactly where `ERROR` legitimately appears. `parse_at.sh`'s `AT+CPIN?` parser classifies raw text handed to it by the poller.
 
 Separately, roughly **26 `qcmd` call sites across 19 files** never capture `$?` at all. Many are the pipe form (`qcmd ... | grep ...`), where an empty result is falsy and the caller happens to handle it; that is luck, not contract.
 
@@ -260,7 +260,7 @@ Turning on a URC source (e.g. `AT+QSIMSTAT=1`) does not merely fail to deliver e
 Most QManager parsers survive that, because they `grep` for their own token and ignore everything else. Two do not:
 
 - **`qcmd`** classifies the *whole* reply: it fails the command if `ERROR` appears anywhere in it. Any unsolicited line containing `ERROR` anywhere in the buffer turns a successful command into a reported failure.
-- **`qmanager_poller:1028`** (`read_sim_identity`) picks the IMSI out of a bare-number response with `grep -x '[0-9]\{15\}'` — there is no `+CIMI:` prefix to key on. Any unsolicited bare 15-digit line would be adopted as the device's IMSI.
+- **`qmanager_poller`** (`read_sim_identity`) picks the IMSI out of a bare-number response with `grep -x '[0-9]\{15\}'` — there is no `+CIMI:` prefix to key on. Any unsolicited bare 15-digit line would be adopted as the device's IMSI.
 
 ### The polled alternative
 

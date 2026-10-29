@@ -188,7 +188,7 @@ Every QMI service QManager would want is **already advertised by the modem at bo
 | **1** | Wireless Data Service (WDS) | 3 | 68 | data session state, IPv4/IPv6, byte counters |
 | **2** | Device Management Service (DMS) | 3 | 79 | `ATI`, IMEI, firmware, model, serial |
 | **3** | Network Access Service (NAS) | 3 | 63 | `AT+QENG`, `AT+QCAINFO`, RSRP/RSRQ/SINR, cell ID, TAC, PLMN, registration |
-| **5** | Wireless Messaging Service (WMS) | 3 | 77 | `sms_tool` send/recv |
+| **5** | Wireless Messaging Service (WMS) | 3 | 77 | `sms_tool` send/recv at the time; since T5.1 `qsms` uses WMS directly |
 | **8** | AT service | 3 | 71 | (AT-over-QMI proxy) |
 | **9** | Voice service | 3 | 62 | voice (unused today) |
 | **10** | Card Application Toolkit (CAT v2) | 3 | 64 | SIM toolkit |

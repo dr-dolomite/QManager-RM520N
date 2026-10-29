@@ -822,10 +822,11 @@ The Step 1/Step 2 globs only match `qmanager-*.service` and `qmanager*.target` i
 
 ### The broker's files the globs miss
 
-The Step 2 / Step 3 globs already remove `qmanager-atd.service`, its wants link and `/usr/bin/qmanager_atd`, and Step 10's `/tmp/qmanager_*` covers `/tmp/qmanager_qmi.json` (also removed by name). Three things need their own lines:
+The Step 2 / Step 3 globs already remove `qmanager-atd.service`, its wants link and `/usr/bin/qmanager_atd`, and Step 10's `/tmp/qmanager_*` covers `/tmp/qmanager_qmi.json` (also removed by name). Four things need their own lines:
 
 | Artifact | Step | Why |
 | -------- | ---- | --- |
+| `/usr/bin/qcmd` | 3 | Not `qmanager_*`; a link to `qmanager_atd` since T5.1 S6. Removed by name with `rm -f`, together with any leftover `atcli_smd11` / `sms_tool` |
 | `/usr/bin/qsms` | 3 | Not `qmanager_*`. Removed only if it is a symlink (`[ -L ]`), never a real directory |
 | `/var/run/qmanager_atd.sock`, `/var/run/qmanager_atd.proto` | 10 | Broker runtime lives in `/var/run`, not `/tmp` |
 | `/var/run/qmanager/` | 10 | Same; `rm -rf` |
