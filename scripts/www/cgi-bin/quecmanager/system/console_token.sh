@@ -11,11 +11,13 @@
 
 qlog_init "cgi_console_token"
 
-# cgi_base.sh's no-op fallback would let this through if cgi_auth.sh were broken.
-if ! command -v qm_validate_session >/dev/null 2>&1; then
-    echo "Status: 500 Internal Server Error"
+# Re-check the session here: cgi_base.sh's fallback require_auth is a no-op,
+# but its fallback qm_validate_session refuses, so this fails closed.
+qm_cookie_var "${COOKIE_SESSION:-qm_session}" _qm_tok
+if [ -z "$_qm_tok" ] || ! qm_validate_session "$_qm_tok"; then
+    echo "Status: 401 Unauthorized"
     cgi_headers
-    cgi_error "auth_unavailable" "Authentication is unavailable"
+    cgi_error "unauthorized" "Invalid or expired session"
     exit 0
 fi
 
