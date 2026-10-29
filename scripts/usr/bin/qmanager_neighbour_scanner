@@ -38,8 +38,8 @@ RESULT_FILE="/tmp/qmanager_neighbour_scan_result.json"
 ERROR_FILE="/tmp/qmanager_neighbour_scan_error"
 PARSED_FILE="/tmp/qmanager_neighbour_scan_parsed.tmp"
 # Captured stderr per AT leg — qcmd (non -j mode) writes "ERROR: <reason>" to
-# stderr and exits 1 on failure (qcmd:94-96), including "ERROR: modem_busy"
-# when it couldn't acquire /tmp/qmanager_at.lock in time (qcmd:166-170). We
+# stderr and exits 1 on failure, including "ERROR: modem_busy" when it
+# couldn't acquire /tmp/qmanager_at.lock in time. We
 # need that text to tell a busy-mutex collision apart from a real AT failure.
 LTE_ERR_FILE="/tmp/qmanager_neighbour_scan_lte_err.tmp"
 NR_ERR_FILE="/tmp/qmanager_neighbour_scan_nr_err.tmp"

@@ -105,7 +105,7 @@ chmod 666 ...
 
 The seed exists because **whoever creates the file first decides its ownership for the whole boot**, and that is a race between a root daemon starting and the first CGI request. Seeding takes the race off the table.
 
-`/tmp/qmanager_at.lock` and `/tmp/qmanager_at.pid` are deliberately `www-data:www-data` instead. Root only ever opens the lock **read-only** (`qcmd` holds the `flock` via `9<`), and `flock()` does not care whether the FD is readable or writable — so no `O_CREAT` write ever happens from root and `protected_regular` never engages. See [at-command-transport.md](at-command-transport.md).
+`/tmp/qmanager_at.lock` is deliberately `www-data:www-data` instead. Root only ever opens it **read-only** (`qmanager_atd` never with `O_CREAT`, shell lockers via `9<`), and `flock()` does not care whether the FD is readable or writable — so no `O_CREAT` write ever happens from root and `protected_regular` never engages. See [at-command-transport.md](at-command-transport.md).
 
 ### Every writer of a seeded file must write in place
 

@@ -1,6 +1,6 @@
-//! /tmp/qmanager_at.lock, shared with the RM520N shell qcmd (`flock -x -n` on a
-//! read-only fd 9), sms_tool callers and www-data CGIs.
-//! Same semantics as qcmd's flock_wait: non-blocking tries on a 100 ms grain
+//! /tmp/qmanager_at.lock, shared with shell lockers (`flock -x -n` on a
+//! read-only fd 9) and www-data CGIs.
+//! Non-blocking tries on a 100 ms grain
 //! until the budget runs out, then one final try.
 
 use std::fs::{File, OpenOptions};

@@ -70,11 +70,11 @@ fi
 # asymmetry is the whole reason this block exists; do not "simplify" it by
 # giving everything to www-data.
 
-# www-data-owned: opened READ-ONLY by root (qcmd holds the flock via `9<`), so
-# root never needs write access and protected_regular never engages.
-touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid
-chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid
-chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+# www-data-owned: root opens it READ-ONLY (qmanager_atd never with O_CREAT, shell
+# lockers via `9<`), so protected_regular never engages.
+touch /tmp/qmanager_at.lock
+chown www-data:www-data /tmp/qmanager_at.lock
+chmod 666 /tmp/qmanager_at.lock
 
 # Shared root-owned files — both root (poller/daemons) and www-data (CGI) write.
 # If www-data owned these, root would be blocked by fs.protected_regular=1.

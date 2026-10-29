@@ -840,13 +840,13 @@ This affects **every file in `/tmp/` that both root processes (daemons, setup sc
 | File | Purpose | Accessed By | Seeded as |
 |------|---------|-------------|-----------|
 | `/tmp/qmanager_at.lock` | AT command `flock` serialization | `qmanager_atd` as broker (root), `qcmd` / `qsms` (www-data CGI + root daemons), and the shell scan/APN/CFUN paths | `www-data:www-data 0666` |
-| `/tmp/qmanager_at.pid` | Was the shell `qcmd`'s PID record; still seeded, but nothing reads or writes it since the shell `qcmd` was retired (the broker keeps its PID in `/var/run/qmanager/atd.pid`) | — | `www-data:www-data 0666` |
+| `/tmp/qmanager_at.pid` | Was the shell `qcmd`'s PID record; no longer seeded; nothing reads or writes it since the shell `qcmd` was retired (the broker keeps its PID in `/var/run/qmanager/atd.pid`) | — | `www-data:www-data 0666` |
 | `/tmp/qmanager.log` | Centralized `qlog` output | All daemons (root) + log viewer CGI (www-data) | `root:root 0666` |
 | `/tmp/qmanager_events.json` | Recent Activities NDJSON ring | Root daemons + every CGI that sources `events.sh` | `root:root 0666` |
 | `/tmp/qmanager_profile_state.json` | Profile-apply progress | `qmanager_profile_apply` (both UIDs) + `profiles/*.sh` | `root:root 0666` |
 | `/tmp/qmanager_profile_apply.pid` | Profile-apply singleton lock | `qmanager_profile_apply` (both UIDs) | `root:root 0666` |
 
-The two `qmanager_at.*` files are the exception that proves the rule: they are `www-data`-owned only because root never opens them for **write** — `qmanager_atd` opens the lock read-only and never with `O_CREAT` (`common/lock.rs`), and shell lockers use a read-only FD (`9<`), so no `O_CREAT` write from root ever happens and the sysctl never engages. Every genuinely dual-writer file is `root:root 0666`.
+`/tmp/qmanager_at.lock` is the exception that proves the rule: it is `www-data`-owned only because root never opens them for **write** — `qmanager_atd` opens the lock read-only and never with `O_CREAT` (`common/lock.rs`), and shell lockers use a read-only FD (`9<`), so no `O_CREAT` write from root ever happens and the sysctl never engages. Every genuinely dual-writer file is `root:root 0666`.
 
 **Two-part fix (confirmed working in deployment):**
 
@@ -855,9 +855,9 @@ The two `qmanager_at.*` files are the exception that proves the rule: they are `
 ```bash
 # qmanager_setup — pre-create shared /tmp files for fs.protected_regular
 # www-data-owned: opened READ-ONLY by root, so protected_regular never engages
-touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid
-chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid
-chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+touch /tmp/qmanager_at.lock
+chown www-data:www-data /tmp/qmanager_at.lock
+chmod 666 /tmp/qmanager_at.lock
 
 # root-owned: BOTH root daemons and www-data CGI write these. root:root 0666
 # is the only ownership under which both UIDs can (see the rule above).

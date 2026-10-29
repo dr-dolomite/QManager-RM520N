@@ -247,7 +247,7 @@ _init_status() {
 _test_catalog_pending() {
     jq -n '[
         {id:"bin.qsms",           category:"binaries", label:"qsms present",                status:"pending", duration_ms:0, detail:""},
-        {id:"bin.qcmd",           category:"binaries", label:"qcmd wrapper present",        status:"pending", duration_ms:0, detail:""},
+        {id:"bin.qcmd",           category:"binaries", label:"qcmd link present",           status:"pending", duration_ms:0, detail:""},
         {id:"bin.jq",             category:"binaries", label:"jq present",                  status:"pending", duration_ms:0, detail:""},
         {id:"bin.curl",           category:"binaries", label:"curl present",                status:"pending", duration_ms:0, detail:""},
         {id:"bin.openssl",        category:"binaries", label:"openssl present",             status:"pending", duration_ms:0, detail:""},
@@ -1048,7 +1048,7 @@ _init_status
 _pause_poller_if_running
 
 _run_test bin.qsms            binaries     "qsms present"                          t_bin_qsms
-_run_test bin.qcmd            binaries     "qcmd wrapper present"                  t_bin_qcmd
+_run_test bin.qcmd            binaries     "qcmd link present"                     t_bin_qcmd
 _run_test bin.jq              binaries     "jq present"                            t_bin_jq
 _run_test bin.curl            binaries     "curl present"                          t_bin_curl
 _run_test bin.openssl         binaries     "openssl present"                       t_bin_openssl

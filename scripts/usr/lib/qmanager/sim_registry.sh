@@ -36,8 +36,7 @@
 # safe against a symlink swap).
 #
 # Concurrency is additionally serialized with a BusyBox-safe flock (no `-w`
-# timeout support in BusyBox flock — poll in a loop instead), mirroring the
-# flock_wait() pattern used by qcmd / qmanager_sms_storage / sms_alerts.sh.
+# timeout support in BusyBox flock — poll `flock -x -n` in a loop instead).
 #
 # THREAT MODEL — read this before trusting the "root is the sole writer" line.
 # The root-helper + validation + scoped-write design defends against:

@@ -88,7 +88,7 @@ These constraints cause silent failures or security issues if violated.
 - A **www-data-owned** file there is **not writable by root** — and this check has **no root override**, at any mode including `0666`.
 
 So the only ownership under which both a root daemon and a `www-data` CGI can write the same `/tmp` file is **`root:root` mode `0666`**, seeded at boot by `qmanager_setup`. Rules that follow:
-- `qmanager_setup` pre-creates every shared `/tmp` file `root:root` mode 666. Files where root's access is read-only (`/tmp/qmanager_at.lock` — `qmanager_atd` opens it read-only, never with `O_CREAT`; `/tmp/qmanager_at.pid`, still seeded but unused since the shell `qcmd` was retired) are `www-data`-owned instead.
+- `qmanager_setup` pre-creates every shared `/tmp` file `root:root` mode 666. Files where root's access is read-only (`/tmp/qmanager_at.lock` — `qmanager_atd` opens it read-only, never with `O_CREAT`) are `www-data`-owned instead.
 - Every writer of a seeded file writes **in place** (`>`, `>>`, `cat tmp > file`, `: >`). Never tmp+`mv`, never `rm` to reset — both swap the inode and replace the seed with the writer's own uid at its umask.
 - For worker scripts that reset their **own** single-UID log, `rm -f` then create fresh is fine (as in `qmanager_update`).
 - Do not confuse this with plain mode bits: a root-owned `0644` file blocks `www-data` through ordinary permissions, not through this sysctl. The two fail in opposite directions.
@@ -1244,7 +1244,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | Path | Owner | Created by | Description |
 |------|-------|------------|-------------|
 | `/tmp/qmanager_at.lock` (S) | www-data | qmanager_setup | Shared flock file for `/dev/smd11` serialization |
-| `/tmp/qmanager_at.pid` (S) | www-data | qmanager_setup | Seeded only; unused since the shell `qcmd` was retired (the broker's PID is `/var/run/qmanager/atd.pid`) |
+| `/tmp/qmanager_at.pid` (S) | www-data | qmanager_setup | No longer seeded or used since the shell `qcmd` was retired (the broker's PID is `/var/run/qmanager/atd.pid`); an upgraded device may keep a stale copy until reboot |
 | `/tmp/qmanager.log` (S) | root | qmanager_setup | Main QManager log (all components) |
 | `/tmp/qmanager_status.json` | root | qmanager_poller | Main modem status cache; polled by frontend |
 | `/tmp/qmanager_ping.json` | root | qmanager_ping | Current ping state (available, latency, streaks) |

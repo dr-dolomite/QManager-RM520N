@@ -337,7 +337,9 @@ ls -la /etc/qmanager/shadow
 ```bash
 # Check service status and logs (systemd — units in /lib/systemd/system/)
 systemctl status qmanager-poller
-journalctl -u qmanager-poller --no-pager | tail -50
+# journald is masked (no unit logs); read restarts and QManager's own log
+systemctl show -p NRestarts,Result,ExecMainStatus qmanager-poller
+tail -50 /tmp/qmanager.log
 
 # Start it manually (boot persistence is a multi-user.target.wants/ symlink;
 # `systemctl enable` does NOT work on this platform)
@@ -467,9 +469,10 @@ grep "poller" /tmp/qmanager.log
 ### Service Won't Start
 
 ```bash
-# Check systemd status and journal
+# Check systemd status (journald is masked: use NRestarts and /tmp/qmanager.log)
 systemctl status qmanager-poller
-journalctl -u qmanager-poller --no-pager -n 50
+systemctl show -p NRestarts,Result,ExecMainStatus qmanager-poller
+tail -50 /tmp/qmanager.log
 
 # Verify dependencies
 command -v qcmd

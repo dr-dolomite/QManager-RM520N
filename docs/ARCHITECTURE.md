@@ -242,7 +242,7 @@ qmanager-tower-failover.service  qmanager_tower_failover — tower-lock failover
 qmanager-cfun-fix.service     qmanager_cfun_fix — recovers a modem stuck in CFUN=0
 ```
 
-Scheduled work (cron, configured by `system/settings.sh`): `qmanager_scheduled_reboot` fires a reboot at a user-configured time.
+Scheduled work (runtime systemd `OnCalendar` timers, configured by `system/settings.sh`; see [`reference/scheduled-timers.md`](reference/scheduled-timers.md)): `qmanager_scheduled_reboot` fires a reboot at a user-configured time.
 
 For the full unit dependency graph, Entware bootstrap, and lighttpd config, see [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md).
 
