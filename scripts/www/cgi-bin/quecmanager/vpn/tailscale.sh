@@ -593,10 +593,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # Send response before background uninstall (avoids killing HTTP connection)
         cgi_success
 
-        # Uninstall in background AFTER response, then restart firewall to drop tailscale0
+        # Uninstall in background AFTER response; the helper reloads the
+        # firewall itself to drop tailscale0
         (
             $_SUDO /usr/bin/qmanager_tailscale_mgr uninstall
-            svc_restart "qmanager-firewall"
         ) </dev/null >/dev/null 2>&1 &
 
         qlog_info "Tailscale uninstall started"

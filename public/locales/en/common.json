@@ -172,6 +172,7 @@
     "switch_aria": "Switch language"
   },
   "login": {
+    "ssh_sync_failed": "Your QManager password is set, but the SSH root password could not be updated. Set it in System Settings → SSH Access.",
     "brand_label": "QManager · Quectel Modem Management",
     "welcome": "Welcome to QManager",
     "password_label": "Password",

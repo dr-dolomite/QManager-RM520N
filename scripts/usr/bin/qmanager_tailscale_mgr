@@ -276,11 +276,12 @@ ln -sf /usrdata/tailscale/tailscale /usr/bin/tailscale
 cd / || true
 
 # -----------------------------------------------------------------------------
-# Restart firewall so tailscale0 becomes a trusted interface (preserves the
+# Reload firewall so tailscale0 becomes a trusted interface (preserves the
 # behavior of the old production script — qmanager-firewall trusts tailscale0
-# when Tailscale is installed).
+# when Tailscale is installed). reload swaps rules in place; restart would
+# briefly drop them.
 # -----------------------------------------------------------------------------
-systemctl restart qmanager-firewall 2>/dev/null || true
+systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 # Finalize
@@ -374,6 +375,9 @@ do_uninstall() {
 
     # Remove QManager-owned SSH intent flag so a reinstall starts off (explicit opt-in).
     rm -f /etc/qmanager/tailscale_ssh
+
+    # Drop tailscale0 from the firewall's trusted set now the binary is gone.
+    systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
     # No ro-restore: rootfs stays rw for the rest of uptime by project
     # convention (see qmanager_auto_update_arm's "Left rw afterwards" comment)

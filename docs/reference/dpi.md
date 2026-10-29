@@ -11,7 +11,7 @@ ISPs that throttle by site name inspect the **SNI** (the plaintext site name at 
 ## Architecture
 
 - One `tpws` instance on the modem, bound to the **LAN address** of `bridge0` (`DPI_LAN_IF`), port **989** (`DPI_PORT`). `dpi_bind_addr()` reads that address from `ip -4 addr show` and prints **empty** when the interface has none yet; empty argv means "cannot start", never a wildcard fallback.
-  - > ⚠️ WARNING: the bind address is a **security boundary, not a preference**. Port 989 is matched by **no rule in any chain** — `QMANAGER_FW` (`qmanager_firewall`) covers only 80 and 443 — so the earlier `DPI_BIND_ADDR="0.0.0.0"` made tpws an open transparent proxy reachable from the carrier side. The LAN bind is the only thing closing that exposure; do not reintroduce a wildcard bind, and do not assume a firewall rule is behind it.
+  - > ⚠️ WARNING: the bind address is a **security boundary, not a preference**. Port 989 is matched by **no rule in any chain** — `QMANAGER_FW` (`qmanager_firewall`) covers only 80/443 and SSH on `rmnet+` — so the earlier `DPI_BIND_ADDR="0.0.0.0"` made tpws an open transparent proxy reachable from the carrier side. The LAN bind is the only thing closing that exposure; do not reintroduce a wildcard bind, and do not assume a firewall rule is behind it.
 - One iptables rule (inserted by `dpi_apply_rule`, drained by `dpi_remove_rule`):
   `-t nat PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -m addrtype ! --dst-type LOCAL -j REDIRECT --to-ports 989`
   - **No `-m comment`**: the RM520N kernel ships **without `xt_comment`**, so the rule is identified by its `--to-ports 989` signature (`DPI_RULE_SIG`) in the `-S` listing, and its packet counter via `grep "redir ports 989"` in `iptables -L -v -x`.
