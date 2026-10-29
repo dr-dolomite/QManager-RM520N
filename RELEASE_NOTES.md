@@ -21,6 +21,7 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 
 - **Data Used counts bytes correctly.** Once more than about 10 MB had moved, **Data Used** counted packets instead of bytes and read far too low; it now counts bytes. Your Data Used total starts again from zero once after this update.
 - **Dota 2 shows its logo in Sites.** Adding `dota2.com` used to show only a letter because the site's own icon is too small to use; it now has a built-in logo.
+- **Tighter system permissions for the web app.** The web interface could ask for more system access than its features need; it is now limited to exactly those actions, and nothing changes in how you use it. (Service, firewall and Custom DNS changes go through small root helpers that check every request; the reboot-cause log moved to `/usrdata/qmanager/` and is migrated automatically.)
 
 ## 📥 Installation
 

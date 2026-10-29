@@ -693,6 +693,10 @@ if [ "$PURGE" = "1" ]; then
     # Sites monitor history sits directly under $QMANAGER_ROOT and would block the rmdir below.
     rm -rf "$QMANAGER_ROOT/sites"
     info "Purged sites monitor history"
+
+    # Crash log moved out of www-data's /etc/qmanager; it too would block the rmdir below.
+    rm -f "$QMANAGER_ROOT/crash.log" "$QMANAGER_ROOT"/crash.log.* "$QMANAGER_ROOT/.crash_log_migrated"
+    info "Purged crash log"
 elif [ -d "$CONF_DIR" ]; then
     warn "Config preserved at $CONF_DIR, /etc/qmanager.env, /etc/qmanager-secrets and /etc/qmanager-backups (use --purge to remove)"
     warn "/etc/qmanager-secrets still holds the Discord token / email app password (root-only, 0700)"

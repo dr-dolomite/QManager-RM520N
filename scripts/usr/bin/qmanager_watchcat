@@ -20,7 +20,7 @@
 #   Writes: /tmp/qmanager_watchcat.json (for poller consumption)
 #           /etc/qmanager/qmanager_sim_failover (on Tier 3 success)
 #           /tmp/qmanager_recovery_active (during any recovery)
-#           /etc/qmanager/crash.log (Tier 4 reboot log)
+#           /usrdata/qmanager/crash.log (Tier 4 reboot log, root-owned)
 #
 # Install location: /usr/bin/qmanager_watchcat
 # Dependencies: jq, qcmd, qlog.sh, events.sh
@@ -94,7 +94,12 @@ SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
 LONG_RUNNING_FLAG="/tmp/qmanager_long_running"
 PROFILE_APPLY_PID="/tmp/qmanager_profile_apply.pid"
 TOWER_LOCK_CONFIG="/etc/qmanager/tower_lock.json"
-CRASH_LOG="/etc/qmanager/crash.log"
+# Root-owned dir (see crash_log.sh); /etc/qmanager is www-data-writable.
+CRASH_LOG="/usrdata/qmanager/crash.log"
+if [ -f /usr/lib/qmanager/crash_log.sh ]; then
+    . /usr/lib/qmanager/crash_log.sh
+    CRASH_LOG="$QM_CRASH_LOG"
+fi
 
 # --- Configuration (defaults, overridden by /etc/qmanager/qmanager.conf) -----
 CFG_ENABLED=1
@@ -830,6 +835,7 @@ main() {
     qlog_info "========================================"
 
     # Count reboots from crash.log (persisted across reboots)
+    command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
     count_recent_reboots
     qlog_info "Reboots in last hour: $reboots_this_hour"
 

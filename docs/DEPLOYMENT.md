@@ -492,22 +492,23 @@ QManager's sudoers file (`/etc/sudoers.d/qmanager`) grants `www-data` the follow
 # OTA update worker
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 
-# Service control
-www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
+# PATH for every www-data sudo call
+Defaults:www-data secure_path="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 
-# Boot persistence (symlink-based — systemctl enable doesn't work)
-www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
-www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
+# Service control + boot persistence for QManager units (validating helper)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_svc
 
-# Firewall, reboot, schedule-timer arming, SSH password
-www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
-www-data ALL=(root) NOPASSWD: /sbin/reboot
+# Firewall (allow-listed helper), reboot (no arguments), schedule-timer arming, SSH password
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_fw_apply
+www-data ALL=(root) NOPASSWD: /sbin/reboot ""
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 ```
 
-> **Note:** All sudoers commands use full absolute paths — Entware's sudo has a restricted `secure_path` that excludes `/sbin/` and `/usr/bin/`. Bare command names will fail silently from CGI context.
+This is an excerpt. The full, current list and the reasons for its shape are in [qmanager-independence.md](reference/qmanager-independence.md#privilege-boundary-sudoers-grants-for-www-data); the authoritative file is `scripts/etc/sudoers.d/qmanager`, installed to `/opt/etc/sudoers.d/qmanager` when Entware sudo is present.
+
+> **Note:** All sudoers commands use full absolute paths. This sudo (1.8.31) has **no** built-in `secure_path`, so the drop-in sets one for `www-data`; absolute paths in the grants are what sudo matches against regardless.
 
 ---
 

@@ -80,14 +80,25 @@ Everything runs as a real `tailscaled` daemon on the modem's own Linux. QManager
 
 ```
 /usr/bin/qmanager_tailscale_mgr
-/usrdata/tailscale/tailscale
-/usrdata/tailscale/tailscaled --version
+/usrdata/tailscale/tailscale version
+/usrdata/tailscale/tailscale status --json
+/usrdata/tailscale/tailscale up --reset --accept-dns\=false
+/usrdata/tailscale/tailscale up --reset --accept-dns\=false --ssh
+/usrdata/tailscale/tailscale down
+/usrdata/tailscale/tailscale logout
+/usrdata/tailscale/tailscale set --ssh\=true
+/usrdata/tailscale/tailscale set --ssh\=false
 /bin/ln -sf /lib/systemd/system/tailscaled.service \
             /lib/systemd/system/multi-user.target.wants/tailscaled.service
+/bin/rm -f /lib/systemd/system/multi-user.target.wants/tailscaled.service
 /bin/systemctl {start,stop,restart,is-active} tailscaled
 ```
 
-The `tailscale` CLI is granted **unrestricted** because the CGI drives it with many verbs; the ban on `--accept-routes` is a code-level discipline, not a sudoers one. A bare `*` on `systemctl` was deliberately avoided — the whitelist names `tailscaled` explicitly beside the `qmanager-*` glob.
+The `tailscale` CLI is granted **one exact argument list per call** that `vpn/tailscale.sh` makes (`get_ts_version`, and `ts_cmd` with `status --json`, `up`, `down`, `logout`, `set --ssh=`). The old grant was the bare binary, which allowed any verb and any flag as root. The `=` in each flag is backslash-escaped because sudoers treats a bare `=` in a command argument as syntax. The old `tailscaled --version` line is gone; nothing called it.
+
+> ⚠️ WARNING: **A new `tailscale` verb or flag in the CGI needs its own sudoers line.** Without one, `sudo` refuses the call and the CGI sees it as an ordinary CLI failure, with nothing pointing at sudoers. Add the exact line to `scripts/etc/sudoers.d/qmanager` alongside the CGI change. One consequence is intended: `--accept-routes` is now refused by sudoers as well as left out by the code.
+
+`systemctl` stays exact too: the four `tailscaled` lines name the unit. QManager's own units go through the `qmanager_svc` helper instead — see [qmanager-independence.md](qmanager-independence.md#privilege-boundary-sudoers-grants-for-www-data).
 
 ---
 

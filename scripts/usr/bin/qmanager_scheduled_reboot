@@ -40,23 +40,25 @@ command -v pid_alive >/dev/null 2>&1 || pid_alive() { [ -n "$1" ] && [ -d "/proc
 
 qlog_init "scheduled_reboot"
 
-CRASH_LOG="/etc/qmanager/crash.log"
+# crash.log lives in the root-owned /usrdata/qmanager (see crash_log.sh).
+CRASH_LOG="/usrdata/qmanager/crash.log"
+if [ -f /usr/lib/qmanager/crash_log.sh ]; then
+    . /usr/lib/qmanager/crash_log.sh
+    CRASH_LOG="$QM_CRASH_LOG"
+fi
 
 # Trims crash.log before an append so it never grows unbounded on flash.
 # Never lets a trim failure block the append — the reboot path must not stall.
 _qm_crash_log_append() {
     local count
-    # Symlink guard: /etc/qmanager is www-data-owned and non-sticky, so refuse
-    # (and remove) a symlinked crash.log rather than following it as root.
-    if [ -L "$CRASH_LOG" ]; then
-        rm -f "$CRASH_LOG"
-    fi
-    if [ -f "$CRASH_LOG" ]; then
+    command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
+    if [ -f "$CRASH_LOG" ] && [ ! -L "$CRASH_LOG" ]; then
         count=$(wc -l < "$CRASH_LOG" 2>/dev/null || echo 0)
         if [ "$count" -gt 200 ]; then
             tail -n 100 "$CRASH_LOG" > "${CRASH_LOG}.sched.tmp" 2>/dev/null && mv "${CRASH_LOG}.sched.tmp" "$CRASH_LOG" 2>/dev/null
         fi
     fi
+    [ -L "$CRASH_LOG" ] && return 0
     echo "$(date +%s)|$1" >> "$CRASH_LOG" 2>/dev/null
 }
 

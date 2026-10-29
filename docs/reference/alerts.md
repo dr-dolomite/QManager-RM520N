@@ -32,7 +32,7 @@ The Alerts subsystem consolidates the three previously-independent notification 
 | Test-email helper | `/usr/bin/qmanager_email_send` (sudoers-gated root helper; one verb, `test`) |
 | Reboot ledger | `/etc/qmanager/reboot_history.json` (**persistent**, NDJSON, cap 10) |
 | Boot-id state | `/etc/qmanager/last_boot_id` (**persistent**) |
-| Crash log (read-only here) | `/etc/qmanager/crash.log` (**persistent**, written by watchdog / scheduled-reboot worker / root helper; two line shapes — see [the line contract](#the-crashlog-line-contract)) |
+| Crash log (read-only here) | `/usrdata/qmanager/crash.log` (**persistent**, `root:root 0644` in a root-owned dir; written by watchdog / scheduled-reboot worker / root helper; two line shapes — see [the line contract](#the-crashlog-line-contract)). Path and one-time legacy migration: `scripts/usr/lib/qmanager/crash_log.sh` (`QM_CRASH_LOG`, `qm_crash_log_prepare`) |
 | Legacy redirects | `/monitoring/{email-alerts,sms-alerts,discord-bot}` → `/monitoring/alerts` |
 
 **The model, at a glance:** 3 events × 3 channels, gated by a user routing matrix AND a hardcoded backend capability table.
@@ -367,7 +367,11 @@ The cause vocabulary is therefore **`watchdog | user | scheduled | unplanned`**,
 
 > ℹ️ NOTE: The engine reads `crash.log` but never writes it — it only ever `tail`s it. A www-data CGI writing it directly would be a symlink-escalation hole, which is why the `user` breadcrumb goes through a root helper (below).
 >
-> ⚠️ WARNING: `crash.log` is **not** root-owned in practice, whatever older comments claim. Like everything else in `/etc/qmanager` it is flipped back to `www-data:www-data 0644` by `qmanager_setup`'s boot-time `chown -R` (verified live). The root helper's value is **validation and integrity** — fixed path, fixed reason enum, symlink refusal, bounded trim — not exclusivity of write access. Do not build new logic on a "root-owned" premise for this file; if something genuinely must be out of www-data's reach, relocate it outside `/etc/qmanager` (see [Secret storage](#secret-storage-etcqmanager-secrets)).
+> ⚠️ WARNING: **`crash.log` moved to `/usrdata/qmanager/crash.log` (2026-10) and is genuinely root-owned now.** It used to live in `/etc/qmanager`, which `www-data` owns, so `www-data` could replace the file with a symlink between a root writer's check and its write — and `qmanager_setup`'s boot-time `chown -R www-data:www-data /etc/qmanager` handed the file itself back to `www-data` on every boot. `/usrdata/qmanager` is `root:root 0755`, so neither applies. **Never move it back under `/etc/qmanager`, and never point a new writer at the old path.** Every path constant comes from `crash_log.sh` (`QM_CRASH_LOG`); each consumer also hardcodes `/usrdata/qmanager/crash.log` as a fallback for when the lib is missing, so a path change must touch both.
+>
+> **One-time migration.** `qm_crash_log_prepare` (root only; a no-op for any other uid) creates the dir, then — if `/usrdata/qmanager/.crash_log_migrated` is absent and `/etc/qmanager/crash.log` is a regular file — reads the legacy file **as `www-data`** (`sudo -n -u www-data cat`, bounded by a 5 s timeout), keeps only lines matching `^[0-9]+\|[A-Za-z_]+\|[A-Za-z0-9_]+$`, puts them ahead of anything already in the new log, keeps the newest 100, and writes the marker. After that the legacy path is deleted on every call without being read: once the marker exists, anything at the old path could only have been planted by `www-data`. It runs from `qmanager_setup` at boot and at the top of every root writer and of `_ae_classify_reboot`. If the read fails — for example `sudo` is not reachable yet because `/opt` is not mounted at early boot — the legacy file is kept and the next caller retries.
+>
+> Reading as `www-data` matters: a symlink planted at the old path then resolves with `www-data`'s rights, so root never discloses a file `www-data` could not already read. Do not "simplify" it to a root `cat`, and never use `su` for it (the PAM module on this firmware hangs).
 
 ### The `user` breadcrumb root helper
 
@@ -380,8 +384,9 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_crash_log_append
 It exists solely so a user-initiated reboot leaves a `user` breadcrumb *before* the device goes down (the watchdog's own Tier-4 path writes `tier4_escalation` directly as root and needs no gate). Hardening the `installer-safety-auditor` required:
 
 - **Reason whitelist:** the only accepted argument is the literal string `user`. Anything else is rejected with a JSON error — caller text is never interpolated.
-- **Symlink guard:** a symlinked `crash.log` is removed rather than followed.
-- **Re-asserts `root:root 644` on every call**, not just at creation, because the `chown -R www-data:www-data /etc/qmanager` pass flips it back. Note that this only holds until the next boot chown — see the warning above; treat it as hygiene, not as an ownership guarantee.
+- **Root-owned location:** the log lives in `/usrdata/qmanager`, which `www-data` cannot write, so the path cannot be swapped under the helper. The helper calls `qm_crash_log_prepare` first (dir + one-time migration, see the warning above).
+- **Symlink refusal (defence in depth):** if `crash.log` is somehow a symlink, the helper refuses with `{"success":false,"error":"write_failed","detail":"crash.log is a symlink"}` and exit 1, rather than removing or following it.
+- **Pinned environment:** `PATH` is set to `/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin` and `umask 022`. The sudoers drop-in now sets `secure_path` for `www-data`, but the helper does not rely on it.
 - Trims to the last 20 lines after its own append, matching the watchdog's own convention.
 - **Pre-caps at 200 lines before appending.** The helper's 20-line trim only ever runs when the helper itself is called, and root workers now append directly without going through it — the scheduled-reboot worker writes a `skip` line on every denied fire, which on a device inside the boot-misfire window is once per boot. Both this helper and the worker's own appender therefore trim to the newest 100 lines whenever the file passes 200, so the added write volume cannot grow unbounded on flash. Neither trim is allowed to fail the append: on a failed `tail`/`mv` the temp file is removed and the line is written anyway.
 
@@ -449,7 +454,7 @@ da_is_running() {
 }
 ```
 
-- In the **CGI** context, `cgi_base.sh` sources `platform.sh`, so `svc_is_running` (which uses `sudo systemctl`) is available.
+- In the **CGI** context, `cgi_base.sh` sources `platform.sh`, so `svc_is_running` is available (as `www-data` it runs `sudo -n /usr/bin/qmanager_svc is-active qmanager-discord`; there is no raw `systemctl` grant for QManager units).
 - In the **poller** context, `alert_engine.sh` sources `discord_alerts.sh` but the poller does **not** source `platform.sh` — so `svc_is_running` is undefined and the function falls back to a standalone `pgrep`.
 
 The old `/run/qmanager-discord.pid` check was dead code: `qmanager-discord.service` is `Type=simple` with no `PIDFile=`, so nothing ever created that file — every poller-fired Discord alert silently failed. The `pgrep` fallback is what fixed it. Reverting to a pidfile or making the function depend on `platform.sh` re-breaks poller-driven Discord alerts.
@@ -638,7 +643,7 @@ The Alerts page owns *notification* config only. Several adjacent files are owne
 | `qmanager.conf` `[watchcat]` (`watchcat.*`) | Connection Watchdog (`watchdog.sh`) | Off-limits. Recovery tiers, thresholds, SIM-failover config. |
 | `ping_profile.json` | Connection Quality (all keys; the Watchdog page writes `interval_sec` through `watchdog.sh`) | Off-limits. The connectivity *producer's* config. |
 | `quality_thresholds.json` | Connection Quality (presets, and `alert_after_min`) | **One key only:** `alerts.sh` merge-writes `alert_after_min` through `cq_quality_merge`, never a whole-file write. The presets are off-limits. |
-| `crash.log` | Watchdog (Tier 4) + Scheduled Reboot worker + the `user` root helper | **Read-only** for the engine; written only by root paths. Three writers, two line shapes — see [the line contract](#the-crashlog-line-contract). |
+| `crash.log` (`/usrdata/qmanager/`) | Watchdog (Tier 4) + Scheduled Reboot worker + the `user` root helper | **Read-only** for the engine; written only by root paths, in a root-owned dir. Three writers, two line shapes — see [the line contract](#the-crashlog-line-contract). |
 
 The alert engine *reads* the link verdict indirectly (via `ev_link_state` from `events.sh`, itself derived from `qmanager_ping`) and writes none of these files. Conversely, the watchdog and quality subsystems never touch `alert_routing.json` or the channel configs. An alert can fire without a watchdog recovery, and a recovery can happen without an alert.
 

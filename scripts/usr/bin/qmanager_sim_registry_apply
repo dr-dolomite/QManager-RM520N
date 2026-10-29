@@ -32,6 +32,9 @@
 # Sudoers: bare-path NOPASSWD grant for www-data (added by the installer).
 # =============================================================================
 
+# Pin PATH: sudo passes the caller's PATH to this root helper.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+
 . /usr/lib/qmanager/sim_db.sh
 . /usr/lib/qmanager/sim_registry.sh
 

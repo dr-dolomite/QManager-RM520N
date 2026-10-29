@@ -21,7 +21,7 @@ The Connection Watchdog (`qmanager_watchcat`) is a self-healing daemon that watc
 | SIM-failover state | `/etc/qmanager/qmanager_sim_failover` (**persistent** — survives reboot) |
 | Known-SIMs set | `/etc/qmanager/known_iccids` (**persistent** — replaces the retired single-value `last_iccid`; see [sim-detection.md](sim-detection.md)) |
 | SIM-slot read-back gate | `scripts/usr/lib/qmanager/slot_verify.sh` (`verify_quimslot`) — gates Tier-3 switch/revert before either is trusted |
-| Reboot log | `/etc/qmanager/crash.log` (**persistent** — Tier-4 token bucket source) |
+| Reboot log | `/usrdata/qmanager/crash.log` (**persistent**, root-owned — Tier-4 token bucket source; path from `crash_log.sh`, moved out of `/etc/qmanager` 2026-10 — see [alerts.md](alerts.md#the-user-breadcrumb-root-helper)) |
 | Frontend page | `/monitoring/watchdog` (`components/monitoring/watchdog/`) |
 | Ping source | `/tmp/qmanager_ping.json` (from `qmanager_ping`), read only through `/usr/lib/qmanager/conn_state.sh` — see [connection-quality.md](connection-quality.md) |
 | Probe cadence | Not owned here: `interval_sec` in `/etc/qmanager/ping_profile.json` (Connection Quality). The CGI mirrors it as `probe_interval` |
@@ -140,7 +140,7 @@ Around that core sequence, Tier 3:
 
 The last resort: a full device reboot, guarded by a **token bucket**.
 
-- `count_recent_reboots` counts `reboot` entries in `/etc/qmanager/crash.log` from the last hour.
+- `count_recent_reboots` counts `reboot` entries in `/usrdata/qmanager/crash.log` from the last hour. `main()` calls `qm_crash_log_prepare` just before it, so a device coming from an older build has its legacy `/etc/qmanager/crash.log` merged in first and the budget still sees the reboots logged there.
 - If that count is already at `max_reboots_per_hour`, the watchdog **does not reboot**. Instead it sets `enabled=0` in config, touches `/tmp/qmanager_watchcat_disabled`, and exits — a reboot loop is worse than a down link, so it stops itself and surfaces an auto-disabled banner in the UI.
 - Otherwise it appends a timestamped line to `crash.log` (format `<epoch>|reboot|tier4_escalation`, trimmed to the last 20 entries), records the recovery, flushes state, and reboots after a 1s grace.
 
@@ -203,13 +203,13 @@ The delete side uses the new `qm_config_delete` primitive added to `config.sh` i
 
 ## State and flag files
 
-**Persistent (`/etc/qmanager/`, survives reboot):**
+**Persistent (`/etc/qmanager/` except `crash.log`, which is in `/usrdata/qmanager/`; all survive reboot):**
 
 | Path | Written by | Purpose |
 |------|-----------|---------|
 | `qmanager_sim_failover` | daemon (write on finalize / revert), CGI (read), poller (re-emit into `status.json`) | Active SIM-failover record. Persistent so a Tier-4 reboot doesn't lose the fact that you're riding the backup SIM. |
 | `known_iccids` | daemon (`sim_db_add`, on finalize + revert), poller (boot detector, also `sim_db_add`), `cellular/settings.sh` (manual slot switch), `profile_mgr.sh` (`set_active_profile`) | The known-SIMs **set** (replaces the retired single-value `last_iccid`). Every code path that lands the modem on a different SIM must add that ICCID here, or the poller's boot-time detector treats the (expected) transition as a physical swap. See [sim-detection.md](sim-detection.md) for the full model, including why a set (not a single value) is required for failover slot-cycling to never false-fire. |
-| `crash.log` | **Three writers:** the daemon (Tier 4, `<epoch>\|reboot\|tier4_escalation`), `qmanager_scheduled_reboot` (both `reboot` and `skip` lines), and the `qmanager_crash_log_append` root helper (`user`) | Pipe-delimited log, last 20 entries. **Two line shapes:** `<epoch>\|reboot\|<reason>` and `<epoch>\|skip\|<reason>` — the second records a scheduled reboot that was *declined* (e.g. the 1970 clock-step guard), so `count_recent_reboots()` must filter on the verb field (`$2 == "reboot"`) or a skip inflates the token bucket and disables Tier 4 for an hour. Full contract and the other two read sites: [alerts.md > The `crash.log` line contract](alerts.md#the-crashlog-line-contract). |
+| `crash.log` (`/usrdata/qmanager/`, `root:root 0644`) | **Three writers, all root:** the daemon (Tier 4, `<epoch>\|reboot\|tier4_escalation`), `qmanager_scheduled_reboot` (both `reboot` and `skip` lines), and the `qmanager_crash_log_append` root helper (`user`) | Pipe-delimited log, last 20 entries. **Two line shapes:** `<epoch>\|reboot\|<reason>` and `<epoch>\|skip\|<reason>` — the second records a scheduled reboot that was *declined* (e.g. the 1970 clock-step guard), so `count_recent_reboots()` must filter on the verb field (`$2 == "reboot"`) or a skip inflates the token bucket and disables Tier 4 for an hour. Full contract and the other two read sites: [alerts.md > The `crash.log` line contract](alerts.md#the-crashlog-line-contract). |
 | `tower_lock.json` | tower-lock feature | Read-only guard: Tier 2 is skipped when LTE or NR-SA locking is enabled. |
 
 **Volatile (`/tmp/`, cleared on reboot):**

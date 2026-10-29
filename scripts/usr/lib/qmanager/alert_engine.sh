@@ -34,7 +34,7 @@
 #     /proc/sys/kernel/random/boot_id  — compared against...
 #     /etc/qmanager/last_boot_id       — ...to detect a reboot happened
 #     /etc/qmanager/reboot_history.json — NDJSON {"epoch":N,"cause":"..."}, cap 10
-#     /etc/qmanager/crash.log          — read-only here (written by
+#     /usrdata/qmanager/crash.log      — read-only here (root-owned; written by
 #                                        qmanager_watchcat as root, or by
 #                                        the sudoers-gated root helper
 #                                        qmanager_crash_log_append for
@@ -76,7 +76,9 @@ _AE_DISCORD_CONFIG="/etc/qmanager/discord_bot.json"
 _AE_BOOT_ID_FILE="/proc/sys/kernel/random/boot_id"
 _AE_LAST_BOOT_ID_FILE="/etc/qmanager/last_boot_id"
 _AE_REBOOT_HISTORY_FILE="/etc/qmanager/reboot_history.json"
-_AE_CRASH_LOG="/etc/qmanager/crash.log"
+# Root-owned log (see crash_log.sh); fallback keeps the engine working without the lib.
+[ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
+_AE_CRASH_LOG="${QM_CRASH_LOG:-/usrdata/qmanager/crash.log}"
 _AE_MAX_REBOOT_HISTORY=10
 _AE_REBOOT_COALESCE_THRESHOLD=3
 _AE_REBOOT_CLASSIFY_WINDOW_SECS=600
@@ -256,6 +258,7 @@ _ae_append_reboot_history() {
 # line. Sets _ae_reboot_cause to one of: watchdog | user | scheduled | unplanned.
 _ae_classify_reboot() {
     _ae_reboot_cause="unplanned"
+    command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
     [ -f "$_AE_CRASH_LOG" ] || return 0
 
     local last_line last_epoch last_tag now age
