@@ -15,8 +15,10 @@
 //! IP Family for the IPv6 client). Those binds are per-client state on the
 //! broker's own sockets (released when they close) and change nothing about
 //! the data call, but they are writes: they sit in `BROKER_CONFIG`, and the
-//! stats read in `BROKER_READ`, with the same rule as 0x006C. WDS 0x0086
-//! (Reset) and every call-control message are never sent.
+//! stats read in `BROKER_READ`, with the same rule as 0x006C. The same
+//! bound clients read WDS 0x002D (Get Runtime Settings: IP, gateway, DNS,
+//! MTU; broker 0.7.0). WDS 0x0086 (Reset) and every call-control message
+//! are never sent.
 
 use super::error::QmiError;
 use super::{SVC_DMS, SVC_DSD, SVC_NAS, SVC_UIM, SVC_WDS};
@@ -62,6 +64,8 @@ pub const WDS_BIND_SUBSCRIPTION: u16 = 0x00AF;
 pub const WDS_SET_CLIENT_IP_FAMILY: u16 = 0x004D;
 /// WDS Get Packet Statistics: answered only on a bound client.
 pub const WDS_GET_PKT_STATS: u16 = 0x0024;
+/// WDS Get Runtime Settings: answered only on a bound client.
+pub const WDS_GET_RUNTIME_SETTINGS: u16 = 0x002D;
 
 /// The only config writes the broker itself may send; never in
 /// `CLIENT_ALLOWED` or `INTERNAL_ONLY`, so no request path can reach them.
@@ -76,7 +80,7 @@ pub const BROKER_CONFIG: &[(u32, u16)] = &[
 /// Reads only the broker sends, on its internal bound WDS clients. Never in
 /// `CLIENT_ALLOWED`: on the shared (unbound) client it fails anyway, and the
 /// per-call counters are published through the `qmi.env` sidecar instead.
-pub const BROKER_READ: &[(u32, u16)] = &[(SVC_WDS, WDS_GET_PKT_STATS)];
+pub const BROKER_READ: &[(u32, u16)] = &[(SVC_WDS, WDS_GET_PKT_STATS), (SVC_WDS, WDS_GET_RUNTIME_SETTINGS)];
 
 /// Whether the daemon itself may send (svc, msg) on an internal client.
 pub fn broker_allowed(svc: u32, msg: u16) -> bool {
@@ -120,7 +124,7 @@ mod tests {
         // Excluded on purpose, or writes.
         for &(s, m) in &[
             (SVC_WDS, 0x0024u16), // Get Packet Statistics (needs session ownership)
-            (SVC_WDS, 0x002D),    // Get Current Settings (needs session ownership)
+            (SVC_WDS, 0x002D),    // Get Runtime Settings (broker-internal, bound client)
             (SVC_NAS, 0x006C),    // Config Signal Info v2 (config write)
             (SVC_NAS, 0x0033),    // Set System Selection Preference
             (SVC_DMS, 0x002E),    // Set Operating Mode
@@ -139,7 +143,7 @@ mod tests {
     #[test]
     fn broker_only_pairs_are_exact_and_never_client_reachable() {
         assert_eq!(BROKER_CONFIG, &[(SVC_NAS, 0x006C), (SVC_WDS, 0x00A2), (SVC_WDS, 0x00AF), (SVC_WDS, 0x004D)]);
-        assert_eq!(BROKER_READ, &[(SVC_WDS, 0x0024)]);
+        assert_eq!(BROKER_READ, &[(SVC_WDS, 0x0024), (SVC_WDS, 0x002D)]);
         for &(s, m) in BROKER_CONFIG.iter().chain(BROKER_READ) {
             assert!(!client_allowed(s, m), "{s}:{m:#06x}");
             assert!(!internal_allowed(s, m), "{s}:{m:#06x}");
@@ -149,9 +153,12 @@ mod tests {
         // NAS 0x004D (Get Sys Info) stays a client read; WDS 0x004D does not.
         assert!(client_allowed(SVC_NAS, 0x004D));
         // Never sent by anyone: WDS Reset, Start/Stop Network Interface.
-        for m in [0x0086u16, 0x0020, 0x0021, 0x002D] {
+        for m in [0x0086u16, 0x0020, 0x0021] {
             assert!(!broker_allowed(SVC_WDS, m), "{m:#06x}");
             assert!(!client_allowed(SVC_WDS, m), "{m:#06x}");
         }
+        // Get Runtime Settings: the broker's bound clients only.
+        assert!(broker_allowed(SVC_WDS, 0x002D));
+        assert!(!client_allowed(SVC_WDS, 0x002D));
     }
 }
