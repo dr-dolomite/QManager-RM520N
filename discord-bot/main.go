@@ -101,6 +101,11 @@ func main() {
 	// MESSAGE_CREATE Gateway events to user-installed apps (applications.commands scope
 	// only), but InteractionCreate IS delivered and carries the invoking ChannelID.
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		// Single owner gate for every command and component; nothing below runs for others.
+		if !isOwner(i, cfg.OwnerDiscordID) {
+			rejectNonOwner(s, i)
+			return
+		}
 		captureDMFromInteraction(i, dmCh, cfg.OwnerDiscordID)
 		handleInteraction(s, i)
 	})

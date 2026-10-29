@@ -49,6 +49,16 @@ discordgo reconnects a dropped gateway by itself after the first connect; `conne
 
 ---
 
+## Owner-only authorization
+
+Every interaction (slash commands **and** button clicks) passes one gate in the `InteractionCreate` handler in `main.go`: `isOwner(i, cfg.OwnerDiscordID)` in `handlers.go`, which reads `i.User` (DM) or `i.Member.User` (guild) and fails closed on an empty ID. Non-owners get a private "only responds to its owner" reply plus a `[interaction] rejected non-owner` log line, and no handler runs. Do not add a dispatch path that skips this gate.
+
+- **Why it matters:** a button on a message can be clicked by anyone who can see that message (e.g. a group DM), and a Discord app marked **Public Bot** (the default for new apps) can be installed by anyone who knows its app ID, which is the same as the bot's user ID. Before this gate, either path could run `/reboot` → `AT+QPOWD=1`, `/lock-band` or `/network-mode`.
+- **Owner setup advice:** turn **Public Bot** off in the Discord Developer Portal (Bot tab). The gate does not depend on it; turning it off just stops strangers installing the app.
+- **`/network-mode` allowlist:** `networkModeOption` only accepts `AUTO`, `LTE`, `NR5G`, `NR5G:LTE` before building the AT command, rather than trusting Discord to enforce the choices.
+
+---
+
 ## AT-command serialization
 
 Slash commands that issue AT calls (`/lock-band`, `/network-mode`, `/reboot`) go through `runQcmd` → `/usr/bin/qcmd`, which uses the same `flock` `/tmp/qmanager_at.lock` everything else does. No special Discord-side coordination needed.
@@ -103,7 +113,7 @@ Adding a decorative emoji to a field label is a regression.
 
 ### `/lock-band` separator and normalization
 
-User input uses commas (`B3,B7,B28` / `n41,n78`) — colons accepted for legacy. `parseBandOption` in `handlers.go` normalizes both via `strings.ReplaceAll(input, ":", ",")`, then numerically sorts via `sort.Ints` and dedups via `slices.Compact`, so the modem (and the `"B" + strings.ReplaceAll(parsed, ":", "/B")` display formatter in `handleLockBand`) always sees a canonical ascending colon-joined list with no duplicates regardless of input order. The AT command itself (`AT+QNWPREFCFG="lte_band",3:7:28`) still uses colons — that is the modem's wire format, not the user contract. All-invalid input collapses to `""`, which the caller treats the same as `auto` (sends `0` = unlock).
+User input uses commas (`B3,B7,B28` / `n41,n78`) — colons accepted for legacy. `parseBandOption` in `handlers.go` normalizes both via `strings.ReplaceAll(input, ":", ",")`, then numerically sorts via `sort.Ints` and dedups via `slices.Compact`, so the modem (and the `"B" + strings.ReplaceAll(parsed, ":", "/B")` display formatter in `handleLockBand`) always sees a canonical ascending colon-joined list with no duplicates regardless of input order. The AT command itself (`AT+QNWPREFCFG="lte_band",3:7:28`) still uses colons — that is the modem's wire format, not the user contract. All-invalid input collapses to `""`, but `handleLockBand` only unlocks (sends `0`) when `isAutoBandInput` sees a literal `auto`; junk input reports "no valid bands given, nothing changed" and sends no AT command.
 
 ---
 
