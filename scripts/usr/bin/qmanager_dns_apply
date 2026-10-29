@@ -1,0 +1,187 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_dns_apply - root helper: install the Custom DNS sentinel block
+# =============================================================================
+# Usage (via sudo from custom_dns.sh):  qmanager_dns_apply apply
+#
+# Trusts nothing from www-data except one validated block: it copies the staged
+# file to a root-only dir, extracts ONLY the sentinel block, accepts only the
+# lines the CGI writes (no-resolv, server=<ip>), rebuilds the config from ROOT's
+# own /etc/data/dnsmasq.conf (old block stripped), runs dnsmasq --test on that
+# copy, then atomically installs it as radio:radio 0644 and HUPs dnsmasq.
+#
+# Exit: 0 ok | 2 usage | 3 staged file unusable | 4 block rejected
+#       5 dnsmasq --test rejected | 6 install failed | 7 live conf missing
+#       8 installed but reload failed.  Reason goes to stderr (never file bytes).
+# =============================================================================
+
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+unset IFS
+umask 077
+unset ENV BASH_ENV
+
+STAGED="/etc/data/qmanager/dnsmasq.conf.new"
+DEST="/etc/data/dnsmasq.conf"
+DEST_DIR="/etc/data"
+SENTINEL_BEGIN="# QMANAGER-CUSTOM-DNS-BEGIN v1"
+SENTINEL_END="# QMANAGER-CUSTOM-DNS-END v1"
+MAX_SERVERS=4
+MAX_STAGED_BYTES=262144
+
+WORK=""
+OUT_TMP=""
+
+cleanup() {
+    [ -n "$OUT_TMP" ] && rm -f "$OUT_TMP"
+    [ -n "$WORK" ] && rm -rf "$WORK"
+}
+trap cleanup EXIT INT TERM
+
+die() {
+    # $1 = exit code, rest = reason (fixed text only)
+    _rc="$1"
+    shift
+    printf 'qmanager_dns_apply: %s\n' "$*" >&2
+    exit "$_rc"
+}
+
+# valid_ip - IPv4 (4 decimal octets 0-255) or IPv6 charset with 2+ colons.
+# dnsmasq --test is the final gate; this only keeps the line grammar closed.
+valid_ip() {
+    _a="$1"
+    case "$_a" in
+        ''|*[!0-9A-Fa-f:.]*) return 1 ;;
+    esac
+    [ "${#_a}" -le 45 ] || return 1
+    case "$_a" in
+        *:::*) return 1 ;;
+        *:*:*) return 0 ;;
+        *:*) return 1 ;;
+    esac
+    case "$_a" in
+        *[!0-9.]*|.*|*.|*..*) return 1 ;;
+    esac
+    IFS='.'
+    set -- $_a
+    unset IFS
+    [ $# -eq 4 ] || return 1
+    for _o in "$@"; do
+        [ "${#_o}" -le 3 ] || return 1
+        # A leading zero reads as octal to inet_aton (010 = 8).
+        case "$_o" in 0?*) return 1 ;; esac
+        [ "$_o" -le 255 ] || return 1
+    done
+    return 0
+}
+
+[ "$(id -u)" = "0" ] || die 1 "must run as root"
+[ $# -eq 1 ] && [ "$1" = "apply" ] || die 2 "usage: qmanager_dns_apply apply"
+
+# --- Copy the staged file into a root-only dir before looking at it ----------
+[ ! -L "/etc/data/qmanager" ] || die 3 "staging dir is a symlink"
+[ ! -L "$STAGED" ] || die 3 "staged file is a symlink"
+[ -f "$STAGED" ] || die 3 "staged file missing or not a regular file"
+
+WORK=$(mktemp -d /tmp/qm_dns_apply.XXXXXX) || die 1 "mktemp failed"
+chmod 0700 "$WORK"
+
+# One byte over the cap is enough to detect an oversize file.
+dd if="$STAGED" of="$WORK/staged" bs=4096 count=65 2>/dev/null \
+    || die 3 "cannot read staged file"
+[ ! -L "$STAGED" ] || die 3 "staged file is a symlink"
+size=$(wc -c < "$WORK/staged")
+[ "$size" -le "$MAX_STAGED_BYTES" ] || die 3 "staged file too large"
+
+# --- Extract + validate the sentinel block (everything else is ignored) ------
+state=0          # 0 before BEGIN, 1 inside, 2 after END
+no_resolv=0
+n_servers=0
+servers=""
+
+while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+        "$SENTINEL_BEGIN")
+            [ "$state" -eq 0 ] || die 4 "duplicate BEGIN sentinel"
+            state=1
+            continue
+            ;;
+        "$SENTINEL_END")
+            [ "$state" -eq 1 ] || die 4 "END sentinel without BEGIN"
+            state=2
+            continue
+            ;;
+    esac
+    [ "$state" -eq 1 ] || continue
+    case "$line" in
+        no-resolv)
+            [ "$no_resolv" -eq 0 ] || die 4 "duplicate no-resolv"
+            no_resolv=1
+            ;;
+        server=*)
+            addr="${line#server=}"
+            valid_ip "$addr" || die 4 "invalid server address in block"
+            n_servers=$((n_servers + 1))
+            [ "$n_servers" -le "$MAX_SERVERS" ] || die 4 "too many servers"
+            servers="${servers}server=${addr}
+"
+            ;;
+        *)
+            die 4 "disallowed line in block"
+            ;;
+    esac
+done < "$WORK/staged"
+
+[ "$state" -ne 1 ] || die 4 "BEGIN sentinel without END"
+if [ "$state" -eq 2 ] && [ "$n_servers" -eq 0 ]; then
+    die 4 "block has no servers"
+fi
+
+# --- Rebuild from root's own current config ----------------------------------
+[ -f "$DEST" ] && [ ! -L "$DEST" ] || die 7 "dnsmasq config file not found"
+
+# Strip our old block. A BEGIN with no END only swallows the block-grammar
+# lines that follow it, so a half-written block cannot eat the rest of the file.
+in_block=0
+while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+        "$SENTINEL_BEGIN") in_block=1; continue ;;
+        "$SENTINEL_END")   in_block=0; continue ;;
+    esac
+    if [ "$in_block" -eq 1 ]; then
+        case "$line" in
+            no-resolv|server=*) continue ;;
+        esac
+        in_block=0
+    fi
+    printf '%s\n' "$line"
+done < "$DEST" > "$WORK/new" || die 6 "cannot read live config"
+
+if [ "$state" -eq 2 ]; then
+    {
+        printf '%s\n' "$SENTINEL_BEGIN"
+        [ "$no_resolv" -eq 1 ] && printf 'no-resolv\n'
+        printf '%s' "$servers"
+        printf '%s\n' "$SENTINEL_END"
+    } >> "$WORK/new" || die 6 "cannot build config"
+fi
+
+# --- Validate the exact bytes we are about to install ------------------------
+test_out=$(/usr/bin/dnsmasq --test --conf-file="$WORK/new" 2>&1)
+test_rc=$?
+if [ "$test_rc" -ne 0 ]; then
+    printf '%s\n' "$test_out" >&2
+    exit 5
+fi
+
+# --- Atomic install: temp on the same volume, then rename --------------------
+OUT_TMP=$(mktemp "$DEST_DIR/.qm_dns_apply.XXXXXX") || die 6 "mktemp failed in $DEST_DIR"
+cat "$WORK/new" > "$OUT_TMP" || die 6 "cannot write temp config"
+chown radio:radio "$OUT_TMP" || die 6 "chown failed"
+chmod 0644 "$OUT_TMP" || die 6 "chmod failed"
+cmp -s "$WORK/new" "$OUT_TMP" || die 6 "temp config changed under us"
+mv -f "$OUT_TMP" "$DEST" || die 6 "mv failed"
+OUT_TMP=""
+
+/usr/bin/killall -HUP dnsmasq >/dev/null 2>&1 || die 8 "config installed but dnsmasq reload failed"
+exit 0

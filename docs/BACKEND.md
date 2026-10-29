@@ -522,7 +522,7 @@ Config: `/etc/qmanager/sms_alerts.json`. Log: `/tmp/qmanager_sms_log.json` (NDJS
 
 Unified alert engine. Sourced by `qmanager_poller`; replaces the three independent per-channel downtime state machines with ONE monotonic downtime timer (`/proc/uptime`) plus a routing × capability matrix that decides which enabled + routed + capable channel(s) fire for each of three events: `connection_lost`, `connection_restored`, `reboot`. Reads the poller globals `conn_internet_available` and `conn_during_recovery`; never probes or issues AT commands itself. Full contract in `docs/reference/alerts.md`.
 
-Config: `/etc/qmanager/alert_routing.json` (routing matrix, version 1) plus each channel's own config. Reboot bookkeeping: `/etc/qmanager/{last_boot_id,reboot_history.json}` and read-only `/etc/qmanager/crash.log`.
+Config: `/etc/qmanager/alert_routing.json` (routing matrix, version 1) plus each channel's own config. Reboot bookkeeping: `/etc/qmanager/{last_boot_id,reboot_history.json}` and read-only `/usrdata/qmanager/crash.log` (root-owned; path from `crash_log.sh`).
 
 | Function | Description |
 |----------|-------------|
@@ -664,7 +664,7 @@ Times a TCP connect (`curl -I`, `time_connect − time_namelookup`) to each conf
 #### `qmanager_watchcat`
 
 **Location:** `/usr/bin/qmanager_watchcat`
-**State files:** `/tmp/qmanager_watchcat.json`, `/tmp/qmanager_watchcat.pid`, `/tmp/qmanager_watchcat.lock`, `/tmp/qmanager_recovery_active`, `/etc/qmanager/qmanager_sim_failover` (persistent), `/etc/qmanager/last_iccid` (persistent), `/etc/qmanager/crash.log`
+**State files:** `/tmp/qmanager_watchcat.json`, `/tmp/qmanager_watchcat.pid`, `/tmp/qmanager_watchcat.lock`, `/tmp/qmanager_recovery_active`, `/etc/qmanager/qmanager_sim_failover` (persistent), `/etc/qmanager/last_iccid` (persistent), `/usrdata/qmanager/crash.log` (persistent, root-owned)
 **Config:** `qmanager.conf` section `watchcat`
 
 Pure state machine. Reads `qmanager_ping.json`; never pings independently. Full feature reference: `docs/reference/connection-watchdog.md`.
@@ -926,24 +926,28 @@ OTA update worker. See §12 for full pipeline description. Called via `sudo -n` 
 
 ## 7. Sudoers Rules
 
-File deployed to `/etc/sudoers.d/qmanager` (and `/opt/etc/sudoers.d/qmanager` for Entware sudo).
+Source `scripts/etc/sudoers.d/qmanager`, installed to `$SUDOERS_DIR/qmanager` — `/opt/etc/sudoers.d/qmanager` when Entware sudo is present (the measured case; the device has no `/etc/sudoers.d`), else `/etc/sudoers.d/qmanager`.
 
 ```
 # QManager -- sudoers rules for CGI scripts (lighttpd runs as www-data)
 # Install location: /opt/etc/sudoers.d/qmanager (Entware) or /etc/sudoers.d/qmanager
 
-# Service control (used by platform.sh svc_* functions)
-www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
+# sudo 1.8.31 here has no built-in secure_path, so pin one for www-data.
+Defaults:www-data secure_path="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 
-# Boot persistence (symlink-based -- systemctl enable doesn't work on RM520N-GL)
-www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service /lib/systemd/system/multi-user.target.wants/qmanager*.service
-www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
+# QManager units: one helper that validates verb + unit itself
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_svc
+# tailscaled: the one third-party unit, exact lines
+www-data ALL=(root) NOPASSWD: /bin/systemctl start tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl stop tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl restart tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl is-active tailscaled
 
-# Firewall rules (used by TTL, VPN firewall)
-www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
+# Firewall rules (TTL/HL, Traffic Engine): allow-listed helper, no raw iptables
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_fw_apply
 
-# System reboot (used by system/reboot.sh, update installer)
-www-data ALL=(root) NOPASSWD: /sbin/reboot
+# System reboot: the empty "" pins the no-argument form
+www-data ALL=(root) NOPASSWD: /sbin/reboot ""
 
 # Scheduled Reboot + Tower Lock schedule timer arming (replaced the dead crontab
 # path — RM520N runs no crond; these arm runtime systemd OnCalendar timers)
@@ -963,8 +967,15 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_email_send
 
 # Tailscale VPN management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tailscale_mgr
-www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale
-www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscaled --version
+# Exact argument forms used by vpn/tailscale.sh (`=` is backslash-escaped)
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale version
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale status --json
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale up --reset --accept-dns\=false
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale up --reset --accept-dns\=false --ssh
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale down
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale logout
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale set --ssh\=true
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale set --ssh\=false
 
 # Tailscale boot persistence (symlink-based)
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/tailscaled.service /lib/systemd/system/multi-user.target.wants/tailscaled.service
@@ -981,10 +992,12 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 
 | Rule | Used by |
 |------|---------|
-| `systemctl start/stop/restart/is-active *` | `platform.sh` `svc_start`, `svc_stop`, `svc_restart`, `svc_is_running`; all CGI scripts that control services |
-| `ln -sf qmanager*.service` / `rm -f qmanager*.service` | `platform.sh` `svc_enable`/`svc_disable`; `tower/settings.sh`, `monitoring/watchdog.sh` |
-| `iptables*`, `ip6tables*`, `*-restore` | `platform.sh` `run_iptables`/`run_ip6tables`; `network/ttl.sh`, `qmanager_firewall` |
-| `/sbin/reboot` | `cgi_base.sh` `cgi_reboot_response`; `system/reboot.sh`; `qmanager_update` |
+| `Defaults:www-data secure_path=...` | Every `sudo` call from `www-data`: root helpers no longer inherit lighttpd's/the caller's `PATH` (opt-first order matches `cgi_base.sh`) |
+| `qmanager_svc` | `platform.sh` `svc_start`/`svc_stop`/`svc_restart`/`svc_reset_failed`/`svc_is_running`/`svc_enable`/`svc_disable` when running as `www-data`; root callers use `systemctl`/`ln`/`rm` directly |
+| `systemctl start/stop/restart/is-active tailscaled` | `platform.sh` `_svc_ctl` when the mapped unit is `tailscaled` |
+| `qmanager_fw_apply` | `platform.sh` `run_iptables`/`run_ip6tables` when running as `www-data`: `ttl_state.sh` (TTL/HL) and `dpi_state.sh` (Traffic Engine). Root callers run iptables directly |
+| `/sbin/reboot ""` | `platform.sh` `run_reboot`; `cgi_base.sh` `cgi_reboot_response`; `system/reboot.sh`. Arguments are refused |
+| `qmanager_dns_apply` | `network/custom_dns.sh` save/clear — see [custom-dns.md](reference/custom-dns.md#apply-pipeline) |
 | `qmanager_auto_update_arm` | `system/update.sh` `save_auto_update` — arms/disarms `qmanager-auto-update.timer` live via its `/lib` boot symlink |
 | `qmanager_scheduled_reboot_arm` | `system/settings.sh` `save_scheduled_reboot` — arms/disarms `qmanager-scheduled-reboot.timer` |
 | `qmanager_tower_schedule_arm` | `tower/schedule.sh` — arms/clears the `qmanager-tower-schedule-apply`/`-clear` timer pair |
@@ -992,20 +1005,21 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 | `qmanager_secret_set` | `monitoring/alerts.sh` `save_settings` — stores/clears the Discord token and Gmail app password in `/etc/qmanager-secrets/`, renders `msmtprc`, maintains the `*_set` markers |
 | `qmanager_email_send` | `monitoring/alerts.sh` `send_test` (email channel) — the CGI can no longer read `msmtprc` |
 | `qmanager_tailscale_mgr` | `vpn/tailscale.sh` |
-| `/usrdata/tailscale/tailscale` | `vpn/tailscale.sh` (status queries, `tailscale up`) |
-| `/usrdata/tailscale/tailscaled --version` | `vpn/tailscale.sh` (installed version check) |
+| `/usrdata/tailscale/tailscale <exact args>` | `vpn/tailscale.sh` `get_ts_version` and `ts_cmd` — one line per call form; a new verb or flag needs a new line ([tailscale.md](reference/tailscale.md#sudoers-surface)) |
 | `ln/rm tailscaled.service` | `vpn/tailscale.sh` (enable/disable Tailscale at boot) |
 | `qmanager_console_mgr` | Console management via system settings CGI |
 | `qmanager_update` | `system/update.sh` (OTA update; added in v0.1.5 -- previously required ADB/SSH) |
 | `qmanager_timezone_apply` | `system_config.sh` `sys_set_timezone` (copies resolved TZif over `/etc/localtime`) |
 
-> ℹ️ NOTE: The rules block quoted above is illustrative and not exhaustive. The authoritative file is `scripts/etc/sudoers.d/qmanager`, which also carries `qmanager_health_check`, `qmanager_ethernet_apply`, `qmanager_timezone_apply`, and the Custom DNS rules.
+> ℹ️ NOTE: The rules block quoted above is illustrative and not exhaustive. The authoritative file is `scripts/etc/sudoers.d/qmanager`, which also carries `qmanager_crash_log_append`, `qmanager_dpi_install`, `qmanager_dpi_verify`, `qmanager_scenario_schedule_arm`, `qmanager_health_check`, `qmanager_ethernet_apply`, `qmanager_lan_apply`, `qmanager_language_pack_apply`, `qmanager_sim_registry_apply` and `qmanager_dns_apply`.
 
-**Security note:** All rules use full absolute paths. sudo's `secure_path` is overridden by Entware's sudo configuration, but absolute paths in rules are immune to PATH injection regardless.
+**Security note:** All rules use full absolute paths, and the drop-in sets `Defaults:www-data secure_path` because this sudo (1.8.31) has no built-in one — before that line, the caller's `PATH` reached every root helper. Most granted helpers also pin `PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin` themselves. Three do not: `qmanager_set_ssh_password` and `qmanager_console_mgr` set no `PATH`, and `qmanager_update` prepends that list but keeps the inherited `PATH` after it — all three rely on `secure_path` alone. Pin `PATH` in any new helper.
 
-**Bare paths, validation inside the helper.** New grants are a bare helper path with no arguments and no wildcards (`qmanager_crash_log_append`, `qmanager_*_arm`, `qmanager_secret_set`, `qmanager_email_send`). A sudoers wildcard cannot express an argument whitelist, a length cap, or a symlink refusal; the helper can, and it can be read and tested.
+**Bare paths, validation inside the helper.** New grants are a bare helper path with no arguments and no wildcards (`qmanager_svc`, `qmanager_fw_apply`, `qmanager_dns_apply`, `qmanager_crash_log_append`, `qmanager_*_arm`, `qmanager_secret_set`, `qmanager_email_send`). A sudoers `*` in a command's arguments matches any text, **including spaces and `/`**, so a line like `systemctl start qmanager-*` also matched extra units and extra options after the prefix, and `ln -sf .../qmanager*.service ...` matched paths outside the unit directory. A sudoers wildcard cannot express an argument whitelist, a length cap, or a symlink refusal; the helper can, and it can be read and tested. The only argument-carrying grants left are exact, wildcard-free lines (`tailscaled`, the `tailscale` CLI forms, `/sbin/reboot ""`).
 
 > ⚠️ WARNING: **The drop-in is `visudo -c -f`-gated at install time.** sudo parses all of `sudoers.d` as one unit, so a single malformed line does not disable one grant — it makes sudo reject the **entire directory**, taking out every privileged CGI action at once (reboot, OTA, Tailscale, ethernet, timezone, secret writes). `install_backend()` stages the file as `$SUDOERS_DIR/qmanager.qm_stage.$$` (sudo skips any include-directory filename containing a `.`, so the stage file is never parsed), runs `visudo -c -f` against it, and only then renames it into place. A validation failure leaves the previously-installed known-good file completely untouched. If `visudo` itself is absent the install proceeds unvalidated but warns loudly — the pre-existing behavior. Do not "simplify" this back to a direct `install_file` into `sudoers.d`.
+>
+> There is also an **early** check: `preflight()` runs `visudo -c -f` on the shipped drop-in (when `DO_BACKEND=1`) and `die`s **before any service is stopped or file installed**. That ordering matters because the new helpers and the grants that replace raw commands ship together: new helpers paired with a refused (so still old, broader) drop-in is worse than aborting. The late check in `install_backend()` stays as a second guard. With no `visudo` binary the early check is skipped without a message and the late one warns, as above.
 
 ---
 
@@ -1311,7 +1325,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/etc/qmanager/ttl_state` | TTL/HL values (`TTL=N\nHL=N`); absent = no rules |
 | `/etc/firewall.user.mtu` | MTU setting script (sourced by `qmanager_mtu.service`) |
 | `/etc/qmanager/long_commands.list` | List of AT commands treated as long (one per line) |
-| `/etc/qmanager/crash.log` | Reboot log (`<epoch>\|reboot\|<tag>`): watchcat Tier-4 writes `tier4_escalation` (token-bucket source), the `qmanager_crash_log_append` root helper writes `user`; read-only by alert_engine.sh for reboot classification |
+| `/usrdata/qmanager/crash.log` | Reboot log (`<epoch>\|reboot\|<tag>` and `<epoch>\|skip\|<reason>`): watchcat Tier-4 writes `tier4_escalation` (token-bucket source), `qmanager_scheduled_reboot` writes `scheduled` and `skip` lines, the `qmanager_crash_log_append` root helper writes `user`; read-only by alert_engine.sh for reboot classification. **Not in `/etc/qmanager`:** it moved to this root-owned `0755` dir in 2026-10 so `www-data` cannot swap it under a root writer. `qm_crash_log_prepare` (`crash_log.sh`) merges a legacy `/etc/qmanager/crash.log` once, marker `/usrdata/qmanager/.crash_log_migrated` — see [alerts.md](reference/alerts.md#the-user-breadcrumb-root-helper) |
 | `/etc/qmanager/qmanager_sim_failover` | Watchcat Tier-3 SIM-failover record (persistent so it survives a Tier-4 reboot) |
 | `/etc/qmanager/last_iccid` | Last-landed SIM ICCID; written after a swap/revert so the poller's boot swap-detector doesn't false-fire |
 | `/etc/qmanager.env` | Optional environment overrides for the root-run systemd daemons (e.g., `QLOG_LEVEL=DEBUG`). **Outside `/etc/qmanager` on purpose** — `root:root 0644`, never `www-data`-writable. Relocated from `/etc/qmanager/environment` in v0.1.14; see [qmanager-independence.md](reference/qmanager-independence.md) |

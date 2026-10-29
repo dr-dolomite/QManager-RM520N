@@ -188,6 +188,15 @@ fi
 
 chown -R www-data:www-data /etc/qmanager
 
+# Reboot-cause log lives in the root-owned /usrdata/qmanager, never in the
+# www-data-owned /etc/qmanager (symlink-swap hole). Ensure the dir and move any
+# legacy /etc/qmanager/crash.log across once (read as www-data, see crash_log.sh).
+install -d -o root -g root -m 0755 /usrdata/qmanager
+if [ -f /usr/lib/qmanager/crash_log.sh ]; then
+    . /usr/lib/qmanager/crash_log.sh
+    qm_crash_log_prepare || true
+fi
+
 # Make all qmanager binaries executable
 for f in /usr/bin/qmanager_*; do
     [ -f "$f" ] && chmod +x "$f"

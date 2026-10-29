@@ -484,7 +484,7 @@ www-data ALL = (root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/ip6tables, \
     /usrdata/simplefirewall/ttl-override, /bin/echo, /bin/cat
 ```
 
-QManager installs its own sudoers file at `/etc/sudoers.d/qmanager` (not `/opt/etc/sudoers.d/`) covering systemctl, reboot, ln, rm, iptables-restore, the schedule-timer arm helpers (`qmanager_scheduled_reboot_arm` / `qmanager_tower_schedule_arm`, which replaced the removed `crontab` grant), `qmanager_set_ssh_password`, and — critically for OTA updates — `qmanager_update`. All entries use full absolute paths due to Entware's `secure_path` restriction (see [Web Server: lighttpd](#web-server-lighttpd)).
+QManager installs its own sudoers drop-in at `$SUDOERS_DIR/qmanager` — `/opt/etc/sudoers.d/qmanager` when Entware sudo is present, `/etc/sudoers.d/qmanager` otherwise. Since 2026-10 it grants `www-data` validating root helpers rather than raw commands: `qmanager_svc` (QManager unit control and boot symlinks), `qmanager_fw_apply` (allow-listed iptables), `qmanager_dns_apply`, `/sbin/reboot ""` (no arguments), the schedule-timer arm helpers (`qmanager_scheduled_reboot_arm` / `qmanager_tower_schedule_arm`, which replaced the removed `crontab` grant), `qmanager_set_ssh_password`, and — critically for OTA updates — `qmanager_update`. It also sets `Defaults:www-data secure_path`, because this sudo has no built-in one. Full list: [qmanager-independence.md](reference/qmanager-independence.md#privilege-boundary-sudoers-grants-for-www-data).
 
 The `qmanager_update` rule deserves special mention:
 ```
@@ -1455,7 +1455,7 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 │   │   ├── atcmd            ← AT tool for smd7
 │   │   └── atcmd11          ← AT tool for smd11
 │   └── sbin/
-│       ├── iptables         ← Firewall (NOTE: /usr/sbin/, not in sudo secure_path)
+│       ├── iptables         ← Firewall (www-data reaches it only via qmanager_fw_apply)
 │       └── ip6tables        ← IPv6 firewall
 ├── usrdata/                ← Persistent writable partition
 │   ├── opt/                ← Entware installation
@@ -1553,22 +1553,21 @@ The RM520N-GL uses lighttpd (from Entware) instead of OpenWRT's uhttpd. Key conf
 | Reverse proxy | Not used | `/console` → ttyd on 127.0.0.1:8080 |
 | Process user | root (typically) | `www-data:dialout` |
 
-**Process permissions:** lighttpd runs as `www-data:dialout`. The `dialout` group grants access to `/dev/smd11` (AT transport device). For operations requiring root (iptables, service management, OTA updates), sudoers rules in `/etc/sudoers.d/qmanager` allow specific commands:
+**Process permissions:** lighttpd runs as `www-data:dialout`. The `dialout` group grants access to `/dev/smd11` (AT transport device). For operations requiring root (iptables, service management, OTA updates), sudoers rules in the `qmanager` drop-in (`/opt/etc/sudoers.d/qmanager` with Entware sudo) allow specific commands:
 
 ```
 # OTA update worker (CGI invokes via sudo -n; worker creates log as root)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 
-# Service control (platform.sh svc_* functions)
-www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
+# PATH for every www-data sudo call
+Defaults:www-data secure_path="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 
-# Boot persistence (symlink-based — systemctl enable doesn't work)
-www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
-www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
+# Service control + boot persistence (platform.sh svc_* functions, via a validating helper)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_svc
 
-# Firewall, reboot, SSH password
-www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
-www-data ALL=(root) NOPASSWD: /sbin/reboot
+# Firewall (allow-listed helper), reboot (no arguments), SSH password
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_fw_apply
+www-data ALL=(root) NOPASSWD: /sbin/reboot ""
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 
 # Schedule timer arm helpers (systemd OnCalendar timers replace the dead crond)
@@ -1576,9 +1575,9 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 ```
 
-> **WARNING: Entware sudo `secure_path` restriction.** Entware's sudo has a restricted `secure_path` that does NOT include `/sbin/` or `/usr/sbin/`. All `$_SUDO` commands in `platform.sh` **must use full absolute paths** — bare command names (`systemctl`, `reboot`, `iptables`) will fail silently from CGI context. Key paths: `systemctl` is at `/bin/systemctl` (not `/usr/bin/systemctl`), `reboot` is at `/sbin/reboot`, `iptables` is at `/usr/sbin/iptables`. The `$_SYSTEMCTL` variable in `platform.sh` centralizes the systemctl path.
+> **WARNING: full absolute paths, always.** sudoers grants match the exact command path, so every `$_SUDO` command in `platform.sh` **must use the full path** the grant names. Key paths: `systemctl` is at `/bin/systemctl` (not `/usr/bin/systemctl`), `reboot` is at `/sbin/reboot`, the helpers are `/usr/bin/qmanager_svc` and `/usr/bin/qmanager_fw_apply`. The `$_SYSTEMCTL`, `$_QM_SVC` and `$_QM_FW` variables in `platform.sh` centralize them. (Older notes here claimed Entware's sudo has a restrictive `secure_path`; the drop-in's own comment records that this sudo, 1.8.31, has **none**, which is why the drop-in now sets one for `www-data`.)
 
-QManager's `platform.sh` provides wrapper functions (`svc_start`, `svc_stop`, `run_iptables`, `run_reboot`, etc.) that add `$_SUDO` with the correct full paths automatically. CGI scripts should use these wrappers, never bare commands.
+QManager's `platform.sh` provides wrapper functions (`svc_start`, `svc_stop`, `run_iptables`, `run_reboot`, etc.) that pick the right privileged path automatically: as root they call `systemctl` / `iptables` directly, as `www-data` they go through `qmanager_svc` / `qmanager_fw_apply` (or the exact `tailscaled` lines). CGI scripts should use these wrappers, never bare commands.
 
 ### CGI AT Command Execution
 

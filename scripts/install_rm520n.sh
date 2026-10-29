@@ -536,6 +536,23 @@ preflight() {
         die "Backend scripts not found at $SRC_SCRIPTS"
     fi
 
+    # The shipped sudoers drop-in must parse BEFORE anything is stopped or
+    # installed: new helpers paired with the old (broader) grants is worse than
+    # an early abort. The late check in install_backend stays as a second guard.
+    if [ "$DO_BACKEND" = "1" ] && [ -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" ]; then
+        local _pf_visudo="" _pf_c
+        for _pf_c in /opt/sbin/visudo /opt/bin/visudo /usr/sbin/visudo /usr/bin/visudo; do
+            [ -x "$_pf_c" ] && { _pf_visudo="$_pf_c"; break; }
+        done
+        [ -z "$_pf_visudo" ] && _pf_visudo=$(command -v visudo 2>/dev/null) || true
+        if [ -n "$_pf_visudo" ]; then
+            if ! "$_pf_visudo" -c -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" >/dev/null 2>&1; then
+                "$_pf_visudo" -c -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" 2>&1 | head -5 || true
+                die "Shipped sudoers drop-in failed visudo syntax check — aborting before any change"
+            fi
+        fi
+    fi
+
     mark_version_pending
 
     # Write the advisory hardware profile. The PLACEMENT here is load-bearing on
@@ -714,6 +731,36 @@ harden_entware_unit_modes() {
     # re-parse the unit, and the chmod is safe on an already-loaded active one.
     sync 2>/dev/null || true
 
+    return 0
+}
+
+# --- Harden world-writable package/firmware files ---------------------------
+
+# opkg and stock firmware leave root-owned files at 0666 (install shell umask
+# is 0000), so www-data could rewrite opkg state, dbus config or the timezone
+# tables root reads. Numeric 0644 is idempotent; each path is guarded because
+# the RG501Q-EU may lack some. Runs after install_dependencies so a later opkg
+# run cannot undo it, and on OTA too. Must never die() or return non-zero.
+harden_world_writable_modes() {
+    local _f
+
+    for _f in /opt/etc/opkg.conf               /opt/lib/opkg/status               /lib/systemd/system/dbus.service.d/dbus.conf               /bin/timezone21.bin               /bin/iana_tzdb; do
+        [ -f "$_f" ] || continue
+        chmod 0644 "$_f" 2>/dev/null             || warn "Could not chmod 0644 $_f — it may remain world-writable"
+    done
+
+    # info/ holds hundreds of *.list files; -perm -0002 matches world-writable
+    # in both BusyBox and GNU find. Only files, never the directory.
+    if [ -d /opt/lib/opkg/info ]; then
+        find /opt/lib/opkg/info -type f -perm -0002 -exec chmod 0644 {} + 2>/dev/null || true
+    fi
+
+    # Only root uses /opt/tmp.
+    if [ -d /opt/tmp ] && [ -w /opt/tmp ]; then
+        chmod 0755 /opt/tmp 2>/dev/null || true
+    fi
+
+    sync 2>/dev/null || true
     return 0
 }
 
@@ -1257,7 +1304,7 @@ SVCEOF
         for folder in bin sbin etc lib/opkg tmp var/lock; do
             mkdir -p "/opt/$folder"
         done
-        chmod 777 /opt/tmp
+        chmod 0755 /opt/tmp
 
         # Download opkg binary and config: https first, then plain http for a
         # BusyBox wget, which fails the TLS handshake with this mirror.
@@ -4585,6 +4632,9 @@ main() {
     # Watchcat lock cleanup on any exit — prevents Tier-4 reboot if installer aborts
     trap 'rm -f "$WATCHCAT_LOCK"' EXIT INT TERM
 
+    # The install shell inherits umask 0000, so opkg/heredoc files landed 0666.
+    umask 022
+
     log_init
 
     printf "\n"
@@ -4637,6 +4687,7 @@ main() {
     # after install_dependencies so the units already exist by the time it
     # chmods them on a fresh install.
     harden_entware_unit_modes
+    harden_world_writable_modes
 
     # F11 — same unconditional placement and OTA-reach reason. Must run after
     # install_dependencies, which is where opt.mount is first written on a

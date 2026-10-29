@@ -12,6 +12,9 @@
 # When done, builds /tmp/qmanager_health_check_<job_id>.tar.gz.
 # =============================================================================
 
+# Pin PATH: sudo passes the caller's PATH to this root helper.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+
 set -u
 
 # --- Portable `timeout` (BusyBox 1.29 vs 1.31 CLI straddle) -----------------
@@ -117,7 +120,14 @@ if [ "${1:-}" = "--clear" ]; then
         fi
     fi
     rm -f "$STATUS_FILE" "$STATUS_FILE.tmp" "$LOCK_FILE" "$LOG_FILE"
-    rm -rf /tmp/qmanager_health_check_*/ 2>/dev/null
+    # Job dirs are created by this root helper; skip symlinks and anything not
+    # root-owned (www-data can plant matching names in sticky /tmp).
+    for d in /tmp/qmanager_health_check_*; do
+        [ -L "$d" ] && continue
+        [ -d "$d" ] || continue
+        [ "$(stat -c %u "$d" 2>/dev/null)" = "0" ] || continue
+        rm -rf -- "$d" 2>/dev/null
+    done
     rm -f /tmp/qmanager_health_check_*.tar.gz 2>/dev/null
     echo '{"success":true,"cleared":true}'
     exit 0

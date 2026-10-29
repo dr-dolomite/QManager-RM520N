@@ -153,6 +153,7 @@ The daemon `EnvironmentFile` is the file that taught us this, the expensive way.
 | `/etc/qmanager.env` | **Outside** `$CONF_DIR` | `root:root` `0644` | It is the systemd `EnvironmentFile=` for four **root-run** daemons (`qmanager-poller`, `qmanager-ping`, `qmanager-watchcat`, `qmanager-discord`) and **no CGI reads or writes it**. `/etc` is `root:root 0755` and unwritable by `www-data` (verified live), so the file is genuinely out of reach. |
 | `/etc/qmanager-secrets/` | **Outside** `$CONF_DIR` | `root:root` `0700` | The alert-channel credentials (Discord bot token, Gmail app password, `msmtprc`). No CGI reads them; `www-data` writes them only through the `qmanager_secret_set` root helper. Relocated in v0.1.14 by `migrate_alert_secrets()` — full rationale, helper contracts and support-bundle rules in [alerts.md](alerts.md#secret-storage-etcqmanager-secrets). |
 | `/etc/qmanager-backups/` | **Outside** `$CONF_DIR` | `root:root` `0700` | Timestamped `auth.json` snapshots — the QManager login password, one per install/OTA run, newest 5 kept. Only the installer reads or writes it, and a password *history* is precisely what a `www-data` compromise must not be able to read or replace. Relocated in v0.1.14 by [`migrate_backup_location()`](#migration-migrate_backup_location) below. |
+| `/usrdata/qmanager/crash.log` | **Outside** `$CONF_DIR` | `root:root` `0644`, dir `root:root 0755` | The reboot-cause log. Every writer is root (watchdog Tier 4, `qmanager_scheduled_reboot`, `qmanager_crash_log_append`); readers only need `0644`. In `/etc/qmanager` it could be swapped for a symlink under a root writer, and the boot `chown -R` handed it back to `www-data`. Relocated 2026-10 by `qm_crash_log_prepare` (`scripts/usr/lib/qmanager/crash_log.sh`), which merges the legacy file once, reading it as `www-data` — full contract in [alerts.md](alerts.md#the-user-breadcrumb-root-helper). |
 | `/etc/qmanager/ping_profile.json` | Inside `$CONF_DIR` | `www-data:www-data` | The CGI genuinely writes it (`settings/ping_profile.sh`, `monitoring/watchdog.sh`) — correct place, correct owner. |
 | `/etc/qmanager/sim_registry.json` | Inside `$CONF_DIR` | `www-data:www-data` | Same: a real `www-data` writer (the dismiss/undismiss CGI via `sim_registry.sh`). |
 
@@ -373,14 +374,19 @@ from whatever umask happened to be ambient: the live RG501Q-EU's `platform.json`
 was found world-writable (`0666`) because the install shell that wrote it ran at
 umask `0`.
 
-> ⚠️ WARNING: **only `platform.json`'s writer has been audited and fixed.** The
+> ⚠️ WARNING: **only some root writers into `/etc/qmanager` have been audited and fixed.** The
 > reference implementation is `qm_hw_write_profile` in
 > `scripts/usr/lib/qmanager/hw_profile.sh` (see
 > [platform-profile.md](platform-profile.md#the-write-path-and-its-symlink-defence)).
-> Every *other* root writer into `/etc/qmanager` — installer helpers, root
-> helpers invoked via `sudo -n`, anything `qmanager_setup` does in that directory
-> — is **unaudited** against this. If you are writing a new one, copy the
-> refuse-then-`set -C` shape; if you are touching an existing one, check it.
+> Fixed since (2026-10): `qmanager_ethernet_apply` writes `ethernet_speed` through
+> an in-directory `mktemp` (random name, `O_EXCL`) then `mv -f`; `sim_registry.sh`
+> creates its lock file the same way, replacing a planted symlink instead of
+> creating its target as root; and `crash.log` left the directory entirely (see
+> the table above). Every *other* root writer into `/etc/qmanager` — installer
+> helpers, other root helpers invoked via `sudo -n`, anything `qmanager_setup`
+> does in that directory — is still **unaudited** against this. If you are
+> writing a new one, copy the refuse-then-`set -C` or `mktemp`-then-`mv` shape; if
+> you are touching an existing one, check it.
 
 ### ⚠️ Migration rule: repair drifted state, don't just gate on existence
 
@@ -434,6 +440,25 @@ than trusting the write. `ensure_dropbear_unit_ordering()` is the precedent;
 `install_dependencies()`. Worked example and the defect that forced it:
 [scheduled-timers.md](scheduled-timers.md).
 
+### Installer permission hardening: `umask`, early `visudo`, world-writable files
+
+Three installer steps exist to keep `www-data` from reaching root through files
+root later reads. All three run on a fresh install **and** on every OTA.
+
+| Step | Where | What it does |
+|------|-------|--------------|
+| `umask 022` | Top of `main()`, before `log_init` | The install shell inherits umask `0000` on both measured devices, so every `opkg` file and heredoc it wrote landed `0666`. Setting `022` stops new files from being created world-writable. |
+| Early `visudo -c -f` | `preflight()`, when `DO_BACKEND=1` | Checks the shipped `scripts/etc/sudoers.d/qmanager` before anything is stopped or installed and `die`s on a parse error. New helpers paired with a drop-in that failed to install (so the old, broader grants stay live) is worse than aborting. Skipped without a message when no `visudo` is found; the late staged check in `install_backend()` still runs ([BACKEND.md §7](../BACKEND.md#7-sudoers-rules)). |
+| `harden_world_writable_modes()` | `main()`, right after `harden_entware_unit_modes`, i.e. after `install_dependencies` so a later `opkg` run cannot undo it | `chmod 0644` on `/opt/etc/opkg.conf`, `/opt/lib/opkg/status`, `/lib/systemd/system/dbus.service.d/dbus.conf`, `/bin/timezone21.bin`, `/bin/iana_tzdb` (each only if present — the RG501Q-EU lacks some); `find /opt/lib/opkg/info -type f -perm -0002 -exec chmod 0644` for the per-package lists; `chmod 0755 /opt/tmp`. Never `die`s, never returns non-zero. |
+
+These files were root-owned but world-writable, so `www-data` could rewrite
+`opkg` state, a `dbus` config drop-in, or the timezone tables root reads. The
+Entware bootstrap's own `chmod 777 /opt/tmp` is now `chmod 0755` as well; only
+root uses `/opt/tmp`.
+
+> ℹ️ NOTE: `/var/spool/cron/crontabs` used to be `0777`; that was fixed before
+> this change, and `qmanager_setup` re-asserts `0755` on it at every boot.
+
 ---
 
 ## Device permissions (/dev/smd11 & udev)
@@ -465,6 +490,61 @@ than trusting the write. `ensure_dropbear_unit_ordering()` is the precedent;
   - Read a cookie with **`qm_cookie_var NAME VAR`** (`cgi_auth.sh`): it sets `VAR` with no subshell and returns `0` if the cookie is present (value may be empty), `1` if not. Split rules match the old awk: `;` plus any run of spaces/tabs, exact name match, value up to the next `=`, first match wins. `qm_get_cookie NAME` still exists for `logout.sh` / `password.sh`, but `$(qm_get_cookie …)` costs a fork — prefer `qm_cookie_var` in new code.
   - The `/opt/bin/timeout` probe in `platform.sh` is **deferred under lighttpd** (`GATEWAY_INTERFACE` set) to the first `qm_timeout` call, and stays **eager for daemons**, which call `qm_timeout` inside `$(…)` where a lazy probe would be lost with the subshell. See [The `timeout` contract](#the-timeout-contract).
 - **AT transport in CGI**: `qcmd` reaches `/dev/smd11` directly (through the `qmanager_atd` broker on the RM520N-GL, in-process on the RG501Q-EU) — no socat-at-bridge is needed.
+
+---
+
+## Privilege boundary: sudoers grants for `www-data`
+
+lighttpd runs every CGI as `www-data`. Anything that needs root goes through `sudo -n` and the drop-in `scripts/etc/sudoers.d/qmanager`, installed to `/opt/etc/sudoers.d/qmanager` (0440) when Entware sudo is present. **The rule since 2026-10: `www-data` is granted a bare helper path, and the helper validates its own arguments.** Raw system commands with wildcard arguments are gone.
+
+| Grant | Replaces | Contract |
+|-------|----------|----------|
+| `Defaults:www-data secure_path="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin"` | nothing (new) | This sudo (1.8.31) has no built-in `secure_path`, so the caller's `PATH` reached every root helper. Opt-first order matches `cgi_base.sh`. |
+| `/usr/bin/qmanager_svc` | `systemctl start/stop/restart/is-active/reset-failed qmanager-*`, `ln -sf …/qmanager*.service …`, `rm -f …/qmanager*.service` | See [`qmanager_svc`](#qmanager_svc) below |
+| `/bin/systemctl {start,stop,restart,is-active} tailscaled` | same, unchanged | Exact lines; `tailscaled` is the one third-party unit `www-data` controls |
+| `/usr/bin/qmanager_fw_apply` | `/usr/sbin/iptables`, `ip6tables`, `iptables-restore`, `ip6tables-restore` with any arguments | Exact allow-list of the TTL/HL and Traffic Engine rule shapes — [dpi.md](dpi.md#architecture), [ttl-mtu.md](ttl-mtu.md#the-rules-the-backend-actually-installs) |
+| `/usr/bin/qmanager_dns_apply` | `mv` of the staging file over `/etc/data/dnsmasq.conf`, `chown radio:radio`, `killall -HUP dnsmasq` | Re-validates only the sentinel block — [custom-dns.md](custom-dns.md#apply-pipeline) |
+| `/usrdata/tailscale/tailscale <exact args>` (8 lines) | `/usrdata/tailscale/tailscale` (any arguments), `tailscaled --version` | One line per call form — [tailscale.md](tailscale.md#sudoers-surface) |
+| `/sbin/reboot ""` | `/sbin/reboot` (any arguments) | The empty `""` restricts the grant to the no-argument form; every caller passes none |
+
+Every other grant (`qmanager_crash_log_append`, the `*_arm` helpers, `qmanager_secret_set`, `qmanager_update`, …) was already a bare helper path and is unchanged. [BACKEND.md §7](../BACKEND.md#7-sudoers-rules) maps each grant to its callers.
+
+**Why the wildcards had to go.** In a sudoers command line, `*` in the arguments matches any text — **including spaces and `/`**. So `systemctl start qmanager-*` did not mean "one QManager unit": it also matched extra unit names and extra options after the prefix, and the `ln`/`rm` lines matched paths outside the unit directory. Raw `iptables` with any arguments was broader still. Each of these allowed more than the one operation the CGI needed. sudoers cannot express "one token matching `[a-z0-9-]+`"; a helper can.
+
+**Root is unaffected.** `platform.sh` checks `$_SUDO`: as root (daemons, the installer, systemd units) `svc_*` call `/bin/systemctl` / `ln` / `rm` and `run_iptables` calls `/usr/sbin/iptables` directly. Only the `www-data` path goes through the helpers. That split is why a rule-shape mismatch shows up only from the UI — validate CGI changes as `www-data`, never from a root shell.
+
+### `qmanager_svc`
+
+```sh
+sudo -n /usr/bin/qmanager_svc <verb> <unit>
+```
+
+| Input | Accepted |
+|-------|----------|
+| `verb` | `start` · `stop` · `restart` · `reset-failed` · `is-active` · `enable` · `disable` |
+| `unit` | `qmanager-` followed by at least one more character, only `[a-z0-9-]`, at most 64 characters, **no `.service` suffix** (the helper appends it) |
+| arg count | exactly 2 |
+
+Behavior:
+
+- Every verb except `disable` requires `/lib/systemd/system/<unit>.service` to be a **regular file, not a symlink**. If it is not, `is-active` prints `inactive` and exits `3` (what `systemctl` itself returns); the other verbs exit `2`.
+- `enable` runs `ln -sf` from the unit file into `/lib/systemd/system/multi-user.target.wants/` — the same manual-symlink mechanism as the rest of [Service persistence](#service-persistence-systemd-symlinks).
+- `disable` removes the wants entry **only if it is a symlink**; a regular file at that path is refused (exit 2), never deleted.
+- Any refusal prints `qmanager_svc: <reason>` to stderr and exits `2`. Otherwise the exit status is `systemctl`'s, `ln`'s or `rm`'s.
+
+`platform.sh` maps names with `_svc_unit` (underscores → dashes, so `svc_restart qmanager_discord` reaches `qmanager-discord`), then `_svc_ctl` / `_svc_link` route: root → direct; `www-data` + `tailscaled` → the exact `systemctl` / `ln` / `rm` lines; `www-data` + anything else → `qmanager_svc`.
+
+> ⚠️ WARNING: **A new non-QManager unit controlled from the CGI needs two changes.** `_svc_ctl` sends every unit except `tailscaled` to `qmanager_svc`, which refuses names that do not start with `qmanager-`. Add exact sudoers lines for the new unit **and** a matching branch in `_svc_ctl` / `_svc_link`; never widen `qmanager_svc`'s unit check or reintroduce a wildcard.
+
+> ⚠️ WARNING: **`qmanager_svc` handles `.service` units only.** Timers are armed by their own root helpers (`qmanager_auto_update_arm`, `qmanager_scheduled_reboot_arm`, `qmanager_tower_schedule_arm`, `qmanager_scenario_schedule_arm`), not through `svc_enable`.
+
+### Root-helper hardening that shipped with it
+
+- **`PATH` pinned** at the top of the helpers this change touched (`qmanager_svc`, `qmanager_fw_apply`, `qmanager_dns_apply`, `qmanager_crash_log_append`, `qmanager_ethernet_apply`, `qmanager_health_check`, `qmanager_language_pack_apply`, `qmanager_sim_registry_apply`, `qmanager_timezone_apply`), independent of `secure_path`.
+- **`qmanager_health_check --clear`** removes `/tmp/qmanager_health_check_*` job directories only when they are real directories (not symlinks) owned by uid 0. `/tmp` is sticky but shared, so `www-data` can create entries with matching names.
+- **`qmanager_language_pack_apply`** refuses a symlinked staging path, snapshots the staging tree with `cp -RP` into a private `mktemp -d` dir (`0700`), rejects links, special files, hard-linked files and names outside `[A-Za-z0-9._-]`, then validates and commits **only that copy**. `www-data` owns the staging tree and could otherwise change files between the check and the copy.
+- **`qmanager_ethernet_apply`** and **`sim_registry.sh`** write into `/etc/qmanager` through `mktemp` + `mv` — see [the redirect rule](#-any-root-helper-writing-into-etcqmanager-with-a-plain--is-redirectable).
+- **`crash.log`** moved out of `/etc/qmanager` — see [the table above](#-nothing-that-must-be-protected-from-www-data-may-live-in-etcqmanager).
 
 ---
 
@@ -760,6 +840,7 @@ The uninstaller's last act (Step 12) is `rmdir "$QMANAGER_ROOT"` (`/usrdata/qman
 | -------- | ------------ | ----------------------------- |
 | `apn_setting.json`, `apn_names.json` | `--purge` only (config) | **Legacy path.** Both sidecars now live in `$CONF_DIR` (`/etc/qmanager/`), which the `--purge` `rm -rf` already covers — they moved there because `/usrdata/qmanager` is `0755 root:root` and both writers run as `www-data`, so every write silently no-op'd (see [wan-profile-management.md](wan-profile-management.md#why-the-sidecars-live-in-etcqmanager)). `install_rm520n.sh`'s `migrate_apn_sidecars()` moves fielded devices across, but a device uninstalled **before** it ever OTA'd through that migration still has them here — and either one left behind re-strands the `rmdir`. Keep this line. |
 | `locales-packs/`, `locales-staging/` | `--purge` only (config) | Language-pack persistent store + staging quarantine, siblings of `www/` (see [i18n runtime downloader](i18n.md)) |
+| `crash.log`, `crash.log.*`, `.crash_log_migrated` | `--purge` only (config) | Reboot-cause log and its one-time migration marker, moved here from `/etc/qmanager` in 2026-10 (see [alerts.md](alerts.md#the-user-breadcrumb-root-helper)). The old location was covered by the `$CONF_DIR` purge; this one is not, so it is removed by name. A plain uninstall keeps it, like other config. |
 | `/etc/data/qmanager/` | **Every uninstall** (unconditional) | Installer-created DNS staging scratch dir (`www-data:www-data` 0700) — not user config, so it isn't gated on `--purge` (see [custom-dns](custom-dns.md)) |
 
 ### `/tmp` runtime state: one prefix glob, not a roster
@@ -829,10 +910,13 @@ both. Per-device behaviour, the two misdiagnoses it caused, and the applet censu
   interface it implements.**
 - **⚠️ Resolve Entware binaries by absolute path when the caller may be a root
   helper.** A helper invoked as `setsid sudo -n …` from a `www-data` CGI receives
-  `PATH=/bin:/usr/bin` — **no `/opt/bin`** (measured 2026-08-25). `qm_timeout`
-  tries `/opt/bin/timeout` then `/usr/bin/timeout` by literal path. Installing an
-  Entware binary is *not* sufficient to make it reachable from the privileged
-  path.
+  `PATH=/bin:/usr/bin` — **no `/opt/bin`** (measured 2026-08-25, before the
+  drop-in set `Defaults:www-data secure_path` in 2026-10; with that line the
+  sudo'd `PATH` should now start with `/opt/bin`, not yet re-measured). Keep
+  resolving by absolute path anyway: systemd-started root code still runs
+  without `/opt/bin`. `qm_timeout` tries `/opt/bin/timeout` then
+  `/usr/bin/timeout` by literal path. Installing an Entware binary is *not*
+  sufficient to make it reachable from the privileged path.
 - **⚠️ The 143→124 remap is load-bearing — do not "simplify" it away.** GNU
   coreutils `timeout` hardcodes exit **124** when it enforces the deadline;
   BusyBox relays the killed child's wait status instead (SIGTERM → 128+15 =

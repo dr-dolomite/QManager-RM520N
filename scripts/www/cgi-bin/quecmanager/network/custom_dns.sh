@@ -6,8 +6,9 @@
 # GET:  Reads the QManager-managed sentinel block from /etc/data/dnsmasq.conf,
 #       reports enabled state, configured servers, and dnsmasq proxy availability.
 # POST action=save:
-#       Validates input, builds a candidate config, validates with dnsmasq --test,
-#       atomically swaps it in, chowns it back to radio:radio, then HUPs dnsmasq.
+#       Validates input, stages a candidate and pre-checks it with dnsmasq --test,
+#       then hands off to the root helper qmanager_dns_apply (re-validates the
+#       sentinel block, installs radio:radio, HUPs dnsmasq).
 # POST action=clear:
 #       Strips the sentinel block and reloads — equivalent to save with enabled=false.
 #
@@ -22,9 +23,7 @@
 #   # QMANAGER-CUSTOM-DNS-END v1
 #
 # Sudoers-required commands:
-#   sudo /bin/mv /etc/data/qmanager/dnsmasq.conf.new /etc/data/dnsmasq.conf
-#   sudo /bin/chown radio:radio /etc/data/dnsmasq.conf
-#   sudo /usr/bin/killall -HUP dnsmasq
+#   sudo -n /usr/bin/qmanager_dns_apply apply
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/network/custom_dns.sh
 # Install:  /www/cgi-bin/quecmanager/network/custom_dns.sh
@@ -445,22 +444,29 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         qlog_info "dnsmasq --test passed; applying"
 
-        # --- Apply: atomic mv + chown + HUP ---
-        if ! sudo /bin/mv "$STAGING_FILE" "$DNSMASQ_CONF"; then
-            rm -f "$STAGING_FILE"
-            jq -n '{"ok":false,"error":"failed to install config (mv failed)"}'
-            exit 0
-        fi
-
-        if ! sudo /bin/chown radio:radio "$DNSMASQ_CONF"; then
-            qlog_warn "chown radio:radio failed (non-fatal but QCMAP rewrites may break)"
-        fi
-
-        if ! sudo /usr/bin/killall -HUP dnsmasq; then
-            qlog_warn "killall -HUP dnsmasq failed — settings saved but not yet live"
-            jq -n '{"ok":false,"error":"config saved but dnsmasq reload failed; try rebooting"}'
-            exit 0
-        fi
+        # --- Apply: root helper re-validates the block, installs, and HUPs ---
+        apply_err=$(sudo -n /usr/bin/qmanager_dns_apply apply 2>&1)
+        apply_rc=$?
+        rm -f "$STAGING_FILE"
+        case "$apply_rc" in
+            0) ;;
+            8)
+                qlog_warn "dnsmasq reload failed — settings saved but not yet live"
+                jq -n '{"ok":false,"error":"config saved but dnsmasq reload failed; try rebooting"}'
+                exit 0
+                ;;
+            5)
+                jq -n --arg err "$apply_err" \
+                    '{"ok":false,"error":"dnsmasq rejected this configuration: \($err)"}'
+                exit 0
+                ;;
+            *)
+                qlog_warn "qmanager_dns_apply failed rc=$apply_rc: $apply_err"
+                jq -n --arg err "$apply_err" \
+                    '{"ok":false,"error":"failed to install config: \($err)"}'
+                exit 0
+                ;;
+        esac
 
         qlog_info "custom DNS applied successfully"
 

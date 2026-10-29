@@ -28,6 +28,9 @@
 #   reachable through this helper.
 # =============================================================================
 
+# Pin PATH: sudo passes the caller's PATH to this root helper.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+
 LP_PERSIST_DIR="/usrdata/qmanager/locales-packs"
 LP_SERVED_DIR="/usrdata/qmanager/www/locales-packs"
 LP_STAGING_ROOT="/usrdata/qmanager/locales-staging"
@@ -109,9 +112,26 @@ esac
 
 # Defensive re-validation — never trust that the unprivileged worker's
 # validation still holds; the tree could have changed between check and use.
-validate_tree "$STAGE" || fail "invalid_pack_tree" "Staging tree failed re-validation"
+[ -L "$STAGE" ] && fail "invalid_pack_tree" "Staging path is a symlink"
 
-_meta_code=$(jq -r '.code // empty' "$STAGE/_pack.json" 2>/dev/null)
+# Snapshot into a root-owned 0700 dir (cp -P never follows symlinks), then
+# validate and commit ONLY that copy; www-data can't swap files under us.
+WORK=$(mktemp -d /tmp/qm-lp-apply.XXXXXX) || fail "copy_failed" "Could not create private work dir"
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 1' HUP INT TERM
+chmod 700 "$WORK"
+COPY="$WORK/pack"
+# Hardlinks are only visible in the source (cp breaks them); checked before the copy.
+[ -z "$(find "$STAGE" -type f -links +1 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains hardlinked files"
+cp -RP "$STAGE" "$COPY" 2>/dev/null || fail "copy_failed" "Could not snapshot staging tree"
+
+# Only plain files and directories, safe names.
+[ -z "$(find "$COPY" ! -type f ! -type d 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains links or special files"
+[ -z "$(find "$COPY" -name '*[!A-Za-z0-9._-]*' 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains unsafe file names"
+
+validate_tree "$COPY" || fail "invalid_pack_tree" "Staging tree failed re-validation"
+
+_meta_code=$(jq -r '.code // empty' "$COPY/_pack.json" 2>/dev/null)
 [ "$_meta_code" = "$CODE" ] || fail "code_mismatch" "Pack metadata code does not match requested code"
 
 mkdir -p "$LP_PERSIST_DIR" "$LP_SERVED_DIR"
@@ -123,7 +143,7 @@ SERVED_TARGET="$LP_SERVED_DIR/$CODE"
 # over the final name so a reader never observes a half-written tree.
 PERSIST_TMP="${PERSIST_TARGET}.new.$$"
 rm -rf "$PERSIST_TMP"
-cp -r "$STAGE" "$PERSIST_TMP" || fail "copy_failed" "Could not copy staging into persistent store"
+cp -RP "$COPY" "$PERSIST_TMP" || fail "copy_failed" "Could not copy staging into persistent store"
 rm -rf "$PERSIST_TARGET"
 mv "$PERSIST_TMP" "$PERSIST_TARGET" || fail "mv_failed" "Could not move new persistent store entry into place"
 
