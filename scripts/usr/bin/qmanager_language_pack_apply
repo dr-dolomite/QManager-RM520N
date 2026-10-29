@@ -121,11 +121,12 @@ trap 'rm -rf "$WORK"' EXIT
 trap 'exit 1' HUP INT TERM
 chmod 700 "$WORK"
 COPY="$WORK/pack"
+# Hardlinks are only visible in the source (cp breaks them); checked before the copy.
+[ -z "$(find "$STAGE" -type f -links +1 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains hardlinked files"
 cp -RP "$STAGE" "$COPY" 2>/dev/null || fail "copy_failed" "Could not snapshot staging tree"
 
-# Only plain files and directories, no hardlinked files, safe names.
+# Only plain files and directories, safe names.
 [ -z "$(find "$COPY" ! -type f ! -type d 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains links or special files"
-[ -z "$(find "$COPY" -type f -links +1 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains hardlinked files"
 [ -z "$(find "$COPY" -name '*[!A-Za-z0-9._-]*' 2>/dev/null)" ] || fail "invalid_pack_tree" "Staging tree contains unsafe file names"
 
 validate_tree "$COPY" || fail "invalid_pack_tree" "Staging tree failed re-validation"

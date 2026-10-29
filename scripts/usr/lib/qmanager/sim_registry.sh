@@ -89,12 +89,17 @@ sim_registry_flock_wait() {
 # _sim_registry_ensure_files — lazy-create the registry + its lock file.
 _sim_registry_ensure_files() {
     mkdir -p "$(dirname "$SIM_REGISTRY_FILE")" 2>/dev/null
-    # mktemp + mv replaces a planted symlink instead of creating its target as root.
+    # Root builds the lock in a root-only dir on the same fs, then renames it in:
+    # rename(2) replaces a planted symlink instead of following it.
     if [ -L "$SIM_REGISTRY_LOCK" ] || [ ! -e "$SIM_REGISTRY_LOCK" ]; then
-        local _lt
-        _lt=$(mktemp "${SIM_REGISTRY_LOCK}.XXXXXX" 2>/dev/null) || return 0
-        chmod 644 "$_lt" 2>/dev/null
-        mv -f "$_lt" "$SIM_REGISTRY_LOCK" 2>/dev/null || rm -f "$_lt"
+        if [ "$(id -u 2>/dev/null)" = "0" ]; then
+            local _ld
+            _ld=$(mktemp -d /etc/.qmanager-tmp.XXXXXX 2>/dev/null) || return 0
+            : > "$_ld/lock" && chmod 644 "$_ld/lock" && mv -f "$_ld/lock" "$SIM_REGISTRY_LOCK" 2>/dev/null
+            rm -rf "$_ld"
+        else
+            [ -e "$SIM_REGISTRY_LOCK" ] || : > "$SIM_REGISTRY_LOCK" 2>/dev/null
+        fi
     fi
 }
 

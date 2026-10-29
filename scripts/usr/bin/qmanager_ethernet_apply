@@ -23,8 +23,14 @@ CONF_DIR="/etc/qmanager"
 # symlink at a fixed .tmp path can't redirect root's write; then rename over.
 persist_speed() {
     mkdir -p "$CONF_DIR"
-    _t=$(mktemp "${ETHERNET_SPEED_FILE}.XXXXXX") || return 1
-    printf '%s\n' "$speed_limit" > "$_t" && chmod 644 "$_t" && mv -f "$_t" "$ETHERNET_SPEED_FILE" || { rm -f "$_t"; return 1; }
+    # Build in a root-only dir on the same fs: www-data can swap files inside
+    # its own /etc/qmanager, but rename(2) replaces a planted symlink, never follows it.
+    _d=$(mktemp -d /etc/.qmanager-tmp.XXXXXX) || return 1
+    printf '%s\n' "$speed_limit" > "$_d/speed" && chmod 644 "$_d/speed" \
+        && mv -f "$_d/speed" "$ETHERNET_SPEED_FILE"
+    _rc=$?
+    rm -rf "$_d"
+    return "$_rc"
 }
 
 # --- Input validation ---------------------------------------------------------
