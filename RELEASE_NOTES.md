@@ -19,6 +19,8 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 
 ## 🐛 Fixes
 
+- **Safer updates.** **Software Update** now refuses to install anything that doesn't match the release's published checksum, including rollbacks, and only downloads from QManager's own GitHub releases. (Closes a URL trick that could point an update at another repository, and a local file swap in `/tmp`.)
+- **Pinned downloads.** The Entware bootstrap, the speed-test tool and Tailscale are now checked against fixed SHA-256 hashes before they're installed, and the public-IP lookup on the **About** page now checks the server's certificate.
 - **Data Used counts bytes correctly.** Once more than about 10 MB had moved, **Data Used** counted packets instead of bytes and read far too low; it now counts bytes. Your Data Used total starts again from zero once after this update.
 - **Dota 2 shows its logo in Sites.** Adding `dota2.com` used to show only a letter because the site's own icon is too small to use; it now has a built-in logo.
 
