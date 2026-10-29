@@ -1,8 +1,10 @@
 # 🚀 QManager RM520N BETA v0.1.18-draft
 
-The **Sites** monitor goes live: a new **Now** view refreshes every site's response time about every 2 seconds while you watch, and Dota 2 gets its logo.
+QManager now talks to the modem through its own broker on the RM520N-GL: lighter background polling, a faster SMS inbox and fresher signal readings, plus a live **Now** view for Sites.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
+
+> **RG501Q-EU:** this release is for the RM520N-GL only. If you run QManager on an RG501Q-EU, stay on v0.1.17 and wait for the follow-up release.
 
 ## ✨ New Features
 
@@ -11,12 +13,12 @@ The **Sites** monitor goes live: a new **Now** view refreshes every site's respo
 
 ## 🛠️ Improvements
 
-- **Lighter background polling.** The modem's status poller now uses about 60 % less CPU, so the dashboard and other services have more headroom on the modem's single core. (874 → 344 ms CPU per cycle on an RM520N-GL; status data is unchanged.)
-- **The modem rests when nobody is looking.** With no QManager page open (or the tab hidden), the status poller asks the modem for signal data every 15 seconds, then every minute after 5 minutes, and goes back to full speed as soon as you open the dashboard. Signal history has fewer points while no browser is open. (Poller CPU on an RM520N-GL: 12.9 % of the core with the dashboard open, 8.1 % idle, 6.0 % after 5 minutes.)
+- **Lighter background polling.** The modem's status poller now uses about half the CPU while a QManager page is open, and about a fifth when none is, leaving more headroom on the modem's single core. With no page open (or the tab hidden) it asks the modem for full signal data every 15 seconds, then every minute after 5 minutes, and goes back to full speed as soon as you open the dashboard. (Poller share of the core 27 % → 13 % active, 6 % idle on an RM520N-GL; status data is unchanged, but Signal History has fewer points while no browser is open.)
 - **The LAN no longer overlaps 192.168.224.x.** The modem's factory LAN mask is a /22 (192.168.224.0–227.255), which clashes with routers on 192.168.224.1; QManager now sets it to /24 (192.168.225.0–255) and keeps the 192.168.225.1 address. It applies on the next reboot, and only if you never changed the LAN yourself. (Devices with a fixed IP in 192.168.224.x, .226.x or .227.x must move into 192.168.225.x.)
 - **A lighter dashboard.** An open dashboard now uses much less of the modem's CPU, and a dashboard left in a background tab stops polling entirely until you switch back to it. (One shared status poll instead of three, Data Used and storage read from it, a 30-minute latency slice instead of the full 24 h history, and about 2 forks per request instead of 19; the SIM-swap banner now checks every 10 seconds instead of 2.)
-- **Fresher LTE signal while nobody is looking.** When no QManager page is open, LTE signal strength (RSRP, RSRQ, RSSI) now updates every few seconds instead of every 15 seconds to a minute, so tower failover and the Discord bot act on current readings. (Read over QMI from the modem broker, without extra AT commands; values run about 1 dB lower than the AT reading. `status.json` also gains `lte.source` and the data call's IP, DNS and MTU as `network.wds`.)
-- **Two old helper programs retired.** Every AT command and SMS now goes through QManager's own modem broker, so the install is smaller and nothing changes in the app. (`atcli_smd11` and `sms_tool` are no longer shipped; an upgrade removes the old copies only after `qcmd` and `qsms` answer.)
+- **Fresher LTE signal while nobody is looking.** When no QManager page is open, LTE signal strength (RSRP, RSRQ, RSSI) now updates every few seconds instead of every 15 seconds to a minute, so tower failover and the Discord bot act on current readings. (Read over QMI by the modem broker, without extra AT commands; values run about 1 dB lower than the AT reading.)
+- **Faster SMS inbox and forwarding.** **Cellular → SMS Center** now reads and sends messages over the modem's own messaging service instead of the AT channel, so opening the inbox no longer pauses signal updates, and SMS Forwarding relays a new text within moments instead of up to 15 seconds later. (QMI WMS through `qsms`; an inbox read used to hold the AT channel for about 7 seconds.)
+- **Two old helper programs retired.** On the RM520N-GL every AT command now goes through QManager's own modem broker and SMS through the modem's messaging service, so the install is smaller and nothing changes in the app. (`atcli_smd11` and `sms_tool` are no longer shipped; an upgrade removes the old copies only after `qcmd` and `qsms` answer.)
 
 ## 🐛 Fixes
 
