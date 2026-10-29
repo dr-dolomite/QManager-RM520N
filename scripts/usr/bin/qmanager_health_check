@@ -236,7 +236,6 @@ _init_status() {
 # so adding a test only touches one place.
 _test_catalog_pending() {
     jq -n '[
-        {id:"bin.atcli",          category:"binaries", label:"atcli_smd11 binary present",  status:"pending", duration_ms:0, detail:""},
         {id:"bin.qsms",           category:"binaries", label:"qsms present",                status:"pending", duration_ms:0, detail:""},
         {id:"bin.qcmd",           category:"binaries", label:"qcmd wrapper present",        status:"pending", duration_ms:0, detail:""},
         {id:"bin.jq",             category:"binaries", label:"jq present",                  status:"pending", duration_ms:0, detail:""},
@@ -300,7 +299,7 @@ _test_catalog_pending() {
 _check_bin() {
     # _check_bin <name> <path> <warn-if-missing?> [version-cmd]
     # version-cmd defaults to "--version". Pass "" to skip version probing
-    # entirely (for binaries like atcli_smd11/qcmd that interpret
+    # entirely (for binaries like qcmd that interpret
     # arbitrary argv as AT commands and hang waiting for a modem reply).
     local name="$1" path="$2" soft="${3:-0}" vflag="${4---version}"
     if [ -x "$path" ]; then
@@ -358,7 +357,6 @@ _check_bin() {
 
 # Modem-side binaries: skip version probe — they pass argv as AT commands
 # and block forever waiting on /dev/smd11. Existence + executable bit only.
-t_bin_atcli()      { _check_bin atcli_smd11 /usr/bin/atcli_smd11 0 ""; }
 t_bin_qsms()       { _check_bin qsms        /usr/bin/qsms        0 ""; }
 t_bin_qcmd()       { _check_bin qcmd        /usr/bin/qcmd        0 ""; }
 t_bin_jq()         { _check_bin jq          /opt/bin/jq          0; }
@@ -1039,7 +1037,6 @@ _cleanup_stale
 _init_status
 _pause_poller_if_running
 
-_run_test bin.atcli           binaries     "atcli_smd11 binary present"            t_bin_atcli
 _run_test bin.qsms            binaries     "qsms present"                          t_bin_qsms
 _run_test bin.qcmd            binaries     "qcmd wrapper present"                  t_bin_qcmd
 _run_test bin.jq              binaries     "jq present"                            t_bin_jq

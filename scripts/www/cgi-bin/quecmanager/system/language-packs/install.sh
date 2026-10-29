@@ -102,7 +102,7 @@ lp_manifest_url_is_safe "$MANIFEST_URL" || {
 # window: the lock is tied to the open file description, the kernel grants
 # it to exactly one holder, and auto-releases it if the holder process dies,
 # with no reclaim logic needed anywhere. This matches the flock_wait pattern
-# already used by scripts/usr/bin/qcmd and
+# already used by
 # scripts/usr/lib/qmanager/sms_alerts.sh (BusyBox flock has no -w, hence
 # -x -n); those poll in a loop to wait for a busy resource, but install.sh
 # wants the old 409-if-busy semantics, so a single non-blocking attempt is

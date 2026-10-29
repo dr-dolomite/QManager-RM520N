@@ -16,9 +16,7 @@
 #     www/cgi-bin/          — CGI API endpoints
 #     usrdata/qmanager/     — lighttpd config
 #   dependencies/           — Bundled binaries and packages
-#     atcli_smd11           — ARM binary (AT command transport via /dev/smd11)
-#     sms_tool              — ARM binary (SMS send/recv/delete via /dev/smd11)
-#     qmanager_atd          — ARM binary (AT/SMS/QMI broker; qsms and, on RM520N, qcmd link to it)
+#     qmanager_atd          — ARM binary (AT/SMS/QMI broker; qcmd and qsms link to it)
 #     jq.ipk                — JSON processor (Entware package)
 #     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
@@ -586,7 +584,7 @@ normalize_lan_subnet() {
 # --- Remove Conflicts --------------------------------------------------------
 
 # Removes packages that must not coexist with QManager (e.g. socat-at-bridge
-# which holds /dev/smd11 open, blocking atcli_smd11).
+# which holds /dev/smd11 open, blocking qcmd).
 # Runs even with --skip-packages so conflicts are cleared on every update.
 remove_conflicts() {
     # Skip silently if Entware isn't available yet (fresh install, pre-bootstrap)
@@ -824,20 +822,15 @@ ensure_zoneinfo_packages() {
 
 # --- Install Bundled Binaries -------------------------------------------------
 
-# Copies the first-party binaries bundled in dependencies/ (atcli_smd11,
-# sms_tool, qmanager_atd + its qsms link, qmanager_discord) into $BIN_DIR;
-# install_backend() links qcmd to qmanager_atd on RM520N.
+# Copies the first-party binaries bundled in dependencies/ (qmanager_atd + its
+# qsms link, qmanager_discord) into $BIN_DIR; install_backend() links qcmd to it.
 #
 # Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
 # and ensure_zoneinfo_packages() above in main()): OTA upgrades invoke this
 # installer with --skip-packages, which gates install_dependencies(). These
 # binaries are app payload, not Entware opkg packages — unlike the one-time
 # package installs that legitimately stay skippable, they ship a new revision
-# with every QManager release and MUST be refreshed on every upgrade. This was
-# the root cause of the SMS OTA-upgrade bug: devices that OTA'd to v0.1.13 kept
-# the OLD unpatched sms_tool (compiled default /dev/ttyUSB0) because the copy
-# was gated behind install_dependencies(), while v0.1.13's CGI calls sms_tool
-# without -d /dev/smd11, relying on the new patched binary's smd11 default.
+# with every QManager release and MUST be refreshed on every upgrade.
 #
 # Each binary is skipped via `cmp -s` if the bundled copy is byte-identical to
 # what's already installed, avoiding a needless UBIFS rewrite on every OTA.
@@ -856,36 +849,6 @@ _atd_definitely_off() {
 
 install_bundled_binaries() {
     step "Installing bundled binaries"
-
-    # --- atcli_smd11 (AT command transport — direct /dev/smd11 access) --------
-    if [ -f "$SRC_DEPS/atcli_smd11" ]; then
-        if [ -x "$BIN_DIR/atcli_smd11" ] && cmp -s "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11"; then
-            info "atcli_smd11 already current"
-        else
-            install_file "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11" 755 \
-                || die "Failed to install atcli_smd11"
-            info "atcli_smd11 installed to $BIN_DIR/atcli_smd11"
-        fi
-    elif [ -x "$BIN_DIR/atcli_smd11" ]; then
-        info "atcli_smd11 already installed"
-    else
-        die "atcli_smd11 not found in $SRC_DEPS and not installed on device"
-    fi
-
-    # --- sms_tool (SMS send/recv/delete — handles multi-part reassembly) ------
-    if [ -f "$SRC_DEPS/sms_tool" ]; then
-        if [ -x "$BIN_DIR/sms_tool" ] && cmp -s "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool"; then
-            info "sms_tool already current"
-        else
-            install_file "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool" 755 \
-                || die "Failed to install sms_tool"
-            info "sms_tool installed to $BIN_DIR/sms_tool"
-        fi
-    elif [ -x "$BIN_DIR/sms_tool" ]; then
-        info "sms_tool already installed"
-    else
-        warn "sms_tool not found — SMS features will not work"
-    fi
 
     # --- qmanager_atd (AT/SMS/QMI broker) + qsms link --------------------------
     # Binary ships on both models; the unit is RM520N-only (systemd 239 on the
@@ -916,7 +879,7 @@ install_bundled_binaries() {
             || warn "Could not remove qmanager-atd.service"
         info "qmanager-atd not used on this model ($(qm_hw_model 2>/dev/null || echo unknown))"
     elif [ "$DO_BACKEND" = "1" ] && ! _atd_on; then
-        warn "Model unknown — qmanager-atd unit left as is, qcmd stays the shell script"
+        warn "Model unknown — qmanager-atd unit left as is, qcmd runs AT in-process"
     fi
 
     # --- qmanager_discord (optional Discord bot binary) -----------------------
@@ -1103,7 +1066,7 @@ install_dependencies() {
         info "www-data added to dialout via /etc/group fallback"
     fi
 
-    # Bundled first-party binaries (atcli_smd11, sms_tool, qmanager_discord, qmanager_atd) are
+    # Bundled first-party binaries (qmanager_discord, qmanager_atd) are
     # installed unconditionally by install_bundled_binaries(), called earlier in
     # main() — NOT here — so they refresh on OTA even with --skip-packages.
 
@@ -1720,20 +1683,17 @@ install_backend() {
         for f in "$SRC_SCRIPTS/usr/bin"/*; do
             [ -f "$f" ] || continue
             local fname; fname=$(basename "$f")
-            # RM520N: qcmd is the broker client (argv[0] link); elsewhere the shell script.
-            if [ "$fname" = "qcmd" ] && [ -x "$BIN_DIR/qmanager_atd" ] && _atd_on; then
-                local qtmp="$BIN_DIR/qcmd.qm_install.$$"
-                ln -sf qmanager_atd "$qtmp" && mv -f "$qtmp" "$BIN_DIR/qcmd" \
-                    || die "Failed to link $BIN_DIR/qcmd"
-                bin_count=$(( bin_count + 1 ))
-                continue
-            fi
             install_file "$f" "$BIN_DIR/$fname" 755 \
                 || die "Failed to install $fname"
             bin_count=$(( bin_count + 1 ))
         done
         info "$bin_count daemons/utilities installed to $BIN_DIR"
     fi
+
+    # qcmd is the broker client (argv[0] link) on every model; it runs AT in-process without the daemon.
+    local qtmp="$BIN_DIR/qcmd.qm_install.$$"
+    ln -sf qmanager_atd "$qtmp" && mv -f "$qtmp" "$BIN_DIR/qcmd" \
+        || die "Failed to link $BIN_DIR/qcmd"
 
     # --- CGI endpoints ---
     if [ -d "$SRC_SCRIPTS/www/cgi-bin/quecmanager" ]; then
@@ -4036,8 +3996,37 @@ at_stack_check() {
     else
         warn "at_stack_check: no OK from ATI after 3 attempts"
         warn "  Troubleshooting: check /dev/smd11 permissions (should be root:dialout 660)"
-        warn "  and verify atcli_smd11 is executable: $BIN_DIR/atcli_smd11"
+        warn "  and verify qcmd links to qmanager_atd: ls -l $BIN_DIR/qcmd"
     fi
+}
+
+# --- Retire Legacy AT Binaries ---------------------------------------------
+
+# Removes sms_tool and atcli_smd11 (retired in T5.1 S6), each only once its
+# replacement answers; a failed gate keeps the file. Rollback reinstalls both.
+retire_legacy_at_binaries() {
+    local f rc
+    for f in sms_tool atcli_smd11; do
+        [ -e "$BIN_DIR/$f" ] || continue
+        rc=0
+        # Each gate ends in `|| rc=$?` so a failure cannot trip set -e.
+        case "$f" in
+            sms_tool)    qm_timeout 8 "$BIN_DIR/qsms" status >/dev/null 2>&1 || rc=$? ;;
+            atcli_smd11) { [ "$(readlink "$BIN_DIR/qcmd" 2>/dev/null)" = "qmanager_atd" ] \
+                             && qm_timeout 8 "$BIN_DIR/qcmd" AT >/dev/null 2>&1; } || rc=$? ;;
+        esac
+        if [ "$rc" -ne 0 ]; then
+            info "Kept $BIN_DIR/$f (its replacement did not answer)"
+            continue
+        fi
+        mount -o remount,rw / 2>/dev/null || true
+        if rm -f "$BIN_DIR/$f" && [ ! -e "$BIN_DIR/$f" ]; then
+            info "Removed retired $BIN_DIR/$f"
+        else
+            warn "Could not remove retired $BIN_DIR/$f"
+        fi
+    done
+    return 0
 }
 
 # --- Dropbear unit body (single source of truth) ------------------------------
@@ -4584,7 +4573,7 @@ main() {
     preflight
 
     # remove_conflicts runs even with --skip-packages (e.g. socat-at-bridge
-    # must be gone before atcli_smd11 can open /dev/smd11)
+    # must be gone before qcmd can open /dev/smd11)
     remove_conflicts
 
     # ensure_zoneinfo_packages runs even with --skip-packages — OTA upgrades
@@ -4674,6 +4663,7 @@ main() {
 
     [ "$DO_START" = "1" ] && health_check
     [ "$DO_START" = "1" ] && at_stack_check
+    [ "$DO_START" = "1" ] && { retire_legacy_at_binaries || true; }
 
     print_summary
 

@@ -153,7 +153,7 @@
     },
     "at_transport": {
       "label": "AT 传输",
-      "description": "qcmd / atcli_smd11 与调制解调器之间的往返检查"
+      "description": "qcmd 与调制解调器之间的往返检查"
     },
     "sms": {
       "label": "SMS 子系统",

@@ -137,8 +137,8 @@ APN_APPLY_LOCK_EXTERNAL=0
 # =============================================================================
 # _apn_apply_lock_acquire — bounded poll for the bracket-level advisory lock
 # =============================================================================
-# BusyBox flock has NO -w (timeout) option — same constraint qcmd's own
-# flock_wait() already works around (scripts/usr/bin/qcmd ~:116-131). Reuses
+# BusyBox flock has NO -w (timeout) option — same constraint the old shell
+# qcmd's flock_wait() worked around. Reuses
 # that exact poll idiom: flock -x -n in a 1s loop up to APN_APPLY_LOCK_WAIT,
 # then one final try. Opens the lock file read-only on fd 8 (not `exec 8>`,
 # which would truncate — irrelevant to flock's inode-based lock, but needless

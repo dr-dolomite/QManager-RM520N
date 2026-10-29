@@ -153,7 +153,7 @@
     },
     "at_transport": {
       "label": "Transport AT",
-      "description": "Pemeriksaan bolak-balik qcmd / atcli_smd11 terhadap modem"
+      "description": "Pemeriksaan bolak-balik qcmd terhadap modem"
     },
     "sms": {
       "label": "Subsistem SMS",

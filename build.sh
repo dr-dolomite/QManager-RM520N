@@ -39,8 +39,6 @@ fail() { printf "${RED}[%s] ERROR:${NC} %s\n" "$(date +%H:%M:%S)" "$1"; exit 1; 
 # --- Preflight checks --------------------------------------------------------
 [ -d "$OUT_DIR" ] || fail "'out/' not found — run 'bun run build' first"
 [ -d "$DEPS_DIR" ] || fail "'dependencies/' not found at repo root"
-[ -f "$DEPS_DIR/atcli_smd11" ] || fail "Missing required binary: dependencies/atcli_smd11"
-[ -f "$DEPS_DIR/sms_tool" ]    || fail "Missing required binary: dependencies/sms_tool"
 [ -f "$DEPS_DIR/qmanager_atd" ] || fail "Missing required binary: dependencies/qmanager_atd"
 [ -f "$DEPS_DIR/jq.ipk" ]      || fail "Missing required package: dependencies/jq.ipk"
 DROPBEAR_IPK=$(ls "$DEPS_DIR"/dropbear_*.ipk 2>/dev/null | head -n1)
@@ -135,12 +133,10 @@ step "Lint passed ($CORE_SERVICES + qmanager-auto-update.timer + qmanager-dpi-en
 
 step "Copying bundled dependencies..."
 mkdir -p "$STAGING_DIR/dependencies"
-cp "$DEPS_DIR/atcli_smd11" "$STAGING_DIR/dependencies/atcli_smd11"
-cp "$DEPS_DIR/sms_tool"    "$STAGING_DIR/dependencies/sms_tool"
 cp "$DEPS_DIR/qmanager_atd" "$STAGING_DIR/dependencies/qmanager_atd"
 cp "$DEPS_DIR/jq.ipk"      "$STAGING_DIR/dependencies/jq.ipk"
 cp "$DEPS_DIR"/dropbear_*.ipk "$STAGING_DIR/dependencies/"
-chmod 755 "$STAGING_DIR/dependencies/atcli_smd11" "$STAGING_DIR/dependencies/sms_tool" "$STAGING_DIR/dependencies/qmanager_atd"
+chmod 755 "$STAGING_DIR/dependencies/qmanager_atd"
 
 # Discord bot binary — built fresh on every package run via build-discord-bot.sh.
 DISCORD_BUILT="$ROOT_DIR/qmanager-build/bin/qmanager_discord"

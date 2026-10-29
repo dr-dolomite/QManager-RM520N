@@ -155,7 +155,7 @@ confirm_uninstall() {
     printf "\n  ${BOLD}QManager — RM520N-GL Uninstaller${NC}\n\n"
     printf "  The following will be removed:\n"
     printf "    • All QManager systemd services and boot symlinks\n"
-    printf "    • Daemons and binaries: /usr/bin/qmanager_* (incl. the qmanager_atd broker), qcmd, qsms, atcli_smd11, sms_tool\n"
+    printf "    • Daemons and binaries: /usr/bin/qmanager_* (incl. the qmanager_atd broker), qcmd, qsms\n"
     printf "    • Shared libraries: %s\n" "$LIB_DIR"
     printf "    • udev rule: /etc/udev/rules.d/99-qmanager-smd11.rules\n"
     printf "    • CGI endpoints and frontend: %s\n" "$WWW_ROOT"
@@ -375,8 +375,9 @@ info "Removed /usr/bin/qmanager_*"
 
 # Bundled transport and tool binaries
 rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test"
+# atcli_smd11 and sms_tool were retired in T5.1 S6; older installs still carry them.
 rm -f "$BIN_DIR/atcli_smd11" "$BIN_DIR/sms_tool"
-info "Removed qcmd, atcli_smd11, sms_tool"
+info "Removed qcmd and retired AT binaries"
 
 # qsms is a symlink to qmanager_atd; remove the link only, never a real directory
 if [ -L "$BIN_DIR/qsms" ]; then

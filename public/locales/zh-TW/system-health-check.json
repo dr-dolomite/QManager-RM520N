@@ -153,7 +153,7 @@
     },
     "at_transport": {
       "label": "AT 傳輸",
-      "description": "qcmd / atcli_smd11 與數據機之間的往返檢查"
+      "description": "qcmd 與數據機之間的往返檢查"
     },
     "sms": {
       "label": "SMS 子系統",

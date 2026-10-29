@@ -32,7 +32,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # Not ported to RM520N-GL; always report false
     wan_guard_enabled="false"
 
-    # --- AT device (informational — atcli_smd11 hardcodes /dev/smd11) ---
+    # --- AT device (informational — qcmd hardcodes /dev/smd11) ---
     sms_tool_device="/dev/smd11"
 
     # --- Unit preferences ---
@@ -179,7 +179,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             tz_status=$(sys_set_timezone "$val" "$zn")
         fi
 
-        # AT device is hardcoded to /dev/smd11 via atcli_smd11 — no override needed
+        # AT device is hardcoded to /dev/smd11 in qcmd — no override needed
 
         qlog_info "System settings saved"
         jq -n --arg tz_status "$tz_status" '{success:true, timezone_apply_status:$tz_status}'
