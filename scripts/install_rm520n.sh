@@ -413,6 +413,26 @@ dl_get() {
     return "$rc"
 }
 
+# sha256_ok <file> <expected_hex> — 0 only if sha256sum exists and matches.
+sha256_ok() {
+    local actual
+    command -v sha256sum >/dev/null 2>&1 || return 1
+    actual=$(sha256sum "$1" 2>/dev/null | awk '{ print $1 }')
+    [ -n "$actual" ] && [ "$actual" = "$2" ]
+}
+
+# dl_get_pinned <url> <dest> <sha256> [max_time] — dl_get, then remove dest
+# and fail unless its SHA-256 matches. Used for fixed-version third-party files.
+dl_get_pinned() {
+    dl_get "$1" "$2" "${4:-}" || return 1
+    if ! sha256_ok "$2" "$3"; then
+        warn "SHA-256 mismatch (or no sha256sum) for $1 — discarding download"
+        rm -f "$2"
+        return 1
+    fi
+    return 0
+}
+
 # --- Pre-flight Checks -------------------------------------------------------
 
 preflight() {
@@ -920,6 +940,8 @@ install_bundled_binaries() {
 install_speedtest_cli() {
     local speedtest_dir="/usrdata/root/bin"
     local speedtest_url="https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz"
+    # Pinned: SHA-256 of the 1.2.0 armhf tarball. Update with the URL.
+    local speedtest_sha256="e45fcdebbd8a185553535533dd032d6b10bc8c64eee4139b1147b9c09835d08d"
 
     # /usrdata must already be its own mount before we create anything under
     # it, or the dir (and binary) land on whatever filesystem backs the path
@@ -960,8 +982,9 @@ install_speedtest_cli() {
 
     # 120s bound: a hung TCP connection on a marginal cellular link must not
     # stall an OTA indefinitely now that this runs on every upgrade.
-    if ! dl_get "$speedtest_url" /tmp/speedtest.tgz 120 2>/dev/null; then
-        warn "speedtest CLI download failed (optional — requires internet)"
+    rm -f /tmp/speedtest.tgz
+    if ! dl_get_pinned "$speedtest_url" /tmp/speedtest.tgz "$speedtest_sha256" 120 2>/dev/null; then
+        warn "speedtest CLI download failed or did not verify (optional — requires internet)"
         return 0
     fi
 
@@ -1169,7 +1192,11 @@ SHIMEOF
         unset LD_PRELOAD
 
         ENTWARE_ARCH="armv7sf-k3.2"
-        ENTWARE_URL="http://bin.entware.net/${ENTWARE_ARCH}/installer"
+        ENTWARE_PATH="bin.entware.net/${ENTWARE_ARCH}/installer"
+        # Pinned SHA-256 of the installer files (opkg d038e5b6). The hash, not
+        # the transport, is what makes them safe; update both if Entware rebuilds.
+        ENTWARE_OPKG_SHA256="82d693e3c928def1cbf584a1130f37fd51bcb3338e57d4af327e342a5f19ee3a"
+        ENTWARE_CONF_SHA256="bca7307a5d323911be95875037dfa83f0e0720a7c88a59ddc233b080495c6b5f"
 
         # Rename factory opkg if present (conflicts with Entware opkg)
         if command -v opkg >/dev/null 2>&1; then
@@ -1232,10 +1259,12 @@ SVCEOF
         done
         chmod 777 /opt/tmp
 
-        # Download opkg binary and config. ENTWARE_URL is plain HTTP, so any
-        # downloader works here — including a TLS-less BusyBox wget.
-        dl_get "$ENTWARE_URL/opkg" /opt/bin/opkg \
-            || die "Failed to download opkg from $ENTWARE_URL"
+        # Download opkg binary and config: https first, then plain http for a
+        # BusyBox wget, which fails the TLS handshake with this mirror.
+        # Both are checked against the pinned SHA-256.
+        dl_get_pinned "https://$ENTWARE_PATH/opkg" /opt/bin/opkg "$ENTWARE_OPKG_SHA256" \
+            || dl_get_pinned "http://$ENTWARE_PATH/opkg" /opt/bin/opkg "$ENTWARE_OPKG_SHA256" \
+            || die "Failed to download a verified opkg from $ENTWARE_PATH"
         # wget (unlike curl -f) writes HTTP error pages to the output file on a
         # 4xx/5xx. Verify the download is a real ELF binary before trusting it:
         # the first 4 bytes of every ELF file are 0x7F 'E' 'L' 'F', so the
@@ -1246,8 +1275,9 @@ SVCEOF
             die "Downloaded opkg is not a valid binary (server error or bad mirror?)"
         fi
         chmod 755 /opt/bin/opkg
-        dl_get "$ENTWARE_URL/opkg.conf" /opt/etc/opkg.conf \
-            || die "Failed to download opkg.conf from $ENTWARE_URL"
+        dl_get_pinned "https://$ENTWARE_PATH/opkg.conf" /opt/etc/opkg.conf "$ENTWARE_CONF_SHA256" \
+            || dl_get_pinned "http://$ENTWARE_PATH/opkg.conf" /opt/etc/opkg.conf "$ENTWARE_CONF_SHA256" \
+            || { rm -f /opt/bin/opkg; die "Failed to download a verified opkg.conf from $ENTWARE_PATH"; }
         info "Downloaded opkg package manager"
 
         # Install base Entware. Both failure paths remove the just-downloaded
@@ -4671,8 +4701,8 @@ main() {
     finalize_version
 
     # Staging-dir cleanup is intentionally NOT done here. On the OTA path the
-    # worker (qmanager_update) cd's into /tmp/qmanager_install before invoking
-    # us and owns the `rm -rf /tmp/qmanager_install` afterward. If the installer
+    # worker (qmanager_update) cd's into /tmp/qmanager_stage/qmanager_install
+    # before invoking us and owns removing /tmp/qmanager_stage afterward. If the installer
     # deleted it here it would (a) race that owner and (b) yank the CWD out from
     # under whoever is sitting inside it — the OTA worker, or a human who ran
     # `cd /tmp/qmanager_install && sh install_rm520n.sh` — producing

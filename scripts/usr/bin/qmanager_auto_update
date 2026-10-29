@@ -167,10 +167,14 @@ case $? in
     *) qlog_info "Up to date ($current_version)"; exit 0 ;;
 esac
 
+# The tag comes from the GitHub API; keep "../" and odd characters out of the URL.
+case "$latest_tag" in
+    ""|.*|-*|*..*|*[!A-Za-z0-9._-]*) qlog_warn "Refusing invalid release tag: $latest_tag"; exit 0 ;;
+esac
+
 download_url="https://github.com/${REPO}/releases/download/${latest_tag}/qmanager.tar.gz"
 qlog_info "Auto-update: installing $latest_tag (current: $current_version)"
-# --unattended makes qmanager_update treat a missing/unverifiable SHA-256 as
-# fatal instead of best-effort — nobody is watching this progress UI to catch
-# a bad install before it reboots the device. (4th arg is download_size,
-# which auto-update never knows ahead of time — left empty like before.)
+# qmanager_update fails closed on an unverifiable SHA-256 in every mode;
+# --unattended is kept for compatibility. (4th arg is download_size, which
+# auto-update never knows ahead of time — left empty like before.)
 exec "$UPDATER" install "$download_url" "$latest_tag" "" --unattended

@@ -16,7 +16,7 @@
 #
 # Config: UCI quecmanager.update.*
 # State:  /tmp/qmanager_update.json, /tmp/qmanager_update.pid
-#         /tmp/qmanager_staged.tar.gz, /tmp/qmanager_staged_version
+#         /tmp/qmanager_stage/{qmanager.tar.gz,version} (root-owned, 0711)
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/system/update.sh
 # =============================================================================
@@ -207,8 +207,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     # Detect staged download state
     download_state="null"
-    staged_tarball="/tmp/qmanager_staged.tar.gz"
-    staged_version_file="/tmp/qmanager_staged_version"
+    staged_tarball="/tmp/qmanager_stage/qmanager.tar.gz"
+    staged_version_file="/tmp/qmanager_stage/version"
 
     if [ -f "$PID_FILE" ]; then
         pid=$(cat "$PID_FILE" 2>/dev/null)
@@ -301,6 +301,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
+    # Release tags: letters, digits, ".", "_", "-"; no leading dot or dash, no "..".
+    # Keeps "../" out of the release URLs built below.
+    is_safe_tag() {
+        case "$1" in
+            ""|.*|-*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
+        esac
+        return 0
+    }
+
     # --- Save pre-release preference ---
     if [ "$ACTION" = "save_prerelease" ]; then
         ensure_update_config
@@ -365,6 +374,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         if [ -z "$version" ]; then
             cgi_error "missing_version" "version is required"; exit 0
         fi
+        if ! is_safe_tag "$version"; then
+            cgi_error "invalid_version" "version is not a valid release tag"; exit 0
+        fi
 
         download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/qmanager.tar.gz"
         checksum_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/sha256sum.txt"
@@ -378,7 +390,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$ACTION" = "install_staged" ]; then
         check_lock
 
-        if [ ! -f "/tmp/qmanager_staged.tar.gz" ]; then
+        if [ ! -f "/tmp/qmanager_stage/qmanager.tar.gz" ]; then
             cgi_error "no_staged" "No staged download found. Download first."
             exit 0
         fi
@@ -416,6 +428,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
 
         rollback_version=$(cat "$UPDATES_DIR/previous_version" 2>/dev/null)
+        if ! is_safe_tag "$rollback_version"; then
+            cgi_error "invalid_rollback" "Saved previous version is not a valid release tag"
+            exit 0
+        fi
         rollback_url="https://github.com/${GITHUB_REPO}/releases/download/${rollback_version}/qmanager.tar.gz"
         jq -n --arg v "$rollback_version" '{"success":true,"status":"starting","version":$v}'
         ( sudo -n "$UPDATER" rollback "$rollback_url" "$rollback_version" </dev/null >/dev/null 2>&1 & )

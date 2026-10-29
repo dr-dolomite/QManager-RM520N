@@ -10,10 +10,9 @@
 #   qmanager_update install_staged
 #   qmanager_update rollback <rollback_url> <rollback_version>
 #
-# The optional [--unattended] (alias --strict) flag on "install" is set by
-# qmanager_auto_update: it makes SHA-256 verification mandatory rather than
-# best-effort, since nobody is watching the progress UI to catch a bad
-# unattended install before it reboots the device. See verify_checksum().
+# Every mode accepts only official release URLs and refuses to install unless
+# the release's sha256sum.txt verifies (see verify_checksum()). The optional
+# [--unattended] flag is accepted for compatibility and changes nothing.
 # =============================================================================
 
 LOG_FILE="/tmp/qmanager_update.log"
@@ -138,24 +137,65 @@ http_download() {
     return 0
 }
 
-# Validate a tarball URL against the GitHub origin whitelist.
-# Mode "strict" (2nd arg = "strict") allows only the releases path;
-# default allows both releases and raw/qmanager-build paths (install mode).
-validate_url() {
-    local url="$1" strict="${2:-}"
-    case "$url" in
-        https://github.com/dr-dolomite/QManager-RM520N/releases/download/*/qmanager.tar.gz)
-            return 0
-            ;;
-        https://github.com/dr-dolomite/QManager-RM520N/raw/*/qmanager-build/qmanager.tar.gz)
-            # raw/qmanager-build path is only permitted for the one-step install mode
-            if [ "$strict" = "strict" ]; then
-                return 1
-            fi
-            return 0
-            ;;
+# Release assets live only at <RELEASE_PREFIX><tag>/<asset>. A case glob alone
+# is not enough: `*` matches "/", and curl collapses "../" before it sends.
+RELEASE_PREFIX="https://github.com/dr-dolomite/QManager-RM520N/releases/download/"
+
+# Root-owned 0711 work dir for downloads and extraction. www-data can stat a
+# staged file (the CGI shows "ready") but cannot plant or swap anything here.
+STAGE_DIR="/tmp/qmanager_stage"
+STAGED_TARBALL="$STAGE_DIR/qmanager.tar.gz"
+STAGED_VERSION="$STAGE_DIR/version"
+STAGED_SHA="$STAGE_DIR/sha256"
+INSTALL_SRC="$STAGE_DIR/qmanager_install"
+
+# Tags: letters, digits, ".", "_", "-"; no leading dot or dash, no "..".
+is_safe_tag() {
+    case "$1" in
+        ""|.*|-*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
     esac
-    return 1
+    return 0
+}
+
+is_sha256() {
+    case "$1" in *[!0-9a-f]*) return 1 ;; esac
+    [ "${#1}" -eq 64 ]
+}
+
+# Accept only <RELEASE_PREFIX><safe tag>/qmanager.tar.gz.
+validate_url() {
+    local url="$1" tag
+    case "$url" in
+        "$RELEASE_PREFIX"*/qmanager.tar.gz) ;;
+        *) return 1 ;;
+    esac
+    tag="${url#"$RELEASE_PREFIX"}"
+    is_safe_tag "${tag%/qmanager.tar.gz}"
+}
+
+stage_dir_ok() {
+    [ -d "$STAGE_DIR" ] && [ ! -L "$STAGE_DIR" ] &&
+        [ "$(stat -c '%u %a' "$STAGE_DIR" 2>/dev/null)" = "0 711" ]
+}
+
+# Recreate the stage dir empty; fails if something else claims the path first.
+reset_stage_dir() {
+    cd /
+    rm -rf "$STAGE_DIR"
+    mkdir -m 0711 "$STAGE_DIR" 2>/dev/null && stage_dir_ok
+}
+
+# Keep a valid stage dir (and any staged download in it); rebuild it otherwise.
+# Only root can write inside, so its contents need no wipe.
+ensure_stage_dir() {
+    stage_dir_ok || reset_stage_dir || return 1
+    cd /
+    rm -rf "$INSTALL_SRC" "$STAGE_DIR/download.tar.gz"
+}
+
+# A regular, root-owned file inside the stage dir (no symlinks).
+staged_file_ok() {
+    [ -f "$1" ] && [ ! -L "$1" ] && [ "$(stat -c '%u' "$1" 2>/dev/null)" = "0" ]
 }
 
 # Verify that a tarball is readable and contains the expected installer entry.
@@ -166,74 +206,40 @@ verify_archive() {
     return 0
 }
 
-# A GitHub Release publishes qmanager.tar.gz and sha256sum.txt as siblings in
-# the same release. "install" mode is only ever given the tarball URL (unlike
-# "download" mode, which receives an explicit checksum URL from the CGI) — so
-# for the releases path we derive the sibling checksum URL ourselves. The
-# raw/qmanager-build path (dev/one-step installs) has no such sibling and
-# yields an empty string, which verify_checksum() treats as "unavailable".
-derive_checksum_url() {
-    local tarball_url="$1"
-    case "$tarball_url" in
-        https://github.com/dr-dolomite/QManager-RM520N/releases/download/*/qmanager.tar.gz)
-            printf '%s' "${tarball_url%/qmanager.tar.gz}/sha256sum.txt"
-            ;;
-        *)
-            printf ''
-            ;;
-    esac
-}
-
-# Fetch + verify a tarball's SHA-256 against a checksum URL. Shared by both
-# "download" (staged) and "install" (one-step) modes so the two paths carry
-# identical integrity guarantees — previously only "download" mode verified
-# checksums at all.
-#
-# Return codes:
-#   0 = verified OK, or skipped and the caller's strictness allows that
-#   1 = checksum unavailable/unverifiable AND strict — caller must die
-#   2 = checksum present but MISMATCHED — always fatal regardless of strict;
-#       a mismatch is a corruption/tamper signal, never a "just proceed" gap
-#
-# strict="strict" is set by qmanager_auto_update (the unattended, reboot-
-# capable path) — it must never install unverified bytes. The manual/UI path
-# passes strict="" so a human watching the progress UI can still proceed past
-# a transient checksum-hosting hiccup, same as today. Every skip/verify/
-# mismatch outcome is always logged — silence was the actual bug being fixed.
+# Fetch the release's sibling sha256sum.txt and check the tarball against it.
+# The checksum URL is always derived from the validated tarball URL, never
+# taken from the caller. Every mode fails closed.
+# Returns 0 = verified, 1 = could not verify, 2 = mismatch.
 verify_checksum() {
-    local tarball="$1" checksum_url="$2" strict="$3"
-    local checksum_file="/tmp/qmanager_update_sha256.txt"
-    local expected_sha="" actual_sha=""
+    local tarball="$1" url="$2" checksum_url checksum_file expected_sha actual_sha
 
-    if [ -z "$checksum_url" ]; then
-        log "SHA-256 check skipped — no checksum URL available for this install"
-        [ "$strict" = "strict" ] && return 1
-        return 0
+    if ! validate_url "$url"; then
+        log "SHA-256 not verified — not an official release URL: $url"
+        return 1
     fi
-
-    rm -f "$checksum_file"
-    if ! http_download "$checksum_url" "$checksum_file" 15; then
-        log "SHA-256 check skipped — checksum file not available at $checksum_url"
-        rm -f "$checksum_file"
-        [ "$strict" = "strict" ] && return 1
-        return 0
-    fi
+    checksum_url="${url%/qmanager.tar.gz}/sha256sum.txt"
 
     if ! command -v sha256sum >/dev/null 2>&1; then
-        log "SHA-256 check skipped — sha256sum not available on this system"
-        rm -f "$checksum_file"
-        [ "$strict" = "strict" ] && return 1
-        return 0
+        log "SHA-256 not verified — sha256sum not available on this system"
+        return 1
     fi
 
-    expected_sha=$(awk '{print $1}' "$checksum_file" 2>/dev/null)
-    actual_sha=$(sha256sum "$tarball" 2>/dev/null | awk '{print $1}')
+    checksum_file="$STAGE_DIR/sha256sum.txt"
     rm -f "$checksum_file"
+    if ! http_download "$checksum_url" "$checksum_file" 15; then
+        log "SHA-256 not verified — checksum file not available at $checksum_url"
+        rm -f "$checksum_file"
+        return 1
+    fi
 
-    if [ -z "$expected_sha" ] || [ -z "$actual_sha" ]; then
-        log "SHA-256 check skipped — could not parse checksum value(s) from $checksum_url"
-        [ "$strict" = "strict" ] && return 1
-        return 0
+    expected_sha=$(awk '$2 == "qmanager.tar.gz" || $2 == "*qmanager.tar.gz" { print tolower($1); exit }' \
+        "$checksum_file" 2>/dev/null)
+    rm -f "$checksum_file"
+    actual_sha=$(sha256sum "$tarball" 2>/dev/null | awk '{ print $1 }')
+
+    if ! is_sha256 "$expected_sha" || ! is_sha256 "$actual_sha"; then
+        log "SHA-256 not verified — could not parse checksum value(s) from $checksum_url"
+        return 1
     fi
 
     if [ "$actual_sha" != "$expected_sha" ]; then
@@ -243,6 +249,16 @@ verify_checksum() {
 
     log "SHA-256 verified ($actual_sha)"
     return 0
+}
+
+# Die unless verify_checksum passes; removes the tarball on failure.
+require_checksum() {
+    verify_checksum "$1" "$2"
+    case $? in
+        0) return 0 ;;
+        2) rm -f "$1"; die "SHA-256 mismatch — download may be corrupt or tampered" ;;
+        *) rm -f "$1"; die "SHA-256 could not be verified — refusing to install an unverified update" ;;
+    esac
 }
 
 # Run install_rm520n.sh with step-streaming progress updates to the UI.
@@ -336,7 +352,7 @@ post_install_check() {
 cleanup() {
     rm -f "$PID_FILE"
     cd /                        # never delete our own CWD (would break getcwd)
-    rm -rf /tmp/qmanager_install
+    rm -rf "$INSTALL_SRC"
     rm -f "$WATCHCAT_LOCK"
 }
 
@@ -397,24 +413,18 @@ if [ "$MODE" = "install" ]; then
     URL="$2"
     VERSION="$3"
     SIZE="$4"
-    # Strictness flag — set by qmanager_auto_update for the unattended path.
-    # "" (manual/UI-triggered) warns and proceeds on an unverifiable checksum;
-    # "--unattended"/"--strict" hard-fails instead, since nothing is watching
-    # the progress UI to catch a bad install before it reboots the device.
-    STRICT=""
-    case "$5" in
-        --unattended|--strict) STRICT="strict" ;;
-    esac
+    # $5 (--unattended) is still passed by qmanager_auto_update but no longer
+    # changes anything: every path now fails closed on an unverified checksum.
 
     if ! validate_url "$URL"; then
         die "Invalid download URL"
     fi
+    ensure_stage_dir || die "Could not create a private staging directory"
 
     # 1. Download
     write_status "downloading" "Downloading update..." "$VERSION" "$SIZE"
     log "Downloading $URL"
-    download_path="/tmp/qmanager_update_new.tar.gz"
-    rm -f "$download_path"
+    download_path="$STAGE_DIR/download.tar.gz"
 
     if ! http_download "$URL" "$download_path"; then
         die "Download failed. Check your internet connection."
@@ -429,20 +439,9 @@ if [ "$MODE" = "install" ]; then
     fi
     log "Archive verified"
 
-    # 2b. Verify SHA-256 — same integrity guarantee "download" mode already
-    # has (see verify_checksum()). Previously "install" mode skipped this
-    # entirely, so the unattended auto-update path installed unverified bytes.
+    # 2b. Verify SHA-256 (fails closed).
     write_status "verifying" "Verifying SHA-256..." "$VERSION" ""
-    checksum_url=$(derive_checksum_url "$URL")
-    verify_checksum "$download_path" "$checksum_url" "$STRICT"
-    checksum_rc=$?
-    if [ "$checksum_rc" -eq 2 ]; then
-        rm -f "$download_path"
-        die "SHA-256 mismatch — download may be corrupt or tampered"
-    elif [ "$checksum_rc" -eq 1 ]; then
-        rm -f "$download_path"
-        die "SHA-256 verification unavailable for an unattended install — refusing to install unverified update"
-    fi
+    require_checksum "$download_path" "$URL"
 
     # 3. Save current version for rollback tracking
     write_status "installing" "Installing update..." "$VERSION" ""
@@ -452,10 +451,9 @@ if [ "$MODE" = "install" ]; then
     log "Saved previous version ($current_ver) for rollback"
 
     # 4. Extract and run installer with step-streaming progress
-    rm -rf /tmp/qmanager_install
-    tar xzf "$download_path" -C /tmp/
+    tar xzf "$download_path" -C "$STAGE_DIR" || die "Extraction failed"
     rm -f "$download_path"
-    cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
+    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found"
 
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
@@ -471,11 +469,11 @@ if [ "$MODE" = "install" ]; then
     post_install_check "$VERSION"
 
     # 6. Cleanup and reboot. cd out of the staging dir before deleting it —
-    #    we cd'd into /tmp/qmanager_install to run the installer, and deleting
+    #    we cd'd into $INSTALL_SRC to run the installer, and deleting
     #    our own CWD leaves getcwd() failing for everything after (and any
     #    relative path a future edit adds in this window).
     cd /
-    rm -rf /tmp/qmanager_install
+    rm -rf "$STAGE_DIR"
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
     rm -f "$PID_FILE"
@@ -490,21 +488,20 @@ fi
 # =============================================================================
 if [ "$MODE" = "download" ]; then
     URL="$2"
-    CHECKSUM_URL="$3"
     VERSION="$4"
+    # $3 (checksum URL) is ignored: verify_checksum derives it from $URL.
 
-    STAGED_TARBALL="/tmp/qmanager_staged.tar.gz"
-    STAGED_VERSION="/tmp/qmanager_staged_version"
-
-    # Strict validation — only releases path is accepted for staged downloads
-    if ! validate_url "$URL" "strict"; then
+    # The URL must be the release for exactly this version tag.
+    if ! is_safe_tag "$VERSION" || [ "$URL" != "${RELEASE_PREFIX}${VERSION}/qmanager.tar.gz" ]; then
         die "Invalid download URL"
     fi
+    reset_stage_dir || die "Could not create a private staging directory"
+    # Pre-v0.1.19 staging paths; a leftover must never look like a staged update.
+    rm -f /tmp/qmanager_staged.tar.gz /tmp/qmanager_staged_version
 
     # 1. Download tarball
     write_status "downloading" "Downloading QManager ${VERSION}..." "$VERSION" ""
     log "Downloading $URL"
-    rm -f "$STAGED_TARBALL"
 
     if ! http_download "$URL" "$STAGED_TARBALL"; then
         die "Download failed. Check your internet connection."
@@ -518,20 +515,14 @@ if [ "$MODE" = "download" ]; then
     fi
     log "Archive integrity verified"
 
-    # 3. SHA-256 verification — shared helper (see verify_checksum()). The
-    # staged "download" flow is always human-triggered from the UI (auto-
-    # update uses "install" mode, not "download"), so strict="" here: a
-    # missing/unverifiable checksum warns and proceeds, matching prior
-    # behavior. A mismatch is always fatal regardless.
+    # 3. SHA-256 verification (fails closed).
     write_status "verifying" "Verifying SHA-256..." "$VERSION" ""
-    verify_checksum "$STAGED_TARBALL" "$CHECKSUM_URL" ""
-    if [ $? -eq 2 ]; then
-        rm -f "$STAGED_TARBALL"
-        die "SHA-256 mismatch — download may be corrupt or tampered"
-    fi
+    require_checksum "$STAGED_TARBALL" "$URL"
 
-    # 4. Stage version marker
+    # 4. Stage version marker + the verified hash, re-checked by install_staged
     echo "$VERSION" > "$STAGED_VERSION"
+    sha256sum "$STAGED_TARBALL" | awk '{ print $1 }' > "$STAGED_SHA"
+    chmod 0644 "$STAGED_TARBALL" "$STAGED_VERSION" "$STAGED_SHA"
 
     # 5. Report ready
     local_size=$(du -k "$STAGED_TARBALL" 2>/dev/null | awk '{printf "%.1f MB", $1/1024}')
@@ -547,14 +538,21 @@ fi
 # INSTALL_STAGED mode — install a previously downloaded tarball
 # =============================================================================
 if [ "$MODE" = "install_staged" ]; then
-    STAGED_TARBALL="/tmp/qmanager_staged.tar.gz"
-    STAGED_VERSION="/tmp/qmanager_staged_version"
-
-    [ -f "$STAGED_TARBALL" ] || die "No staged tarball found. Download first."
-    [ -f "$STAGED_VERSION" ] || die "No staged version marker found."
+    # Only trust files the download step left in the root-only stage dir,
+    # and re-check the hash it recorded.
+    stage_dir_ok || die "No staged download found. Download first."
+    staged_file_ok "$STAGED_TARBALL" || die "No staged tarball found. Download first."
+    staged_file_ok "$STAGED_VERSION" || die "No staged version marker found."
+    staged_file_ok "$STAGED_SHA" || die "No staged checksum found. Download again."
 
     VERSION=$(cat "$STAGED_VERSION" 2>/dev/null)
-    log "Installing staged version: $VERSION"
+    is_safe_tag "$VERSION" || die "Staged version marker is invalid. Download again."
+    staged_sha=$(cat "$STAGED_SHA" 2>/dev/null)
+    actual_sha=$(sha256sum "$STAGED_TARBALL" 2>/dev/null | awk '{ print $1 }')
+    if ! is_sha256 "$staged_sha" || [ "$actual_sha" != "$staged_sha" ]; then
+        die "Staged download changed since it was verified. Download again."
+    fi
+    log "Installing staged version: $VERSION ($actual_sha)"
 
     # 1. Save current version for rollback tracking
     write_status "installing" "Installing QManager ${VERSION}..." "$VERSION" ""
@@ -564,10 +562,9 @@ if [ "$MODE" = "install_staged" ]; then
     log "Saved previous version ($current_ver)"
 
     # 2. Extract and run installer with step-streaming progress
-    rm -rf /tmp/qmanager_install
-    tar xzf "$STAGED_TARBALL" -C /tmp/
-    rm -f "$STAGED_TARBALL" "$STAGED_VERSION"
-    cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
+    tar xzf "$STAGED_TARBALL" -C "$STAGE_DIR" || die "Extraction failed"
+    rm -f "$STAGED_TARBALL" "$STAGED_VERSION" "$STAGED_SHA"
+    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found"
 
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
@@ -583,11 +580,11 @@ if [ "$MODE" = "install_staged" ]; then
     post_install_check "$VERSION"
 
     # 4. Cleanup and reboot. cd out of the staging dir before deleting it —
-    #    we cd'd into /tmp/qmanager_install to run the installer, and deleting
+    #    we cd'd into $INSTALL_SRC to run the installer, and deleting
     #    our own CWD leaves getcwd() failing for everything after (and any
     #    relative path a future edit adds in this window).
     cd /
-    rm -rf /tmp/qmanager_install
+    rm -rf "$STAGE_DIR"
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
     rm -f "$PID_FILE"
@@ -608,16 +605,16 @@ if [ "$MODE" = "rollback" ]; then
         die "Rollback requires URL and version arguments"
     fi
 
-    # Strict validation — rollback only downloads from official releases
-    if ! validate_url "$URL" "strict"; then
+    # Rollback only downloads from official releases
+    if ! validate_url "$URL"; then
         die "Invalid rollback URL"
     fi
+    ensure_stage_dir || die "Could not create a private staging directory"
 
     # 1. Download rollback archive
     write_status "downloading" "Downloading previous version..." "$VERSION" ""
     log "Downloading rollback archive $URL"
-    download_path="/tmp/qmanager_rollback.tar.gz"
-    rm -f "$download_path"
+    download_path="$STAGE_DIR/download.tar.gz"
 
     if ! http_download "$URL" "$download_path"; then
         die "Rollback download failed. Check your internet connection."
@@ -631,6 +628,10 @@ if [ "$MODE" = "rollback" ]; then
     fi
     log "Rollback archive verified"
 
+    # 2b. Verify SHA-256 (fails closed)
+    write_status "verifying" "Verifying SHA-256..." "$VERSION" ""
+    require_checksum "$download_path" "$URL"
+
     # 3. Save current version so the next rollback can swap back
     write_status "installing" "Restoring previous version..." "$VERSION" ""
     current_ver=$(get_current_version)
@@ -639,10 +640,9 @@ if [ "$MODE" = "rollback" ]; then
     log "Saved current version ($current_ver) before rollback"
 
     # 4. Extract and run installer with step-streaming progress
-    rm -rf /tmp/qmanager_install
-    tar xzf "$download_path" -C /tmp/
+    tar xzf "$download_path" -C "$STAGE_DIR" || die "Extraction failed"
     rm -f "$download_path"
-    cd /tmp/qmanager_install || die "Extraction failed"
+    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found"
 
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
@@ -658,11 +658,11 @@ if [ "$MODE" = "rollback" ]; then
     post_install_check "$VERSION"
 
     # 6. Cleanup and reboot. cd out of the staging dir before deleting it —
-    #    we cd'd into /tmp/qmanager_install to run the installer, and deleting
+    #    we cd'd into $INSTALL_SRC to run the installer, and deleting
     #    our own CWD leaves getcwd() failing for everything after (and any
     #    relative path a future edit adds in this window).
     cd /
-    rm -rf /tmp/qmanager_install
+    rm -rf "$STAGE_DIR"
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
     rm -f "$PID_FILE"

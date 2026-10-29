@@ -1273,8 +1273,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_update.pid` | root | qmanager_update | Update worker PID |
 | `/tmp/qmanager_update.log` | root | qmanager_update | Update worker log |
 | `/tmp/qmanager_install.log` | root | qmanager_update | Step-streaming install log (polled by worker) |
-| `/tmp/qmanager_staged.tar.gz` | root | qmanager_update (download mode) | Staged update tarball |
-| `/tmp/qmanager_staged_version` | root | qmanager_update (download mode) | Staged version string |
+| `/tmp/qmanager_stage/` | root, `0711` | qmanager_update | Private OTA work dir, recreated each run: `qmanager.tar.gz`, `version` and `sha256` (staged download), `download.tar.gz`, `qmanager_install/` (extracted installer) |
 | `/tmp/qmanager_tailscale_install.json` | root | qmanager_tailscale_mgr | Tailscale install progress |
 | `/tmp/qmanager_tailscale_install.log` | root | qmanager_tailscale_mgr | Tailscale install log |
 | `/tmp/qmanager_tailscale_install.pid` | root | qmanager_tailscale_mgr | Tailscale install PID |
@@ -1442,9 +1441,11 @@ Spawned by `system/update.sh` CGI via `sudo -n /usr/bin/qmanager_update <mode> [
 | Mode | Arguments | Description |
 |------|-----------|-------------|
 | `install` | `<url> <version> [size]` | Download, verify, install, reboot in one step |
-| `download` | `<url> <checksum_url> <version>` | Download and verify only; stage at `/tmp/qmanager_staged.tar.gz` |
-| `install_staged` | (none) | Install a previously downloaded staged tarball |
-| `rollback` | `<url> <version>` | Download and install a prior release; strict URL validation |
+| `download` | `<url> <checksum_url> <version>` | Download and verify only; stage in `/tmp/qmanager_stage/`. `<url>` must be the release for `<version>`; `<checksum_url>` is ignored |
+| `install_staged` | (none) | Install the staged tarball after re-checking its recorded SHA-256 |
+| `rollback` | `<url> <version>` | Download, verify and install a prior release |
+
+Every mode accepts only `<release prefix><tag>/qmanager.tar.gz` and refuses to install without a verified `sha256sum.txt`. See [qmanager-independence.md](reference/qmanager-independence.md#ota-url-pinning-and-sha-256-verification).
 
 #### Status State Machine
 
