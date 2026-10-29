@@ -5,6 +5,7 @@
 QMI_JSON_FILE="${QMI_JSON_FILE:-/var/run/qmanager/qmi.json}"
 
 # qmi_ctx: .use = every gate holds (.rsrp/.rsrq/.rssi valid only then); .read_mono/.state/.ssr/.wds = sidecar facts.
+# $mono is the cycle top, so a sidecar written later in the cycle has a small negative age.
 # One try and no helpers on purpose: jq compile cost scales with program size; a bad sidecar lands in the catch.
 QMI_JQ_DEFS='
 def qmi_ctx: try (
@@ -15,7 +16,7 @@ def qmi_ctx: try (
     | {
         use: ($qeng_ok == 0 and $system_state != "scan_in_progress"
               and $q.qmi_state == "up" and $q.registered == true
-              and $mono > 0 and $age >= 0 and $age <= 5
+              and $mono > 0 and $age >= -5 and $age <= 5
               and (($q.data.cell.lte.pci | type) == "number") and (($q.data.cell.lte.earfcn | type) == "number")
               and (if ($lte_pci != null or $lte_earfcn != null)
                    then ($q.data.cell.lte.pci == $lte_pci and $q.data.cell.lte.earfcn == $lte_earfcn)
