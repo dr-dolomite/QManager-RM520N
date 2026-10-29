@@ -186,6 +186,22 @@ export interface NetworkStatus {
   secondary_dns: string;
   /** Per-carrier component details from AT+QCAINFO (PCC + all SCCs) */
   carrier_components: CarrierComponent[];
+  /** QMI WDS runtime settings of the bound data call; null when stale or unavailable */
+  wds?: WdsSettings | null;
+}
+
+/** QMI WDS 0x002D runtime settings; `mtu` is the network-provided PDN MTU. */
+export interface WdsSettings {
+  ip4: string | null;
+  gw4: string | null;
+  mask4: string | null;
+  dns4: string[];
+  mtu: number | null;
+  ip6: string | null;
+  ip6_prefix: number | null;
+  gw6: string | null;
+  dns6: string[];
+  read_mono: number;
 }
 
 /** A single carrier component from AT+QCAINFO (PCC or SCC) */
@@ -247,6 +263,8 @@ export interface LteStatus {
   rssi: number | null;
   /** Timing Advance index (0–1282). Used for cell distance estimation. */
   ta: number | null;
+  /** Where rsrp/rsrq/rssi came from this write: QMI fills cycles without an AT read */
+  source?: "at" | "qmi";
 }
 
 export interface NrStatus {
@@ -319,6 +337,14 @@ export interface DeviceStatus {
   supported_sa_nr5g_bands: string;
   /** Poller activity tier: AT reads slow down while no browser is polling; absent on older pollers */
   poller_tier?: "active" | "idle" | "deep";
+  /** Monotonic second of the QMI snapshot; null without the sidecar */
+  qmi_read_mono?: number | null;
+  /** QMI lane state ("up", ...); "" without the sidecar */
+  qmi_state?: string;
+  /** Modem subsystem restarts seen by the QMI lane */
+  qmi_ssr_count?: number | null;
+  /** Monotonic second of the last AT serving-cell read */
+  at_read_mono?: number | null;
 }
 
 /**
