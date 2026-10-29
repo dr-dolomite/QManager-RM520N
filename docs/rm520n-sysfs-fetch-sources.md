@@ -129,7 +129,7 @@ The Ethernet-status feature was removed from `dev-rm520`, but if reintroduced th
 | Operator / PLMN name | Same. |
 | IMEI / IMSI / ICCID, SIM PIN status | Same. |
 | Locked-band, network-mode preferences | NV items in modem firmware. AT or QMI only. |
-| SMS | sms_tool (own bundled binary) on `/dev/smd11`. |
+| SMS | sms_tool (own bundled binary) on `/dev/smd11` at the time; since T5.1 `qsms` over QMI WMS. |
 
 These are the same wall the original QMI investigation hit at the **information level** — sysfs cannot give us this data. **However, the QMI feasibility assessment itself is reversed once we look at the right places on this platform.** See the next section.
 
@@ -265,7 +265,7 @@ Pre-built tool already on device. Pipe commands at it, parse text output.
 
 ### What we should NOT migrate to QMI even if it works
 
-- **SMS** — `sms_tool` already handles multi-part reassembly and works reliably. WMS via QMI duplicates it without obvious benefit.
+- **SMS** — `sms_tool` already handles multi-part reassembly and works reliably. WMS via QMI duplicates it without obvious benefit. (Superseded: T5.1 moved SMS to WMS and retired `sms_tool`.)
 - **Band locking / network mode preferences** — `AT+QNWPREFCFG` is well-trodden in the codebase. QMI equivalents exist but the reward for swapping a working path is low.
 - **Modem reboot / shutdown** — `qmi_shutdown_modem` exists but `AT+CFUN=1,1` is fine.
 

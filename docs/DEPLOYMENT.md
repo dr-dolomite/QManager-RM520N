@@ -388,9 +388,10 @@ The installer is idempotent — re-running updates rather than duplicates. It ha
 - Stopping existing services (filesystem-driven scan of `/lib/systemd/system/qmanager-*.service`, batched into a single `systemctl stop` call so systemd shuts them down in parallel; long-running daemons set `TimeoutStopSec=10` so a wedged service caps the wait at 10s instead of systemd's 90s default)
 - Removing orphaned daemons/units/libs not present in the current source tree (`cleanup_legacy_scripts`)
 - Removing conflicting packages (`socat`, `socat-at-bridge`) even with `--skip-packages`
-- Deploying the bundled first-party binaries (`atcli_smd11`, `sms_tool`, `qmanager_discord`) even with `--skip-packages` — `install_bundled_binaries()` runs unconditionally in `main()`, so an OTA/in-app "Software Update" upgrade (which always passes `--skip-packages`) still refreshes them; each copy is skipped via `cmp -s` when the on-device binary is already byte-identical, avoiding a needless UBIFS write. Entware/opkg packages (jq, dropbear, sudo, lighttpd) stay gated inside `install_dependencies()` and are the *only* thing `--skip-packages` actually skips
+- Deploying the bundled first-party binaries (`qmanager_atd` with its `qsms` link, `qmanager_discord`) even with `--skip-packages` — `install_bundled_binaries()` runs unconditionally in `main()`, so an OTA/in-app "Software Update" upgrade (which always passes `--skip-packages`) still refreshes them; each copy is skipped via `cmp -s` when the on-device binary is already byte-identical, avoiding a needless UBIFS write. Entware/opkg packages (jq, dropbear, sudo, lighttpd) stay gated inside `install_dependencies()` and are the *only* thing `--skip-packages` actually skips
 - Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform)
 - AT stack health check (3× `qcmd 'ATI'` retries, warn-only) and poller health check after completion
+- Removing the retired `/usr/bin/sms_tool` and `/usr/bin/atcli_smd11` left by an older release (`retire_legacy_at_binaries`, last under `DO_START`): each is deleted only once `qsms status` / `qcmd AT` answers, otherwise kept — see [AT Command Transport](reference/at-command-transport.md#retired-binaries-atcli_smd11-and-sms_tool)
 
 ---
 
@@ -433,7 +434,7 @@ The installer writes `/etc/qmanager/VERSION.pending` early and only moves it to 
 The kernel's sticky directory protection (`fs.protected_regular=1`) blocks a process from truncating a file in `/tmp` that was created by a different user. The OTA worker (`qmanager_update`) works around this by doing `rm -f $LOG_FILE` before creating a fresh log — never truncating an existing file. CGI scripts that need to write `/tmp` files should pre-create them with the correct ownership in `qmanager_setup` (boot one-shot).
 
 **Socat conflict blocks AT transport:**
-If `socat` or `socat-at-bridge` services are running, `atcli_smd11` cannot open `/dev/smd11`. The installer actively removes these packages (`opkg remove socat socat-at-bridge`) with retry through `--force-removal-of-dependent-packages`. This runs even with `--skip-packages`.
+If `socat` or `socat-at-bridge` services are running, `qcmd` cannot open `/dev/smd11`. The installer actively removes these packages (`opkg remove socat socat-at-bridge`) with retry through `--force-removal-of-dependent-packages`. This runs even with `--skip-packages`.
 
 ### CGI Returns Empty Response
 
@@ -521,7 +522,7 @@ QManager runs directly on the modem's internal Linux OS — no external OpenWRT 
 | Root filesystem | `ubi0:rootfs`, boots read-only. Remount `rw` before a rootfs write and leave it `rw` — never restore `ro` ([BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract)) |
 | Persistent storage | `/usrdata/` partition |
 | Web server | lighttpd (Entware) |
-| AT transport | `atcli_smd11` on `/dev/smd11` directly (no socat bridge) |
+| AT transport | `qcmd` → `qmanager_atd` on `/dev/smd11` directly (no socat bridge) |
 | Config store | Files in `/etc/qmanager/`. `/etc` is `/dev/ubi2_0`, **not** the rootfs — always `rw`, no remount needed |
 | Firewall | iptables direct |
 | `systemctl enable` | Does NOT work — use direct symlinks into `multi-user.target.wants/` |

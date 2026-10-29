@@ -356,7 +356,7 @@ lock is always the **outer** of the two, strictly nested, so there is no
 deadlock risk.
 
 BusyBox `flock` has no `-w` (timeout) option, so acquisition polls `flock -x -n`
-in a 1s loop — the same idiom `qcmd`'s own `flock_wait()` uses. The wait ceiling
+in a 1s loop — the same idiom the old shell `qcmd`'s `flock_wait()` used. The wait ceiling
 is `APN_APPLY_LOCK_WAIT`: **30s** by default for the unattended root worker
 (nothing is blocked on it, so it should win the retry), overridden to **5s** by
 both CGI endpoints, since a human is waiting on the HTTP response. The override
@@ -793,6 +793,6 @@ maps to an error code.
 ## Related
 
 - [sim-profiles.md](sim-profiles.md) — Custom SIM Profiles, including the full gate matrix and how the APN field is applied as step 1 of the 4-step apply pipeline.
-- [at-command-transport.md](at-command-transport.md) — how AT commands reach the modem (`qcmd`, `atcli_smd11`, `flock`).
+- [at-command-transport.md](at-command-transport.md) — how AT commands reach the modem (`qcmd`, `qmanager_atd`, `flock`).
 - `docs/API-REFERENCE.md` § `/cellular/apn.sh` — full request/response contract.
 - `docs/BACKEND.md` — CGI endpoint inventory.

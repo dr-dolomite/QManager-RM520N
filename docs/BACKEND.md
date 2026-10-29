@@ -50,7 +50,7 @@ QManager runs as a self-contained web management stack inside the RM520N-GL mode
 | Web server | lighttpd 1.4.82 (Entware, `/opt/sbin/lighttpd`) |
 | Package manager | Entware opkg at `/opt/` (Entware libc 2.27 alongside system glibc 2.31) |
 | Config store | JSON files under `/etc/qmanager/` (no UCI) |
-| AT transport | `atcli_smd11` via `/dev/smd11` (direct, no socat) |
+| AT transport | `qcmd` → `qmanager_atd` on `/dev/smd11` (direct, no socat; broker daemon on RM520N-GL, in-process elsewhere) |
 | Firewall | iptables 1.8.4 legacy (direct, no nftables/fw4) |
 | Shell | `/bin/sh` is **BusyBox `ash`** (`/bin/sh -> busybox.nosuid`); `/bin/bash` exists but is **bash 3.2.57(1)-release** — see [§14 Common Pitfalls](#14-common-pitfalls) for missing modern bashisms |
 
@@ -63,7 +63,7 @@ Shared libraries       -- scripts/usr/lib/qmanager/
      |
 Shell daemons          -- scripts/usr/bin/qmanager_*
      |
-AT command gatekeeper  -- scripts/usr/bin/qcmd -> atcli_smd11 -> /dev/smd11
+AT command gatekeeper  -- /usr/bin/qcmd -> qmanager_atd (native/qmanager_atd/) -> /dev/smd11
      |
 systemd services       -- scripts/etc/systemd/system/
      |
@@ -186,7 +186,7 @@ All paths are relative to the repository root. The source tree mirrors the devic
 
 | Source path | Device path | Contents |
 |-------------|-------------|----------|
-| `scripts/usr/bin/` | `/usr/bin/` | Daemon and utility scripts (qcmd, qmanager_*) |
+| `scripts/usr/bin/` | `/usr/bin/` | Daemon and utility scripts (qmanager_*) |
 | `scripts/usr/lib/qmanager/` | `/usr/lib/qmanager/` | Shared shell libraries |
 | `scripts/etc/systemd/system/` | `/lib/systemd/system/` | Systemd unit files |
 | `scripts/etc/sudoers.d/qmanager` | `/etc/sudoers.d/qmanager` (also `/opt/etc/sudoers.d/qmanager`) | Sudoers rules for www-data |
@@ -196,8 +196,7 @@ All paths are relative to the repository root. The source tree mirrors the devic
 | `scripts/www/cgi-bin/quecmanager/` | `/usrdata/qmanager/www/cgi-bin/quecmanager/` | CGI scripts |
 | `scripts/usrdata/qmanager/lighttpd.conf` | `/usrdata/qmanager/lighttpd.conf` | lighttpd configuration |
 | `scripts/usrdata/qmanager/console/` | `/usrdata/qmanager/console/` | Web console (ttyd) |
-| `dependencies/atcli_smd11` | `/usr/bin/atcli_smd11` | AT CLI binary (Rust, ARMv7 static) |
-| `dependencies/sms_tool` | `/usr/bin/sms_tool` | SMS send/receive binary (ARMv7) |
+| `dependencies/qmanager_atd` | `/usr/bin/qmanager_atd` (+ `qcmd`, `qsms` symlinks) | AT/SMS/QMI broker (Rust, static musl armhf) |
 | `dependencies/ttyd` | `/usrdata/qmanager/console/ttyd` | Web terminal binary (ARMv7) |
 
 **Note on `qmanager_smd11_udev.sh`:** The source path (`scripts/etc/udev/scripts/`) is deliberately outside `scripts/usr/lib/qmanager/` to prevent the installer's glob copy from resetting its execute bit to 644. The installer copies it to `/usr/lib/qmanager/` with explicit `chmod +x`.
@@ -814,20 +813,16 @@ These are invoked on-demand by CGI scripts via sudo, or interactively.
 
 **Location:** `/usr/bin/qcmd`
 **Lock file:** `/tmp/qmanager_at.lock`
-**Depends on:** `atcli_smd11` (Rust, ARMv7 static binary), flock
+**Is:** a symlink to `qmanager_atd` (Rust, static), on every model
 
-The single entry point for all modem AT communication. Serializes access to `/dev/smd11` via `flock`. Uses `atcli_smd11` which accesses the device directly (no PTY bridge, no socat).
+The single entry point for all modem AT communication. Serializes access to `/dev/smd11` via `flock`. On the RM520N-GL it sends through the `qmanager_atd` broker and falls back in-process when the broker is down; on the RG501Q-EU (no broker) it always runs in-process. No PTY bridge, no socat.
 
 ```sh
 qcmd "AT+COMMAND"      # Returns raw response
 qcmd -j "AT+COMMAND"   # Returns JSON-wrapped response
 ```
 
-`atcli_smd11` always exits 0. `qcmd` detects errors by scanning the response for `ERROR`. Long commands (`QSCAN`, `QSCANFREQ`, `QFOTADL`) get a longer lock wait (10s vs 5s).
-
-**Lock pattern:** `( flock_wait 9 $TIMEOUT; atcli_smd11 "$CMD" ) 9<"$LOCK_FILE"`
-
-See §11 for the `flock_wait` polling pattern.
+Failure is exit 1 with an empty stdout and `ERROR: modem_busy` or `ERROR: command_failed` on stderr. Long commands (`QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus `/etc/qmanager/long_commands.list`) get a longer lock wait (10s vs 5s). Full contract: [at-command-transport.md](reference/at-command-transport.md).
 
 #### `qmanager_tailscale_mgr`
 
@@ -1022,7 +1017,7 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 KERNEL=="smd11", ACTION=="add", RUN+="/usr/lib/qmanager/qmanager_smd11_udev.sh"
 ```
 
-**Purpose:** `/dev/smd11` defaults to `crw------- root:root` on boot. `www-data` (member of the `dialout` group) needs read/write access to run AT commands via `atcli_smd11`. This rule fires on every kernel `add` event for `smd11` and runs the helper which sets `chmod 660` + `chown root:dialout`.
+**Purpose:** `/dev/smd11` defaults to `crw------- root:root` on boot. `www-data` (member of the `dialout` group) needs read/write access to run AT commands via `qcmd`. This rule fires on every kernel `add` event for `smd11` and runs the helper which sets `chmod 660` + `chown root:dialout`.
 
 **Why no `SUBSYSTEM==` filter:** The subsystem name for `smd11` is `glinkpkt` on RM520N-GL (sysfs path: `/sys/class/glinkpkt/smd11`) but differs on PRAIRE-derived platforms (RG502Q/RM502Q). `KERNEL=="smd11"` is already highly specific to Qualcomm SMD naming convention. Omitting `SUBSYSTEM==` makes the rule portable across platforms without verification.
 
@@ -1341,8 +1336,8 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | Path | Description |
 |------|-------------|
 | `/usr/bin/qcmd` | AT command gatekeeper |
-| `/usr/bin/atcli_smd11` | AT CLI binary (Rust, ARMv7 static, ~647KB, do NOT UPX-compress) |
-| `/usr/bin/sms_tool` | SMS send/receive binary (ARMv7) |
+| `/usr/bin/qmanager_atd` | AT/SMS/QMI broker binary; `qcmd` and `qsms` are symlinks to it |
+| `/usr/bin/qsms` | SMS client (symlink to `qmanager_atd`) |
 | `/usr/bin/qmanager_*` | All daemon and utility scripts |
 | `/usr/lib/qmanager/` | All shared library scripts |
 | `/lib/systemd/system/qmanager-*.service` | Systemd unit files |
@@ -1387,7 +1382,7 @@ flock_wait() {
 }
 
 # Usage with FD 9 (read-only to satisfy fs.protected_regular=1):
-( flock_wait 9 5 || exit 2; atcli_smd11 "$CMD" ) 9<"$LOCK_FILE"
+( flock_wait 9 5 || exit 2; your_locked_work ) 9<"$LOCK_FILE"
 ```
 
 **Why `9<` (read-only FD):** `fs.protected_regular=1` blocks `open()` for write on files owned by other users in sticky `/tmp`. Using `<` (read-only) instead of `<>` (read-write) avoids this restriction while still providing a valid file descriptor for flock.
@@ -1609,8 +1604,6 @@ file scripts/usr/bin/qmanager_setup
 **Publishing a shared `/tmp` file with `mv`.** The project-wide "atomic write" habit is wrong for a `/tmp` file that both UIDs write. `rename(2)` swaps the inode, so the new file is owned by whoever wrote the temp, at their umask — and the other UID is locked out for the rest of the boot, silently. Write through the existing inode (`cat tmp > file`), PID-qualify any scratch name (`${FILE}.tmp.$$`, never a fixed `.tmp`), and make the reader tolerate a torn read since you no longer have atomic publication. Same applies to `rm`-to-reset: truncate with `: >` instead.
 
 **Hardcoding service lists in install/uninstall.** Use filesystem scans instead. `install_rm520n.sh` discovers services by globbing `scripts/etc/systemd/system/qmanager-*.service`. Adding a new service file is sufficient -- no installer edits needed.
-
-**UPX-compressing `atcli_smd11`.** UPX self-modifying code causes segmentation faults on exit for this ARMv7 Rust build. Ship the uncompressed binary (~647KB). The installer must not UPX-compress it.
 
 **Using `kill -0` for cross-user PID checks.** `kill -0 <pid>` fails with EPERM when www-data checks a root daemon's PID. Use `pid_alive()` from `platform.sh` which checks `/proc/$pid` existence instead.
 

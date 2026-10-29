@@ -38,7 +38,7 @@ QManager is a two-tier application, but both tiers live on the modem:
 │  │  └──────────────────────────────────────────────┘    ││
 │  │       │ reads cache        │ executes AT             ││
 │  │       ▼                    ▼                          ││
-│  │  /tmp/qmanager_      qcmd → atcli_smd11 → /dev/smd11  ││
+│  │  /tmp/qmanager_      qcmd → qmanager_atd → /dev/smd11 ││
 │  │  status.json              (flock-serialized)          ││
 │  │       ▲                                               ││
 │  │       │ writes every ~2s                              ││
@@ -247,14 +247,14 @@ All modem communication funnels through one gatekeeper, `qcmd` (`/usr/bin/qcmd`)
 
 | Aspect | Behavior |
 |--------|----------|
-| Tool | `qcmd` shell wrapper around `atcli_smd11` (a static ARMv7 Rust binary) |
+| Tool | `qcmd` is a symlink to `qmanager_atd` (a static ARMv7 Rust binary) on every model; it talks to the `qmanager_atd` broker on the RM520N-GL and runs AT in-process when no broker runs (RG501Q-EU, or the broker is down) |
 | Device | `/dev/smd11`, opened directly — **no socat/PTY bridge** |
 | Locking | `flock` on `/tmp/qmanager_at.lock` via a read-only FD (`9<`), so root and `www-data` share it under `fs.protected_regular=1` |
-| Timeout | BusyBox `flock` has no `-w`; `qcmd` polls with `flock -x -n` in a loop (`flock_wait`) |
-| Exit code | `atcli_smd11` **always exits 0** — error detection parses the response text for `OK`/`ERROR`, never `$?` |
+| Timeout | Lock wait 5 s, 10 s for long commands (`QSCAN`, `COPS=2`, …); then `modem_busy` |
+| Exit code | Failure is **exit 1** with empty stdout and `ERROR: modem_busy` / `ERROR: command_failed` on stderr — check `$?`, never match `ERROR` in stdout |
 | SMS | `qsms` over QMI WMS on the RM520N-GL, no AT lock — see [`reference/sms.md`](reference/sms.md#transport-qsms) |
 
-Full detail — including the "do NOT UPX-compress the Rust binary" rule and `pid_alive()` for cross-user PID checks — is in [`reference/at-command-transport.md`](reference/at-command-transport.md).
+Full detail — including the retired `atcli_smd11` / `sms_tool` binaries and `pid_alive()` for cross-user PID checks — is in [`reference/at-command-transport.md`](reference/at-command-transport.md).
 
 ---
 

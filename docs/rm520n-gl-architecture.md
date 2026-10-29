@@ -2,7 +2,7 @@
 
 This document is the platform architecture reference for the **shipped RM520N-GL target** — the Quectel modem QManager runs on. It covers the modem's internal Linux environment: the AT command transport layer, system services, boot sequence, Entware packaging, lighttpd/CGI infrastructure, filesystem layout, and firewall. It describes the platform as QManager ships today; it is not a porting guide.
 
-For AT command access, QManager uses the `atcli_smd11` binary talking to `/dev/smd11` **directly**, serialized by the `qcmd` wrapper via `flock` on `/tmp/qmanager_at.lock`. See **[AT Command Transport](reference/at-command-transport.md)** for the current transport. (An earlier socat-based PTY bridge approach was explored during the initial port and then abandoned; the [AT Command Transport Layer](#at-command-transport-layer) section below is retained only as historical background and is clearly marked as such.)
+For AT command access, QManager's `qcmd` (a symlink to the Rust `qmanager_atd` binary) talks to `/dev/smd11` **directly**, through the `qmanager_atd` broker when it runs and in-process otherwise, serialized by `flock` on `/tmp/qmanager_at.lock`. See **[AT Command Transport](reference/at-command-transport.md)** for the current transport. (An earlier socat-based PTY bridge approach was explored during the initial port and then abandoned; the [AT Command Transport Layer](#at-command-transport-layer) section below is retained only as historical background and is clearly marked as such.)
 
 > ℹ️ **Historical origin.** QManager was originally built for the **RM551E running OpenWRT** on an external host router, and this document began life during the port to the RM520N-GL. It still contains porting-era comparison material (clearly marked) that contrasts the two platforms. The RM520N-GL is a fundamentally different platform: it runs its own Linux OS internally (not OpenWRT on an external host), uses systemd instead of procd, Entware opkg instead of a built-in package manager, lighttpd instead of uhttpd, and iptables instead of fw4 — so the porting-era contrasts remain useful when reading older RM551E code.
 
@@ -71,10 +71,10 @@ For AT command access, QManager uses the `atcli_smd11` binary talking to `/dev/s
 | **CPU features** | `half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae evtstrm`. Native binaries must target armhf VFPv4. |
 | **Init system** | systemd 244 (`-PAM -SECCOMP -APPARMOR -PCRE2`, hybrid cgroup v1+v2). `systemd-analyze` is **not installed**. Journald is volatile-only (`/run/log/journal`, no `/var/log/journal`) — see [§Known Platform Quirks](#known-platform-quirks). |
 | **Shell** | `/bin/sh` is **BusyBox `ash`** (`/bin/sh -> busybox.nosuid`); `/bin/bash` exists at `/bin/bash.bash` but is **bash 3.2.57(1)-release** (2007) — no `mapfile`/`readarray`/`${var,,}`/`declare -A`/`wait -n`. See [Platform Tooling Inventory](#platform-tooling-inventory). |
-| **AT port (QManager)** | `/dev/smd11` (direct access via `atcli_smd11`, no socat needed) |
+| **AT port (QManager)** | `/dev/smd11` (direct access via `qcmd` / the `qmanager_atd` broker, no socat needed) |
 | **AT device perms** | Defaults `crw------- root:root`; `qmanager_setup` sets `660 root:dialout` at boot |
 | **AT port (legacy)** | `/dev/smd7` (claimed by `port_bridge` at boot — used by socat-at-bridge if installed) |
-| **AT tools** | `atcli_smd11` (Rust, via `qcmd`, production — from [1alessandro1/atcli_rust](https://github.com/1alessandro1/atcli_rust), works across RM502/RM520/RM521/RM551), `microcom` (interactive), `atcmd`/`atcmd11` (legacy socat) |
+| **AT tools** | `qcmd` → `qmanager_atd` (Rust, production; replaced `atcli_smd11` in T5.1 S6), `microcom` (interactive), `atcmd`/`atcmd11` (legacy socat) |
 | **Web server** | lighttpd (Entware: base + mod-cgi + mod-openssl + mod-redirect + mod-proxy) |
 | **Web root** | `/usrdata/qmanager/www` (independent, not SimpleAdmin) |
 | **CGI PATH caveat** | lighttpd CGI excludes `/opt/bin`; `cgi_base.sh` exports full PATH |
@@ -101,7 +101,7 @@ This table contrasts every major subsystem between the **legacy RM551E-on-OpenWR
 | **Init** | procd + rc.d | systemd | Rewrite all init.d scripts as `.service` units |
 | **Package mgr** | opkg (built-in) | Entware opkg at `/opt` | Different package names, install paths |
 | **Root FS** | Writable (SquashFS + overlay) | Read-only (remount required) | Must stage writes, prefer `/usrdata/` |
-| **AT transport** | `sms_tool` via USB CDC ACM | `atcli_smd11` on `/dev/smd11` (direct SMD access, no socat) | `qcmd` wrapper serializes via `flock` on `/tmp/qmanager_at.lock` |
+| **AT transport** | `sms_tool` via USB CDC ACM | `qcmd` → `qmanager_atd` on `/dev/smd11` (direct SMD access, no socat) | `qcmd` serializes via `flock` on `/tmp/qmanager_at.lock` |
 | **AT device** | USB device (host-side) | `/dev/smd7`, `/dev/smd11` (internal) | No USB enumeration dependency |
 | **AT locking** | Implicit (single `sms_tool` call) | `flock` in `qcmd` (read-only FD for `fs.protected_regular`) | Implemented: `qcmd` serializes all access |
 | **Web server** | uhttpd (built-in) | lighttpd (Entware) | Different CGI config, auth mechanism |
@@ -228,7 +228,7 @@ These are issues observed on a running device; they should be fixed in code or t
 
 ## SimpleAdmin RGMII Toolkit Foundation
 
-During the initial port, QManager was bootstrapped on top of the **SimpleAdmin** web panel, originally created by the [quectel-rgmii-toolkit](https://github.com/iamromulan/quectel-rgmii-toolkit) project. QManager is **now fully independent** and does not require SimpleAdmin — in particular it no longer uses the socat-at-bridge (it talks to `/dev/smd11` directly via `atcli_smd11`, see [AT Command Transport](reference/at-command-transport.md)). This section is retained because QManager's Entware installation, lighttpd web server, firewall approach, and systemd service patterns still derive from this foundation, and understanding it helps when reading older code or a device that also has SimpleAdmin installed. The toolkit source is preserved in `simpleadmin-source/` for reference.
+During the initial port, QManager was bootstrapped on top of the **SimpleAdmin** web panel, originally created by the [quectel-rgmii-toolkit](https://github.com/iamromulan/quectel-rgmii-toolkit) project. QManager is **now fully independent** and does not require SimpleAdmin — in particular it no longer uses the socat-at-bridge (it talks to `/dev/smd11` directly via `qcmd` / `qmanager_atd`, see [AT Command Transport](reference/at-command-transport.md)). This section is retained because QManager's Entware installation, lighttpd web server, firewall approach, and systemd service patterns still derive from this foundation, and understanding it helps when reading older code or a device that also has SimpleAdmin installed. The toolkit source is preserved in `simpleadmin-source/` for reference.
 
 ### Toolkit Overview
 
@@ -679,7 +679,7 @@ MONTHLY_DATE=15                # For monthly checks
 
 This is the full systemd boot order showing how all SimpleAdmin components start:
 
-> ℹ️ NOTE: This tree reflects the **historical SimpleAdmin layout**. On a current, independent QManager install the `socat-*` services are **not** present — QManager talks to `/dev/smd11` directly via `atcli_smd11`, so its services no longer order themselves after `socat-smd7-from-ttyIN2`; they order after `qmanager-setup.service` (rootfs remount + `/dev/smd11` perms) instead. The `socat-*` and `simple*` entries below are retained to document the foundation QManager was bootstrapped from.
+> ℹ️ NOTE: This tree reflects the **historical SimpleAdmin layout**. On a current, independent QManager install the `socat-*` services are **not** present — QManager talks to `/dev/smd11` directly via `qcmd` / `qmanager_atd`, so its services no longer order themselves after `socat-smd7-from-ttyIN2`; they order after `qmanager-setup.service` (rootfs remount + `/dev/smd11` perms) instead. The `socat-*` and `simple*` entries below are retained to document the foundation QManager was bootstrapped from.
 
 ```
 Kernel boot → initrd → basic.target
@@ -723,7 +723,7 @@ Kernel boot → initrd → basic.target
         └── qmanager-watchcat.service      (After=poller, socat-smd7-from-ttyIN2)
 ```
 
-**Critical path for AT commands (current QManager):** `ql-netd` → `qmanager-setup` (remount rw + set `/dev/smd11` to `660 root:dialout`) → QManager services, which reach the modem by calling `atcli_smd11` on `/dev/smd11` through `qcmd`. Any failure setting up `/dev/smd11` permissions means AT commands are unavailable. (Historically, under SimpleAdmin the path ran `ql-netd` → `socat-killsmd7bridge` → `socat-smd7` → `socat-smd7-{to,from}-ttyIN2`; that socat chain is no longer used.)
+**Critical path for AT commands (current QManager):** `ql-netd` → `qmanager-setup` (remount rw + set `/dev/smd11` to `660 root:dialout`) → QManager services, which reach the modem on `/dev/smd11` through `qcmd` (via the `qmanager-atd` broker, which starts after `qmanager-setup`). Any failure setting up `/dev/smd11` permissions means AT commands are unavailable. (Historically, under SimpleAdmin the path ran `ql-netd` → `socat-killsmd7bridge` → `socat-smd7` → `socat-smd7-{to,from}-ttyIN2`; that socat chain is no longer used.)
 
 **Web UI startup — what the units actually declare.** An earlier revision of this
 document asserted a critical path of `opt.mount` → `rc.unslung` → `lighttpd` as
@@ -921,7 +921,7 @@ QManager owns `/etc/udev/rules.d/99-qmanager-smd11.rules`, which fires on
 every kernel `add` event for `smd11` and runs
 `/usr/lib/qmanager/qmanager_smd11_udev.sh`. The helper sets the device to
 `root:dialout` mode `660` so `www-data` (member of `dialout`) can open it
-via `atcli_smd11`.
+through `qcmd`.
 
 Why udev instead of a one-shot at boot:
 
@@ -1351,16 +1351,13 @@ This was the highest-risk area of the port. The entire QManager backend communic
 
 #### 1. `qcmd` — RM520N-GL Variant (COMPLETE)
 
-> ⚠️ SUPERSEDED: The paragraph below described an **interim** socat-based implementation and is no longer accurate. The shipped `qcmd` (`scripts/usr/bin/qcmd`) wraps **`atcli_smd11` on `/dev/smd11` directly** — no socat, no `ttyOUT2` — with `flock` serialization on `/tmp/qmanager_at.lock`. See [AT Command Transport](reference/at-command-transport.md).
-
-The shipped RM520N-GL `qcmd` (`scripts/usr/bin/qcmd`) uses `atcli_smd11` on `/dev/smd11` with `flock` serialization. The interface contract is identical to the RM551E variant -- all callers work without modification.
+> ⚠️ SUPERSEDED: The socat-based design above is not how QManager ships. The shipped `qcmd` is a symlink to the Rust `qmanager_atd` binary, which talks to **`/dev/smd11` directly** — no socat, no `ttyOUT2` — with `flock` serialization on `/tmp/qmanager_at.lock`. Current contract: [AT Command Transport](reference/at-command-transport.md).
 
 Key design decisions (current implementation):
-- **`atcli_smd11` on `/dev/smd11`** — direct SMD access, no socat PTY bridge and no `ttyOUT`/`ttyOUT2`. (An interim variant used `sms_tool` on the smd7 PTY bridge; that approach was dropped when the socat bridge was abandoned.)
-- **Binaries are bundled** as static ARM binaries in `dependencies/` -- installed by the install script, no internet required. `sms_tool` is still bundled, but only for SMS send/receive/delete (also `flock`-serialized on the same lock), not for general AT command execution.
-- **`flock` with read-only FD** (`9<"$LOCK_FILE"`) to avoid `fs.protected_regular` issues (see Known Platform Quirks).
-- **Device override:** Write a device path to `/etc/qmanager/at_device` to change the default.
-- **Long command detection:** Commands matching patterns in `/etc/qmanager/long_commands.list` get extended timeouts (240s) and block other callers immediately.
+- **`qcmd` → `qmanager_atd` on `/dev/smd11`** — direct SMD access through the broker daemon, or in-process when it is not running. The device path is fixed in the binary. (Earlier releases shipped a shell `qcmd` over `atcli_smd11`, and an interim variant used `sms_tool` on the smd7 PTY bridge; both are gone.)
+- **The binary is bundled** as a static ARM build in `dependencies/` — installed by the install script, no internet required. SMS goes through `qsms`, another link to the same binary.
+- **`flock` with read-only FD** (`9<"$LOCK_FILE"`) for any shell caller that takes the lock itself, to avoid `fs.protected_regular` issues (see Known Platform Quirks).
+- **Long command detection:** `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus patterns in `/etc/qmanager/long_commands.list`, get a 300 s exchange deadline and make short commands answer `modem_busy` at once.
 
 > **CRITICAL: `flock` is mandatory.** Unlike the RM551E (where `sms_tool` implicitly serializes access), the RM520N-GL's PTY bridge has no locking. Concurrent AT commands from the poller, CGI scripts, and user terminal will interleave on the wire, producing corrupt responses. Every AT access must go through the single locked `qcmd` wrapper.
 
@@ -1591,9 +1588,9 @@ QManager standardizes on `qcmd` for all AT command execution in CGI scripts and 
 result=$(qcmd 'AT+QENG="servingcell"')
 ```
 
-`qcmd` wraps `atcli_smd11` on `/dev/smd11` directly with `flock` serialization. Never use `microcom`, `atcmd`, or direct `/dev/smd11` access from CGI scripts — always go through `qcmd`.
+`qcmd` (a link to `qmanager_atd`) reaches `/dev/smd11` directly with `flock` serialization. Never use `microcom`, `atcmd`, or direct `/dev/smd11` access from CGI scripts — always go through `qcmd`.
 
-> **Historical note:** The original RM520N-GL firmware used `microcom` on `/dev/ttyOUT` (socat PTY bridge) and a broken `atcmd` wrapper. QManager replaces both with `atcli_smd11` + `qcmd`, eliminating the socat bridge dependency entirely.
+> **Historical note:** The original RM520N-GL firmware used `microcom` on `/dev/ttyOUT` (socat PTY bridge) and a broken `atcmd` wrapper. QManager replaces both with `qcmd` (first over `atcli_smd11`, now over `qmanager_atd`), eliminating the socat bridge dependency entirely.
 
 ### Existing CGI Endpoints
 
