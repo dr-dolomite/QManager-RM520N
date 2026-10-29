@@ -172,6 +172,7 @@
     "switch_aria": "切換語言"
   },
   "login": {
+    "ssh_sync_failed": "QManager 密碼已設定，但 SSH root 密碼未能更新。請在 系統設定 → SSH 存取 中設定。",
     "brand_label": "QManager · Quectel 數據機管理",
     "welcome": "歡迎使用 QManager",
     "password_label": "密碼",

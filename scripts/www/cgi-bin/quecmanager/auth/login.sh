@@ -63,15 +63,20 @@ if is_setup_required; then
 
     qm_save_password "$_password"
 
-    # Also set SSH root password (best-effort — non-fatal if it fails)
-    qm_set_ssh_password "$_password" 2>/dev/null || qlog_warn "SSH password sync skipped"
+    # Also set SSH root password. Non-fatal, but reported so the UI can warn
+    # that SSH still has the install-time password.
+    _ssh_synced=true
+    if ! qm_set_ssh_password "$_password" 2>/dev/null; then
+        _ssh_synced=false
+        qlog_warn "SSH password sync failed"
+    fi
 
     qlog_info "First-time password configured"
 
     _token=$(qm_create_session)
     qm_set_session_cookies "$_token"
     cgi_headers
-    jq -n '{"success":true}'
+    jq -n --argjson ssh "$_ssh_synced" '{"success":true,"ssh_synced":$ssh}'
     exit 0
 fi
 
