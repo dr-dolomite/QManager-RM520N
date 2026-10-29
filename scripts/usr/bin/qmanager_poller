@@ -524,14 +524,14 @@ fi
     SIM_REGISTRY_FILE="/etc/qmanager/sim_registry.json"
 }
 
-# QMI overlay jq defs. Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+# QMI overlay gate. Guarded with -f: BusyBox ash exits when `.` cannot find its file.
 if [ -f /usr/lib/qmanager/qmi_merge.sh ]; then
     . /usr/lib/qmanager/qmi_merge.sh
 else
     qlog_warn "qmi_merge.sh not found, QMI overlay disabled"
     QMI_JSON_FILE="/var/run/qmanager/qmi.json"
-    QMI_JQ_DEFS='def qmi_ctx: {use: false, rsrp: null, rsrq: null, rssi: null, read_mono: null, state: "", ssr: null, wds: null};'
-    QMI_JQ_DEFS_LITE="$QMI_JQ_DEFS"
+    QMI_JQ_DEFS='def qmi_wds: null;'
+    qmi_gate() { QMI_USE=0; QMI_MONO=null; QMI_STATE=""; QMI_SSR=null; QMI_RSRP=null; QMI_RSRQ=null; QMI_RSSI=null; }
 fi
 
 # =============================================================================
@@ -2092,16 +2092,11 @@ write_cache() {
     timestamp=$SECONDS
     watchcat_heartbeat
 
-    # QMI sidecar text for the jq overlay; /dev/null (empty) when absent or unreadable.
+    # QMI overlay; $1 = 1 forces it off (boot write: no AT-vs-QMI cycle yet).
+    qmi_gate "${1:-${_QENG_OK:-0}}"
+    # Sidecar text for network.wds; /dev/null (empty) when absent or unreadable.
     local _qmi_f=/dev/null
     [ -f "$QMI_JSON_FILE" ] && [ -r "$QMI_JSON_FILE" ] && _qmi_f="$QMI_JSON_FILE"
-    # $1 = 1 forces the overlay off (boot write: no AT-vs-QMI cycle yet).
-    local _qeng_ok="${1:-${_QENG_OK:-0}}"
-    # The overlay gate only runs on cycles that can overlay; the rest take the cheaper facts-only defs.
-    local _qmi_defs="$QMI_JQ_DEFS"
-    if [ "$_qeng_ok" = "1" ] || [ "$system_state" = "scan_in_progress" ] || [ "$_qmi_f" = "/dev/null" ]; then
-        _qmi_defs="$QMI_JQ_DEFS_LITE"
-    fi
 
     # Build errors array
     local errors_json="[]"
@@ -2254,9 +2249,15 @@ write_cache() {
         --argjson du_modem_rst "${du_modem_reset_count:-0}" \
         --arg     du_orient    "${orientation:-normal}" \
         --rawfile qmi "$_qmi_f" \
-        --argjson qeng_ok "$_qeng_ok" \
+        --argjson qmi_use "$QMI_USE" \
+        --argjson q_rsrp "$QMI_RSRP" \
+        --argjson q_rsrq "$QMI_RSRQ" \
+        --argjson q_rssi "$QMI_RSSI" \
+        --argjson q_mono "$QMI_MONO" \
+        --argjson q_ssr "$QMI_SSR" \
+        --arg     q_state "$QMI_STATE" \
         --argjson at_mono "${_AT_LAST_MONO:-null}" \
-        "$_qmi_defs"'qmi_ctx as $qc | {
+        "$QMI_JQ_DEFS"'{
             timestamp: $timestamp,
             mono: $mono,
             system_state: $system_state,
@@ -2283,19 +2284,19 @@ write_cache() {
                 secondary_dns: $dns2,
                 device_ip: $lan_ip,
                 lan_gateway: $lan_gw,
-                wds: $qc.wds
+                wds: qmi_wds
             },
             lte: {
                 state: $lte_st, band: $lte_b,
                 earfcn: $lte_earfcn, bandwidth: $lte_bw,
                 pci: $lte_pci, cell_id: $lte_cid,
                 enodeb_id: $lte_enb, sector_id: $lte_sec, tac: $lte_tac,
-                rsrp: (if $qc.use then $qc.rsrp else $lte_rsrp end),
-                rsrq: (if $qc.use then $qc.rsrq else $lte_rsrq end),
+                rsrp: (if $qmi_use == 1 then $q_rsrp else $lte_rsrp end),
+                rsrq: (if $qmi_use == 1 then $q_rsrq else $lte_rsrq end),
                 sinr: $lte_sinr,
-                rssi: (if $qc.use then $qc.rssi else $lte_rssi end),
+                rssi: (if $qmi_use == 1 then $q_rssi else $lte_rssi end),
                 ta: $lte_ta,
-                source: (if $qc.use then "qmi" else "at" end)
+                source: (if $qmi_use == 1 then "qmi" else "at" end)
             },
             nr: {
                 state: $nr_st, band: $nr_b,
@@ -2327,9 +2328,9 @@ write_cache() {
                 ippt_usbnet: $ippt_usb,
                 ippt_dhcpv4dns: $ippt_dns,
                 poller_tier: $poller_tier,
-                qmi_read_mono: $qc.read_mono,
-                qmi_state: $qc.state,
-                qmi_ssr_count: $qc.ssr,
+                qmi_read_mono: $q_mono,
+                qmi_state: $q_state,
+                qmi_ssr_count: $q_ssr,
                 at_read_mono: $at_mono
             },
             data_used: {
