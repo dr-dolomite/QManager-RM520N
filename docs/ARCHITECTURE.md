@@ -212,7 +212,7 @@ Core long-running services:
 ```
 qmanager-setup.service      one-shot bootstrap (dirs, perms, lock files) — ordered before the rest
   │
-  ├── qmanager-atd.service       qmanager_atd — AT broker that qcmd talks to (RM520N-GL only;
+  ├── qmanager-atd.service       qmanager_atd — AT broker that qcmd talks to (RM520N-GL, RG501Q-EU;
   │                                Type=notify, WatchdogSec=30, Before= poller)
   │
   ├── qmanager-ping.service      qmanager_ping — connectivity/latency probe (writes qmanager_ping.json)
@@ -252,7 +252,7 @@ All modem communication funnels through one gatekeeper, `qcmd` (`/usr/bin/qcmd`)
 
 | Aspect | Behavior |
 |--------|----------|
-| Tool | `qcmd` is a symlink to `qmanager_atd` (a static ARMv7 Rust binary) on every model; it talks to the `qmanager_atd` broker on the RM520N-GL and runs AT in-process when no broker runs (RG501Q-EU, or the broker is down) |
+| Tool | `qcmd` is a symlink to `qmanager_atd` (a static ARMv7 Rust binary) on every model; it talks to the `qmanager_atd` broker on the RM520N-GL and the RG501Q-EU, and runs AT in-process when no broker runs (unknown model, or the broker is down) |
 | Device | `/dev/smd11`, opened directly — **no socat/PTY bridge** |
 | Locking | `flock` on `/tmp/qmanager_at.lock`, opened read-only and never created by `qmanager_atd` (`qmanager_setup` seeds it), so root and `www-data` share it under `fs.protected_regular=1` |
 | Timeout | Lock wait 5 s, 10 s for long commands (`QSCAN`, `COPS=2`, …); then `modem_busy` |

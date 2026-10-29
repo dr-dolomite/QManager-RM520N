@@ -183,7 +183,7 @@ cat /etc/qmanager/VERSION
 /usr/bin/
 ├── qcmd -> qmanager_atd    # AT command client (link to the broker binary, every model)
 ├── qsms -> qmanager_atd    # SMS client (QMI WMS on the RM520N-GL)
-├── qmanager_atd            # AT/SMS/QMI broker binary (daemon runs on the RM520N-GL only)
+├── qmanager_atd            # AT/SMS/QMI broker binary (daemon runs on the RM520N-GL and RG501Q-EU)
 ├── qmanager_update         # OTA update worker (runs as root via sudoers)
 ├── qmanager_auto_update    # Automatic update checker daemon
 ├── qmanager_poller         # Main data collector
@@ -393,7 +393,7 @@ The installer is idempotent — re-running updates rather than duplicates. It ha
 - Removing orphaned daemons/units/libs not present in the current source tree (`cleanup_legacy_scripts`)
 - Removing conflicting packages (`socat`, `socat-at-bridge`) even with `--skip-packages`
 - Deploying the bundled first-party binaries (`qmanager_atd` with its `qsms` link, `qmanager_discord`) even with `--skip-packages` — `install_bundled_binaries()` runs unconditionally in `main()`, so an OTA/in-app "Software Update" upgrade (which always passes `--skip-packages`) still refreshes them; each copy is skipped via `cmp -s` when the on-device binary is already byte-identical, avoiding a needless UBIFS write. Entware/opkg packages (jq, dropbear, sudo, lighttpd) stay gated inside `install_dependencies()` and are the *only* thing `--skip-packages` actually skips
-- Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform). Exception: `qmanager-atd.service` is boot-linked and started on every RM520N-GL install, and its unit is removed on a definite non-RM520N model
+- Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform). Exception: `qmanager-atd.service` is boot-linked and started on every RM520N-GL and RG501Q-EU install, and its unit is removed on a definite model outside `RM520N*|RG501Q*`
 - AT stack health check (3× `qcmd 'ATI'` retries, warn-only) and poller health check after completion
 - Removing the retired `/usr/bin/sms_tool` and `/usr/bin/atcli_smd11` left by an older release (`retire_legacy_at_binaries`, last under `DO_START`): each is deleted only once `qsms status` / `qcmd AT` answers, otherwise kept — see [AT Command Transport](reference/at-command-transport.md#retired-binaries-atcli_smd11-and-sms_tool)
 

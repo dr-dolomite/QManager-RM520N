@@ -1,7 +1,7 @@
 # QMI lane (broker sidecars and the poller overlay)
 
 > **Applies to:** RM520N-GL (SDX65) · built 2026-10-29 (T7.1, plan `.orchestra/runs/2026-10-26-atd-port-T7.1.md`), broker `qmanager_atd` 0.7.0 · verified on serial 61368cd2
-> **RG501Q-EU (SDX55):** not run. The broker has no unit there, so no sidecar exists and every field below reads as "no QMI" (`lte.source: "at"`, `device.qmi_state: ""`, QMI fields `null`).
+> **RG501Q-EU (SDX55):** verified 2026-10-29 on serial b7e3d6f1, broker 0.7.1 (T8.1). Same lane: all five services up, snapshot matched AT (PCI, EARFCN, band, TAC, cell ID, RSRP), `lte.source: "qmi"`, `device.qmi_state: "up"`, `network.wds` with the same keys (IPv4 address, gateway, /28 mask, two DNS, MTU 1500). With the broker not running, every field reads as "no QMI" (`lte.source: "at"`, `device.qmi_state: ""`, QMI fields `null`), as on any model without the broker.
 
 The `qmanager_atd` broker keeps QMI clients open to the modem (QRTR node 3) and writes a snapshot of NAS, WDS and related state every 2 s. The poller uses that snapshot for two things: it fills `lte.rsrp` / `lte.rsrq` / `lte.rssi` in `status.json` on cycles where it did not run `AT+QENG="servingcell"` (the idle and deep tiers in [`adaptive-polling.md`](adaptive-polling.md)), and it publishes the bound data call's runtime settings as `network.wds`. The point is fresher signal data while the AT channel rests, at no extra AT traffic. Raw QMI request results and the probe tool are in [`qmi-probe.md`](qmi-probe.md).
 

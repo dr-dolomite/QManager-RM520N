@@ -1,11 +1,11 @@
 # SMS Center (RM520N-GL)
 
 > **Applies to:** RM520N-GL (SDX65) · UI verified 2026-08 · `qsms` transport verified 2026-10-28 on serial 61368cd2
-> **RG501Q-EU (SDX55):** `qsms` uses its AT backend there; unverified — see [`platform-matrix.md`](./platform-matrix.md)
+> **RG501Q-EU (SDX55):** `qsms` uses QMI WMS there too since `qmanager_atd` 0.7.1 (T8.1). `status` and `list` verified read-only 2026-10-29 on serial b7e3d6f1; send, delete and tag writes not run there. ME holds 127 messages, not 255 — see [`platform-matrix.md`](./platform-matrix.md#at-transport)
 
 > The SMS inbox: read / send / delete through `qsms`, which talks QMI WMS directly and takes no AT lock. Merges messages across ME (modem) and SM (SIM) storage, tracks read/unread in the browser, and keeps CPMS routing on ME so incoming SMS are never stranded on the SIM.
 
-The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS operation runs through `/usr/bin/qsms`, a link to the `qmanager_atd` multicall binary. On an RM520N it speaks QMI WMS (the modem's Wireless Messaging Service) over a QRTR socket, so it never touches `/dev/smd11` or `/tmp/qmanager_at.lock`. This doc covers the inbox CGI, the `qsms` contract and its error mapping, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.
+The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS operation runs through `/usr/bin/qsms`, a link to the `qmanager_atd` multicall binary. On an RM520N or RG501Q it speaks QMI WMS (the modem's Wireless Messaging Service) over a QRTR socket, so it never touches `/dev/smd11` or `/tmp/qmanager_at.lock`. This doc covers the inbox CGI, the `qsms` contract and its error mapping, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.
 
 > ℹ️ NOTE: SMS **downtime alerts** (connection-lost/restored notifications sent over SMS) are a separate feature — the SMS channel of the centralized Alerts system, driven by `sms_alerts.sh`. This doc covers only the inbox. **SMS Forwarding** (auto-relay of incoming messages to another number) is also separate — see [`sms-forwarding.md`](sms-forwarding.md).
 
@@ -40,8 +40,8 @@ The backend is fixed per model, never auto-detected:
 
 | Model | Backend | Why |
 |---|---|---|
-| RM520N-GL (`Project Name:` starts with `RM520N`) | QMI WMS, in process over `AF_QIPCRTR` | No AT lock, no `/dev/smd11`, and a list never marks messages read |
-| Anything else, or the file is unreadable | AT (`AT+CMGL` etc. under `/tmp/qmanager_at.lock`) | WMS is unproven on the RG501Q-EU |
+| RM520N-GL or RG501Q-EU (`Project Name:` starts with `RM520N` or `RG501Q`) | QMI WMS, in process over `AF_QIPCRTR` | No AT lock, no `/dev/smd11`, and a list never marks messages read |
+| Anything else, or the file is unreadable | AT (`AT+CMGL` etc. under `/tmp/qmanager_at.lock`) | WMS is unproven on any other model |
 
 `QSMS_BACKEND=wms` or `QSMS_BACKEND=at` in the environment overrides the file. The match reads the `Project Name:` line, not the start of the file: the file begins with `Project Name: …` on both models, so a prefix test on the whole file matches nothing.
 
@@ -115,9 +115,9 @@ On a multi-part send, the first failed part stops the send and `detail` is prefi
 
 ### No AT lock
 
-The WMS backend takes no lock and never opens `/dev/smd11`. The CGI's own lock wrapper (`sms_locked`, `flock_wait`, the `SMS_LOCK_TIMEOUT_RC=99` sentinel) is gone, and so is `modem_busy` from the inbox on an RM520N. The only AT call left on the SMS path is the CPMS self-heal, which goes through `qcmd` and takes the lock for that one command.
+The WMS backend takes no lock and never opens `/dev/smd11`. The CGI's own lock wrapper (`sms_locked`, `flock_wait`, the `SMS_LOCK_TIMEOUT_RC=99` sentinel) is gone, and so is `modem_busy` from the inbox on an RM520N or RG501Q. The only AT call left on the SMS path is the CPMS self-heal, which goes through `qcmd` and takes the lock for that one command.
 
-On the AT backend (non-RM520N), `qsms` still serialises on `/tmp/qmanager_at.lock` and can still return `modem_busy` or `scan_in_progress`; the scan gate applies to that backend only.
+On the AT backend (any model other than RM520N and RG501Q), `qsms` still serialises on `/tmp/qmanager_at.lock` and can still return `modem_busy` or `scan_in_progress`; the scan gate applies to that backend only.
 
 ### `sms_tool` is retired
 

@@ -1,7 +1,7 @@
 # QMI probe (`native/qmi_probe`)
 
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-10-26 / WMS 2026-10-27 on serial 61368cd2, firmware RM520NGLAAR03A03M4G
-> **RG501Q-EU (SDX55):** not run
+> **RG501Q-EU (SDX55):** run read-only 2026-10-28 on serial b7e3d6f1, firmware RG501QEUAAR12A11M4G_04.202 (scan, `.orchestra/runs/2026-10-28-rg501q-port-scan.md` §1). The read requests below answer the same (NAS, DMS, UIM and WMS also as `www-data`), except: NAS 0x005A Tx/Rx **works** for LTE there (per-chain TLVs 0x10–0x16; NR gives `0x005D`), DMS rejects 0x001E with `0x005E`, and WMS 0x0036 reports ME **127** (not 255) / SM 35. WMS writes and an incoming-message indication were not run
 
 A developer tool, not shipped in the tarball. It talks QMI to the modem (QRTR node 3) over a raw `AF_QIPCRTR` socket, with no libqmi or `qmicli` (neither exists on the device). It is ported from the RM551E repo's `native/qmi_probe` and adds WMS reads and a `supported` command.
 

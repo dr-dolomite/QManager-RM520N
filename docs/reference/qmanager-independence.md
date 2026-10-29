@@ -1,7 +1,7 @@
 # QManager Independence (RM520N-GL)
 
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
-> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+> **RG501Q-EU (SDX55):** mostly unverified — see [`platform-matrix.md`](./platform-matrix.md). Verified 2026-10-29 on `b7e3d6f1`: the OTA install path (`--force --skip-packages --no-reboot`) with the broker unit, 55 read-only CGIs through lighttpd as `www-data`, and a full health-check run
 
 > QManager installs standalone with no SimpleAdmin/RGMII-toolkit dependency — it owns its directory, bootstraps Entware, configures lighttpd, and manages all services itself.
 
@@ -14,7 +14,7 @@
 - **Installs lighttpd + modules** from Entware: `lighttpd-mod-cgi`, `lighttpd-mod-openssl`, `lighttpd-mod-redirect`, `lighttpd-mod-proxy`. This happens **even where the vendor firmware ships its own `/usr/sbin/lighttpd`** (RG501Q-EU): QManager's config, TLS cert and module set are built against the Entware server, and lighttpd rejects modules whose version does not match it.
 - **lighttpd module version sync**: The installer runs `opkg upgrade` on lighttpd and all its modules together when they are already installed — this prevents `plugin-version doesn't match` errors that occur if modules are at different versions during upgrades.
 - **Creates `www-data:dialout`** user and group if missing. The `dialout` group membership grants `www-data` access to `/dev/smd11`.
-- **Bundled first-party binaries** are copied from `dependencies/` by `install_bundled_binaries()`, which runs even with `--skip-packages` (so on every OTA): `qmanager_atd` (the Rust AT/SMS/QMI broker, plus the relative link `/usr/bin/qsms -> qmanager_atd`) and the optional `qmanager_discord`. A missing `qmanager_atd` is fatal (`die`); `build.sh` refuses to package without it. The broker binary and `qsms` land on **both** models, but `qmanager-atd.service` ships, boot-links and starts on the RM520N-GL only — see [Service persistence](#service-persistence-systemd-symlinks) and [platform-matrix.md](./platform-matrix.md#at-transport). On every model `install_backend()` also makes `/usr/bin/qcmd` a link to `qmanager_atd` (`ln -sf` to a temp name, then `mv -f`, so it is never missing). Contract: [at-command-transport.md](./at-command-transport.md#qcmd-serialization).
+- **Bundled first-party binaries** are copied from `dependencies/` by `install_bundled_binaries()`, which runs even with `--skip-packages` (so on every OTA): `qmanager_atd` (the Rust AT/SMS/QMI broker, plus the relative link `/usr/bin/qsms -> qmanager_atd`) and the optional `qmanager_discord`. A missing `qmanager_atd` is fatal (`die`); `build.sh` refuses to package without it. The broker binary and `qsms` land on every model; `qmanager-atd.service` ships, boot-links and starts where `qm_hw_atd_enabled` is true (RM520N-GL and RG501Q-EU) — see [Service persistence](#service-persistence-systemd-symlinks) and [platform-matrix.md](./platform-matrix.md#at-transport). On every model `install_backend()` also makes `/usr/bin/qcmd` a link to `qmanager_atd` (`ln -sf` to a temp name, then `mv -f`, so it is never missing). Contract: [at-command-transport.md](./at-command-transport.md#qcmd-serialization).
 - **Retired binaries are removed after their replacement answers.** `sms_tool` and `atcli_smd11` no longer ship; `retire_legacy_at_binaries()` runs last under `DO_START` (OTA included) and deletes each from `/usr/bin/` only once `qsms status` / `qcmd AT` answers. See [at-command-transport.md > Retired binaries](./at-command-transport.md#retired-binaries-atcli_smd11-and-sms_tool).
 - **Installer stops socat-smd11** services if they are running — `qcmd` needs exclusive access to `/dev/smd11` and cannot co-exist with a socat bridge holding it open.
 - **Windows line ending safety**: The installer strips `\r` from all deployed shell scripts, systemd units, and sudoers rules using `sed -i 's/\r$//'`. This prevents BusyBox and sudoers parse failures that occur when tarballs are built on Windows.
@@ -489,7 +489,7 @@ root uses `/opt/tmp`.
 - **The auth path is on every request, so keep it fork-free.** `cgi_base.sh` + `require_auth` run before every CGI's own work; an authenticated request forks twice (`date +%s` and one more), down from 19 (T6.2, measured on RM520N-GL — see [`poller-cpu-profile.md`](poller-cpu-profile.md#dashboard-cgi-cost-t62-2026-102728)).
   - Read a cookie with **`qm_cookie_var NAME VAR`** (`cgi_auth.sh`): it sets `VAR` with no subshell and returns `0` if the cookie is present (value may be empty), `1` if not. Split rules match the old awk: `;` plus any run of spaces/tabs, exact name match, value up to the next `=`, first match wins. `qm_get_cookie NAME` still exists for `logout.sh` / `password.sh`, but `$(qm_get_cookie …)` costs a fork — prefer `qm_cookie_var` in new code.
   - The `/opt/bin/timeout` probe in `platform.sh` is **deferred under lighttpd** (`GATEWAY_INTERFACE` set) to the first `qm_timeout` call, and stays **eager for daemons**, which call `qm_timeout` inside `$(…)` where a lazy probe would be lost with the subshell. See [The `timeout` contract](#the-timeout-contract).
-- **AT transport in CGI**: `qcmd` reaches `/dev/smd11` directly (through the `qmanager_atd` broker on the RM520N-GL, in-process on the RG501Q-EU) — no socat-at-bridge is needed.
+- **AT transport in CGI**: `qcmd` reaches `/dev/smd11` directly (through the `qmanager_atd` broker on the RM520N-GL and the RG501Q-EU, in-process when the broker is unreachable or on an unknown model) — no socat-at-bridge is needed.
 
 ---
 
@@ -552,7 +552,7 @@ Behavior:
 
 - **Boot persistence is implemented via direct symlinks** into `/lib/systemd/system/multi-user.target.wants/` (and `timers.target.wants/` for timer units), managed through `svc_enable`/`svc_disable`/`svc_is_enabled` in `platform.sh` — use those helpers everywhere; do not mix in raw `systemctl enable/disable`, because they write to a *different* wants dir (see next point). The same `/lib` manual-symlink mechanism is what the root helper `qmanager_auto_update_arm` uses to arm/disarm the auto-update timer live (see [Auto-update timer](#auto-update-timer)).
 - **Those symlinks live on the rootfs, which boots read-only.** `svc_enable`/`svc_disable` ensure `rw` (root path only — `www-data` has no `mount` grant), verify the symlink's presence/absence rather than trusting the exit code, and **return 0/1**. Every call site must check that return and surface a `service_enable_failed` / `service_disable_failed` error; an unchecked call loses boot persistence silently. Read [BACKEND.md §2.1 — Rootfs mount-mode contract](../BACKEND.md#21-rootfs-mount-mode-contract) before touching any of this.
-- **`qmanager-atd.service` is boot-linked on the RM520N-GL only.** `qcmd` is its client on every model; elsewhere it runs AT in-process. `enable_services()` links it when `qm_hw_atd_enabled` is true (RM520N-GL) and skips it otherwise. `start_services()` runs `systemctl reset-failed qmanager-atd` (`StartLimitBurst` counts start attempts, so repeated installs would trip it) and starts it after `qmanager-setup` and before the poller; it is in the verify list. The unit file and its wants link are removed only on a **definite** non-RM520N model (`_atd_definitely_off`); an unknown model leaves them as they are and warns (see [platform-profile.md](./platform-profile.md#consumers)). The health check reports `svc.atd` as `pass` when active, `fail` when `failed` or `inactive` on the RM520N-GL (a stopped broker is otherwise invisible, because `qcmd` falls back in-process), `warn` for any other state, and `skip` on other models.
+- **`qmanager-atd.service` is boot-linked on the RM520N-GL and the RG501Q-EU.** `qcmd` is its client on every model; elsewhere it runs AT in-process. `enable_services()` links it when `qm_hw_atd_enabled` is true (`RM520N*|RG501Q*`) and skips it otherwise. `start_services()` runs `systemctl reset-failed qmanager-atd` (`StartLimitBurst` counts start attempts, so repeated installs would trip it) and starts it after `qmanager-setup` and before the poller; it is in the verify list. The unit file and its wants link are removed only on a **definite** model outside that allow-list (`_atd_definitely_off`); an unknown model leaves them as they are and warns (see [platform-profile.md](./platform-profile.md#consumers)). The health check reports `svc.atd` as `pass` when active, `fail` when `failed` or `inactive` where the broker runs (a stopped broker is otherwise invisible, because `qcmd` falls back in-process), `warn` for any other state, and `skip` on other models.
 - **The `/lib` manual symlink is the deliberate single source of truth — do NOT migrate to `systemctl enable`.** A live-probed migration to `systemctl enable/disable/is-enabled` was evaluated and **rejected**; see [The `systemctl enable` migration was evaluated and rejected](#the-systemctl-enable-migration-was-evaluated-and-rejected) below. The `platform.sh` comment above `svc_enable` records the same verdict.
 
 ### `systemctl is-enabled` is unreliable here
@@ -951,33 +951,19 @@ both. Per-device behaviour, the two misdiagnoses it caused, and the applet censu
   (`qmanager_health_check` does), and a `. lib || { fallback; }` guard cannot
   rescue that — the shell is already gone.
 
-### Known open defect: the health check cannot finish a run on the RG501Q-EU
+### Health check on the RG501Q-EU, and the poller it pauses
 
-**Short version: one of the health check's own tests hangs forever, so the
-Health Check page never completes on that device.** Filed 2026-08-25 as **F7**,
-unfixed at the time of writing.
+**F7 is fixed** (`80cf0639`): `t_perm_tmp_writable` no longer shells out to
+`su`, which hung forever when the check already ran as `www-data`. It now
+measures the write with `sudo -n -u www-data touch`. A full run finished on the
+RG501Q-EU on 2026-10-29 (`b7e3d6f1`): 38 pass, `svc.atd` pass; `net.ping`
+failed only because that device has no working internet.
 
-`t_perm_tmp_writable` in `qmanager_health_check` invokes
-`su -s /bin/sh -c … www-data` to prove `/tmp` is writable by the web user. `su`
-here means "switch user" — it normally runs as root and drops down. But the
-health check is *already* running as `www-data` by the time that test executes:
-`system/health-check/run.sh` launches it with `setsid sudo -n`, so the test ends
-up asking `www-data` to `su` to `www-data`, recursively, and that stalls
-indefinitely rather than erroring.
-
-Two consequences worth knowing before you touch this file:
-
-- **Any end-to-end run of the health check on an RG501Q-EU hangs**, so it cannot
-  be used to validate anything else on that device. Exercise individual test
-  functions instead — extract the one you need and run it as `www-data` — which
-  is how the `timeout` fix above was verified.
-- **It is not known whether this is device-specific.** It has not been checked on
-  the RM520N-GL. That check is the cheap first step and decides whether this is a
-  portability defect or a universal one that simply never got noticed, so do it
-  before designing a fix.
-
-Unrelated to the `timeout` contract above — it was found while validating that
-change, not caused by it.
+> ⚠️ WARNING: `svc.poller` reads `inactive` (warn) on every run that found the
+> poller running, on both models. The check stops `qmanager-poller` for its own duration
+> (`_pause_poller_if_running`, so per-test `qcmd` calls are not starved by the
+> AT lock) and restarts it from an `EXIT`/`INT`/`TERM` trap. The warning is the
+> check observing its own pause, not a stopped poller. Open, not fixed.
 
 ---
 

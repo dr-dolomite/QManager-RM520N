@@ -817,7 +817,7 @@ These are invoked on-demand by CGI scripts via sudo, or interactively.
 **Lock file:** `/tmp/qmanager_at.lock`
 **Is:** a symlink to `qmanager_atd` (Rust, static), on every model
 
-The single entry point for all modem AT communication. Serializes access to `/dev/smd11` via `flock`. On the RM520N-GL it sends through the `qmanager_atd` broker and falls back in-process when the broker is down; on the RG501Q-EU (no broker) it always runs in-process. No PTY bridge, no socat.
+The single entry point for all modem AT communication. Serializes access to `/dev/smd11` via `flock`. On the RM520N-GL and the RG501Q-EU it sends through the `qmanager_atd` broker and falls back in-process when the broker is down; on an unknown model (no broker unit) it always runs in-process. No PTY bridge, no socat.
 
 ```sh
 qcmd "AT+COMMAND"      # Returns raw response
@@ -908,7 +908,7 @@ OTA update worker. See §12 for full pipeline description. Called via `sudo -n` 
 | Service | Type | Binary | Description |
 |---------|------|--------|-------------|
 | `lighttpd.service` | simple | `/opt/sbin/lighttpd` | Entware lighttpd; uses `/usrdata/qmanager/lighttpd.conf`; after `opt.mount` |
-| `qmanager-atd.service` | notify (`WatchdogSec=30`) | `/usr/bin/qmanager_atd` | AT broker; **RM520N-GL only** (the installer leaves the unit off other models). `After=qmanager-setup`, `Before=qmanager-poller`; `ExecStartPre` waits up to 30 s for `/dev/smd11`; `Restart=on-failure`. Socket `/var/run/qmanager_atd.sock` (`root:dialout 0660`). See [at-command-transport.md](reference/at-command-transport.md) |
+| `qmanager-atd.service` | notify (`WatchdogSec=30`) | `/usr/bin/qmanager_atd` | AT broker; **RM520N-GL and RG501Q-EU** (gate `qm_hw_atd_enabled`; the installer leaves the unit off other models). `After=qmanager-setup`, `Before=qmanager-poller`; `ExecStartPre` waits up to 30 s for `/dev/smd11`; `Restart=on-failure`. Socket `/var/run/qmanager_atd.sock` (`root:dialout 0660`). See [at-command-transport.md](reference/at-command-transport.md) |
 | `qmanager-console.service` | simple | `/usrdata/qmanager/console/ttyd` | Web terminal on `127.0.0.1:8080`, reverse-proxied at `/console` |
 | `qmanager-firewall.service` | oneshot | `/usr/bin/qmanager_firewall` | Port firewall; runs before setup and lighttpd |
 | `qmanager-imei-check.service` | oneshot | `/usr/bin/qmanager_imei_check` | Post-boot IMEI restore; guarded by `ExecStartPre` condition checks |
@@ -1383,7 +1383,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 All processes that access `/dev/smd11` share this lock. Holders:
 - `qcmd` (for all AT commands from the poller, CGI scripts, and daemons) — the `qmanager_atd` broker takes the lock around each exchange, or the in-process fallback does when the broker is not running. The Rust lock code (`native/qmanager_atd/src/common/lock.rs`) has the same 100 ms try-loop semantics as the shell pattern below
 - `qmanager_health_check`'s `t_sms_flock` test, which acquires and releases it once with `flock -x -n`
-- `qsms` on its AT backend only (non-RM520N models). On the RM520N-GL, SMS uses QMI WMS and holds no lock; the SMS path's only AT command is the CPMS write through `qcmd`.
+- `qsms` on its AT backend only (models other than RM520N and RG501Q). On the RM520N-GL and the RG501Q-EU, SMS uses QMI WMS and holds no lock; the SMS path's only AT command is the CPMS write through `qcmd`.
 
 **Lock pattern (BusyBox `flock` lacks `-w`):**
 

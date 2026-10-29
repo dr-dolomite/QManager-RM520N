@@ -370,17 +370,18 @@ apart when reading the list below:
 | `qmanager_setup` (every boot) | writer | `qm_hw_self_heal` |
 | `qmanager_poller` | parser | `qm_hw_soc` (Phase A / T4) |
 | `about.sh` → `resolve_firmware_revision()` | parser | `qm_hw_fw_fingerprint` (Phase A / T5) |
-| `install_rm520n.sh` → `install_bundled_binaries()` and the `install_backend()` unit-copy loop | parser | `qm_hw_atd_enabled` through `_atd_on()` (T3.1, T4.1) — on RM520N installs, boot-links and starts `qmanager-atd.service`; `qm_hw_model` through `_atd_definitely_off()` removes the unit only on a definite non-RM520N model, and an unknown model leaves it as is. Neither gates the binary or the links: `qmanager_atd`, `/usr/bin/qsms` and `/usr/bin/qcmd` (both links to `qmanager_atd`) are installed on every model since T5.1 S6 |
-| `qmanager_health_check` → `t_svc_atd` | parser | `qm_hw_atd_enabled` (T3.1) — `skip` off RM520N, `warn` if the library will not load |
+| `install_rm520n.sh` → `install_bundled_binaries()` and the `install_backend()` unit-copy loop | parser | `qm_hw_atd_enabled` through `_atd_on()` (T3.1, T4.1, T8.1) — on RM520N and RG501Q installs, boot-links and starts `qmanager-atd.service`; `qm_hw_model` through `_atd_definitely_off()` removes the unit only on a definite model outside `RM520N*|RG501Q*`, and an unknown model leaves it as is. Neither gates the binary or the links: `qmanager_atd`, `/usr/bin/qsms` and `/usr/bin/qcmd` (both links to `qmanager_atd`) are installed on every model since T5.1 S6 |
+| `qmanager_health_check` → `t_svc_atd` | parser | `qm_hw_atd_enabled` (T3.1) — `skip` off RM520N and RG501Q, `warn` if the library will not load |
 
 `qm_hw_atd_enabled` is a predicate, not a field accessor: it returns 0 only when
-`qm_hw_model` matches `RM520N*`, and 1 for the RG501Q-EU, any other model, and
-`unknown`. It is fail-closed on purpose, because it decides whether a root
+`qm_hw_model` matches `RM520N*` or `RG501Q*` (since T8.1), and 1 for any other
+model and `unknown`. It is fail-closed on purpose, because it decides whether a root
 service unit exists on the device. Both callers wrap it as
 `command -v qm_hw_atd_enabled && qm_hw_atd_enabled`, so a missing library reads
 as "not enabled", and only ever call it inside `if` / `if !`, never bare under
-`set -e`. The Rust `qsms` client applies the same `RM520N*` rule to the same
-field; lift both together when the RG501Q gets the broker (P8 / T8.1).
+`set -e`. The Rust `qsms` client (`client/qsms.rs` `use_wms()`) applies the
+same `RM520N*` / `RG501Q*` rule to the same field to pick its WMS backend. The
+two lists are copies, not one source: change them together, on purpose.
 
 So `platform.json` still has **two writers and zero readers**, deliberately. The
 profile is `www-data`-owned whatever its mode — `qmanager_setup` chowns

@@ -1,16 +1,16 @@
 # AT Command Transport (RM520N-GL)
 
 > **Applies to:** RM520N-GL (SDX65) · qcmd cut-over (T4.1) verified 2026-10-28 on `61368cd2`
-> **RG501Q-EU (SDX55):** same Rust `qcmd`, but no broker runs, so every call is in-process — **not yet verified on RG501Q-EU hardware** with the current binary (a read-only scan on 2026-10-28 used an older build) · see [`platform-matrix.md`](./platform-matrix.md#at-transport)
+> **RG501Q-EU (SDX55):** same broker and same `qcmd` since T8.1 (`qmanager_atd` 0.7.1) · verified 2026-10-29 on `b7e3d6f1` (broker under systemd 239, socket and in-process paths, error contract, lock wait) · see [`platform-matrix.md`](./platform-matrix.md#at-transport)
 
-> Every AT command QManager sends goes through `qcmd`, which on every model is a symlink to the Rust `qmanager_atd` binary. On the RM520N-GL it is a client of the `qmanager_atd` broker, with an in-process fallback when the broker is down; on the RG501Q-EU (no broker) it always runs the exchange in-process on `/dev/smd11`. Both paths serialise on one `flock` and keep the same error contract, which is what every caller in the tree is written against. SMS no longer uses this path (see SMS operations).
+> Every AT command QManager sends goes through `qcmd`, which on every model is a symlink to the Rust `qmanager_atd` binary. On the RM520N-GL and the RG501Q-EU it is a client of the `qmanager_atd` broker, with an in-process fallback when the broker is down; on an unknown model no broker runs, so it always runs the exchange in-process on `/dev/smd11`. Both paths serialise on one `flock` and keep the same error contract, which is what every caller in the tree is written against. SMS no longer uses this path (see SMS operations).
 
 ### Quick reference
 
 | Item | Value |
 | ---- | ----- |
 | `/usr/bin/qcmd` | Symlink to `qmanager_atd` on every model (made by `install_backend()`) |
-| Broker unit | `qmanager-atd.service` (RM520N-GL only, boot-linked, started after `qmanager-setup`) |
+| Broker unit | `qmanager-atd.service` (RM520N-GL and RG501Q-EU, gate `qm_hw_atd_enabled`; boot-linked, started after `qmanager-setup`) |
 | Broker socket | `/var/run/qmanager_atd.sock` |
 | AT lock | `/tmp/qmanager_at.lock` (0666) |
 | Long-command flag | `/tmp/qmanager_long_running` (exists while a long command runs) |
@@ -26,7 +26,8 @@
 |-------|-----------|---------|
 | RM551E | `sms_tool` via USB | `qcmd` |
 | RM520N-GL | `qmanager_atd` broker on `/dev/smd11`; in-process exchange on `/dev/smd11` when the broker is unreachable | `qcmd` (link to `qmanager_atd`) |
-| RG501Q-EU | In-process exchange on `/dev/smd11` (no broker) — unverified on hardware | `qcmd` (link to `qmanager_atd`) |
+| RG501Q-EU | Same as the RM520N-GL: broker on `/dev/smd11`, in-process when the broker is unreachable (verified 2026-10-29) | `qcmd` (link to `qmanager_atd`) |
+| Unknown model | In-process exchange on `/dev/smd11` (no broker unit is installed) | `qcmd` (link to `qmanager_atd`) |
 
 ---
 
@@ -55,7 +56,7 @@ All AT access is serialised by an exclusive `flock` (a POSIX advisory file lock;
 
 On every model `install_backend()` makes `/usr/bin/qcmd` a symlink to `qmanager_atd`. The binary picks its role from `argv[0]`: called as `qcmd`, it is the client. The link is replaced atomically (`ln -sf` to a temp name, then `mv -f`), so a caller never finds `qcmd` missing mid-install.
 
-Only the broker daemon is per model: `qmanager-atd.service` exists on the RM520N-GL (gate `qm_hw_atd_enabled`). On the RG501Q-EU, or an unknown model, there is no socket, so every call takes step 4 below.
+Only the broker daemon is per model: `qmanager-atd.service` exists on the RM520N-GL and the RG501Q-EU (gate `qm_hw_atd_enabled`, `RM520N*|RG501Q*`). On any other model there is no socket, so every call takes step 4 below.
 
 Each call runs in this order:
 
@@ -79,9 +80,9 @@ If the lock file does not exist yet (early boot, or an install run with `--no-st
 
 **Long commands** are a case-sensitive substring match on `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus any non-comment line of `/etc/qmanager/long_commands.list`. A long command writes `/tmp/qmanager_long_running` for its duration, sends a warm-up `AT` first, and is never cut short by a caller cap.
 
-The broker unit `qmanager-atd.service` is boot-linked on the RM520N-GL. `start_services()` runs `systemctl reset-failed qmanager-atd` and starts it after `qmanager-setup` (which creates the lock file) and before the poller. It is in the install verify list, and the install-time AT probe runs through `qcmd`, because the broker may hold `/dev/smd11`.
+The broker unit `qmanager-atd.service` is boot-linked on the RM520N-GL and the RG501Q-EU. `start_services()` runs `systemctl reset-failed qmanager-atd` and starts it after `qmanager-setup` (which creates the lock file) and before the poller. It is in the install verify list, and the install-time AT probe runs through `qcmd`, because the broker may hold `/dev/smd11`.
 
-> ℹ️ NOTE: A stopped broker does not stop AT traffic: every call falls back in-process. That is why `qmanager_health_check` reports `svc.atd` as **fail** when the unit is `failed` or `inactive` on the RM520N-GL: nothing else would show it. Other states warn; other models skip.
+> ℹ️ NOTE: A stopped broker does not stop AT traffic: every call falls back in-process. That is why `qmanager_health_check` reports `svc.atd` as **fail** when the unit is `failed` or `inactive` on the RM520N-GL or the RG501Q-EU: nothing else would show it. Other states warn; other models skip.
 
 ### Shell callers that take the lock themselves
 
@@ -112,6 +113,8 @@ Differences from the retired shell `qcmd`, all deliberate:
 - **The client creates the lock file** (0666) when `qmanager_setup` has not yet.
 
 Parity was measured on the RM520N-GL on 2026-10-28: 14 cases byte-identical in exit code, stdout and stderr between the shell and Rust `qcmd`, as root and as `www-data`, with the broker down and up. A held lock gave the same `modem_busy` after the same 5 s wait; `AT+QSCAN` had the same shape; the `AT+COPS=2` / `AT+COPS=0` attach cycle returned exit 0 with echo and `OK`.
+
+On the RG501Q-EU (`b7e3d6f1`, 2026-10-29) the in-process Rust `qcmd` gave byte-identical stdout to the shell `qcmd` for `ATI`, `AT+CSQ`, `AT+CPIN?`, `AT+COPS?`, `AT+CGCONTRDP`, `AT+QCAINFO` and `AT+CVERSION;+CGMM;+CGSN`; `AT+QENG="servingcell"` differed only in live RSRQ/RSSI. An unknown command gave exit 1, empty stdout and `ERROR: command_failed` on both. With the lock held 4 s by `flock -x /tmp/qmanager_at.lock`, both waited and returned exit 0. With the broker running, `qcmd` through its socket answered as root and as `www-data`.
 
 > ℹ️ NOTE: Moving the lock into a `root:www-data` 0770 directory is split out to task T4.3 and not done. The lock is still the world-writable `/tmp/qmanager_at.lock`.
 
@@ -235,7 +238,7 @@ On the RM520N-GL, SMS list/send/delete go through `qsms` over QMI WMS, not the A
 
 - The one AT command left on the SMS path is the CPMS routing write, `qcmd 'AT+CPMS="ME","ME","ME"'` — once per inbox GET and once at boot (`qmanager_sms_storage`, which also uses `qcmd AT` as its readiness probe).
 - The forwarding daemon's registration check (`AT+CREG?` / `AT+CGREG?`) also goes through `qcmd`.
-- On a non-RM520N model `qsms` uses its AT backend, which serialises on the same lock and can return `modem_busy`.
+- On any model other than RM520N and RG501Q, `qsms` uses its AT backend, which serialises on the same lock and can return `modem_busy`.
 - `sms_tool` is retired; see [Retired binaries](#retired-binaries-atcli_smd11-and-sms_tool).
 
 ---
@@ -249,7 +252,7 @@ A **URC** (Unsolicited Result Code) is the modem spontaneously pushing a line on
 Catching one requires a process **reading the AT channel between commands**. QManager has none, by design:
 
 - `qcmd`'s in-process path opens `/dev/smd11`, sends one command, reads to its terminator, and closes.
-- On the RM520N-GL the `qmanager_atd` broker keeps one `/dev/smd11` fd open for its lifetime, but it **never reads outside an exchange**. Before each send it drains whatever is waiting (a late reply or a URC) and logs it rather than returning it; bytes glued after a terminator are kept for that next drain. So a URC is discarded, never delivered.
+- Where it runs (RM520N-GL, RG501Q-EU), the `qmanager_atd` broker keeps one `/dev/smd11` fd open for its lifetime, but it **never reads outside an exchange**. Before each send it drains whatever is waiting (a late reply or a URC) and logs it rather than returning it; bytes glued after a terminator are kept for that next drain. So a URC is discarded, never delivered.
 - Before the broker existed, a live scan of every `/proc/*/fd/*` on the RM520N-GL (poller, ping daemon and lighttpd running) found **zero** processes holding `smd11` open. With the broker running, `qmanager_atd` is the one holder.
 - `AT+QURCCFG="urcport"` offers only `usbat`, `usbmodem`, `uart1`, and `all`. **`smd11` is not a selectable URC destination**, so even a hypothetical listener could not be pointed at the channel QManager uses.
 

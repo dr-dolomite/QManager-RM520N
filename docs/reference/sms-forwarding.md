@@ -1,7 +1,7 @@
 # SMS Forwarding (RM520N-GL)
 
 > **Applies to:** RM520N-GL (SDX65) · UI verified 2026-08 · `qsms` daemon verified 2026-10-28 on serial 61368cd2
-> **RG501Q-EU (SDX55):** unverified; `qsms watch` is WMS-only, so there the daemon polls — see [`platform-matrix.md`](./platform-matrix.md)
+> **RG501Q-EU (SDX55):** `qsms` is on the WMS backend there since `qmanager_atd` 0.7.1 (T8.1), so `qsms watch` is available and the daemon wakes on events as on the RM520N-GL. WMS event registration was seen (`watch` printed `ready`, scan 2026-10-28), but an incoming message's indication and a forwarded send are **not proven** on that device — see [`platform-matrix.md`](./platform-matrix.md#at-transport)
 
 > A systemd daemon that auto-relays every new incoming SMS to a configured phone number as `From <sender>: <body>`. It wakes on a modem new-message event, holds multi-part messages until they are complete, seeds silently on first run so it never sprays the existing inbox, guards against relaying its own messages, retries failed sends, and stays enabled through delivery failures.
 
@@ -75,6 +75,8 @@ The daemon is a **UCI-gated service**: it is listed in `UCI_GATED_SERVICES` in `
 `svc_restart` (not `svc_start`) is used on enable so a freshly-changed `target_phone` is picked up even if the unit was already running, while still starting a stopped unit in one call.
 
 While forwarding is disabled or the target is invalid, the daemon stops the watch supervisor and sleeps 15 s per pass.
+
+> ⚠️ WARNING: An OTA from v0.1.14 can leave `qmanager-sms-forward` in `failed (Result: timeout)` once. The installer stops the **old** daemon, which did not exit on SIGTERM within the stop timeout, so systemd records a timeout. The current daemon stops in 0 s, and the state clears at the next boot. Seen on the RG501Q-EU, 2026-10-29 (`b7e3d6f1`). Open, not fixed: a `failed` unit here right after that one upgrade is not a fault in the new daemon.
 
 ---
 
