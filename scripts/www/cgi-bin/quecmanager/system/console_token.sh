@@ -30,6 +30,11 @@ TOKEN_MAX_AGE=30
 if [ "$REQUEST_METHOD" = "GET" ]; then
     umask 077
     mkdir -p "$TOKEN_DIR" 2>/dev/null
+    # console.sh trusts only a www-data 0700 dir; refuse one another account planted.
+    if [ -L "$TOKEN_DIR" ] || [ "$(stat -c '%U %a' "$TOKEN_DIR" 2>/dev/null)" != "www-data 700" ]; then
+        cgi_error "token_failed" "Could not start a console session"
+        exit 0
+    fi
     now=$(date +%s)
     for f in "$TOKEN_DIR"/*; do
         [ -f "$f" ] || continue

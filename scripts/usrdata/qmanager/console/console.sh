@@ -16,9 +16,18 @@ tok=$1
 case "$tok" in ""|*[!0-9a-f]*) refuse ;; esac
 [ ${#tok} -eq 64 ] || refuse
 tok_file="$TOKEN_DIR/$tok"
-[ -f "$tok_file" ] && [ ! -L "$tok_file" ] || refuse
-IFS= read -r issued < "$tok_file"
-rm -f "$tok_file"
+# Another local account must not be able to pre-create the dir and plant tokens.
+[ -d "$TOKEN_DIR" ] && [ ! -L "$TOKEN_DIR" ] || refuse
+[ "$(stat -c '%U %a' "$TOKEN_DIR")" = "www-data 700" ] || refuse
+# Atomic claim: a concurrent second use of the same token loses the mv.
+claimed="$TOKEN_DIR/.claimed.$$"
+mv "$tok_file" "$claimed" 2>/dev/null || refuse
+if [ ! -f "$claimed" ] || [ -L "$claimed" ] || [ "$(stat -c %U "$claimed")" != "www-data" ]; then
+    rm -f "$claimed"
+    refuse
+fi
+IFS= read -r issued < "$claimed"
+rm -f "$claimed" || refuse
 case "$issued" in ""|*[!0-9]*) refuse ;; esac
 age=$(( $(date +%s) - issued ))
 [ "$age" -ge 0 ] && [ "$age" -le "$TOKEN_MAX_AGE" ] || refuse
