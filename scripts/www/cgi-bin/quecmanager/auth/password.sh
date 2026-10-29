@@ -41,7 +41,12 @@ if ! qm_verify_password "$_current"; then
     exit 0
 fi
 
-qm_save_password "$_new"
+if ! qm_save_password "$_new"; then
+    qlog_error "Password change failed: could not write auth.json"
+    cgi_headers
+    cgi_error "save_failed" "Could not save the new password"
+    exit 0
+fi
 qlog_info "Password changed successfully"
 
 # Destroy current session and clear cookies

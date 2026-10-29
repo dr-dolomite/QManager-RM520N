@@ -61,7 +61,12 @@ if is_setup_required; then
         exit 0
     fi
 
-    qm_save_password "$_password"
+    if ! qm_save_password "$_password"; then
+        qlog_error "First-time setup failed: could not write auth.json"
+        cgi_headers
+        cgi_error "save_failed" "Could not save the password"
+        exit 0
+    fi
 
     # Also set SSH root password. Non-fatal, but reported so the UI can warn
     # that SSH still has the install-time password.
