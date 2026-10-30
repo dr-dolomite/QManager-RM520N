@@ -26,3 +26,4 @@ RG501Q-EU has no `xmllint`. `qm_lan_read` returned 2, so `network/lan_config.sh`
   - RM520N-GL 61368cd2, same GET: success, 192.168.225.1, 255.255.255.0, prefix 24.
   - mobileap_cfg.xml md5 unchanged on both (eebbc8d8…, 6345d32d…). No POST, reboot or restart.
 - Not run: a real apply (POST + reboot) on either device.
+- qm-verifier (blind): PASS_WITH_NOTES. Its 'other session deployed' note was this session's approved deploy; release-note bullet trimmed to 2 sentences.
