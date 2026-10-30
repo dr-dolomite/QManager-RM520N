@@ -2,7 +2,7 @@
 
 QManager lets the user change the modem's own LAN address (the gateway LAN clients use) and its subnet from the **LAN Address** card on **Local Network → Ethernet** (`/local-network/ethernet/`). The address and mask live only in the Quectel vendor file `/etc/data/mobileap_cfg.xml`, which QCMAP reads once at boot, so every change is a file edit followed by a deferred reboot. The installer also fixes the firmware's factory /22 LAN mask down to a /24 once, because the /22 covers 192.168.224.0–227.255 and clashes with any router on 192.168.224.1 (for example a sibling RM551E), which made the RM520N-GL unreachable over a Tailscale subnet route.
 
-> **Applies to:** RM520N-GL (measured on firmware `RM520NGLAAR03A03M4G_A0.304`, 2026-10-28). On the RG501Q-EU the feature does not work as shipped; see [RG501Q-EU](#rg501q-eu).
+> **Applies to:** RM520N-GL (measured on firmware `RM520NGLAAR03A03M4G_A0.304`, 2026-10-28). RG501Q-EU: reads verified 2026-10-31, apply not exercised; see [RG501Q-EU](#rg501q-eu).
 
 ## Quick Reference
 
@@ -21,7 +21,7 @@ QManager lets the user change the modem's own LAN address (the gateway LAN clien
 | Lock | `/etc/data/.qm_lan_apply.lock` (`flock -n`) |
 | Settled marker | `/usrdata/.qm_lan_subnet_set` (`QM_LAN_MARKER`) — set by the first normalize run or any UI apply; while present, install and OTA never touch the mask |
 | Per-run copy | `/etc/data/mobileap_cfg.xml.qm-run.<pid>` (removed on every failure, renamed over the file on success) |
-| Tooling | `/usr/bin/xmllint` (system-bundled). `xmlstarlet` is not installed |
+| Tooling | BusyBox `awk` reads, `sed` writes. `xmllint` is optional: absent on the RG501Q-EU, used only as an extra well-formedness check where present. `xmlstarlet` is not installed |
 
 Read the live state:
 
@@ -96,7 +96,7 @@ Every error is `{ "success": false, "error": "<code>", "detail": "<text>" }` fro
 
 | `error` | Cause |
 | --- | --- |
-| `lan_read_failed` | GET: `lan_subnet.sh` missing, XML unreadable or incomplete, `xmllint` missing, or a malformed stored mask |
+| `lan_read_failed` | GET: `lan_subnet.sh` missing, XML unreadable or incomplete, or a malformed stored mask |
 | `no_body` | POST with an empty or missing `CONTENT_LENGTH` |
 | `invalid_ipaddr` | `ipaddr` missing, not a string, or not a strict dotted quad (4 octets 0–255, no leading zeros) |
 | `invalid_prefix` | `prefix` missing, not an integer, or outside 16–30 |
@@ -139,7 +139,7 @@ The CGI discards this output and uses only the exit code.
 | 2 | Usage or validation failure | `usage`, `invalid_ipaddr`, `invalid_prefix`, `invalid_private_address`, `invalid_host_in_subnet` |
 | 3 | An OTA update is running | `update_in_progress` |
 | 4 | Lock held by another apply | `lan_busy` |
-| 5 | Write failed; the original file is untouched | `lib_missing`, `lock_failed`, `xmllint_missing`, `write_failed` |
+| 5 | Write failed; the original file is untouched | `lib_missing`, `lock_failed`, `write_failed` |
 
 Order of checks: charset gates, strict dotted quad, prefix 16–30, RFC1918, host-in-subnet, then the OTA guard, then the lock, then the write. The OTA guard tests `/proc/<pid>` for the pid in `/tmp/qmanager_update.pid` rather than `kill -0`, because the helper runs as root and a stale pid file could name any process. BusyBox `flock` has no `-w`, so the lock is `flock -n` and fails fast.
 
@@ -164,12 +164,14 @@ The math works on octets 3 and 4 only, because RFC1918 addresses exceed 2^31 and
 
 ## Write invariants (`qm_lan_write`)
 
-`qm_lan_write <file> <ip> <mask> <start> <end>` must run as root. Return codes: 0 written, 1 error (original untouched), 2 `xmllint` missing (skipped).
+`qm_lan_write <file> <ip> <mask> <start> <end>` must run as root. Return codes: 0 written, 1 error (original untouched).
+
+**Reading (`qm_lan_read`)** is one `awk` pass, not an XML parser: it takes the first one-line `<Tag>value</Tag>` for `APIPAddr` and `SubNetMask` directly inside `<MobileAPLanCfg>`, and for `StartIP` and `EndIP` inside its `<DHCPCfg>`. The section tags must sit on lines of their own. A value split across lines, or a missing tag, reads as incomplete (return 1). On the RM520N-GL its output equals `xmllint --xpath` on the live file, the factory file and `.qm-bak` (2026-10-31).
 
 - **Exactly one line per tag.** The file must hold exactly one `<APIPAddr>`, `<SubNetMask>`, `<StartIP>` and `<EndIP>` line before the edit, or nothing is written.
 - **`SubNetMask` is anchored.** The match is `^[[:space:]]*<SubNetMask>…` on a whole line, so `<WebServerSubNetMask>` (line 288 on the reference device, value `255.255.255.0`) is never touched. An unanchored `sed 's|<SubNetMask>…'` would also be unsafe if the vendor ever reflowed the file.
 - **Per-run copy in the same directory.** `sed` writes `mobileap_cfg.xml.qm-run.<pid>` next to the original, so the final `mv -f` is a same-filesystem rename and atomic. The original is never edited in place.
-- **The copy is verified before it replaces anything:** each new line appears exactly once, every other line is byte-identical (`cksum` of the file minus the four tags), `xmllint --noout` passes, and `qm_lan_read` on the copy returns exactly the four requested values.
+- **The copy is verified before it replaces anything:** each new line appears exactly once, every other line is byte-identical (`cksum` of the file minus the four tags), `xmllint --noout` passes where `xmllint` exists, and `qm_lan_read` on the copy returns exactly the four requested values.
 - **Owner and mode are re-pinned** from `ls -ln` of the original onto the copy before the `mv`. If that cannot be parsed, it falls back to `radio:radio` `0755`. QCMAP runs as `radio`, so a root-owned result would break it.
 - **`.qm-bak` is a record, not a rollback.** The first write ever (installer normalize or UI apply) copies the file to `mobileap_cfg.xml.qm-bak` with `cp -p`. Later writes never overwrite it, and nothing restores it automatically. If the backup cannot be written, the edit is refused.
 - `GatewayURL` (`mobileap.qualcomm.com`) is a sibling hostname alias, not the address. It is never edited.
@@ -178,7 +180,7 @@ The math works on octets 3 and 4 only, because RFC1918 addresses exceed 2^31 and
 
 `normalize_lan_subnet()` sources `lan_subnet.sh` from the staging tree (`$SRC_SCRIPTS/usr/lib/qmanager/lan_subnet.sh`) and calls `qm_lan_subnet_normalize /etc/data/mobileap_cfg.xml`. It runs in `main()` before `stop_services`, on fresh install and OTA alike. It is advisory: every failure path warns and returns 0, so it never aborts an install.
 
-It runs once. If `/usrdata/.qm_lan_subnet_set` exists it does nothing. The helper sets that marker on every successful UI apply, and normalize sets it after a successful rewrite or when it finds a non-factory layout, so a user's choice (even a /22 that looks like the factory one) is never undone by a later install or OTA. A missing file, a read failure or missing `xmllint` leaves no marker, so the next install retries.
+It runs once. If `/usrdata/.qm_lan_subnet_set` exists it does nothing. The helper sets that marker on every successful UI apply, and normalize sets it after a successful rewrite or when it finds a non-factory layout, so a user's choice (even a /22 that looks like the factory one) is never undone by a later install or OTA. A missing file or a read failure leaves no marker, so the next install retries.
 
 It changes the file only when all four values match the exact factory layout:
 
@@ -188,7 +190,7 @@ It changes the file only when all four values match the exact factory layout:
 | `SubNetMask` | `255.255.252.0` |
 | `StartIP`, `EndIP` | both in `192.168.225.2`–`.254`, start ≤ end (valid /24 hosts) |
 
-Then it rewrites **only** the mask to `255.255.255.0`; address and pool stay as they are. Any other layout (already /24, a user-chosen address, a different pool) is logged and left alone. A missing file or missing `xmllint` is skipped with return 0. The new mask takes effect at the next reboot; the installer does not reboot for it.
+Then it rewrites **only** the mask to `255.255.255.0`; address and pool stay as they are. Any other layout (already /24, a user-chosen address, a different pool) is logged and left alone. A missing file is skipped with return 0. The new mask takes effect at the next reboot; the installer does not reboot for it.
 
 > ⚠️ WARNING: After the /24 takes effect, a LAN device with a static address in `192.168.224.x`, `192.168.226.x` or `192.168.227.x` can no longer reach the modem. It must move into `192.168.225.x`.
 
@@ -220,16 +222,16 @@ Either of these works over SSH as root:
 
 The vendor schema of `mobileap_cfg.xml` is the same on the RG501Q-EU. Its `bridge0` was moved by hand on 2026-08-25 to `192.168.120.1/24` with `sed -i` on `APIPAddr`, `StartIP` and `EndIP` plus `AT+CFUN=1,1`; see [`platform-matrix.md`](./platform-matrix.md) > Device access. A pre-edit copy was left at `/etc/data/mobileap_cfg.xml.bak-1787634825`.
 
-`xmllint` was absent on that device when measured (2026-08-25, post-reset state; see `platform-matrix.md`). Every path here depends on it, so on the RG501Q-EU:
+The RG501Q-EU has no `xmllint`, which is why the library reads with `awk` (until 2026-10-31 every path here needed it and GET answered `lan_read_failed`). Measured on serial `b7e3d6f1`, 2026-10-31, with the library run from `/tmp`:
 
-- GET returns `lan_read_failed`.
-- POST reaches the helper, which exits 5 (`xmllint_missing`), and the CGI returns `lan_save_failed`. Nothing is written.
-- The installer normalize step logs a warning and skips.
+- `qm_lan_read` returns `192.168.120.1 255.255.255.0 192.168.120.20 192.168.120.60`, as root and as `www-data`.
+- `qm_lan_write` on a copy changes only the three target lines and keeps `1001:1001` `0755`.
+- `factory_mobileap_cfg.xml` there is already /24 (`192.168.225.1`, pool `.20`–`.60`), so the installer normalize leaves it alone and sets the marker.
 
-These outcomes are read from the code and not exercised on that device.
+A real apply (POST, reboot, reconnect) has not been run on this device.
 
 ## Related
 
 - [`ethernet.md`](./ethernet.md) — the rest of the Ethernet page and `qmanager_ethernet_apply`.
 - [`custom-dns.md`](./custom-dns.md) — reads the same file and the dnsmasq layering QCMAP generates from it.
-- [`platform-matrix.md`](./platform-matrix.md) — per-device addresses and the `xmllint` row.
+- [`platform-matrix.md`](./platform-matrix.md) — per-device addresses and the `xmllint` row (now informational).

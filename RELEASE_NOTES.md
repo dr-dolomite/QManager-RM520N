@@ -7,7 +7,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 ## ✨ New Features
 
 - **Live "Now" view for Sites.** The **Sites** card on **Monitoring → Latency Monitor** now opens on **Now**, which re-checks every site about every 2 seconds while the page is open and visible; switching to 1 h / 24 h / 7 d, leaving the page or hiding the tab stops it within about 10 seconds, and history keeps its normal 5-minute checks. (Live checks are a light HTTP request, about 25 MB per hour while open, and are never written to history; the first live value lands about 6 seconds after opening.)
-- **Change the modem's LAN address.** **Local Network → Ethernet** has a new **LAN Address** card where you set the gateway IP and subnet; applying it reboots the modem, and the page opens the new address on its own once the modem is back. (Edits `mobileap_cfg.xml`; the DHCP range moves into the new subnet.)
+- **Change the modem's LAN address.** **Local Network → Ethernet** has a new **LAN Address** card where you set the gateway IP and subnet; applying it reboots the modem, and the page opens the new address on its own once the modem is back. Works on both the RM520N-GL and the RG501Q-EU. (Edits `mobileap_cfg.xml` without needing `xmllint`, which the RG501Q-EU lacks; the DHCP range moves into the new subnet.)
 
 ## 🛠️ Improvements
 
