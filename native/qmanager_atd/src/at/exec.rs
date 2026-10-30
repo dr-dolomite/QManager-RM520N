@@ -57,7 +57,7 @@ pub fn long_running() -> bool {
 
 /// Regular, owned by root / this process / www-data, one link (not a hard
 /// link to some root 0666 /tmp file). An untrusted flag is logged once.
-fn flag_trusted(path: &str) -> bool {
+pub(crate) fn flag_trusted(path: &str) -> bool {
     use std::os::unix::fs::MetadataExt;
     match std::fs::symlink_metadata(path) {
         Err(_) => false,
