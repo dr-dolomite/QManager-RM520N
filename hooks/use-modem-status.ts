@@ -20,8 +20,14 @@ import type { ModemStatus } from "@/types/modem-status";
 // The hook does NOT touch the modem — it only reads the pre-built JSON cache.
 // =============================================================================
 
-/** Interval a caller gets when it asks for none (ms) */
-const DEFAULT_POLL_INTERVAL = 2000;
+/** Interval a caller gets when it asks for none (ms); just over one poller cycle (~3.7-4 s) */
+const DEFAULT_POLL_INTERVAL = 5000;
+
+/** For pages that only read capabilities or config from the snapshot (ms) */
+export const STATUS_POLL_SLOW_MS = 10_000;
+
+/** For a live pointing tool where a cycle of lag matters (ms) */
+export const STATUS_POLL_FAST_MS = 2000;
 
 /**
  * Upper bound on the shared timer (ms). Every fetch_data.sh call is the poller's
@@ -37,7 +43,7 @@ const STALE_THRESHOLD_SECONDS = 10;
 const FETCH_ENDPOINT = "/cgi-bin/quecmanager/at_cmd/fetch_data.sh";
 
 export interface UseModemStatusOptions {
-  /** Requested polling interval in ms (default: 2000; the shared timer caps at 10000) */
+  /** Requested polling interval in ms (default: 5000; the shared timer caps at 10000) */
   pollInterval?: number;
   /** Whether this caller drives polling (default: true). A disabled caller still reads the shared snapshot. */
   enabled?: boolean;

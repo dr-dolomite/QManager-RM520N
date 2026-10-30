@@ -25,7 +25,7 @@
 # Install location: /usr/lib/qmanager/qlog.sh
 # =============================================================================
 
-[ -n "$_QLOG_LOADED" ] && return 0
+[ -n "${_QLOG_LOADED:-}" ] && return 0
 _QLOG_LOADED=1
 
 # --- Configuration (defaults, overridable via environment) -------------------
@@ -139,8 +139,8 @@ _qlog_rotate() {
 #   $2 — Message
 # =============================================================================
 _qlog_write() {
-    local level="$1"
-    local message="$2"
+    local level="${1:-}"
+    local message="${2:-}"
 
     # Check if this level should be logged
     local msg_level_num
@@ -194,10 +194,10 @@ _qlog_write() {
 }
 
 # --- Public Logging Functions ------------------------------------------------
-qlog_debug() { _qlog_write "DEBUG" "$1"; }
-qlog_info()  { _qlog_write "INFO"  "$1"; }
-qlog_warn()  { _qlog_write "WARN"  "$1"; }
-qlog_error() { _qlog_write "ERROR" "$1"; }
+qlog_debug() { _qlog_write "DEBUG" "${1:-}"; }
+qlog_info()  { _qlog_write "INFO"  "${1:-}"; }
+qlog_warn()  { _qlog_write "WARN"  "${1:-}"; }
+qlog_error() { _qlog_write "ERROR" "${1:-}"; }
 
 # --- Utility: Log AT Command + Response (for debugging) ----------------------
 # Logs an AT command and its response at DEBUG level, truncating long responses.
@@ -208,8 +208,8 @@ qlog_error() { _qlog_write "ERROR" "$1"; }
 #   $3 — Exit code (optional)
 # =============================================================================
 qlog_at_cmd() {
-    local cmd="$1"
-    local response="$2"
+    local cmd="${1:-}"
+    local response="${2:-}"
     local exit_code="${3:-0}"
 
     # Truncate response for logging (first 200 chars)
@@ -238,8 +238,8 @@ qlog_at_cmd() {
 #   $2 — Extra detail (optional)
 # =============================================================================
 qlog_lock() {
-    local event="$1"
-    local detail="$2"
+    local event="${1:-}"
+    local detail="${2:-}"
 
     case "$event" in
         acquire)        qlog_debug "LOCK: Acquired${detail:+ ($detail)}" ;;
@@ -260,9 +260,9 @@ qlog_lock() {
 #   $3 — New value
 # =============================================================================
 qlog_state_change() {
-    local field="$1"
-    local old_val="$2"
-    local new_val="$3"
+    local field="${1:-}"
+    local old_val="${2:-}"
+    local new_val="${3:-}"
 
     if [ "$old_val" != "$new_val" ]; then
         qlog_info "STATE: ${field}: ${old_val} → ${new_val}"

@@ -20,7 +20,8 @@ cgi_handle_options
 CACHE_FILE="/tmp/qmanager_status.json"
 
 # UI heartbeat for the poller's activity tiers: any change of content counts, so a builtin write of $$ is enough.
-echo "$$" > /tmp/qmanager_ui_active 2>/dev/null
+# Never follow a planted symlink (builtin test, no fork); protected_symlinks covers the race.
+[ -L /tmp/qmanager_ui_active ] || echo "$$" > /tmp/qmanager_ui_active 2>/dev/null
 
 # --- Serve the cache ---------------------------------------------------------
 if [ -f "$CACHE_FILE" ]; then

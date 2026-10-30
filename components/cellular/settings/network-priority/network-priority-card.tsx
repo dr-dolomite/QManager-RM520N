@@ -36,7 +36,7 @@ import {
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import { STATUS_POLL_SLOW_MS, useModemStatus } from "@/hooks/use-modem-status";
 import type { ApplyPhase } from "@/hooks/use-cellular-settings";
 import { authFetch } from "@/lib/auth-fetch";
 import { SORTABLE_TRANSITION, staggerRowItem, staggerRows } from "@/lib/motion";
@@ -278,7 +278,7 @@ const NetworkPriorityCard = () => {
   const { t } = useTranslation("cellular");
   const { t: tCommon } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
-  const { data: status } = useModemStatus();
+  const { data: status } = useModemStatus({ pollInterval: STATUS_POLL_SLOW_MS });
 
   const [networks, setNetworks] = React.useState<string[]>([]);
   const [fetchedOrder, setFetchedOrder] = React.useState("");

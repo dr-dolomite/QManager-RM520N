@@ -11,7 +11,7 @@ import { TonalBanner } from "@/components/ui/tonal-banner";
 import CellularPageHeader from "@/components/cellular/page-header";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { useCellularSettings } from "@/hooks/use-cellular-settings";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import { STATUS_POLL_SLOW_MS, useModemStatus } from "@/hooks/use-modem-status";
 
 import CellularSettingsCard from "./cellular-settings-card";
 import LiveStateStrip from "./live-state-strip";
@@ -74,7 +74,7 @@ const CellularSettingsComponent = () => {
     isLoading: statusLoading,
     isStale: statusStale,
     error: statusError,
-  } = useModemStatus();
+  } = useModemStatus({ pollInterval: STATUS_POLL_SLOW_MS });
 
   const K = "core_settings.basic";
 
