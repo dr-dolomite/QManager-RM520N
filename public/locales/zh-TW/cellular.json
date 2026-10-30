@@ -2254,17 +2254,18 @@
         "char_counter": "{{count}}/{{max}}"
       },
       "unicode_indicator": "（Unicode）",
-      "limit_warning": "訊息超過單條簡訊限制，將作為多部分傳送。",
+      "limit_warning": "超過單則簡訊長度，將分 {{parts}} 部分傳送。",
       "buttons": {
         "send": "傳送",
         "sending": "傳送中…"
       },
       "toast": {
         "success": "簡訊傳送成功",
-        "error": "傳送簡訊失敗"
+        "error": "傳送簡訊失敗",
+        "partial": "{{parts}} 部分中僅傳送了 {{sent}} 部分；再次傳送會重複這些部分。"
       },
-      "sending_note": "等待 AT 鎖定，隨後傳送",
-      "encoding_hint": "出現非 ASCII 字元時，訊息將切換為 UCS-2 編碼，單則上限為 70 個字元。",
+      "sending_note": "正在傳送訊息",
+      "encoding_hint": "出現 GSM 字母表以外的字元時，訊息將切換為 UCS-2 編碼，單則上限為 70 個字元。",
       "encoding": {
         "gsm7": "GSM 7 位元",
         "ucs2": "UCS-2"

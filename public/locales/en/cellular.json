@@ -2254,17 +2254,18 @@
         "char_counter": "{{count}}/{{max}}"
       },
       "unicode_indicator": " (Unicode)",
-      "limit_warning": "Message exceeds single SMS limit. It will be sent as multiple parts.",
+      "limit_warning": "Longer than one SMS, so it will be sent as {{parts}} parts.",
       "buttons": {
         "send": "Send",
         "sending": "Sending…"
       },
       "toast": {
         "success": "SMS sent successfully",
-        "error": "Failed to send SMS"
+        "error": "Failed to send SMS",
+        "partial": "Only {{sent}} of {{parts}} parts were sent; sending again repeats them."
       },
-      "sending_note": "Waiting on the AT lock, then sending",
-      "encoding_hint": "A non-ASCII character switches the message to UCS-2 and caps a single part at 70 characters.",
+      "sending_note": "Sending the message",
+      "encoding_hint": "A character outside the GSM alphabet switches the message to UCS-2 and caps a single part at 70 characters.",
       "encoding": {
         "gsm7": "GSM 7 bit",
         "ucs2": "UCS-2"

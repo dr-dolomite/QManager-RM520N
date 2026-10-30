@@ -292,6 +292,11 @@ sf_send_with_retry() {
         [ -z "$_detail" ] && _detail="The message could not be sent."
         _last_err="$_detail"
         qlog_warn "SMS forward: send failed attempt $_attempt/$_max_attempts (rc=$_rc) — $_detail"
+        # A retry resends every part, so once any part went out, stop rather than duplicate it.
+        case "$(printf '%s' "$_out" | jq -r '.sent_parts // 0' 2>/dev/null)" in
+            ''|0|*[!0-9]*) ;;
+            *) qlog_warn "SMS forward: some parts already sent, not retrying"; break ;;
+        esac
     done
 
     printf '%s' "$_last_err"
