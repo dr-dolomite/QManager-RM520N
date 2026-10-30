@@ -8,7 +8,7 @@
 # Writers (qm_lan_write, qm_lan_subnet_normalize) must run as root. Readers and
 # the pure math helpers run as any user. Nothing here reboots or restarts anything.
 #
-# Return codes: 0 ok, 1 error (original file untouched), 2 skipped (no xmllint).
+# Return codes: 0 ok, 1 error (original file untouched).
 #
 # All 32-bit-unsafe math is avoided: RFC1918 addresses exceed 2^31, so the
 # subnet math works on the low 16 bits (octets 3+4) only. The caller must have
@@ -164,17 +164,32 @@ qm_lan_dhcp_range() {
 
 # --- XML read ----------------------------------------------------------------
 
-# qm_lan_read [file] — prints "ip mask start end". 2 = xmllint missing, 1 = unreadable/incomplete.
+# qm_lan_read [file] — prints "ip mask start end"; 1 = unreadable/incomplete.
+# awk, not xmllint (absent on RG501Q-EU): first one-line <Tag>v</Tag> in MobileAPLanCfg (DHCPCfg for the pool).
 qm_lan_read() {
     _qml_f=${1:-$QM_LAN_CFG}
-    command -v xmllint >/dev/null 2>&1 || return 2
     [ -r "$_qml_f" ] || return 1
-    _qml_ip=$(xmllint --xpath 'string(//MobileAPLanCfg/APIPAddr)' "$_qml_f" 2>/dev/null) || return 1
-    _qml_mk=$(xmllint --xpath 'string(//MobileAPLanCfg/SubNetMask)' "$_qml_f" 2>/dev/null) || return 1
-    _qml_st=$(xmllint --xpath 'string(//MobileAPLanCfg/DHCPCfg/StartIP)' "$_qml_f" 2>/dev/null) || return 1
-    _qml_en=$(xmllint --xpath 'string(//MobileAPLanCfg/DHCPCfg/EndIP)' "$_qml_f" 2>/dev/null) || return 1
-    [ -n "$_qml_ip" ] && [ -n "$_qml_mk" ] && [ -n "$_qml_st" ] && [ -n "$_qml_en" ] || return 1
-    printf '%s %s %s %s\n' "$_qml_ip" "$_qml_mk" "$_qml_st" "$_qml_en"
+    _qml_v=$(awk '
+        { sub(/\r$/, "") }
+        /^[[:space:]]*<MobileAPLanCfg>[[:space:]]*$/ { lan = 1; next }
+        /^[[:space:]]*<\/MobileAPLanCfg>[[:space:]]*$/ { lan = 0; dhcp = 0; next }
+        !lan { next }
+        /^[[:space:]]*<DHCPCfg>[[:space:]]*$/ { dhcp = 1; next }
+        /^[[:space:]]*<\/DHCPCfg>[[:space:]]*$/ { dhcp = 0; next }
+        !/^[[:space:]]*<[A-Za-z]+>[^<]*<\/[A-Za-z]+>[[:space:]]*$/ { next }
+        {
+            t = $0; sub(/^[[:space:]]*</, "", t); sub(/>.*/, "", t)
+            v = $0; sub(/^[[:space:]]*<[A-Za-z]+>/, "", v); sub(/<.*/, "", v)
+            if (index($0, "</" t ">") == 0) next
+            if (!dhcp && t == "APIPAddr" && ip == "") ip = v
+            if (!dhcp && t == "SubNetMask" && mk == "") mk = v
+            if (dhcp && t == "StartIP" && st == "") st = v
+            if (dhcp && t == "EndIP" && en == "") en = v
+        }
+        END { if (ip != "" && mk != "" && st != "" && en != "") print ip, mk, st, en }
+    ' "$_qml_f" 2>/dev/null) || return 1
+    [ -n "$_qml_v" ] || return 1
+    printf '%s\n' "$_qml_v"
 }
 
 # --- XML write ---------------------------------------------------------------
@@ -237,11 +252,10 @@ _qm_lan_pin() {
 }
 
 # qm_lan_write <file> <ip> <mask> <start> <end> — edit the four lines on a same-dir copy, validate, mv over.
-# Root only. Returns 0, 1 (original untouched) or 2 (xmllint missing: skipped).
+# Root only. Returns 0 or 1 (original untouched).
 qm_lan_write() {
     _qmw_f=$1
     [ $# -eq 5 ] || return 1
-    command -v xmllint >/dev/null 2>&1 || { _qm_lan_log warn "xmllint missing, LAN config not edited"; return 2; }
     [ -f "$_qmw_f" ] && [ ! -L "$_qmw_f" ] || { _qm_lan_log error "$_qmw_f is not a regular file"; return 1; }
     for _qmw_v in "$2" "$3" "$4" "$5"; do
         qm_lan_split "$_qmw_v" || { _qm_lan_log error "refusing malformed value '$_qmw_v'"; return 1; }
@@ -266,7 +280,7 @@ qm_lan_write() {
         -e "s#^\([[:space:]]*\)<EndIP>[^<]*</EndIP>#\1<EndIP>$5</EndIP>#" \
         "$_qmw_f" > "$_qmw_tmp" 2>/dev/null || { rm -f "$_qmw_tmp"; _qm_lan_log error "sed failed"; return 1; }
 
-    # Every new line present once, every other line byte-identical, XML well-formed, xpath reads it back.
+    # Every new line present once, every other line byte-identical, the copy reads back; xmllint where present.
     _qmw_set="$2 $3 $4 $5"
     _qmw_ok=1
     for _qmw_pair in "APIPAddr:$2" "SubNetMask:$3" "StartIP:$4" "EndIP:$5"; do
@@ -277,7 +291,9 @@ qm_lan_write() {
     _qmw_ck_a=$(grep -v -E "$_qmw_re" "$_qmw_f" 2>/dev/null | cksum)
     _qmw_ck_b=$(grep -v -E "$_qmw_re" "$_qmw_tmp" 2>/dev/null | cksum)
     [ "$_qmw_ck_a" = "$_qmw_ck_b" ] || _qmw_ok=0
-    xmllint --noout "$_qmw_tmp" >/dev/null 2>&1 || _qmw_ok=0
+    if command -v xmllint >/dev/null 2>&1; then
+        xmllint --noout "$_qmw_tmp" >/dev/null 2>&1 || _qmw_ok=0
+    fi
     [ "$(qm_lan_read "$_qmw_tmp" 2>/dev/null)" = "$_qmw_set" ] || _qmw_ok=0
     if [ "$_qmw_ok" -ne 1 ]; then
         rm -f "$_qmw_tmp"
@@ -304,7 +320,6 @@ qm_lan_subnet_normalize() {
     _qmn_f=${1:-$QM_LAN_CFG}
     [ -e "$QM_LAN_MARKER" ] && { _qm_lan_log info "LAN subnet already settled, left as is"; return 0; }
     [ -f "$_qmn_f" ] || { _qm_lan_log info "no $_qmn_f, nothing to normalize"; return 0; }
-    command -v xmllint >/dev/null 2>&1 || { _qm_lan_log warn "xmllint missing, LAN subnet not normalized"; return 0; }
     _qmn_cur=$(qm_lan_read "$_qmn_f") || { _qm_lan_log error "cannot read $_qmn_f"; return 1; }
     set -- $_qmn_cur
     _qmn_ok=0
@@ -321,11 +336,8 @@ qm_lan_subnet_normalize() {
         qm_lan_mark_set
         return 0
     fi
-    _qmn_rc=0
-    qm_lan_write "$_qmn_f" "$1" "255.255.255.0" "$3" "$4" || _qmn_rc=$?
-    case $_qmn_rc in
-        0) _qm_lan_log info "LAN subnet normalized 255.255.252.0 -> 255.255.255.0"; qm_lan_mark_set; return 0 ;;
-        2) return 0 ;;
-        *) return 1 ;;
-    esac
+    qm_lan_write "$_qmn_f" "$1" "255.255.255.0" "$3" "$4" || return 1
+    _qm_lan_log info "LAN subnet normalized 255.255.252.0 -> 255.255.255.0"
+    qm_lan_mark_set
+    return 0
 }
