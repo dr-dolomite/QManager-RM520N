@@ -2254,17 +2254,18 @@
         "char_counter": "{{count}}/{{max}}"
       },
       "unicode_indicator": " (Unicode)",
-      "limit_warning": "Pesan melebihi batas satu SMS. Pesan akan dikirim dalam beberapa bagian.",
+      "limit_warning": "Lebih panjang dari satu SMS, jadi akan dikirim dalam {{parts}} bagian.",
       "buttons": {
         "send": "Kirim",
         "sending": "Mengirim…"
       },
       "toast": {
         "success": "SMS berhasil terkirim",
-        "error": "SMS gagal terkirim"
+        "error": "SMS gagal terkirim",
+        "partial": "Hanya {{sent}} dari {{parts}} bagian yang terkirim; mengirim ulang akan mengulanginya."
       },
-      "sending_note": "Menunggu kunci AT, lalu mengirim",
-      "encoding_hint": "Karakter non-ASCII mengubah pesan menjadi UCS-2 dan membatasi satu bagian jadi 70 karakter.",
+      "sending_note": "Mengirim pesan",
+      "encoding_hint": "Karakter di luar alfabet GSM mengubah pesan menjadi UCS-2 dan membatasi satu bagian jadi 70 karakter.",
       "encoding": {
         "gsm7": "GSM 7 bit",
         "ucs2": "UCS-2"

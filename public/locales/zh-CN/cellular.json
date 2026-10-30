@@ -2254,17 +2254,18 @@
         "char_counter": "{{count}}/{{max}}"
       },
       "unicode_indicator": "（Unicode）",
-      "limit_warning": "消息超过单条短信限制，将作为多部分发送。",
+      "limit_warning": "超过单条短信长度，将分 {{parts}} 部分发送。",
       "buttons": {
         "send": "发送",
         "sending": "发送中…"
       },
       "toast": {
         "success": "短信发送成功",
-        "error": "发送短信失败"
+        "error": "发送短信失败",
+        "partial": "{{parts}} 部分中仅发送了 {{sent}} 部分；再次发送会重复这些部分。"
       },
-      "sending_note": "等待 AT 锁，随后发送",
-      "encoding_hint": "出现非 ASCII 字符时，消息将切换为 UCS-2 编码，单条上限为 70 个字符。",
+      "sending_note": "正在发送消息",
+      "encoding_hint": "出现 GSM 字母表以外的字符时，消息将切换为 UCS-2 编码，单条上限为 70 个字符。",
       "encoding": {
         "gsm7": "GSM 7 位",
         "ucs2": "UCS-2"

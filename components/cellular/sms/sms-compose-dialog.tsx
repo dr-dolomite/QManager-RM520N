@@ -19,25 +19,20 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { smsSegments } from "@/lib/sms-segments";
+import type { SmsSendResult } from "@/types/sms";
 
 
 // =============================================================================
 // SmsComposeDialog — compose and send
 // =============================================================================
-// The encoding logic here is CORRECT AND ALREADY SHIPPED and is deliberately
-// untouched: a non-ASCII character switches the payload to UCS-2, which caps a
-// single part at 70 characters instead of GSM-7's 160. Only the styling moved.
-//
-// The mock actually REGRESSES this control — it renders the counter in a neutral
-// chip with no over-limit state at all. The destructive treatment stays, because
-// crossing the cap silently changes what the modem sends. A multi-part segment
-// counter is deliberately NOT added; that is new behaviour, not a restyle.
+// Encoding and part count come from smsSegments, which mirrors the qsms encoder.
 // =============================================================================
 
 interface SmsComposeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSend: (phone: string, message: string) => Promise<boolean>;
+  onSend: (phone: string, message: string) => Promise<SmsSendResult>;
   isSaving: boolean;
   /** Pre-addresses the dialog when it is opened from a message's Reply action. */
   initialPhone?: string;
@@ -54,12 +49,12 @@ export default function SmsComposeDialog({
   const [phone, setPhone] = React.useState("");
   const [message, setMessage] = React.useState("");
 
-  // Character count and encoding detection — unchanged behaviour.
-  const isUcs2 = /[^\x00-\x7F]/.test(message);
-  const maxChars = isUcs2 ? 70 : 160;
-  const charCount = message.length;
-  const isOverLimit = charCount > maxChars;
-  const isNearLimit = !isOverLimit && charCount > maxChars * 0.9;
+  const segments = smsSegments(message);
+  const isUcs2 = segments.encoding === "ucs2";
+  const maxChars = segments.perPart * segments.parts;
+  const charCount = segments.units;
+  const isOverLimit = segments.parts > 1;
+  const isNearLimit = !isOverLimit && charCount > segments.perPart * 0.9;
 
   const isValid = phone.trim().length > 0 && message.trim().length > 0;
 
@@ -67,12 +62,19 @@ export default function SmsComposeDialog({
     e.preventDefault();
     if (!isValid) return;
 
-    const success = await onSend(phone.trim(), message);
-    if (success) {
+    const result = await onSend(phone.trim(), message);
+    if (result.success) {
       toast.success(t("sms.compose.toast.success"));
       setPhone("");
       setMessage("");
       onOpenChange(false);
+    } else if (result.sentParts > 0) {
+      toast.error(
+        t("sms.compose.toast.partial", {
+          sent: result.sentParts,
+          parts: result.parts,
+        }),
+      );
     } else {
       toast.error(t("sms.compose.toast.error"));
     }
@@ -187,15 +189,13 @@ export default function SmsComposeDialog({
                 aria-hidden="true"
               />
               {isOverLimit
-                ? t("sms.compose.limit_warning")
+                ? t("sms.compose.limit_warning", { parts: segments.parts })
                 : t("sms.compose.encoding_hint")}
             </p>
           </div>
 
           {isSaving && (
-            // The send holds the shared AT lock, which is why this can take a
-            // few seconds. It reports what is happening rather than faking a
-            // determinate bar for work with no progress signal.
+            // A send has no progress signal, so this says what is happening instead.
             <div
               role="status"
               className="bg-primary-container text-on-primary-container rounded-field flex items-center gap-3 px-4 py-3"

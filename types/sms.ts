@@ -61,4 +61,14 @@ export interface SmsActionResponse {
   success: boolean;
   error?: string;
   detail?: string;
+  /** Send failure only: total parts, and how many went out before the failure. */
+  parts?: number;
+  sent_parts?: number;
+}
+
+/** Outcome of a send. `sentParts > 0` on a failure means a resend repeats those parts. */
+export interface SmsSendResult {
+  success: boolean;
+  parts: number;
+  sentParts: number;
 }
