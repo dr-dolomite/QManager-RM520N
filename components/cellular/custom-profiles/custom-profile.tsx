@@ -46,7 +46,7 @@ import {
 import { useProfileApply } from "@/hooks/use-profile-apply";
 import { useCurrentSettings } from "@/hooks/use-current-settings";
 import { useProfileSuggestions } from "@/hooks/use-profile-suggestions";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import { STATUS_POLL_SLOW_MS, useModemStatus } from "@/hooks/use-modem-status";
 import {
   useConnectionScenarios,
   ConnectionScenariosProvider,
@@ -196,7 +196,7 @@ const CustomProfilePageBody = () => {
   const { settings: currentSettings, refresh: refreshCurrentSettings } =
     useCurrentSettings(true);
 
-  const { data: modemStatus } = useModemStatus();
+  const { data: modemStatus } = useModemStatus({ pollInterval: STATUS_POLL_SLOW_MS });
   const currentIccid = modemStatus?.device?.iccid ?? null;
 
   // Full scenario records, for the hero's identity glyph + radio read-out and

@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import { Banner } from "@/components/ui/banner";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import { STATUS_POLL_FAST_MS, useModemStatus } from "@/hooks/use-modem-status";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { AimConsole, CondensedAim } from "./live-aim";
@@ -74,7 +74,7 @@ const SENTINEL_MARGIN = "-72px 0px 0px 0px";
 
 export default function AntennaAlignmentComponent() {
   const { t, i18n } = useTranslation("cellular");
-  const { data, isLoading, isStale, error, refresh } = useModemStatus();
+  const { data, isLoading, isStale, error, refresh } = useModemStatus({ pollInterval: STATUS_POLL_FAST_MS });
 
   const spa = data?.signal_per_antenna ?? null;
   const mode = spa ? detectRadioMode(spa) : null;

@@ -514,11 +514,22 @@ Forks per authenticated request: 19 → 2 (portability checker, direct runs). Th
 Tier: with `fetch_data.sh` every 10 s (the shared store's cap), the poller stayed `active` in all 12 samples over 60 s, so a 30–60 s ping interval cannot drop an open page out of `active`. No `interval_sec` write was needed, because the tier depends only on heartbeat age.
 
 Not measured on the device:
-- The 1 MB ping-history cut: T3.1's install had cleared `/tmp`, so the archive was 17 KB.
+- The 1 MB ping-history cut: T3.1's install had cleared `/tmp`, so the archive was 17 KB. Measured 2026-10-31, see below.
 - A real browser's lighttpd own CPU (keep-alive). The replay's 0.5 % is an upper bound with one TLS handshake per tick.
 - The hidden-tab gate. It was verified in the browser pane off-device: 0 requests while hidden.
 
-Not yet cut: pages other than `/dashboard` that call `useModemStatus()` with the 2 s default (antenna alignment, antenna statistics, band locking, others) still poll at 2 s; the one-shot `system/settings.sh` (296 ms, 71 forks) and `device/about.sh` on every dashboard mount.
+### Follow-ups (2026-10-31)
+
+Measured on RM520N-GL 61368cd2 through lighttpd (per call, minted session) and old vs new as direct www-data runs of `/tmp` copies. Results file: `.orchestra/runs/2026-10-31-cgi-cost.md`.
+
+| item | before | after |
+|---|---:|---:|
+| `system/settings.sh` GET (one `jq` for every key, `set --` for the tz fields; body byte-identical) | 276 ms, 57 forks | 83 ms, 15 forks |
+| `fetch_ping_history.sh`, full 1.16 MB archive vs `?last=400` (CGI + lighttpd own) | 536 ms | 74.5 ms |
+| `useModemStatus` default (17.5 ms per `fetch_data.sh`) | 2 s = 0.88 pts | 5 s = 0.35 pts; config-only pages 10 s = 0.18 pts |
+
+- `device/about.sh` costs ≈ 187 ms, almost all of it the two public-IP `curl` calls (≈ 100 ms CPU each). Cutting its other forks (38 → 20) did not move CPU, so it was not shipped; caching the public IP is the real cut.
+- lighttpd keep-alive: the idle timeout is lighttpd's default 5 s (a second request on one TLS connection is answered after a 4 s gap, not after 6 s). A new TLS connection costs ≈ 17.5 ms of lighttpd's own CPU against 2.5 ms on a reused one. Every dashboard stream polls slower than 5 s, so the upper bound is ≈ 1.1 points. `server.max-keep-alive-idle = 30` in the installer-managed `lighttpd.conf` would remove it (proposed, not shipped).
 
 ---
 

@@ -35,37 +35,41 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # --- AT device (informational — qcmd hardcodes /dev/smd11) ---
     sms_tool_device="/dev/smd11"
 
-    # --- Unit preferences ---
-    temp_unit=$(qm_config_get settings temp_unit "celsius")
-    distance_unit=$(qm_config_get settings distance_unit "km")
+    # One jq read for every settings key; v() mirrors qm_config_get (null, false or "" -> default).
+    SETTINGS_JQ='
+        def v(k; d): (.settings[k] // "" | tostring) as $x | if $x == "" then d else $x end;
+        def days(k): v(k; "0,1,2,3,4,5,6")
+            | (try (split(",") | map(tonumber) | tojson) catch "[0,1,2,3,4,5,6]");
+        @sh "temp_unit=\(v("temp_unit"; "celsius"))",
+        @sh "distance_unit=\(v("distance_unit"; "km"))",
+        @sh "cfg_hostname=\(v("hostname"; ""))",
+        @sh "timezone=\(v("timezone"; "UTC0"))",
+        @sh "zonename=\(v("zonename"; "UTC"))",
+        @sh "sched_enabled=\(v("sched_reboot_enabled"; "0"))",
+        @sh "sched_time=\(v("sched_reboot_time"; "04:00"))",
+        @sh "sched_days_json=\(days("sched_reboot_days"))",
+        @sh "lp_enabled=\(v("low_power_enabled"; "0"))",
+        @sh "lp_start=\(v("low_power_start"; "23:00"))",
+        @sh "lp_end=\(v("low_power_end"; "06:00"))",
+        @sh "lp_days_json=\(days("low_power_days"))"'
+    settings_vars=$(jq -r "$SETTINGS_JQ" "$QM_CONFIG" 2>/dev/null)
+    # Empty output (missing, invalid or blank config) -> every default.
+    [ -n "$settings_vars" ] || settings_vars=$(jq -nr "null | $SETTINGS_JQ")
+    eval "$settings_vars"
 
-    # --- Hostname (display name) ---
-    hostname=$(sys_get_hostname)
-
-    # --- Timezone ---
-    timezone=$(sys_get_timezone)
-    zonename=$(sys_get_zonename)
+    # --- Hostname (display name): config first, else sys_get_hostname's fallbacks ---
+    hostname="$cfg_hostname"
+    [ -z "$hostname" ] && hostname=$(sys_get_hostname)
 
     # --- Effective (live) timezone — ground truth, not just config ---
+    # Always four non-empty fields: "<live_offset> <expected> <applied> <abbr>".
     eff_tz=$(sys_get_effective_tz)
-    eff_offset=$(printf '%s' "$eff_tz" | cut -d' ' -f1)
-    eff_applied=$(printf '%s' "$eff_tz" | cut -d' ' -f3)
-    eff_abbr=$(printf '%s' "$eff_tz" | cut -d' ' -f4)
-
-    # --- Scheduled reboot ---
-    sched_enabled=$(qm_config_get settings sched_reboot_enabled "0")
-    sched_time=$(qm_config_get settings sched_reboot_time "04:00")
-    sched_days_raw=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6")
-    sched_days_json=$(printf '%s' "$sched_days_raw" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)
-    [ -z "$sched_days_json" ] && sched_days_json="[0,1,2,3,4,5,6]"
-
-    # --- Low power ---
-    lp_enabled=$(qm_config_get settings low_power_enabled "0")
-    lp_start=$(qm_config_get settings low_power_start "23:00")
-    lp_end=$(qm_config_get settings low_power_end "06:00")
-    lp_days_raw=$(qm_config_get settings low_power_days "0,1,2,3,4,5,6")
-    lp_days_json=$(printf '%s' "$lp_days_raw" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)
-    [ -z "$lp_days_json" ] && lp_days_json="[0,1,2,3,4,5,6]"
+    set -- $eff_tz
+    eff_offset="${1:-}"
+    eff_applied="${3:-}"
+    eff_abbr="${4:-}"
+    tz_applied=false
+    [ "$eff_applied" = "1" ] && tz_applied=true
 
     jq -n \
         --argjson wan_guard "$wan_guard_enabled" \
@@ -76,7 +80,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --arg zonename "$zonename" \
         --arg effective_offset "$eff_offset" \
         --arg effective_zone_abbr "$eff_abbr" \
-        --argjson timezone_applied "$([ "$eff_applied" = "1" ] && echo true || echo false)" \
+        --argjson timezone_applied "$tz_applied" \
         --arg sms_tool_device "$sms_tool_device" \
         --argjson sched_enabled "$sched_enabled" \
         --arg sched_time "$sched_time" \

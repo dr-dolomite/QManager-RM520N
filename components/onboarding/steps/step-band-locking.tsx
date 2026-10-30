@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { authFetch } from "@/lib/auth-fetch";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import { STATUS_POLL_SLOW_MS, useModemStatus } from "@/hooks/use-modem-status";
 import { parseBandString } from "@/types/band-locking";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -254,7 +254,7 @@ export function StepBandLocking({
   onLoadingChange,
   onSuccess,
 }: StepBandLockingProps) {
-  const { data, isLoading } = useModemStatus();
+  const { data, isLoading } = useModemStatus({ pollInterval: STATUS_POLL_SLOW_MS });
 
   const [ltePreset, setLtePreset] = useState<BandPreset>("all");
   const [nr5gPreset, setNr5gPreset] = useState<BandPreset>("all");
