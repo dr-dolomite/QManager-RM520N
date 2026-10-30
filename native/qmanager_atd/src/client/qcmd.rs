@@ -9,9 +9,7 @@ use crate::at::output::{json_error, json_success, shell_capture, Code};
 use crate::common::lock::{self, LockFile};
 use crate::common::log::Logger;
 use crate::common::proto;
-use crate::common::safefs;
 use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::time::{Duration, Instant};
 
 pub(crate) fn run_qcmd(args: &[String]) -> i32 {
@@ -115,7 +113,7 @@ fn try_broker(cmd: &str, cap: Option<Duration>) -> Broker {
 /// keeps its deadline, as the broker does.
 fn run_in_process(cmd: &str, left: Option<Duration>) -> proto::Reply {
     let log = Logger::new("qcmd");
-    let lock = match open_or_create_lock() {
+    let lock = match LockFile::open_or_create_modem() {
         Ok(l) => l,
         Err(e) => {
             log.error(&format!("AT lock {} refused: {e}", lock::LOCK_FILE));
@@ -130,25 +128,6 @@ fn run_in_process(cmd: &str, left: Option<Duration>) -> proto::Reply {
     }
 }
 
-/// Shell parity: the shell qcmd created the lock (0666) when qmanager_setup
-/// had not run yet (boot, `--no-start` installs).
-fn open_or_create_lock() -> std::io::Result<LockFile> {
-    match LockFile::open(lock::LOCK_FILE) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            let made = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o666)
-                .custom_flags(safefs::NOFOLLOW)
-                .open(lock::LOCK_FILE);
-            if let Ok(f) = made {
-                let _ = f.set_permissions(std::fs::Permissions::from_mode(0o666));
-            }
-            LockFile::open(lock::LOCK_FILE)
-        }
-        r => r,
-    }
-}
 
 /// RM520N contract (D10): a modem ERROR or empty reply is rc 1 +
 /// `command_failed`, judged as the shell qcmd did; never stdout.

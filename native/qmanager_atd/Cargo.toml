@@ -1,6 +1,6 @@
 [package]
 name = "qmanager_atd"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 description = "QManager AT broker: owns /dev/smd11, serialises AT commands, and is the qcmd client"
 publish = false

@@ -24,7 +24,7 @@ pub(crate) mod watchdog;
 use crate::at::exec;
 use crate::at::new_channel;
 use crate::at::output::Code;
-use crate::common::lock::{self, LockFile};
+use crate::common::lock::LockFile;
 use crate::common::log::Logger;
 use crate::common::proto::{self, Reply};
 use crate::sms;
@@ -47,7 +47,7 @@ const READER_STACK: usize = 128 * 1024;
 
 pub(crate) fn run_daemon() -> i32 {
     let log = Arc::new(Logger::new("qmanager_atd"));
-    let lock = match LockFile::open(lock::LOCK_FILE) {
+    let lock = match LockFile::open_modem() {
         Ok(l) => l,
         Err(e) => {
             log.error(&format!("cannot open lock file: {e}"));
