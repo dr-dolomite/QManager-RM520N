@@ -524,7 +524,7 @@ Measured on RM520N-GL 61368cd2 through lighttpd (per call, minted session) and o
 
 | item | before | after |
 |---|---:|---:|
-| `system/settings.sh` GET (one `jq` for every key, `set --` for the tz fields; body byte-identical) | 276 ms, 57 forks | 83 ms, 15 forks |
+| `system/settings.sh` GET (one `jq` for every key, `set --` for the tz fields; same body except odd values the old `echo` mangled, e.g. a hostname of `-n`) | 276 ms, 57 forks | 83 ms, 15 forks |
 | `fetch_ping_history.sh`, full 1.16 MB archive vs `?last=400` (CGI + lighttpd own) | 536 ms | 74.5 ms |
 | `useModemStatus` default (17.5 ms per `fetch_data.sh`) | 2 s = 0.88 pts | 5 s = 0.35 pts; config-only pages 10 s = 0.18 pts |
 

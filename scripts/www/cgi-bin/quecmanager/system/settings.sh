@@ -35,7 +35,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # --- AT device (informational — qcmd hardcodes /dev/smd11) ---
     sms_tool_device="/dev/smd11"
 
-    # One jq read for every settings key; v() mirrors qm_config_get (null, false or "" -> default).
+    # One jq read for every settings key; null, false or "" -> default, as qm_config_get (values are not echo-mangled).
     SETTINGS_JQ='
         def v(k; d): (.settings[k] // "" | tostring) as $x | if $x == "" then d else $x end;
         def days(k): v(k; "0,1,2,3,4,5,6")
