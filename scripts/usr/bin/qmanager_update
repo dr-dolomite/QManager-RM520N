@@ -594,6 +594,41 @@ if [ "$MODE" = "install_staged" ]; then
     exit 0
 fi
 
+# Rollback target (<= v0.1.17) flocks only /tmp/qmanager_at.lock: ensure the new lock,
+# make a trusted legacy lock + bridge marker, then wait out holders that predate the marker.
+rollback_prep_at_lock() {
+    local d=/run/qmanager_at st tries=0
+    if [ -L "$d" ] || { [ -e "$d" ] && [ ! -d "$d" ]; }; then rm -rf "$d" 2>/dev/null || log "WARN: could not remove stray $d"; fi
+    [ -d "$d" ] || mkdir "$d" 2>/dev/null || log "WARN: could not create $d"
+    chown root:dialout "$d" 2>/dev/null || true
+    chmod 0750 "$d" 2>/dev/null || true
+    [ -e "$d/at.lock" ] || : > "$d/at.lock" 2>/dev/null || log "WARN: could not create $d/at.lock"
+    chown root:dialout "$d/at.lock" 2>/dev/null || true
+    chmod 0640 "$d/at.lock" 2>/dev/null || true
+    # Trusted legacy = regular file, owner root/www-data, one link; else replace it as v0.1.17 setup would.
+    st=$(stat -c '%u %h %F' /tmp/qmanager_at.lock 2>/dev/null) || st=""
+    case "$st" in
+        "0 1 regular"*|"33 1 regular"*) ;;
+        *)
+            [ -z "$st" ] || rm -f /tmp/qmanager_at.lock 2>/dev/null || log "WARN: could not remove untrusted legacy lock"
+            touch /tmp/qmanager_at.lock 2>/dev/null || log "WARN: could not create legacy lock"
+            chown www-data:www-data /tmp/qmanager_at.lock 2>/dev/null || true
+            chmod 666 /tmp/qmanager_at.lock 2>/dev/null || true
+            ;;
+    esac
+    : > "$d/bridge" 2>/dev/null || log "WARN: could not create $d/bridge"
+    chown root:root "$d/bridge" 2>/dev/null || true
+    chmod 0644 "$d/bridge" 2>/dev/null || true
+    # Drain: BusyBox flock has no -w, so poll (1 s, up to 200 s).
+    while [ "$tries" -lt 200 ]; do
+        flock -x -n "$d/at.lock" true 2>/dev/null && return 0
+        tries=$((tries + 1))
+        sleep 1
+    done
+    log "WARN: AT lock still held after 200 s; continuing rollback"
+    return 0
+}
+
 # =============================================================================
 # ROLLBACK mode
 # =============================================================================
@@ -647,6 +682,8 @@ if [ "$MODE" = "rollback" ]; then
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
     scrub_legacy_cron
+
+    rollback_prep_at_lock
 
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then

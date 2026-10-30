@@ -488,7 +488,7 @@ t_perm_tmp_writable() {
     fi
 }
 
-# AT helpers — share serialisation with qcmd via /tmp/qmanager_at.lock.
+# AT helpers — share serialisation with qcmd via /run/qmanager_at/at.lock.
 _qcmd() {
     qcmd "$@" 2>&1
 }
@@ -566,7 +566,7 @@ t_at_cfun() {
 }
 t_at_lock_serial() {
     # Two qcmd calls launched concurrently — qcmd's flock on
-    # /tmp/qmanager_at.lock must serialize them. Under heavy poller load,
+    # /run/qmanager_at/at.lock must serialize them. Under heavy poller load,
     # one or both may legitimately get "modem_busy" because qcmd's 5s
     # flock timeout expired. That's still proof of correct serialization,
     # not a failure. Pass = at least one OK and no unexpected output.
@@ -599,7 +599,7 @@ t_sms_list() {
     fi
 }
 t_sms_flock() {
-    if flock -x -n /tmp/qmanager_at.lock true 2>>"$OUTPUT_FILE"; then
+    if flock -x -n /run/qmanager_at/at.lock true 2>>"$OUTPUT_FILE"; then
         echo "pass|lock acquired and released"
     else
         echo "warn|lock currently held (may be in use)"
