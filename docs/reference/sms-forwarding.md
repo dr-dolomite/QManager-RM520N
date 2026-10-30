@@ -114,7 +114,7 @@ Before forwarding, `sf_is_relay()` checks whether the content matches our own re
 
 ### 3-Attempt Abandon, Feature Stays Enabled
 
-A failing send re-checks modem registration before **each** of three attempts (`AT+CREG?` / `AT+CGREG?` via `qcmd`, considered registered on stat `1` home or `5` roaming), waits 5 s between tries, and on exhaustion:
+A failing send re-checks modem registration before **each** of three attempts (`AT+CREG?` / `AT+CGREG?` via `qcmd`, considered registered on stat `1` home or `5` roaming), waits 5 s between tries, and stops early once a failure reports `sent_parts > 0` (a retry would resend part 1 onward; see [`sms.md`](sms.md#error-and-detail-mapping)). On exhaustion:
 
 1. Marks the message seen (no infinite retry).
 2. Appends a record to `/tmp/qmanager_sms_forward_failures.json` (capped at 20; oldest dropped on overflow).

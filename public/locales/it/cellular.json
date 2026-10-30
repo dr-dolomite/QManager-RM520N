@@ -2254,17 +2254,18 @@
         "char_counter": "{{count}}/{{max}}"
       },
       "unicode_indicator": "(Unicode)",
-      "limit_warning": "Il messaggio supera il limite singolo SMS. Verrà inviato in più parti.",
+      "limit_warning": "Più lungo di un SMS, verrà inviato in {{parts}} parti.",
       "buttons": {
         "send": "Invia",
         "sending": "Invio…"
       },
       "toast": {
         "success": "SMS inviato con successo",
-        "error": "Impossibile inviare SMS"
+        "error": "Impossibile inviare SMS",
+        "partial": "Inviate solo {{sent}} parti su {{parts}}; un nuovo invio le ripete."
       },
-      "sending_note": "In attesa del lock AT, poi invio",
-      "encoding_hint": "Un carattere non ASCII fa passare il messaggio a UCS-2 e limita una singola parte a 70 caratteri.",
+      "sending_note": "Invio del messaggio",
+      "encoding_hint": "Un carattere fuori dall'alfabeto GSM fa passare il messaggio a UCS-2 e limita una singola parte a 70 caratteri.",
       "encoding": {
         "gsm7": "GSM 7 bit",
         "ucs2": "UCS-2"

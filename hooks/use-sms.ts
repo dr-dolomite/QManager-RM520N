@@ -7,6 +7,7 @@ import type {
   SmsStorage,
   SmsInboxResponse,
   SmsActionResponse,
+  SmsSendResult,
 } from "@/types/sms";
 
 // =============================================================================
@@ -61,7 +62,7 @@ export interface UseSmsReturn {
   /** Error message if any operation failed */
   error: string | null;
   /** Send an SMS message. Returns true on success. */
-  sendSms: (phone: string, message: string) => Promise<boolean>;
+  sendSms: (phone: string, message: string) => Promise<SmsSendResult>;
   /** Delete a message by its storage indexes. Returns true on success.
    *  `storage` selects which modem memory (ME / SM) the indexes live in;
    *  the backend deletes one storage per call. */
@@ -178,7 +179,8 @@ export function useSms(): UseSmsReturn {
   // Send SMS
   // ---------------------------------------------------------------------------
   const sendSms = useCallback(
-    async (phone: string, message: string): Promise<boolean> => {
+    async (phone: string, message: string): Promise<SmsSendResult> => {
+      const failed: SmsSendResult = { success: false, parts: 0, sentParts: 0 };
       setError(null);
       setIsSaving(true);
 
@@ -194,22 +196,26 @@ export function useSms(): UseSmsReturn {
         }
 
         const json: SmsActionResponse = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return failed;
 
         if (!json.success) {
           setError(json.detail || json.error || "Failed to send SMS");
-          return false;
+          return {
+            success: false,
+            parts: json.parts ?? 0,
+            sentParts: json.sent_parts ?? 0,
+          };
         }
 
         // Delayed silent re-fetch — modem needs a moment to process the sent message
         setTimeout(() => {
           if (mountedRef.current) fetchInbox(true);
         }, 1000);
-        return true;
+        return { success: true, parts: 0, sentParts: 0 };
       } catch (err) {
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return failed;
         setError(err instanceof Error ? err.message : "Failed to send SMS");
-        return false;
+        return failed;
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);

@@ -290,15 +290,22 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         exit 0
     fi
 
-    # Merge multi-part messages per sender + reference + storage; singles carry no "reference".
+    # Merge multi-part messages per storage + sender + reference + total; singles carry no "reference".
+    # A reused reference starts a new message when parts are >24 h apart or a part repeats with other text.
     # Sort key reorders "MM/DD/YY HH:MM:SS" into YYMMDD so month/year boundaries order correctly.
     messages=$(printf '%s' "$list_json" | jq '
+        def ep: try (strptime("%m/%d/%y %H:%M:%S") | mktime) catch 0;
+        def clusters: reduce .[] as $m ([];
+            if length > 0 and ($m.ep - .[-1][-1].ep) <= 86400
+               and ([.[-1][] | select(.part == $m.part and .content != $m.content)] | length) == 0
+            then .[-1] += [$m] else . + [[$m]] end);
         .msg as $all |
         [$all[] | select(has("reference") | not) |
             {indexes: [.index], sender, content, timestamp, storage}
         ] as $singles |
-        ([$all[] | select(has("reference"))] |
-            group_by(.sender + "|" + (.reference | tostring) + "|" + .storage) |
+        ([$all[] | select(has("reference")) | . + {ep: (.timestamp | ep)}] |
+            group_by(.storage + "|" + .sender + "|" + (.reference | tostring) + "|" + (.total | tostring)) |
+            map(sort_by(.ep) | clusters[]) |
             [.[] | sort_by(.part) | {
                 indexes: [.[].index],
                 sender: .[0].sender,
@@ -374,7 +381,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         else
             detail=$(qsms_detail "$result")
             qlog_error "SMS send failed to $PHONE: $detail"
-            jq -n --arg detail "$detail" '{"success":false,"error":"send_failed","detail":$detail}'
+            # parts / sent_parts let the UI warn that a resend repeats the parts already delivered.
+            parts=$(printf '%s' "$result" | jq -r '.parts // 0' 2>/dev/null)
+            sent_parts=$(printf '%s' "$result" | jq -r '.sent_parts // 0' 2>/dev/null)
+            case "$parts" in ''|*[!0-9]*) parts=0 ;; esac
+            case "$sent_parts" in ''|*[!0-9]*) sent_parts=0 ;; esac
+            jq -n --arg detail "$detail" --argjson parts "$parts" --argjson sent "$sent_parts" \
+                '{"success":false,"error":"send_failed","detail":$detail,"parts":$parts,"sent_parts":$sent}'
         fi
         exit 0
     fi

@@ -102,7 +102,7 @@ Each `msg` entry:
 | Text needs too many parts | `message_too_long` | none |
 | Bad arguments | `bad_args` | parser text, e.g. `bad index 'x'` |
 
-On a multi-part send, the first failed part stops the send and `detail` is prefixed `Part 2 of 3: `. Measured on the RM520N-GL with no SIM credit: `The network rejected the message (cause 21).`
+On a multi-part send, the first failed part stops the send and `detail` is prefixed `Part 2 of 3: `. **A retry resends every part from part 1**, so `sms_alerts.sh` and `qmanager_sms_forward` stop retrying once the envelope reports `sent_parts > 0`, and the inbox CGI passes `parts` / `sent_parts` so the compose dialog can say a resend repeats them. Resuming only the missing parts would need `qsms` to accept a fixed reference and start part. Measured on the RM520N-GL with no SIM credit: `The network rejected the message (cause 21).`
 
 **Shell callers extract `.detail`; they never store or return the envelope.** Each caller has a fixed sentence for empty or non-JSON output (`qsms` missing or crashed):
 
@@ -165,7 +165,7 @@ Keep the heal until a WMS route write replaces it: 0x0033 is not independent of 
 
 ### Dual-storage merge
 
-`qsms list all` tags every message with `storage`. Multi-part reassembly groups by `sender + reference + storage`, so ME index 0 and SM index 0 never collapse into one message. Singles carry no `reference` key, so they pass through via `select(has("reference") | not)`. Parts are ordered by `part`, and a part stored twice contributes its text once (`unique_by(.part)`) while `indexes` keeps every slot, so one `delete` still removes both copies.
+`qsms list all` tags every message with `storage`. Multi-part reassembly groups by `storage + sender + reference + total`, so ME index 0 and SM index 0 never collapse into one message. A reference is one byte per send and gets reused, so inside a group the parts are sorted by time and a new message starts when a part is more than 24 h after the previous one or its part number is already present with different text (the forwarder uses the same 24 h window). On both live devices this left every real inbox byte-identical (2026-10-31), so read marks survived. Singles carry no `reference` key, so they pass through via `select(has("reference") | not)`. Parts are ordered by `part`, and a part stored twice contributes its text once (`unique_by(.part)`) while `indexes` keeps every slot, so one `delete` still removes both copies.
 
 `storage.used` / `storage.total` in the response are the **sum** of ME and SM, and the response *also* carries a per-memory breakdown under `storage.me` / `storage.sm` — see [Per-memory storage breakdown](#per-memory-storage-breakdown) for why the sum alone was not enough. If `qsms status all` fails, both storages read `0/0`.
 
@@ -290,7 +290,7 @@ A failed list returns `{ "success": false, "error": "sms_unavailable", "detail":
 
 | Action | Required fields | Notes |
 |---|---|---|
-| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<plain sentence>"}` (HTTP 200), for `bad_number` and `message_too_long` too |
+| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<plain sentence>", parts, sent_parts}` (HTTP 200), for `bad_number` and `message_too_long` too (counts are 0 there) |
 | `delete` | `indexes` (array), `storage` (`"ME"`\|`"SM"`, default `"ME"`) | One `qsms delete` for all valid slots; `partial_failure` (`"N message(s) failed to delete"`) when `.deleted` is shorter than `indexes` |
 | `delete_all` | — | Clears ME then SM; on failure `delete_all_failed` with a `detail` such as `ME: ok \| SM: 3 left` |
 
@@ -401,6 +401,7 @@ Every number the loading state draws now comes from `shapes.ts`, which the loade
 - The inbox stays a real `<table>` with hairline `--outline` rules (DESIGN.md names it as one of the genuine data tables), sized by container queries against the card's `@container/card`, not viewport breakpoints.
 - The card description reports usage honestly: split ME/SM figures when the breakdown is present, a bare "N slots used" when it is not, and "unknown" while a read is failing.
 - **The page root no longer carries `aria-live="polite"`.** A live region has to be the smallest thing that actually changed; on the root it made every filter change, every pagination click and every re-render a full-surface announcement. The two things that genuinely need announcing already do so locally — the delete-progress list carries `aria-live="polite"` and the read-failure banner carries `role="alert"`.
+- **The compose counter mirrors the encoder.** `lib/sms-segments.ts` copies `encode_submit` in `pdu.rs`: GSM-7 when every character is in the GSM default or extension table (extension characters such as `€ { } [ ] ~ ^  |` count two septets; `é`, `ñ` stay GSM-7), otherwise UCS-2 counted in UTF-16 units; 160/153 and 70/67 per part, a character never split. The counter reads units over the capacity of the current parts, and the hint names the part count. Change both files together.
 - **The compose character counter no longer signals the near-limit step with colour alone.** Approaching and exceeding the limit now carry distinct glyphs (`warning` / `error`) alongside the tint, so the escalation exists for a colour-blind reader; two states in one slot never share a mark.
 - `sms-center.tsx` uses the shared `CellularPageHeader` rather than the byte-identical copy of its internals it used to hand-roll — including the `min-w-0` that stops a long Italian title pushing the actions off the row.
 - Type steps moved onto the ramp: the off-ramp `text-base`/600 in the health block and the `13px`-outside-a-metric-row prose are both gone (13px is the dense metric-row step and DESIGN.md restates that scope as a hard Don't).

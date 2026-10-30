@@ -179,6 +179,11 @@ _sa_do_send() {
         fi
         err=$(_sa_send_error "$out")
         qlog_warn "SMS alerts: qsms send failed on attempt $attempt/$_SA_MAX_ATTEMPTS (rc=$rc): $err"
+        # A retry resends every part, so once any part went out, stop rather than duplicate it.
+        case "$(printf '%s' "$out" | jq -r '.sent_parts // 0' 2>/dev/null)" in
+            ''|0|*[!0-9]*) ;;
+            *) qlog_warn "SMS alerts: some parts already sent, not retrying"; break ;;
+        esac
     done
 
     if [ "$attempted_real" -eq 0 ]; then

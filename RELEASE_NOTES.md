@@ -7,7 +7,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 ## ✨ New Features
 
 - **Live "Now" view for Sites.** The **Sites** card on **Monitoring → Latency Monitor** now opens on **Now**, which re-checks every site about every 2 seconds while the page is open and visible; switching to 1 h / 24 h / 7 d, leaving the page or hiding the tab stops it within about 10 seconds, and history keeps its normal 5-minute checks. (Live checks are a light HTTP request, about 25 MB per hour while open, and are never written to history; the first live value lands about 6 seconds after opening.)
-- **Change the modem's LAN address.** **Local Network → Ethernet** has a new **LAN Address** card where you set the gateway IP and subnet; applying it reboots the modem, and the page opens the new address on its own once the modem is back. (Edits `mobileap_cfg.xml`; the DHCP range moves into the new subnet.)
+- **Change the modem's LAN address.** **Local Network → Ethernet** has a new **LAN Address** card where you set the gateway IP and subnet; applying it reboots the modem, and the page opens the new address on its own once the modem is back, on both the RM520N-GL and the RG501Q-EU. (Edits `mobileap_cfg.xml` without needing `xmllint`, which the RG501Q-EU lacks; the DHCP range moves into the new subnet.)
 
 ## 🛠️ Improvements
 
@@ -27,6 +27,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **Safer updates.** **Software Update** now refuses to install anything that doesn't match the release's published checksum, including rollbacks, and only downloads from QManager's own GitHub releases. (Closes a URL trick that could point an update at another repository, and a local file swap in `/tmp`.)
 - **Pinned downloads.** The Entware bootstrap, the speed-test tool and Tailscale are now checked against fixed SHA-256 hashes before they're installed, and the public-IP lookup on the **About** page now checks the server's certificate.
 - **Data Used counts bytes correctly.** Once more than about 10 MB had moved, **Data Used** counted packets instead of bytes and read far too low; it now counts bytes. Your Data Used total starts again from zero once after this update.
+- **Long SMS no longer arrive twice or merge with an older text.** When a multi-part alert or forwarded SMS fails partway, QManager no longer resends the parts that already went out, and **Cellular → SMS Center** keeps two different long messages apart even when the network reused their part number; the compose box now counts parts the way the modem sends them (accented letters like é no longer halve the limit). (A failed send in the compose box says how many parts were already delivered.)
 - **Dota 2 shows its logo in Sites.** Adding `dota2.com` used to show only a letter because the site's own icon is too small to use; it now has a built-in logo.
 - **Tighter system permissions for the web app.** The web interface could ask for more system access than its features need; it is now limited to exactly those actions, and nothing changes in how you use it. (Service, firewall and Custom DNS changes go through small root helpers that check every request; the reboot-cause log moved to `/usrdata/qmanager/` and is migrated automatically.)
 
