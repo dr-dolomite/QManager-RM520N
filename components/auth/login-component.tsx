@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Spinner } from "@/components/ui/spinner";
 import { TonalBanner } from "@/components/ui/tonal-banner";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type { TFunction } from "i18next";
 
 import { DUR, EASE_STANDARD, STAGGER_STEP, staggerItem } from "@/lib/motion";
@@ -52,10 +53,8 @@ import { cn } from "@/lib/utils";
 //      forbids the reflow, and the countdown digits ride in tabular-nums so the
 //      sentence does not twitch once a second either.
 //
-//   4. EVERY STRING IS KEYED. `common:login.*` has been fully translated in all
-//      five locales for some time; this component simply never called `t()`. A
-//      device in the field was rendering English regardless of the user's
-//      language pick.
+//   4. EVERY STRING IS KEYED, and failures branch on the backend error code, not its
+//      English `detail`. Keys with a changed placeholder shape got new names so old packs cannot render a literal tag.
 // =============================================================================
 
 /**
@@ -124,7 +123,21 @@ export default function LoginComponent() {
   const [error, setError] = useState<InlineError>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [retryAfter, setRetryAfter] = useState(0);
+  const [seededFrom, setSeededFrom] = useState(lockout);
+  // First mount per session animates; read once so re-renders skip sessionStorage.
+  const [animateMount] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const seen = window.sessionStorage.getItem("qm_login_mounted");
+      if (!seen) window.sessionStorage.setItem("qm_login_mounted", "1");
+      return !seen;
+    } catch {
+      return true;
+    }
+  });
 
+  // The card only renders once `status` resolves on the client, so reading
+  // the query string here cannot diverge from the static prerender.
   const wasOffline =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("reason") === "offline";
@@ -140,12 +153,14 @@ export default function LoginComponent() {
   // limiter, not in this component — so a page refresh mid-lockout used to
   // present an enabled button that could only fail, which reads as the device
   // being broken rather than as it protecting itself. `check.sh` reports the
-  // remaining time on mount and `useLogin` surfaces it here.
-  useEffect(() => {
-    if (lockout?.active && lockout.retryAfter > 0) {
-      setRetryAfter((prev) => Math.max(prev, lockout.retryAfter));
+  // Seed the countdown from the server so a refresh mid-lockout shows the locked state at once.
+  // Adjusted during render, not in an effect, so it paints in the same frame as the card.
+  if (lockout !== seededFrom) {
+    setSeededFrom(lockout);
+    if (lockout.active && lockout.retryAfter > 0) {
+      setRetryAfter(Math.max(retryAfter, lockout.retryAfter));
     }
-  }, [lockout?.active, lockout?.retryAfter]);
+  }
 
   useEffect(() => {
     if (retryAfter <= 0) return;
@@ -181,7 +196,12 @@ export default function LoginComponent() {
         } else {
           setError({
             kind: "generic",
-            message: result.detail || t("login.invalid_password"),
+            message: resolveErrorMessage(
+              t,
+              result.error,
+              result.detail,
+              t("login.invalid_password"),
+            ),
           });
         }
       } finally {
@@ -196,8 +216,13 @@ export default function LoginComponent() {
   // a full card outline would flash and be gone before it could be read.
   if (status === "loading" || status === "setup_required") {
     return (
-      <div className="flex flex-col items-center gap-4 py-12">
+      <div
+        role="status"
+        aria-live="polite"
+        className="text-on-surface-variant flex flex-col items-center gap-3 py-12 text-sm"
+      >
         <Spinner className="size-6" />
+        <span>{t("state.loading")}</span>
       </div>
     );
   }
@@ -231,7 +256,7 @@ export default function LoginComponent() {
   return (
     <motion.div
       variants={cardVariants}
-      initial="hidden"
+      initial={animateMount ? "hidden" : false}
       animate="visible"
       className={cn(
         // The width cap moved to the @container/login element in app/login/page.tsx
@@ -250,16 +275,6 @@ export default function LoginComponent() {
       {/* Notices are direct children WITHOUT a stagger variant: they own
           `.animate-banner-in` (recipe 04), and a second transform on a wrapper
           would compound into a rise the guide does not describe. */}
-      {wasOffline && !isLocked ? (
-        <TonalBanner
-          tone="warning"
-          icon="wifi_off"
-          title={t("login.session_expired_title")}
-        >
-          {t("login.session_expired")}
-        </TonalBanner>
-      ) : null}
-
       {isLocked ? (
         <TonalBanner
           tone="warning"
@@ -277,13 +292,8 @@ export default function LoginComponent() {
         variants={staggerItem}
         className="flex flex-col items-center gap-2.5 text-center"
       >
-        {/* The mark ships BARE — no disc, no plate. It sat in a 76px
-            primary-container disc, which was defended as "the one place where
-            pure brand expression costs nothing operationally"; measured, it
-            cost 1.54:1 between the mark's tail and that fill in dark mode, so
-            the brand's own logo was the least legible element on the screen.
-            The "/" splash carries the identical disc and loses it in this same
-            commit — DESIGN.md requires the pre-auth pair to move together.
+        {/* The mark ships BARE — no disc, no plate: on a primary-container
+            disc it measured 1.54:1 against the mark's tail in dark mode.
             `alt=""` because the h1 beneath names the device, and the product
             name is not what this screen is for. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -334,6 +344,8 @@ export default function LoginComponent() {
               id="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
+              // The only input on the page; focus on arrival saves a click.
+              autoFocus
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -461,28 +473,38 @@ export default function LoginComponent() {
               <span className="inline-flex items-center gap-[9px]">
                 <MaterialSymbol name="lock" size={19} className="flex-none" />
                 {/* The formatted value, matching the banner above it. Both the
-                    template (`Locked ({{seconds}})`) and now the sub-minute
-                    UNIT inside it (`login.lockout_seconds`) resolve through
-                    t(), so the pair agrees in every locale on both sides of
-                    60s. */}
-                {withSlot(
-                  t("login.locked", { seconds: SLOT }),
-                  tabularCount(lockoutLabel),
-                )}
+                    template (`login.locked_countdown`) and the sub-minute UNIT
+                    inside it (`login.lockout_seconds`) resolve through t(), so
+                    the pair agrees in every locale on both sides of 60s. */}
+                {/* One span, so the flex gap separates the glyph from the
+                    sentence and not the sentence's own text nodes from the
+                    slotted value. */}
+                <span>
+                  {withSlot(
+                    t("login.locked_countdown", { seconds: SLOT }),
+                    tabularCount(lockoutLabel),
+                  )}
+                </span>
               </span>
             </SubmitLabel>
           </Button>
         </motion.div>
       </form>
 
-      {/* ZONE 4 -- the fourth stagger child. It replaces a brand footer that
-          restated the product name three inches under the mark, glued with a
-          middot the No-Dot-Separator Rule forbids, and answered nothing a
-          visitor could actually be stuck on. `login.recovery.*` had been fully
-          translated in all five locales with NO call site: the answer to the
-          one question this screen can strand someone with was already written,
-          and simply never rendered. `login.brand_label` KEEPS its key -- an
-          installed language pack must not break -- it only loses its caller. */}
+      {/* The session-ended notice sits under the submit button, so the form
+          stays the first thing the eye lands on. */}
+      {wasOffline && !isLocked ? (
+        <TonalBanner
+          tone="warning"
+          icon="wifi_off"
+          title={t("login.session_expired_title")}
+        >
+          {t("login.session_expired")}
+        </TonalBanner>
+      ) : null}
+
+      {/* ZONE 4 -- the fourth stagger child: the answer to the one question
+          this screen can strand someone with. */}
       <motion.div variants={staggerItem}>
         <RecoveryDisclosure />
       </motion.div>
@@ -568,7 +590,7 @@ function RecoveryDisclosure() {
                   `surface-container`: the Field-Step Rule, applied to a chip. */}
               <span>
                 {withSlot(
-                  t("login.recovery.option_reset", { command: SLOT }),
+                  t("login.recovery.option_reset_command", { command: SLOT }),
                   <code className="bg-surface-container-high rounded-inline px-1.5 py-0.5 font-mono text-[12px]">
                     qmanager_reset_password
                   </code>,
@@ -576,11 +598,6 @@ function RecoveryDisclosure() {
               </span>
             </p>
             <p className="flex items-start gap-2">
-              {/* Adding this glyph meant regenerating the woff2 subset --
-                  material-symbol-names.ts is the single source of truth for it,
-                  and `bun run icons:subset && bun run icons:check` is the
-                  two-command workflow that keeps the font, the union and the
-                  manifest from drifting apart. 112 -> 113 glyphs. */}
               <MaterialSymbol
                 name="settings_backup_restore"
                 size={18}

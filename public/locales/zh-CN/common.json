@@ -190,7 +190,8 @@
       "toggle": "无法登录?",
       "intro": "如果您忘记了管理员密码,有两种恢复方式:",
       "option_reset": "通过 SSH 连接到设备并运行 {{command}} 以设置新的管理员密码。(需要先启用 SSH 访问。)",
-      "option_backup": "如果您保存了 .qmbackup 文件,请重新刷写设备固件,然后从该文件中恢复。"
+      "option_backup": "如果您保存了 .qmbackup 文件,请重新刷写设备固件,然后从该文件中恢复。",
+      "option_reset_command": "通过 SSH 连接到设备并运行 {{command}} 以设置新的管理员密码。(需要先启用 SSH 访问。)"
     },
     "session_expired_title": "会话已结束",
     "locked_title": "尝试次数过多",
@@ -199,7 +200,8 @@
     "attempts_left_one": "密码错误。还剩 {{count}} 次尝试。",
     "attempts_left_other": "密码错误。还剩 {{count}} 次尝试。",
     "password_to_manage": "输入密码以管理 {{hostname}}。",
-    "password_to_manage_bare": "请输入密码。"
+    "password_to_manage_bare": "请输入密码。",
+    "locked_countdown": "已锁定 ({{seconds}})"
   },
   "overview": {
     "title": "调制解调器概览",
@@ -1601,5 +1603,65 @@
       "title": "支持本项目",
       "body": "QManager 是一个业余维护、完全免费的项目。如果它对你的设备有帮助，一点小小的支持就能让它继续走下去——无论如何都不会有付费墙。"
     }
+  },
+  "not_found": {
+    "scene_label": "星空下噼啪作响的篝火",
+    "title": "冒险者，你好像迷路了",
+    "description": "要回去继续优化你的连接吗？",
+    "home": "返回仪表盘",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "请选择图片文件。",
+    "photo_updated": "头像已更新。",
+    "change_photo_aria": "更换头像",
+    "name_placeholder": "你的名称",
+    "name_saved": "显示名称已更新。",
+    "name_save_failed": "更新显示名称失败。",
+    "reconnect_description": "这将使调制解调器断开几秒钟，然后自动重新连接。",
+    "disconnecting_description": "正在将调制解调器从网络断开…",
+    "reconnecting_description": "正在将调制解调器重新连接到网络…",
+    "reconnect_action": "重新连接",
+    "reconnect_complete": "调制解调器已重新连接。",
+    "reconnect_failed": "重新连接调制解调器失败。",
+    "reboot_description": "设备将重启，在其重新上线之前所有网络连接都会中断。",
+    "reboot_sent": "重启命令已发送，你即将退出登录…",
+    "reboot_now": "立即重启"
+  },
+  "pending_reboot": {
+    "title": "重启以完成更改",
+    "reboot_now": "立即重启",
+    "rebooting": "正在重启…",
+    "dismiss": "忽略",
+    "reboot_failed_toast": "无法启动重启，请重试。",
+    "description": {
+      "config_restore": "恢复的 IMEI 更改或 SIM 配置将在下次重启后生效。",
+      "imei": "新的 IMEI 将在下次重启后生效。",
+      "mbn": "新的运营商配置文件将在调制解调器重启后生效。",
+      "default": "部分更改将在下次重启后生效。"
+    },
+    "dismiss_dialog": {
+      "title": "忽略重启提醒？",
+      "description": "需要重启的更改在调制解调器重启前不会生效。仅在已重启后才忽略。",
+      "keep": "保留提醒",
+      "confirm": "忽略"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "正在关机…",
+      "restarting": "正在重启服务…",
+      "almost_ready": "即将就绪…",
+      "overtime": "耗时比平时更长…"
+    },
+    "subtitle": {
+      "normal": "设备很快就会恢复在线",
+      "overtime": "设备仍在重启"
+    },
+    "timer_aria_one": "剩余 {{count}} 秒",
+    "timer_aria_other": "剩余 {{count}} 秒",
+    "timer_overtime_aria": "正在重新连接，耗时比平时更长",
+    "seconds_unit": "秒",
+    "escape": "设备可能需要人工处理。前往登录"
   }
 }

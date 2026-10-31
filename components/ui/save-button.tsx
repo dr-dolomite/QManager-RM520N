@@ -92,6 +92,8 @@ export interface SaveButtonProps extends Omit<ButtonProps, "children"> {
   isSaving: boolean;
   saved: boolean;
   label?: string;
+  /** Overrides the in-flight label (default: the shared "Saving…"). Already translated. */
+  savingLabel?: string;
   /**
    * `null` when the save is takeable. A STRING IS THE STATED REASON IT IS NOT,
    * and its presence is what blocks the control — the two can never disagree.
@@ -118,6 +120,7 @@ export function SaveButton({
   isSaving,
   saved,
   label,
+  savingLabel,
   blockedReason = null,
   className,
   onClick,
@@ -184,7 +187,7 @@ export function SaveButton({
         transition={layerTransition}
       >
         <Loader2Icon className="size-3.5 motion-safe:animate-spin" />
-        {t("actions.saving")}
+        {savingLabel ?? t("actions.saving")}
       </motion.span>
 
       <motion.span

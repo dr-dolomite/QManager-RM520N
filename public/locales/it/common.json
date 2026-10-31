@@ -190,7 +190,8 @@
       "toggle": "Non riesci ad accedere?",
       "intro": "Se hai perso la password di amministratore, hai due opzioni di ripristino:",
       "option_reset": "Apri una sessione SSH sul dispositivo ed esegui {{command}} per impostare una nuova password di amministratore. (Richiede l'accesso SSH già abilitato.)",
-      "option_backup": "Se hai salvato un file .qmbackup, riprogramma il firmware del dispositivo e ripristina da quel file."
+      "option_backup": "Se hai salvato un file .qmbackup, riprogramma il firmware del dispositivo e ripristina da quel file.",
+      "option_reset_command": "Apri una sessione SSH sul dispositivo ed esegui {{command}} per impostare una nuova password di amministratore. (Richiede l'accesso SSH già abilitato.)"
     },
     "session_expired_title": "Sessione terminata",
     "locked_title": "Troppi tentativi",
@@ -199,7 +200,8 @@
     "attempts_left_one": "Password errata. {{count}} tentativo rimasto.",
     "attempts_left_other": "Password errata. {{count}} tentativi rimasti.",
     "password_to_manage": "Inserisci la password per gestire {{hostname}}.",
-    "password_to_manage_bare": "Inserisci la password."
+    "password_to_manage_bare": "Inserisci la password.",
+    "locked_countdown": "Bloccato ({{seconds}})"
   },
   "overview": {
     "title": "Panoramica modem",
@@ -1601,5 +1603,65 @@
       "title": "Sostieni il progetto",
       "body": "QManager è un progetto personale, mantenuto gratuitamente. Se ti è stato utile, un contributo lo tiene in vita — e in ogni caso non arriverà alcun paywall."
     }
+  },
+  "not_found": {
+    "scene_label": "Un falò che scoppietta sotto un cielo stellato",
+    "title": "Sembra che tu ti sia perso, avventuriero",
+    "description": "Vuoi tornare a migliorare le tue connessioni?",
+    "home": "Torna alla Dashboard",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "Seleziona un file immagine.",
+    "photo_updated": "Foto profilo aggiornata.",
+    "change_photo_aria": "Cambia foto profilo",
+    "name_placeholder": "Il tuo nome",
+    "name_saved": "Nome visualizzato aggiornato.",
+    "name_save_failed": "Impossibile aggiornare il nome visualizzato.",
+    "reconnect_description": "Il modem verrà disconnesso per alcuni secondi, poi si riconnetterà automaticamente.",
+    "disconnecting_description": "Disconnessione del modem dalla rete…",
+    "reconnecting_description": "Riconnessione del modem alla rete…",
+    "reconnect_action": "Riconnetti",
+    "reconnect_complete": "Modem riconnesso.",
+    "reconnect_failed": "Impossibile riconnettere il modem.",
+    "reboot_description": "Il dispositivo si riavvierà e tutte le connessioni di rete cadranno finché non torna online.",
+    "reboot_sent": "Comando di riavvio inviato. Verrai disconnesso a breve…",
+    "reboot_now": "Riavvia ora"
+  },
+  "pending_reboot": {
+    "title": "Riavvia per completare le modifiche",
+    "reboot_now": "Riavvia ora",
+    "rebooting": "Riavvio…",
+    "dismiss": "Ignora",
+    "reboot_failed_toast": "Impossibile avviare il riavvio. Riprova.",
+    "description": {
+      "config_restore": "Una modifica IMEI o un profilo SIM del ripristino avrà effetto dopo il prossimo riavvio.",
+      "imei": "Il nuovo IMEI avrà effetto dopo il prossimo riavvio.",
+      "mbn": "Il nuovo profilo dell'operatore entra in vigore dopo il riavvio del modem.",
+      "default": "Alcune modifiche avranno effetto dopo il prossimo riavvio."
+    },
+    "dismiss_dialog": {
+      "title": "Ignorare il promemoria di riavvio?",
+      "description": "Le modifiche che richiedono un riavvio restano inattive finché il modem non si riavvia. Ignora solo se hai già riavviato.",
+      "keep": "Mantieni promemoria",
+      "confirm": "Ignora"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "Spegnimento…",
+      "restarting": "Riavvio dei servizi…",
+      "almost_ready": "Quasi pronto…",
+      "overtime": "Ci vuole più del solito…"
+    },
+    "subtitle": {
+      "normal": "Il dispositivo tornerà online a breve",
+      "overtime": "Il dispositivo si sta ancora riavviando"
+    },
+    "timer_aria_one": "{{count}} secondo rimanente",
+    "timer_aria_other": "{{count}} secondi rimanenti",
+    "timer_overtime_aria": "Riconnessione in corso, ci vuole più del solito",
+    "seconds_unit": "sec",
+    "escape": "Il dispositivo potrebbe richiedere un intervento manuale. Vai all'accesso"
   }
 }

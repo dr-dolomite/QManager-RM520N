@@ -130,27 +130,27 @@ colors:
   on-success-container-light: "oklch(0.360 0.100 149)"
   on-success-container-dark: "oklch(0.900 0.110 149)"
 
-  # --- Signal quality ramp: a LIGHTNESS staircase, not a hue wheel ---
-  quality-1-light: "oklch(0.385 0.154 27)"
-  quality-1-dark: "oklch(0.640 0.200 27)"
-  quality-2-light: "oklch(0.415 0.116 45)"
-  quality-2-dark: "oklch(0.665 0.187 45)"
-  quality-3-light: "oklch(0.445 0.093 72)"
-  quality-3-dark: "oklch(0.710 0.149 72)"
-  quality-4-light: "oklch(0.475 0.106 115)"
-  quality-4-dark: "oklch(0.755 0.168 115)"
+  # --- Signal quality ramp: three plain hues (red / yellow / green) over five stops ---
+  quality-1-light: "oklch(0.500 0.190 27)"
+  quality-1-dark: "oklch(0.680 0.200 27)"
+  quality-2-light: "oklch(0.500 0.190 27)"
+  quality-2-dark: "oklch(0.680 0.200 27)"
+  quality-3-light: "oklch(0.580 0.125 80)"
+  quality-3-dark: "oklch(0.860 0.160 90)"
+  quality-4-light: "oklch(0.505 0.140 149)"
+  quality-4-dark: "oklch(0.800 0.200 149)"
   quality-5-light: "oklch(0.505 0.140 149)"
   quality-5-dark: "oklch(0.800 0.200 149)"
-  quality-1-bar-light: "oklch(0.480 0.192 27)"
-  quality-1-bar-dark: "oklch(0.600 0.220 27)"
-  quality-2-bar-light: "oklch(0.510 0.143 45)"
-  quality-2-bar-dark: "oklch(0.645 0.181 45)"
-  quality-3-bar-light: "oklch(0.540 0.113 72)"
-  quality-3-bar-dark: "oklch(0.690 0.145 72)"
-  quality-4-bar-light: "oklch(0.570 0.127 115)"
-  quality-4-bar-dark: "oklch(0.735 0.164 115)"
-  quality-5-bar-light: "oklch(0.600 0.166 149)"
-  quality-5-bar-dark: "oklch(0.780 0.216 149)"
+  quality-1-bar-light: "oklch(0.580 0.210 27)"
+  quality-1-bar-dark: "oklch(0.640 0.220 27)"
+  quality-2-bar-light: "oklch(0.580 0.210 27)"
+  quality-2-bar-dark: "oklch(0.640 0.220 27)"
+  quality-3-bar-light: "oklch(0.820 0.165 88)"
+  quality-3-bar-dark: "oklch(0.840 0.170 90)"
+  quality-4-bar-light: "oklch(0.620 0.170 149)"
+  quality-4-bar-dark: "oklch(0.760 0.210 149)"
+  quality-5-bar-light: "oklch(0.620 0.170 149)"
+  quality-5-bar-dark: "oklch(0.760 0.210 149)"
 
   # --- Outline tags: identity and metadata, border + text, no fill ---
   tag-nr-text-light: "oklch(0.535 0.220 262)"
@@ -312,6 +312,45 @@ Two facts from that migration are worth carrying forward, because they are the o
 
 > ℹ️ NOTE: the ramp is a **scale**, and status chips are **categories** — the two axes did not merge. `BadgeVariant` still has only the five status roles, so `bad` and `poor` both key onto `destructive` and are separated by their glyphs (`signal_cellular_0_bar` vs `signal_cellular_1_bar`). Giving chips a fifth failure step would mean minting a `--quality-N-container` / `--on-quality-N-container` pair for every stop — a token-layer change with its own CVD and contrast work, deliberately not attempted here. Until someone does that work, the glyph is the channel, which is what the Every-Chip-Has-A-Glyph Rule is for.
 
+### Canon versus code
+
+The layer-level view of the table above. RM520N is the build this canon was written on, so most layers match; the rows say where the code still differs and what binds in the meantime. RM551E (QManager on OpenWrt) keeps a twin of this table for its own tree; the two are kept in step by parity passes, the latest being P0a (RM551E v0.1.34: shell, primitives and the quality ramp).
+
+| Layer | Canon says | Code today |
+| --- | --- | --- |
+| Tokens | Role triads (`-container`, `on-*`, `-on-surface`), `surface-container-*`, role radii, `--card-sheen`, `--quality-N`, `--tag-X`, direction and spatial roles, `--duration-*` / `--ease-*` | All in `app/globals.css`, both themes. Open: the orphaned `--chart-threshold` and the blocked `--chart-1..6` (rows above) |
+| Primitives | `card-foot.tsx`, `segmented-field.tsx`, `tag.tsx`, `material-symbol.tsx` + `material-symbol-names.ts`, `banner.tsx`, `tonal-banner.tsx`, `metric-bar.tsx`, `tick-group.tsx`, `ticking-value.tsx`, `swap-label.tsx`, `hint-icon.tsx`, all under `components/ui/` | All exist. P0a added `expand-button.tsx`, `reveal-button.tsx` (Material glyph), `reveal-label-button.tsx` (lucide glyph), `SaveButton`'s `savingLabel`, `SegmentedField`'s `sm` breakpoint and `Alert variant="warning"`; none has a consumer yet. `Alert variant="warning"` is drawn as `bg-warning/10` with a `border-warning/30` stroke, an opacity wash the Banners rule forbids, so a warning that states a condition still uses `Banner` or `TonalBanner`. `<Switch` remains at 12 sites in 9 files; convert one only when its card is reworked |
+| Motion | `lib/motion.ts` on `quick` / `standard` / `emphasized`, the Animations preference, no spring, no raw duration | Matches; see [`docs/reference/motion-preference.md`](docs/reference/motion-preference.md). The bare `transition-*` sweep across `components/ui/**` is still open (row above) |
+| Status chips | Filled tonal `Badge` variants with a `size-3` glyph; identity and metadata are `Tag`s | Matches, compiler-enforced through `BadgeVariant` |
+| Signal quality | One five-stop ramp in three hues, one quality-to-colour map in `components/cellular/signal-quality-display.ts`, `MetricBar value={null}` for a missing reading | Matches. The three-hue values landed in P0a (Colors > The signal quality ramp) |
+| App shell | sidebar-07 icon rail with flyouts, nav-tree breadcrumbs, a brand header, the global banners | Landed in P0a (Components > Navigation, Components > Banners) |
+| Apply placement | Every non-exempt editable card commits from `CardFoot` | Matches since the 2026-10-06 sweep |
+| Confirmations | One toast per finished action; no fading Saved chip | Partly: the open toast-hygiene row above. Backend error codes now resolve through `resolveErrorMessage()` in `lib/i18n/resolve-error.ts` and the `errors` namespace |
+| Icons | Material Symbols on the sidebar, `/dashboard`, `/`, `/login/` and `/cellular/**`; lucide elsewhere; never both on one screen | Matches; the pinned-lucide exceptions are `Banner`, `SaveButton`, `sonner` and the reconnecting banner, which mount on every route. See [`docs/reference/icon-system.md`](docs/reference/icon-system.md) |
+
+### Superseded conventions
+
+Earlier RM520N rules that are retired, not kept as exceptions. If you meet one in code, it is debt for its delta row, not precedent.
+
+| Retired | Replaced by |
+| --- | --- |
+| The five-hue lightness-staircase quality ramp (hues 27 / 45 / 72 / 115 / 149) | Three plain hues over five stops, separated within a hue by glyph and bar length (Colors > The signal quality ramp) |
+| A four-level quality scale whose "Good" was `--primary` | Five stops (`bad` below `poor`) with no identity hue |
+| Identity as filled `Badge` chips (`variant="nr"` / `"lte"` / `"spatial"`) | Outline `Tag`s for identity and metadata; filled chips only for state (The Two-Form Rule) |
+| The 40-Degree Rule (hue arithmetic as evidence) | The Measured-Separation Rule |
+| A page-level or sticky save bar | The Card-Foot Apply Rule |
+| A fading "Applied" / "Saved" chip | One `sonner` toast (The Toast-Confirms Rule); `SaveButton`'s own Saved flash stays |
+| A bare `Switch` for a boolean preference | `SegmentedField`, on new and reworked surfaces |
+| An expanded-only sidebar whose parent rows were links with a separate chevron, and URL-segment breadcrumbs (`hooks/use-breadcrumbs.ts`, deleted) | Parents as expanders with a first sub-row, the icon rail, and crumbs from the nav tree (Components > Navigation) |
+| The "No route acquired" 404 with a static signal-bar tile | The pixel campfire 404 (below) |
+
+### Surfaces ported from RM551E
+
+Surfaces RM520N took from RM551E rather than authored here. Each is an ordinary surface under every rule in this document; what follows is only what has no RM520N precedent.
+
+- **The app-shell banners.** The reconnecting banner and the pending-reboot banner (Components > Banners). The mechanism, including what was deliberately not ported, is in [`docs/reference/reboot-banners.md`](docs/reference/reboot-banners.md).
+- **The campfire 404** (`app/not-found.tsx`, `components/not-found/campfire-scene.tsx`). A 96 × 60 pixel scene of SVG rects in its own fixed palette (`CAMPFIRE_PALETTE`), always night in both themes: the hex values are scoped to the scene through `--campfire-*` custom properties set on the card, and never become tokens. Its flame, glow, embers and stars are the One-Loop Rule's one sanctioned decorative loop, stepped sprite timing rather than the duration scale, and they stop on a still frame under Reduced. The return action carries a lucide glyph.
+
 ## Colors
 
 ### The three layers
@@ -373,11 +412,11 @@ A **five-stop continuous scale** for measured signal quality — RSRP, RSRQ, SIN
 
 | Stop | Hue | Level | Replaces |
 | --- | --- | --- | --- |
-| `--quality-1` | 27 | **bad** | *new — see below* |
-| `--quality-2` | 45 | poor | `destructive` |
-| `--quality-3` | 72 | fair | `warning` |
-| `--quality-4` | 115 | good | **`primary`** — the defect this fixes |
-| `--quality-5` | 149 | excellent | `success` |
+| `--quality-1` | 27 (red) | **bad** | *new — see below* |
+| `--quality-2` | 27 (red) | poor | `destructive` |
+| `--quality-3` | 80–90 (yellow) | fair | `warning` |
+| `--quality-4` | 149 (green) | good | **`primary`** — the defect this fixes |
+| `--quality-5` | 149 (green) | excellent | `success` |
 
 Two things changed and both are substantive.
 
@@ -387,9 +426,11 @@ Two things changed and both are substantive.
 
 **The ramp contains no identity hue.** Removing brand blue from the middle of a health scale is the whole reason the ramp is worth minting.
 
-**The ramp is a lightness staircase, not a hue wheel.** Under deuteranopia, hues 27 / 45 / 72 / 115 / 149 flatten onto a single yellow axis — the ramp cannot separate by hue *at all* for those users. So each ramp is monotone in lightness (light 0.385 → 0.505 in 0.030 steps; dark 0.620 → 0.800 in 0.045 steps) and the staircase is what carries it. Adjacent stops sit deliberately below the 0.05 floor because **they are never the only channel**: the bar carries magnitude and `QUALITY_GLYPH` carries the stop itself. Every non-adjacent pair clears the floor (worst: 0.055 light, 0.077 dark).
+**The ramp is three plain hues: red, yellow, green.** Stops 1–2 are red (hue 27), stop 3 is yellow (hue 80 to 90), stops 4–5 are green (hue 149). Stops that share a hue share one value exactly, in ink and in bar, so `bad` and `poor` are the same red and `good` and `excellent` the same green. **Colour says which third of the scale a reading is in; the glyph says which stop.** `QUALITY_GLYPH`'s wedge ladder separates stops that share a hue and bar length carries magnitude, so both stay mandatory channels. Under deuteranopia red and green still converge, which is the same reason.
 
-`--quality-N` is the **numeral** ink; `--quality-N-bar` is the **bar fill**, one lightness step bolder. In light mode stops 1–3 resolve to deep reds and browns rather than vivid red-orange: 4.5:1 against a near-white ground caps those hues at L ≈ 0.50, and the non-adjacent floor then forces the span downward from that cap. This is a gamut ceiling, not a conservative choice. Where the numeral is large enough for the 3:1 threshold, use the `-bar` value as the ink instead.
+This replaced a five-hue lightness staircase (hues 27 / 45 / 72 / 115 / 149, one per stop). RM551E retired it first (its commit `806b3f77`, in v0.1.33) because users could not tell good (olive) from fair (brown), and RM520N took the same values in the v0.1.34 parity pass. Do not restore the staircase to win back per-stop colour: three hues everyone already knows beat a fine scale nobody can read, and the glyph already carries the stop.
+
+`--quality-N` is the **numeral** ink; `--quality-N-bar` is the **bar fill**, and at every stop the bar carries more chroma than the ink. The light-mode yellow is the one stop where ink and bar sit far apart: the ink is a dark gold (L 0.58) so a numeral stays legible on a near-white ground, while the bar stays a true yellow (L 0.82). **Never use a `-bar` value as ink** — the light yellow bar is too pale for text. Two inks equal a functional-role ink exactly: light-mode green is `--success-on-surface`, and dark-mode red is `--destructive-on-surface`. Dark mode uses the same three hues, lifted for the dark ground.
 
 ### Outline tags
 
@@ -691,7 +732,7 @@ Both guards are wrapped in `:where()` so they contribute **zero** specificity. T
 
 **The Transform-Only Rule.** Animate `transform` and `opacity`. Meters animate `scaleX`, never `width`, on first paint; a value retarget on an existing bar uses `width` deliberately (see `components/ui/metric-bar.tsx`'s own comment) because a transform would squash the pill cap at low percentages, and it changes only when a poll retargets the fill, never per frame. The two other sanctioned `width` animations are the carrier-aggregation segment, where the width *is* the data and a `scaleX` would distort the band labels riding inside it, and the onboarding step dots (0.5rem → 1.5rem), where a `scaleX` would distort the pill caps. Any other progress fill is `scaleX` on `origin-left` (the speedtest track, the language-pack meter). On a CPU also carrying the user's traffic a per-frame layout pass per meter is not free, so nothing else animates `width`.
 
-**The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot. A decorative loop is never one of them (the 404 page's signal bars are static), and a loading indicator is not an ambient loop — it stops under Reduced, above.
+**The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot. A decorative loop is never one of them, with one sanctioned exception: the 404 page's pixel campfire (a user request on RM551E, ported in the P0a parity pass), a stepped sprite loop in `app/globals.css` (`campfire-*`) that rests on a complete still frame under Reduced. A loading indicator is not an ambient loop — it stops under Reduced, above.
 
 **The No-Overshoot Rule.** Never springy, never elastic, never rubber-banding — and no springs at all: `type: "spring"`, `stiffness`, `damping` and `bounce` appear nowhere, and every `motion/react` transition is a `DUR` / `EASE_*` tween. The one sanctioned overshoot is the save-confirmation check at 1.03 scale — and it is a **number**, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. Anything that wants the pop imports the constant. A ceiling enforced only by prose is not a ceiling — this rule once cited the save check as the sanctioned exception while the button underneath ran an underdamped spring whose peak was bounded by nothing.
 
@@ -774,7 +815,7 @@ The row-level data graphic, and the non-chromatic half of the quality ramp.
 
 - A full-round track on `surface-container`, **8px tall — one thickness, everywhere**. What varies is **width**, never height: the bar spans the row where the row is the bar's own line, and narrows to a **56px lane** where it has to sit inline beside the figure it belongs to (the dashboard signal rows, the tower-locking carrier tiles). A lane is the right answer when a full-width bar under the last line would read as a coloured bottom border rather than as a gauge.
 
-  > **The single thickness is load-bearing, not tidiness.** This section rests the whole ramp on length: adjacent stops sit *deliberately* below the 0.05 CVD separation floor, on the explicit understanding that **bar length carries the fine distinctions**. A 4px hairline is the thinnest mark on its card, and asking it to carry the channel the ramp is not allowed to lose was the contradiction. Thickening it strengthens the encoding the accessibility argument depends on.
+  > **The single thickness is load-bearing, not tidiness.** This section rests the whole ramp on length: stops that share a hue share one colour exactly, on the explicit understanding that **bar length and the glyph carry the fine distinctions**. A 4px hairline is the thinnest mark on its card, and asking it to carry the channel the ramp is not allowed to lose was the contradiction. Thickening it strengthens the encoding the accessibility argument depends on.
   >
   > The height was `MetricBar`'s `size` prop, which **defaulted to `sm`** — so the split was never a considered pair of forms, it was 11 call sites inheriting a default against 9 that had opted out of it. `sm` is deleted rather than deprecated: a size nobody should pick is a trap. Two forms of *width* remain and they are chosen by slot, which is what the paragraph above describes.
   >
@@ -820,6 +861,16 @@ The sidebar rail sits one step off the canvas so it reads as chrome, not content
 
 The active row is the system's signature motion: **one** `primary-container` pill per group, absolutely positioned, whose transform is driven from React so it *slides* between rows rather than appearing. The row goes transparent and takes `on-primary-container` ink at 600 weight, and its Material glyph animates its `FILL` axis from 0 to 1. That FILL change is an accessibility affordance, not polish: it is what makes the active state survive grayscale. The pill's first paint is non-animated (`data-settling`), so it starts under the active row rather than sliding up from zero.
 
+**The sidebar-07 structure** (ported from RM551E v0.1.34 in the P0a parity pass) organises the rows; the pill, the fill axis and the motion above are unchanged. The data lives in `components/app-sidebar.tsx`, the tree logic in `lib/nav-tree.ts`, the group renderer in `components/nav-section.tsx`, and the primitive in `components/ui/sidebar.tsx`.
+
+- **Parents are expanders.** A row with sub-items links nowhere. Its whole surface is the `Collapsible` trigger, and a `chevron_right` rides inside it, rotating 90° on `standard`. The page the parent used to open is its **first sub-row**: same URL, its own label (`FIRST_SUB_T_KEY` in `lib/nav-tree.ts`, e.g. Cellular Information › Overview, System Settings › General). The first sub-row is current only on an exact URL match, so the parent's URL never claims its siblings' routes. The group holding the current route opens itself, and the parent carries the group's pill. Leaf rows stay links.
+- **Sub-rows hang off a rail.** A 1px `sidebar-border` line drops from under the parent's glyph, and the sub-row pills sit beside it. It is structure on the sidebar ground, not a hairline on a fill. The current sub-row takes the neutral `surface-container-high` pill: only one row per group wears `primary-container`.
+- **It collapses to an icon rail.** `<Sidebar collapsible="icon">`, toggled from the header trigger, the `SidebarRail` edge strip or Ctrl/Cmd+B. Rows become 40px circles (44px on a coarse pointer) in a 56px (60px) rail, and the pill follows them as a circle. Group labels fade out, and each row's label stays in the accessibility tree as `sr-only`, so an icon-only row keeps its name. A leaf shows a tooltip; a parent opens its sub-rows as a right-hand **flyout** (a `DropdownMenu` headed by the parent's label), because the inline list has nowhere to go. The rail scrolls with its scrollbar hidden.
+- **Collapse state and motion.** The state persists in the `sidebar_state` cookie, read client-side, and the rail's width transition is armed only after the restored state has painted (`data-ready`), so a reload never animates the collapse. Only the fixed rail animates its width: the in-flow gap snaps once and `SidebarInset` slides the content into place on a transform, because a width transition on the gap re-lays-out the whole page every frame.
+- **On a phone** the sidebar is always the full sheet, and it closes when a row takes the user somewhere or opens a dialog (an expander toggling does not close it).
+- **Header.** `components/sidebar-brand.tsx`: the QManager mark, **QManager** and the app version (`APP_VERSION`), as one plain link to `/dashboard` that shrinks to the mark on the icon rail. RM551E puts an app switcher in this slot to reach LuCI; RM520N has no LuCI, so the slot is a link, not a menu.
+- **Breadcrumb.** The inset header's crumbs come from the nav tree, not URL segments (`resolveNavCrumbs` in `lib/nav-tree.ts`; the URL-segment `hooks/use-breadcrumbs.ts` is deleted): group › parent › page, in the sidebar's own translated labels. The longest matching nav URL wins, so a route below a page resolves to that page. A single-row group and the footer add no crumb, and group and parent crumbs are text, since neither has a page. Below `desktop` only the page shows.
+
 ### Banners
 
 Two primitives, split by where they mount. **`Banner`** is page-level: named system roles, a CTA slot, a dismiss slot, a 36px disc, lucide glyphs (it mounts on every route, so the Icon-Boundary Rule pins it to lucide). **`TonalBanner`** is card-scoped: three tones, no CTA, no dismiss, a 32px disc, Material glyphs.
@@ -827,6 +878,14 @@ Two primitives, split by where they mount. **`Banner`** is page-level: named sys
 Both share the rules. A banner is `bg-{role}-container` with `text-on-{role}-container` — never a wash, because a 10% alpha over a tinted surface collapses in dark mode. Its icon always sits in a filled disc on the role's **strong** fill. Radius is 10px, so it never out-rounds its host. Informational banners use `primary-container`. A figure that ticks inside banner copy is `tabular-nums` in the interface font. Entrance is `.animate-banner-in` (`emphasized`, 6px rise plus fade); there is no exit.
 
 Banners are one of the four sanctioned container uses, and the reason is that a banner *is* its state — the tint is the message, not decoration on top of one.
+
+**Three banners mount in the app shell**, in `components/app-layout.tsx` between the header and the page, in this order, so each shows on every authenticated route whichever page raised it:
+
+1. **SIM swap** (`components/monitoring/watchdog/sim-swap-banner.tsx`).
+2. **Reconnecting** (`components/reboot/reconnecting-banner.tsx`): a compact `warning-container` strip with a spinning lucide glyph and `role="status"`, shown while the session check cannot reach the modem. It is not a `Banner`: it has no title, CTA or dismiss, and it leaves on its own the moment contact returns, with `animate-banner-in` on entry and no exit (The Enter-Only Rule).
+3. **Pending reboot** (`components/reboot/pending-reboot-banner.tsx`): `Banner role="deferred-reboot"`, with **Reboot now** and a **Dismiss** behind a confirm dialog. The Dismiss is an accepted exception to The Dismiss-Only-Notices Rule (RM551E decision U4.11.2): the flag lives in browser storage, and a reboot done some other way (power cycle, watchdog, the user menu) cannot clear it, so a banner without Dismiss could outlive its condition. A page that defers a reboot only sets the flag; it never renders its own copy of this banner.
+
+Storage keys, events and who sets and clears each flag are in [`docs/reference/reboot-banners.md`](docs/reference/reboot-banners.md).
 
 ### Signature surfaces
 

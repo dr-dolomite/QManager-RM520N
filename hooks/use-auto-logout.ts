@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { startVisibleInterval } from "@/lib/visible-interval";
+import { reportConnectionState } from "@/lib/reboot/connection";
 
 const CHECK_ENDPOINT = "/cgi-bin/quecmanager/auth/check.sh";
 
@@ -43,12 +44,15 @@ export function useAutoLogout() {
         await authFetch(CHECK_ENDPOINT);
         // Any successful response: device is reachable, reset clock
         offlineSinceRef.current = null;
+        reportConnectionState(false);
       } catch {
-        // Network error: device is unreachable
+        // Network error: one missed check already spans 10 s, so warn at once.
+        reportConnectionState(true);
         if (offlineSinceRef.current === null) {
           offlineSinceRef.current = Date.now();
         } else if (Date.now() - offlineSinceRef.current >= OFFLINE_THRESHOLD_MS) {
           clearSessionCookie();
+          reportConnectionState(false);
           window.location.href = "/login/?reason=offline";
         }
       }
@@ -64,6 +68,7 @@ export function useAutoLogout() {
       {
         onHide: () => {
           offlineSinceRef.current = null;
+          reportConnectionState(false);
         },
       },
     );

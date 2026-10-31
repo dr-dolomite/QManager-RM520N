@@ -190,7 +190,8 @@
       "toggle": "Can't sign in?",
       "intro": "If you've lost the admin password, you have two recovery paths:",
       "option_reset": "Open an SSH session to the device and run {{command}} to set a new admin password. (Requires SSH access to be enabled.)",
-      "option_backup": "If you saved a .qmbackup file, re-flash the device firmware and restore from it."
+      "option_backup": "If you saved a .qmbackup file, re-flash the device firmware and restore from it.",
+      "option_reset_command": "Open an SSH session to the device and run {{command}} to set a new admin password. (Requires SSH access to be enabled.)"
     },
     "session_expired_title": "Session ended",
     "locked_title": "Too many attempts",
@@ -199,7 +200,8 @@
     "attempts_left_one": "Incorrect password. {{count}} attempt left.",
     "attempts_left_other": "Incorrect password. {{count}} attempts left.",
     "password_to_manage": "Enter your password to manage {{hostname}}.",
-    "password_to_manage_bare": "Enter your password."
+    "password_to_manage_bare": "Enter your password.",
+    "locked_countdown": "Locked ({{seconds}})"
   },
   "overview": {
     "title": "Modem Overview",
@@ -1601,5 +1603,65 @@
       "title": "Support the project",
       "body": "QManager is a side project, maintained for free. If it has been useful on your setup, a tip keeps it going — and there is no paywall coming either way."
     }
+  },
+  "not_found": {
+    "scene_label": "A campfire crackling under a starry night sky",
+    "title": "You seem to be lost, adventurer",
+    "description": "Want to go back to making your connections better?",
+    "home": "Back to Dashboard",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "Please select an image file.",
+    "photo_updated": "Profile photo updated.",
+    "change_photo_aria": "Change profile photo",
+    "name_placeholder": "Your name",
+    "name_saved": "Display name updated.",
+    "name_save_failed": "Failed to update display name.",
+    "reconnect_description": "This will disconnect the modem for a few seconds, then reconnect it automatically.",
+    "disconnecting_description": "Disconnecting modem from network…",
+    "reconnecting_description": "Reconnecting modem to network…",
+    "reconnect_action": "Reconnect",
+    "reconnect_complete": "Modem reconnect complete.",
+    "reconnect_failed": "Failed to reconnect modem.",
+    "reboot_description": "The device will restart and all network connections will drop until it comes back online.",
+    "reboot_sent": "Reboot command sent. You will be logged out shortly…",
+    "reboot_now": "Reboot Now"
+  },
+  "pending_reboot": {
+    "title": "Reboot to finish your changes",
+    "reboot_now": "Reboot now",
+    "rebooting": "Rebooting…",
+    "dismiss": "Dismiss",
+    "reboot_failed_toast": "Couldn't start the reboot. Try again.",
+    "description": {
+      "config_restore": "An IMEI change or SIM profile from the restore takes effect after the next reboot.",
+      "imei": "The new IMEI takes effect after the next reboot.",
+      "mbn": "The new carrier profile takes effect after the modem restarts.",
+      "default": "Some changes take effect after the next reboot."
+    },
+    "dismiss_dialog": {
+      "title": "Dismiss the reboot reminder?",
+      "description": "Changes that need a reboot stay inactive until the modem restarts. Dismiss only if you have already rebooted.",
+      "keep": "Keep reminder",
+      "confirm": "Dismiss"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "Shutting down…",
+      "restarting": "Restarting services…",
+      "almost_ready": "Almost ready…",
+      "overtime": "Taking longer than usual…"
+    },
+    "subtitle": {
+      "normal": "Your device will be back online shortly",
+      "overtime": "The device is still restarting"
+    },
+    "timer_aria_one": "{{count}} second remaining",
+    "timer_aria_other": "{{count}} seconds remaining",
+    "timer_overtime_aria": "Reconnecting, taking longer than usual",
+    "seconds_unit": "sec",
+    "escape": "Device may need manual attention. Go to login"
   }
 }

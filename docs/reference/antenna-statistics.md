@@ -157,7 +157,7 @@ New `antenna_statistics.*` subtree in the **`cellular`** namespace — **38 leaf
 
 > ⚠️ WARNING: several key families are reached through **template literals** and are invisible to static extraction. Deleting one because grep found no call site ships a raw key string to a device: `antenna_statistics.quality.<quality>`, `antenna_statistics.card.<prefix>.{title,description,identity}`, `antenna_statistics.empty.<prefix>.{title,description}`, `antenna_statistics.context.mode.<mode>`.
 
-`hooks/use-breadcrumbs.ts` gained `antenna-statistics` → `items.antenna_statistics` and `antenna-alignment` → `items.antenna_alignment`. This fixed a live bug on both routes: the sidebar rendered 天线统计 while the breadcrumb beside it rendered hardcoded English.
+The former `hooks/use-breadcrumbs.ts` (now replaced by `lib/nav-tree.ts`) gained `antenna-statistics` → `items.antenna_statistics` and `antenna-alignment` → `items.antenna_alignment`. This fixed a live bug on both routes: the sidebar rendered 天线统计 while the breadcrumb beside it rendered hardcoded English.
 
 ## Known gaps
 

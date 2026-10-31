@@ -45,8 +45,7 @@ import type { SignalQuality } from "@/types/modem-status";
  * for it. It could not borrow either neighbour: `signal_cellular_off` is
  * `none` ("nothing was measured"), and sharing `1_bar` with `poor` would put
  * two states in one slot behind one glyph. That matters more here than
- * anywhere else in the system, because `poor` and `bad` are ADJACENT ramp
- * stops and adjacent stops are deliberately below the colour separation floor
+ * anywhere else in the system, because `poor` and `bad` share the red ink
  * — strip the glyph and the two become genuinely indistinguishable, which is
  * exactly the "nudge the antenna" vs "it is pointing at a wall" call the fifth
  * level was minted to make.
@@ -127,13 +126,11 @@ export function qualityMeterTone(quality: SignalQuality): MetricBarTone | null {
  * rows: "A value that carries quality takes its ramp ink here").
  *
  * `--quality-N` rather than `--quality-N-bar`: this is the text weight of the
- * stop, and in light mode stops 1–3 resolve to deep reds and browns because
- * 4.5:1 against a near-white ground caps those hues at L ≈ 0.50. That is a
- * gamut ceiling — do not "fix" it by brightening. Where the figure is large
- * enough to fall under the 3:1 threshold instead, use the `-bar` value as ink.
+ * stop. The ramp is three hues (red / gold / green), and in light mode the gold
+ * ink is darker than its bar so a numeral stays legible — never use `-bar` as ink.
  *
  * Ink and bar are a PAIR. Colour alone is not an accessible channel and
- * adjacent ramp stops sit below the separation floor by design, so a tinted
+ * stops that share a hue differ only by glyph and bar, so a tinted
  * numeral without a bar beside it — and without an `sr-only` quality word —
  * is a bug, not a shortcut.
  */

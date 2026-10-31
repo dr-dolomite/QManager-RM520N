@@ -5,34 +5,25 @@ import {
   KeyRound,
   Loader2,
   LogOut,
-  Moon,
   Power,
-  RefreshCw,
-  Sun,
   Camera,
   Pencil,
+  RotateCcw,
+  Sun,
+  Moon,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { logout } from "@/hooks/use-auth";
+import { useModemReconnect } from "@/hooks/use-modem-reconnect";
 import { authFetch } from "@/lib/auth-fetch";
-import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { rebootNow } from "@/lib/reboot";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MaterialSymbol,
   type MaterialSymbolName,
 } from "@/components/ui/material-symbol";
-import { useMotionPreference } from "@/components/motion-preference";
-import {
-  MOTION_PREFERENCES,
-  type MotionPreference,
-} from "@/lib/motion-preference";
-
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,9 +59,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
-
-/** Shown until the device hostname arrives, and if it never does. */
-const FALLBACK_NAME = "Admin";
+import { useTranslation } from "react-i18next";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { useMotionPreference } from "@/components/motion-preference";
+import {
+  MOTION_PREFERENCES,
+  type MotionPreference,
+} from "@/lib/motion-preference";
 
 // Animations preference, presented beside the theme row: both are appearance
 // choices that live on this device only, so they belong in the same group.
@@ -85,21 +81,23 @@ const MOTION_LABEL_KEY: Record<MotionPreference, string> = {
   reduced: "motion.reduced",
 };
 
-// All three glyphs are already in the subset (components/ui/material-symbol-names.ts),
-// so this row needs no font regeneration.
+// All three glyphs are already in the subset (components/ui/material-symbol-names.ts).
 const MOTION_ICON: Record<MotionPreference, MaterialSymbolName> = {
   system: "settings",
   full: "auto_awesome",
   reduced: "do_not_disturb_on",
 };
 
+/** Shown until the device hostname arrives, and if it never does. */
+const FALLBACK_NAME = "Admin";
+
 export function NavUser() {
   const { isMobile } = useSidebar();
-  const { theme, setTheme } = useTheme();
-  const { preference: motionPreference, setPreference: setMotionPreference } =
-    useMotionPreference();
   const { t } = useTranslation("common");
   const { t: tSidebar } = useTranslation("sidebar");
+  const { resolvedTheme, setTheme } = useTheme();
+  const { preference: motionPreference, setPreference: setMotionPreference } =
+    useMotionPreference();
 
   // --- Display name from device hostname ---
   const [displayName, setDisplayName] = useState<string>(FALLBACK_NAME);
@@ -123,10 +121,14 @@ export function NavUser() {
   // --- Dialog state ---
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
-  const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
   const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
+  const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
   const [rebooting, setRebooting] = useState(false);
-  const [reconnecting, setReconnecting] = useState(false);
+  const {
+    reconnectModem,
+    isReconnecting,
+    step: reconnectStep,
+  } = useModemReconnect();
 
   // --- Name edit state ---
   const [nameInput, setNameInput] = useState(displayName);
@@ -142,7 +144,7 @@ export function NavUser() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file.");
+      toast.error(t("account.photo_invalid"));
       return;
     }
     const reader = new FileReader();
@@ -150,7 +152,7 @@ export function NavUser() {
       const base64 = reader.result as string;
       localStorage.setItem("qm_display_avatar", base64);
       setAvatarSrc(base64);
-      toast.success("Profile photo updated.");
+      toast.success(t("account.photo_updated"));
     };
     reader.readAsDataURL(file);
     // Reset so same file can be re-selected
@@ -172,64 +174,62 @@ export function NavUser() {
       });
       const json = await resp.json();
       if (!json.success) {
-        toast.error("Failed to update display name.");
+        toast.error(
+          resolveErrorMessage(
+            t,
+            json.error,
+            json.detail,
+            t("account.name_save_failed"),
+          ),
+        );
         return;
       }
       setDisplayName(name);
       setNameDialogOpen(false);
-      toast.success("Display name updated.");
+      toast.success(t("account.name_saved"));
     } catch {
-      toast.error("Failed to update display name.");
+      toast.error(t("account.name_save_failed"));
     } finally {
       setSavingName(false);
     }
   };
 
   // --- Reboot (optimistic) ---
-  // Navigate to the countdown page FIRST, then fire the reboot request.
-  // This ensures the /reboot/ page loads from cache/memory before the
-  // device goes offline. The backend delays reboot by 1s after responding.
+  // Fire the reboot request, then redirect to the countdown page.
   const handleReboot = async (e: React.MouseEvent) => {
     e.preventDefault();
     setRebooting(true);
-
-    // Prepare session state for the countdown page
-    sessionStorage.setItem("qm_rebooting", "1");
-    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-
-    // Fire-and-forget: keepalive ensures the request survives page navigation.
-    fetch("/cgi-bin/quecmanager/system/reboot.sh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reboot" }),
-      keepalive: true,
-    }).catch(() => {});
-
-    // Navigate to countdown page immediately
-    window.location.href = "/reboot/";
+    rebootNow("manual");
   };
 
   const handleReconnect = async (e: React.MouseEvent) => {
     e.preventDefault();
-    setReconnecting(true);
-    try {
-      const resp = await authFetch("/cgi-bin/quecmanager/system/reboot.sh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reconnect" }),
-      });
-      const data = await resp.json();
-      if (data.success) {
-        toast.success("Network reconnect initiated. Connection may drop briefly.");
-      } else {
-        toast.error("Reconnect failed.");
-      }
-    } catch {
-      toast.error("Failed to send reconnect command.");
-    } finally {
-      setReconnecting(false);
-      setReconnectDialogOpen(false);
+    if (isReconnecting) return;
+
+    const result = await reconnectModem({
+      onStep: (step) => {
+        if (step === "disconnecting") {
+          toast.info(t("state.disconnecting"));
+          return;
+        }
+        toast.info(t("state.reconnecting"));
+      },
+    });
+
+    if (!result.success) {
+      toast.error(
+        resolveErrorMessage(
+          t,
+          result.error,
+          undefined,
+          t("account.reconnect_failed"),
+        ),
+      );
+      return;
     }
+
+    setReconnectDialogOpen(false);
+    toast.success(t("account.reconnect_complete"));
   };
 
   const initials =
@@ -299,7 +299,7 @@ export function NavUser() {
                     type="button"
                     onClick={handleAvatarClick}
                     className="relative group shrink-0 rounded-pill focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
-                    aria-label="Change profile photo"
+                    aria-label={t("account.change_photo_aria")}
                   >
                     <Avatar className="size-8 rounded-pill">
                       {avatarSrc ? (
@@ -338,15 +338,13 @@ export function NavUser() {
                   <Pencil />
                   {t("actions.change_display_name")}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setPasswordDialogOpen(true)}
-                >
+                <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)}>
                   <KeyRound />
                   {t("actions.change_password")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    setTheme(theme === "dark" ? "light" : "dark")
+                    setTheme(resolvedTheme === "dark" ? "light" : "dark")
                   }
                 >
                   <Sun className="dark:hidden" />
@@ -385,14 +383,19 @@ export function NavUser() {
                     {t(MOTION_LABEL_KEY[motionPreference])}
                   </span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setReconnectDialogOpen(true)}
+                  disabled={isReconnecting}
+                >
+                  {isReconnecting ? (
+                    <Loader2 className="size-4 motion-safe:animate-spin" />
+                  ) : (
+                    <RotateCcw />
+                  )}
+                  {t("actions.reconnect_modem")}
+                </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setReconnectDialogOpen(true)}
-              >
-                <RefreshCw />
-                Reconnect Network
-              </DropdownMenuItem>
               <DropdownMenuItem
                 variant="destructive"
                 onClick={() => setRebootDialogOpen(true)}
@@ -400,6 +403,7 @@ export function NavUser() {
                 <Power />
                 {t("actions.reboot_device")}
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => logout()}>
                 <LogOut />
                 {t("actions.log_out")}
@@ -419,13 +423,13 @@ export function NavUser() {
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Change Display Name</DialogTitle>
+            <DialogTitle>{t("actions.change_display_name")}</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             <Input
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
-              placeholder="Your name"
+              placeholder={t("account.name_placeholder")}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleNameSave();
@@ -433,23 +437,24 @@ export function NavUser() {
             />
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setNameDialogOpen(false)}
-            >
-              Cancel
+            <Button variant="outline" onClick={() => setNameDialogOpen(false)}>
+              {t("actions.cancel")}
             </Button>
             <Button
               onClick={handleNameSave}
-              disabled={!nameInput.trim() || nameInput.trim() === displayName || savingName}
+              disabled={
+                !nameInput.trim() ||
+                nameInput.trim() === displayName ||
+                savingName
+              }
             >
               {savingName ? (
                 <>
                   <Loader2 className="size-4 motion-safe:animate-spin" />
-                  Saving...
+                  {t("state.saving")}
                 </>
               ) : (
-                "Save"
+                t("actions.save")
               )}
             </Button>
           </DialogFooter>
@@ -461,52 +466,64 @@ export function NavUser() {
         onOpenChange={setPasswordDialogOpen}
       />
 
-      <AlertDialog open={reconnectDialogOpen} onOpenChange={(open) => {
-        if (!reconnecting) setReconnectDialogOpen(open);
-      }}>
+      <AlertDialog
+        open={reconnectDialogOpen}
+        onOpenChange={(open) => {
+          if (!isReconnecting) setReconnectDialogOpen(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reconnect Network</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will deregister from the network and reregister, forcing a fresh connection. Internet will drop briefly.
+            <AlertDialogTitle>{t("actions.reconnect_modem")}</AlertDialogTitle>
+            <AlertDialogDescription aria-live="polite">
+              {isReconnecting
+                ? reconnectStep === "disconnecting"
+                  ? t("account.disconnecting_description")
+                  : t("account.reconnecting_description")
+                : t("account.reconnect_description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={reconnecting}>
-              Cancel
+            <AlertDialogCancel disabled={isReconnecting}>
+              {t("actions.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={reconnecting}
+              disabled={isReconnecting}
               onClick={handleReconnect}
             >
-              {reconnecting ? (
+              {isReconnecting ? (
                 <>
                   <Loader2 className="size-4 motion-safe:animate-spin" />
-                  Reconnecting...
+                  {reconnectStep === "disconnecting"
+                    ? t("state.disconnecting")
+                    : t("state.reconnecting")}
                 </>
               ) : (
-                "Reconnect"
+                t("account.reconnect_action")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={rebootDialogOpen} onOpenChange={(open) => {
-        if (!rebooting) setRebootDialogOpen(open);
-      }}>
+      <AlertDialog
+        open={rebootDialogOpen}
+        onOpenChange={(open) => {
+          if (!rebooting) setRebootDialogOpen(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reboot Device</AlertDialogTitle>
+            <AlertDialogTitle>{t("actions.reboot_device")}</AlertDialogTitle>
             <AlertDialogDescription aria-live="polite">
               {rebooting
-                ? "Reboot command sent. You will be logged out shortly..."
-                : "The device will restart and all network connections will drop until it comes back online."}
+                ? t("account.reboot_sent")
+                : t("account.reboot_description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={rebooting}>
-              Not Now
+              {t("actions.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
@@ -516,10 +533,10 @@ export function NavUser() {
               {rebooting ? (
                 <>
                   <Loader2 className="size-4 motion-safe:animate-spin" />
-                  Rebooting...
+                  {t("state.applying")}
                 </>
               ) : (
-                "Reboot Now"
+                t("account.reboot_now")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

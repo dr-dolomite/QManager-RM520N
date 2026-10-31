@@ -48,7 +48,14 @@
     "about_device": "Informazioni sul dispositivo",
     "support": "Supporto",
     "donate": "Dona al progetto",
-    "traffic_engine": "Motore di traffico"
+    "traffic_engine": "Motore di traffico",
+    "cellular_overview": "Panoramica",
+    "sms_inbox": "Posta in arrivo",
+    "band_locking_bands": "Blocco bande",
+    "cell_scanner_full_scan": "Scansione completa",
+    "cellular_settings_general": "Generali",
+    "connection_quality_overview": "Panoramica",
+    "system_settings_general": "Generali"
   },
   "header": {
     "role": "Admin"
@@ -57,12 +64,19 @@
     "signed_in": "Connesso"
   },
   "actions": {
-    "toggle_section": "Apri o chiudi la sezione {{section}}"
+    "toggle_section": "Apri o chiudi la sezione {{section}}",
+    "toggle_sidebar": "Mostra o nascondi la barra laterale",
+    "skip_to_content": "Vai al contenuto principale"
   },
   "status": {
     "watchdog_acting": "in azione",
     "watchdog_acting_detail": "Il watchdog sta ripristinando la connessione (livello {{tier}}).",
     "watchdog_settling": "verifica",
     "watchdog_settling_detail": "Il watchdog sta verificando che la connessione regga dopo il ripristino."
-  }
+  },
+  "mobile": {
+    "title": "Barra laterale",
+    "description": "Navigazione principale di QManager."
+  },
+  "breadcrumb": "Percorso di navigazione"
 }
