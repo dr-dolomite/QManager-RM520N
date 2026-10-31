@@ -1,5 +1,5 @@
 //! Command classification. `is_long` must match the shell qcmd exactly: it
-//! decides who sets /tmp/qmanager_long_running and who gets scan_in_progress.
+//! decides who sets the long-running flag and who gets scan_in_progress.
 
 use std::fs;
 

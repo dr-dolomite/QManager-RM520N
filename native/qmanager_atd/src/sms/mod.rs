@@ -57,7 +57,8 @@ pub enum Which {
 pub enum Op {
     List(Vec<Mem>),
     Status(Vec<Mem>),
-    Send { number: String, text: String },
+    /// `concat_ref` None = pick a fresh one; `from` = first part to send (1-based).
+    Send { number: String, text: String, concat_ref: Option<u8>, from: usize },
     Delete { mem: Mem, which: Which },
     /// Mark messages read or unread (WMS only).
     Tag { mem: Mem, indices: Vec<u32>, read: bool },
@@ -72,6 +73,7 @@ impl Op {
         match self {
             Op::List(m) => format!("SMS list {}", mems(m)),
             Op::Status(m) => format!("SMS status {}", mems(m)),
+            Op::Send { from, .. } if *from > 1 => format!("SMS send from part {from}"),
             Op::Send { .. } => "SMS send".to_string(),
             Op::Delete { mem, which: Which::All } => format!("SMS delete {} all", mem.as_str()),
             Op::Delete { mem, which: Which::Indices(v) } => format!("SMS delete {} ({} indexes)", mem.as_str(), v.len()),
@@ -83,7 +85,7 @@ impl Op {
     }
 }
 
-pub const USAGE: &str = "Usage: qsms list [ME|SM|all] | status [ME|SM|all] | send <number> <text> | delete <ME|SM> <idx,...|all> | tag <ME|SM> <idx,...> read|unread | watch";
+pub const USAGE: &str = "Usage: qsms list [ME|SM|all] | status [ME|SM|all] | send [--ref R --from N] <number> <text> | delete <ME|SM> <idx,...|all> | tag <ME|SM> <idx,...> read|unread | watch";
 
 fn mems(arg: Option<&String>, default: &[Mem]) -> Result<Vec<Mem>, String> {
     match arg.map(String::as_str) {
@@ -114,6 +116,45 @@ fn indices(s: &str) -> Result<Which, String> {
     Ok(Which::Indices(v))
 }
 
+/// Decimal digits only, at most `max_len` of them (no sign, no whitespace).
+fn small_uint(s: &str, max_len: usize) -> Option<u32> {
+    if s.is_empty() || s.len() > max_len || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    s.parse().ok()
+}
+
+/// `[--ref R] [--from N] <number> <text>`, flags in either order, once each.
+fn parse_send(a: &[String]) -> Result<Op, String> {
+    let (mut concat_ref, mut from) = (None, None);
+    let mut i = 0;
+    while i < a.len() && a[i].starts_with("--") {
+        let v = a.get(i + 1).ok_or_else(|| format!("{} needs a value", a[i]))?;
+        match a[i].as_str() {
+            "--ref" if concat_ref.is_none() => {
+                let r = small_uint(v, 3).filter(|&r| r <= 255).ok_or("--ref must be 0-255")?;
+                concat_ref = Some(r as u8);
+            }
+            "--from" if from.is_none() => {
+                from = Some(small_uint(v, 3).filter(|&n| n >= 1).ok_or("--from must be 1 or more")? as usize);
+            }
+            "--ref" | "--from" => return Err(format!("duplicate {}", a[i])),
+            o => return Err(format!("unknown option '{o}'")),
+        }
+        i += 2;
+    }
+    if from.is_some() && concat_ref.is_none() {
+        return Err("--from needs --ref".into());
+    }
+    if a.len() - i != 2 {
+        return Err(USAGE.into());
+    }
+    if a[i + 1].is_empty() {
+        return Err("empty message".into());
+    }
+    Ok(Op::Send { number: a[i].clone(), text: a[i + 1].clone(), concat_ref, from: from.unwrap_or(1) })
+}
+
 /// Parses `qsms` arguments (without argv[0]). Shared by client and broker, so
 /// the broker re-validates whatever reaches its socket.
 pub fn parse_args(args: &[String]) -> Result<Op, String> {
@@ -121,12 +162,7 @@ pub fn parse_args(args: &[String]) -> Result<Op, String> {
     match (op, args.len()) {
         ("list", 1..=2) => Ok(Op::List(mems(args.get(1), &[Mem::Me])?)),
         ("status", 1..=2) => Ok(Op::Status(mems(args.get(1), &[Mem::Me, Mem::Sm])?)),
-        ("send", 3) => {
-            if args[2].is_empty() {
-                return Err("empty message".into());
-            }
-            Ok(Op::Send { number: args[1].clone(), text: args[2].clone() })
-        }
+        ("send", 3..) => parse_send(&args[1..]),
         ("delete", 3) => {
             let mem = Mem::parse(&args[1]).ok_or_else(|| format!("unknown storage '{}'", args[1]))?;
             Ok(Op::Delete { mem, which: indices(&args[2])? })
@@ -413,40 +449,91 @@ fn status<D: Device>(s: &mut Session<'_, D>, ms: &[Mem]) -> Result<String, Fail>
     })
 }
 
-fn send<D: Device>(s: &mut Session<'_, D>, parts: &[pdu::SubmitPart]) -> Result<String, String> {
+/// An encoded send: all parts, the UDH reference, and the first part to send.
+pub(crate) struct SendPlan {
+    pub parts: Vec<pdu::SubmitPart>,
+    pub cref: u8,
+    pub from: usize,
+}
+
+impl SendPlan {
+    /// The UDH reference; null for a single part (no UDH carries one).
+    fn ref_json(&self) -> String {
+        if self.parts.len() > 1 {
+            self.cref.to_string()
+        } else {
+            "null".into()
+        }
+    }
+}
+
+/// Encodes before any modem I/O. Err is a ready error envelope.
+pub(crate) fn plan_send(number: &str, text: &str, concat: Option<u8>, from: usize) -> Result<SendPlan, String> {
+    let cref = concat.unwrap_or_else(concat_ref);
+    let parts = pdu::encode_submit(number, text, cref).map_err(|e| error_json(e.as_str(), None))?;
+    if from > parts.len() {
+        return Err(error_json("bad_args", Some("--from is beyond the last part")));
+    }
+    Ok(SendPlan { parts, cref, from })
+}
+
+/// The parts still to send (`from` is 1-based and already checked).
+pub(crate) fn remaining(parts: &[pdu::SubmitPart], from: usize) -> &[pdu::SubmitPart] {
+    &parts[from - 1..]
+}
+
+/// `sent_parts` is absolute (parts before `--from` count); `refs` are this run's network refs;
+/// `ambiguous` = the failing part may have reached the network.
+pub(crate) fn send_fail_json(plan: &SendPlan, code: &str, detail: &str, refs: &[String], ambiguous: bool) -> String {
+    format!(
+        "{{\"success\":false,\"error\":\"{}\",\"detail\":\"{}\",\"parts\":{},\"sent_parts\":{},\"concat_ref\":{},\"ambiguous\":{},\"refs\":[{}]}}\n",
+        code,
+        json_escape(detail),
+        plan.parts.len(),
+        plan.from - 1 + refs.len(),
+        plan.ref_json(),
+        ambiguous,
+        refs.join(",")
+    )
+}
+
+pub(crate) fn send_ok_json(plan: &SendPlan, refs: &[String]) -> String {
+    format!(
+        "{{\"success\":true,\"parts\":{},\"concat_ref\":{},\"refs\":[{}]}}\n",
+        plan.parts.len(),
+        plan.ref_json(),
+        refs.join(",")
+    )
+}
+
+fn send<D: Device>(s: &mut Session<'_, D>, plan: &SendPlan) -> Result<String, String> {
     let mut refs: Vec<String> = Vec::new();
-    let fail = |code: &str, detail: &str, refs: &[String]| {
-        format!(
-            "{{\"success\":false,\"error\":\"{}\",\"detail\":\"{}\",\"parts\":{},\"sent_parts\":{},\"refs\":[{}]}}\n",
-            code,
-            json_escape(detail),
-            parts.len(),
-            refs.len(),
-            refs.join(",")
-        )
-    };
+    // Nothing reaches the network before AT+CMGF=0 succeeds: never ambiguous.
     match s.at("AT+CMGF=0", CMD_TIMEOUT) {
         Ok(raw) => {
             if let Err(e) = final_ok(&raw) {
-                return Err(fail("send_failed", &e, &refs));
+                return Err(send_fail_json(plan, "send_failed", &e, &refs, false));
             }
         }
-        Err(c) => return Err(fail(c.as_str(), "", &refs)),
+        Err(c) => return Err(send_fail_json(plan, c.as_str(), "", &refs, false)),
     }
-    for p in parts {
+    for p in remaining(&plan.parts, plan.from) {
+        // A transport error here may come after the PDU was written: ambiguous.
         let raw = match s.at_prompt(&format!("AT+CMGS={}", p.tpdu_len), p.hex.as_bytes(), PROMPT_TIMEOUT, PART_TIMEOUT) {
             Ok(r) => r,
-            Err(c) => return Err(fail(c.as_str(), "", &refs)),
+            Err(c) => return Err(send_fail_json(plan, c.as_str(), "", &refs, true)),
         };
         let ls = lines(&raw);
         let mr = ls.iter().find_map(|l| l.strip_prefix("+CMGS:")).map(|v| v.trim().to_string());
         match (mr, final_ok(&raw)) {
             (Some(mr), Ok(())) if !mr.is_empty() && mr.bytes().all(|b| b.is_ascii_digit()) => refs.push(mr),
-            (_, Err(e)) => return Err(fail("send_failed", &e, &refs)),
-            _ => return Err(fail("send_failed", "no +CMGS reference", &refs)),
+            // +CMS ERROR / ERROR with no +CMGS is a definite rejection; an empty reply is not.
+            (None, Err(e)) => return Err(send_fail_json(plan, "send_failed", &e, &refs, e == "no reply")),
+            (_, Err(e)) => return Err(send_fail_json(plan, "send_failed", &e, &refs, true)),
+            _ => return Err(send_fail_json(plan, "send_failed", "no +CMGS reference", &refs, true)),
         }
     }
-    Ok(format!("{{\"success\":true,\"parts\":{},\"refs\":[{}]}}\n", parts.len(), refs.join(",")))
+    Ok(send_ok_json(plan, &refs))
 }
 
 fn delete<D: Device>(s: &mut Session<'_, D>, mem: Mem, which: &Which) -> Result<String, Fail> {
@@ -532,28 +619,32 @@ pub fn run<D: Device>(ex: &mut Executor<'_, D>, op: &Op, waited: Duration) -> (b
         return (false, error_json("unsupported", Some("Not available on this modem.")));
     }
     // Encode before taking the lock: a bad number never touches the modem.
-    let parts = match op {
-        Op::Send { number, text } => match pdu::encode_submit(number, text, concat_ref()) {
-            Ok(p) => p,
-            Err(e) => return (false, error_json(e.as_str(), None)),
+    let plan = match op {
+        Op::Send { number, text, concat_ref, from } => match plan_send(number, text, *concat_ref, *from) {
+            Ok(p) => Some(p),
+            Err(j) => return (false, j),
         },
-        _ => Vec::new(),
+        _ => None,
     };
     let r = ex.session(&label, waited, |s| match op {
         Op::List(m) => list(s, m).map_err(|f| fail_json(f, "command_failed")),
         Op::Status(m) => status(s, m).map_err(|f| fail_json(f, "command_failed")),
-        Op::Send { .. } => send(s, &parts),
+        Op::Send { .. } => send(s, plan.as_ref().expect("planned above")),
         Op::Delete { mem, which } => delete(s, *mem, which).map_err(|f| fail_json(f, "delete_failed")),
         Op::Tag { .. } | Op::Watch => unreachable!("rejected above"),
     });
     let (ok, json) = match r {
         Ok(Ok(j)) => (true, j),
         Ok(Err(j)) => (false, j),
-        Err(code) => (false, error_json(code.as_str(), None)),
+        // The session never opened (busy, scan running): nothing was sent.
+        Err(code) => match &plan {
+            Some(p) => (false, send_fail_json(p, code.as_str(), "", &[], false)),
+            None => (false, error_json(code.as_str(), None)),
+        },
     };
     // A delete that left messages behind reports success:false in its JSON.
     let ok = ok && !json.starts_with("{\"success\":false");
-    let what = if let Op::Send { .. } = op { format!(" ({} parts)", parts.len()) } else { String::new() };
+    let what = plan.as_ref().map(|p| format!(" ({} parts)", p.parts.len())).unwrap_or_default();
     ex.log.info(&format!("{label}{what}: {} in {}ms", if ok { "ok" } else { "failed" }, t.elapsed().as_millis()));
     (ok, json)
 }
@@ -577,6 +668,8 @@ mod tests {
         me: Vec<(u32, String)>,
         sm: Vec<(u32, String)>,
         cms_on_send: Option<usize>,
+        /// The Nth part's PDU is taken, then the line goes away (no reply).
+        drop_on_send: Option<usize>,
         sent: Vec<String>,
         sm_broken: bool,
         no_delflag: bool,
@@ -590,6 +683,7 @@ mod tests {
                 me: vec![],
                 sm: vec![],
                 cms_on_send: None,
+                drop_on_send: None,
                 sent: vec![],
                 sm_broken: false,
                 no_delflag: false,
@@ -687,6 +781,9 @@ mod tests {
                         let mut mm = m2.lock().unwrap();
                         mm.sent.push(pdu);
                         let k = mm.sent.len();
+                        if mm.drop_on_send == Some(k) {
+                            return;
+                        }
                         let r = if mm.cms_on_send == Some(k) {
                             "\r\n+CMS ERROR: 500\r\n".to_string()
                         } else {
@@ -815,7 +912,7 @@ mod tests {
         let (mut ch, modem, seen) = spawn(Modem::new());
         let (ok, j) = run_op(&mut ch, &["send", "12345", "Hi"]);
         assert!(ok, "{j}");
-        assert_eq!(j, "{\"success\":true,\"parts\":1,\"refs\":[41]}\n");
+        assert_eq!(j, "{\"success\":true,\"parts\":1,\"concat_ref\":null,\"refs\":[41]}\n");
         assert_eq!(modem.lock().unwrap().sent, vec!["00110005812143F50000B002C834".to_string()]);
         assert!(seen.lock().unwrap().contains(&"AT+CMGS=13".to_string()));
     }
@@ -826,7 +923,8 @@ mod tests {
         let (mut ch, modem, seen) = spawn(Modem::new());
         let (ok, j) = run_op(&mut ch, &["send", "491701234567", &text]);
         assert!(ok, "{j}");
-        assert_eq!(j, "{\"success\":true,\"parts\":3,\"refs\":[41,42,43]}\n");
+        assert!(j.starts_with("{\"success\":true,\"parts\":3,\"concat_ref\":"), "{j}");
+        assert!(j.ends_with(",\"refs\":[41,42,43]}\n"), "{j}");
         let sent = modem.lock().unwrap().sent.clone();
         assert_eq!(sent.len(), 3);
         for (k, p) in sent.iter().enumerate() {
@@ -848,11 +946,104 @@ mod tests {
         assert!(!ok);
         assert_eq!(
             j,
-            "{\"success\":false,\"error\":\"send_failed\",\"detail\":\"+CMS ERROR: 500\",\"parts\":3,\"sent_parts\":1,\"refs\":[41]}\n"
+            format!("{{\"success\":false,\"error\":\"send_failed\",\"detail\":\"+CMS ERROR: 500\",\"parts\":3,\"sent_parts\":1,\"concat_ref\":{},\"ambiguous\":false,\"refs\":[41]}}\n", cref_of(&modem.lock().unwrap().sent[0]))
         );
         assert_eq!(modem.lock().unwrap().sent.len(), 2);
         // The channel is clean for the next caller.
         assert_eq!(ch.exchange("AT", Instant::now() + Duration::from_secs(1)).unwrap(), b"AT\r\r\nOK\r\n");
+    }
+
+    /// The UDH reference byte of a sent multipart GSM7 PDU (UD starts at hex offset 30).
+    fn cref_of(pdu: &str) -> u8 {
+        u8::from_str_radix(&pdu[36..38], 16).unwrap()
+    }
+
+    #[test]
+    fn resume_sends_the_same_parts_from_n_with_the_same_ref() {
+        let text = "z".repeat(400);
+        let (mut ch, full, _) = spawn(Modem::new());
+        let (ok, j) = run_op(&mut ch, &["send", "--ref", "77", "491701234567", &text]);
+        assert!(ok, "{j}");
+        assert!(j.starts_with("{\"success\":true,\"parts\":3,\"concat_ref\":77,"), "{j}");
+        let all = full.lock().unwrap().sent.clone();
+        assert!(all.iter().all(|p| cref_of(p) == 77));
+
+        let (mut ch, part, seen) = spawn(Modem::new());
+        let (ok, j) = run_op(&mut ch, &["send", "--from", "2", "--ref", "77", "491701234567", &text]);
+        assert!(ok, "{j}");
+        assert_eq!(j, "{\"success\":true,\"parts\":3,\"concat_ref\":77,\"refs\":[41,42]}\n");
+        assert_eq!(part.lock().unwrap().sent, all[1..].to_vec());
+        assert_eq!(seen.lock().unwrap().iter().filter(|c| c.starts_with("AT+CMGS=")).count(), 2);
+    }
+
+    #[test]
+    fn sent_parts_is_absolute_when_a_resumed_part_fails() {
+        let mut m = Modem::new();
+        m.cms_on_send = Some(2); // 2nd part of THIS run = part 3
+        let (mut ch, modem, _) = spawn(m);
+        let (ok, j) = run_op(&mut ch, &["send", "--ref", "5", "--from", "2", "491701234567", &"y".repeat(400)]);
+        assert!(!ok);
+        assert_eq!(
+            j,
+            "{\"success\":false,\"error\":\"send_failed\",\"detail\":\"+CMS ERROR: 500\",\"parts\":3,\"sent_parts\":2,\"concat_ref\":5,\"ambiguous\":false,\"refs\":[41]}\n"
+        );
+        assert_eq!(modem.lock().unwrap().sent.len(), 2);
+    }
+
+    #[test]
+    fn a_lost_line_after_the_pdu_is_ambiguous() {
+        let mut m = Modem::new();
+        m.drop_on_send = Some(2);
+        let (mut ch, _, _) = spawn(m);
+        let (ok, j) = run_op(&mut ch, &["send", "--ref", "9", "491701234567", &"y".repeat(400)]);
+        assert!(!ok);
+        assert!(j.starts_with("{\"success\":false,\"error\":\"modem_not_ready\",\"detail\":\"\",\"parts\":3,\"sent_parts\":1,\"concat_ref\":9,\"ambiguous\":true,"), "{j}");
+    }
+
+    #[test]
+    fn from_beyond_the_last_part_never_reaches_the_modem() {
+        let mut ch: Channel<UnixStream> = Channel::new(Box::new(|| panic!("modem opened")));
+        let (ok, j) = run_op(&mut ch, &["send", "--ref", "1", "--from", "2", "12345", "Hi"]);
+        assert!(!ok);
+        assert!(j.starts_with("{\"success\":false,\"error\":\"bad_args\""), "{j}");
+    }
+
+    #[test]
+    fn remaining_parts_slice_from_the_one_based_index() {
+        let parts = pdu::encode_submit("12345", &"x".repeat(400), 3).unwrap();
+        assert_eq!(remaining(&parts, 1), &parts[..]);
+        assert_eq!(remaining(&parts, 3), &parts[2..]);
+        // Same text + same ref => byte-identical parts, so a resumed part equals the original.
+        assert_eq!(pdu::encode_submit("12345", &"x".repeat(400), 3).unwrap(), parts);
+    }
+
+    #[test]
+    fn send_flags_are_validated() {
+        let a = |v: &[&str]| parse_args(&v.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let send = |r: Option<u8>, f: usize| Op::Send { number: "1".into(), text: "t".into(), concat_ref: r, from: f };
+        assert_eq!(a(&["send", "1", "t"]).unwrap(), send(None, 1));
+        assert_eq!(a(&["send", "--ref", "0", "1", "t"]).unwrap(), send(Some(0), 1));
+        assert_eq!(a(&["send", "--ref", "255", "--from", "3", "1", "t"]).unwrap(), send(Some(255), 3));
+        assert_eq!(a(&["send", "--from", "3", "--ref", "255", "1", "t"]).unwrap(), send(Some(255), 3));
+        // Text that looks like a flag is still text once the number is read.
+        assert_eq!(
+            a(&["send", "1", "--ref"]).unwrap(),
+            Op::Send { number: "1".into(), text: "--ref".into(), concat_ref: None, from: 1 }
+        );
+        for bad in [
+            &["send", "--ref", "x", "1", "t"][..],
+            &["send", "--ref", "256", "1", "t"],
+            &["send", "--ref", "-1", "1", "t"],
+            &["send", "--ref", "1", "--from", "0", "1", "t"],
+            &["send", "--from", "2", "1", "t"],
+            &["send", "--ref", "1", "--ref", "2", "1", "t"],
+            &["send", "--ref", "1", "--from", "1", "--from", "1", "1", "t"],
+            &["send", "--bogus", "1", "1", "t"],
+            &["send", "--ref"],
+            &["send", "--ref", "1", "1"],
+        ] {
+            assert!(a(bad).is_err(), "{bad:?}");
+        }
     }
 
     #[test]
@@ -909,7 +1100,7 @@ mod tests {
         assert!(a(&[]).is_err());
         assert_eq!(
             a(&["send", "+491", "multi\nline \"text\""]).unwrap(),
-            Op::Send { number: "+491".into(), text: "multi\nline \"text\"".into() }
+            Op::Send { number: "+491".into(), text: "multi\nline \"text\"".into(), concat_ref: None, from: 1 }
         );
     }
 
