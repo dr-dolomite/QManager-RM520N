@@ -111,14 +111,14 @@ fill_v6() {
 # $1 = iptables | ip6tables, $2 = fill function. Build in STAGE, hook it at
 # INPUT 1, then retire the old chain and rename STAGE into its place. A STAGE
 # left hooked by an interrupted run is unhooked first, or -X/-N would fail.
-# A failed build keeps an existing complete chain and drops STAGE; with no old
-# chain the partial STAGE stays hooked (safe prefix). A partial is never renamed.
+# A failed build keeps a hooked old chain and drops STAGE; with none hooked the
+# partial STAGE stays hooked (safe prefix). A partial is never renamed.
 swap_in() {
     unhook_chain "$1" "$STAGE"
     drop_chain "$1" "$STAGE"
     "$1" $W -N "$STAGE" || return 1
     if ! "$2" "$STAGE" || ! "$1" $W -I INPUT 1 -j "$STAGE"; then
-        if "$1" $W -S "$CHAIN" >/dev/null 2>&1; then
+        if "$1" $W -C INPUT -j "$CHAIN" 2>/dev/null; then
             unhook_chain "$1" "$STAGE"
             drop_chain "$1" "$STAGE"
         else
@@ -146,10 +146,14 @@ swap_in_retry() {
         src=$?
         [ "$src" -eq 0 ] && return 0
         if [ "$src" -eq 2 ] || [ "$n" -ge "$ATTEMPTS" ]; then
+            what="rule build"
+            [ "$src" -eq 2 ] && what="rename to $CHAIN"
             if "$1" $W -C INPUT -j "$STAGE" 2>/dev/null; then
-                log "$1: rule build failed after $n attempts; $STAGE left hooked"
+                log "$1: $what failed after $n attempts; $STAGE left hooked"
+            elif "$1" $W -C INPUT -j "$CHAIN" 2>/dev/null; then
+                log "$1: $what failed after $n attempts; previous $CHAIN kept"
             else
-                log "$1: rule build failed after $n attempts; previous $CHAIN kept"
+                log "$1: $what failed after $n attempts; no $CHAIN rules active"
             fi
             return 1
         fi
