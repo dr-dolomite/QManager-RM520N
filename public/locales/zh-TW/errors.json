@@ -1,4 +1,9 @@
 {
+  "auth_unavailable": "目前無法登入。請稍後再試。",
+  "hash_tool_missing": "無法儲存密碼，因為缺少所需的系統工具。",
+  "no_password_set": "尚未設定密碼。請先完成初始設定。",
+  "passwd_failed": "無法變更裝置密碼。請再試一次。",
+  "ssh_password_failed": "無法更新遠端存取密碼。請再試一次。",
   "unknown": "未知錯誤",
   "unknown_with_detail": "調變解調器報告：{{detail}}",
   "all_steps_failed": "配置套用失敗 — 所有步驟均未成功",
@@ -134,7 +139,7 @@
   "partial_apply": "配置已部分套用，但部分步驟失敗 — 請檢視套用進度瞭解詳情",
   "partial_failure": "某些專案成功但其他專案失敗",
   "password_mismatch": "密碼不匹配",
-  "password_weak": "密碼太弱 — 必須至少 5 個字元，包含大寫字母、小寫字母和數字",
+  "password_weak": "密碼太弱 — 必須至少 6 個字元，包含大寫字母、小寫字母和數字",
   "payload_too_large": "請求體過大",
   "rate_limited": "嘗試次數過多 — 請稍後重試",
   "remove_failed": "刪除專案失敗",

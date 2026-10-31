@@ -1663,5 +1663,35 @@
     "timer_overtime_aria": "Reconnecting, taking longer than usual",
     "seconds_unit": "sec",
     "escape": "Device may need manual attention. Go to login"
+  },
+  "change_password": {
+    "title": "Change Password",
+    "description": "You will be logged out after changing your password.",
+    "current_label": "Current Password",
+    "new_label": "New Password",
+    "confirm_label": "Confirm New Password",
+    "match": "Passwords match",
+    "mismatch": "Passwords don’t match",
+    "error_weak": "New password must be at least 6 characters.",
+    "error_weak_strong": "New password must be at least 6 characters and include uppercase, lowercase, and a number.",
+    "error_mismatch": "New passwords do not match.",
+    "failed_toast": "Couldn't change the password. Try again.",
+    "cancel": "Cancel",
+    "submit": "Change Password",
+    "submitting": "Changing…"
+  },
+  "password_rules": {
+    "requirements_label": "Password requirements",
+    "rule": {
+      "length": "At least 6 characters",
+      "uppercase": "Uppercase letter",
+      "lowercase": "Lowercase letter",
+      "number": "Number"
+    },
+    "met": "(met)",
+    "not_met": "(not met)",
+    "strong_label": "Use strong password",
+    "strong_hint_label": "About strong passwords",
+    "strong_hint": "Requires uppercase, lowercase, and numeric characters."
   }
 }

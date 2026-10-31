@@ -116,12 +116,8 @@ export function useLogin() {
           });
         }
       })
-      .catch(() => {
-        // Backend unreachable on a fresh install likely means setup hasn't
-        // completed yet (e.g. lighttpd started before qmanager-setup).
-        // Default to setup_required so onboarding isn't silently skipped.
-        setStatus("setup_required");
-      });
+      // Unreachable backend: stay on the login form; /setup does its own retries.
+      .catch(() => setStatus("ready"));
   }, []);
 
   const login = useCallback(
@@ -185,13 +181,14 @@ export function useLogin() {
   const setup = useCallback(
     async (
       password: string,
-      confirm: string
+      confirm: string,
+      enforceStrong: boolean = true
     ): Promise<{ success: boolean; error?: string }> => {
       try {
         const resp = await fetch(LOGIN_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password, confirm }),
+          body: JSON.stringify({ password, confirm, enforce_strong: enforceStrong }),
         });
         const data = await resp.json();
 
@@ -225,13 +222,14 @@ export function useLogin() {
  */
 export async function setupPassword(
   password: string,
-  confirm: string
-): Promise<{ success: boolean; error?: string; sshSynced?: boolean }> {
+  confirm: string,
+  enforceStrong: boolean = true
+): Promise<{ success: boolean; error?: string; detail?: string; sshSynced?: boolean }> {
   try {
     const resp = await fetch(LOGIN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password, confirm }),
+      body: JSON.stringify({ password, confirm, enforce_strong: enforceStrong }),
     });
     const data = await resp.json();
 
@@ -240,12 +238,10 @@ export async function setupPassword(
       return { success: true, sshSynced: data.ssh_synced !== false };
     }
 
-    return {
-      success: false,
-      error: data.detail || data.error || "Setup failed",
-    };
+    // `error` is the errors.json code, `detail` its English fallback.
+    return { success: false, error: data.error, detail: data.detail };
   } catch {
-    return { success: false, error: "Connection failed" };
+    return { success: false };
   }
 }
 
@@ -266,8 +262,9 @@ export async function logout(): Promise<void> {
 
 export async function changePassword(
   current: string,
-  newPassword: string
-): Promise<{ success: boolean; error?: string }> {
+  newPassword: string,
+  enforceStrong: boolean = true
+): Promise<{ success: boolean; error?: string; detail?: string }> {
   try {
     const resp = await fetch(PASSWORD_ENDPOINT, {
       method: "POST",
@@ -275,6 +272,7 @@ export async function changePassword(
       body: JSON.stringify({
         current_password: current,
         new_password: newPassword,
+        enforce_strong: enforceStrong,
       }),
     });
     const data = await resp.json();
@@ -285,12 +283,10 @@ export async function changePassword(
       return { success: true };
     }
 
-    return {
-      success: false,
-      error: data.detail || data.error || "Password change failed",
-    };
+    // `error` is the errors.json code, `detail` its English fallback.
+    return { success: false, error: data.error, detail: data.detail };
   } catch {
-    return { success: false, error: "Connection failed" };
+    return { success: false };
   }
 }
 

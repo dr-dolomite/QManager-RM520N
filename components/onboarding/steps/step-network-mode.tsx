@@ -1,97 +1,77 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "motion/react";
-import { DUR, EASE_QUICK } from "@/lib/motion";
-import {
-  RefreshCwIcon,
-  SignalIcon,
-  ZapIcon,
-  LayersIcon,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { authFetch } from "@/lib/auth-fetch";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { LayersIcon, RefreshCwIcon, SignalIcon, ZapIcon } from "lucide-react";
+import { OptionRow } from "../option-row";
+import { postStep, stepFailureMessage } from "../post-step";
+import { SECTION_LABEL, STEP_DESCRIPTION, STEP_HEADING } from "../shapes";
 
-// =============================================================================
-// StepNetworkMode — Onboarding step 3: preferred network type (optional)
-// =============================================================================
+// settings.sh answers 200 with success:false when the modem rejects a value, so a
+// failure toasts and stays on the step; Skip stays available.
 
 const SETTINGS_ENDPOINT = "/cgi-bin/quecmanager/cellular/settings.sh";
 
-const NETWORK_OPTIONS = [
-  {
-    id: "AUTO",
-    label: "Automatic",
-    description: "Connect to the best available network",
-    Icon: RefreshCwIcon,
-    show5gArch: false,
-  },
-  {
-    id: "LTE",
-    label: "LTE Only",
-    description: "4G LTE — stable and widely available",
-    Icon: SignalIcon,
-    show5gArch: false,
-  },
-  {
-    id: "NR5G",
-    label: "5G Only",
-    description: "5G standalone — fastest where available",
-    Icon: ZapIcon,
-    show5gArch: true,
-  },
-  {
-    id: "LTE:NR5G",
-    label: "LTE + 5G",
-    description: "Dual mode with automatic fallback",
-    Icon: LayersIcon,
-    show5gArch: true,
-  },
-];
-
-const NR5G_ARCH_OPTIONS = [
-  { id: 0, label: "Auto (SA + NSA)", description: "Use both standalone and non-standalone" },
-  { id: 1, label: "NSA Only", description: "5G via LTE anchor — broader coverage" },
-  { id: 2, label: "SA Only", description: "Standalone 5G — lowest latency" },
-];
-
 interface StepNetworkModeProps {
-  onDataChange: (data: { mode_pref: string; nr5g_mode: number } | null) => void;
   onSubmitRef: (fn: () => Promise<void>) => void;
   onLoadingChange: (loading: boolean) => void;
   onSuccess: () => void;
 }
 
 export function StepNetworkMode({
-  onDataChange,
   onSubmitRef,
   onLoadingChange,
   onSuccess,
 }: StepNetworkModeProps) {
+  const { t } = useTranslation("onboarding");
+
+  const NETWORK_OPTIONS = [
+    {
+      id: "AUTO",
+      label: t("network_mode.mode_label_auto"),
+      description: t("network_mode.mode_desc_auto"),
+      Icon: RefreshCwIcon,
+      show5gArch: false,
+    },
+    {
+      id: "LTE",
+      label: t("network_mode.mode_label_lte"),
+      description: t("network_mode.mode_desc_lte"),
+      Icon: SignalIcon,
+      show5gArch: false,
+    },
+    {
+      id: "NR5G",
+      label: t("network_mode.mode_label_5g_only"),
+      description: t("network_mode.mode_desc_5g_only"),
+      Icon: ZapIcon,
+      show5gArch: true,
+    },
+    {
+      id: "LTE:NR5G",
+      label: t("network_mode.mode_label_dual"),
+      description: t("network_mode.mode_desc_dual"),
+      Icon: LayersIcon,
+      show5gArch: true,
+    },
+  ];
+
+  const NR5G_ARCH_OPTIONS = [
+    { id: 0, label: t("network_mode.arch_label_auto"), description: t("network_mode.arch_desc_auto") },
+    { id: 1, label: t("network_mode.arch_label_nsa"), description: t("network_mode.arch_desc_nsa") },
+    { id: 2, label: t("network_mode.arch_label_sa"), description: t("network_mode.arch_desc_sa") },
+  ];
+
   const [selectedMode, setSelectedMode] = useState("AUTO");
   const [nr5gMode, setNr5gMode] = useState(0);
 
-  const selectedOption = NETWORK_OPTIONS.find((o) => o.id === selectedMode)!;
+  const show5gArch = NETWORK_OPTIONS.find((o) => o.id === selectedMode)?.show5gArch ?? false;
 
   const handleModeSelect = (id: string) => {
     setSelectedMode(id);
     const show5g = NETWORK_OPTIONS.find((o) => o.id === id)?.show5gArch ?? false;
-    const arch = show5g ? nr5gMode : 0;
     if (!show5g) setNr5gMode(0);
-    if (id !== "AUTO" || arch !== 0) {
-      onDataChange({ mode_pref: id, nr5g_mode: arch });
-    } else {
-      onDataChange(null);
-    }
-  };
-
-  const handleArchSelect = (archId: number) => {
-    setNr5gMode(archId);
-    if (selectedMode !== "AUTO" || archId !== 0) {
-      onDataChange({ mode_pref: selectedMode, nr5g_mode: archId });
-    } else {
-      onDataChange(null);
-    }
   };
 
   const submit = useCallback(async () => {
@@ -101,19 +81,18 @@ export function StepNetworkMode({
     }
 
     onLoadingChange(true);
-    try {
-      await authFetch(SETTINGS_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode_pref: selectedMode, nr5g_mode: nr5gMode }),
-      });
-    } catch {
-      // Non-fatal
-    } finally {
-      onLoadingChange(false);
-      onSuccess();
+    const result = await postStep(SETTINGS_ENDPOINT, {
+      mode_pref: selectedMode,
+      nr5g_mode: nr5gMode,
+    });
+    onLoadingChange(false);
+
+    if (!result.ok) {
+      toast.error(stepFailureMessage(t, result, t("network_mode.toast_failed")));
+      return;
     }
-  }, [selectedMode, nr5gMode, onLoadingChange, onSuccess]);
+    onSuccess();
+  }, [selectedMode, nr5gMode, onLoadingChange, onSuccess, t]);
 
   useEffect(() => {
     onSubmitRef(submit);
@@ -122,111 +101,48 @@ export function StepNetworkMode({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h2 className="text-2xl font-semibold tracking-tight">Preferred network</h2>
-        <p className="text-sm text-muted-foreground">
-          How should your modem connect? You can change this anytime in Settings.
-        </p>
+        <h2 className={STEP_HEADING}>{t("network_mode.heading")}</h2>
+        <p className={STEP_DESCRIPTION}>{t("network_mode.description")}</p>
       </div>
 
-      {/* Network type — role="radiogroup" for screen readers */}
       <div
         role="radiogroup"
-        aria-label="Network type"
-        className="flex flex-col gap-2"
+        aria-label={t("network_mode.aria_network_type")}
+        className="flex flex-col gap-1.5"
       >
-        {NETWORK_OPTIONS.map((option) => {
-          const isSelected = selectedMode === option.id;
-          return (
-            <motion.button
-              key={option.id}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              onClick={() => handleModeSelect(option.id)}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-              className={cn(
-                "flex items-center gap-4 rounded-lg border px-4 py-3.5 text-left",
-                "transition-colors duration-[var(--duration-quick)] ease-out",
-                "hover:border-primary/50 hover:bg-primary/5",
-                isSelected
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "border-border bg-card"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--duration-quick)] ease-out",
-                  isSelected
-                    ? "bg-primary/15 text-primary"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                <option.Icon className="size-4" />
-              </span>
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm font-medium leading-snug">{option.label}</span>
-                <span className="text-xs text-muted-foreground leading-snug">
-                  {option.description}
-                </span>
-              </div>
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "ml-auto block size-4 shrink-0 rounded-full border-2 transition-colors duration-[var(--duration-quick)] ease-out",
-                  isSelected
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground/40"
-                )}
-              />
-            </motion.button>
-          );
-        })}
+        {NETWORK_OPTIONS.map((option) => (
+          <OptionRow
+            key={option.id}
+            selected={selectedMode === option.id}
+            onSelect={() => handleModeSelect(option.id)}
+            label={option.label}
+            detail={option.description}
+            icon={<option.Icon className="size-4" />}
+          />
+        ))}
       </div>
 
-      {/* 5G Architecture — only shown for 5G modes */}
-      {selectedOption.show5gArch && (
-        <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            5G Architecture
+      {/* 5G architecture: only for the 5G modes, under its own label */}
+      {show5gArch && (
+        <div className="flex flex-col gap-2.5">
+          <p id="onboard-arch-label" className={SECTION_LABEL}>
+            {t("network_mode.arch_section_label")}
           </p>
           <div
             role="radiogroup"
-            aria-label="5G architecture"
+            aria-labelledby="onboard-arch-label"
             className="flex flex-col gap-1.5"
           >
-            {NR5G_ARCH_OPTIONS.map((arch) => {
-              const isSelected = nr5gMode === arch.id;
-              return (
-                <motion.button
-                  key={arch.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  onClick={() => handleArchSelect(arch.id)}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left",
-                    "transition-colors duration-[var(--duration-quick)] ease-out",
-                    "hover:border-primary/50 hover:bg-primary/5",
-                    isSelected ? "border-primary bg-primary/5" : "border-border"
-                  )}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "block size-3.5 shrink-0 rounded-full border-2 transition-colors duration-[var(--duration-quick)] ease-out",
-                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
-                    )}
-                  />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium leading-snug">{arch.label}</span>
-                    <span className="text-xs text-muted-foreground">{arch.description}</span>
-                  </div>
-                </motion.button>
-              );
-            })}
+            {NR5G_ARCH_OPTIONS.map((arch) => (
+              <OptionRow
+                key={arch.id}
+                size="sm"
+                selected={nr5gMode === arch.id}
+                onSelect={() => setNr5gMode(arch.id)}
+                label={arch.label}
+                detail={arch.description}
+              />
+            ))}
           </div>
         </div>
       )}

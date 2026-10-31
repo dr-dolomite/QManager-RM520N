@@ -1663,5 +1663,35 @@
     "timer_overtime_aria": "Menyambungkan ulang, memakan waktu lebih lama dari biasanya",
     "seconds_unit": "dtk",
     "escape": "Perangkat mungkin perlu ditangani manual. Buka halaman masuk"
+  },
+  "change_password": {
+    "title": "Ubah Kata Sandi",
+    "description": "Anda akan keluar setelah mengubah kata sandi.",
+    "current_label": "Kata Sandi Saat Ini",
+    "new_label": "Kata Sandi Baru",
+    "confirm_label": "Konfirmasi Kata Sandi Baru",
+    "match": "Kata sandi cocok",
+    "mismatch": "Kata sandi tidak cocok",
+    "error_weak": "Kata sandi baru minimal 6 karakter.",
+    "error_weak_strong": "Kata sandi baru minimal 6 karakter dan harus berisi huruf besar, huruf kecil, dan angka.",
+    "error_mismatch": "Kata sandi baru tidak cocok.",
+    "failed_toast": "Tidak dapat mengubah kata sandi. Coba lagi.",
+    "cancel": "Batal",
+    "submit": "Ubah Kata Sandi",
+    "submitting": "Mengubah…"
+  },
+  "password_rules": {
+    "requirements_label": "Persyaratan kata sandi",
+    "rule": {
+      "length": "Minimal 6 karakter",
+      "uppercase": "Huruf besar",
+      "lowercase": "Huruf kecil",
+      "number": "Angka"
+    },
+    "met": "(terpenuhi)",
+    "not_met": "(belum terpenuhi)",
+    "strong_label": "Gunakan kata sandi kuat",
+    "strong_hint_label": "Tentang kata sandi kuat",
+    "strong_hint": "Memerlukan huruf besar, huruf kecil, dan angka."
   }
 }

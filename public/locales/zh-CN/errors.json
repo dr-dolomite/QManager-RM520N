@@ -1,4 +1,9 @@
 {
+  "auth_unavailable": "目前无法登录。请稍后重试。",
+  "hash_tool_missing": "无法保存密码，因为缺少所需的系统工具。",
+  "no_password_set": "尚未设置密码。请先完成初始设置。",
+  "passwd_failed": "无法更改设备密码。请重试。",
+  "ssh_password_failed": "无法更新远程访问密码。请重试。",
   "unknown": "未知错误",
   "unknown_with_detail": "调制解调器报告：{{detail}}",
   "all_steps_failed": "配置应用失败 — 所有步骤均未成功",
@@ -134,7 +139,7 @@
   "partial_apply": "配置已部分应用，但部分步骤失败 — 请查看应用进度了解详情",
   "partial_failure": "某些项目成功但其他项目失败",
   "password_mismatch": "密码不匹配",
-  "password_weak": "密码太弱 — 必须至少 5 个字符，包含大写字母、小写字母和数字",
+  "password_weak": "密码太弱 — 必须至少 6 个字符，包含大写字母、小写字母和数字",
   "payload_too_large": "请求体过大",
   "rate_limited": "尝试次数过多 — 请稍后重试",
   "remove_failed": "删除项目失败",

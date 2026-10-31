@@ -1,4 +1,9 @@
 {
+  "auth_unavailable": "L'accesso non è disponibile al momento. Riprova tra poco.",
+  "hash_tool_missing": "Impossibile salvare la password perché manca uno strumento di sistema necessario.",
+  "no_password_set": "Nessuna password impostata. Completa prima la configurazione iniziale.",
+  "passwd_failed": "Impossibile cambiare la password del dispositivo. Riprova.",
+  "ssh_password_failed": "Impossibile aggiornare la password di accesso remoto. Riprova.",
   "unknown": "Errore sconosciuto",
   "unknown_with_detail": "Modem segnalato: {{detail}}",
   "all_steps_failed": "Applicazione del profilo non riuscita — nessuna impostazione è stata applicata con successo",
@@ -134,7 +139,7 @@
   "partial_apply": "Profilo applicato con alcuni passaggi non riusciti — controlla il progresso di applicazione per i dettagli",
   "partial_failure": "Alcuni elementi hanno avuto successo ma altri hanno fallito",
   "password_mismatch": "Le password non corrispondono",
-  "password_weak": "La password è troppo debole: deve contenere almeno 5 caratteri tra maiuscoli, minuscoli e un numero",
+  "password_weak": "La password è troppo debole: deve contenere almeno 6 caratteri tra maiuscoli, minuscoli e un numero",
   "payload_too_large": "Il corpo della richiesta è troppo grande",
   "rate_limited": "Troppi tentativi falliti: riprova più tardi",
   "remove_failed": "Impossibile rimuovere l'elemento",
