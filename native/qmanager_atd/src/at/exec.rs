@@ -2,7 +2,7 @@
 //! Mirrors legacy qcmd: long-flag gate, warm-up for long commands, lock budgets,
 //! error-code mapping. Output framing is produced by the caller from `Outcome`.
 
-use crate::at::channel::{AtError, Channel, Device};
+use crate::at::channel::{AtError, Channel, ChannelEvent, Device};
 use crate::at::classify;
 use crate::common::lock::LockFile;
 use crate::common::log::Logger;
@@ -102,12 +102,25 @@ fn log_drained(log: &Logger, drained: &[u8], cmd: &str) {
     log.debug(&format!("drained stale/URC before {cmd}: {d}"));
 }
 
+/// Logs a channel up/down change once (the per-command lines go to debug while down).
+fn log_event<D: Device>(log: &Logger, ch: &mut Channel<D>) {
+    match ch.take_event() {
+        Some(ChannelEvent::Down) => log.error("AT channel down: resync failed; failing fast, re-probing every 2-60 s"),
+        Some(ChannelEvent::Up { after }) => log.info(&format!("AT channel recovered after {}s", after.as_secs())),
+        None => {}
+    }
+}
+
 /// The one AtError -> error-code mapping, shared by AT requests and SMS ops.
-fn map_error(log: &Logger, cmd: &str, e: AtError) -> Code {
+fn map_error(log: &Logger, cmd: &str, e: AtError, down: bool) -> Code {
     match e {
         AtError::Timeout => {
             log.error(&format!("Command killed by deadline: {cmd}"));
             Code::CommandTimeout
+        }
+        AtError::NotReady if down => {
+            log.debug(&format!("Channel down, refused: {cmd}"));
+            Code::ModemNotReady
         }
         AtError::NotReady => {
             log.error(&format!("Channel not ready for: {cmd}"));
@@ -152,10 +165,12 @@ impl<D: Device> Session<'_, D> {
             return Err(Code::CommandTimeout);
         };
         let r = self.ch.exchange(cmd, deadline);
+        log_event(self.log, self.ch);
         if !self.ch.last_drained.is_empty() {
             log_drained(self.log, &self.ch.last_drained, cmd);
         }
-        r.map_err(|e| map_error(self.log, cmd, e))
+        let down = self.ch.is_down();
+        r.map_err(|e| map_error(self.log, cmd, e, down))
     }
 
     /// A prompt exchange (AT+CMGS): `payload` is written after the `> ` prompt.
@@ -165,7 +180,9 @@ impl<D: Device> Session<'_, D> {
             return Err(Code::CommandTimeout);
         };
         let r = self.ch.exchange_prompt(cmd, payload, Instant::now() + prompt, deadline);
-        r.map_err(|e| map_error(self.log, cmd, e))
+        log_event(self.log, self.ch);
+        let down = self.ch.is_down();
+        r.map_err(|e| map_error(self.log, cmd, e, down))
     }
 }
 
@@ -246,7 +263,9 @@ impl<D: Device> Executor<'_, D> {
             let _ = write_nofollow(LONG_FLAG, format!("{}\n", one_line(cmd)).as_bytes());
             self.log.info(&format!("Long command started: {cmd}"));
             // Warm-up flush, like qcmd:191-192. A failure here is modem_not_ready.
-            if let Err(e) = self.ch.exchange("AT", Instant::now() + Duration::from_secs(3)) {
+            let warm = self.ch.exchange("AT", Instant::now() + Duration::from_secs(3));
+            log_event(self.log, self.ch);
+            if let Err(e) = warm {
                 let _ = std::fs::remove_file(LONG_FLAG);
                 let _ = std::fs::remove_file(PID_FILE);
                 self.log.error(&format!("Modem warm-up failed before: {cmd} ({e:?})"));
@@ -254,7 +273,10 @@ impl<D: Device> Executor<'_, D> {
             }
         }
 
-        let outcome = match self.ch.exchange(cmd, deadline_for(cmd, long)) {
+        let r = self.ch.exchange(cmd, deadline_for(cmd, long));
+        log_event(self.log, self.ch);
+        let down = self.ch.is_down();
+        let outcome = match r {
             Ok(raw) => {
                 if !self.ch.last_drained.is_empty() {
                     log_drained(self.log, &self.ch.last_drained, cmd);
@@ -262,7 +284,7 @@ impl<D: Device> Executor<'_, D> {
                 self.log.at_cmd(cmd, &String::from_utf8_lossy(&raw), true);
                 Outcome::Ok(raw)
             }
-            Err(e) => Outcome::Err(map_error(self.log, cmd, e)),
+            Err(e) => Outcome::Err(map_error(self.log, cmd, e, down)),
         };
 
         if long {

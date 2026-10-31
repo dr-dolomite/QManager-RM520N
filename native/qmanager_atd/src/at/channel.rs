@@ -93,7 +93,32 @@ pub struct Channel<D: Device> {
     pending: Vec<u8>,
     /// Bytes drained before the last send (stale replies or URCs), for logging.
     pub last_drained: Vec<u8>,
+    /// Set while resync keeps failing: commands fail fast until `next` passes.
+    down: Option<Down>,
+    /// Up/down change from the last exchange, for the caller to log once.
+    event: Option<ChannelEvent>,
+    probe_min: Duration,
+    probe_max: Duration,
+    sync_timeout: Duration,
 }
+
+struct Down {
+    since: Instant,
+    next: Instant,
+    backoff: Duration,
+}
+
+/// A change of channel health, logged once instead of per command.
+#[derive(Debug, PartialEq)]
+pub enum ChannelEvent {
+    Down,
+    Up { after: Duration },
+}
+
+/// Re-probe backoff while the channel is down: 2 s doubling to 60 s.
+const PROBE_MIN: Duration = Duration::from_secs(2);
+const PROBE_MAX: Duration = Duration::from_secs(60);
+const SYNC_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Bound on a blocking open. glink_pkt's open() waits for the remote channel,
 /// which can stall while the baseband restarts (SSR).
@@ -194,7 +219,21 @@ impl<D: Device> Channel<D> {
             established: false,
             pending: Vec::new(),
             last_drained: Vec::new(),
+            down: None,
+            event: None,
+            probe_min: PROBE_MIN,
+            probe_max: PROBE_MAX,
+            sync_timeout: SYNC_TIMEOUT,
         }
+    }
+
+    /// True while resync keeps failing (commands fail fast as NotReady).
+    pub fn is_down(&self) -> bool {
+        self.down.is_some()
+    }
+
+    pub fn take_event(&mut self) -> Option<ChannelEvent> {
+        self.event.take()
     }
 
     pub fn close(&mut self) {
@@ -342,7 +381,7 @@ impl<D: Device> Channel<D> {
 
     fn try_sync(&mut self) -> Result<(), AtError> {
         self.drain(Duration::from_millis(200))?;
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let deadline = Instant::now() + self.sync_timeout;
         self.send(b"AT\r\n", deadline)?;
         let reply = self.read_reply(deadline)?;
         if reply.windows(4).any(|w| w == b"OK\r\n") {
@@ -366,6 +405,42 @@ impl<D: Device> Channel<D> {
                 Ok(())
             }
             Err(_) => Err(AtError::NotReady),
+        }
+    }
+
+    /// Resync a dirty channel. Once resync fails the channel is down: callers
+    /// get NotReady at once (no I/O, no lock time) until the backoff passes,
+    /// then one re-probe. Before this, every command re-probed for up to 6 s.
+    fn ensure_ready(&mut self) -> Result<(), AtError> {
+        if !self.dirty {
+            return Ok(());
+        }
+        if let Some(d) = &self.down {
+            if Instant::now() < d.next {
+                return Err(AtError::NotReady);
+            }
+        }
+        match self.resync() {
+            Ok(()) => {
+                if let Some(d) = self.down.take() {
+                    self.event = Some(ChannelEvent::Up { after: d.since.elapsed() });
+                }
+                Ok(())
+            }
+            Err(e) => {
+                let now = Instant::now();
+                match &mut self.down {
+                    Some(d) => {
+                        d.backoff = (d.backoff * 2).min(self.probe_max);
+                        d.next = now + d.backoff;
+                    }
+                    None => {
+                        self.down = Some(Down { since: now, next: now + self.probe_min, backoff: self.probe_min });
+                        self.event = Some(ChannelEvent::Down);
+                    }
+                }
+                Err(e)
+            }
         }
     }
 
@@ -425,9 +500,7 @@ impl<D: Device> Channel<D> {
         prompt_deadline: Instant,
         deadline: Instant,
     ) -> Result<Vec<u8>, AtError> {
-        if self.dirty {
-            self.resync()?;
-        }
+        self.ensure_ready()?;
         self.last_drained = self.drain(Duration::ZERO)?;
         let mut line = Vec::with_capacity(cmd.len() + 2);
         line.extend_from_slice(cmd.as_bytes());
@@ -452,9 +525,7 @@ impl<D: Device> Channel<D> {
 
     /// One AT exchange. The caller holds the modem lock.
     pub fn exchange(&mut self, cmd: &str, deadline: Instant) -> Result<Vec<u8>, AtError> {
-        if self.dirty {
-            self.resync()?;
-        }
+        self.ensure_ready()?;
         // Zero-wait: stale bytes are already queued in the kernel when we look.
         // Waiting a "quiet" window here cost ~20 ms on every daemon command.
         self.last_drained = self.drain(Duration::ZERO)?;
@@ -648,6 +719,87 @@ mod tests {
         for _ in 0..3 {
             assert_eq!(ch.exchange("AT+CSQ", soon(800)).unwrap(), b"AT+CSQ\r\r\nOK\r\n");
         }
+    }
+
+    /// A fake modem that reads every line and never answers (a wedged AT port).
+    fn silent_dev() -> UnixStream {
+        let (near, mut far) = UnixStream::pair().unwrap();
+        near.set_nonblocking(true).unwrap();
+        thread::spawn(move || {
+            let mut buf = [0u8; 256];
+            while let Ok(n) = far.read(&mut buf) {
+                if n == 0 {
+                    return;
+                }
+            }
+        });
+        near
+    }
+
+    #[test]
+    fn a_port_that_answers_again_after_failed_reopens_recovers_with_backoff() {
+        // The first `silent` opens give a port that never answers, later ones a healthy one.
+        let silent = 4usize;
+        let opens = Arc::new(Mutex::new(0usize));
+        let o2 = opens.clone();
+        let mut ch: Channel<UnixStream> = Channel::new(Box::new(move || {
+            let mut n = o2.lock().unwrap();
+            *n += 1;
+            Ok(if *n <= silent { silent_dev() } else { healthy_dev() })
+        }));
+        ch.probe_min = Duration::from_millis(40);
+        ch.probe_max = Duration::from_millis(100);
+        ch.sync_timeout = Duration::from_millis(50);
+
+        assert!(matches!(ch.exchange("AT+HANG", soon(100)), Err(AtError::Timeout)));
+        // Resync and its one reopen both fail: the channel goes down, once.
+        assert!(matches!(ch.exchange("AT+CSQ", soon(500)), Err(AtError::NotReady)));
+        assert!(ch.is_down());
+        assert_eq!(ch.take_event(), Some(ChannelEvent::Down));
+        let after_down = *opens.lock().unwrap();
+        assert_eq!(after_down, 2);
+
+        // While down, commands fail at once and never touch the port.
+        let t = Instant::now();
+        assert!(matches!(ch.exchange("AT+CSQ", soon(500)), Err(AtError::NotReady)));
+        assert!(t.elapsed() < Duration::from_millis(20), "{:?}", t.elapsed());
+        assert_eq!(*opens.lock().unwrap(), after_down);
+        assert_eq!(ch.take_event(), None, "no second down event");
+
+        // Re-probes on the backoff until the port answers again.
+        let start = Instant::now();
+        let r = loop {
+            assert!(start.elapsed() < Duration::from_secs(3), "never recovered");
+            thread::sleep(Duration::from_millis(10));
+            match ch.exchange("AT+CSQ", soon(500)) {
+                Ok(r) => break r,
+                Err(AtError::NotReady) => assert_eq!(ch.take_event(), None),
+                Err(e) => panic!("{e:?}"),
+            }
+        };
+        assert_eq!(r, b"AT+CSQ\r\r\nOK\r\n");
+        assert!(!ch.is_down());
+        assert!(matches!(ch.take_event(), Some(ChannelEvent::Up { .. })));
+        assert_eq!(*opens.lock().unwrap(), silent + 1);
+        assert_eq!(ch.exchange("AT+CSQ", soon(500)).unwrap(), b"AT+CSQ\r\r\nOK\r\n");
+    }
+
+    #[test]
+    fn backoff_doubles_and_is_capped() {
+        let mut ch: Channel<UnixStream> = Channel::new(Box::new(|| Ok(silent_dev())));
+        ch.probe_min = Duration::from_millis(10);
+        ch.probe_max = Duration::from_millis(40);
+        ch.sync_timeout = Duration::from_millis(20);
+        ch.dirty = true;
+        let mut seen = Vec::new();
+        for _ in 0..5 {
+            if let Some(d) = &ch.down {
+                thread::sleep(d.next.saturating_duration_since(Instant::now()));
+            }
+            assert!(matches!(ch.exchange("AT+CSQ", soon(200)), Err(AtError::NotReady)));
+            seen.push(ch.down.as_ref().unwrap().backoff.as_millis());
+        }
+        assert_eq!(seen, vec![10, 20, 40, 40, 40]);
     }
 
     /// A fake modem for AT+CMGS: answers `AT+CMGS=` with `prompt` (None = no
