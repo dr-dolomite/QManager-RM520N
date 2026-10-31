@@ -115,7 +115,7 @@ Before forwarding, `sf_is_relay()` checks whether the content matches our own re
 
 ### 3-Attempt Abandon, Feature Stays Enabled
 
-A failing send re-checks modem registration before **each** of three attempts (`AT+CREG?` / `AT+CGREG?` via `qcmd`, considered registered on stat `1` home or `5` roaming), waits 5 s between tries, and stops early once a failure reports `sent_parts > 0` (a retry would resend part 1 onward). The one exception: when that failure has `ambiguous: false` and a numeric `concat_ref`, it resumes **once** with `qsms send --ref <concat_ref> --from <sent_parts + 1>` and then stops either way (log `SMS forward: resuming at part N (ref R)`; contract in [`sms.md` > Resuming a multi-part send](sms.md#resuming-a-multi-part-send---ref----from)). On exhaustion it:
+A failing send re-checks modem registration before **each** of three attempts (`AT+CREG?` / `AT+CGREG?` via `qcmd`, considered registered on stat `1` home or `5` roaming), waits 5 s between tries, and stops early once a failure reports `sent_parts > 0` (a retry would resend part 1 onward), or `sent_parts` 0 with `ambiguous: true` (part 1 may have been delivered). The one exception: when that failure has `ambiguous: false` and a numeric `concat_ref`, it resumes **once** with `qsms send --ref <concat_ref> --from <sent_parts + 1>` and then stops either way (log `SMS forward: resuming at part N (ref R)`; contract in [`sms.md` > Resuming a multi-part send](sms.md#resuming-a-multi-part-send---ref----from)). On exhaustion it:
 
 1. Appends a record to `/tmp/qmanager_sms_forward_failures.json` (capped at 20; oldest dropped on overflow).
 2. Keeps running — a bad send **never** disables forwarding.

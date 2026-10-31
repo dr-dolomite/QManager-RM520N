@@ -137,7 +137,7 @@ Send envelope fields. Success carries `parts`, `concat_ref`, `refs`; a send fail
 
 `ambiguous` is `false` when nothing can have left: the session never opened (`modem_busy`, `scan_in_progress`), `AT+CMGF=0` failed, a `+CMS ERROR` / `ERROR` with no `+CMGS:`, a QMI result error, WMS not reachable, or a WMS request that never left the socket. It is `true` on a timeout or a lost reply after the PDU was written: AT transport error during `AT+CMGS`, an empty reply, `ERROR` after a `+CMGS:`, an `OK` with no `+CMGS:` reference, a WMS no-reply or lost server, or a WMS reply with no result TLV.
 
-**The resume rule callers follow:** resume once, with `--ref <concat_ref> --from <sent_parts + 1>`, only when `sent_parts > 0`, `ambiguous` is `false` and `concat_ref` is a number. Otherwise stop. An envelope from a pre-0.7.3 binary has no `ambiguous`, which the callers read as `null`, so they never resume on it. `sms_alerts.sh` (`_sa_do_send`) and `qmanager_sms_forward` (`sf_send_with_retry`) implement this; the inbox CGI (`sms.sh`) passes `concat_ref`, `refs` and `ambiguous` through and does not resume.
+**The resume rule callers follow:** resume once, with `--ref <concat_ref> --from <sent_parts + 1>`, only when `sent_parts > 0`, `ambiguous` is `false` and `concat_ref` is a number. Otherwise stop. With `sent_parts` 0 a full retry is safe and allowed, except when `ambiguous` is `true` (part 1 may have been delivered): then stop. An envelope from a pre-0.7.3 binary has no `ambiguous`, which the callers read as `null`, so they never resume on it. `sms_alerts.sh` (`_sa_do_send`) and `qmanager_sms_forward` (`sf_send_with_retry`) implement this; the inbox CGI (`sms.sh`) passes `concat_ref`, `refs` and `ambiguous` through and does not resume.
 
 ### No AT lock
 
