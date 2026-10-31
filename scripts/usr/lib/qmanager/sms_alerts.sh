@@ -141,7 +141,7 @@ _sa_do_send() {
     local attempt=0
     local attempted_real=0
     local skips=0
-    local rc out err
+    local rc out err sent_parts ambiguous cref
 
     if [ ! -x "$_SA_QSMS" ]; then
         qlog_error "SMS alerts: qsms not found at $_SA_QSMS"
@@ -179,11 +179,31 @@ _sa_do_send() {
         fi
         err=$(_sa_send_error "$out")
         qlog_warn "SMS alerts: qsms send failed on attempt $attempt/$_SA_MAX_ATTEMPTS (rc=$rc): $err"
-        # A retry resends every part, so once any part went out, stop rather than duplicate it.
-        case "$(printf '%s' "$out" | jq -r '.sent_parts // 0' 2>/dev/null)" in
-            ''|0|*[!0-9]*) ;;
-            *) qlog_warn "SMS alerts: some parts already sent, not retrying"; break ;;
-        esac
+        # A retry resends every part. Once any part went out, stop; except one
+        # resume of the missing parts when the broker says it was a definite reject.
+        set -- $(printf '%s' "$out" | jq -r '[(.sent_parts // 0 | tostring), (.ambiguous | tostring),
+            (if (.concat_ref | type) == "number" then (.concat_ref | tostring) else "" end)] | join(" ")' 2>/dev/null)
+        sent_parts="${1:-0}"; ambiguous="${2:-null}"; cref="${3:-}"
+        case "$sent_parts" in ''|*[!0-9]*) sent_parts=0 ;; esac
+        if [ "$sent_parts" -eq 0 ]; then
+            # Nothing confirmed sent: a full retry is safe unless part 1 may have gone out.
+            [ "$ambiguous" = "true" ] || continue
+            qlog_warn "SMS alerts: the message may have been delivered, not retrying"
+            break
+        fi
+        case "$cref" in ''|*[!0-9]*) cref="" ;; esac
+        if [ "$ambiguous" = "false" ] && [ -n "$cref" ]; then
+            qlog_warn "SMS alerts: resuming at part $((sent_parts + 1)) (ref $cref)"
+            out=$("$_SA_QSMS" send --ref "$cref" --from "$((sent_parts + 1))" "$phone" "$body" 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                qlog_info "SMS alerts: resume succeeded"
+                return 0
+            fi
+            qlog_warn "SMS alerts: resume failed: $(_sa_send_error "$out")"
+        else
+            qlog_warn "SMS alerts: some parts already sent, not retrying"
+        fi
+        break
     done
 
     if [ "$attempted_real" -eq 0 ]; then

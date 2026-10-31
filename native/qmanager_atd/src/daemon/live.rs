@@ -814,6 +814,11 @@ mod tests {
 
     #[test]
     fn the_scan_gate_marks_the_file_and_nulls_new_samples() {
+        // The flag counts only when root-owned, so this runs for real only as root.
+        if unsafe { libc::geteuid() } != 0 {
+            eprintln!("skipped: needs uid 0");
+            return;
+        }
         let d = dir("scan");
         let mut l = live(&d);
         l.start();
@@ -849,7 +854,7 @@ mod tests {
         assert!(!l.scan_up(), "a directory is ignored");
         std::fs::remove_dir(&long).unwrap();
         std::fs::write(&long, b"AT+QSCAN=3,1\n").unwrap();
-        assert!(l.scan_up(), "an own regular file counts");
+        assert_eq!(l.scan_up(), unsafe { libc::geteuid() } == 0, "counts only when owned by uid 0");
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -1037,6 +1042,6 @@ mod tests {
         assert_eq!(p.public_dir, "/var/run/qmanager/live");
         assert_eq!(p.run_dir.as_deref(), Some("/var/run/qmanager"));
         assert!(p.public_dir.starts_with(&format!("{RUN_DIR}/")), "never directly in /tmp");
-        assert_eq!(p.long_flag, "/tmp/qmanager_long_running");
+        assert_eq!(p.long_flag, "/run/qmanager_at/long_running");
     }
 }

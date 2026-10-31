@@ -14,7 +14,8 @@
 | Broker socket | `/var/run/qmanager_atd.sock` |
 | AT lock | `/run/qmanager_at/at.lock` (`root:dialout` 0640, in a `root:dialout` 0750 dir; only root creates either) |
 | Bridge marker | `/run/qmanager_at/bridge` (root-only; while present, holders also take the legacy `/tmp/qmanager_at.lock`) |
-| Long-command flag | `/tmp/qmanager_long_running` (exists while a long command runs; counted only when trusted) |
+| Long-command flag | `/run/qmanager_at/long_running` (raised by the root broker while a long command runs; counted only when root-owned, regular, one link) |
+| Shell flag check | `qm_long_flag_up [path]` in `scripts/usr/lib/qmanager/qlog.sh` (poller, watchcat) |
 | Extra long-command patterns | `/etc/qmanager/long_commands.list` (seeded by `qmanager_setup`) |
 | Log | `/tmp/qmanager.log` (component `qcmd`) |
 | Failure signal | exit 1, empty stdout, stderr `ERROR: modem_busy` or `ERROR: command_failed` |
@@ -105,9 +106,24 @@ A reboot clears the marker, because `/run` is tmpfs.
 
 #### The long-command flag trust rule
 
-`/tmp/qmanager_long_running` is still in `/tmp`, where any uid can create that name. The Rust gate counts it only when it is trusted: a regular file (not a symlink or directory), owner root, the calling process, or `www-data`, and one link. `flag_trusted()` in `native/qmanager_atd/src/at/exec.rs` is used by both `long_running()` (the `qcmd` / broker gate) and `scan_up()` in `daemon/live.rs` (the live-data scan gate). An untrusted flag is ignored and logged once: `Ignoring untrusted /tmp/qmanager_long_running (uid <n>, links <n>)`.
+The flag is `/run/qmanager_at/long_running` (`LONG_FLAG` in `native/qmanager_atd/src/at/exec.rs`, `qmanager_atd` 0.7.3). It sits in the root-only AT lock dir, so only root can create it. In practice the broker is the only writer: it raises the flag after it takes the lock for a long command and removes it when the exchange ends (log lines `Long command started: <cmd>` / `Long command completed: <cmd>`). Measured on the RM520N-GL (`61368cd2`, 2026-10-31) during a UI cell scan: `0:0`, mode 0644, one link, nothing in `/tmp`.
 
-> ℹ️ NOTE: Shell readers of the flag (the poller and others) still test it with plain `[ -f ]`, so a planted flag still pauses them. Moving the flag under `/run` is not done.
+| Check | Where | Counts the flag only if |
+| ----- | ----- | ----------------------- |
+| `flag_trusted()` | `exec.rs`; used by `long_running()` (the `qcmd` / broker gate) and `scan_up()` in `daemon/live.rs` (the live-data scan gate) | `lstat` says regular file, `nlink` 1, uid 0 |
+| `qm_long_flag_up [path]` | `scripts/usr/lib/qmanager/qlog.sh`; used by `qmanager_poller` and `qmanager_watchcat` | `stat -c '%u %h %F'` (no `-L`, so a symlink fails) starts with `0 1 regular` |
+
+An untrusted flag is ignored; the broker logs it once: `Ignoring untrusted /run/qmanager_at/long_running (uid <n>, links <n>)`. A `www-data` file no longer counts: only root can create entries in that dir, so any other owner is a plant.
+
+- **A non-root in-process caller cannot raise it.** When the broker is down, a long command run in-process as `www-data` skips the flag write silently and the scan runs without the gate. This is the degraded mode only.
+- **`write_nofollow` refuses a hard link.** `open_trusted()` in `common/safefs.rs` now treats an existing file with `nlink > 1` like a symlink or a foreign file: it unlinks the name and recreates it, so a write never goes through a second name.
+- **Stale flag.** At broker start, `clear_stale_long_flag()` removes a flag older than 15 s when nobody holds the AT lock (a broker killed mid-scan). The poller still expires a flag older than `LONG_FLAG_MAX_AGE` (300 s), now measured against `date +%s`.
+
+> ⚠️ WARNING: Do not raise the flag from a script before `qcmd` runs the long command. `qmanager_cell_scanner` used to `: > "$LONG_FLAG"` before calling `qcmd 'AT+QSCAN=3,1'`; that was removed. The client's queued-command watch in `native/qmanager_atd/src/client/transport.rs` assumes the flag cannot appear while its own short command is the one executing, because only a long command run by the broker raises it. An early write broke that: a short command already running saw the flag, dropped its socket and failed with `scan_in_progress` (shown as `modem_busy`).
+
+**No `/tmp` bridge, on purpose.** In an OTA, between `install_bundled_binaries` and `stop_services`, the old broker still executes every command and writes the old `/tmp/qmanager_long_running`, which the old poller and watchcat read: old code with old code. The only new code live in that window is the new `qcmd` client, whose watch reads the new path and misses an old-broker scan, so its short command waits in the queue as it did before the watch existed. Nothing double-runs and nothing is locked out. `stop_services()` removes a leftover `/tmp/qmanager_long_running`. A rollback brings back code that uses `/tmp`; `/run` is tmpfs and a reboot follows every successful install.
+
+> ℹ️ NOTE: The broker and the shell readers must ship together. New scripts beside a pre-0.7.3 broker read `/run` while the broker writes `/tmp`, so the poller and watchcat never back off during a scan. The tarball carries both; never hand-copy one side. The RG501Q-EU runs the same code but has not been measured on 0.7.3.
 
 ### `qcmd` is the broker client
 
@@ -118,7 +134,7 @@ Only the broker daemon is per model: `qmanager-atd.service` exists on the RM520N
 Each call runs in this order:
 
 1. **Refuse non-AT input.** A command that does not start with `AT` (any case) or contains a control character answers `command_failed` at once and touches nothing. The broker checks again, because its socket is the trust boundary.
-2. **Long-flag gate.** If a trusted `/tmp/qmanager_long_running` exists (see [the trust rule](#the-long-command-flag-trust-rule)) and the command is not long, answer `modem_busy` at once.
+2. **Long-flag gate.** If a trusted `/run/qmanager_at/long_running` exists (see [the trust rule](#the-long-command-flag-trust-rule)) and the command is not long, answer `modem_busy` at once.
 3. **Try the broker** on `/var/run/qmanager_atd.sock`. The broker takes the lock, runs the exchange on the `/dev/smd11` fd it keeps open, and returns the raw reply.
 4. **Fall back in-process** only if the broker is unreachable: no socket, a stale socket, connect refused, or `/var/run/qmanager_atd.proto` missing or naming another protocol version (an old broker mid-OTA). The client then opens `/dev/smd11` itself under the same lock.
 5. **Judge the reply** with the contract below (the same on every model) and print it.
@@ -135,7 +151,7 @@ If the lock does not exist yet (early boot, or an install run with `--no-start` 
 | Exchange deadline, slow | 60 s | `COPS=?`, `CFUN=`, `QMBNCFG`, `CGATT=`, `QPRTPARA` |
 | Exchange deadline, long | 300 s | long commands |
 
-**Long commands** are a case-sensitive substring match on `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus any non-comment line of `/etc/qmanager/long_commands.list`. A long command writes `/tmp/qmanager_long_running` for its duration, sends a warm-up `AT` first, and is never cut short by a caller cap.
+**Long commands** are a case-sensitive substring match on `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus any non-comment line of `/etc/qmanager/long_commands.list`. The broker writes `/run/qmanager_at/long_running` for a long command's duration, once it holds the lock; the command sends a warm-up `AT` first, and is never cut short by a caller cap.
 
 The broker unit `qmanager-atd.service` is boot-linked on the RM520N-GL and the RG501Q-EU. `start_services()` runs `systemctl reset-failed qmanager-atd` and starts it after `qmanager-setup` (which creates the lock file) and before the poller. It is in the install verify list, and the install-time AT probe runs through `qcmd`, because the broker may hold `/dev/smd11`.
 
@@ -163,7 +179,7 @@ The reply itself is judged on the whole buffer, exactly as the shell did: it con
 
 Differences from the retired shell `qcmd`, all deliberate:
 
-- **Long-flag gate.** While `/tmp/qmanager_long_running` exists, a short command answers `modem_busy` at once instead of waiting 5 s for the lock.
+- **Long-flag gate.** While a trusted `/run/qmanager_at/long_running` exists, a short command answers `modem_busy` at once instead of waiting 5 s for the lock.
 - **Non-AT input is refused.** The shell sent it to `atcli_smd11`, which never returned and held the AT lock until killed (reproduced 2026-10-28 with `qcmd hello`).
 - **A wait cap exists.** `qcmd -t MS` or `QCMD_WAIT_MS=MS` (50–60000) caps a short command's wait. No RM520N caller uses it.
 - **`COPS=2` and `COPS=0` are long commands.** They get the 10 s lock budget and set the long flag, so short commands answer `modem_busy` while an attach cycle runs.

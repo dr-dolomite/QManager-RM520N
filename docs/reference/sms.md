@@ -19,6 +19,7 @@ The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS op
 | Inbox CGI | `GET/POST /cgi-bin/quecmanager/cellular/sms.sh` |
 | SMS client | `/usr/bin/qsms` → `qmanager_atd` (relative symlink, laid down by `install_bundled_binaries()`) |
 | Backend | QMI WMS when `Project Name:` in `/etc/quectel-project-version` starts with `RM520N`; AT otherwise. `QSMS_BACKEND=wms\|at` overrides |
+| Resume a multi-part send | `qsms send --ref <concat_ref> --from <sent_parts+1> <number> <text>` — only when `ambiguous` is `false` (see [Resuming](#resuming-a-multi-part-send---ref----from)) |
 | AT use per GET | One `qcmd 'AT+CPMS="ME","ME","ME"'` (routing self-heal) |
 | Boot routing oneshot | `/usr/bin/qmanager_sms_storage` + `qmanager-sms-storage.service` |
 | Read-state hook | `hooks/use-sms-read-state.ts` (browser `localStorage`, key `qmanager.sms.read.v1`) |
@@ -32,7 +33,7 @@ The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS op
 
 ## Transport: `qsms`
 
-`qsms` is `argv[0]` of the `qmanager_atd` binary (source: `native/qmanager_atd/src/client/qsms.rs`, `src/sms/wms.rs`, `src/sms/pdu.rs`). It prints exactly one JSON envelope on stdout and exits 0 on success, 1 on failure. Callers decide success from the envelope's `.success` or the exit code, never from stderr.
+`qsms` is `argv[0]` of the `qmanager_atd` binary (source: `native/qmanager_atd/src/client/qsms.rs`, `src/sms/wms.rs`, `src/sms/pdu.rs`). It prints exactly one JSON envelope on stdout and exits 0 on success, 1 on failure (`watch` has its own exit codes, below). Callers decide success from the envelope's `.success` or the exit code, never from stderr.
 
 ### Backend selection
 
@@ -52,7 +53,7 @@ The backend is fixed per model, never auto-detected:
 ```sh
 qsms list [ME|SM|all]          # default ME
 qsms status [ME|SM|all]        # default all
-qsms send <number> <text>      # number without '+'
+qsms send [--ref R --from N] <number> <text>   # number without '+'; the flags resume a multi-part send
 qsms delete <ME|SM> <i,j,..|all>
 qsms tag <ME|SM> <i,j,..> read|unread   # WMS only; not used by QManager
 qsms watch                     # WMS only; used by the forwarding daemon
@@ -67,10 +68,10 @@ qsms watch                     # WMS only; used by the forwarding daemon
 | `list all` | `{"success":true,"msg":[...],"skipped":0}`, plus `"storage_errors":{"SM":"storage unavailable"}` when one storage failed | `{"success":false,"error":"command_failed","detail":"No reply from the modem."}` |
 | `status all` | `{"success":true,"storages":[{"storage":"ME","used":153,"total":255},{"storage":"SM","used":31,"total":35}]}` | as above |
 | `status ME` (one storage) | `{"success":true,"storage":"ME","used":153,"total":255}` (flat, no array) | as above |
-| `send` | `{"success":true,"parts":2,"refs":[41,42]}` | `{"success":false,"error":"send_failed","detail":"…","parts":2,"sent_parts":1,"refs":[41]}` |
+| `send` | `{"success":true,"parts":2,"concat_ref":77,"refs":[41,42]}` (`concat_ref` is `null` for a single part) | `{"success":false,"error":"send_failed","detail":"…","parts":3,"sent_parts":1,"concat_ref":77,"ambiguous":false,"refs":[41]}` |
 | `delete ME 3,4` | `{"success":true,"storage":"ME","deleted":[3,4],"failed":[]}` | `"success":false,"error":"delete_failed"`, with `"failed":[{"index":4,"error":"no such message"}]` |
 | `delete SM all` | `{"success":true,"storage":"SM","deleted":31,"remaining":0}` | `"success":false,"error":"delete_failed"`, `"remaining":N` |
-| `watch` | prints `ready`, then one `<ME\|SM> <index>` line per new message; prints `ready` again after every reconnect | exits 1 only when QRTR is unsupported; exits 0 when its stdout closes |
+| `watch` | prints `ready`, then one `<ME\|SM> <index>` line per new message; prints `ready` again after every reconnect | exits **2** when it can never work on this modem (AT backend: `unsupported` envelope; WMS: QRTR unavailable); exits 0 when its stdout closes; any other exit is transient |
 
 Each `msg` entry:
 
@@ -102,7 +103,7 @@ Each `msg` entry:
 | Text needs too many parts | `message_too_long` | none |
 | Bad arguments | `bad_args` | parser text, e.g. `bad index 'x'` |
 
-On a multi-part send, the first failed part stops the send and `detail` is prefixed `Part 2 of 3: `. **A retry resends every part from part 1**, so `sms_alerts.sh` and `qmanager_sms_forward` stop retrying once the envelope reports `sent_parts > 0`, and the inbox CGI passes `parts` / `sent_parts` so the compose dialog can say a resend repeats them. Resuming only the missing parts would need `qsms` to accept a fixed reference and start part. Measured on the RM520N-GL with no SIM credit: `The network rejected the message (cause 21).`
+On a multi-part send, the first failed part stops the send and `detail` is prefixed `Part 2 of 3: `. A plain retry resends every part from part 1, so a caller resumes instead (since `qmanager_atd` 0.7.3). Measured on the RM520N-GL with no SIM credit: `The network rejected the message (cause 21).`
 
 **Shell callers extract `.detail`; they never store or return the envelope.** Each caller has a fixed sentence for empty or non-JSON output (`qsms` missing or crashed):
 
@@ -112,6 +113,31 @@ On a multi-part send, the first failed part stops the send and `detail` is prefi
 | `sms_forwarding.sh` `send_test` | `.detail // .error` | `No reply from the SMS service.` |
 | `sms_alerts.sh` `_sa_send_error()` | `.detail // .error` | `No reply from the SMS service.` |
 | `qmanager_sms_forward` `sf_send_with_retry()` | `.detail` when it is a string | `The message could not be sent.` |
+
+### Resuming a multi-part send: `--ref` / `--from`
+
+`qsms send --ref R --from N <number> <text>` re-encodes the same text with UDH reference `R` and sends only parts `N` to the end. The same text with the same reference encodes to byte-identical PDUs, so the resumed parts should join the parts already delivered on the recipient's phone. This joining has not been tested on a real phone yet; the crate tests compare the PDUs.
+
+| Rule | Value |
+| ---- | ----- |
+| `--ref` | decimal `0`–`255`, required whenever `--from` is given |
+| `--from` | decimal, `1` ≤ N ≤ the message's part count |
+| Flag position | before `<number>`, either order, each at most once; anything after the number is the text |
+| Bad flag, missing `--ref`, duplicate, unknown option | `{"success":false,"error":"bad_args","detail":"<parser text>"}`, nothing sent |
+| `--from` past the last part | `bad_args`, detail `--from is beyond the last part`, the modem is never opened |
+
+Send envelope fields. Success carries `parts`, `concat_ref`, `refs`; a send failure adds `error`, `sent_parts` and `ambiguous` (plus `detail`, `parts` and `refs`, except when the `qsms` client itself reports the failure, e.g. a lost broker reply: `{"success":false,"error":"command_failed","sent_parts":0,"concat_ref":null,"ambiguous":true}`). An argument or encoder error (`bad_args`, `bad_number`, `message_too_long`) is a plain error envelope without them.
+
+| Field | Meaning |
+| ----- | ------- |
+| `concat_ref` | The UDH reference used (`null` for a single part). Pass it back as `--ref`. |
+| `sent_parts` | **Absolute**: parts before `--from` count as sent. A `--from 2` run that fails on its second part reports `2`. |
+| `refs` | Network message references from **this run only**. |
+| `ambiguous` | Failure only. `true` = the failing part may have reached the network; `false` = a definite rejection. |
+
+`ambiguous` is `false` when nothing can have left: the session never opened (`modem_busy`, `scan_in_progress`), `AT+CMGF=0` failed, a `+CMS ERROR` / `ERROR` with no `+CMGS:`, a QMI result error, WMS not reachable, or a WMS request that never left the socket. It is `true` on a timeout or a lost reply after the PDU was written: AT transport error during `AT+CMGS`, an empty reply, `ERROR` after a `+CMGS:`, an `OK` with no `+CMGS:` reference, a WMS no-reply or lost server, or a WMS reply with no result TLV.
+
+**The resume rule callers follow:** resume once, with `--ref <concat_ref> --from <sent_parts + 1>`, only when `sent_parts > 0`, `ambiguous` is `false` and `concat_ref` is a number. Otherwise stop. With `sent_parts` 0 a full retry is safe and allowed, except when `ambiguous` is `true` (part 1 may have been delivered): then stop. An envelope from a pre-0.7.3 binary has no `ambiguous`, which the callers read as `null`, so they never resume on it. `sms_alerts.sh` (`_sa_do_send`) and `qmanager_sms_forward` (`sf_send_with_retry`) implement this; the inbox CGI (`sms.sh`) passes `concat_ref`, `refs` and `ambiguous` through and does not resume.
 
 ### No AT lock
 
@@ -290,7 +316,7 @@ A failed list returns `{ "success": false, "error": "sms_unavailable", "detail":
 
 | Action | Required fields | Notes |
 |---|---|---|
-| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<plain sentence>", parts, sent_parts}` (HTTP 200), for `bad_number` and `message_too_long` too (counts are 0 there) |
+| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<plain sentence>", parts, sent_parts, concat_ref, refs, ambiguous}` (HTTP 200; the last three copied from `qsms` as-is, `null` when absent), for `bad_number` and `message_too_long` too (counts are 0 there) |
 | `delete` | `indexes` (array), `storage` (`"ME"`\|`"SM"`, default `"ME"`) | One `qsms delete` for all valid slots; `partial_failure` (`"N message(s) failed to delete"`) when `.deleted` is shorter than `indexes` |
 | `delete_all` | — | Clears ME then SM; on failure `delete_all_failed` with a `detail` such as `ME: ok \| SM: 3 left` |
 

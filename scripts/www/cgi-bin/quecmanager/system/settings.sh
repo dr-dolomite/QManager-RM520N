@@ -11,7 +11,7 @@
 # POST: Saves settings, scheduled reboot config, or low-power config.
 #
 # Config: /etc/qmanager/qmanager.conf (settings section)
-# Cron:   qmanager_scheduled_reboot, qmanager_low_power markers
+# Cron:   qmanager_scheduled_reboot marker
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/system/settings.sh
 # Install location: /www/cgi-bin/quecmanager/system/settings.sh
@@ -47,11 +47,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         @sh "zonename=\(v("zonename"; "UTC"))",
         @sh "sched_enabled=\(v("sched_reboot_enabled"; "0"))",
         @sh "sched_time=\(v("sched_reboot_time"; "04:00"))",
-        @sh "sched_days_json=\(days("sched_reboot_days"))",
-        @sh "lp_enabled=\(v("low_power_enabled"; "0"))",
-        @sh "lp_start=\(v("low_power_start"; "23:00"))",
-        @sh "lp_end=\(v("low_power_end"; "06:00"))",
-        @sh "lp_days_json=\(days("low_power_days"))"'
+        @sh "sched_days_json=\(days("sched_reboot_days"))"'
     settings_vars=$(jq -r "$SETTINGS_JQ" "$QM_CONFIG" 2>/dev/null)
     # Empty output (missing, invalid or blank config) -> every default.
     [ -n "$settings_vars" ] || settings_vars=$(jq -nr "null | $SETTINGS_JQ")
@@ -85,10 +81,6 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson sched_enabled "$sched_enabled" \
         --arg sched_time "$sched_time" \
         --argjson sched_days "$sched_days_json" \
-        --argjson lp_enabled "$lp_enabled" \
-        --arg lp_start "$lp_start" \
-        --arg lp_end "$lp_end" \
-        --argjson lp_days "$lp_days_json" \
         '{
             success: true,
             settings: {
@@ -107,12 +99,6 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 enabled: ($sched_enabled == 1),
                 time: $sched_time,
                 days: $sched_days
-            },
-            low_power: {
-                enabled: ($lp_enabled == 1),
-                start_time: $lp_start,
-                end_time: $lp_end,
-                days: $lp_days
             }
         }'
     exit 0

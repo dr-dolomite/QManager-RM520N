@@ -53,17 +53,20 @@ pub(crate) fn run_qsms(args: &[String]) -> i32 {
         return emit_sms(ok, json);
     }
     if matches!(op, sms::Op::Tag { .. } | sms::Op::Watch) {
-        return emit_sms(false, sms::error_json("unsupported", Some("Not available on this modem.")));
+        // 2 = permanently unavailable: the shell supervisor stops respawning on it.
+        let rc = if op == sms::Op::Watch { 2 } else { 1 };
+        emit_sms(false, sms::error_json("unsupported", Some("Not available on this modem.")));
+        return rc;
     }
     if exec::long_running() {
-        return emit_sms(false, sms::error_json(Code::ScanInProgress.as_str(), None));
+        return emit_sms(false, client_fail(&op, Code::ScanInProgress));
     }
     let label = op.label();
     let req = proto::encode_sms_request(args, proto::mono_ms());
     let (ok, json) = match try_broker_raw(&req, true, &label, None) {
         Broker::Reply(proto::Reply::Res(ok, body)) => (ok, String::from_utf8_lossy(&body).into_owned()),
-        Broker::Reply(proto::Reply::Err(code)) | Broker::Lost(code) => (false, sms::error_json(code.as_str(), None)),
-        Broker::Reply(proto::Reply::Ok(_)) => (false, sms::error_json(Code::CommandFailed.as_str(), None)),
+        Broker::Reply(proto::Reply::Err(code)) | Broker::Lost(code) => (false, client_fail(&op, code)),
+        Broker::Reply(proto::Reply::Ok(_)) => (false, client_fail(&op, Code::CommandFailed)),
         Broker::Unreachable => {
             let log = Logger::new("qsms");
             match LockFile::open_or_create_modem() {
@@ -71,11 +74,26 @@ pub(crate) fn run_qsms(args: &[String]) -> i32 {
                     let mut ch = new_channel();
                     sms::run(&mut Executor { ch: &mut ch, lock: &lock, log: &log }, &op, Duration::ZERO)
                 }
-                Err(_) => (false, sms::error_json(Code::ModemBusy.as_str(), None)),
+                Err(_) => (false, client_fail(&op, Code::ModemBusy)),
             }
         }
     };
     emit_sms(ok, json)
+}
+
+/// A client-side failure. For a send it carries the resume state: nothing from this run is known,
+/// so `sent_parts` is the `--from` baseline; only a refusal before the modem ran is unambiguous.
+fn client_fail(op: &sms::Op, code: Code) -> String {
+    let sms::Op::Send { concat_ref, from, .. } = op else {
+        return sms::error_json(code.as_str(), None);
+    };
+    let ambiguous = !matches!(code, Code::ScanInProgress | Code::ModemBusy);
+    let r = concat_ref.map(|r| r.to_string()).unwrap_or_else(|| "null".into());
+    format!(
+        "{{\"success\":false,\"error\":\"{}\",\"sent_parts\":{},\"concat_ref\":{r},\"ambiguous\":{ambiguous}}}\n",
+        code.as_str(),
+        from - 1
+    )
 }
 
 fn emit_sms(ok: bool, json: String) -> i32 {

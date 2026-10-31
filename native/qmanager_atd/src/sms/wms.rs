@@ -4,7 +4,10 @@
 //! registry. Output envelopes match the AT backend in `sms/mod.rs`.
 //! Message bodies and numbers never reach the log.
 
-use super::{concat_ref, error_json, error_message_json, message_json, pdu, Listing, Mem, Op, Which};
+use super::{
+    error_json, error_message_json, message_json, pdu, plan_send, remaining, send_fail_json, send_ok_json, Listing, Mem,
+    Op, SendPlan, Which,
+};
 use crate::common::json::json_escape;
 use crate::common::log::Logger;
 use crate::qmi::msg::{self, Msg, QmiResult, Tlv};
@@ -72,6 +75,8 @@ enum ConnErr {
 }
 
 enum CallErr {
+    /// The request never left the socket.
+    Unsent,
     Timeout,
     /// Socket error or the WMS server went away.
     Gone,
@@ -135,7 +140,7 @@ impl Conn {
     fn call(&mut self, id: u16, tlvs: &[Tlv], timeout: Duration) -> Result<Msg, CallErr> {
         self.txn = self.txn.wrapping_add(1).max(1);
         let txn = self.txn;
-        self.sock.send_to(self.node, self.port, &msg::encode(msg::KIND_REQ, txn, id, tlvs)).map_err(|_| CallErr::Gone)?;
+        self.sock.send_to(self.node, self.port, &msg::encode(msg::KIND_REQ, txn, id, tlvs)).map_err(|_| CallErr::Unsent)?;
         let end = Instant::now() + timeout;
         let mut buf = [0u8; 4096];
         loop {
@@ -311,54 +316,53 @@ fn status(c: &mut Conn, ms: &[Mem], log: &Logger) -> String {
     }
 }
 
-fn send_fail(code: &str, detail: &str, parts: usize, refs: &[String]) -> String {
-    format!(
-        "{{\"success\":false,\"error\":\"{}\",\"detail\":\"{}\",\"parts\":{},\"sent_parts\":{},\"refs\":[{}]}}\n",
-        code,
-        json_escape(detail),
-        parts,
-        refs.len(),
-        refs.join(",")
-    )
+/// One raw-send reply: Ok(network ref), or Err((detail, ambiguous)). A QMI result error or a
+/// request that never left is a definite rejection; no reply or a lost server may have reached the network.
+fn send_reply(r: Result<Msg, CallErr>, log: &Logger, part: usize) -> Result<u16, (String, bool)> {
+    let m = match r {
+        Ok(m) => m,
+        Err(CallErr::Unsent) => return Err((NO_REPLY.to_string(), false)),
+        Err(_) => return Err((NO_REPLY.to_string(), true)),
+    };
+    match m.result() {
+        QmiResult::Ok => Ok(m.tlv(0x01).filter(|v| v.len() >= 2).map(|v| u16::from_le_bytes([v[0], v[1]])).unwrap_or(0)),
+        r => {
+            let ec = if let QmiResult::Err(ec) = r { ec } else { 0xffff };
+            // TLV 0x12 on a failed send: rp_cause u16 LE, tp_cause u8.
+            let detail = match m.tlv(0x12).filter(|v| v.len() >= 2) {
+                Some(v) => format!("The network rejected the message (cause {}).", u16::from_le_bytes([v[0], v[1]])),
+                None => "The modem refused the message.".to_string(),
+            };
+            log.warn(&format!("WMS send part {part} error {:#06x}", ec));
+            // No result TLV at all is a malformed reply, not a refusal.
+            Err((detail, matches!(r, QmiResult::Missing)))
+        }
+    }
 }
 
-fn send(parts: &[pdu::SubmitPart], log: &Logger) -> String {
+fn send(plan: &SendPlan, log: &Logger) -> String {
+    let parts = &plan.parts;
     let mut refs: Vec<String> = Vec::new();
     let mut c = match connect(Instant::now() + SEND_DEADLINE) {
         Ok(c) => c,
-        Err(_) => return send_fail("send_failed", NOT_READY, parts.len(), &refs),
+        Err(_) => return send_fail_json(plan, "send_failed", NOT_READY, &refs, false),
     };
-    for (i, p) in parts.iter().enumerate() {
-        let prefix = if parts.len() > 1 { format!("Part {} of {}: ", i + 1, parts.len()) } else { String::new() };
+    for (i, p) in remaining(parts, plan.from).iter().enumerate() {
+        let n = plan.from + i;
+        let prefix = if parts.len() > 1 { format!("Part {} of {}: ", n, parts.len()) } else { String::new() };
         let Some(raw) = pdu::from_hex(&p.hex) else {
-            return send_fail("send_failed", &format!("{prefix}{REFUSED}"), parts.len(), &refs);
+            return send_fail_json(plan, "send_failed", &format!("{prefix}{REFUSED}"), &refs, false);
         };
         // The PDU keeps its leading 00 SMSC octet.
         let mut v = vec![FMT_GW_PP];
         v.extend_from_slice(&(raw.len() as u16).to_le_bytes());
         v.extend_from_slice(&raw);
-        let m = match c.call(OP_RAW_SEND, &[Tlv::new(0x01, &v)], SEND_DEADLINE) {
-            Ok(m) => m,
-            Err(_) => return send_fail("send_failed", &format!("{prefix}{NO_REPLY}"), parts.len(), &refs),
-        };
-        match m.result() {
-            QmiResult::Ok => {
-                let mr = m.tlv(0x01).filter(|v| v.len() >= 2).map(|v| u16::from_le_bytes([v[0], v[1]])).unwrap_or(0);
-                refs.push(mr.to_string());
-            }
-            r => {
-                let ec = if let QmiResult::Err(ec) = r { ec } else { 0xffff };
-                // TLV 0x12 on a failed send: rp_cause u16 LE, tp_cause u8.
-                let detail = match m.tlv(0x12).filter(|v| v.len() >= 2) {
-                    Some(v) => format!("The network rejected the message (cause {}).", u16::from_le_bytes([v[0], v[1]])),
-                    None => "The modem refused the message.".to_string(),
-                };
-                log.warn(&format!("WMS send part {} error {:#06x}", i + 1, ec));
-                return send_fail("send_failed", &format!("{prefix}{detail}"), parts.len(), &refs);
-            }
+        match send_reply(c.call(OP_RAW_SEND, &[Tlv::new(0x01, &v)], SEND_DEADLINE), log, n) {
+            Ok(mr) => refs.push(mr.to_string()),
+            Err((detail, amb)) => return send_fail_json(plan, "send_failed", &format!("{prefix}{detail}"), &refs, amb),
         }
     }
-    format!("{{\"success\":true,\"parts\":{},\"refs\":[{}]}}\n", parts.len(), refs.join(","))
+    send_ok_json(plan, &refs)
 }
 
 fn index_error(f: Fail, log: &Logger) -> Result<&'static str, Fail> {
@@ -450,15 +454,15 @@ pub fn run(op: &Op) -> (bool, String) {
     let t = Instant::now();
     let log = Logger::new("qsms");
     let label = op.label();
-    let parts = match op {
-        Op::Send { number, text } => match pdu::encode_submit(number, text, concat_ref()) {
-            Ok(p) => p,
-            Err(e) => return (false, error_json(e.as_str(), None)),
+    let plan = match op {
+        Op::Send { number, text, concat_ref, from } => match plan_send(number, text, *concat_ref, *from) {
+            Ok(p) => Some(p),
+            Err(j) => return (false, j),
         },
-        _ => Vec::new(),
+        _ => None,
     };
-    let json = if let Op::Send { .. } = op {
-        send(&parts, &log)
+    let json = if let Some(plan) = &plan {
+        send(plan, &log)
     } else {
         match connect(Instant::now() + OP_DEADLINE) {
             Err(e) => {
@@ -544,7 +548,7 @@ fn watch_session(c: &mut Conn, log: &Logger) -> Result<Instant, io::Error> {
 }
 
 /// `qsms watch`: prints `ready` after every (re)registration, then `<ME|SM> <index>` per new
-/// message. Reconnects forever; exits 0 when stdout closes, 1 if QRTR is unsupported.
+/// message. Reconnects forever; exits 0 when stdout closes, 2 if QRTR is unsupported.
 pub fn watch() -> i32 {
     let log = Logger::new("qsms");
     let mut back = BACKOFF_MIN;
@@ -555,7 +559,8 @@ pub fn watch() -> i32 {
             Err(ConnErr::Fatal(e)) => {
                 log.error(&format!("watch: QRTR unavailable: {e}"));
                 let _ = writeln!(io::stderr(), "qsms watch: QRTR unavailable: {e}");
-                return 1;
+                // 2 = permanently unavailable: the shell supervisor stops respawning on it.
+                return 2;
             }
         };
         match watch_session(&mut c, &log) {
@@ -569,5 +574,43 @@ pub fn watch() -> i32 {
         drop(c);
         std::thread::sleep(back);
         back = (back * 2).min(BACKOFF_MAX);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn resp(ec: Option<u16>, extra: &[Tlv]) -> Msg {
+        let mut t = vec![msg::result_tlv(ec)];
+        t.extend_from_slice(extra);
+        msg::parse(&msg::encode(msg::KIND_RESP, 1, OP_RAW_SEND, &t)).unwrap()
+    }
+
+    #[test]
+    fn from_skips_the_earlier_parts() {
+        let plan = plan_send("491701234567", &"x".repeat(320), Some(9), 2).unwrap();
+        assert_eq!(plan.parts.len(), 3);
+        assert_eq!(remaining(&plan.parts, plan.from), &plan.parts[1..]);
+        // A failure at part 2 of a --from 2 run: part 1 still counts as sent.
+        let j = send_fail_json(&plan, "send_failed", "x", &[], false);
+        assert!(j.contains("\"sent_parts\":1,\"concat_ref\":9,\"ambiguous\":false"), "{j}");
+    }
+
+    #[test]
+    fn reply_classes_are_ambiguous_only_when_the_network_may_have_it() {
+        let log = Logger::new("test");
+        assert_eq!(send_reply(Ok(resp(None, &[Tlv::new(0x01, &[7, 0])])), &log, 1), Ok(7));
+        // QMI result error (with or without the cause TLV): a definite rejection.
+        assert_eq!(send_reply(Ok(resp(Some(0x0003), &[])), &log, 1).unwrap_err().1, false);
+        let rej = send_reply(Ok(resp(Some(0x0003), &[Tlv::new(0x12, &[0x1D, 0, 0])])), &log, 1).unwrap_err();
+        assert_eq!(rej, ("The network rejected the message (cause 29).".to_string(), false));
+        // No reply, a lost server, or a reply without a result TLV: may have been sent.
+        assert!(send_reply(Err(CallErr::Timeout), &log, 1).unwrap_err().1);
+        assert!(send_reply(Err(CallErr::Gone), &log, 1).unwrap_err().1);
+        let none = msg::parse(&msg::encode(msg::KIND_RESP, 1, OP_RAW_SEND, &[])).unwrap();
+        assert!(send_reply(Ok(none), &log, 1).unwrap_err().1);
+        // The request never left the socket.
+        assert!(!send_reply(Err(CallErr::Unsent), &log, 1).unwrap_err().1);
     }
 }

@@ -210,9 +210,13 @@ for unit_file in "$SYSTEMD_DIR"/qmanager-*.service; do
     [ -f "$unit_file" ] || continue
     _units="$_units $(basename "$unit_file" .service)"
 done
+# Old v0.1.14-v0.1.18 sms_forward never exited on TERM; queue its stop, then KILL the cgroup.
+systemctl --no-block stop qmanager-sms-forward 2>/dev/null || true
+systemctl kill -s KILL qmanager-sms-forward 2>/dev/null || true
 # Also stop lighttpd (QManager owns its service file; restored below)
 if [ -n "$_units" ]; then
     systemctl stop $_units lighttpd 2>/dev/null || true
+    systemctl reset-failed $_units 2>/dev/null || true
 else
     systemctl stop lighttpd 2>/dev/null || true
 fi

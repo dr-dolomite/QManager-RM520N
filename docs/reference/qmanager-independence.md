@@ -13,6 +13,8 @@
 - **Bootstraps Entware** from `bin.entware.net` if not *complete* (see the completeness guard under HTTP transport below). The bootstrap process creates the `opt.mount`, `start-opt-mount.service`, and `rc.unslung.service` systemd units, and pre-creates `/opt/sbin` — normally the `entware-opt` package's job, but `dropbear.service` hardcodes `ExecStart=/opt/sbin/dropbear` and the directory was measured absent on the RG501Q-EU.
 - **Installs lighttpd + modules** from Entware: `lighttpd-mod-cgi`, `lighttpd-mod-openssl`, `lighttpd-mod-redirect`, `lighttpd-mod-proxy`. This happens **even where the vendor firmware ships its own `/usr/sbin/lighttpd`** (RG501Q-EU): QManager's config, TLS cert and module set are built against the Entware server, and lighttpd rejects modules whose version does not match it.
 - **lighttpd module version sync**: The installer runs `opkg upgrade` on lighttpd and all its modules together when they are already installed — this prevents `plugin-version doesn't match` errors that occur if modules are at different versions during upgrades.
+- **lighttpd keep-alive**: `/usrdata/qmanager/lighttpd.conf` sets `server.max-keep-alive-idle = 30`. lighttpd's default of 5 s is no longer than the UI's 5 s poll, so most polls opened a new connection and redid the TLS handshake. Every OTA overwrites the conf, so the value needs no migration.
+- **Install banner uses the real LAN address**: `print_summary()` takes the gateway from `qm_lan_read` (`scripts/usr/lib/qmanager/lan_subnet.sh`) for the browser, console and SSH lines, and falls back to `192.168.225.1` when it is unreadable or not a dotted IPv4. On an RG501Q-EU (`Project Name:` starts with `RG501Q`) the banner and the model check (also under `--force`) print one info line, `RG501Q-EU — community-supported model`, with no prompt.
 - **Creates `www-data:dialout`** user and group if missing. The `dialout` group membership grants `www-data` access to `/dev/smd11`.
 - **Bundled first-party binaries** are copied from `dependencies/` by `install_bundled_binaries()`, which runs even with `--skip-packages` (so on every OTA): `qmanager_atd` (the Rust AT/SMS/QMI broker, plus the relative link `/usr/bin/qsms -> qmanager_atd`) and the optional `qmanager_discord`. A missing `qmanager_atd` is fatal (`die`); `build.sh` refuses to package without it. The broker binary and `qsms` land on every model; `qmanager-atd.service` ships, boot-links and starts where `qm_hw_atd_enabled` is true (RM520N-GL and RG501Q-EU) — see [Service persistence](#service-persistence-systemd-symlinks) and [platform-matrix.md](./platform-matrix.md#at-transport). On every model `install_backend()` also makes `/usr/bin/qcmd` a link to `qmanager_atd` (`ln -sf` to a temp name, then `mv -f`, so it is never missing). Contract: [at-command-transport.md](./at-command-transport.md#qcmd-serialization).
 - **Retired binaries are removed after their replacement answers.** `sms_tool` and `atcli_smd11` no longer ship; `retire_legacy_at_binaries()` runs last under `DO_START` (OTA included) and deletes each from `/usr/bin/` only once `qsms status` / `qcmd AT` answers. See [at-command-transport.md > Retired binaries](./at-command-transport.md#retired-binaries-atcli_smd11-and-sms_tool).
@@ -738,6 +740,33 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 - **Shared semver library**: `/usr/lib/qmanager/semver.sh` — sourced by both `update.sh` CGI and `qmanager_auto_update`.
 - **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (run by the auto-update systemd timer). The two worker/timer scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
 - **v0.1.4 → v0.1.5 requires ADB/SSH**: v0.1.4's CGI has no sudo and v0.1.4's sudoers has no `qmanager_update` rule, so OTA cannot self-update from v0.1.4. From v0.1.5 onward, OTA works via the UI.
+
+### A UI OTA runs inside lighttpd's cgroup: the lighttpd restart is deferred
+
+A UI OTA starts as `update.sh` → `sudo -n qmanager_update` → `install_rm520n.sh`, so the installer is a process in `lighttpd.service`'s cgroup. A `systemctl restart lighttpd` from there cannot finish while the installer is still in that cgroup, so lighttpd sat in `final-sigterm` until the reboot: the Software Update page never saw `rebooting`, `/reboot/` could not send `reboot_ack`, and the updater waited out its 20 s `REBOOT_ACK_TIMEOUT`.
+
+`start_services()` now checks `grep -q 'lighttpd\.service' /proc/self/cgroup`:
+
+| Install path | cgroup | lighttpd |
+| ------------ | ------ | -------- |
+| UI OTA (`install_staged`, `install`) | `lighttpd.service` | Not restarted. Logs `lighttpd restart deferred to the reboot`; the verify loop skips lighttpd; after the other services start, runs `/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf` and `die`s on failure (`lighttpd config test failed — not rebooting into a broken web server`), else logs `lighttpd config test passed`. The reboot that follows starts the new config. |
+| SSH install, auto-update timer | anything else | `systemctl restart lighttpd` as before (`lighttpd restarted with QManager config`, or the warning `Could not restart lighttpd`) |
+
+The config test runs at the end of `start_services()`, not at the deferral point, so a bad conf fails the install with the QManager daemons already running again instead of leaving them all stopped. `qmanager_update` reboots only after a successful install, so it never reboots into a conf that failed the test.
+
+Measured on the RM520N-GL (`61368cd2`, 2026-10-31, UI OTA with sms-forward and watchcat running): lighttpd stayed `active (running)` for the whole install, the page reached `rebooting`, `reboot_ack` arrived and the reboot followed at once; after boot no qmanager unit was `failed` and every unit had `NRestarts=0`.
+
+> ⚠️ WARNING: A UI **rollback** runs the target release's own installer. A target older than this change has no deferral, so lighttpd still restarts mid-rollback and the page loses the hand-off. Not fixed: the updater does not skip the target's restart.
+
+> ℹ️ NOTE: The complete fix is to run the updater outside lighttpd's cgroup (for example through `systemd-run`), which needs a new sudoers grant. Not done.
+
+`stop_services()` also changed for the OTA window:
+
+- **sms-forward**: `systemctl --no-block stop qmanager-sms-forward`, then `systemctl kill -s KILL qmanager-sms-forward`, before the batched stop. Daemons from v0.1.14–v0.1.18 never exited on SIGTERM, so a plain stop waited out the 90 s default and left the unit `failed`. Queuing the stop job first keeps `Restart=on-failure` from respawning it after the KILL. The unit now also has `TimeoutStopSec=10`.
+- **Failed state**: after the stragglers are killed, `systemctl reset-failed $_units qmanager-watchcat`, named units only, never a bare `reset-failed`.
+- **Old long flag**: `rm -f /tmp/qmanager_long_running`. The flag moved to `/run/qmanager_at/long_running`; see [at-command-transport.md > The long-command flag trust rule](./at-command-transport.md#the-long-command-flag-trust-rule).
+
+`uninstall_rm520n.sh` stops sms-forward the same way and runs `systemctl reset-failed $_units` after its batched stop.
 
 ### OTA self-heal for gated services
 

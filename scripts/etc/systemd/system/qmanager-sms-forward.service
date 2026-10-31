@@ -10,6 +10,7 @@ Type=simple
 ExecStart=/usr/bin/qmanager_sms_forward
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target

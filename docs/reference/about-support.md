@@ -71,6 +71,19 @@ caption names the probe, so the tile never claims more than it knows: a blank an
 3s `curl` found no upstream, which is not the same as the device being unreachable. Every
 other disc is neutral — a colour that never changes encodes nothing.
 
+**`about.sh` caches the public IPs for 300 s.** The two ipify fetches (`api.ipify.org`,
+`api6.ipify.org`, 3 s each) cost up to 3 s per page load, so a result is kept in
+`/tmp/qmanager_public_ip` as one line, `wan4|wan6|pub4|pub6|epoch`. The WAN addresses come
+from `/tmp/qmanager_status.json`. The cache is reused only when the file is owned by the CGI's
+user (`[ -O ]`), is a regular file and not a symlink, is under `PUB_IP_TTL` (300 s) old, the
+WAN IPv4 is known, and both WAN addresses still match; otherwise both fetches run. A new
+result is written to a temp file and `mv`ed into place, and only when the public IPv4 came
+back. An empty public IPv6 is cached only when there is no WAN IPv6, so a v4-only carrier does
+not pay the 3 s v6 timeout on every load.
+
+The consequence for the Internet tile: if the upstream dies but the WAN addresses do not
+change, the tile keeps showing the cached IPv4 (`success`) for up to 300 s.
+
 **One failure, one message.** `aboutView()` returns `loading | loaded | unreachable` and every
 child reads it; no component infers state from a payload's shape. On `unreachable` the band
 carries the notice and the Retry, and both cards go honestly empty. The retired pair printed a
@@ -155,8 +168,8 @@ the custom-radius trap in `lib/utils.ts`.
 
 ## Not verified
 
-**Nothing here has been seen against a live RM520N-GL.** The pass is frontend-only and
-`about.sh` is untouched, but the loaded state was exercised against a stub shaped to the
+**Nothing here has been seen against a live RM520N-GL.** The pass was frontend-only and did
+not change `about.sh`, but the loaded state was exercised against a stub shaped to the
 endpoint's documented contract, served from a gitignored `out/`. The values in it are a real
 capture from the device, including the two empty IPv6 fields that exercise the em-dash path.
 

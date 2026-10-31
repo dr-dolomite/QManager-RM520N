@@ -268,3 +268,16 @@ qlog_state_change() {
         qlog_info "STATE: ${field}: ${old_val} → ${new_val}"
     fi
 }
+
+# --- Utility: Long-running AT flag trust check -------------------------------
+# Only the root broker raises the flag. Trust it only if root-owned, a regular
+# file and nlink 1 (stat without -L is lstat, so a symlink fails). $1 = path.
+QM_LONG_FLAG="${QM_LONG_FLAG:-/run/qmanager_at/long_running}"
+qm_long_flag_up() {
+    local _st
+    _st=$(stat -c '%u %h %F' "${1:-$QM_LONG_FLAG}" 2>/dev/null </dev/null) || return 1
+    case "$_st" in
+        "0 1 regular"*) return 0 ;;
+    esac
+    return 1
+}

@@ -460,6 +460,10 @@ preflight() {
 
     if [ "$DO_FORCE" = "1" ]; then
         warn "--force: skipping modem firmware detection"
+        # --force skips the model arms below; still note the community tier.
+        if grep -q "^Project Name:[[:space:]]*RG501Q" /etc/quectel-project-version 2>/dev/null; then
+            info "Detected: RG501Q-EU — community-supported model"
+        fi
     else
         if [ -f /etc/quectel-project-version ]; then
             local ver project_name
@@ -479,7 +483,7 @@ preflight() {
                     # only, deliberately no prompt: this arm exists so the
                     # RG501Q stops falling through to the `*` arm's
                     # "unrecognized device / proceed anyway?" question.
-                    info "Detected: RG501Q-EU ($ver)"
+                    info "Detected: RG501Q-EU ($ver) — community-supported model"
                     ;;
                 "")
                     warn "Cannot parse device model from firmware version — proceeding anyway"
@@ -1557,6 +1561,11 @@ stop_services() {
     killall -9 qmanager_watchcat 2>/dev/null || true
     touch "$WATCHCAT_LOCK"  # re-touch after SIGKILL as defense in depth
 
+    # Old v0.1.14-v0.1.18 sms_forward never exited on TERM (90 s stop timeout -> failed).
+    # Queue the stop first so Restart=on-failure can't respawn it; KILL takes the whole cgroup.
+    systemctl --no-block stop qmanager-sms-forward 2>/dev/null || true
+    systemctl kill -s KILL qmanager-sms-forward 2>/dev/null || true
+
     # Stop socat-at-bridge services if present from previous installations
     # (idempotent — systemctl stop is a no-op for inactive/missing units)
     systemctl stop socat-smd11 socat-smd11-to-ttyIN socat-smd11-from-ttyIN 2>/dev/null || true
@@ -1602,6 +1611,10 @@ stop_services() {
         esac
         killall -9 "$proc" 2>/dev/null || true
     done
+
+    # Clear failed state left by the kills (named units only); drop the pre-/run long flag.
+    systemctl reset-failed $_units qmanager-watchcat 2>/dev/null || true
+    rm -f /tmp/qmanager_long_running
 
     info "All services stopped"
 }
@@ -3952,9 +3965,17 @@ start_services() {
     # running across OTA, so `start` would be a no-op and skip the new rules.
     systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
-    # Restart lighttpd to pick up new config
-    systemctl restart lighttpd 2>/dev/null || warn "Could not restart lighttpd"
-    info "lighttpd restarted with QManager config"
+    # A UI OTA runs inside lighttpd's cgroup, so a restart leaves the web UI down until the
+    # reboot. Defer it; the conf is tested after the services start (end of this function).
+    local lighttpd_deferred=0
+    if grep -q 'lighttpd\.service' /proc/self/cgroup 2>/dev/null; then
+        lighttpd_deferred=1
+        info "lighttpd restart deferred to the reboot"
+    elif systemctl restart lighttpd 2>/dev/null; then
+        info "lighttpd restarted with QManager config"
+    else
+        warn "Could not restart lighttpd"
+    fi
 
     # Run setup oneshot (creates lock files, session dirs, permissions).
     #
@@ -4047,6 +4068,8 @@ start_services() {
         verify_svcs="$verify_svcs qmanager-atd"
     fi
     for svc in $verify_svcs; do
+        # Deferred restart: the old lighttpd is still serving this OTA's status page.
+        [ "$svc" = "lighttpd" ] && [ "$lighttpd_deferred" = "1" ] && continue
         if systemctl is-active "$svc" >/dev/null 2>&1; then
             info "$svc is running"
         else
@@ -4066,6 +4089,13 @@ start_services() {
 
     if [ "$svc_errors" -gt 0 ]; then
         warn "$svc_errors service(s) failed to start"
+    fi
+
+    # Deferred restart: fail the install (no reboot) rather than reboot into a broken web server.
+    if [ "$lighttpd_deferred" = "1" ]; then
+        /opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf >/dev/null 2>&1 \
+            || die "lighttpd config test failed — not rebooting into a broken web server"
+        info "lighttpd config test passed"
     fi
 }
 
@@ -4586,6 +4616,13 @@ setup_ssh_early() {
 # --- Summary -----------------------------------------------------------------
 
 print_summary() {
+    # Gateway from the modem's LAN config; qm_lan_read is sourced by normalize_lan_subnet.
+    local lan_ip="" lan_rest=""
+    if command -v qm_lan_read >/dev/null 2>&1; then
+        lan_rest=$(qm_lan_read 2>/dev/null) && lan_ip=${lan_rest%% *}
+    fi
+    case "$lan_ip" in ""|*[!0-9.]*) lan_ip="192.168.225.1" ;; esac
+
     printf "\n"
     printf "  ══════════════════════════════════════════\n"
     printf "  ${GREEN}${BOLD}  QManager — Installation Complete${NC}\n"
@@ -4602,12 +4639,15 @@ print_summary() {
     printf "  ${DIM}Log:       ${NC}%s\n" "$LOG_FILE"
 
     printf "\n"
-    printf "  Open in browser:  ${BOLD}https://192.168.225.1${NC}\n"
-    printf "  Web console:      ${BOLD}https://192.168.225.1/console${NC}\n"
+    printf "  Open in browser:  ${BOLD}https://%s${NC}\n" "$lan_ip"
+    printf "  Web console:      ${BOLD}https://%s/console${NC}\n" "$lan_ip"
+    if grep -q "^Project Name:[[:space:]]*RG501Q" /etc/quectel-project-version 2>/dev/null; then
+        printf "  ${DIM}Model:            RG501Q-EU — community-supported model${NC}\n"
+    fi
 
     case "$SSH_BOOTSTRAP_STATUS" in
         installed)
-            printf "  SSH:              ${BOLD}ssh root@192.168.225.1${NC}\n"
+            printf "  SSH:              ${BOLD}ssh root@%s${NC}\n" "$lan_ip"
             printf "  SSH password:     ${BOLD}%s${NC} ${DIM}(temporary — shown once, replaced on web onboarding)${NC}\n" "$SSH_BOOTSTRAP_PASSWORD"
             ;;
         failed_install|failed_start|failed_password)

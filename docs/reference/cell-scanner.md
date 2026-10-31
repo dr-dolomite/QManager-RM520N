@@ -5,7 +5,7 @@
 
 **Three routes share one prefix and one visual vocabulary, and exactly two of them talk to the modem — at costs that differ by roughly 100x.** A full sweep (`AT+QSCAN=3,1`) holds the single global AT mutex for 30–180 seconds and pauses every other modem operation on the device, including the poller that feeds the dashboard you are reading the page on. A neighbour read (`AT+QENG="neighbourcell"`) holds the same mutex for about two seconds. The frequency calculator holds nothing — it is browser arithmetic. That asymmetry is the organising idea of the whole surface, and most of what follows exists to keep it visible.
 
-This doc records the invariants and sharp edges a contributor needs **before** touching the family: the single `flock` that makes the two scanning routes mutually exclusive and how it survives the CGI that took it, why the two routes are deliberately not merged, the `/tmp/qmanager_long_running` maintenance contract that was described in two docs long before anything implemented it, why this surface keeps signal thresholds that disagree with the rest of the product, why `0` is a sentinel rather than a reading, why the two result types were not widened into one, and why the calculator takes the family's anchor geometry while taking none of its run vocabulary.
+This doc records the invariants and sharp edges a contributor needs **before** touching the family: the single `flock` that makes the two scanning routes mutually exclusive and how it survives the CGI that took it, why the two routes are deliberately not merged, the long-running flag contract (who raises it, and why this worker must not), why this surface keeps signal thresholds that disagree with the rest of the product, why `0` is a sentinel rather than a reading, why the two result types were not widened into one, and why the calculator takes the family's anchor geometry while taking none of its run vocabulary.
 
 The rationale for the individual design moves lives in the commits (`a2394ee`, `e4e5441`, `5871e8c`, `16d129c`, and the 2026-10-06 the101 adoption). This doc does not restate them.
 
@@ -62,7 +62,7 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | `/tmp/qmanager_neighbour_scan_result.json` | www-data | `qmanager_neighbour_scanner` | Final JSON array |
 | `/tmp/qmanager_neighbour_scan_error` | www-data | `qmanager_neighbour_scanner` | Error text, read non-destructively |
 | `/tmp/qmanager_neighbour_scan_{lte,nr}_err.tmp` | www-data | `qmanager_neighbour_scanner` | Per-leg captured `qcmd` stderr; how `modem_busy` is told apart from a real AT failure. Removed by the worker's `EXIT` trap |
-| `/tmp/qmanager_long_running` | www-data | `qmanager_cell_scanner` **only** | Maintenance marker — see below |
+| `/run/qmanager_at/long_running` | root 0644 | the `qmanager_atd` broker, around `AT+QSCAN` | Maintenance flag — see [the contract](#the-long-running-flag-contract) |
 | `/run/qmanager_at/at.lock` | root:dialout 0640 | `qmanager_setup` creates it; `qcmd` locks it | The single global AT mutex (not in `/tmp` since T4.3) |
 
 > ℹ️ **The pid files are not a gate.** Both start endpoints used to enforce "one at a time" by testing their own pid file; they now enforce it with the `flock` above and keep the pid file only to decide *which* of two messages to show. `pid_alive()` is `[ -d /proc/$1 ]` (`platform.sh`) — it proves *a* process with that number exists, never that it is our worker, so it must never be load-bearing for exclusion again.
@@ -89,7 +89,7 @@ The frequency calculator issues **nothing**. It has no fetch and no AT contact, 
 | Long | substring `QSCAN`, `QSCANFREQ`, `QFOTADL`, `COPS=2`, `COPS=0`, plus `/etc/qmanager/long_commands.list` | 10 s |
 | Everything else | — | 5 s |
 
-`AT+QENG` is **not** long. A sweep's `AT+QSCAN` sets `/tmp/qmanager_long_running` for its whole run, so a neighbour read fired during a sweep gets `modem_busy` at once (exit 1, `ERROR: modem_busy` on stderr) instead of waiting out a lock that will be held for up to three minutes. The neighbour worker treats a non-zero `qcmd` exit as "skip this half" (`qmanager_neighbour_scanner:62`, `:122`).
+`AT+QENG` is **not** long. While a sweep's `AT+QSCAN` runs, the broker holds `/run/qmanager_at/long_running` up, so a neighbour read fired during a sweep gets `modem_busy` at once (exit 1, `ERROR: modem_busy` on stderr) instead of waiting out a lock that will be held for up to three minutes. The neighbour worker treats a non-zero `qcmd` exit as "skip this half" (`qmanager_neighbour_scanner:62`, `:122`).
 
 **What that produced depended on how the two runs overlapped, and the distinction matters when you are debugging one.** A neighbour read makes *two* separately-locked AT calls with a `sleep 1` between them, so a sweep can block one leg and miss the other:
 
@@ -205,30 +205,26 @@ The success body **dropped its `pid` field** (`{"success": true, "pid": N}` → 
 
 `start_failed` is narrower than it looks. The endpoint spawns, waits 0.2 s, and checks the pid is alive — which detects only an install-integrity failure (binary missing or not executable), because a healthy worker holds the modem for seconds to minutes and cannot plausibly be dead that early. It replaced a `sleep 0.8` that was there to let the *worker* write its own pid file; the CGI now writes the pid itself from `$!`, which is the same value the worker later writes as `$$`, so the two are idempotent rather than racing. Without that, the endpoint could return before the pid file existed and the client's first poll would read `idle` for a scan that was running perfectly well.
 
-## The `/tmp/qmanager_long_running` contract
+## The long-running flag contract
 
-**Short version: the marker tells the two root daemons "a long AT command is in flight — stand down", and for most of this product's life it had three readers, two deleters and zero writers.** `docs/ARCHITECTURE.md` and `docs/BACKEND.md` both described the guard; nothing in the tree created the file. During a real sweep the poller kept issuing serving-cell and `QCAINFO` reads that each waited five seconds on the lock and returned `modem_busy`, and the watchdog — the thing that reboots the modem when it believes the connection died — never saw maintenance mode at all.
-
-> ⚠️ **A writer landing in the repo is not the same as a marker that works, and this doc previously conflated the two.** The `qmanager_cell_scanner` writer was committed on 2026-08-11, but the deployed device was still running the old binary, so on hardware the marker continued to have zero writers and the poller continued not to back off. **Verified end-to-end on 2026-08-12**: with the current binary deployed, starting a sweep raises the marker, `/tmp/qmanager_status.json` reports `system_state: "scan_in_progress"` for the duration, and it returns to `"normal"` once the sweep completes. When you are checking this guard, check the binary on the device — `/usr/bin/qmanager_cell_scanner` — not the file in the tree.
-
-The contract:
+**Short version: the flag tells the two root daemons "a long AT command is in flight — stand down".** Since `qmanager_atd` 0.7.3 it is `/run/qmanager_at/long_running`, and the broker raises it, not this worker. Path, trust rule and the no-bridge OTA reasoning: [at-command-transport.md > The long-command flag trust rule](at-command-transport.md#the-long-command-flag-trust-rule).
 
 | Role | Who | Where |
 | ---- | --- | ----- |
-| **Writer** | `qmanager_cell_scanner`, as **www-data** | `qmanager_cell_scanner:59` — `: > "$LONG_FLAG"`, raised *before* taking the AT mutex |
-| Clearer (normal) | the same worker's `cleanup()` on `EXIT`/`INT`/`TERM` | `qmanager_cell_scanner:41-44` |
-| Reader | `qmanager_poller` (root) → `system_state="scan_in_progress"`, ping-only, no AT | `qmanager_poller:2082-2086` |
-| Reader | `qmanager_watchcat` (root) → `LOCKED`, and Tier 2 skipped outright | `qmanager_watchcat:203`, `:346` |
-| Expirer | `qmanager_poller`, if the flag is older than `LONG_FLAG_MAX_AGE` (300 s) | `qmanager_poller:2059-2073`, constant at `:79` |
-| Clearer (boot) | `scripts/etc/init.d/qmanager:87` | removes any flag stranded across a reboot |
+| **Writer** | the `qmanager_atd` broker, as **root**, once it holds the AT lock for `AT+QSCAN=3,1` | `run_after()` in `native/qmanager_atd/src/at/exec.rs` |
+| Clearer (normal) | the broker, when the exchange ends or the warm-up `AT` fails | same function |
+| Reader | `qmanager_poller` (root) → `system_state="scan_in_progress"`, ping-only, no AT | `qm_long_flag_up "$LONG_FLAG"` in `poll_cycle()` |
+| Reader | `qmanager_watchcat` (root) → `LOCKED`, and Tier 2 skipped outright | `qm_long_flag_up` in `check_locked()` and `execute_tier2()` |
+| Expirer | `qmanager_poller`, if the flag is older than `LONG_FLAG_MAX_AGE` (300 s) | `poll_cycle()`; constant near the top of the file |
+| Expirer (broker start) | `clear_stale_long_flag()`, flag older than 15 s and the AT lock free | `exec.rs`, called from `daemon/mod.rs` |
 
-Both readers test **existence only**. The file has no content, so none of the `/tmp` publishing rules in [tmp-file-ownership.md](tmp-file-ownership.md) apply — there is nothing to write into it and nothing to `mv` over it.
+`/run` is tmpfs, so no flag survives a reboot. The shell readers count it only when it is root-owned, a regular file and one link (`qm_long_flag_up` in `scripts/usr/lib/qmanager/qlog.sh`); a planted file no longer pauses them.
 
-> ℹ️ **Why a www-data writer with root readers is safe here, and would not be in reverse.** `fs.protected_regular=1` blocks a process from opening a *world-writable file it does not own* in a sticky directory for writing — and on this device that restriction bites **root**, not www-data (validated on live hardware; see [tmp-file-ownership.md](tmp-file-ownership.md), which corrected three docs that had the direction backwards). `stat()` and `unlink()` are unaffected by it. So root reading the flag's existence and root removing it both work; a design that required root to *write* this www-data-owned file would not. If you ever move the raise into a root helper, the ownership flips and every one of these statements has to be re-derived.
+> ⚠️ WARNING: `qmanager_cell_scanner` must not write the flag itself. It used to `: > "$LONG_FLAG"` before calling `qcmd`, and that early write made a short command that was already running abandon its reply and fail. The worker now only calls `qcmd 'AT+QSCAN=3,1'`. Verified on the RM520N-GL (`61368cd2`, 2026-10-31): during a UI scan the flag was `0:0` 0644 for the length of the sweep, the poller reported `scan_in_progress`, and nothing appeared in `/tmp`.
 
-**The neighbour worker does not raise the flag, and this is deliberate.** A ~2 s hold does not warrant parking the watchdog: the poller would drop a cycle and the watchdog would skip a tier for an operation shorter than the poller's own cadence. `qmanager_neighbour_scanner` has no `LONG_FLAG` at all — do not add one "for symmetry".
+**The neighbour worker does not raise the flag, and this is deliberate.** `AT+QENG="neighbourcell"` is not a long command, so the broker does not raise it either. A ~2 s hold does not warrant parking the watchdog: the poller would drop a cycle and the watchdog would skip a tier for an operation shorter than the poller's own cadence. Do not add `QENG` to the long-command list "for symmetry".
 
-The 300 s expiry is the only thing that recovers a flag from a worker killed with `SIGKILL` (which no trap catches). `AT+QSCAN` is documented at up to 180 s, so the ceiling has ~2 minutes of headroom; if a future long command exceeds 300 s, raise `LONG_FLAG_MAX_AGE` rather than teaching the worker to re-touch the file.
+`AT+QSCAN` is documented at up to 180 s, so the 300 s poller expiry has ~2 minutes of headroom; if a future long command exceeds 300 s, raise `LONG_FLAG_MAX_AGE`.
 
 ## Signal thresholds: deliberately divergent
 

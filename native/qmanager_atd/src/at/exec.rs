@@ -10,7 +10,8 @@ use crate::at::output::Code;
 use crate::common::safefs::{one_line, write_nofollow};
 use std::time::{Duration, Instant};
 
-pub const LONG_FLAG: &str = "/tmp/qmanager_long_running";
+/// In the root-only (root:dialout 0750) AT lock dir: only the broker, as root, can raise it.
+pub const LONG_FLAG: &str = "/run/qmanager_at/long_running";
 /// RM520N: in the broker's root-only run dir (0700, made at daemon start), so
 /// nothing can be planted there. The www-data fallback cannot write it; nothing reads it.
 pub const PID_FILE: &str = "/var/run/qmanager/atd.pid";
@@ -50,18 +51,18 @@ fn deadline_for(cmd: &str, long: bool) -> Instant {
 const STALE_FLAG_AGE: Duration = Duration::from_secs(15);
 
 /// True while a long command holds the modem (the scan_in_progress gate).
-/// Only a trusted flag counts: any uid can create this name in sticky /tmp.
+/// Only a trusted flag counts (see `flag_trusted`).
 pub fn long_running() -> bool {
     flag_trusted(LONG_FLAG)
 }
 
-/// Regular, owned by root / this process / www-data, one link (not a hard
-/// link to some root 0666 /tmp file). An untrusted flag is logged once.
+/// Regular, one link, owned by uid 0: only root can create entries in the flag's
+/// dir, so any other owner is a plant. An untrusted flag is logged once.
 pub(crate) fn flag_trusted(path: &str) -> bool {
     use std::os::unix::fs::MetadataExt;
     match std::fs::symlink_metadata(path) {
         Err(_) => false,
-        Ok(m) if m.file_type().is_file() && m.nlink() == 1 && crate::common::safefs::trusted_owner(m.uid()) => true,
+        Ok(m) if flag_meta_trusted(m.file_type().is_file(), m.nlink(), m.uid()) => true,
         Ok(m) => {
             static WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
             if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
@@ -70,6 +71,10 @@ pub(crate) fn flag_trusted(path: &str) -> bool {
             false
         }
     }
+}
+
+pub(crate) fn flag_meta_trusted(is_file: bool, nlink: u64, uid: u32) -> bool {
+    is_file && nlink == 1 && uid == 0
 }
 
 /// Removes a long flag left by a holder that died mid-command (killed broker,
@@ -308,6 +313,15 @@ mod tests {
     }
 
     #[test]
+    fn flag_trust_is_uid_zero_regular_single_link_only() {
+        assert!(flag_meta_trusted(true, 1, 0));
+        assert!(!flag_meta_trusted(true, 1, 33), "www-data no longer counts");
+        assert!(!flag_meta_trusted(true, 1, 1000));
+        assert!(!flag_meta_trusted(true, 2, 0), "hard link");
+        assert!(!flag_meta_trusted(false, 1, 0), "not a regular file");
+    }
+
+    #[test]
     fn long_flag_counts_only_when_trusted() {
         let d = std::env::temp_dir().join(format!("qatd-flag-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
@@ -316,7 +330,8 @@ mod tests {
         let f = f.to_str().unwrap();
         assert!(!flag_trusted(f), "absent");
         std::fs::write(f, b"QSCAN").unwrap();
-        assert!(flag_trusted(f), "own regular file");
+        // The real path: counts only when the test runs as root (uid 0 owns the file).
+        assert_eq!(flag_trusted(f), unsafe { libc::geteuid() } == 0, "own regular file");
         let link = d.join("flag2");
         std::fs::hard_link(f, &link).unwrap();
         assert!(!flag_trusted(f), "a hard link (nlink 2) is ignored");

@@ -1,12 +1,12 @@
 //! File writes that never follow symlinks. /tmp and /var/lock are both 1777 on
 //! the device, so any local process can pre-plant a symlink at a well-known
-//! path (/tmp/qmanager_long_running). A root process
+//! path (e.g. a /tmp state file). A root process
 //! writing through it would clobber an arbitrary file. Legacy qcmd's
 //! `echo … > "$LONG_FLAG"` had this flaw; the broker must not.
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 
 /// Open flags shared by every QManager state file the broker touches.
 pub const NOFOLLOW: i32 = libc::O_NOFOLLOW | libc::O_CLOEXEC;
@@ -67,13 +67,13 @@ pub fn check_trusted(f: &File) -> io::Result<()> {
 }
 
 /// Opens a trusted file at `path` for writing, else creates it O_EXCL; a link,
-/// FIFO or foreign file is unlinked and recreated, a directory refused.
+/// FIFO, hard-linked (nlink > 1) or foreign file is unlinked and recreated, a directory refused.
 fn open_trusted(path: &str) -> io::Result<File> {
     let refused = match open_nofollow(path, false) {
         // A directory never gets here: a write open of it fails EISDIR.
         Ok(f) => match check_trusted(&f) {
-            Ok(()) => return Ok(f),
-            Err(_) => true,
+            Ok(()) if f.metadata()?.nlink() == 1 => return Ok(f),
+            _ => true,
         },
         // O_NOFOLLOW on a symlink fails with ELOOP; a FIFO without a reader
         // fails with ENXIO under O_NONBLOCK.
@@ -212,6 +212,21 @@ mod tests {
         let meta = std::fs::symlink_metadata(&flag).unwrap();
         assert!(meta.file_type().is_file(), "symlink replaced by a regular file");
         assert_eq!(std::fs::read(&flag).unwrap(), b"attacker text");
+        let _ = std::fs::remove_file(&victim);
+        let _ = std::fs::remove_file(&flag);
+    }
+
+    #[test]
+    fn a_hard_linked_file_is_unlinked_not_written_through() {
+        let victim = tmp("hl-victim");
+        let flag = tmp("hl-flag");
+        let _ = std::fs::remove_file(&flag);
+        std::fs::write(&victim, b"SECRET").unwrap();
+        std::fs::hard_link(&victim, &flag).unwrap();
+        write_nofollow(&flag, b"x").unwrap();
+        assert_eq!(std::fs::read(&victim).unwrap(), b"SECRET", "the other name is untouched");
+        assert_eq!(std::fs::read(&flag).unwrap(), b"x");
+        assert_eq!(std::fs::metadata(&flag).unwrap().nlink(), 1);
         let _ = std::fs::remove_file(&victim);
         let _ = std::fs::remove_file(&flag);
     }
