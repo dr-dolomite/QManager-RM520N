@@ -11,66 +11,47 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  MaterialSymbol,
-  type MaterialSymbolName,
-} from "@/components/ui/material-symbol";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { NavMenu } from "@/components/nav-menu";
 import {
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  isItemActive,
+  isSubActive,
+  normalizePath,
+  subRowsOf,
+  type NavItem,
+  type NavStatus,
+} from "@/lib/nav-tree";
 import { cn } from "@/lib/utils";
+
+export type { NavItem, NavStatus, NavSubItem } from "@/lib/nav-tree";
 
 // =============================================================================
 // NavSection — the one nav group implementation
 // =============================================================================
 // Replaces nav-main / nav-cellular / nav-localNetwork / nav-monitoring /
-// nav-system / nav-secondary, which were six near-copies of this file. They had
-// already drifted apart in a way that mattered: nav-main decided "is this row
-// active" by URL prefix, which makes /cellular light up while you are on
-// /cellular/settings, and nav-cellular carried a comment-documented fix for
-// exactly that. Consolidating adopts the fixed logic everywhere.
+//
+// A row with sub-items is a pure expander (its page is the first sub-row); leaf rows are links.
+// On the icon rail an expander opens a flyout.
 //
 // Labels never live here. `t_key` resolves through the "sidebar" namespace.
 // =============================================================================
-
-/**
- * A live condition worth surfacing on the nav row itself, so a user who is not
- * on the Monitoring page still learns the watchdog is intervening.
- *
- * The tone must describe what the device is doing, not how alarming it sounds:
- * `recovery` is the modem being acted on (destructive), `cooldown` is the
- * modem being watched to see whether the action held (warning). Anything that
- * cannot be read off live state does not belong here at all.
- */
-export interface NavStatus {
-  tone: "destructive" | "warning";
-  /** Short machine-voice tag rendered in the pill, e.g. "acting". */
-  label: string;
-  /** Sentence a screen reader and tooltip get instead of the terse tag. */
-  description: string;
-}
-
-export interface NavSubItem {
-  t_key: string;
-  url: string;
-}
-
-export interface NavItem {
-  t_key: string;
-  url: string;
-  icon: MaterialSymbolName;
-  items?: NavSubItem[];
-  /** Renders a button instead of a link (the donate dialog). */
-  onClick?: () => void;
-  status?: NavStatus;
-}
 
 export interface NavSectionProps
   extends React.ComponentPropsWithoutRef<typeof SidebarGroup> {
@@ -79,13 +60,6 @@ export interface NavSectionProps
   items: NavItem[];
   /** "sm" is the quieter footer group (About / Support / Donate). */
   size?: "default" | "sm";
-}
-
-/** Trailing slashes come and go with the static export; normalise once. */
-function normalize(pathname: string) {
-  return pathname.endsWith("/") && pathname !== "/"
-    ? pathname.slice(0, -1)
-    : pathname;
 }
 
 const STATUS_TONE: Record<NavStatus["tone"], string> = {
@@ -98,6 +72,15 @@ const STATUS_TONE: Record<NavStatus["tone"], string> = {
     "bg-warning-container text-on-warning-container hover:bg-warning-container data-[active=true]:bg-warning-container data-[active=true]:text-on-warning-container",
 };
 
+/** Which expanders should be open for a route: exactly the one holding it. */
+function openStateFor(pathname: string, items: NavItem[]) {
+  const next: Record<string, boolean> = {};
+  items.forEach((item) => {
+    if (item.items?.length) next[item.t_key] = isItemActive(pathname, item);
+  });
+  return next;
+}
+
 export function NavSection({
   groupKey,
   items,
@@ -106,37 +89,26 @@ export function NavSection({
   ...props
 }: NavSectionProps) {
   const { t } = useTranslation("sidebar");
-  const pathname = normalize(usePathname());
-
-  // A row is active when the route IS it, when a route below it belongs to it
-  // (leaf rows only), or when one of its DECLARED sub-routes is current. The
-  // leaf clause is what stops /cellular from claiming /cellular/settings, which
-  // is a different nav row entirely.
-  const isItemActive = React.useCallback(
-    (item: NavItem) => {
-      if (item.onClick) return false;
-      if (pathname === item.url) return true;
-      if (item.items?.length) {
-        return item.items.some(
-          (sub) => pathname === sub.url || pathname.startsWith(sub.url + "/"),
-        );
-      }
-      return pathname.startsWith(item.url + "/");
-    },
-    [pathname],
-  );
+  const pathname = normalizePath(usePathname());
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const iconRail = state === "collapsed" && !isMobile;
+  // Below the desktop breakpoint the sidebar is a sheet: leaving rows dismiss it,
+  // expanders never do.
+  const dismissSheet = React.useCallback(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [isMobile, setOpenMobile]);
 
   // Sections auto-open to reveal where you are, and stay user-controllable
-  // after that. Keyed by route so a navigation re-opens the right one.
-  const [openItems, setOpenItems] = React.useState<Record<string, boolean>>({});
-
-  React.useEffect(() => {
-    const next: Record<string, boolean> = {};
-    items.forEach((item) => {
-      next[item.t_key] = isItemActive(item);
-    });
-    setOpenItems(next);
-  }, [pathname, items, isItemActive]);
+  // after that. A navigation re-derives them during render (not in an effect),
+  // so the right section is already open in the frame the route lands.
+  const [openItems, setOpenItems] = React.useState(() =>
+    openStateFor(pathname, items),
+  );
+  const [openFor, setOpenFor] = React.useState(pathname);
+  if (openFor !== pathname) {
+    setOpenFor(pathname);
+    setOpenItems(openStateFor(pathname, items));
+  }
 
   return (
     <SidebarGroup className={className} {...props}>
@@ -146,49 +118,49 @@ export function NavSection({
       <NavMenu>
         {items.map((item) => {
           const label = t(`items.${item.t_key}`);
-          const isActive = isItemActive(item);
-          const hasChildren = Boolean(item.items?.length);
-          const isOpen = openItems[item.t_key] ?? false;
+          const isActive = isItemActive(pathname, item);
+          const subs = subRowsOf(item);
 
-          const row = (
-            <>
-              <MaterialSymbol
-                name={item.icon}
-                // Fill is the grayscale-safe half of the active state, and the
-                // donate heart is the one row that is always filled because its
-                // meaning is the glyph, not its selection state.
-                filled={isActive || item.t_key === "donate"}
-                size={size === "sm" ? 18 : 20}
-                className={cn(
-                  item.t_key === "donate" && !isActive && "text-uplink",
-                )}
-              />
-              <span className="min-w-0 flex-1 truncate">{label}</span>
-              {item.status ? (
-                <span className="font-mono shrink-0 text-xs font-medium tracking-tight tabular-nums">
-                  {item.status.label}
-                </span>
-              ) : null}
-            </>
+          const glyph = (
+            <MaterialSymbol
+              name={item.icon}
+              // The donate heart is always filled: its meaning is the glyph, not selection.
+              filled={isActive || item.t_key === "donate"}
+              size={size === "sm" ? 18 : 20}
+              className={cn(
+                item.t_key === "donate" && !isActive && "text-uplink",
+              )}
+            />
           );
 
-          const button = (
-            <SidebarMenuButton
-              asChild={!item.onClick}
-              size={size}
-              tooltip={item.status?.description ?? label}
-              isActive={isActive}
-              onClick={item.onClick}
-              className={cn(item.status && STATUS_TONE[item.status.tone])}
-            >
-              {item.onClick ? row : <Link href={item.url}>{row}</Link>}
-            </SidebarMenuButton>
-          );
+          if (!subs.length) {
+            const row = (
+              <>
+                {glyph}
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                {item.status ? (
+                  <span className="shrink-0 text-xs font-medium tracking-tight tabular-nums">
+                    {item.status.label}
+                  </span>
+                ) : null}
+              </>
+            );
 
-          if (!hasChildren) {
             return (
               <SidebarMenuItem key={item.t_key}>
-                {button}
+                <SidebarMenuButton
+                  asChild={!item.onClick}
+                  size={size}
+                  tooltip={item.status?.description ?? label}
+                  isActive={isActive}
+                  onClick={() => {
+                    dismissSheet();
+                    item.onClick?.();
+                  }}
+                  className={cn(item.status && STATUS_TONE[item.status.tone])}
+                >
+                  {item.onClick ? row : <Link href={item.url}>{row}</Link>}
+                </SidebarMenuButton>
                 {item.status ? (
                   <span className="sr-only" role="status">
                     {item.status.description}
@@ -198,37 +170,95 @@ export function NavSection({
             );
           }
 
+          // Collapsed rail: the glyph opens the section's rows beside it.
+          if (iconRail) {
+            return (
+              <SidebarMenuItem key={item.t_key}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size={size}
+                      tooltip={label}
+                      isActive={isActive}
+                    >
+                      {glyph}
+                      <span>{label}</span>
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="min-w-52"
+                  >
+                    <DropdownMenuLabel className="text-muted-foreground text-xs">
+                      {label}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {subs.map((sub) => {
+                      const current = isSubActive(pathname, sub);
+                      return (
+                        <DropdownMenuItem key={sub.t_key} asChild>
+                          <Link
+                            href={sub.url}
+                            aria-current={current ? "page" : undefined}
+                            className={cn(current && "font-medium")}
+                          >
+                            <span className="min-w-0 flex-1 truncate">
+                              {t(`items.${sub.t_key}`)}
+                            </span>
+                            {current ? (
+                              <MaterialSymbol
+                                name="check"
+                                size={16}
+                                className="text-primary"
+                              />
+                            ) : null}
+                          </Link>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            );
+          }
+
           return (
             <Collapsible
               key={item.t_key}
               asChild
-              open={isOpen}
+              open={openItems[item.t_key] ?? false}
               onOpenChange={(open) =>
                 setOpenItems((prev) => ({ ...prev, [item.t_key]: open }))
               }
+              className="group/collapsible"
             >
               <SidebarMenuItem>
-                {button}
                 <CollapsibleTrigger asChild>
-                  <SidebarMenuAction className="data-[state=open]:rotate-90">
-                    <MaterialSymbol name="chevron_right" size={18} />
-                    <span className="sr-only">
-                      {t("actions.toggle_section", { section: label })}
-                    </span>
-                  </SidebarMenuAction>
+                  <SidebarMenuButton
+                    size={size}
+                    tooltip={label}
+                    isActive={isActive}
+                  >
+                    {glyph}
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    <MaterialSymbol
+                      name="chevron_right"
+                      size={18}
+                      className="text-sidebar-foreground/60 ease-standard shrink-0 transition-transform duration-[var(--duration-standard)] group-data-[state=open]/collapsible:rotate-90 motion-reduce:transition-none"
+                    />
+                  </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <SidebarMenuSub>
-                    {item.items?.map((sub) => (
+                    {subs.map((sub) => (
                       <SidebarMenuSubItem key={sub.t_key}>
                         <SidebarMenuSubButton
                           asChild
-                          isActive={
-                            pathname === sub.url ||
-                            pathname.startsWith(sub.url + "/")
-                          }
+                          isActive={isSubActive(pathname, sub)}
                         >
-                          <Link href={sub.url}>
+                          <Link href={sub.url} onClick={dismissSheet}>
                             <span>{t(`items.${sub.t_key}`)}</span>
                           </Link>
                         </SidebarMenuSubButton>

@@ -138,6 +138,11 @@ const SEGMENTED_BREAKPOINTS = {
     /** Natural width, never stretched or squeezed: 2–3 short segments always fit. */
     WRAP: "flex w-auto shrink-0",
   },
+  sm: {
+    GROUP: "hidden @sm/card:flex",
+    SELECT: "flex w-full @sm/card:hidden",
+    WRAP: "flex w-full @sm/card:w-auto",
+  },
   lg: {
     GROUP: "hidden @lg/card:flex",
     SELECT: "flex w-full @lg/card:hidden",

@@ -394,28 +394,19 @@
   --info-container: oklch(0.89 0.052 262);
   --on-info-container: oklch(0.36 0.16 262);
 
-  /* --- Signal quality ramp: five stops, red to green, NO identity hue.
-         The previous four-stop scale mapped "Good" to --primary, so an
-         LTE-only user saw good signal rendered in the 5G identity colour on
-         every surface that read the scale. That is the defect this replaces.
-
-         --quality-N is the NUMERAL ink; --quality-N-bar is the BAR fill, one
-         step bolder. Light stops 1-3 resolve to deep reds and browns rather
-         than vivid red-orange: 4.5:1 against a near-white ground caps those
-         hues at L~0.50, and the non-adjacent 0.05 floor then forces the span
-         downward from that cap. That is a gamut ceiling, not a soft choice.
-         Where a numeral is large enough for the 3:1 threshold, use the -bar
-         value as its ink instead. --- */
-  --quality-1: oklch(0.385 0.154 27);
-  --quality-2: oklch(0.415 0.116 45);
-  --quality-3: oklch(0.445 0.093 72);
-  --quality-4: oklch(0.475 0.106 115);
+  /* --- Signal quality ramp: three hues across five stops (1-2 red, 3 gold, 4-5
+         green), NO identity hue; stops within a hue differ by glyph and bar length.
+         --quality-N is the NUMERAL ink; --quality-N-bar is the BAR fill. --- */
+  --quality-1: oklch(0.5 0.19 27);
+  --quality-2: oklch(0.5 0.19 27);
+  --quality-3: oklch(0.58 0.125 80);
+  --quality-4: oklch(0.505 0.14 149);
   --quality-5: oklch(0.505 0.14 149);
-  --quality-1-bar: oklch(0.48 0.192 27);
-  --quality-2-bar: oklch(0.51 0.143 45);
-  --quality-3-bar: oklch(0.54 0.113 72);
-  --quality-4-bar: oklch(0.57 0.127 115);
-  --quality-5-bar: oklch(0.6 0.166 149);
+  --quality-1-bar: oklch(0.58 0.21 27);
+  --quality-2-bar: oklch(0.58 0.21 27);
+  --quality-3-bar: oklch(0.82 0.165 88);
+  --quality-4-bar: oklch(0.62 0.17 149);
+  --quality-5-bar: oklch(0.62 0.17 149);
 
   /* --- Outline tags: identity and metadata. Border + text, no fill.
          Text clears 4.5:1 on every card ground; borders clear 3:1. An outline
@@ -575,18 +566,17 @@
   --info-container: oklch(0.375 0.145 262);
   --on-info-container: oklch(0.9 0.047 262);
 
-  /* Dark ramp is genuinely vivid (#ed4b43 -> #42e071) where light is not;
-     the staircase runs 0.640 -> 0.800 in 0.045 steps. */
-  --quality-1: oklch(0.64 0.2 27);
-  --quality-2: oklch(0.665 0.187 45);
-  --quality-3: oklch(0.71 0.149 72);
-  --quality-4: oklch(0.755 0.168 115);
+  /* Dark ramp: the same three hues, vivid on the dark ground. */
+  --quality-1: oklch(0.68 0.2 27);
+  --quality-2: oklch(0.68 0.2 27);
+  --quality-3: oklch(0.86 0.16 90);
+  --quality-4: oklch(0.8 0.2 149);
   --quality-5: oklch(0.8 0.2 149);
-  --quality-1-bar: oklch(0.6 0.22 27);
-  --quality-2-bar: oklch(0.645 0.181 45);
-  --quality-3-bar: oklch(0.69 0.145 72);
-  --quality-4-bar: oklch(0.735 0.164 115);
-  --quality-5-bar: oklch(0.78 0.216 149);
+  --quality-1-bar: oklch(0.64 0.22 27);
+  --quality-2-bar: oklch(0.64 0.22 27);
+  --quality-3-bar: oklch(0.84 0.17 90);
+  --quality-4-bar: oklch(0.76 0.21 149);
+  --quality-5-bar: oklch(0.76 0.21 149);
 
   --tag-nr-text: oklch(0.65 0.183 262);
   --tag-nr-border: oklch(0.6 0.19 262);
@@ -820,6 +810,154 @@
     & .animate-live-ping,
     & .animate-banner-in {
       animation: none;
+    }
+  }
+}
+
+/* 404 campfire (components/not-found): the sanctioned decorative loop. Stepped
+   sprite cadence, not the duration scale; Reduced shows the resting frame. */
+
+/* Three flame frames, each visible for a third of the cycle. */
+@keyframes campfire-frame {
+  0% {
+    opacity: 1;
+  }
+  33.333%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.campfire-frame {
+  animation: campfire-frame 540ms step-end infinite;
+}
+
+.campfire-frame-1 {
+  opacity: 0;
+  animation-delay: -360ms;
+}
+
+.campfire-frame-2 {
+  opacity: 0;
+  animation-delay: -180ms;
+}
+
+@keyframes campfire-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.campfire-glow {
+  animation: campfire-glow 900ms steps(3) infinite;
+}
+
+/* Embers rise 14 scene pixels in pixel-sized steps and fade out. */
+@keyframes campfire-ember {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--ember-dx, 0px), -14px);
+    opacity: 0;
+  }
+}
+
+.campfire-ember {
+  animation: campfire-ember var(--ember-dur, 2s) steps(14) var(--ember-delay, 0s)
+    infinite;
+}
+
+@keyframes campfire-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.campfire-star {
+  animation: campfire-twinkle 3.2s step-end infinite;
+}
+
+/* The way home: an amber pixel button with notched corners and a bevel. The
+   clip-path would clip a focus ring, so the ring sits on the frame around it. */
+.campfire-button-frame {
+  display: inline-flex;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+
+.campfire-button-frame:has(.campfire-button:focus-visible) {
+  outline-color: var(--campfire-amber-light);
+}
+
+.campfire-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding: 0 1.25rem 0.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--campfire-amber-ink);
+  background-color: var(--campfire-amber);
+  box-shadow:
+    inset 0 -4px 0 var(--campfire-amber-edge),
+    inset 0 4px 0 var(--campfire-amber-light);
+  clip-path: polygon(
+    0 4px,
+    4px 4px,
+    4px 0,
+    calc(100% - 4px) 0,
+    calc(100% - 4px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    4px calc(100% - 4px),
+    0 calc(100% - 4px)
+  );
+  outline: none;
+  transition:
+    background-color var(--duration-quick) var(--ease-quick),
+    transform var(--duration-quick) var(--ease-quick);
+}
+
+.campfire-button:hover {
+  background-color: var(--campfire-amber-hover);
+}
+
+.campfire-button:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -2px 0 var(--campfire-amber-edge),
+    inset 0 2px 0 var(--campfire-amber-light);
+}
+
+:root {
+  @variant motion-reduce {
+    & .campfire-frame,
+    & .campfire-glow,
+    & .campfire-ember,
+    & .campfire-star {
+      animation: none;
+    }
+
+    & .campfire-button:active {
+      transform: none;
     }
   }
 }

@@ -427,7 +427,7 @@ The metric labels are the exception: they come from `radio_info.bands.metric.*`,
 
 > ⚠️ WARNING: several key families are reached through **template literals** and are invisible to static extraction. Deleting one because grep found no call site ships a raw key string to a device: `antenna_alignment.quality.<quality>`, `antenna_alignment.mode.<radio>`, `antenna_alignment.mode.<radio>_short`.
 
-`hooks/use-breadcrumbs.ts` maps `antenna-alignment` → `items.antenna_alignment`, so the breadcrumb follows the interface language rather than always reading English.
+The breadcrumb comes from the nav tree (`lib/nav-tree.ts`), which labels this route `items.antenna_alignment`, so the breadcrumb follows the interface language rather than always reading English.
 
 ## Known gaps
 

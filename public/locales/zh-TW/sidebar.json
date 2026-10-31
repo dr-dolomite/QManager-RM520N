@@ -48,7 +48,14 @@
     "about_device": "關於裝置",
     "support": "支援",
     "donate": "捐贈專案",
-    "traffic_engine": "流量引擎"
+    "traffic_engine": "流量引擎",
+    "cellular_overview": "概覽",
+    "sms_inbox": "收件箱",
+    "band_locking_bands": "頻段鎖定",
+    "cell_scanner_full_scan": "全面掃描",
+    "cellular_settings_general": "一般",
+    "connection_quality_overview": "概覽",
+    "system_settings_general": "一般"
   },
   "header": {
     "role": "管理員"
@@ -57,12 +64,19 @@
     "signed_in": "已登入"
   },
   "actions": {
-    "toggle_section": "展開/收合 {{section}} 分區"
+    "toggle_section": "展開/收合 {{section}} 分區",
+    "toggle_sidebar": "展開/收合側邊欄",
+    "skip_to_content": "跳到主要內容"
   },
   "status": {
     "watchdog_acting": "處理中",
     "watchdog_acting_detail": "看門狗正在恢復連線（第 {{tier}} 級）。",
     "watchdog_settling": "觀察中",
     "watchdog_settling_detail": "看門狗正在確認恢復後連線是否穩定。"
-  }
+  },
+  "mobile": {
+    "title": "側邊欄",
+    "description": "QManager 的主導覽。"
+  },
+  "breadcrumb": "麵包屑導航"
 }

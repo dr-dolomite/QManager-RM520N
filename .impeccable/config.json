@@ -46,6 +46,15 @@
         "value": "40px",
         "createdAt": "2026-07-31T01:29:02.795Z",
         "reason": "User confirmed 40px is intentional for larger recorder slot scores"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "app/globals.css"
+        ],
+        "createdAt": "2026-10-31T05:54:38.703Z",
+        "reason": "Claude: L906 is the 404 campfire pixel-art button's inset top/bottom bevel, ported verbatim from RM551E v0.1.34, not a side accent on a card"
       }
     ]
   }

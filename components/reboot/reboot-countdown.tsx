@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Spinner } from "@/components/ui/spinner";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { DUR, EASE_EMPHASIZED, EASE_STANDARD } from "@/lib/motion";
+import { BODY, EMPHASIS } from "@/components/pre-auth-type";
 
 const TOTAL_SECONDS = 70;
 const POLL_START_AT = 35; // seconds remaining when polling begins
@@ -20,37 +22,43 @@ const RING_RADIUS = 52;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const RING_STROKE = 5;
 
+type PhaseKey = "shutting_down" | "restarting" | "almost_ready" | "overtime";
+
 interface Phase {
-  label: string;
+  key: PhaseKey;
   segment: number; // 1-indexed active segment
 }
 
 function getPhase(remaining: number): Phase {
-  if (remaining > 47) return { label: "Shutting down...", segment: 1 };
-  if (remaining > 23) return { label: "Restarting services...", segment: 2 };
-  if (remaining > 0) return { label: "Almost ready...", segment: 3 };
-  return { label: "Reconnecting \u2014 taking longer than usual...", segment: 3 };
+  if (remaining > 47) return { key: "shutting_down", segment: 1 };
+  if (remaining > 23) return { key: "restarting", segment: 2 };
+  if (remaining > 0) return { key: "almost_ready", segment: 3 };
+  return { key: "overtime", segment: 3 };
 }
 
 export function RebootCountdown() {
+  const { t } = useTranslation("common");
   const [verified, setVerified] = useState(false);
   const [remaining, setRemaining] = useState(TOTAL_SECONDS);
   const pollingRef = useRef(false);
   const remainingRef = useRef(TOTAL_SECONDS);
+  const guardRanRef = useRef(false);
 
-  // Direct-access guard: only show countdown if a reboot was actually triggered
+  // Direct-access guard. The flag is one-shot, so a ref keeps StrictMode's double-invoke
+  // from reading it as missing and bouncing to /login/ mid-reboot.
   useEffect(() => {
+    if (guardRanRef.current) return;
+    guardRanRef.current = true;
     const flag = sessionStorage.getItem(SESSION_KEY);
     if (!flag) {
       window.location.href = "/login/";
       return;
     }
     sessionStorage.removeItem(SESSION_KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount guard with real side effects (consumes sessionStorage, may redirect); must remain an effect
     setVerified(true);
 
-    // Tell the OTA worker (if any) that the static reboot page has loaded
-    // so it can stop waiting and fire the reboot syscall. Harmless on
-    // non-OTA reboots — the worker simply isn't watching.
+    // Tells a waiting OTA worker the page has loaded so it can reboot; harmless otherwise.
     fetch("/cgi-bin/quecmanager/system/update.sh?action=reboot_ack", {
       keepalive: true,
     }).catch(() => {});
@@ -119,7 +127,7 @@ export function RebootCountdown() {
         className="flex flex-col items-center"
       >
       {/* Card */}
-      <div className="flex flex-col items-center gap-6 rounded-xl border bg-card px-12 py-10 shadow-sm max-w-[340px] w-full">
+      <div className="card-sheen flex w-full max-w-[340px] flex-col items-center gap-6 rounded-hero bg-card px-12 py-10 text-card-foreground shadow-[var(--shadow-whisper)] dark:shadow-none">
         {/* Logo */}
         <img
           src="/qmanager-mark.svg"
@@ -132,8 +140,8 @@ export function RebootCountdown() {
           role="timer"
           aria-label={
             isOvertime
-              ? "Reconnecting, taking longer than usual"
-              : `${displaySeconds} seconds remaining`
+              ? t("reboot_page.timer_overtime_aria")
+              : t("reboot_page.timer_aria", { count: displaySeconds })
           }
           className="relative"
           style={{ width: RING_SIZE, height: RING_SIZE }}
@@ -151,7 +159,7 @@ export function RebootCountdown() {
               cy={RING_SIZE / 2}
               r={RING_RADIUS}
               fill="none"
-              className="stroke-muted/20"
+              className="stroke-surface-container-high"
               strokeWidth={RING_STROKE}
             />
             {/* Progress arc */}
@@ -166,6 +174,7 @@ export function RebootCountdown() {
               strokeDashoffset={dashOffset}
               strokeLinecap="round"
               style={{
+                // Linear progress: one step per 1 s tick, outside the motion scale.
                 transition: "stroke-dashoffset 1s linear",
                 filter:
                   "drop-shadow(0 0 6px color-mix(in oklch, var(--primary) 30%, transparent))",
@@ -183,7 +192,7 @@ export function RebootCountdown() {
                   {displaySeconds}
                 </span>
                 <span className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
-                  sec
+                  {t("reboot_page.seconds_unit")}
                 </span>
               </>
             )}
@@ -194,24 +203,24 @@ export function RebootCountdown() {
         <div className="text-center min-h-[48px] flex flex-col items-center justify-center">
           {/* Visually hidden live region for screen reader phase announcements */}
           <p className="sr-only" aria-live="polite" aria-atomic="true">
-            {phase.label}
+            {t(`reboot_page.phase.${phase.key}`)}
           </p>
           <AnimatePresence mode="wait">
             <motion.div
-              key={phase.label}
+              key={phase.key}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
+              transition={{ duration: DUR.quick, ease: EASE_STANDARD }}
               aria-hidden="true"
             >
-              <p className="text-[15px] font-medium text-foreground">
-                {phase.label}
+              <p className={cn(EMPHASIS, "text-foreground")}>
+                {t(`reboot_page.phase.${phase.key}`)}
               </p>
-              <p className="mt-1 text-[13px] text-muted-foreground">
+              <p className={cn(BODY, "mt-1.5 text-muted-foreground")}>
                 {isOvertime
-                  ? "The device is still restarting"
-                  : "Your device will be back online shortly"}
+                  ? t("reboot_page.subtitle.overtime")
+                  : t("reboot_page.subtitle.normal")}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -223,12 +232,12 @@ export function RebootCountdown() {
             <div
               key={seg}
               className={cn(
-                "h-[3px] flex-1 rounded-full transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
+                "h-[3px] flex-1 rounded-pill transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
                 seg < phase.segment
                   ? "bg-primary"
                   : seg === phase.segment
                     ? "bg-primary/60"
-                    : "bg-muted/30"
+                    : "bg-surface-container-high"
               )}
             />
           ))}
@@ -244,7 +253,7 @@ export function RebootCountdown() {
           href="/login/"
           className="mt-3 text-xs text-muted-foreground underline underline-offset-4 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-standard)] hover:text-foreground"
         >
-          Device may need manual attention — go to login
+          {t("reboot_page.escape")}
         </a>
       )}
       </motion.div>

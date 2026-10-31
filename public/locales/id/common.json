@@ -190,7 +190,8 @@
       "toggle": "Tidak bisa masuk?",
       "intro": "Jika Anda kehilangan kata sandi admin, ada dua jalur pemulihan:",
       "option_reset": "Buka sesi SSH ke perangkat dan jalankan {{command}} untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
-      "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut."
+      "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut.",
+      "option_reset_command": "Buka sesi SSH ke perangkat dan jalankan {{command}} untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)"
     },
     "session_expired_title": "Sesi berakhir",
     "locked_title": "Terlalu banyak percobaan",
@@ -199,7 +200,8 @@
     "attempts_left_one": "Kata sandi salah. Sisa {{count}} percobaan.",
     "attempts_left_other": "Kata sandi salah. Sisa {{count}} percobaan.",
     "password_to_manage": "Masukkan kata sandi Anda untuk mengelola {{hostname}}.",
-    "password_to_manage_bare": "Masukkan kata sandi Anda."
+    "password_to_manage_bare": "Masukkan kata sandi Anda.",
+    "locked_countdown": "Terkunci ({{seconds}})"
   },
   "overview": {
     "title": "Ringkasan Modem",
@@ -1601,5 +1603,65 @@
       "title": "Dukung proyek ini",
       "body": "QManager adalah proyek sampingan yang dikelola secara gratis. Jika bermanfaat untuk perangkat Anda, sedikit dukungan membuatnya terus berjalan — dan tidak akan ada fitur berbayar apa pun."
     }
+  },
+  "not_found": {
+    "scene_label": "Api unggun berderak di bawah langit berbintang",
+    "title": "Sepertinya kamu tersesat, petualang",
+    "description": "Mau kembali membuat koneksimu lebih baik?",
+    "home": "Kembali ke Dasbor",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "Pilih file gambar.",
+    "photo_updated": "Foto profil diperbarui.",
+    "change_photo_aria": "Ubah foto profil",
+    "name_placeholder": "Nama Anda",
+    "name_saved": "Nama tampilan diperbarui.",
+    "name_save_failed": "Gagal memperbarui nama tampilan.",
+    "reconnect_description": "Modem akan terputus selama beberapa detik, lalu tersambung kembali secara otomatis.",
+    "disconnecting_description": "Memutuskan modem dari jaringan…",
+    "reconnecting_description": "Menyambungkan ulang modem ke jaringan…",
+    "reconnect_action": "Sambungkan Ulang",
+    "reconnect_complete": "Modem tersambung kembali.",
+    "reconnect_failed": "Gagal menyambungkan ulang modem.",
+    "reboot_description": "Perangkat akan dimulai ulang dan semua koneksi jaringan akan terputus hingga perangkat kembali online.",
+    "reboot_sent": "Perintah reboot terkirim. Anda akan segera keluar…",
+    "reboot_now": "Reboot Sekarang"
+  },
+  "pending_reboot": {
+    "title": "Reboot untuk menyelesaikan perubahan",
+    "reboot_now": "Reboot sekarang",
+    "rebooting": "Memulai ulang…",
+    "dismiss": "Tutup",
+    "reboot_failed_toast": "Tidak dapat memulai reboot. Coba lagi.",
+    "description": {
+      "config_restore": "Perubahan IMEI atau profil SIM dari pemulihan akan berlaku setelah reboot berikutnya.",
+      "imei": "IMEI baru berlaku setelah reboot berikutnya.",
+      "mbn": "Profil operator baru berlaku setelah modem dinyalakan ulang.",
+      "default": "Beberapa perubahan berlaku setelah reboot berikutnya."
+    },
+    "dismiss_dialog": {
+      "title": "Tutup pengingat reboot?",
+      "description": "Perubahan yang memerlukan reboot tetap tidak aktif sampai modem dimulai ulang. Tutup hanya jika Anda sudah me-reboot.",
+      "keep": "Pertahankan pengingat",
+      "confirm": "Tutup"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "Mematikan…",
+      "restarting": "Memulai ulang layanan…",
+      "almost_ready": "Hampir siap…",
+      "overtime": "Memakan waktu lebih lama dari biasanya…"
+    },
+    "subtitle": {
+      "normal": "Perangkat Anda akan segera online kembali",
+      "overtime": "Perangkat masih memulai ulang"
+    },
+    "timer_aria_one": "Tersisa {{count}} detik",
+    "timer_aria_other": "Tersisa {{count}} detik",
+    "timer_overtime_aria": "Menyambungkan ulang, memakan waktu lebih lama dari biasanya",
+    "seconds_unit": "dtk",
+    "escape": "Perangkat mungkin perlu ditangani manual. Buka halaman masuk"
   }
 }

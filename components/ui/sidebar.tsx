@@ -6,6 +6,8 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { DUR, EASE_EMPHASIZED_CSS } from "@/lib/motion"
+import { isMotionReduced } from "@/lib/motion-preference"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,8 +34,35 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 // not truncate at the longest locale.
 const SIDEBAR_WIDTH = "16.5rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+
+// The icon rail width is set in the wrapper className, not here: the row is 40px
+// on a mouse and 44px on a coarse pointer, and the rail is the row plus 8px each side.
+const SIDEBAR_ICON_TOKENS =
+  "[--sidebar-icon-row:2.5rem] [--sidebar-width-icon:3.5rem] pointer-coarse:[--sidebar-icon-row:2.75rem] pointer-coarse:[--sidebar-width-icon:3.75rem]"
+
+// Horizontal inset that centres one icon row in the collapsed rail. The +2px is
+// the inset variant's own allowance in the container width below.
+const ICON_RAIL_PX =
+  "group-data-[collapsible=icon]:px-[calc((var(--sidebar-width-icon)+2px-var(--sidebar-icon-row))/2)]"
+
+// Collapsed state is read from the provider cookie through an external store; the
+// server snapshot is the expanded default and hydration swaps in the cookie value.
+const sidebarStateListeners = new Set<() => void>()
+
+function subscribeSidebarState(listener: () => void) {
+  sidebarStateListeners.add(listener)
+  return () => {
+    sidebarStateListeners.delete(listener)
+  }
+}
+
+function readSidebarCookie(): boolean | null {
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${SIDEBAR_COOKIE_NAME}=(true|false)`)
+  )
+  return match ? match[1] === "true" : null
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -72,24 +101,40 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
-  const open = openProp ?? _open
+  // Uncontrolled state lives in the cookie itself; openProp and setOpenProp
+  // still take over for control from outside the component.
+  const storedOpen = React.useSyncExternalStore(
+    subscribeSidebarState,
+    () => readSidebarCookie() ?? defaultOpen,
+    () => defaultOpen
+  )
+  const open = openProp ?? storedOpen
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value
+      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       if (setOpenProp) {
         setOpenProp(openState)
       } else {
-        _setOpen(openState)
+        sidebarStateListeners.forEach((listener) => listener())
       }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
     [setOpenProp, open]
   )
+
+  // Arm the width transition two frames after the restored state paints, so a reload
+  // into the collapsed rail does not animate; in a background tab it just snaps.
+  const [ready, setReady] = React.useState(false)
+  React.useEffect(() => {
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setReady(true))
+    })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+    }
+  }, [])
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
@@ -134,15 +179,18 @@ function SidebarProvider({
       <TooltipProvider delayDuration={0}>
         <div
           data-slot="sidebar-wrapper"
+          data-ready={ready}
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH,
-              "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
               ...style,
             } as React.CSSProperties
           }
           className={cn(
-            "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
+            // overflow-x-clip: mid-collapse the content is already full width
+            // but still slid right, and must not open a horizontal scroll.
+            "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full overflow-x-clip",
+            SIDEBAR_ICON_TOKENS,
             className
           )}
           {...props}
@@ -158,6 +206,8 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  mobileTitle = "Sidebar",
+  mobileDescription = "Displays the mobile sidebar.",
   className,
   children,
   ...props
@@ -165,6 +215,9 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  /** Translated sr-only title/description of the mobile sheet. */
+  mobileTitle?: string
+  mobileDescription?: string
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
@@ -199,8 +252,8 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{mobileTitle}</SheetTitle>
+            <SheetDescription>{mobileDescription}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -221,7 +274,9 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-[var(--duration-emphasized)] ease-emphasized",
+          // No width transition: it would reflow the page every frame.
+          // SidebarInset slides the content instead.
+          "relative w-(--sidebar-width) bg-transparent",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -232,7 +287,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-[var(--duration-emphasized)] ease-emphasized desktop:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) in-data-[ready=true]:transition-[left,right,width] duration-[var(--duration-emphasized)] ease-emphasized desktop:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -259,8 +314,12 @@ function Sidebar({
 function SidebarTrigger({
   className,
   onClick,
+  label = "Toggle Sidebar",
   ...props
-}: React.ComponentProps<typeof Button>) {
+}: React.ComponentProps<typeof Button> & {
+  /** Translated accessible name; the primitive cannot reach i18n itself. */
+  label?: string
+}) {
   const { toggleSidebar } = useSidebar()
 
   return (
@@ -277,23 +336,33 @@ function SidebarTrigger({
       {...props}
     >
       <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">{label}</span>
     </Button>
   )
 }
 
-function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+function SidebarRail({
+  className,
+  label = "Toggle Sidebar",
+  ...props
+}: React.ComponentProps<"button"> & {
+  /** Translated accessible name and hover title. */
+  label?: string
+}) {
   const { toggleSidebar } = useSidebar()
 
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
+      aria-label={label}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title={label}
+      // Pointer affordance only: keyboard users have the header trigger and
+      // Ctrl/Cmd+B, so a second tab stop on the same action is noise.
+      tabIndex={-1}
       className={cn(
-        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all duration-[var(--duration-quick)] ease-out group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 sm:flex",
+        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-[translate,background-color] duration-[var(--duration-quick)] ease-out group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 sm:flex",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
@@ -307,8 +376,60 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 }
 
 function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+  const ref = React.useRef<HTMLElement>(null)
+
+  // The gap snaps to its final width and the inset slides over by a compositor
+  // transform (FLIP); animating the gap width re-laid-out every card on each frame.
+  React.useEffect(() => {
+    const inset = ref.current
+    const gap = inset?.parentElement?.querySelector<HTMLElement>(
+      "[data-slot=sidebar-gap]"
+    )
+    if (!inset || !gap) return
+
+    let left = inset.offsetLeft
+    let gapWidth = gap.offsetWidth
+    let slide: Animation | null = null
+
+    // Fires after layout and before paint, so the transform lands in the same
+    // frame as the jump it hides.
+    const observer = new ResizeObserver(() => {
+      const nextLeft = inset.offsetLeft
+      const nextGapWidth = gap.offsetWidth
+      const delta = left - nextLeft
+      // A 0 width is the rail leaving or entering the layout at the desktop
+      // breakpoint, not a collapse; that resize simply snaps.
+      const animate =
+        delta !== 0 &&
+        gapWidth > 0 &&
+        nextGapWidth > 0 &&
+        inset.closest("[data-ready=true]") !== null &&
+        !isMotionReduced()
+      left = nextLeft
+      gapWidth = nextGapWidth
+      if (!animate) return
+
+      // A toggle mid-slide continues from where the content is on screen.
+      const from =
+        slide && slide.playState === "running"
+          ? new DOMMatrixReadOnly(getComputedStyle(inset).transform).m41 + delta
+          : delta
+      slide?.cancel()
+      slide = inset.animate(
+        [{ transform: `translateX(${from}px)` }, { transform: "translateX(0)" }],
+        { duration: DUR.emphasized * 1000, easing: EASE_EMPHASIZED_CSS }
+      )
+    })
+    observer.observe(gap)
+    return () => {
+      observer.disconnect()
+      slide?.cancel()
+    }
+  }, [])
+
   return (
     <main
+      ref={ref}
       data-slot="sidebar-inset"
       className={cn(
         "bg-background relative flex w-full flex-1 flex-col",
@@ -339,7 +460,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-header"
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 px-3 pt-3.5 pb-1", className)}
+      className={cn("flex flex-col gap-2 px-3 pt-3.5 pb-1", ICON_RAIL_PX, className)}
       {...props}
     />
   )
@@ -354,6 +475,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
       // account block rather than colliding with it.
       className={cn(
         "bg-sidebar relative z-10 flex flex-col gap-2 px-3 pt-2 pb-3.5",
+        ICON_RAIL_PX,
         className,
       )}
       {...props}
@@ -388,7 +510,9 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
         // scrolls by design. pb-2 keeps the last row from being sliced through
         // its middle at rest, which reads as a rendering bug rather than as
         // "there is more below".
-        "flex min-h-0 flex-1 flex-col gap-[1.125rem] overflow-auto py-1.5 pb-2 group-data-[collapsible=icon]:overflow-hidden",
+        // Scrollbar hidden (a 15px Windows gutter truncates labels); the icon rail
+        // scrolls too, clipping only x. Top padding absorbs the -mt-8 group label overshoot.
+        "flex min-h-0 flex-1 flex-col gap-[1.125rem] overflow-x-hidden overflow-y-auto py-1.5 pb-2 group-data-[collapsible=icon]:pt-4 [scrollbar-width:none]",
         className
       )}
       {...props}
@@ -401,7 +525,7 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-group"
       data-sidebar="group"
-      className={cn("relative flex w-full min-w-0 flex-col px-3", className)}
+      className={cn("relative flex w-full min-w-0 flex-col px-3", ICON_RAIL_PX, className)}
       {...props}
     />
   )
@@ -499,7 +623,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 // the active state — so if the indicator never renders, the active row is still
 // unambiguous. Nothing here is load-bearing on the animation.
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button relative flex w-full items-center gap-3 overflow-hidden rounded-pill px-4 text-left text-sm outline-hidden ring-sidebar-ring transition-[color,background-color,font-weight] duration-(--duration-quick) ease-quick hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-on-primary-container data-[active=true]:hover:bg-transparent data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button relative flex w-full items-center gap-3 overflow-hidden rounded-pill px-4 text-left text-sm outline-hidden ring-sidebar-ring transition-[color,background-color,font-weight] duration-(--duration-quick) ease-quick hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-on-primary-container data-[active=true]:hover:bg-transparent data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-(--sidebar-icon-row)! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:[&>:not(:first-child)]:sr-only! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -679,13 +803,9 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
       data-slot="sidebar-menu-sub"
       data-sidebar="menu-sub"
       className={cn(
-        // No rail. DESIGN.md replaces hairline dividers with tonal grouping on
-        // glance surfaces, and a 1px line running beside a stack of pills reads
-        // as a leftover from the old square nav. Structure comes from alignment
-        // instead: 2rem of inset lands sub-labels directly under the parent's
-        // label (20px glyph + 12px gap), so the hierarchy is legible from the
-        // text column alone.
-        "flex min-w-0 flex-col gap-0.5 py-1 pl-8",
+        // sidebar-07 rail: a 1px neutral line from the centre of the parent glyph
+        // (16px inset + 10px); the offsets keep sub-labels within 2px of the parent label.
+        "border-sidebar-border ml-[1.5625rem] flex min-w-0 flex-col gap-0.5 border-l py-1 pl-1.5",
         "group-data-[collapsible=icon]:hidden",
         className
       )}
@@ -732,7 +852,7 @@ function SidebarMenuSubButton({
         // neutral active fill rather than the brand container. Only one row in
         // the sidebar wears primary-container at a time, and it belongs to the
         // section you are in, not the page within it.
-        "text-sidebar-foreground/75 ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-foreground active:bg-sidebar-accent active:text-sidebar-foreground [&>svg]:text-sidebar-accent-foreground flex h-9 min-w-0 items-center gap-2 overflow-hidden rounded-pill px-3.5 outline-hidden transition-[color,background-color] duration-(--duration-quick) ease-quick focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-sidebar-foreground/75 ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-foreground active:bg-sidebar-accent active:text-sidebar-foreground [&>svg]:text-sidebar-accent-foreground flex h-9 pointer-coarse:h-11 min-w-0 items-center gap-2 overflow-hidden rounded-pill px-3.5 outline-hidden transition-[color,background-color] duration-(--duration-quick) ease-quick focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
         "data-[active=true]:bg-surface-container-high data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",

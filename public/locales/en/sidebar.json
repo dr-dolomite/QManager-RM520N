@@ -48,7 +48,14 @@
     "about_device": "About Device",
     "support": "Support",
     "donate": "Donate to the Project",
-    "traffic_engine": "Traffic Engine"
+    "traffic_engine": "Traffic Engine",
+    "cellular_overview": "Overview",
+    "sms_inbox": "Inbox",
+    "band_locking_bands": "Band Locking",
+    "cell_scanner_full_scan": "Full Scan",
+    "cellular_settings_general": "General",
+    "connection_quality_overview": "Overview",
+    "system_settings_general": "General"
   },
   "header": {
     "role": "Admin"
@@ -57,12 +64,19 @@
     "signed_in": "Signed in"
   },
   "actions": {
-    "toggle_section": "Toggle {{section}} section"
+    "toggle_section": "Toggle {{section}} section",
+    "toggle_sidebar": "Toggle sidebar",
+    "skip_to_content": "Skip to main content"
   },
   "status": {
     "watchdog_acting": "acting",
     "watchdog_acting_detail": "Watchdog is recovering the connection (tier {{tier}}).",
     "watchdog_settling": "settling",
     "watchdog_settling_detail": "Watchdog is verifying the connection held after a recovery."
-  }
+  },
+  "mobile": {
+    "title": "Sidebar",
+    "description": "Main navigation for QManager."
+  },
+  "breadcrumb": "Breadcrumb"
 }

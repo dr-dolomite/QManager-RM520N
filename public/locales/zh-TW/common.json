@@ -190,7 +190,8 @@
       "toggle": "無法登入?",
       "intro": "如果您忘記了管理員密碼,有兩種恢復方式:",
       "option_reset": "通過 SSH 連線到裝置並執行 {{command}} 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)",
-      "option_backup": "如果您儲存了 .qmbackup 檔案,請重新刷寫裝置韌體,然後從該檔案中恢復。"
+      "option_backup": "如果您儲存了 .qmbackup 檔案,請重新刷寫裝置韌體,然後從該檔案中恢復。",
+      "option_reset_command": "通過 SSH 連線到裝置並執行 {{command}} 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)"
     },
     "session_expired_title": "工作階段已結束",
     "locked_title": "嘗試次數過多",
@@ -199,7 +200,8 @@
     "attempts_left_one": "密碼錯誤。還剩 {{count}} 次嘗試。",
     "attempts_left_other": "密碼錯誤。還剩 {{count}} 次嘗試。",
     "password_to_manage": "輸入密碼以管理 {{hostname}}。",
-    "password_to_manage_bare": "請輸入密碼。"
+    "password_to_manage_bare": "請輸入密碼。",
+    "locked_countdown": "已鎖定 ({{seconds}})"
   },
   "overview": {
     "title": "數據機概覽",
@@ -1601,5 +1603,65 @@
       "title": "支持本專案",
       "body": "QManager 是一個業餘維護、完全免費的專案。如果它對你的裝置有幫助，一點小小的支持就能讓它繼續走下去——無論如何都不會有付費牆。"
     }
+  },
+  "not_found": {
+    "scene_label": "星空下劈啪作響的營火",
+    "title": "冒險者，你好像迷路了",
+    "description": "要回去繼續優化你的連線嗎？",
+    "home": "返回儀表板",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "請選擇圖片檔案。",
+    "photo_updated": "大頭貼已更新。",
+    "change_photo_aria": "更換大頭貼",
+    "name_placeholder": "你的名稱",
+    "name_saved": "顯示名稱已更新。",
+    "name_save_failed": "更新顯示名稱失敗。",
+    "reconnect_description": "這將使調變解調器中斷數秒，然後自動重新連線。",
+    "disconnecting_description": "正在將調變解調器從網路中斷…",
+    "reconnecting_description": "正在將調變解調器重新連線到網路…",
+    "reconnect_action": "重新連線",
+    "reconnect_complete": "調變解調器已重新連線。",
+    "reconnect_failed": "重新連線調變解調器失敗。",
+    "reboot_description": "裝置將重啟，在其重新上線之前所有網路連線都會中斷。",
+    "reboot_sent": "重啟指令已送出，你即將登出…",
+    "reboot_now": "立即重啟"
+  },
+  "pending_reboot": {
+    "title": "重新啟動以完成變更",
+    "reboot_now": "立即重新啟動",
+    "rebooting": "正在重新啟動…",
+    "dismiss": "忽略",
+    "reboot_failed_toast": "無法啟動重新啟動，請重試。",
+    "description": {
+      "config_restore": "還原的 IMEI 變更或 SIM 設定檔將在下次重新啟動後生效。",
+      "imei": "新的 IMEI 將在下次重新啟動後生效。",
+      "mbn": "新的電信業者設定檔會在數據機重新啟動後生效。",
+      "default": "部分變更將在下次重新啟動後生效。"
+    },
+    "dismiss_dialog": {
+      "title": "忽略重新啟動提醒？",
+      "description": "需要重新啟動的變更在數據機重新啟動前不會生效。僅在已重新啟動後才忽略。",
+      "keep": "保留提醒",
+      "confirm": "忽略"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "正在關機…",
+      "restarting": "正在重新啟動服務…",
+      "almost_ready": "即將就緒…",
+      "overtime": "耗時比平常更久…"
+    },
+    "subtitle": {
+      "normal": "裝置很快就會恢復上線",
+      "overtime": "裝置仍在重新啟動"
+    },
+    "timer_aria_one": "剩餘 {{count}} 秒",
+    "timer_aria_other": "剩餘 {{count}} 秒",
+    "timer_overtime_aria": "正在重新連線，耗時比平常更久",
+    "seconds_unit": "秒",
+    "escape": "裝置可能需要人工處理。前往登入"
   }
 }

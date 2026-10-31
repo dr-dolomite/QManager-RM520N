@@ -10,7 +10,7 @@ Every user-initiated mutation that finishes is confirmed by exactly one `sonner`
 |---|---|
 | Library | plain `sonner`: `import { toast } from "sonner"`. No wrapper. One `<Toaster />` in `app/layout.tsx` (`components/ui/sonner.tsx`) |
 | Reference implementation | `components/cellular/band-locking/band-grid-card.tsx`: `markSaved()` then `toast.success(t(...))` on ok, `toast.error(t(...))` on not ok, in the handler (about lines 252-281) |
-| Failure reason | the call's own returned result. RM520N has no `resolveErrorMessage` helper (`lib/i18n/resolve-error.ts` exports only `installErrorKey`, for language packs) |
+| Failure reason | the call's own returned result. for a backend error code use `resolveErrorMessage(t, code, detail, fallback)` (`lib/i18n/resolve-error.ts`, resolves in the `errors` namespace) |
 | Copy to clipboard | `copyText` from `lib/clipboard.ts`; toast success only when it returns `true` |
 | Copy catalog | `t()` keys in **all five** catalogs (`en id it zh-CN zh-TW`; the packs are CRLF), per [i18n.md](i18n.md). RM520N does not pause translation |
 

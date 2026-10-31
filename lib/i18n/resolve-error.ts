@@ -1,8 +1,9 @@
 // lib/i18n/resolve-error.ts
 //
-// Maps a language-pack CGI error code to a locale key. This module stays free
-// of React and of i18next: the caller holds the `t` the key is resolved with,
-// so the same map serves a card, a toast and a hook.
+// Maps backend error codes to locale text. Free of React and of an i18next
+// instance: the caller passes its own `t`, so a card, a toast and a hook share it.
+import type { TFunction } from "i18next";
+
 const INSTALL_ERROR_KEYS: Record<string, string> = {
   install_in_progress: "languages.errors.install_in_progress",
   insufficient_space: "languages.errors.insufficient_space",
@@ -29,4 +30,28 @@ export function installErrorKey(code?: string | null): string | null {
   const trimmed = code?.trim();
   if (!trimmed) return null;
   return INSTALL_ERROR_KEYS[trimmed] ?? null;
+}
+
+/** A backend `{ error, detail }` as a sentence: known code, else "Modem reported: {detail}", else the fallback. */
+export function resolveErrorMessage(
+  t: TFunction,
+  code: string | undefined | null,
+  detail: string | undefined | null,
+  fallback: string,
+): string {
+  const trimmedCode = code?.trim();
+  const trimmedDetail = detail?.trim();
+
+  if (trimmedCode) {
+    // defaultValue "" detects a missing key without rendering the key itself.
+    const translated = t(trimmedCode, { ns: "errors", defaultValue: "" });
+    if (translated) return translated;
+    if (trimmedDetail) {
+      return t("unknown_with_detail", { ns: "errors", detail: trimmedDetail });
+    }
+    return fallback;
+  }
+
+  if (trimmedDetail) return trimmedDetail;
+  return fallback;
 }

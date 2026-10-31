@@ -144,7 +144,7 @@ A useful way to hold it: on a dark surface, a container tint groups things; a st
 
 ## The signal-quality ramp
 
-**Short version: this is the one scale in the system that deliberately breaks the 0.05 floor above, and it is only safe because colour is never the ramp's only channel. A bar carries the magnitude and `QUALITY_GLYPH` carries the stop.**
+**Short version: five stops in three plain hues, so stops that share a hue are the same colour on purpose. That is only safe because colour is never the ramp's only channel. A bar carries the magnitude and `QUALITY_GLYPH` carries the stop.**
 
 `--quality-1` … `--quality-5` (plus a `-bar` sibling for each) are a **five-stop continuous scale** for measured signal quality: RSRP, RSRQ, SINR, aim score. Every other colour in this document is a *category* — it answers "what kind of thing is this". The ramp is a **position on a scale**, and that difference drives everything below.
 
@@ -155,25 +155,35 @@ They shipped in `fefba29` with no consumer at all. As of **2026-08-17** ten surf
 | Token | Drawn as | Reached through |
 | ----- | -------- | --------------- |
 | `--quality-N` | The **numeral** ink | `qualityInkClass()` → `text-quality-N` |
-| `--quality-N-bar` | The **bar** fill, one lightness step bolder | `qualityMeterTone()` → `MetricBar`'s `TONE_CLASS` |
+| `--quality-N-bar` | The **bar** fill, more chroma than the ink at every stop | `qualityMeterTone()` → `MetricBar`'s `TONE_CLASS` |
 
-The bar value is bolder because a 4px fill needs more weight than a text figure to read as the same colour. They are not interchangeable.
+They are not interchangeable. **Never use a `-bar` value as ink**: the light-mode yellow bar (L 0.82) is too pale for text on a near-white ground.
 
-### It is a lightness staircase, not a hue wheel
+### Three hues, five stops
 
-This is the load-bearing fact. Under deuteranopia, hues 27 / 45 / 72 / 115 / 149 flatten onto a **single yellow axis** — the ramp cannot separate by hue *at all* for those readers. So each ramp is monotone in lightness (light 0.385 → 0.505 in 0.030 steps; dark 0.620 → 0.800 in 0.045 steps), and the staircase is what carries it.
+The values, from `app/globals.css` (`:root` and `.dark`):
 
-**Adjacent stops sit deliberately below the 0.05 floor.** Every non-adjacent pair clears it (worst: 0.055 light, 0.077 dark). That is a designed trade, not an oversight — and the thing bought with it is resolution, five levels where the functional roles could only afford four.
+| Stop | Level | Hue | Light ink | Light bar | Dark ink | Dark bar |
+| --- | --- | --- | --- | --- | --- | --- |
+| `--quality-1` | bad | red | `oklch(0.5 0.19 27)` | `oklch(0.58 0.21 27)` | `oklch(0.68 0.2 27)` | `oklch(0.64 0.22 27)` |
+| `--quality-2` | poor | red | `oklch(0.5 0.19 27)` | `oklch(0.58 0.21 27)` | `oklch(0.68 0.2 27)` | `oklch(0.64 0.22 27)` |
+| `--quality-3` | fair | yellow | `oklch(0.58 0.125 80)` | `oklch(0.82 0.165 88)` | `oklch(0.86 0.16 90)` | `oklch(0.84 0.17 90)` |
+| `--quality-4` | good | green | `oklch(0.505 0.14 149)` | `oklch(0.62 0.17 149)` | `oklch(0.8 0.2 149)` | `oklch(0.76 0.21 149)` |
+| `--quality-5` | excellent | green | `oklch(0.505 0.14 149)` | `oklch(0.62 0.17 149)` | `oklch(0.8 0.2 149)` | `oklch(0.76 0.21 149)` |
+
+**Stops 1 and 2 are identical, and so are stops 4 and 5.** Colour answers "which third of the scale"; the glyph answers "which stop". Light-mode green ink equals `--success-on-surface` and dark-mode red ink equals `--destructive-on-surface`. The yellow sits at hue 80 to 90, not on `--warning`'s 72.
+
+**Why three hues.** The previous ramp was a five-hue lightness staircase (hues 27 / 45 / 72 / 115 / 149, monotone in lightness). Users could not tell good (olive) from fair (brown), so RM551E replaced it with plain red, yellow and green (its commit `806b3f77`, shipped in v0.1.33), and RM520N took the same values in the P0a parity pass (RM551E v0.1.34). Do not restore the staircase to regain per-stop colour; the glyph already carries the stop.
+
+> ℹ️ NOTE: the separation figures recorded for the staircase (worst non-adjacent pair, deuteranopia behaviour per stop) do not describe this ramp, and no replacement figures have been measured. Under deuteranopia red and green converge, which is one more reason the glyph and bar are mandatory.
 
 **What each channel actually carries.** Bar **length** carries *magnitude within the scale*, not the stop boundary. `signalToProgress()` is a continuous map, so at any cut it draws both sides nearly the same (an RSRP of -80 dBm is 100% and -81 dBm is 98.3%), and that is honest: two readings 1 dB apart *are* nearly the same signal. What separates one **stop** from the next is `QUALITY_GLYPH`'s monotonic wedge ladder, which survives greyscale and every CVD type. Widening the map would not change this; it would reproduce the same near-identity at every cut while shortening every bar. Recorded 2026-08-23 after a review proposed exactly that widening.
 
 > ⚠️ WARNING: the trade only pays if a **second channel is present**. Ramp ink on a numeral with no bar beside it is a **bug**, not a shortcut: it leaves colour as the only carrier, which for one reader in twelve is no carrier at all. Two independent guards exist in code: `qualityMeterTone()` returns `null` rather than a colour for `none`, and `MetricBar value={null}` draws the track with no fill element at all. A caller that `??`-es a fallback colour past either one re-creates the exact bug this migration removed, where an unread antenna painted green.
 
-### Light-mode stops 1–3 are deep reds and browns, and that is a ceiling
+### The light-mode yellow is split between ink and bar
 
-4.5:1 against a near-white ground caps those hues at **L ≈ 0.50**, and the non-adjacent floor then forces the whole span downward from that cap. The result reads as maroon and umber rather than vivid red-orange. **Do not "fix" it by brightening** — the contrast requirement is what put it there. Dark mode is genuinely vivid (#ed4b43 → #42e071) because a dark ground has the headroom light does not. Verified on screen in both themes, 2026-08-17.
-
-Where a numeral is large enough to fall under the 3:1 threshold instead of 4.5:1, use the `-bar` value as its ink.
+The yellow is the one stop where ink and bar sit far apart in light mode: the ink is a dark gold (`oklch(0.58 0.125 80)`) so a numeral stays legible on white, while the bar stays a true yellow (`oklch(0.82 0.165 88)`). In dark mode the two are close (L 0.86 and 0.84), because the dark ground has the headroom. Keep the split: a yellow numeral at the bar's lightness would not read on white.
 
 ### The ramp is a scale; chips are categories. They did not merge
 

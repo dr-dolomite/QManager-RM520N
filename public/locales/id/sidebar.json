@@ -48,7 +48,14 @@
     "about_device": "Tentang Perangkat",
     "support": "Dukungan",
     "donate": "Donasi untuk Proyek",
-    "traffic_engine": "Mesin Lalu Lintas"
+    "traffic_engine": "Mesin Lalu Lintas",
+    "cellular_overview": "Ringkasan",
+    "sms_inbox": "Kotak Masuk",
+    "band_locking_bands": "Penguncian Band",
+    "cell_scanner_full_scan": "Pindai Penuh",
+    "cellular_settings_general": "Umum",
+    "connection_quality_overview": "Ringkasan",
+    "system_settings_general": "Umum"
   },
   "header": {
     "role": "Admin"
@@ -57,12 +64,19 @@
     "signed_in": "Masuk"
   },
   "actions": {
-    "toggle_section": "Buka atau tutup bagian {{section}}"
+    "toggle_section": "Buka atau tutup bagian {{section}}",
+    "toggle_sidebar": "Buka atau tutup bilah sisi",
+    "skip_to_content": "Lompat ke konten utama"
   },
   "status": {
     "watchdog_acting": "bertindak",
     "watchdog_acting_detail": "Watchdog sedang memulihkan koneksi (tingkat {{tier}}).",
     "watchdog_settling": "memantau",
     "watchdog_settling_detail": "Watchdog sedang memastikan koneksi bertahan setelah pemulihan."
-  }
+  },
+  "mobile": {
+    "title": "Bilah sisi",
+    "description": "Navigasi utama QManager."
+  },
+  "breadcrumb": "Jejak navigasi"
 }
