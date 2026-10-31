@@ -1219,7 +1219,7 @@ _run_long_at() {
 }
 ```
 
-A flag file `/tmp/qmanager_long_running` is created while a long command is active, allowing other callers to detect and back off.
+The broker raises the root-only flag `/run/qmanager_at/long_running` while a long command is active, so other callers can detect it and back off; see [reference/at-command-transport.md](reference/at-command-transport.md#the-long-command-flag-trust-rule).
 
 #### Exit Codes
 

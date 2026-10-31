@@ -123,7 +123,7 @@ Frontend polls GET /profiles/apply_status.sh
 Worker writes progress → /tmp/qmanager_profile_state.json
 ```
 
-The same start/poll shape is used for cell scans (`/at_cmd/cell_scan_*`), neighbour scans, and speedtests. Because a full cell scan (`AT+QSCAN=3,1`) can hold the AT mutex for 30–180s, **`qmanager_cell_scanner` — and only that worker** — touches `/tmp/qmanager_long_running` before taking the lock, so `qmanager_poller` drops into a ping-only, no-AT mode (`system_state="scan_in_progress"`) and `qmanager_watchcat` parks in `LOCKED` until the sweep finishes. The neighbour worker deliberately does not raise it: `AT+QENG="neighbourcell"` holds the mutex for ~2s, which is shorter than the poller's own cadence. Full contract: [reference/cell-scanner.md](reference/cell-scanner.md).
+The same start/poll shape is used for cell scans (`/at_cmd/cell_scan_*`), neighbour scans, and speedtests. Because a full cell scan (`AT+QSCAN=3,1`) can hold the AT mutex for 30–180s, the `qmanager_atd` broker raises the root-only flag `/run/qmanager_at/long_running` once it holds the lock for `AT+QSCAN` (the worker itself never writes it), so `qmanager_poller` drops into a ping-only, no-AT mode (`system_state="scan_in_progress"`) and `qmanager_watchcat` parks in `LOCKED` until the sweep finishes. The neighbour worker deliberately does not raise it: `AT+QENG="neighbourcell"` holds the mutex for ~2s, which is shorter than the poller's own cadence. Full contract: [reference/cell-scanner.md](reference/cell-scanner.md).
 
 ### CGI Endpoint Namespaces
 

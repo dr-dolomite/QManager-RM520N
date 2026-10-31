@@ -698,16 +698,16 @@ These are started on-demand by CGI actions and stop when their task completes.
 #### `qmanager_cell_scanner`
 
 **Location:** `/usr/bin/qmanager_cell_scanner`
-**State files:** `/tmp/qmanager_cell_scan_result.json`, `/tmp/qmanager_cell_scan_error`, `/tmp/qmanager_cell_scan.pid`, `/tmp/qmanager_long_running`
+**State files:** `/tmp/qmanager_cell_scan_result.json`, `/tmp/qmanager_cell_scan_error`, `/tmp/qmanager_cell_scan.pid`
 
-Runs `AT+QSCAN` (may take >60 seconds). Writes scan results with MCC/MNC lookups from `/usrdata/qmanager/www/cgi-bin/quecmanager/operator-list.json`. Spawned by `at_cmd/cell_scan_start.sh`; polled by `at_cmd/cell_scan_status.sh`. Raises the `/tmp/qmanager_long_running` maintenance marker before taking the AT mutex and clears it in its `EXIT` trap. It inherits the `/tmp/qmanager_scan.lock` `flock` from the start endpoint and holds it for its whole run.
+Runs `AT+QSCAN` (may take >60 seconds). Writes scan results with MCC/MNC lookups from `/usrdata/qmanager/www/cgi-bin/quecmanager/operator-list.json`. Spawned by `at_cmd/cell_scan_start.sh`; polled by `at_cmd/cell_scan_status.sh`. It does not write the long-running flag: the broker raises `/run/qmanager_at/long_running` around `AT+QSCAN` once it holds the AT lock. It inherits the `/tmp/qmanager_scan.lock` `flock` from the start endpoint and holds it for its whole run.
 
 #### `qmanager_neighbour_scanner`
 
 **Location:** `/usr/bin/qmanager_neighbour_scanner`
 **State files:** `/tmp/qmanager_neighbour_scan_result.json`, `/tmp/qmanager_neighbour_scan_error`, `/tmp/qmanager_neighbour_scan.pid`
 
-Runs `AT+QENG="neighbourcell"` (LTE leg) then `AT+QNWCFG="nr5g_meas_info"` (NR leg). Spawned by `at_cmd/neighbour_scan_start.sh`; polled by `at_cmd/neighbour_scan_status.sh`. Inherits the same `/tmp/qmanager_scan.lock` `flock`. It captures each leg's `qcmd` stderr to a `*_err.tmp` file so a `modem_busy` collision is reported differently from a real AT failure, and a leg that was blocked while the other found zero rows is reported as an **error**, never as "complete — 0 cells". It deliberately does **not** raise `/tmp/qmanager_long_running` (~2 s hold). See [reference/cell-scanner.md](reference/cell-scanner.md).
+Runs `AT+QENG="neighbourcell"` (LTE leg) then `AT+QNWCFG="nr5g_meas_info"` (NR leg). Spawned by `at_cmd/neighbour_scan_start.sh`; polled by `at_cmd/neighbour_scan_status.sh`. Inherits the same `/tmp/qmanager_scan.lock` `flock`. It captures each leg's `qcmd` stderr to a `*_err.tmp` file so a `modem_busy` collision is reported differently from a real AT failure, and a leg that was blocked while the other found zero rows is reported as an **error**, never as "complete — 0 cells". `AT+QENG` is not a long command, so no long-running flag is raised for it (~2 s hold). See [reference/cell-scanner.md](reference/cell-scanner.md).
 
 #### `qmanager_band_failover`
 
@@ -1295,7 +1295,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_tailscale_install.log` | root | qmanager_tailscale_mgr | Tailscale install log |
 | `/tmp/qmanager_tailscale_install.pid` | root | qmanager_tailscale_mgr | Tailscale install PID |
 | `/tmp/qmanager_low_power_active` | root | low-power cron | Flag: low-power window active; suppresses events/alerts |
-| `/tmp/qmanager_long_running` | www-data | **qmanager_cell_scanner** | Existence-only maintenance marker: a full `AT+QSCAN` sweep is holding the AT mutex. `qmanager_poller` and `qmanager_watchcat` are **readers** (root), never writers — the poller also expires it after `LONG_FLAG_MAX_AGE` (300s). The neighbour scanner does not raise it. See [reference/cell-scanner.md](reference/cell-scanner.md) |
+| `/tmp/qmanager_long_running` | — | nothing (retired) | Moved to `/run/qmanager_at/long_running` in `qmanager_atd` 0.7.3: root-owned, raised by the broker around long commands, read by `qmanager_poller` and `qmanager_watchcat` through `qm_long_flag_up`. The installer's `stop_services()` removes a leftover `/tmp` copy. See [reference/at-command-transport.md](reference/at-command-transport.md#the-long-command-flag-trust-rule) |
 | `/tmp/qmanager_cc_data.tmp` | root | parse_at.sh | Carrier component parse scratch file |
 | `/tmp/qmanager_ca_parse.tmp` | root | parse_at.sh | CA parse scratch file |
 | `/tmp/qmanager_mtu_reapply.pid` | root | tower_lock_mgr.sh | MTU re-apply watcher PID |

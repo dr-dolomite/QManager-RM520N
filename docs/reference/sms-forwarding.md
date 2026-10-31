@@ -45,7 +45,8 @@ Settings live in `/etc/qmanager/sms_forwarding.json` — **not** UCI. The file i
 |---|---|---|
 | `ready` | `qsms watch`, after every (re)registration | List ME and SM |
 | `ME <idx>` / `SM <idx>` | `qsms watch`, one per stored message | List that storage only |
-| `down` | the supervisor, when `qsms watch` exits | Fall back to polling |
+| `down` | the supervisor, when `qsms watch` exits with any code but 2 | Fall back to polling until it is back |
+| `unavailable` | the supervisor, when `qsms watch` exits 2 | Poll only, for the rest of this daemon's life |
 | (timeout, nothing read) | — | See the table below |
 
 What gets listed:
@@ -60,13 +61,13 @@ Once SM has listed cleanly, the safety list reads ME only, on purpose. CPMS mem3
 
 A list is skipped when the storage's merged JSON has the same md5 as last time and it has no pending group.
 
-> ℹ️ NOTE: `qsms watch` reconnects to WMS on its own (250 ms → 2 s backoff, `ready` again after each reconnect) and exits only when its stdout closes or QRTR is unsupported. The supervisor restarts it after 1 s, adding 1 s for each consecutive run shorter than 60 s, capped at 60 s. Neither path ends the daemon, so a modem subsystem restart never counts against the unit's `StartLimitBurst=5` (journald is masked on this device, so a start-limit-hit would be silent). The forced-reconnect path has not been run on hardware.
+> ℹ️ NOTE: `qsms watch` reconnects to WMS on its own (250 ms → 2 s backoff, `ready` again after each reconnect) and exits only when its stdout closes (0) or it can never work on this modem (2: QRTR unavailable, or the AT backend's `unsupported`). On exit 2 the supervisor writes `unavailable` and stops, and the daemon logs `SMS forward: qsms watch unavailable on this modem; polling only` once and never starts it again. On any other exit the supervisor restarts it after 1 s, adding 1 s for each consecutive run shorter than 60 s, capped at 60 s. Neither path ends the daemon, so a modem subsystem restart never counts against the unit's `StartLimitBurst=5` (journald is masked on this device, so a start-limit-hit would be silent). The forced-reconnect path has not been run on hardware.
 
 ---
 
 ## systemd + Gated-Service Lifecycle
 
-The unit `qmanager-sms-forward.service` is `Type=simple`, crash-guarded with `Restart=on-failure` / `RestartSec=5` and a `StartLimitBurst=5` per `StartLimitIntervalSec=3600` window. The daemon itself never respawns — systemd owns the supervision.
+The unit `qmanager-sms-forward.service` is `Type=simple`, crash-guarded with `Restart=on-failure` / `RestartSec=5` and a `StartLimitBurst=5` per `StartLimitIntervalSec=3600` window, with `TimeoutStopSec=10`. The daemon itself never respawns — systemd owns the supervision.
 
 The daemon is a **UCI-gated service**: it is listed in `UCI_GATED_SERVICES` in `install_rm520n.sh`, so the installer does **not** auto-enable it, and OTA updates preserve the user's on/off choice rather than force-enabling it.
 
@@ -74,9 +75,9 @@ The daemon is a **UCI-gated service**: it is listed in `UCI_GATED_SERVICES` in `
 
 `svc_restart` (not `svc_start`) is used on enable so a freshly-changed `target_phone` is picked up even if the unit was already running, while still starting a stopped unit in one call.
 
-While forwarding is disabled or the target is invalid, the daemon stops the watch supervisor and sleeps 15 s per pass.
+While forwarding is disabled or the target is invalid, the daemon stops the watch supervisor and sleeps 15 s per pass. Every idle sleep is `sf_sleep` (`sleep & wait`, the sleep killed in `sf_cleanup`): BusyBox ash runs a trap only after a foreground child ends, so a foreground `sleep 15` delayed SIGTERM by up to 15 s.
 
-> ⚠️ WARNING: An OTA from v0.1.14 can leave `qmanager-sms-forward` in `failed (Result: timeout)` once. The installer stops the **old** daemon, which did not exit on SIGTERM within the stop timeout, so systemd records a timeout. The current daemon stops in 0 s, and the state clears at the next boot. Seen on the RG501Q-EU, 2026-10-29 (`b7e3d6f1`). Open, not fixed: a `failed` unit here right after that one upgrade is not a fault in the new daemon.
+> ℹ️ NOTE: An OTA from v0.1.14–v0.1.18 used to leave `qmanager-sms-forward` in `failed (Result: timeout)`: the old daemon did not exit on SIGTERM, so the stop ran into the 90 s default timeout (seen on the RG501Q-EU, 2026-10-29). Fixed in the installer, which now owns the stop: `stop_services()` runs `systemctl --no-block stop qmanager-sms-forward` (queued first so `Restart=on-failure` cannot respawn it), then `systemctl kill -s KILL qmanager-sms-forward` (the whole cgroup), and after the batched stop `systemctl reset-failed` on the named qmanager units only. `uninstall_rm520n.sh` does the same. Measured on the RM520N-GL (`61368cd2`, 2026-10-31, UI OTA): the unit was `inactive (dead)`, `Result=success`, about 1 s after the stop step began.
 
 ---
 
@@ -114,11 +115,12 @@ Before forwarding, `sf_is_relay()` checks whether the content matches our own re
 
 ### 3-Attempt Abandon, Feature Stays Enabled
 
-A failing send re-checks modem registration before **each** of three attempts (`AT+CREG?` / `AT+CGREG?` via `qcmd`, considered registered on stat `1` home or `5` roaming), waits 5 s between tries, and stops early once a failure reports `sent_parts > 0` (a retry would resend part 1 onward; see [`sms.md`](sms.md#error-and-detail-mapping)). On exhaustion:
+A failing send re-checks modem registration before **each** of three attempts (`AT+CREG?` / `AT+CGREG?` via `qcmd`, considered registered on stat `1` home or `5` roaming), waits 5 s between tries, and stops early once a failure reports `sent_parts > 0` (a retry would resend part 1 onward). The one exception: when that failure has `ambiguous: false` and a numeric `concat_ref`, it resumes **once** with `qsms send --ref <concat_ref> --from <sent_parts + 1>` and then stops either way (log `SMS forward: resuming at part N (ref R)`; contract in [`sms.md` > Resuming a multi-part send](sms.md#resuming-a-multi-part-send---ref----from)). On exhaustion it:
 
-1. Marks the message seen (no infinite retry).
-2. Appends a record to `/tmp/qmanager_sms_forward_failures.json` (capped at 20; oldest dropped on overflow).
-3. Keeps running — a bad send **never** disables forwarding.
+1. Appends a record to `/tmp/qmanager_sms_forward_failures.json` (capped at 20; oldest dropped on overflow).
+2. Keeps running — a bad send **never** disables forwarding.
+
+**The message is marked seen before the send, not after** (`sf_handle`). Forwarding is therefore at-most-once: a daemon killed mid-send (an OTA's SIGKILL, a crash) never resends the message, in full or in part, when it starts again. After a reboot the seen-set is gone and the reseeding pass records the message without forwarding it, so it is not resent then either. Marking after the send gave at-least-once, and a kill between the send and the mark resent every part.
 
 `last_error` is the last attempt's `qsms` `.detail` (for example `The network rejected the message (cause 21).`), never the raw JSON envelope; `The message could not be sent.` when `qsms` printed nothing usable; `modem not registered` when every attempt was skipped for registration; `The SMS service is not installed.` when `/usr/bin/qsms` is missing. The UI shows it raw, so it must stay plain language.
 
