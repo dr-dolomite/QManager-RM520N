@@ -21,23 +21,31 @@ export function OnboardingWizard() {
   const [passwordValid, setPasswordValid] = useState(false);
 
   const submitFnRef = useRef<AsyncVoidFn | SyncVoidFn | null>(null);
+  const inFlightRef = useRef(false);
 
+  // The ref is cleared only on a step change, so a failed submit can be retried.
   const advance = useCallback(() => {
+    submitFnRef.current = null;
     setCurrentStep((s) => Math.min(s + 1, TOTAL_STEPS));
   }, []);
 
   const goBack = useCallback(() => {
+    submitFnRef.current = null;
     setCurrentStep((s) => Math.max(s - 1, 1));
   }, []);
 
-  // Null the ref before awaiting so a double click cannot fire a stale step's fn.
   const handleContinue = useCallback(async () => {
-    if (submitFnRef.current) {
-      const fn = submitFnRef.current;
-      submitFnRef.current = null;
-      await fn();
-    } else {
+    if (inFlightRef.current) return;
+    const fn = submitFnRef.current;
+    if (!fn) {
       advance();
+      return;
+    }
+    inFlightRef.current = true;
+    try {
+      await fn();
+    } finally {
+      inFlightRef.current = false;
     }
   }, [advance]);
 

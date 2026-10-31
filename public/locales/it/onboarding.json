@@ -123,7 +123,7 @@
   "done": {
     "heading": "È tutto pronto!",
     "description": "QManager è pronto. Tutto ciò che hai configurato è attivo e puoi modificare qualsiasi impostazione in qualsiasi momento dalla barra laterale.",
-    "callout_body": "<bold>Suggerimento per i professionisti:</bold> visita <menu>Cellulare › Selezione bande</menu> per ottimizzare la potenza del segnale oppure <menu>Monitoraggio › Watchdog</menu> per impostare il ripristino automatico.",
+    "callout_body": "<bold>Suggerimento per i professionisti:</bold> visita <menu>Rete mobile › Blocco bande</menu> per ottimizzare la potenza del segnale oppure <menu>Monitoraggio › Watchdog</menu> per impostare il ripristino automatico.",
     "button_dashboard": "Vai alla dashboard"
   },
   "web_port": {

@@ -123,7 +123,7 @@
   "done": {
     "heading": "You're all set!",
     "description": "QManager is ready. Everything you configured is active, and you can change any setting anytime from the sidebar.",
-    "callout_body": "<bold>Pro tip:</bold> Visit <menu>Cellular › Band Selection</menu> to fine-tune signal strength, or <menu>Monitoring › Watchdog</menu> to set up automatic recovery.",
+    "callout_body": "<bold>Pro tip:</bold> Visit <menu>Cellular › Band Locking</menu> to fine-tune signal strength, or <menu>Monitoring › Watchdog</menu> to set up automatic recovery.",
     "button_dashboard": "Go to Dashboard"
   },
   "web_port": {

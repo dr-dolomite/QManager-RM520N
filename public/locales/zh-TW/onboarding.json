@@ -123,7 +123,7 @@
   "done": {
     "heading": "全部設定完成！",
     "description": "QManager 已準備就緒。您設定的所有內容都已生效，並且可以隨時從側邊欄變更任何設定。",
-    "callout_body": "<bold>小提示：</bold>存取 <menu>蜂窩網路 › 基站鎖定</menu> 來精細調整訊號強度，或者透過 <menu>監控 › 看門狗</menu> 設定自動恢復。",
+    "callout_body": "<bold>小提示：</bold>存取 <menu>蜂窩網路 › 頻段鎖定</menu> 來精細調整訊號強度，或者透過 <menu>監控 › 看門狗</menu> 設定自動恢復。",
     "button_dashboard": "前往儀表板"
   },
   "web_port": {

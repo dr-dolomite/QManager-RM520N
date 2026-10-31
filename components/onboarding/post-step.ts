@@ -9,7 +9,7 @@ export interface StepWriteResult {
   ok: boolean;
   /** Backend error code, for resolveErrorMessage. */
   error?: string;
-  /** Backend detail, or a transport failure marker. */
+  /** Backend detail (English fallback text). */
   detail?: string;
   /** True when the request never reached the modem. */
   unreachable?: boolean;
@@ -45,7 +45,7 @@ export async function postStep(endpoint: string, body: unknown): Promise<StepWri
   return {
     ok: false,
     error: data?.error || undefined,
-    detail: data?.detail || (response.ok ? undefined : `HTTP ${response.status}`),
+    detail: data?.detail || undefined,
   };
 }
 

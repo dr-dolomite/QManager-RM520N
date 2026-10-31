@@ -123,7 +123,7 @@
   "done": {
     "heading": "Semuanya siap!",
     "description": "QManager siap digunakan. Semua yang Anda konfigurasikan sudah aktif, dan Anda dapat mengubah pengaturan kapan saja dari sidebar.",
-    "callout_body": "<bold>Tips:</bold> Kunjungi <menu>Seluler › Pemilihan Band</menu> untuk menyetel kekuatan sinyal, atau <menu>Monitoring › Watchdog</menu> untuk mengatur pemulihan otomatis.",
+    "callout_body": "<bold>Tips:</bold> Kunjungi <menu>Seluler › Penguncian Band</menu> untuk menyetel kekuatan sinyal, atau <menu>Monitoring › Watchdog</menu> untuk mengatur pemulihan otomatis.",
     "button_dashboard": "Ke Dashboard"
   },
   "web_port": {
