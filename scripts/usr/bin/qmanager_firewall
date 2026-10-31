@@ -17,9 +17,9 @@
 #   the emergency path.
 #
 # start/reload build the new rules in a staging chain and swap the INPUT jump,
-# so re-applying never opens a window with no rules. A failed step discards
-# the staging chain instead of renaming a partial one into place; the build is
-# retried, and a final failure exits non-zero so systemd marks the unit failed.
+# so re-applying never opens a window with no rules. A partial chain is never
+# renamed into place; the build is retried, and a final failure exits non-zero
+# so systemd marks the unit failed.
 #
 # Every call waits up to 5s for the xtables lock (-w 5): QCMAP adds its own
 # INPUT rules when the data call comes up at boot, and iptables 1.6 without -w
@@ -86,7 +86,12 @@ cleanup_legacy_input_rules() {
     done
 }
 
+# Every prefix of this order is safe: WAN drops first, then the trusted
+# ACCEPTs, the catch-all DROPs last, so LAN HTTPS is never dropped early.
 fill_v4() {
+    for port in $SSH_PORT $PORTS; do
+        iptables $W -A "$1" -i "$WAN_IFACE" -p tcp --dport "$port" -j DROP || return 1
+    done
     for iface in $TRUSTED; do
         for port in $PORTS; do
             iptables $W -A "$1" -i "$iface" -p tcp --dport "$port" -j ACCEPT || return 1
@@ -95,7 +100,6 @@ fill_v4() {
     for port in $PORTS; do
         iptables $W -A "$1" -p tcp --dport "$port" -j DROP || return 1
     done
-    iptables $W -A "$1" -i "$WAN_IFACE" -p tcp --dport "$SSH_PORT" -j DROP || return 1
 }
 
 fill_v6() {
@@ -107,28 +111,46 @@ fill_v6() {
 # $1 = iptables | ip6tables, $2 = fill function. Build in STAGE, hook it at
 # INPUT 1, then retire the old chain and rename STAGE into its place. A STAGE
 # left hooked by an interrupted run is unhooked first, or -X/-N would fail.
-# A failed build or hook discards STAGE and leaves the old chain untouched; a
-# failed rename keeps the complete STAGE hooked, since the old chain may be gone.
+# A failed build keeps an existing complete chain and drops STAGE; with no old
+# chain the partial STAGE stays hooked (safe prefix). A partial is never renamed.
 swap_in() {
     unhook_chain "$1" "$STAGE"
     drop_chain "$1" "$STAGE"
     "$1" $W -N "$STAGE" || return 1
     if ! "$2" "$STAGE" || ! "$1" $W -I INPUT 1 -j "$STAGE"; then
-        unhook_chain "$1" "$STAGE"
-        drop_chain "$1" "$STAGE"
+        if "$1" $W -S "$CHAIN" >/dev/null 2>&1; then
+            unhook_chain "$1" "$STAGE"
+            drop_chain "$1" "$STAGE"
+        else
+            "$1" $W -C INPUT -j "$STAGE" 2>/dev/null ||
+                "$1" $W -I INPUT 1 -j "$STAGE"
+        fi
         return 1
     fi
     unhook_chain "$1" "$CHAIN"
     drop_chain "$1" "$CHAIN"
-    "$1" $W -E "$STAGE" "$CHAIN"
+    "$1" $W -E "$STAGE" "$CHAIN" && return 0
+    # STAGE is complete and hooked: retry only the rename, never rebuild it.
+    sleep 1
+    unhook_chain "$1" "$CHAIN"
+    drop_chain "$1" "$CHAIN"
+    "$1" $W -E "$STAGE" "$CHAIN" && return 0
+    return 2
 }
 
 # $1 = iptables | ip6tables, $2 = fill function
 swap_in_retry() {
     n=1
-    while ! swap_in "$1" "$2"; do
-        if [ "$n" -ge "$ATTEMPTS" ]; then
-            log "$1: rule build failed after $n attempts"
+    while :; do
+        swap_in "$1" "$2"
+        src=$?
+        [ "$src" -eq 0 ] && return 0
+        if [ "$src" -eq 2 ] || [ "$n" -ge "$ATTEMPTS" ]; then
+            if "$1" $W -C INPUT -j "$STAGE" 2>/dev/null; then
+                log "$1: rule build failed after $n attempts; $STAGE left hooked"
+            else
+                log "$1: rule build failed after $n attempts; previous $CHAIN kept"
+            fi
             return 1
         fi
         log "$1: rule build failed (attempt $n of $ATTEMPTS), retrying"
