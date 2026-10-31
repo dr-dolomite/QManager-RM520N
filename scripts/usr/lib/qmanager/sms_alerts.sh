@@ -184,7 +184,13 @@ _sa_do_send() {
         set -- $(printf '%s' "$out" | jq -r '[(.sent_parts // 0 | tostring), (.ambiguous | tostring),
             (if (.concat_ref | type) == "number" then (.concat_ref | tostring) else "" end)] | join(" ")' 2>/dev/null)
         sent_parts="${1:-0}"; ambiguous="${2:-null}"; cref="${3:-}"
-        case "$sent_parts" in ''|0|*[!0-9]*) continue ;; esac
+        case "$sent_parts" in ''|*[!0-9]*) sent_parts=0 ;; esac
+        if [ "$sent_parts" -eq 0 ]; then
+            # Nothing confirmed sent: a full retry is safe unless part 1 may have gone out.
+            [ "$ambiguous" = "true" ] || continue
+            qlog_warn "SMS alerts: the message may have been delivered, not retrying"
+            break
+        fi
         case "$cref" in ''|*[!0-9]*) cref="" ;; esac
         if [ "$ambiguous" = "false" ] && [ -n "$cref" ]; then
             qlog_warn "SMS alerts: resuming at part $((sent_parts + 1)) (ref $cref)"

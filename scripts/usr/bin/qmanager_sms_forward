@@ -299,7 +299,13 @@ sf_send_with_retry() {
         set -- $(printf '%s' "$_out" | jq -r '[(.sent_parts // 0 | tostring), (.ambiguous | tostring),
             (if (.concat_ref | type) == "number" then (.concat_ref | tostring) else "" end)] | join(" ")' 2>/dev/null)
         _sp="${1:-0}"; _amb="${2:-null}"; _cref="${3:-}"
-        case "$_sp" in ''|0|*[!0-9]*) continue ;; esac
+        case "$_sp" in ''|*[!0-9]*) _sp=0 ;; esac
+        if [ "$_sp" -eq 0 ]; then
+            # Nothing confirmed sent: a full retry is safe unless part 1 may have gone out.
+            [ "$_amb" = "true" ] || continue
+            qlog_warn "SMS forward: the message may have been delivered, not retrying"
+            break
+        fi
         case "$_cref" in ''|*[!0-9]*) _cref="" ;; esac
         if [ "$_amb" = "false" ] && [ -n "$_cref" ]; then
             qlog_warn "SMS forward: resuming at part $((_sp + 1)) (ref $_cref)"
