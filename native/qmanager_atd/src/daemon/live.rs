@@ -385,8 +385,9 @@ impl Live {
         format!("{}/{token}.json", self.paths.public_dir)
     }
 
+    /// Same trust rule as the AT gate: any uid can plant this name in /tmp.
     fn scan_up(&self) -> bool {
-        std::fs::symlink_metadata(&self.paths.long_flag).is_ok()
+        crate::at::exec::flag_trusted(&self.paths.long_flag)
     }
 
     /// Makes the public dir trustworthy and puts the empty index in it.
@@ -828,6 +829,27 @@ mod tests {
         l.on_sample(Tier::Aim, "up", 0, Some(&bundle()));
         let f = std::fs::read_to_string(d.join("pub").join(format!("{TOK}.json"))).unwrap();
         assert!(f.contains("\"scan\":false") && f.ends_with("\"active\":false}]}]}\n"), "{f}");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn an_untrusted_long_flag_does_not_raise_the_scan_gate() {
+        let d = dir("scanlink");
+        let l = live(&d);
+        let long = d.join("long");
+        let other = d.join("other");
+        std::fs::write(&other, b"x").unwrap();
+        std::fs::hard_link(&other, &long).unwrap();
+        assert!(!l.scan_up(), "a hard link (nlink 2) is ignored");
+        std::fs::remove_file(&long).unwrap();
+        std::os::unix::fs::symlink(&other, &long).unwrap();
+        assert!(!l.scan_up(), "a symlink is ignored");
+        std::fs::remove_file(&long).unwrap();
+        std::fs::create_dir(&long).unwrap();
+        assert!(!l.scan_up(), "a directory is ignored");
+        std::fs::remove_dir(&long).unwrap();
+        std::fs::write(&long, b"AT+QSCAN=3,1\n").unwrap();
+        assert!(l.scan_up(), "an own regular file counts");
         let _ = std::fs::remove_dir_all(&d);
     }
 

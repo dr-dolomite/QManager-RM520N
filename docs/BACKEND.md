@@ -88,7 +88,7 @@ These constraints cause silent failures or security issues if violated.
 - A **www-data-owned** file there is **not writable by root** — and this check has **no root override**, at any mode including `0666`.
 
 So the only ownership under which both a root daemon and a `www-data` CGI can write the same `/tmp` file is **`root:root` mode `0666`**, seeded at boot by `qmanager_setup`. Rules that follow:
-- `qmanager_setup` pre-creates every shared `/tmp` file `root:root` mode 666. Files where root's access is read-only (`/tmp/qmanager_at.lock` — `qmanager_atd` opens it read-only, never with `O_CREAT`) are `www-data`-owned instead.
+- `qmanager_setup` pre-creates every shared `/tmp` file `root:root` mode 666. (The AT lock is no longer one of them: since T4.3 it is `/run/qmanager_at/at.lock`, see §11.)
 - Every writer of a seeded file writes **in place** (`>`, `>>`, `cat tmp > file`, `: >`). Never tmp+`mv`, never `rm` to reset — both swap the inode and replace the seed with the writer's own uid at its umask.
 - For worker scripts that reset their **own** single-UID log, `rm -f` then create fresh is fine (as in `qmanager_update`).
 - Do not confuse this with plain mode bits: a root-owned `0644` file blocks `www-data` through ordinary permissions, not through this sysctl. The two fail in opposite directions.
@@ -756,7 +756,7 @@ These run once at boot via systemd oneshot units.
 Pre-create shared `/tmp` files with correct ownership for `fs.protected_regular=1`. Set `/dev/smd11` permissions. Ensure required directories exist. Initialize `qmanager.conf` defaults. Make all CGI scripts and binaries executable.
 
 Key pre-creates (see §10 and §11 for the full list and rationale):
-- `/tmp/qmanager_at.lock` -- `www-data:www-data` mode 666
+- `/run/qmanager_at/` -- `root:dialout` mode 0750, and `/run/qmanager_at/at.lock` -- `root:dialout` mode 0640 (first thing the script does; never truncates an existing lock)
 - `/tmp/qmanager.log` -- `root:root` mode 666
 - `/tmp/qmanager_sessions/` -- `www-data:www-data` mode 700
 
@@ -814,7 +814,7 @@ These are invoked on-demand by CGI scripts via sudo, or interactively.
 #### `qcmd`
 
 **Location:** `/usr/bin/qcmd`
-**Lock file:** `/tmp/qmanager_at.lock`
+**Lock file:** `/run/qmanager_at/at.lock`
 **Is:** a symlink to `qmanager_atd` (Rust, static), on every model
 
 The single entry point for all modem AT communication. Serializes access to `/dev/smd11` via `flock`. On the RM520N-GL and the RG501Q-EU it sends through the `qmanager_atd` broker and falls back in-process when the broker is down; on an unknown model (no broker unit) it always runs in-process. No PTY bridge, no socat.
@@ -1148,7 +1148,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `cellular/settings.sh` | GET/POST | Combined cellular settings (network search mode, etc.) |
 | `cellular/sms.sh` | GET/POST/DELETE | SMS center: list, read, send, delete messages via `qsms` |
 
-On the RM520N-GL `cellular/sms.sh` takes no AT lock for SMS: `qsms` uses QMI WMS. Its only AT command is the CPMS routing write through `qcmd`, which takes `/tmp/qmanager_at.lock` for that one command. See [sms.md](reference/sms.md#no-at-lock).
+On the RM520N-GL `cellular/sms.sh` takes no AT lock for SMS: `qsms` uses QMI WMS. Its only AT command is the CPMS routing write through `qcmd`, which takes `/run/qmanager_at/at.lock` for that one command. See [sms.md](reference/sms.md#no-at-lock).
 
 #### `device/` (1 script)
 
@@ -1243,7 +1243,6 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 
 | Path | Owner | Created by | Description |
 |------|-------|------------|-------------|
-| `/tmp/qmanager_at.lock` (S) | www-data | qmanager_setup | Shared flock file for `/dev/smd11` serialization |
 | `/tmp/qmanager_at.pid` (S) | www-data | qmanager_setup | No longer seeded or used since the shell `qcmd` was retired (the broker's PID is `/var/run/qmanager/atd.pid`); an upgraded device may keep a stale copy until reboot |
 | `/tmp/qmanager.log` (S) | root | qmanager_setup | Main QManager log (all components) |
 | `/tmp/qmanager_status.json` | root | qmanager_poller | Main modem status cache; polled by frontend |
@@ -1378,9 +1377,9 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 
 ## 11. Locking & Concurrency Conventions
 
-### `/tmp/qmanager_at.lock` -- AT Device Serialization
+### `/run/qmanager_at/at.lock` -- AT Device Serialization
 
-All processes that access `/dev/smd11` share this lock. Holders:
+All processes that access `/dev/smd11` share this lock. It is `root:dialout` 0640 in a `root:dialout` 0750 dir (`/run`, tmpfs, recreated by `qmanager_setup` each boot); only root creates it, and root or the `dialout` group (which `www-data` is in) can lock it. A non-root caller that finds it missing gets `modem_busy`. While the root-only marker `/run/qmanager_at/bridge` exists, the Rust holders also take the legacy `/tmp/qmanager_at.lock` (the OTA/rollback bridge). Full rules: [at-command-transport.md > The AT lock](reference/at-command-transport.md#the-at-lock-and-who-may-hold-it). Holders:
 - `qcmd` (for all AT commands from the poller, CGI scripts, and daemons) — the `qmanager_atd` broker takes the lock around each exchange, or the in-process fallback does when the broker is not running. The Rust lock code (`native/qmanager_atd/src/common/lock.rs`) has the same 100 ms try-loop semantics as the shell pattern below
 - `qmanager_health_check`'s `t_sms_flock` test, which acquires and releases it once with `flock -x -n`
 - `qsms` on its AT backend only (models other than RM520N and RG501Q). On the RM520N-GL and the RG501Q-EU, SMS uses QMI WMS and holds no lock; the SMS path's only AT command is the CPMS write through `qcmd`.
@@ -1403,7 +1402,7 @@ flock_wait() {
 ( flock_wait 9 5 || exit 2; your_locked_work ) 9<"$LOCK_FILE"
 ```
 
-**Why `9<` (read-only FD):** `fs.protected_regular=1` blocks `open()` for write on files owned by other users in sticky `/tmp`. Using `<` (read-only) instead of `<>` (read-write) avoids this restriction while still providing a valid file descriptor for flock.
+**Why `9<` (read-only FD):** `flock()` needs only a read fd, and the lock is mode 0640, so a `dialout` caller such as `www-data` can open it only for reading. Never open it with `>` or `<>`: that needs write access and would try to create it.
 
 ### `/tmp/qmanager_watchcat.lock` -- Maintenance Lock
 

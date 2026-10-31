@@ -303,7 +303,7 @@ Lowest-risk, highest-leverage migration for the poller:
 2. Move `AT+QGDCNT` → read `/proc/net/dev`. Drop one AT call per poll, gain per-interface granularity.
 3. Add a new "Modem Subsystem" health indicator using `subsys0/state` + `subsys0/crash_count`. Costs nothing; catches silent modem reboots that AT polling misses. **(Done — shipped as the "System Health" card; collected by the poller's `update_system_health()` and exposed via `/system/modem-subsys.sh`.)**
 
-Both AT removals free up `/tmp/qmanager_at.lock` for the genuinely modem-firmware-bound queries (signal, cell, registration), where AT serialization actually matters.
+Both AT removals free up `/run/qmanager_at/at.lock` for the genuinely modem-firmware-bound queries (signal, cell, registration), where AT serialization actually matters.
 
 ## Open questions for the QMI re-visit
 

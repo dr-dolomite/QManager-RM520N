@@ -2,7 +2,7 @@
 
 This document is the platform architecture reference for the **shipped RM520N-GL target** — the Quectel modem QManager runs on. It covers the modem's internal Linux environment: the AT command transport layer, system services, boot sequence, Entware packaging, lighttpd/CGI infrastructure, filesystem layout, and firewall. It describes the platform as QManager ships today; it is not a porting guide.
 
-For AT command access, QManager's `qcmd` (a symlink to the Rust `qmanager_atd` binary) talks to `/dev/smd11` **directly**, through the `qmanager_atd` broker when it runs and in-process otherwise, serialized by `flock` on `/tmp/qmanager_at.lock`. See **[AT Command Transport](reference/at-command-transport.md)** for the current transport. (An earlier socat-based PTY bridge approach was explored during the initial port and then abandoned; the [AT Command Transport Layer](#at-command-transport-layer) section below is retained only as historical background and is clearly marked as such.)
+For AT command access, QManager's `qcmd` (a symlink to the Rust `qmanager_atd` binary) talks to `/dev/smd11` **directly**, through the `qmanager_atd` broker when it runs and in-process otherwise, serialized by `flock` on `/run/qmanager_at/at.lock`. See **[AT Command Transport](reference/at-command-transport.md)** for the current transport. (An earlier socat-based PTY bridge approach was explored during the initial port and then abandoned; the [AT Command Transport Layer](#at-command-transport-layer) section below is retained only as historical background and is clearly marked as such.)
 
 > ℹ️ **Historical origin.** QManager was originally built for the **RM551E running OpenWRT** on an external host router, and this document began life during the port to the RM520N-GL. It still contains porting-era comparison material (clearly marked) that contrasts the two platforms. The RM520N-GL is a fundamentally different platform: it runs its own Linux OS internally (not OpenWRT on an external host), uses systemd instead of procd, Entware opkg instead of a built-in package manager, lighttpd instead of uhttpd, and iptables instead of fw4 — so the porting-era contrasts remain useful when reading older RM551E code.
 
@@ -101,7 +101,7 @@ This table contrasts every major subsystem between the **legacy RM551E-on-OpenWR
 | **Init** | procd + rc.d | systemd | Rewrite all init.d scripts as `.service` units |
 | **Package mgr** | opkg (built-in) | Entware opkg at `/opt` | Different package names, install paths |
 | **Root FS** | Writable (SquashFS + overlay) | Read-only (remount required) | Must stage writes, prefer `/usrdata/` |
-| **AT transport** | `sms_tool` via USB CDC ACM | `qcmd` → `qmanager_atd` on `/dev/smd11` (direct SMD access, no socat) | `qcmd` serializes via `flock` on `/tmp/qmanager_at.lock` |
+| **AT transport** | `sms_tool` via USB CDC ACM | `qcmd` → `qmanager_atd` on `/dev/smd11` (direct SMD access, no socat) | `qcmd` serializes via `flock` on `/run/qmanager_at/at.lock` |
 | **AT device** | USB device (host-side) | `/dev/smd7`, `/dev/smd11` (internal) | No USB enumeration dependency |
 | **AT locking** | Implicit (single `sms_tool` call) | `flock` inside `qmanager_atd` (read-only, no-create open for `fs.protected_regular`) | Implemented: `qcmd` and the broker serialize all access |
 | **Web server** | uhttpd (built-in) | lighttpd (Entware) | Different CGI config, auth mechanism |
@@ -839,14 +839,13 @@ This affects **every file in `/tmp/` that both root processes (daemons, setup sc
 
 | File | Purpose | Accessed By | Seeded as |
 |------|---------|-------------|-----------|
-| `/tmp/qmanager_at.lock` | AT command `flock` serialization | `qmanager_atd` as broker (root), `qcmd` / `qsms` (www-data CGI + root daemons), and the shell scan/APN/CFUN paths | `www-data:www-data 0666` |
 | `/tmp/qmanager_at.pid` | Was the shell `qcmd`'s PID record; no longer seeded; nothing reads or writes it since the shell `qcmd` was retired (the broker keeps its PID in `/var/run/qmanager/atd.pid`) | — | `www-data:www-data 0666` |
 | `/tmp/qmanager.log` | Centralized `qlog` output | All daemons (root) + log viewer CGI (www-data) | `root:root 0666` |
 | `/tmp/qmanager_events.json` | Recent Activities NDJSON ring | Root daemons + every CGI that sources `events.sh` | `root:root 0666` |
 | `/tmp/qmanager_profile_state.json` | Profile-apply progress | `qmanager_profile_apply` (both UIDs) + `profiles/*.sh` | `root:root 0666` |
 | `/tmp/qmanager_profile_apply.pid` | Profile-apply singleton lock | `qmanager_profile_apply` (both UIDs) | `root:root 0666` |
 
-`/tmp/qmanager_at.lock` is the exception that proves the rule: it is `www-data`-owned only because root never opens them for **write** — `qmanager_atd` opens the lock read-only and never with `O_CREAT` (`common/lock.rs`), and shell lockers use a read-only FD (`9<`), so no `O_CREAT` write from root ever happens and the sysctl never engages. Every genuinely dual-writer file is `root:root 0666`.
+The AT lock used to be in this table as a `www-data`-owned exception (root opened it read-only). Since T4.3 it is not in `/tmp` at all: it is `/run/qmanager_at/at.lock` (`root:dialout` 0640 in a `root:dialout` 0750 dir that only root writes), so `protected_regular` does not apply to it. See [AT Command Transport](reference/at-command-transport.md#the-at-lock-and-who-may-hold-it). Every genuinely dual-writer file is `root:root 0666`.
 
 **Two-part fix (confirmed working in deployment):**
 
@@ -854,11 +853,6 @@ This affects **every file in `/tmp/` that both root processes (daemons, setup sc
 
 ```bash
 # qmanager_setup — pre-create shared /tmp files for fs.protected_regular
-# www-data-owned: opened READ-ONLY by root, so protected_regular never engages
-touch /tmp/qmanager_at.lock
-chown www-data:www-data /tmp/qmanager_at.lock
-chmod 666 /tmp/qmanager_at.lock
-
 # root-owned: BOTH root daemons and www-data CGI write these. root:root 0666
 # is the only ownership under which both UIDs can (see the rule above).
 touch /tmp/qmanager.log /tmp/qmanager_events.json \
@@ -944,7 +938,7 @@ removal takes effect immediately.
 
 ## AT Command Transport Layer
 
-> ⚠️ HISTORICAL — ABANDONED APPROACH. This entire section documents the **socat-based PTY bridge** that was explored during the initial port to the RM520N-GL and then **abandoned**. It is **not** how QManager ships. The shipped transport is `qcmd`, a link to the Rust `qmanager_atd` binary, talking to `/dev/smd11` **directly** (through the broker daemon, or in-process when it is not running) — no socat, no PTY bridge, no `ttyIN`/`ttyOUT`/`ttyOUT2` — serialized by `flock` on `/tmp/qmanager_at.lock`. For the current transport see **[AT Command Transport](reference/at-command-transport.md)** and [CGI AT Command Execution](#cgi-at-command-execution) below. Treat every `socat`/`ttyOUT`/`microcom`/`atcmd` reference in this section as describing the abandoned design, not current behavior.
+> ⚠️ HISTORICAL — ABANDONED APPROACH. This entire section documents the **socat-based PTY bridge** that was explored during the initial port to the RM520N-GL and then **abandoned**. It is **not** how QManager ships. The shipped transport is `qcmd`, a link to the Rust `qmanager_atd` binary, talking to `/dev/smd11` **directly** (through the broker daemon, or in-process when it is not running) — no socat, no PTY bridge, no `ttyIN`/`ttyOUT`/`ttyOUT2` — serialized by `flock` on `/run/qmanager_at/at.lock`. For the current transport see **[AT Command Transport](reference/at-command-transport.md)** and [CGI AT Command Execution](#cgi-at-command-execution) below. Treat every `socat`/`ttyOUT`/`microcom`/`atcmd` reference in this section as describing the abandoned design, not current behavior.
 >
 > The physical-layer facts in [Physical Layer: SMD Ports](#physical-layer-smd-ports) below (SMD character devices, `port_bridge`, `/dev/smd7` vs `/dev/smd11`) remain accurate; only the socat PTY layering that was built on top of them was abandoned.
 
@@ -1351,7 +1345,7 @@ This was the highest-risk area of the port. The entire QManager backend communic
 
 #### 1. `qcmd` — RM520N-GL Variant (COMPLETE)
 
-> ⚠️ SUPERSEDED: The socat-based design above is not how QManager ships. The shipped `qcmd` is a symlink to the Rust `qmanager_atd` binary, which talks to **`/dev/smd11` directly** — no socat, no `ttyOUT2` — with `flock` serialization on `/tmp/qmanager_at.lock`. Current contract: [AT Command Transport](reference/at-command-transport.md).
+> ⚠️ SUPERSEDED: The socat-based design above is not how QManager ships. The shipped `qcmd` is a symlink to the Rust `qmanager_atd` binary, which talks to **`/dev/smd11` directly** — no socat, no `ttyOUT2` — with `flock` serialization on `/run/qmanager_at/at.lock`. Current contract: [AT Command Transport](reference/at-command-transport.md).
 
 Key design decisions (current implementation):
 - **`qcmd` → `qmanager_atd` on `/dev/smd11`** — direct SMD access through the broker daemon, or in-process when it is not running. The device path is fixed in the binary. (Earlier releases shipped a shell `qcmd` over `atcli_smd11`, and an interim variant used `sms_tool` on the smd7 PTY bridge; both are gone.)

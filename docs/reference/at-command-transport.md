@@ -12,8 +12,9 @@
 | `/usr/bin/qcmd` | Symlink to `qmanager_atd` on every model (made by `install_backend()`) |
 | Broker unit | `qmanager-atd.service` (RM520N-GL and RG501Q-EU, gate `qm_hw_atd_enabled`; boot-linked, started after `qmanager-setup`) |
 | Broker socket | `/var/run/qmanager_atd.sock` |
-| AT lock | `/tmp/qmanager_at.lock` (0666) |
-| Long-command flag | `/tmp/qmanager_long_running` (exists while a long command runs) |
+| AT lock | `/run/qmanager_at/at.lock` (`root:dialout` 0640, in a `root:dialout` 0750 dir; only root creates either) |
+| Bridge marker | `/run/qmanager_at/bridge` (root-only; while present, holders also take the legacy `/tmp/qmanager_at.lock`) |
+| Long-command flag | `/tmp/qmanager_long_running` (exists while a long command runs; counted only when trusted) |
 | Extra long-command patterns | `/etc/qmanager/long_commands.list` (seeded by `qmanager_setup`) |
 | Log | `/tmp/qmanager.log` (component `qcmd`) |
 | Failure signal | exit 1, empty stdout, stderr `ERROR: modem_busy` or `ERROR: command_failed` |
@@ -50,7 +51,63 @@ A failed gate keeps the file and prints `Kept /usr/bin/<file> (its replacement d
 
 ## qcmd serialization
 
-All AT access is serialised by an exclusive `flock` (a POSIX advisory file lock; one holder at a time) on **`/tmp/qmanager_at.lock`**. The broker, `qcmd`'s in-process path, `qsms`'s AT backend and any shell caller that takes the lock itself all take the same lock, so they exclude each other.
+All AT access is serialised by an exclusive `flock` (a POSIX advisory file lock; one holder at a time) on **`/run/qmanager_at/at.lock`**. The broker, `qcmd`'s in-process path, `qsms`'s AT backend and any shell caller that takes the lock itself all take the same lock, so they exclude each other.
+
+### The AT lock and who may hold it
+
+The lock moved out of `/tmp` in T4.3. In `/tmp` it was world-writable (0666), so any local user could hold it and stall every AT caller, or plant the file before `qmanager_setup` ran. The layout, the fail-closed path and the OTA crossing were verified on the RM520N-GL (`61368cd2`) on 2026-10-31; the code is shared, but the RG501Q-EU has not been measured.
+
+| Path | Owner | Mode | Created by |
+| ---- | ----- | ---- | ---------- |
+| `/run/qmanager_at/` | `root:dialout` | 0750 | `qmanager_setup`, `ensure_at_lock()` in `install_rm520n.sh`, `rollback_prep_at_lock()` in `qmanager_update`, or `create_modem_lock()` in `native/qmanager_atd/src/common/lock.rs` when the caller is root |
+| `/run/qmanager_at/at.lock` | `root:dialout` | 0640 | the same four |
+| `/run/qmanager_at/bridge` | `root:root` | 0644 | the installer and rollback prep only (see [Crossing the move](#crossing-the-move-the-bridge-marker)) |
+
+- **Who can lock it.** `flock()` needs only a read fd, so the group read bit is enough. lighttpd's CGIs run as `www-data`, which is in `dialout`; root daemons open it as root. No other uid can open it.
+- **Nothing can be planted.** The dir is not sticky and only root can write in it, so no other uid can create a file, symlink or FIFO there. `LockFile::open` still opens with `O_NOFOLLOW | O_NONBLOCK` and refuses anything but a regular file with a trusted owner.
+- **Never truncated.** Every creator makes the lock only when it is missing and fixes owner and mode in place, so a flock held across a `qmanager_setup` restart survives.
+- **`/run` is tmpfs.** The dir is gone after every reboot; `qmanager-setup.service` recreates it. `qmanager-atd.service` is ordered `After=qmanager-setup.service`, and the broker opens the lock without creating it (`LockFile::open_modem`), so it exits 1 if the lock is missing.
+
+#### Fail-closed for non-root callers
+
+This only matters on the in-process path (broker unreachable); a call the broker serves never opens the lock itself. When the dir or the lock is missing, an in-process `qcmd` or `qsms` run as root creates both (`LockFile::open_or_create_modem`). A non-root caller cannot, and has no fallback:
+
+- `qcmd`: exit 1, empty stdout, stderr `ERROR: modem_busy`, and in `/tmp/qmanager.log` (component `qcmd`): `AT lock /run/qmanager_at/at.lock refused: AT lock missing; only root creates it`
+- `qsms` (AT backend): its JSON error with code `modem_busy`, no log line
+- neither creates the dir nor falls back to the legacy `/tmp/qmanager_at.lock`
+
+At boot, lighttpd can start about 0.4 s before `qmanager-setup` (measured on the RM520N-GL), and the broker is not up yet either. A CGI AT call in that window gets `modem_busy`.
+
+> ⚠️ WARNING: Do not add an ordering edge between `lighttpd.service` and `qmanager-setup.service` to close that window. One was tried (`eebec007`, `After=qmanager-setup.service` on lighttpd) and reverted (`db81d2d5`) because it deadlocked every UI OTA. The installer runs inside lighttpd's cgroup, so lighttpd's restart waits for the installer to exit; with the edge, the `qmanager-setup` restart queued behind lighttpd, `qmanager-atd` queued behind setup, and the installer blocked on starting `qmanager-atd`. lighttpd's 90 s stop timeout then killed the installer and the updater mid-OTA (measured on the RM520N-GL, 2026-10-31). The window is accepted; no AT refusal was logged in it on the measured boots.
+
+For the same reason the installer starts `qmanager-console` with `systemctl --no-block start` (`7cfa9486`, also in `qmanager_console_mgr install`): the console unit is `After=lighttpd`, and lighttpd's restart cannot finish while a UI OTA's installer lives in its cgroup.
+
+#### Crossing the move: the bridge marker
+
+Code from v0.1.17 and earlier flocks only `/tmp/qmanager_at.lock`. While old and new code can run at the same time, both must exclude each other, so a root-only marker turns on a bridge:
+
+- **When the marker counts.** `/run/qmanager_at/bridge` is a regular file, owned by root, with one link. Anything else is ignored.
+- **What the bridge does.** While it counts, every holder (broker, in-process `qcmd`, `qsms` AT backend) takes the new lock first and then the legacy lock. If the legacy lock is held elsewhere, it releases the new lock and retries: a holder never keeps one without the other. The marker is checked with the new lock held, so every holder that starts after the marker appears also takes the legacy lock.
+- **When the legacy file is trusted.** Regular file, owner root or `www-data`, one link (a hard link to some other 0666 file in `/tmp` is refused). An untrusted or missing legacy file is skipped, not waited on, and logged once: `AT lock bridge on but legacy /tmp/qmanager_at.lock <absent|unopenable|untrusted>; not taken`.
+
+Who creates the marker:
+
+| Path | Condition | Purpose |
+| ---- | --------- | ------- |
+| `ensure_at_lock()` in `install_rm520n.sh` (runs first in `install_bundled_binaries`, before the binary swap, regardless of `DO_BACKEND` / `DO_START`) | a trusted legacy lock exists (`stat -c '%u %h %F'` is `0 1 regular…` or `33 1 regular…`) | an OTA from a release whose poller and daemons still run until the services restart |
+| `rollback_prep_at_lock()` in `qmanager_update` (rollback mode, before the installer runs) | always | rollback to a v0.1.17-or-older target, which flocks only the legacy path |
+
+Rollback prep also replaces an untrusted legacy lock with a fresh `www-data:www-data` 0666 one (as v0.1.17's `qmanager_setup` would), then drains: it polls `flock -x -n /run/qmanager_at/at.lock` once a second for up to 200 s (BusyBox `flock` has no `-w`), so holders that started before the marker finish first. On timeout it logs `WARN: AT lock still held after 200 s; continuing rollback` and carries on.
+
+A reboot clears the marker, because `/run` is tmpfs.
+
+> ⚠️ WARNING: A v0.1.17-or-older tarball installed by hand over SSH skips rollback prep, so there is no marker. Until the next reboot, old and new holders do not exclude each other. Use the UI rollback, or reboot after a manual downgrade.
+
+#### The long-command flag trust rule
+
+`/tmp/qmanager_long_running` is still in `/tmp`, where any uid can create that name. The Rust gate counts it only when it is trusted: a regular file (not a symlink or directory), owner root, the calling process, or `www-data`, and one link. `flag_trusted()` in `native/qmanager_atd/src/at/exec.rs` is used by both `long_running()` (the `qcmd` / broker gate) and `scan_up()` in `daemon/live.rs` (the live-data scan gate). An untrusted flag is ignored and logged once: `Ignoring untrusted /tmp/qmanager_long_running (uid <n>, links <n>)`.
+
+> ℹ️ NOTE: Shell readers of the flag (the poller and others) still test it with plain `[ -f ]`, so a planted flag still pauses them. Moving the flag under `/run` is not done.
 
 ### `qcmd` is the broker client
 
@@ -61,14 +118,14 @@ Only the broker daemon is per model: `qmanager-atd.service` exists on the RM520N
 Each call runs in this order:
 
 1. **Refuse non-AT input.** A command that does not start with `AT` (any case) or contains a control character answers `command_failed` at once and touches nothing. The broker checks again, because its socket is the trust boundary.
-2. **Long-flag gate.** If `/tmp/qmanager_long_running` exists and the command is not long, answer `modem_busy` at once.
+2. **Long-flag gate.** If a trusted `/tmp/qmanager_long_running` exists (see [the trust rule](#the-long-command-flag-trust-rule)) and the command is not long, answer `modem_busy` at once.
 3. **Try the broker** on `/var/run/qmanager_atd.sock`. The broker takes the lock, runs the exchange on the `/dev/smd11` fd it keeps open, and returns the raw reply.
 4. **Fall back in-process** only if the broker is unreachable: no socket, a stale socket, connect refused, or `/var/run/qmanager_atd.proto` missing or naming another protocol version (an old broker mid-OTA). The client then opens `/dev/smd11` itself under the same lock.
 5. **Judge the reply** with the contract below (the same on every model) and print it.
 
 A request that reached the broker is **never re-run in-process**. If the broker accepts the request and then dies, times out or sends a reply the client cannot decode (an older protocol), the caller gets `command_failed`, not a second send. Re-running a write such as `AT+COPS=2` after a lost reply could apply it twice.
 
-If the lock file does not exist yet (early boot, or an install run with `--no-start` before `qmanager_setup` ran), the fallback creates it with mode 0666, as the shell did.
+If the lock does not exist yet (early boot, or an install run with `--no-start` before `qmanager_setup` ran), the in-process fallback creates it only when run as root; a CGI gets `modem_busy` (see [Fail-closed for non-root callers](#fail-closed-for-non-root-callers)).
 
 | Budget | Value | Applies to |
 | ------ | ----- | ---------- |
@@ -86,7 +143,7 @@ The broker unit `qmanager-atd.service` is boot-linked on the RM520N-GL and the R
 
 ### Shell callers that take the lock themselves
 
-- **flock pattern**: open the lock with a read-only file descriptor (`9<`). This handles the kernel's `fs.protected_regular=1` restriction, which would otherwise block root from creating a lock file owned by another user.
+- **flock pattern**: open `/run/qmanager_at/at.lock` with a read-only file descriptor (`9<`), or call `flock -x -n /run/qmanager_at/at.lock <cmd>` as `qmanager_health_check` does. The caller must be root or in `dialout`; never create the file from a shell caller. A shell locker takes only the new lock, so it does not see the bridge.
 - **BusyBox flock limitation**: BusyBox `flock` on this platform lacks the `-w` (timeout) flag. Use `flock -x -n` in a polling loop instead; `_apn_apply_lock_acquire()` in `scripts/usr/lib/qmanager/apn_apply.sh` is a working example.
 
 ### Error codes
@@ -110,13 +167,11 @@ Differences from the retired shell `qcmd`, all deliberate:
 - **Non-AT input is refused.** The shell sent it to `atcli_smd11`, which never returned and held the AT lock until killed (reproduced 2026-10-28 with `qcmd hello`).
 - **A wait cap exists.** `qcmd -t MS` or `QCMD_WAIT_MS=MS` (50–60000) caps a short command's wait. No RM520N caller uses it.
 - **`COPS=2` and `COPS=0` are long commands.** They get the 10 s lock budget and set the long flag, so short commands answer `modem_busy` while an attach cycle runs.
-- **The client creates the lock file** (0666) when `qmanager_setup` has not yet.
+- **Only a root client creates the lock** when `qmanager_setup` has not yet; the shell created it 0666 for anyone (T4.3).
 
 Parity was measured on the RM520N-GL on 2026-10-28: 14 cases byte-identical in exit code, stdout and stderr between the shell and Rust `qcmd`, as root and as `www-data`, with the broker down and up. A held lock gave the same `modem_busy` after the same 5 s wait; `AT+QSCAN` had the same shape; the `AT+COPS=2` / `AT+COPS=0` attach cycle returned exit 0 with echo and `OK`.
 
-On the RG501Q-EU (`b7e3d6f1`, 2026-10-29) the in-process Rust `qcmd` gave byte-identical stdout to the shell `qcmd` for `ATI`, `AT+CSQ`, `AT+CPIN?`, `AT+COPS?`, `AT+CGCONTRDP`, `AT+QCAINFO` and `AT+CVERSION;+CGMM;+CGSN`; `AT+QENG="servingcell"` differed only in live RSRQ/RSSI. An unknown command gave exit 1, empty stdout and `ERROR: command_failed` on both. With the lock held 4 s by `flock -x /tmp/qmanager_at.lock`, both waited and returned exit 0. With the broker running, `qcmd` through its socket answered as root and as `www-data`.
-
-> ℹ️ NOTE: Moving the lock into a `root:www-data` 0770 directory is split out to task T4.3 and not done. The lock is still the world-writable `/tmp/qmanager_at.lock`.
+On the RG501Q-EU (`b7e3d6f1`, 2026-10-29) the in-process Rust `qcmd` gave byte-identical stdout to the shell `qcmd` for `ATI`, `AT+CSQ`, `AT+CPIN?`, `AT+COPS?`, `AT+CGCONTRDP`, `AT+QCAINFO` and `AT+CVERSION;+CGMM;+CGSN`; `AT+QENG="servingcell"` differed only in live RSRQ/RSSI. An unknown command gave exit 1, empty stdout and `ERROR: command_failed` on both. With the lock held 4 s by `flock -x /tmp/qmanager_at.lock` (its path before T4.3), both waited and returned exit 0. With the broker running, `qcmd` through its socket answered as root and as `www-data`.
 
 ---
 
@@ -234,7 +289,7 @@ Separately, roughly **26 `qcmd` call sites across 19 files** never capture `$?` 
 
 ## SMS operations
 
-On the RM520N-GL, SMS list/send/delete go through `qsms` over QMI WMS, not the AT channel: no `flock` on `/tmp/qmanager_at.lock`, no `/dev/smd11`. Contract and error mapping: [`sms.md` > Transport](sms.md#transport-qsms).
+On the RM520N-GL, SMS list/send/delete go through `qsms` over QMI WMS, not the AT channel: no `flock` on `/run/qmanager_at/at.lock`, no `/dev/smd11`. Contract and error mapping: [`sms.md` > Transport](sms.md#transport-qsms).
 
 - The one AT command left on the SMS path is the CPMS routing write, `qcmd 'AT+CPMS="ME","ME","ME"'` — once per inbox GET and once at boot (`qmanager_sms_storage`, which also uses `qcmd AT` as its readiness probe).
 - The forwarding daemon's registration check (`AT+CREG?` / `AT+CGREG?`) also goes through `qcmd`.

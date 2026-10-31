@@ -41,7 +41,7 @@ isFresh(event, nowSec)      -> boolean                      (now - timestamp < 3
 presentEvent(ev, unres, fr) -> glyph + tone + 4 class slots + sr-only key
 ```
 
-`append_event` writes `{timestamp, type, message, severity}`, trims the file to the newest `MAX_EVENTS` lines, and mirrors the line into the poller log as `EVENT [<type>] <message>`. The CGI is a pure file read; nothing on this path touches an AT channel or takes the `/tmp/qmanager_at.lock`.
+`append_event` writes `{timestamp, type, message, severity}`, trims the file to the newest `MAX_EVENTS` lines, and mirrors the line into the poller log as `EVENT [<type>] <message>`. The CGI is a pure file read; nothing on this path touches an AT channel or takes the `/run/qmanager_at/at.lock`.
 
 Both the append and the trim are **checked**, and a failure logs `EVENT DROPPED [...]` rather than the usual success line — see below for why that matters.
 

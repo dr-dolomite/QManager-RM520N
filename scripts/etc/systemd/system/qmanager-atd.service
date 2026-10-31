@@ -1,7 +1,7 @@
 # /lib/systemd/system/qmanager-atd.service
 [Unit]
 Description=QManager AT Command Broker
-# qmanager_setup creates /tmp/qmanager_at.lock; the broker exits 1 without it.
+# qmanager_setup creates /run/qmanager_at/at.lock; the broker exits 1 without it.
 After=qmanager-setup.service
 Wants=qmanager-setup.service
 Before=qmanager-poller.service

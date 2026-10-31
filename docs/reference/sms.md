@@ -5,7 +5,7 @@
 
 > The SMS inbox: read / send / delete through `qsms`, which talks QMI WMS directly and takes no AT lock. Merges messages across ME (modem) and SM (SIM) storage, tracks read/unread in the browser, and keeps CPMS routing on ME so incoming SMS are never stranded on the SIM.
 
-The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS operation runs through `/usr/bin/qsms`, a link to the `qmanager_atd` multicall binary. On an RM520N or RG501Q it speaks QMI WMS (the modem's Wireless Messaging Service) over a QRTR socket, so it never touches `/dev/smd11` or `/tmp/qmanager_at.lock`. This doc covers the inbox CGI, the `qsms` contract and its error mapping, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.
+The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. Every SMS operation runs through `/usr/bin/qsms`, a link to the `qmanager_atd` multicall binary. On an RM520N or RG501Q it speaks QMI WMS (the modem's Wireless Messaging Service) over a QRTR socket, so it never touches `/dev/smd11` or `/run/qmanager_at/at.lock`. This doc covers the inbox CGI, the `qsms` contract and its error mapping, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.
 
 > ℹ️ NOTE: SMS **downtime alerts** (connection-lost/restored notifications sent over SMS) are a separate feature — the SMS channel of the centralized Alerts system, driven by `sms_alerts.sh`. This doc covers only the inbox. **SMS Forwarding** (auto-relay of incoming messages to another number) is also separate — see [`sms-forwarding.md`](sms-forwarding.md).
 
@@ -41,7 +41,7 @@ The backend is fixed per model, never auto-detected:
 | Model | Backend | Why |
 |---|---|---|
 | RM520N-GL or RG501Q-EU (`Project Name:` starts with `RM520N` or `RG501Q`) | QMI WMS, in process over `AF_QIPCRTR` | No AT lock, no `/dev/smd11`, and a list never marks messages read |
-| Anything else, or the file is unreadable | AT (`AT+CMGL` etc. under `/tmp/qmanager_at.lock`) | WMS is unproven on any other model |
+| Anything else, or the file is unreadable | AT (`AT+CMGL` etc. under `/run/qmanager_at/at.lock`) | WMS is unproven on any other model |
 
 `QSMS_BACKEND=wms` or `QSMS_BACKEND=at` in the environment overrides the file. The match reads the `Project Name:` line, not the start of the file: the file begins with `Project Name: …` on both models, so a prefix test on the whole file matches nothing.
 
@@ -117,7 +117,7 @@ On a multi-part send, the first failed part stops the send and `detail` is prefi
 
 The WMS backend takes no lock and never opens `/dev/smd11`. The CGI's own lock wrapper (`sms_locked`, `flock_wait`, the `SMS_LOCK_TIMEOUT_RC=99` sentinel) is gone, and so is `modem_busy` from the inbox on an RM520N or RG501Q. The only AT call left on the SMS path is the CPMS self-heal, which goes through `qcmd` and takes the lock for that one command.
 
-On the AT backend (any model other than RM520N and RG501Q), `qsms` still serialises on `/tmp/qmanager_at.lock` and can still return `modem_busy` or `scan_in_progress`; the scan gate applies to that backend only.
+On the AT backend (any model other than RM520N and RG501Q), `qsms` still serialises on `/run/qmanager_at/at.lock` and can still return `modem_busy` or `scan_in_progress`; the scan gate applies to that backend only.
 
 ### `sms_tool` is retired
 
@@ -195,7 +195,7 @@ The GET response's `storage` object carries the summed keys **plus** a per-memor
 | Cost | Detail |
 |---|---|
 | `AT+CPMS` writes | **1 per call** (the heal), through `qcmd` |
-| `/tmp/qmanager_at.lock` acquisitions | **1 per call** (the heal); `qsms` takes none |
+| `/run/qmanager_at/at.lock` acquisitions | **1 per call** (the heal); `qsms` takes none |
 | WMS time | ME ~80–100 ms for ~150 messages; SM ~1.6 s for 31 messages (~50 ms per read, SIM I/O) |
 | Response body | ~13 KB measured on the live device with 64 slots occupied |
 
@@ -345,7 +345,7 @@ Two conventions matter when editing it:
 
 > ⚠️ WARNING: **any** new caller of `refresh()` on this surface must pass `true`. A bare `refresh()` is not a smaller version of the same thing — it is a card teardown.
 
-**One inbox GET at a time, with a queued re-fetch.** `fetchInbox` holds a single-flight guard (`inFlightRef`). One GET costs a CPMS write through `qcmd` and ~1.6 s of SIM I/O for the SM list (see [the cost table](#the-get-is-not-free)); concurrent GETs do not go faster, they repeat that work, and each heal takes `/tmp/qmanager_at.lock` away from the poller and the watchdog for one command.
+**One inbox GET at a time, with a queued re-fetch.** `fetchInbox` holds a single-flight guard (`inFlightRef`). One GET costs a CPMS write through `qcmd` and ~1.6 s of SIM I/O for the SM list (see [the cost table](#the-get-is-not-free)); concurrent GETs do not go faster, they repeat that work, and each heal takes `/run/qmanager_at/at.lock` away from the poller and the watchdog for one command.
 
 The second half is `queuedRef`, and it is **not** optional. A fetch requested while another is in flight is usually a *post-mutation* refresh, whose whole job is to replace rows the in-flight GET was issued *before* the delete or send happened. Dropping it would leave a just-deleted message on screen until the next manual refresh. So a coincident request is remembered and run once, silently, after the current one lands. The guard is released in `finally` **unconditionally** — gating it on `mountedRef` would strand it on unmount and a remounted card would refuse to fetch for the life of the page.
 
@@ -444,7 +444,7 @@ curl -sS http://127.0.0.1/cgi-bin/quecmanager/cellular/sms.sh   # via lighttpd (
 
 ## Related
 
-- [`at-command-transport.md`](at-command-transport.md) — `qcmd`, the retired `sms_tool` / `atcli_smd11`, the shared `flock` on `/tmp/qmanager_at.lock` (used here only by the CPMS heal).
+- [`at-command-transport.md`](at-command-transport.md) — `qcmd`, the retired `sms_tool` / `atcli_smd11`, the shared `flock` on `/run/qmanager_at/at.lock` (used here only by the CPMS heal).
 - [`qmi-probe.md`](qmi-probe.md) — the WMS measurements behind `qsms` (list timing, routes, send refusal, delete).
 - [`sms-forwarding.md`](sms-forwarding.md) — the forwarding daemon, the **only** server-side inbox reader in the project.
 - [`icon-system.md`](icon-system.md) — the Material/lucide boundary this route sits inside, and the two glyphs (`mark_email_unread`, `delete_sweep`) added for it.

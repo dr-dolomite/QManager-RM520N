@@ -5,7 +5,7 @@ use super::transport::{try_broker_raw, Broker};
 use crate::at::exec::{self, Executor};
 use crate::at::new_channel;
 use crate::at::output::Code;
-use crate::common::lock::{self, LockFile};
+use crate::common::lock::LockFile;
 use crate::common::log::Logger;
 use crate::common::proto;
 use crate::sms;
@@ -66,7 +66,7 @@ pub(crate) fn run_qsms(args: &[String]) -> i32 {
         Broker::Reply(proto::Reply::Ok(_)) => (false, sms::error_json(Code::CommandFailed.as_str(), None)),
         Broker::Unreachable => {
             let log = Logger::new("qsms");
-            match LockFile::open(lock::LOCK_FILE) {
+            match LockFile::open_or_create_modem() {
                 Ok(lock) => {
                     let mut ch = new_channel();
                     sms::run(&mut Executor { ch: &mut ch, lock: &lock, log: &log }, &op, Duration::ZERO)

@@ -828,7 +828,7 @@ The Step 1/Step 2 globs only match `qmanager-*.service` and `qmanager*.target` i
 
 ### The broker's files the globs miss
 
-The Step 2 / Step 3 globs already remove `qmanager-atd.service`, its wants link and `/usr/bin/qmanager_atd`, and Step 10's `/tmp/qmanager_*` covers `/tmp/qmanager_qmi.json` (also removed by name). Four things need their own lines:
+The Step 2 / Step 3 globs already remove `qmanager-atd.service`, its wants link and `/usr/bin/qmanager_atd`, and Step 10's `/tmp/qmanager_*` covers `/tmp/qmanager_qmi.json` (also removed by name) and a leftover legacy `/tmp/qmanager_at.lock`. Five things need their own lines:
 
 | Artifact | Step | Why |
 | -------- | ---- | --- |
@@ -836,6 +836,7 @@ The Step 2 / Step 3 globs already remove `qmanager-atd.service`, its wants link 
 | `/usr/bin/qsms` | 3 | Not `qmanager_*`. Removed only if it is a symlink (`[ -L ]`), never a real directory |
 | `/var/run/qmanager_atd.sock`, `/var/run/qmanager_atd.proto` | 10 | Broker runtime lives in `/var/run`, not `/tmp` |
 | `/var/run/qmanager/` | 10 | Same; `rm -rf` |
+| `/run/qmanager_at/` | 10 | The AT lock dir since T4.3 (`at.lock`, and the `bridge` marker if an OTA left one). `rm -rf` by name: the `/var/run/qmanager` line does not match it |
 
 **Rollback to v0.1.17** (`qmanager_update` re-runs the previous release's own installer) removes the binary, the unit and its wants link through that installer's `cleanup_legacy_scripts()`, because neither exists in its source. It leaves a **dangling `/usr/bin/qsms`** — nothing in v0.1.17 calls it. A later install that ships the broker re-points it, and an uninstall removes it.
 

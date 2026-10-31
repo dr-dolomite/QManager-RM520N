@@ -915,8 +915,41 @@ _atd_definitely_off() {
     esac
 }
 
+# AT lock dir 0750 + lock 0640, root:dialout: only root writes there, so nothing can be
+# planted in it (it is not sticky; /tmp's symlink protection does not apply). Never truncates.
+# Marker = bridge: new qcmd/qsms also flock a trusted legacy /tmp lock (old code holds only that).
+ensure_at_lock() {
+    local d=/run/qmanager_at st
+    if [ -L "$d" ] || { [ -e "$d" ] && [ ! -d "$d" ]; }; then
+        rm -rf "$d" || warn "Could not remove stray $d"
+    fi
+    if [ ! -d "$d" ]; then
+        mkdir "$d" || { warn "Could not create $d"; return 0; }
+    fi
+    chown root:dialout "$d" || warn "chown $d failed"
+    chmod 0750 "$d" || warn "chmod $d failed"
+    if [ ! -e "$d/at.lock" ]; then
+        : > "$d/at.lock" || warn "Could not create $d/at.lock"
+    fi
+    chown root:dialout "$d/at.lock" || warn "chown $d/at.lock failed"
+    chmod 0640 "$d/at.lock" || warn "chmod $d/at.lock failed"
+    # Trusted legacy = regular file, owner root/www-data, one link.
+    st=$(stat -c '%u %h %F' /tmp/qmanager_at.lock 2>/dev/null) || st=""
+    case "$st" in
+        "0 1 regular"*|"33 1 regular"*)
+            : > "$d/bridge" || warn "Could not create $d/bridge"
+            chown root:root "$d/bridge" || warn "chown $d/bridge failed"
+            chmod 0644 "$d/bridge" || warn "chmod $d/bridge failed"
+            ;;
+    esac
+    return 0
+}
+
 install_bundled_binaries() {
     step "Installing bundled binaries"
+
+    # Before the binary swap, regardless of DO_BACKEND/DO_START: in-process qcmd needs the dir.
+    ensure_at_lock
 
     # --- qmanager_atd (AT/SMS/QMI broker) + qsms link --------------------------
     # Binary ships on every model; the unit only where qm_hw_atd_enabled (RM520N, RG501Q).
@@ -3943,7 +3976,7 @@ start_services() {
     #
     # Safe to restart mid-install: qmanager_setup is idempotent by design, and
     # chown/chmod mutate the existing inode in place rather than replacing it,
-    # so a flock held on /tmp/qmanager_at.lock (tied to the open file
+    # so a flock held on /run/qmanager_at/at.lock (tied to the open file
     # description, not the mode bits) and any open fd both survive untouched.
     systemctl restart qmanager-setup 2>/dev/null || true
 
@@ -4003,7 +4036,8 @@ start_services() {
         /usr/bin/qmanager_console_mgr install 2>/dev/null || warn "ttyd download failed — web console unavailable"
     elif [ -L "$SYSTEMD_DIR/multi-user.target.wants/qmanager-console.service" ]; then
         # stop_services stopped it; restart so an update's console gate applies now.
-        systemctl start qmanager-console 2>/dev/null || warn "Could not start qmanager-console"
+        # --no-block: After=lighttpd, whose restart cannot finish while a UI OTA runs in its cgroup.
+        systemctl --no-block start qmanager-console 2>/dev/null || warn "Could not start qmanager-console"
     fi
 
     # Verify critical services

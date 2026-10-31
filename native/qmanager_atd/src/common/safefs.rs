@@ -50,7 +50,7 @@ pub(crate) fn dialout_gid() -> Option<u32> {
 
 /// State files may be owned by root, this process, or www-data (CGIs and
 /// qmanager_cell_scanner create the long flag and the lock as www-data).
-fn trusted_owner(uid: u32) -> bool {
+pub(crate) fn trusted_owner(uid: u32) -> bool {
     uid == 0 || uid == unsafe { libc::geteuid() } || Some(uid) == www_data_uid()
 }
 

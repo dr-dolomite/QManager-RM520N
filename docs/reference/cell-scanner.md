@@ -63,7 +63,7 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | `/tmp/qmanager_neighbour_scan_error` | www-data | `qmanager_neighbour_scanner` | Error text, read non-destructively |
 | `/tmp/qmanager_neighbour_scan_{lte,nr}_err.tmp` | www-data | `qmanager_neighbour_scanner` | Per-leg captured `qcmd` stderr; how `modem_busy` is told apart from a real AT failure. Removed by the worker's `EXIT` trap |
 | `/tmp/qmanager_long_running` | www-data | `qmanager_cell_scanner` **only** | Maintenance marker — see below |
-| `/tmp/qmanager_at.lock` | mode 0666 | `qcmd` | The single global AT mutex |
+| `/run/qmanager_at/at.lock` | root:dialout 0640 | `qmanager_setup` creates it; `qcmd` locks it | The single global AT mutex (not in `/tmp` since T4.3) |
 
 > ℹ️ **The pid files are not a gate.** Both start endpoints used to enforce "one at a time" by testing their own pid file; they now enforce it with the `flock` above and keep the pid file only to decide *which* of two messages to show. `pid_alive()` is `[ -d /proc/$1 ]` (`platform.sh`) — it proves *a* process with that number exists, never that it is our worker, so it must never be load-bearing for exclusion again.
 
@@ -80,7 +80,7 @@ The frequency calculator issues **nothing**. It has no fetch and no AT contact, 
 
 ## The cost asymmetry, and why the routes are not merged
 
-`qcmd` serialises every AT command in the product on `flock` over `/tmp/qmanager_at.lock` (see [at-command-transport.md > qcmd serialization](at-command-transport.md#qcmd-serialization)). "flock" is an advisory file lock — a do-not-disturb sign on the file that only one process may hold at a time — so while a sweep holds it, nothing else on the device can reach the modem.
+`qcmd` serialises every AT command in the product on `flock` over `/run/qmanager_at/at.lock` (see [at-command-transport.md > qcmd serialization](at-command-transport.md#qcmd-serialization)). "flock" is an advisory file lock — a do-not-disturb sign on the file that only one process may hold at a time — so while a sweep holds it, nothing else on the device can reach the modem.
 
 `qcmd` classifies commands into two wait budgets:
 

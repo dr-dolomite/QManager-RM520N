@@ -57,7 +57,8 @@ do_install() {
     if [ -f "$SYSTEMD_DIR/qmanager-console.service" ]; then
         ln -sf "$SYSTEMD_DIR/qmanager-console.service" "$WANTS_DIR/qmanager-console.service"
         /bin/systemctl daemon-reload
-        /bin/systemctl start qmanager-console 2>/dev/null || true
+        # --no-block: under an OTA the unit queues behind lighttpd's restart (After=lighttpd).
+        /bin/systemctl --no-block start qmanager-console 2>/dev/null || true
     fi
 
     # No ro-restore: rootfs stays rw for the rest of uptime by project
