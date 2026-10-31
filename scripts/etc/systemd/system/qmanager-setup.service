@@ -6,8 +6,6 @@ Before=qmanager-ping.service qmanager-poller.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# lighttpd waits for this unit; bound it so a hang cannot keep the web UI down.
-TimeoutStartSec=60
 ExecStart=/usr/bin/qmanager_setup
 
 [Install]

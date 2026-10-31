@@ -2,8 +2,7 @@
 # Managed by QManager — ensures lighttpd uses the correct config.
 [Unit]
 Description=Lighttpd Daemon
-# After setup: it creates /run/qmanager_at, which CGIs cannot (ordering only, no Requires=).
-After=network.target opt.mount qmanager-setup.service
+After=network.target opt.mount
 
 [Service]
 Type=simple
