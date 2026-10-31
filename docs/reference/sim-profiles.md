@@ -209,6 +209,13 @@ Order is load-bearing — see the rationale notes inline.
 | 3 | `scenario` | If `settings.scenario_id` is set, resolve it (built-in or custom) and call `scenario_apply` from `scenario_mgr.sh`. Persists the result to `/etc/qmanager/active_scenario`. |
 | 4 | `imei` | If `settings.imei` is set and differs from `AT+EGMR=0,7`, write the new IMEI via `AT+EGMR=1,7` and trigger a soft reboot (`AT+CFUN=1,1`). |
 
+### Fail-closed guards (R6 T-A)
+
+- **APN read failure skips the step.** If `AT+CGCONTRDP=<cid>` fails (qcmd error, timeout or `ERROR`), the step is marked `skipped` and logged; the `COPS=2/0` cycle never runs on an unknown state. A bare `OK` with no `+CGCONTRDP:` line is a known no-bearer state and still proceeds, because that is the wrong-APN case the step exists to fix.
+- **IMEI read must parse.** An `AT+CGSN` reply with no 15-digit IMEI fails the step, the same as a qcmd failure, instead of reading as "different" and writing.
+- **IMEI attempt marker.** Before `AT+EGMR` + `AT+CFUN=1,1` the worker writes `/etc/qmanager/profile_imei_attempt` (`<target IMEI> <boot_id>`, mode 0666, tmp + rename, so root and www-data can both replace it). If the marker names the same target from an earlier boot and the IMEI still differs, the step fails without retrying, so a non-sticking IMEI cannot loop restarts. The marker is removed once the IMEI matches. No readable `boot_id` or no writable marker also fails the step.
+- **Boot auto-apply runs once per boot.** `qmanager_poller` writes the current `/proc/sys/kernel/random/boot_id` to `/tmp/qmanager_profile_boot_applied` when it calls `auto_apply_profile` at start, and skips the call on a later start in the same boot (poller respawn, OTA restart). An empty ICCID at start writes nothing, so a respawn can still apply. The SIM-change path is not gated.
+
 ### The APN step runs a full attach cycle
 
 **Short version:** writing the APN into the modem is not the same thing as

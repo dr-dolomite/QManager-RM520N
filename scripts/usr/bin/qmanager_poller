@@ -44,6 +44,8 @@ CACHE_FILE="/tmp/qmanager_status.json"
 CACHE_TMP="/tmp/qmanager_status.json.tmp"
 # Raised by the root broker around long commands; trusted via qm_long_flag_up.
 LONG_FLAG="/run/qmanager_at/long_running"
+# Holds the boot_id of the boot whose profile auto-apply already ran.
+PROFILE_BOOT_APPLIED_FILE="/tmp/qmanager_profile_boot_applied"
 # Touched by external triggers (e.g. SIM-slot-change CGI) to pull the warm
 # refresh into the next cycle instead of waiting up to ~30s for the normal
 # Tier 2 cadence to land.
@@ -1327,8 +1329,15 @@ collect_boot_data() {
     # deactivated above (ICCID mismatch), this finds and applies the profile
     # for the new SIM instead.
     # =========================================================================
+    # Once per boot: a poller respawn must not re-run the apply (keyed by boot_id).
     if [ -n "$boot_iccid" ]; then
-        auto_apply_profile "$boot_iccid" "boot"
+        _bp_boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+        if [ -n "$_bp_boot_id" ] && [ "$(cat "$PROFILE_BOOT_APPLIED_FILE" 2>/dev/null)" = "$_bp_boot_id" ]; then
+            log_info "Profile auto-apply already ran this boot, skipping"
+        else
+            printf '%s\n' "$_bp_boot_id" > "$PROFILE_BOOT_APPLIED_FILE" 2>/dev/null
+            auto_apply_profile "$boot_iccid" "boot"
+        fi
     fi
 
     log_info "Boot data: FW=$boot_firmware BUILD=$boot_build_date MFG=$boot_manufacturer MODEL=$boot_model"

@@ -141,6 +141,8 @@ FAILOVER_SCRIPT="/usr/bin/qmanager_band_failover"
 CMD_GAP=0.3
 # Max seconds to wait for modem to come back after AT+CFUN=1,1
 REBOOT_TIMEOUT=60
+# "<target IMEI> <boot_id>" of the last EGMR + CFUN=1,1 attempt; written by root and www-data.
+IMEI_ATTEMPT_FILE="/etc/qmanager/profile_imei_attempt"
 
 # --- Validate arguments ------------------------------------------------------
 PROFILE_ID="$1"
@@ -748,7 +750,13 @@ apply_apn() {
     # bracket even though the APN is already correct. The detail string
     # below still reports the profile's ORIGINAL-case p_apn_name.
     local rdp current_negotiated
-    rdp=$(run_at "AT+CGCONTRDP=${p_apn_cid}")
+    # A failed read is an unknown state: never run the COPS=2/0 cycle on it.
+    # A bare OK (rc 0, no +CGCONTRDP line) is a known no-bearer state and proceeds.
+    if ! rdp=$(run_at "AT+CGCONTRDP=${p_apn_cid}"); then
+        qlog_warn "APN step skipped: AT+CGCONTRDP=${p_apn_cid} read failed"
+        mark_step_skipped "apn" "Could not read the current APN (CID ${p_apn_cid}); not changed"
+        return
+    fi
     current_negotiated=$(parse_cgcontrdp_apn "$rdp")
 
     if [ -n "$current_negotiated" ] && \
@@ -993,9 +1001,35 @@ apply_imei() {
     fi
     # Clean up the response (just the 15-digit IMEI)
     current_imei=$(printf '%s' "$current_imei" | grep -o '[0-9]\{15\}' | head -1)
+    if [ -z "$current_imei" ]; then
+        qlog_warn "IMEI step skipped: AT+CGSN reply had no IMEI"
+        mark_step_failed "imei" "Failed to read current IMEI"
+        return
+    fi
 
     if [ "$current_imei" = "$p_imei" ]; then
+        rm -f "$IMEI_ATTEMPT_FILE" 2>/dev/null
         mark_step_skipped "imei" "IMEI already set to $p_imei"
+        return
+    fi
+
+    # An attempt for this IMEI in an earlier boot that still didn't stick: give up, so CFUN=1,1 can't loop.
+    local boot_id attempt_imei attempt_boot
+    boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+    [ -f "$IMEI_ATTEMPT_FILE" ] && read -r attempt_imei attempt_boot < "$IMEI_ATTEMPT_FILE"
+    if [ "$attempt_imei" = "$p_imei" ] && [ -n "$attempt_boot" ] && [ "$attempt_boot" != "$boot_id" ]; then
+        qlog_warn "IMEI step gave up: change to $p_imei was already tried in boot $attempt_boot and did not stick"
+        mark_step_failed "imei" "IMEI change to $p_imei did not stick after a restart; not retrying"
+        return
+    fi
+
+    # Mode 0666 + rename into the www-data-owned dir, so either user can replace it next time.
+    if [ -z "$boot_id" ] || ! { printf '%s %s\n' "$p_imei" "$boot_id" > "${IMEI_ATTEMPT_FILE}.tmp" \
+           && chmod 0666 "${IMEI_ATTEMPT_FILE}.tmp" \
+           && mv -f "${IMEI_ATTEMPT_FILE}.tmp" "$IMEI_ATTEMPT_FILE"; } 2>/dev/null; then
+        rm -f "${IMEI_ATTEMPT_FILE}.tmp" 2>/dev/null
+        qlog_warn "IMEI step skipped: could not record the attempt marker"
+        mark_step_failed "imei" "Could not prepare the IMEI change; not applied"
         return
     fi
 
@@ -1053,6 +1087,7 @@ apply_imei() {
     verify_imei=$(printf '%s' "$verify_imei" | grep -o '[0-9]\{15\}' | head -1)
 
     if [ "$verify_imei" = "$p_imei" ]; then
+        rm -f "$IMEI_ATTEMPT_FILE" 2>/dev/null
         mark_step_done "imei" "IMEI changed to $p_imei (modem rebooted)"
     else
         mark_step_failed "imei" "IMEI verify failed: expected $p_imei, got $verify_imei"
