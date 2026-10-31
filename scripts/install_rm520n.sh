@@ -3966,13 +3966,11 @@ start_services() {
     systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
     # A UI OTA runs inside lighttpd's cgroup, so a restart leaves the web UI down until the
-    # reboot. Validate the conf instead; qmanager_update reboots after every install.
+    # reboot. Defer it; the conf is tested after the services start (end of this function).
     local lighttpd_deferred=0
     if grep -q 'lighttpd\.service' /proc/self/cgroup 2>/dev/null; then
         lighttpd_deferred=1
-        /opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf >/dev/null 2>&1 \
-            || die "lighttpd config test failed — not rebooting into a broken web server"
-        info "lighttpd restart deferred to the reboot (config test passed)"
+        info "lighttpd restart deferred to the reboot"
     elif systemctl restart lighttpd 2>/dev/null; then
         info "lighttpd restarted with QManager config"
     else
@@ -4091,6 +4089,13 @@ start_services() {
 
     if [ "$svc_errors" -gt 0 ]; then
         warn "$svc_errors service(s) failed to start"
+    fi
+
+    # Deferred restart: fail the install (no reboot) rather than reboot into a broken web server.
+    if [ "$lighttpd_deferred" = "1" ]; then
+        /opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf >/dev/null 2>&1 \
+            || die "lighttpd config test failed — not rebooting into a broken web server"
+        info "lighttpd config test passed"
     fi
 }
 
