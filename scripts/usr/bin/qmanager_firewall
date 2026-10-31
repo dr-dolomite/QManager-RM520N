@@ -17,7 +17,13 @@
 #   the emergency path.
 #
 # start/reload build the new rules in a staging chain and swap the INPUT jump,
-# so re-applying never opens a window with no rules.
+# so re-applying never opens a window with no rules. A failed step discards
+# the staging chain instead of renaming a partial one into place; the build is
+# retried, and a final failure exits non-zero so systemd marks the unit failed.
+#
+# Every call waits up to 5s for the xtables lock (-w 5): QCMAP adds its own
+# INPUT rules when the data call comes up at boot, and iptables 1.6 without -w
+# fails at once on a held lock.
 #
 # Service: qmanager-firewall.service (Type=oneshot, RemainAfterExit=yes)
 
@@ -34,21 +40,28 @@ fi
 
 CHAIN="QMANAGER_FW"
 STAGE="QMANAGER_FW_NEW"
+W="-w 5"
+ATTEMPTS=3
 
 have_ip6() {
     command -v ip6tables >/dev/null 2>&1
 }
 
+log() {
+    echo "qmanager_firewall: $*" >&2
+    logger -t qmanager_firewall "$*" 2>/dev/null || true
+}
+
 # $1 = iptables | ip6tables, $2 = chain
 unhook_chain() {
-    while "$1" -C INPUT -j "$2" 2>/dev/null; do
-        "$1" -D INPUT -j "$2" 2>/dev/null || break
+    while "$1" $W -C INPUT -j "$2" 2>/dev/null; do
+        "$1" $W -D INPUT -j "$2" 2>/dev/null || break
     done
 }
 
 drop_chain() {
-    "$1" -F "$2" 2>/dev/null || true
-    "$1" -X "$2" 2>/dev/null || true
+    "$1" $W -F "$2" 2>/dev/null || true
+    "$1" $W -X "$2" 2>/dev/null || true
 }
 
 # Drain INPUT-direct rules from the pre-chain implementation.
@@ -58,17 +71,17 @@ cleanup_legacy_input_rules() {
     port=""
     for iface in lo bridge0 eth0 tailscale0 rmnet_data0; do
         for port in $PORTS; do
-            while iptables -C INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT 2>/dev/null; do
-                iptables -D INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT 2>/dev/null || break
+            while iptables $W -C INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT 2>/dev/null; do
+                iptables $W -D INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT 2>/dev/null || break
             done
-            while iptables -C INPUT -i "$iface" -p tcp --dport "$port" -j DROP 2>/dev/null; do
-                iptables -D INPUT -i "$iface" -p tcp --dport "$port" -j DROP 2>/dev/null || break
+            while iptables $W -C INPUT -i "$iface" -p tcp --dport "$port" -j DROP 2>/dev/null; do
+                iptables $W -D INPUT -i "$iface" -p tcp --dport "$port" -j DROP 2>/dev/null || break
             done
         done
     done
     for port in $PORTS; do
-        while iptables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; do
-            iptables -D INPUT -p tcp --dport "$port" -j DROP 2>/dev/null || break
+        while iptables $W -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; do
+            iptables $W -D INPUT -p tcp --dport "$port" -j DROP 2>/dev/null || break
         done
     done
 }
@@ -76,40 +89,62 @@ cleanup_legacy_input_rules() {
 fill_v4() {
     for iface in $TRUSTED; do
         for port in $PORTS; do
-            iptables -A "$1" -i "$iface" -p tcp --dport "$port" -j ACCEPT
+            iptables $W -A "$1" -i "$iface" -p tcp --dport "$port" -j ACCEPT || return 1
         done
     done
     for port in $PORTS; do
-        iptables -A "$1" -p tcp --dport "$port" -j DROP
+        iptables $W -A "$1" -p tcp --dport "$port" -j DROP || return 1
     done
-    iptables -A "$1" -i "$WAN_IFACE" -p tcp --dport "$SSH_PORT" -j DROP
+    iptables $W -A "$1" -i "$WAN_IFACE" -p tcp --dport "$SSH_PORT" -j DROP || return 1
 }
 
 fill_v6() {
     for port in $SSH_PORT $PORTS; do
-        ip6tables -A "$1" -i "$WAN_IFACE" -p tcp --dport "$port" -j DROP
+        ip6tables $W -A "$1" -i "$WAN_IFACE" -p tcp --dport "$port" -j DROP || return 1
     done
 }
 
 # $1 = iptables | ip6tables, $2 = fill function. Build in STAGE, hook it at
 # INPUT 1, then retire the old chain and rename STAGE into its place. A STAGE
 # left hooked by an interrupted run is unhooked first, or -X/-N would fail.
+# A failed build or hook discards STAGE and leaves the old chain untouched; a
+# failed rename keeps the complete STAGE hooked, since the old chain may be gone.
 swap_in() {
     unhook_chain "$1" "$STAGE"
     drop_chain "$1" "$STAGE"
-    "$1" -N "$STAGE" 2>/dev/null || return 1
-    "$2" "$STAGE"
-    "$1" -I INPUT 1 -j "$STAGE"
+    "$1" $W -N "$STAGE" || return 1
+    if ! "$2" "$STAGE" || ! "$1" $W -I INPUT 1 -j "$STAGE"; then
+        unhook_chain "$1" "$STAGE"
+        drop_chain "$1" "$STAGE"
+        return 1
+    fi
     unhook_chain "$1" "$CHAIN"
     drop_chain "$1" "$CHAIN"
-    "$1" -E "$STAGE" "$CHAIN"
+    "$1" $W -E "$STAGE" "$CHAIN"
+}
+
+# $1 = iptables | ip6tables, $2 = fill function
+swap_in_retry() {
+    n=1
+    while ! swap_in "$1" "$2"; do
+        if [ "$n" -ge "$ATTEMPTS" ]; then
+            log "$1: rule build failed after $n attempts"
+            return 1
+        fi
+        log "$1: rule build failed (attempt $n of $ATTEMPTS), retrying"
+        n=$((n + 1))
+        sleep 2
+    done
 }
 
 do_start() {
+    rc=0
     cleanup_legacy_input_rules
-    swap_in iptables fill_v4
-    have_ip6 && swap_in ip6tables fill_v6
-    return 0
+    swap_in_retry iptables fill_v4 || rc=1
+    if have_ip6; then
+        swap_in_retry ip6tables fill_v6 || rc=1
+    fi
+    return "$rc"
 }
 
 do_stop() {
