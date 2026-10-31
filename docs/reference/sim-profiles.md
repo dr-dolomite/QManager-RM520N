@@ -34,7 +34,7 @@ points (boot, SIM switch, watchdog) and are still current.
 | Active marker | `/etc/qmanager/active_profile` (plain text — profile ID) |
 | Library | `scripts/usr/lib/qmanager/profile_mgr.sh` |
 | Shared APN attach-cycle primitive | `scripts/usr/lib/qmanager/apn_apply.sh` → `/usr/lib/qmanager/apn_apply.sh` |
-| APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8; separate from `qcmd`'s `/tmp/qmanager_at.lock`) |
+| APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8; separate from `qcmd`'s `/run/qmanager_at/at.lock`) |
 | Apply daemon | `scripts/usr/bin/qmanager_profile_apply` |
 | Apply state file | `/tmp/qmanager_profile_state.json` |
 | Apply PID lock | `/tmp/qmanager_profile_apply.pid` |
@@ -330,7 +330,7 @@ Three details worth knowing before touching this path:
   by an advisory `flock` (a "do not disturb" sign on a file — only one process
   can hold it) at `/tmp/qmanager_apn_apply.lock`, held on file descriptor 8.
   This is deliberately **separate** from `qcmd`'s per-command lock at
-  `/tmp/qmanager_at.lock` (fd 9): `qcmd`'s lock serializes exactly one AT
+  `/run/qmanager_at/at.lock`: `qcmd`'s lock serializes exactly one AT
   command, but `AT+COPS` is *global attach state*, so the whole multi-command
   bracket needs its own mutex — otherwise the root worker and a concurrent CGI
   save could interleave their detach/verify windows. The bracket lock is always
@@ -867,7 +867,7 @@ worth of requests. Measured on the live modem:
 
 | Fact | Detail |
 |------|--------|
-| **No AT contention** | Exactly **one** endpoint on the page touches the AT transport — `profiles/current_settings.sh` — and it takes `/tmp/qmanager_at.lock` once. `profiles/list.sh`, `scenarios/list.sh` and `apply_status.sh` are pure disk reads and never queue behind the modem. |
+| **No AT contention** | Exactly **one** endpoint on the page touches the AT transport — `profiles/current_settings.sh` — and it takes `/run/qmanager_at/at.lock` once. `profiles/list.sh`, `scenarios/list.sh` and `apply_status.sh` are pure disk reads and never queue behind the modem. |
 | **Whole-page cost** | Every page endpoint fired concurrently completes in **0.52 s wall**. |
 
 > ℹ️ NOTE: **Known follow-up, not a defect.** The mount currently fetches
@@ -2083,7 +2083,7 @@ surface: the `scenarios.*` key contract described above, and the deletion of
 endpoint the create form reads to pre-fill itself. It is called **once per
 form open / page mount**, never on a timer, and does all of its work in a
 **single compound AT round-trip** so the whole read costs one hold of
-`/tmp/qmanager_at.lock`:
+`/run/qmanager_at/at.lock`:
 
 ```sh
 qcmd 'AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN'

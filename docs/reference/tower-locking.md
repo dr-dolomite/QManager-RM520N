@@ -134,7 +134,7 @@ The scanner is where a target comes from when the cell you want is *not* one the
 
 The same fact is why the leg cards' read-back line is **captioned** rather than printed bare: that line is on the slow clock while the form fields directly beside it are the config's live view, and a reader who cannot tell which is which has no way to interpret a disagreement between them. See [The modem read-back line](#the-modem-read-back-line).
 
-The read-back is not on an interval because **it costs three AT commands on the shared `/tmp/qmanager_at.lock` mutex the poller already contends for**. Every poll of `status.sh` is three more serialized round-trips competing with the ~4s status cycle that feeds the entire app. That is a backend cost decision, not a frontend preference.
+The read-back is not on an interval because **it costs three AT commands on the shared `/run/qmanager_at/at.lock` mutex the poller already contends for**. Every poll of `status.sh` is three more serialized round-trips competing with the ~4s status cycle that feeds the entire app. That is a backend cost decision, not a frontend preference.
 
 Three things change the lock **out of band**, so a stale read-back is a real possibility rather than a theoretical one:
 
@@ -1205,7 +1205,7 @@ The current shape comes from a mockup, and several of its proposals were rejecte
 - [scheduled-timers.md](scheduled-timers.md) — the runtime `OnCalendar` timer model, `qmanager_tower_schedule_arm`, and the 1970 boot-window fire guard every new timer must pass
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the source of the camped-on carriers, and the identity-tone convention this surface's lead block no longer needs
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, and the compiler-backed `react-hooks` bail-on-first-violation behaviour
-- [at-command-transport.md](at-command-transport.md) — the `/tmp/qmanager_at.lock` mutex that makes polling `status.sh` expensive, and the exit-status-only failure contract every `*_read_ok` flag rests on
+- [at-command-transport.md](at-command-transport.md) — the `/run/qmanager_at/at.lock` mutex that makes polling `status.sh` expensive, and the exit-status-only failure contract every `*_read_ok` flag rests on
 - [tmp-file-ownership.md](tmp-file-ownership.md) — the flag/PID files the watcher and `failover_status.sh` share, and the `root:root 0666` seeding contract behind `/tmp/qmanager_tower_write_inflight`
 - [i18n.md](i18n.md) — the two severity policies over one engine, and why keys are never interpolated on this surface
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; every glyph used here is already in the subset allowlist

@@ -30,6 +30,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **Long SMS no longer arrive twice or merge with an older text.** When a multi-part alert or forwarded SMS fails partway, QManager no longer resends the parts that already went out, and **Cellular → SMS Center** keeps two different long messages apart even when the network reused their part number; the compose box now counts parts the way the modem sends them (accented letters like é no longer halve the limit). (A failed send in the compose box says how many parts were already delivered.)
 - **Dota 2 shows its logo in Sites.** Adding `dota2.com` used to show only a letter because the site's own icon is too small to use; it now has a built-in logo.
 - **Tighter system permissions for the web app.** The web interface could ask for more system access than its features need; it is now limited to exactly those actions, and nothing changes in how you use it. (Service, firewall and Custom DNS changes go through small root helpers that check every request; the reboot-cause log moved to `/usrdata/qmanager/` and is migrated automatically.)
+- **Other programs on the modem can no longer block it.** Any local account could take the lock QManager uses to talk to the modem and stall signal readings and settings changes; now only QManager itself can, and nothing changes in how you use it. (The AT lock moved from `/tmp` to the root-owned `/run/qmanager_at/`; updates and rollbacks across the move are handled automatically.)
 
 ## 📥 Installation
 

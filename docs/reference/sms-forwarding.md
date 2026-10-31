@@ -318,5 +318,5 @@ curl -sS http://127.0.0.1/cgi-bin/quecmanager/cellular/sms_forwarding.sh   # via
 ## Related
 
 - [`sms.md`](sms.md) — the SMS Center inbox, the `qsms` contract and error mapping, CPMS ME+SM model, client-side read/unread. The daemon here is the only server-side inbox consumer; everything else is client-side.
-- [`at-command-transport.md`](at-command-transport.md) — `qcmd` and the shared `/tmp/qmanager_at.lock` flock, used here only by the registration check.
+- [`at-command-transport.md`](at-command-transport.md) — `qcmd` and the shared `/run/qmanager_at/at.lock` flock, used here only by the registration check.
 - [`scheduled-timers.md`](scheduled-timers.md) — the 1970 boot window, the reason the group timer runs on uptime.

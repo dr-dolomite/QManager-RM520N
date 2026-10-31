@@ -24,7 +24,7 @@ Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 | CGI endpoint | `scripts/www/cgi-bin/quecmanager/cellular/apn.sh` |
 | HTTP methods | `GET` (list), `POST` (`save` / `toggle` / `deactivate`) |
 | Shared attach-cycle primitive | `scripts/usr/lib/qmanager/apn_apply.sh` → `/usr/lib/qmanager/apn_apply.sh` |
-| APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8) — **not** `qcmd`'s `/tmp/qmanager_at.lock` (fd 9) |
+| APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8) — **not** `qcmd`'s `/run/qmanager_at/at.lock` |
 | Profile slots | 6, one per PDP context CID (1-6) |
 | Name sidecar file | `/etc/qmanager/apn_names.json` (moved from `/usrdata/qmanager/` — see [Why the sidecars live in `/etc/qmanager`](#why-the-sidecars-live-in-etcqmanager)) |
 | Single-APN sidecar file (WS6) | `/etc/qmanager/apn_setting.json` |
@@ -346,7 +346,7 @@ The whole write-detach-attach-verify sequence is serialized by an advisory
 `/tmp/qmanager_apn_apply.lock`, held on file descriptor 8.
 
 This is deliberately **separate** from `qcmd`'s per-command lock at
-`/tmp/qmanager_at.lock` (fd 9). `qcmd`'s lock serializes exactly one AT command;
+`/run/qmanager_at/at.lock`. `qcmd`'s lock serializes exactly one AT command;
 `AT+COPS` is *global attach state*, so the whole multi-command bracket needs its
 own mutex — otherwise `apn.sh` running as `www-data` and `qmanager_profile_apply`
 running as root could each run a full bracket concurrently and corrupt each

@@ -101,7 +101,7 @@ The bar keeps what it is uniquely good at: the reconnect disclaimer, the standin
 | **The lock state** — the verdict, both card chips, the apply bar's read-back | `status.sh`, i.e. `AT+QNWCFG` read back from the modem | Fetched **once on mount** and once after each write. Never polled |
 | **Carriers on air** — the strip's right column, "Use current", the serving channel in the read-back | `network.carrier_components[]` from the poller snapshot | Live, ~4s (see [poller cadence](radio-information.md)). Free — a cached JSON file read that never touches the modem |
 
-The lock state is not on an interval because **it costs three AT round-trips on the shared `/tmp/qmanager_at.lock` mutex the poller already contends for** (~0.62s measured end to end). Every poll of `status.sh` would be three more serialized round-trips competing with the status cycle that feeds the entire app. That is a backend cost decision, not a frontend preference.
+The lock state is not on an interval because **it costs three AT round-trips on the shared `/run/qmanager_at/at.lock` mutex the poller already contends for** (~0.62s measured end to end). Every poll of `status.sh` would be three more serialized round-trips competing with the status cycle that feeds the entire app. That is a backend cost decision, not a frontend preference.
 
 So the strip's head carries an explicit `as of HH:MM` chip and a **Refresh** control rather than a "live" badge over the whole strip: only the right half is live.
 
@@ -591,7 +591,7 @@ Both leg cards render `CARD_SHELL` + `CARD_PAD` in **every** branch, so the shel
 - [band-locking.md](band-locking.md) — the looser sibling, the bounded failover watcher, the error-scoping fix this surface still needs, and the "a number in copy is a claim about the device" lesson
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the source of the carriers on air and of the ten per-carrier fields that do **not** include SCS
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, the serving-cell-only `nr.scs`, and the compiler-backed `react-hooks` bail-on-first-violation behaviour
-- [at-command-transport.md](at-command-transport.md) — the `/tmp/qmanager_at.lock` mutex that makes polling `status.sh` expensive
+- [at-command-transport.md](at-command-transport.md) — the `/run/qmanager_at/at.lock` mutex that makes polling `status.sh` expensive
 - [i18n.md](i18n.md) — the two severity policies over one engine, and why keys are never interpolated on this surface
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; the five new glyphs are in the subset
 - `DESIGN.md` > Named Rules (Fill-Over-Stroke, Filled-Chip, Glyph-Disc, Skeleton-Mirror, Machine-Voice, Radius-Follows-Size, Identity-Chip, One-Scale)

@@ -195,7 +195,7 @@ Runtime state is coordinated entirely through files — **no IPC sockets or sign
 | `/tmp/qmanager_ping.json` | ping daemon | JSON | Current connectivity/latency result |
 | `/tmp/qmanager_watchcat.json` | watchcat | JSON | Watchdog state machine |
 | `/tmp/qmanager_profile_state.json` | profile_apply | JSON | SIM-profile apply progress |
-| `/tmp/qmanager_at.lock` | qmanager_setup seeds it; `qmanager_atd` (broker, `qcmd`) locks it | flock target | Serializes all AT access across daemons + CGIs |
+| `/run/qmanager_at/at.lock` | qmanager_setup creates it (`root:dialout` 0640, dir 0750; `/run`, not `/tmp`, since T4.3); `qmanager_atd` (broker, `qcmd`) locks it | flock target | Serializes all AT access across daemons + CGIs |
 | `/tmp/qmanager_sessions/<token>` | auth | one file/session | Session store (RAM, cleared on reboot) |
 | `/etc/qmanager/` | CGI + daemons | Various | Persistent configuration (see below) |
 
@@ -254,7 +254,7 @@ All modem communication funnels through one gatekeeper, `qcmd` (`/usr/bin/qcmd`)
 |--------|----------|
 | Tool | `qcmd` is a symlink to `qmanager_atd` (a static ARMv7 Rust binary) on every model; it talks to the `qmanager_atd` broker on the RM520N-GL and the RG501Q-EU, and runs AT in-process when no broker runs (unknown model, or the broker is down) |
 | Device | `/dev/smd11`, opened directly — **no socat/PTY bridge** |
-| Locking | `flock` on `/tmp/qmanager_at.lock`, opened read-only and never created by `qmanager_atd` (`qmanager_setup` seeds it), so root and `www-data` share it under `fs.protected_regular=1` |
+| Locking | `flock` on `/run/qmanager_at/at.lock` (`root:dialout` 0640, in a root-only 0750 dir), opened read-only; only root creates it (`qmanager_setup`, or a root in-process client), and a non-root caller that finds it missing gets `modem_busy`. See [at-command-transport.md](reference/at-command-transport.md#the-at-lock-and-who-may-hold-it) |
 | Timeout | Lock wait 5 s, 10 s for long commands (`QSCAN`, `COPS=2`, …); then `modem_busy` |
 | Exit code | Failure is **exit 1** with empty stdout and `ERROR: modem_busy` / `ERROR: command_failed` on stderr — check `$?`, never match `ERROR` in stdout |
 | SMS | `qsms` over QMI WMS on the RM520N-GL, no AT lock — see [`reference/sms.md`](reference/sms.md#transport-qsms) |

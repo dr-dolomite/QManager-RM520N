@@ -39,7 +39,7 @@ QManager runs as two different users. Root owns the daemons (`qmanager_poller`, 
 | `/tmp/qmanager_discord_spool/` | Directory, `root:root` `1777`. **Writers:** the alert engine (root) and the CGI's Discord test (www-data), one new file per DM. **Remover:** `qmanager_discord` (root). See [The Discord spool directory](#the-discord-spool-directory) |
 | `/tmp/qmanager_email_log.json` | **Not seeded.** Every writer is root (the engine, and `qmanager_email_send` for test sends); www-data only reads it |
 | `/tmp/qmanager_tower_write_inflight` | `root:root` `0666`. **Writers:** `tower/lock.sh` (www-data, via `tower_write_begin`) and `qmanager_tower_schedule` (root). **Reader:** `qmanager_tower_failover` (root). Content-bearing — a UNIX deadline, not a flag — so it **is** seeded; see [The tower-lock in-flight marker](#the-tower-lock-in-flight-marker) |
-| Seeded www-data-only files | `/tmp/qmanager_at.lock` (root opens it **read-only**: `qmanager_atd` without `O_CREAT`, shell lockers with `9<`), `/tmp/qmanager_at.pid` (still seeded, no reader or writer since the shell `qcmd` was retired) |
+| Seeded www-data-only files | None left. The AT lock was one until T4.3; it is now `/run/qmanager_at/at.lock` (`root:dialout` 0640, root-only dir), outside `/tmp`. `/tmp/qmanager_at.pid` is no longer seeded and has no reader or writer since the shell `qcmd` was retired |
 | Forbidden on any seeded file | tmp-file + `mv` (`rename(2)` swaps the inode and destroys the seed) |
 | Required instead | write **in place** — `>`, `>>`, `cat tmp > file`, `: >` |
 | Deliberately **not** seeded | `/tmp/qmanager_recovery_active` (a flag; see [The recovery flag](#the-recovery-flag-the-deliberate-exception)) |
@@ -105,7 +105,7 @@ chmod 666 ...
 
 The seed exists because **whoever creates the file first decides its ownership for the whole boot**, and that is a race between a root daemon starting and the first CGI request. Seeding takes the race off the table.
 
-`/tmp/qmanager_at.lock` is deliberately `www-data:www-data` instead. Root only ever opens it **read-only** (`qmanager_atd` never with `O_CREAT`, shell lockers via `9<`), and `flock()` does not care whether the FD is readable or writable — so no `O_CREAT` write ever happens from root and `protected_regular` never engages. See [at-command-transport.md](at-command-transport.md).
+The AT lock is not in `/tmp` any more (T4.3). It is `/run/qmanager_at/at.lock`, `root:dialout` 0640 in a `root:dialout` 0750 directory that only root can write, so `protected_regular` does not apply and nothing can be planted in its place. Do not add it back to the `/tmp` seed list; `qmanager_setup` creates it in `/run`. A pre-T4.3 `/tmp/qmanager_at.lock` still appears only while the OTA/rollback bridge is on. See [at-command-transport.md > The AT lock](at-command-transport.md#the-at-lock-and-who-may-hold-it).
 
 ### Every writer of a seeded file must write in place
 
@@ -277,7 +277,7 @@ The general lesson: when a seeded file is found violating the never-`rm` rule, *
 
 - [../rm520n-gl-architecture.md](../rm520n-gl-architecture.md) § `fs.protected_regular=1` — the platform-level description and the `flock` read-only-FD workaround.
 - [../BACKEND.md](../BACKEND.md) § Critical Constraints and the `/tmp` file inventory.
-- [at-command-transport.md](at-command-transport.md) — why `/tmp/qmanager_at.lock` is www-data-owned and opened `9<`.
+- [at-command-transport.md](at-command-transport.md) — where the AT lock lives now (`/run/qmanager_at/at.lock`), who may hold it, and the legacy `/tmp` bridge.
 - [sim-profiles.md](sim-profiles.md) — the 4-step profile apply that owns the state file and the PID lock.
 - [wan-profile-management.md](wan-profile-management.md) — `apn_apply.sh`, the UID-agnostic attach-cycle primitive and its bracket hooks.
 - [connection-watchdog.md](connection-watchdog.md) — the other producer of the recovery flag.

@@ -61,7 +61,7 @@ Every interaction (slash commands **and** button clicks) passes one gate in the 
 
 ## AT-command serialization
 
-Slash commands that issue AT calls (`/lock-band`, `/network-mode`, `/reboot`) go through `runQcmd` → `/usr/bin/qcmd`, which uses the same `flock` `/tmp/qmanager_at.lock` everything else does. No special Discord-side coordination needed.
+Slash commands that issue AT calls (`/lock-band`, `/network-mode`, `/reboot`) go through `runQcmd` → `/usr/bin/qcmd`, which uses the same `flock` `/run/qmanager_at/at.lock` everything else does. No special Discord-side coordination needed.
 
 ---
 
