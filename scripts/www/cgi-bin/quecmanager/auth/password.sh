@@ -1,6 +1,6 @@
 #!/bin/sh
 # password.sh — Password change endpoint.
-# POST {"current_password":"...","new_password":"..."}
+# POST {"current_password":"...","new_password":"...","enforce_strong":true|false}
 # Requires valid session (normal auth via cgi_base.sh).
 # Destroys current session after change — user must re-login.
 . /usr/lib/qmanager/cgi_base.sh
@@ -21,6 +21,7 @@ cgi_read_post
 
 _current=$(printf '%s' "$POST_DATA" | jq -r '.current_password // empty')
 _new=$(printf '%s' "$POST_DATA" | jq -r '.new_password // empty')
+_enforce_strong=$(printf '%s' "$POST_DATA" | jq -r 'if .enforce_strong == false then "false" else "true" end')
 
 if [ -z "$_current" ] || [ -z "$_new" ]; then
     cgi_headers
@@ -28,18 +29,39 @@ if [ -z "$_current" ] || [ -z "$_new" ]; then
     exit 0
 fi
 
+# Min length 6 always; enforce_strong (absent = true) adds upper + lower + digit.
 _pw_len=$(printf '%s' "$_new" | wc -c)
 if [ "$_pw_len" -lt 6 ]; then
     cgi_headers
-    cgi_error "password_too_short" "New password must be at least 6 characters"
+    cgi_error "password_weak" "New password must be at least 6 characters"
+    exit 0
+fi
+if [ "$_enforce_strong" != "false" ] && ! qm_password_is_strong "$_new"; then
+    cgi_headers
+    cgi_error "password_weak" "New password must include uppercase, lowercase, and a number"
+    exit 0
+fi
+
+# The current-password check shares the login rate limit (no free oracle).
+if ! qm_check_rate_limit; then
+    echo "Status: 429 Too Many Requests"
+    cgi_headers
+    jq -n --argjson retry "${RATE_LIMIT_RETRY_AFTER:-0}" \
+        --argjson remaining "${RATE_LIMIT_ATTEMPTS_REMAINING:-0}" \
+        '{"success":false,"error":"rate_limited","detail":"Too many failed attempts","retry_after":$retry,"attempts_remaining":$remaining}'
     exit 0
 fi
 
 if ! qm_verify_password "$_current"; then
+    qm_record_failed_attempt
+    qm_get_rate_limit_status
+    qlog_warn "Password change refused: wrong current password"
     cgi_headers
-    cgi_error "invalid_password" "Current password is incorrect"
+    jq -n --argjson remaining "${RATE_LIMIT_ATTEMPTS_REMAINING:-0}" \
+        '{"success":false,"error":"invalid_password","detail":"Current password is incorrect","attempts_remaining":$remaining}'
     exit 0
 fi
+qm_clear_attempts
 
 if ! qm_save_password "$_new"; then
     qlog_error "Password change failed: could not write auth.json"

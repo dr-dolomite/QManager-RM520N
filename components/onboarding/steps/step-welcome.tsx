@@ -1,86 +1,65 @@
 "use client";
 
 import { motion } from "motion/react";
-
+import { useTranslation } from "react-i18next";
+import { Tag } from "@/components/ui/tag";
 import { DUR, EASE_STANDARD, STAGGER_STEP } from "@/lib/motion";
+import { STEP_DESCRIPTION } from "../shapes";
 
-// =============================================================================
-// StepWelcome — Onboarding step 1: brand intro, staggered entrance
-// =============================================================================
-// This step used to carry its own motion: a 0.38s duration on an out-quint
-// curve ([0.25, 1, 0.5, 1]) with a 0.09s stagger — none of which is in the
-// system. It is the standard card entrance and nothing more, so it now reads
-// the tokens like every other one and retunes with them.
+// Brand intro on the standard card entrance; the mark sits with no plate behind it.
 
 function fadeUp(i: number) {
   return {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
-    transition: {
-      duration: DUR.standard,
-      delay: i * STAGGER_STEP,
-      ease: EASE_STANDARD,
-    },
+    transition: { duration: DUR.standard, delay: i * STAGGER_STEP, ease: EASE_STANDARD },
   };
 }
 
 export function StepWelcome() {
+  const { t } = useTranslation("onboarding");
   return (
     <div className="flex flex-col gap-7">
-      {/* Brand lockup */}
       <motion.div {...fadeUp(0)} className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 p-1.5">
-          <img
-            src="/qmanager-mark.svg"
-            alt=""
-            aria-hidden="true"
-            className="size-full"
-          />
-        </div>
-        <span className="text-sm font-semibold tracking-tight text-muted-foreground">
-          QManager
-        </span>
+        <img
+          src="/qmanager-mark.svg"
+          alt=""
+          aria-hidden="true"
+          className="size-10 shrink-0"
+        />
+        <span className="text-base font-semibold tracking-tight">QManager</span>
       </motion.div>
 
-      {/* Main message */}
       <motion.div {...fadeUp(1)} className="flex flex-col gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight leading-tight">
-          Your modem,<br />intelligently managed.
+        <h1 className="text-2xl font-semibold leading-tight tracking-tight whitespace-pre-line text-balance">
+          {t("welcome.main_title")}
         </h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Let&apos;s get you set up in a few quick steps. Only your password is
-          required — everything else is optional and adjustable anytime.
-        </p>
+        <p className={`${STEP_DESCRIPTION} leading-relaxed`}>{t("welcome.subtitle")}</p>
       </motion.div>
 
-      {/* Step preview */}
-      <motion.div
-        {...fadeUp(2)}
-        className="flex flex-col gap-1.5 border-l-2 border-border pl-4"
-      >
-        <StepPreviewItem label="Password" required />
-        <StepPreviewItem label="Network mode" />
-        <StepPreviewItem label="APN or SIM profile" />
-        <StepPreviewItem label="Band preferences" />
-      </motion.div>
+      {/* What the wizard will ask: label left, the one required step tagged right */}
+      <motion.ul {...fadeUp(2)} className="flex flex-col gap-1.5">
+        <StepPreviewItem label={t("welcome.step_preview_password")} required />
+        <StepPreviewItem label={t("welcome.step_preview_network_mode")} />
+        <StepPreviewItem label={t("welcome.step_preview_apn_sim")} />
+        <StepPreviewItem label={t("welcome.step_preview_band_preferences")} />
+      </motion.ul>
     </div>
   );
 }
 
 function StepPreviewItem({
   label,
-  required,
+  required = false,
 }: {
   label: string;
   required?: boolean;
 }) {
+  const { t } = useTranslation("onboarding");
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-      <span>{label}</span>
-      {required && (
-        <span className="text-xs font-medium text-foreground">Required</span>
-      )}
-    </div>
+    <li className="flex min-h-10 items-center justify-between gap-3 rounded-pill bg-surface-container px-4 text-sm">
+      <span className={required ? "font-medium" : "text-on-surface-variant"}>{label}</span>
+      {required && <Tag variant="neutral">{t("shell.label_required")}</Tag>}
+    </li>
   );
 }

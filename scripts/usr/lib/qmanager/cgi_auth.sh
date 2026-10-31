@@ -44,6 +44,14 @@ is_setup_required() {
     return 1
 }
 
+# qm_password_is_strong <password> — 0 if it holds an uppercase, a lowercase and a digit.
+qm_password_is_strong() {
+    case "$1" in *[A-Z]*) ;; *) return 1 ;; esac
+    case "$1" in *[a-z]*) ;; *) return 1 ;; esac
+    case "$1" in *[0-9]*) ;; *) return 1 ;; esac
+    return 0
+}
+
 # ---------------------------------------------------------------------------
 # Password hashing
 # ---------------------------------------------------------------------------

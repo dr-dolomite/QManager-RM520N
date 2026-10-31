@@ -17,6 +17,8 @@ Short version: the limiter is a small JSON file in `/tmp` guarded by a lock file
 | State file | `/tmp/qmanager_auth_attempts.json` (tmpfs — clears on reboot) |
 | Lock file | `/tmp/qmanager_auth_attempts.lock` (lazily created by `www-data`, `chmod 666`) |
 | Login endpoint | `POST /cgi-bin/quecmanager/auth/login.sh` |
+| Password-change endpoint | `POST /cgi-bin/quecmanager/auth/password.sh` — its current-password check shares the ladder |
+| Strength check | `qm_password_is_strong` in `cgi_auth.sh`; client mirror `components/auth/password-requirements.tsx` |
 | Status endpoint | `GET /cgi-bin/quecmanager/auth/check.sh` (public, `_SKIP_AUTH=1`) |
 | Frontend hook | `hooks/use-auth.ts` → `useLogin()` returns `lockout: LockoutState` |
 | Login UI | `components/auth/login-component.tsx` |
@@ -92,7 +94,7 @@ The state is written atomically (`jq -n … > "$file.tmp" && mv "$file.tmp" "$fi
 | `qm_get_rate_limit_status()` | **Never** | Read-only probe. Sets `RATE_LIMIT_RETRY_AFTER` and `RATE_LIMIT_ATTEMPTS_REMAINING`. Returns `0` = not locked, `1` = locked |
 | `qm_check_rate_limit()` | Yes | Login-path gate. Same read, plus the level-0 → level-1 engage and the expired-window reset. Signature unchanged from before the ladder |
 | `qm_record_failed_attempt()` | Yes | Called after a failed `qm_verify_password`. Bumps `count`; if the ladder is already engaged, escalates a rung and re-locks |
-| `qm_clear_attempts()` | Yes | Called on successful login. Deletes the state file — level, count and lock all gone |
+| `qm_clear_attempts()` | Yes | Called on successful login and on a correct current password in `password.sh`. Deletes the state file — level, count and lock all gone |
 | `qm_attempts_flock_wait <fd> <timeout>` | — | Bounded lock acquisition, see below |
 
 `cgi_base.sh` gained a stub for `qm_get_rate_limit_status` alongside the existing auth stubs, so a script sourcing the base without the auth library still resolves the symbol.
@@ -180,6 +182,35 @@ Unauthenticated — now carries live limiter state:
 This is what lets a **page reload during a lockout restore the countdown**. Before it, refreshing `/login/` re-enabled the submit button; pressing it simply earned another 429 with no explanation of why the form had lied.
 
 > ⚠️ WARNING — accepted disclosure. An **anonymous** caller can now learn that the device is currently rate-limited and how long is left. This is a real, deliberate widening of the unauthenticated surface. It reveals no credential material and no device identity, and the alternative (a login form that cannot tell the user why it is refusing them) was judged worse for a single-admin appliance on a private LAN. Treat any further field added to `check.sh`'s unauthenticated branch as a security change.
+
+### `POST auth/password.sh` — the change-password check shares the ladder
+
+A signed-in session could otherwise guess the current password without limit, so `password.sh` uses the same state file and functions as `login.sh`. Order: field checks and the strength rule first (they never touch the ladder), then `qm_check_rate_limit`, then `qm_verify_password`.
+
+| Case | HTTP | Body |
+|------|------|------|
+| Locked out | 429 | `{"success":false,"error":"rate_limited","detail":"Too many failed attempts","retry_after":118,"attempts_remaining":0}` |
+| Wrong current password | 200 | `{"success":false,"error":"invalid_password","detail":"Current password is incorrect","attempts_remaining":2}` — after `qm_record_failed_attempt` |
+| Correct current password | — | `qm_clear_attempts`, then the save proceeds |
+
+The counter is the same one the login form reads, so failed change attempts also lock **sign-in**. `changePassword()` in `hooks/use-auth.ts` passes only `error` / `detail` on; the Change Password dialog toasts the translated code and does not show `attempts_remaining`.
+
+### Password strength rule
+
+`login.sh` (first-time setup) and `password.sh` apply the same rule; the request field is `enforce_strong`.
+
+| Check | Applies | Failure |
+|-------|---------|---------|
+| At least 6 (`wc -c`) | always | `password_weak` |
+| An uppercase, a lowercase and a digit (`qm_password_is_strong`) | unless `enforce_strong` is literally `false` — **absent means `true`** | `password_weak` |
+
+`password_weak` replaced `password_too_short` on these two endpoints. `auth/ssh_password.sh` is separate: it still returns `password_too_short` (no `errors.json` key), and `changeSSHPassword()` shows the backend `detail` verbatim. The client mirror is `isPasswordValid()` in `components/auth/password-requirements.tsx` (`PASSWORD_MIN_LENGTH = 6`; RM551E uses 5).
+
+> ℹ️ NOTE: the server counts **bytes** (`wc -c`) and the client counts UTF-16 units (`.length`). They agree for ASCII; a short password of multibyte characters can pass the server and fail the client check.
+
+### Setup required means a missing `auth.json`
+
+`is_setup_required` returns true only when `/etc/qmanager/auth.json` **does not exist**. An empty or truncated file is treated as locked, not as a fresh install; recover it with `qmanager_reset_password`. This is deliberate (commit `d6f99251`): setup also sets the root SSH password, so treating an empty file as "no password yet" reopened unauthenticated root access. Do not widen the trigger. The `/setup` side of the gate is in [onboarding.md](onboarding.md#the-setup-gate).
 
 ---
 
@@ -273,6 +304,7 @@ Two things to keep in mind if you re-drive this by hand: `qm_check_rate_limit` r
 ## Related docs
 
 - Session model, cookies, `require_auth` / `_SKIP_AUTH` — `docs/reference/qmanager-independence.md`
+- The `/setup` wizard that calls `login.sh` with `enforce_strong` — `docs/reference/onboarding.md`
 - The public splash that calls `check.sh` on every load — `docs/reference/overview-splash.md`
 - Pre-auth visual language, `TonalBanner`, the pre-auth type scale — `DESIGN.md` > Typography > Hierarchy (pre-auth card exception)
 - Glyphs on the pre-auth routes — `docs/reference/icon-system.md`

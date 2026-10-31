@@ -12,7 +12,9 @@ export type Namespace =
   | "dashboard"
   | "cellular"
   | "system-settings"
-  | "errors";
+  | "system-health-check"
+  | "errors"
+  | "onboarding";
 
 export interface LanguageMeta {
   code: LanguageCode;

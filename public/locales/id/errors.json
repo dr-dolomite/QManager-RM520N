@@ -1,4 +1,9 @@
 {
+  "auth_unavailable": "Masuk sedang tidak tersedia. Coba lagi sebentar lagi.",
+  "hash_tool_missing": "Kata sandi tidak dapat disimpan karena ada alat sistem yang diperlukan tidak tersedia.",
+  "no_password_set": "Belum ada kata sandi yang diatur. Selesaikan penyiapan awal terlebih dahulu.",
+  "passwd_failed": "Tidak dapat mengubah kata sandi perangkat. Coba lagi.",
+  "ssh_password_failed": "Tidak dapat memperbarui kata sandi akses jarak jauh. Coba lagi.",
   "unknown": "Kesalahan tidak diketahui",
   "unknown_with_detail": "Modem melaporkan: {{detail}}",
   "all_steps_failed": "Penerapan profil gagal — tidak ada pengaturan yang berhasil diterapkan",
@@ -134,7 +139,7 @@
   "partial_apply": "Profil diterapkan dengan beberapa langkah gagal — periksa progres penerapan untuk detailnya",
   "partial_failure": "Beberapa item berhasil tetapi yang lain gagal",
   "password_mismatch": "Kata sandi tidak cocok",
-  "password_weak": "Kata sandi terlalu lemah — harus minimal 5 karakter dengan huruf besar, huruf kecil, dan angka",
+  "password_weak": "Kata sandi terlalu lemah — harus minimal 6 karakter dengan huruf besar, huruf kecil, dan angka",
   "payload_too_large": "Body permintaan terlalu besar",
   "rate_limited": "Terlalu banyak percobaan gagal — silakan coba lagi nanti",
   "remove_failed": "Gagal menghapus item",

@@ -1,4 +1,9 @@
 {
+  "auth_unavailable": "Sign-in isn't available right now. Try again in a moment.",
+  "hash_tool_missing": "The password can't be saved because a required system tool is missing.",
+  "no_password_set": "No password is set yet. Complete the initial setup first.",
+  "passwd_failed": "Couldn't change the device password. Try again.",
+  "ssh_password_failed": "Couldn't update the remote access password. Try again.",
   "unknown": "Unknown error",
   "unknown_with_detail": "Modem reported: {{detail}}",
   "all_steps_failed": "Profile apply failed — no settings were applied successfully",
@@ -134,7 +139,7 @@
   "partial_apply": "Profile applied with some steps failing — check the apply progress for details",
   "partial_failure": "Some items succeeded but others failed",
   "password_mismatch": "Passwords do not match",
-  "password_weak": "Password is too weak — must be at least 5 characters with uppercase, lowercase, and a number",
+  "password_weak": "Password is too weak — must be at least 6 characters with uppercase, lowercase, and a number",
   "payload_too_large": "Request body is too large",
   "rate_limited": "Too many failed attempts — please try again later",
   "remove_failed": "Failed to remove item",

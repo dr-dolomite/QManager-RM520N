@@ -2,19 +2,46 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon } from "lucide-react";
+import { useTranslation, Trans } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { isMotionReduced } from "@/lib/motion-preference";
+import { INNER_TILE, STEP_DESCRIPTION, STEP_HEADING } from "../shapes";
+import { useMotionReduced } from "@/components/motion-preference";
 
-// =============================================================================
-// StepDone — Onboarding step 6: completion screen + confetti
-// =============================================================================
+// Confetti wears the primary ramp, read from the live tokens so it follows the theme.
+// canvas-confetti only parses hex, so each oklch() token is resolved through a 1x1 canvas.
+const CONFETTI_TOKENS = [
+  "--primary",
+  "--primary-on-surface",
+  "--primary-container",
+  "--on-primary-container",
+];
+const CONFETTI_FALLBACK = ["#3b82f6"];
 
-// Brand-derived confetti colors (primary blue-indigo palette)
-const CONFETTI_COLORS = ["#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe", "#e0e7ff"];
+function confettiColors(): string[] {
+  try {
+    const style = getComputedStyle(document.documentElement);
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+    if (!ctx) return CONFETTI_FALLBACK;
+    const colors: string[] = [];
+    for (const token of CONFETTI_TOKENS) {
+      const value = style.getPropertyValue(token).trim();
+      if (!value) continue;
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = "#000";
+      ctx.fillStyle = value;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      colors.push(`#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`);
+    }
+    return colors.length > 0 ? colors : CONFETTI_FALLBACK;
+  } catch {
+    return CONFETTI_FALLBACK;
+  }
+}
 
 export function StepDone() {
-  const prefersReducedMotion =
-    typeof window !== "undefined" && isMotionReduced();
+  const { t } = useTranslation("onboarding");
+  const prefersReducedMotion = useMotionReduced();
 
   const [show, setShow] = useState(prefersReducedMotion);
   const dashboardBtnRef = useRef<HTMLButtonElement>(null);
@@ -25,7 +52,6 @@ export function StepDone() {
     return () => clearTimeout(timer);
   }, [prefersReducedMotion]);
 
-  // Confetti burst on mount
   useEffect(() => {
     if (prefersReducedMotion) return;
 
@@ -34,18 +60,17 @@ export function StepDone() {
     const fire = async () => {
       const confetti = (await import("canvas-confetti")).default;
       if (cancelled) return;
+      const colors = confettiColors();
 
-      // Center burst
       confetti({
         particleCount: 70,
         spread: 55,
         origin: { x: 0.5, y: 0.45 },
-        colors: CONFETTI_COLORS,
+        colors,
         scalar: 0.85,
         gravity: 1.1,
       });
 
-      // Side bursts after a short delay
       setTimeout(() => {
         if (cancelled) return;
         confetti({
@@ -53,7 +78,7 @@ export function StepDone() {
           spread: 50,
           angle: 65,
           origin: { x: 0.15, y: 0.5 },
-          colors: CONFETTI_COLORS,
+          colors,
           scalar: 0.8,
         });
         confetti({
@@ -61,7 +86,7 @@ export function StepDone() {
           spread: 50,
           angle: 115,
           origin: { x: 0.85, y: 0.5 },
-          colors: CONFETTI_COLORS,
+          colors,
           scalar: 0.8,
         });
       }, 180);
@@ -78,44 +103,47 @@ export function StepDone() {
     dashboardBtnRef.current?.focus();
   }, []);
 
-  const handleGoToDashboard = () => {
-    window.location.href = "/dashboard/";
-  };
-
   return (
-    <div className="flex flex-col items-center gap-6 text-center py-2">
-      {/* Animated checkmark */}
-      <div
-        className="flex size-16 items-center justify-center rounded-full bg-primary/10 transition-[opacity,transform] duration-[var(--duration-emphasized)] ease-emphasized"
+    <div className="flex flex-col items-center gap-6 py-2 text-center">
+      {/* Completion glyph: a filled success disc on the emphasized clock */}
+      <span
+        aria-hidden="true"
+        className="grid size-16 place-items-center rounded-full bg-success text-success-foreground transition-[opacity,transform] duration-[var(--duration-emphasized)] ease-emphasized"
         style={{
           opacity: show ? 1 : 0,
           transform: show ? "scale(1)" : "scale(0.6)",
         }}
       >
-        <CheckIcon className="size-8 text-primary stroke-[2.5]" />
-      </div>
+        <CheckIcon className="size-8" strokeWidth={2.5} />
+      </span>
 
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold tracking-tight">You&apos;re all set!</h2>
-        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-          QManager is ready. Everything you configured is active, and you can
-          change any setting anytime from the sidebar.
+        <h2 className={STEP_HEADING}>{t("done.heading")}</h2>
+        <p className={`${STEP_DESCRIPTION} max-w-xs leading-relaxed`}>{t("done.description")}</p>
+      </div>
+
+      <div className={`${INNER_TILE} w-full px-4 text-left`}>
+        <p className="text-xs leading-relaxed text-on-surface-variant">
+          <Trans
+            i18nKey="done.callout_body"
+            ns="onboarding"
+            components={{
+              bold: <span className="font-medium text-on-surface" />,
+              menu: <span className="font-medium text-on-surface" />,
+            }}
+          />
         </p>
       </div>
 
-      {/* Tip callout */}
-      <div className="w-full rounded-xl bg-muted/60 border border-border px-4 py-3 text-left">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-medium text-foreground">Pro tip:</span> Visit{" "}
-          <span className="font-medium">Cellular › Band Locking</span> to
-          fine-tune signal strength, or{" "}
-          <span className="font-medium">Monitoring › Watchdog</span> to set up
-          automatic recovery.
-        </p>
-      </div>
-
-      <Button ref={dashboardBtnRef} onClick={handleGoToDashboard} className="w-full" size="lg">
-        Go to Dashboard
+      <Button
+        ref={dashboardBtnRef}
+        onClick={() => {
+          window.location.href = "/dashboard/";
+        }}
+        className="w-full gap-2"
+        size="action"
+      >
+        {t("done.button_dashboard")}
       </Button>
     </div>
   );

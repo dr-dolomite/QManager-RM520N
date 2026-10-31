@@ -1663,5 +1663,35 @@
     "timer_overtime_aria": "正在重新连接，耗时比平时更长",
     "seconds_unit": "秒",
     "escape": "设备可能需要人工处理。前往登录"
+  },
+  "change_password": {
+    "title": "修改密码",
+    "description": "修改密码后您将被注销。",
+    "current_label": "当前密码",
+    "new_label": "新密码",
+    "confirm_label": "确认新密码",
+    "match": "密码一致",
+    "mismatch": "密码不一致",
+    "error_weak": "新密码至少需要 6 个字符。",
+    "error_weak_strong": "新密码至少需要 6 个字符，并包含大写字母、小写字母和数字。",
+    "error_mismatch": "两次输入的新密码不一致。",
+    "failed_toast": "无法修改密码，请重试。",
+    "cancel": "取消",
+    "submit": "修改密码",
+    "submitting": "正在修改…"
+  },
+  "password_rules": {
+    "requirements_label": "密码要求",
+    "rule": {
+      "length": "至少 6 个字符",
+      "uppercase": "大写字母",
+      "lowercase": "小写字母",
+      "number": "数字"
+    },
+    "met": "（已满足）",
+    "not_met": "（未满足）",
+    "strong_label": "使用强密码",
+    "strong_hint_label": "关于强密码",
+    "strong_hint": "需要包含大写字母、小写字母和数字。"
   }
 }

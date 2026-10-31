@@ -1663,5 +1663,35 @@
     "timer_overtime_aria": "Riconnessione in corso, ci vuole più del solito",
     "seconds_unit": "sec",
     "escape": "Il dispositivo potrebbe richiedere un intervento manuale. Vai all'accesso"
+  },
+  "change_password": {
+    "title": "Cambia password",
+    "description": "Dopo aver cambiato la password verrai disconnesso.",
+    "current_label": "Password attuale",
+    "new_label": "Nuova password",
+    "confirm_label": "Conferma nuova password",
+    "match": "Le password coincidono",
+    "mismatch": "Le password non coincidono",
+    "error_weak": "La nuova password deve contenere almeno 6 caratteri.",
+    "error_weak_strong": "La nuova password deve contenere almeno 6 caratteri e includere maiuscole, minuscole e un numero.",
+    "error_mismatch": "Le nuove password non coincidono.",
+    "failed_toast": "Impossibile cambiare la password. Riprova.",
+    "cancel": "Annulla",
+    "submit": "Cambia password",
+    "submitting": "Modifica in corso…"
+  },
+  "password_rules": {
+    "requirements_label": "Requisiti della password",
+    "rule": {
+      "length": "Almeno 6 caratteri",
+      "uppercase": "Lettera maiuscola",
+      "lowercase": "Lettera minuscola",
+      "number": "Numero"
+    },
+    "met": "(soddisfatto)",
+    "not_met": "(non soddisfatto)",
+    "strong_label": "Usa password sicura",
+    "strong_hint_label": "Informazioni sulle password sicure",
+    "strong_hint": "Richiede lettere maiuscole, minuscole e caratteri numerici."
   }
 }

@@ -1,7 +1,7 @@
 #!/bin/sh
 # login.sh — Login and first-time password setup endpoint.
 # POST {"password":"..."} for login
-# POST {"password":"...","confirm":"..."} for first-time setup
+# POST {"password":"...","confirm":"...","enforce_strong":true|false} for first-time setup
 #
 # On success, sets HttpOnly session cookie + indicator cookie.
 _SKIP_AUTH=1
@@ -31,6 +31,7 @@ fi
 
 _password=$(printf '%s' "$POST_DATA" | jq -r '.password // empty')
 _confirm=$(printf '%s' "$POST_DATA" | jq -r '.confirm // empty')
+_enforce_strong=$(printf '%s' "$POST_DATA" | jq -r 'if .enforce_strong == false then "false" else "true" end')
 
 if [ -z "$_password" ]; then
     cgi_headers
@@ -48,10 +49,16 @@ if is_setup_required; then
         exit 0
     fi
 
+    # Min length 6 always; enforce_strong (absent = true) adds upper + lower + digit.
     _pw_len=$(printf '%s' "$_password" | wc -c)
     if [ "$_pw_len" -lt 6 ]; then
         cgi_headers
-        cgi_error "password_too_short" "Password must be at least 6 characters"
+        cgi_error "password_weak" "Password must be at least 6 characters"
+        exit 0
+    fi
+    if [ "$_enforce_strong" != "false" ] && ! qm_password_is_strong "$_password"; then
+        cgi_headers
+        cgi_error "password_weak" "Password must include uppercase, lowercase, and a number"
         exit 0
     fi
 
