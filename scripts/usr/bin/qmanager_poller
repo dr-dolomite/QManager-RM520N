@@ -44,8 +44,8 @@ CACHE_FILE="/tmp/qmanager_status.json"
 CACHE_TMP="/tmp/qmanager_status.json.tmp"
 # Raised by the root broker around long commands; trusted via qm_long_flag_up.
 LONG_FLAG="/run/qmanager_at/long_running"
-# Holds the boot_id of the boot whose profile auto-apply already ran.
-PROFILE_BOOT_APPLIED_FILE="/tmp/qmanager_profile_boot_applied"
+# boot_id whose profile auto-apply already ran; /run is root-only tmpfs, so www-data cannot plant it.
+PROFILE_BOOT_APPLIED_FILE="/run/qmanager_profile_boot_applied"
 # Touched by external triggers (e.g. SIM-slot-change CGI) to pull the warm
 # refresh into the next cycle instead of waiting up to ~30s for the normal
 # Tier 2 cadence to land.
