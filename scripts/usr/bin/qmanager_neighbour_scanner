@@ -39,7 +39,7 @@ ERROR_FILE="/tmp/qmanager_neighbour_scan_error"
 PARSED_FILE="/tmp/qmanager_neighbour_scan_parsed.tmp"
 # Captured stderr per AT leg — qcmd (non -j mode) writes "ERROR: <reason>" to
 # stderr and exits 1 on failure, including "ERROR: modem_busy" when it
-# couldn't acquire /tmp/qmanager_at.lock in time. We
+# couldn't acquire the AT lock in time. We
 # need that text to tell a busy-mutex collision apart from a real AT failure.
 LTE_ERR_FILE="/tmp/qmanager_neighbour_scan_lte_err.tmp"
 NR_ERR_FILE="/tmp/qmanager_neighbour_scan_nr_err.tmp"
@@ -168,7 +168,7 @@ fi
 # STEP 3: Check if any data was parsed
 # =============================================================================
 # leg_busy <rc> <err_file> — true if that leg failed because it couldn't get
-# the shared AT mutex (/tmp/qmanager_at.lock), not because the command itself
+# the shared AT mutex (/run/qmanager_at/at.lock), not because the command itself
 # errored. See qcmd:166-170 / qcmd:94-96 for the "ERROR: modem_busy" text.
 leg_busy() {
     [ "$1" -ne 0 ] && grep -q 'modem_busy' "$2" 2>/dev/null

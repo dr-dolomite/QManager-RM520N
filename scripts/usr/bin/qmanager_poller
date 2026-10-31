@@ -42,7 +42,8 @@
 # --- Configuration -----------------------------------------------------------
 CACHE_FILE="/tmp/qmanager_status.json"
 CACHE_TMP="/tmp/qmanager_status.json.tmp"
-LONG_FLAG="/tmp/qmanager_long_running"
+# Raised by the root broker around long commands; trusted via qm_long_flag_up.
+LONG_FLAG="/run/qmanager_at/long_running"
 # Touched by external triggers (e.g. SIM-slot-change CGI) to pull the warm
 # refresh into the next cycle instead of waiting up to ~30s for the normal
 # Tier 2 cadence to land.
@@ -420,6 +421,7 @@ sig_nr_sinr="[null,null,null,null]"
     qlog_at_cmd() { :; }
     qlog_lock() { :; }
     qlog_state_change() { :; }
+    qm_long_flag_up() { return 1; }
 }
 qlog_init "poller"
 
@@ -2461,10 +2463,10 @@ poll_cycle() {
     # If a CGI sets the flag and dies before clearing it, the poller would
     # otherwise stay in scan_in_progress mode forever. Treat any flag older
     # than LONG_FLAG_MAX_AGE seconds as stale and remove it.
-    if [ -f "$LONG_FLAG" ]; then
+    if qm_long_flag_up "$LONG_FLAG"; then
         local _lf_mtime _lf_now _lf_age
         _lf_mtime=$(stat -c %Y "$LONG_FLAG" 2>/dev/null || echo 0)
-        _lf_now=$SECONDS
+        _lf_now=$(date +%s)
         _lf_age=$((_lf_now - _lf_mtime))
         if [ "$_lf_age" -gt "$LONG_FLAG_MAX_AGE" ] 2>/dev/null; then
             qlog_warn "LONG_FLAG stale (age=${_lf_age}s > ${LONG_FLAG_MAX_AGE}s) — removing"
@@ -2484,7 +2486,7 @@ poll_cycle() {
     detect_data_connection_events
     check_alerts
 
-    if [ -f "$LONG_FLAG" ]; then
+    if qm_long_flag_up "$LONG_FLAG"; then
         if [ "$system_state" != "scan_in_progress" ]; then
             qlog_state_change "system_state" "$system_state" "scan_in_progress"
         fi

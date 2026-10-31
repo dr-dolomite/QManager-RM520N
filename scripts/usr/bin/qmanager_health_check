@@ -783,8 +783,11 @@ t_cfg_poller_cache_fresh() {
 # The status CGIs (www-data) rewrite this file in place; in sticky /tmp a file owned by anyone else locks them out.
 t_cfg_ui_heartbeat() {
     local f=/tmp/qmanager_ui_active
-    if [ ! -e "$f" ]; then echo "pass|absent (no browser since boot)"; return; fi
+    if [ ! -e "$f" ] && [ ! -L "$f" ]; then echo "pass|absent (no browser since boot)"; return; fi
     ls -la "$f" >> "$OUTPUT_FILE"
+    # stat -c %U reads a symlink's own owner, so a planted link must fail first.
+    if [ -L "$f" ]; then echo "fail|is a symlink (poller tiers may be stuck)"; return; fi
+    if [ ! -f "$f" ]; then echo "fail|not a regular file (poller tiers may be stuck)"; return; fi
     local owner; owner=$(stat -c %U "$f" 2>/dev/null)
     if [ "$owner" = "www-data" ]; then echo "pass|owned by www-data"
     else echo "fail|owned by ${owner:-unknown}, not www-data (poller tiers stuck)"; fi

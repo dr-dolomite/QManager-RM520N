@@ -105,10 +105,10 @@ APN_APPLY_ATTACH_BACKOFF=3        # seconds between AT+COPS=0 retries
 APN_APPLY_VERIFY_TIMEOUT=15       # seconds, hard ceiling on the CGCONTRDP poll
 APN_APPLY_VERIFY_INTERVAL=1       # seconds between CGCONTRDP polls
 
-# Bracket-level advisory lock — SEPARATE from /tmp/qmanager_at.lock (qcmd's
-# own per-command lock). Reusing qcmd's lock here would deadlock: this
+# Bracket-level advisory lock — SEPARATE from the AT lock (/run/qmanager_at/at.lock,
+# the broker's per-command lock). Reusing it here would deadlock: this
 # primitive calls qcmd for every AT command WHILE it would be holding the
-# bracket lock, and qcmd itself needs to acquire /tmp/qmanager_at.lock for
+# bracket lock, and qcmd itself needs to acquire the AT lock for
 # each of those calls. qcmd's flock only serializes a single AT command, not
 # a multi-command bracket, and AT+COPS=2/AT+COPS=0 is global attach state,
 # not per-CID — two processes (apn.sh as www-data, qmanager_profile_apply as
@@ -141,8 +141,8 @@ APN_APPLY_LOCK_EXTERNAL=0
 # flock -x -n in a 1s loop up to APN_APPLY_LOCK_WAIT,
 # then one final try. Opens the lock file read-only on fd 8 (not `exec 8>`,
 # which would truncate — irrelevant to flock's inode-based lock, but needless
-# churn on a file two different UIDs share). Mode 666 mirrors how
-# /tmp/qmanager_at.lock is made usable by both root and www-data.
+# churn on a file two different UIDs share). Mode 666 because both UIDs open it
+# (the AT lock is root-only and broker-held).
 # Returns 0 once the lock is held, 1 if every attempt timed out (fd 8 is
 # left open either way; the caller must still call _apn_apply_lock_release
 # on the failure path since opening the fd itself always succeeds).

@@ -30,7 +30,7 @@ else
 fi
 qlog_init "cfun_fix"
 
-# qcmd handles the /tmp/qmanager_at.lock flock so this serializes cleanly
+# qcmd goes through the broker, which holds the AT lock, so this serializes cleanly
 # against the poller and any CGI traffic that may already be in flight.
 result=$(/usr/bin/qcmd "AT+CFUN=1" 2>&1)
 rc=$?

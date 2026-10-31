@@ -33,6 +33,7 @@ if [ -f /usr/lib/qmanager/qlog.sh ]; then
 else
     qlog_init() { :; }; qlog_debug() { :; }; qlog_info() { :; }
     qlog_warn() { :; }; qlog_error() { :; }; qlog_state_change() { :; }
+    qm_long_flag_up() { return 1; }
 fi
 qlog_init "watchcat"
 
@@ -91,7 +92,8 @@ RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
 SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
-LONG_RUNNING_FLAG="/tmp/qmanager_long_running"
+# Raised by the root broker around long commands; trusted via qm_long_flag_up.
+LONG_RUNNING_FLAG="/run/qmanager_at/long_running"
 PROFILE_APPLY_PID="/tmp/qmanager_profile_apply.pid"
 TOWER_LOCK_CONFIG="/etc/qmanager/tower_lock.json"
 # Root-owned dir (see crash_log.sh); /etc/qmanager is www-data-writable.
@@ -233,7 +235,7 @@ check_locked() {
     [ -f "$LOCK_FILE" ] && return 0
 
     # Long-running AT command (cell scan, firmware update)
-    [ -f "$LONG_RUNNING_FLAG" ] && return 0
+    qm_long_flag_up "$LONG_RUNNING_FLAG" && return 0
 
     # Profile apply in progress
     if [ -f "$PROFILE_APPLY_PID" ]; then
@@ -330,7 +332,7 @@ execute_tier2() {
     fi
 
     # Pre-check: long-running command
-    if [ -f "$LONG_RUNNING_FLAG" ]; then
+    if qm_long_flag_up "$LONG_RUNNING_FLAG"; then
         qlog_warn "TIER 2 SKIPPED: long-running AT command active"
         return 1
     fi
@@ -819,8 +821,9 @@ main() {
     fi
     echo $$ > "$PID_FILE"
 
-    # Cleanup on exit
-    trap 'rm -f "$PID_FILE" "$STATE_TMP" "$RECOVERY_FLAG"; write_state' EXIT INT TERM
+    # Cleanup runs on EXIT; INT/TERM must exit or ash keeps running after the trap.
+    trap 'rm -f "$PID_FILE" "$STATE_TMP" "$RECOVERY_FLAG"; write_state' EXIT
+    trap 'exit 0' INT TERM
 
     # Read configuration
     read_config

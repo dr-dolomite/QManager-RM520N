@@ -386,8 +386,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             sent_parts=$(printf '%s' "$result" | jq -r '.sent_parts // 0' 2>/dev/null)
             case "$parts" in ''|*[!0-9]*) parts=0 ;; esac
             case "$sent_parts" in ''|*[!0-9]*) sent_parts=0 ;; esac
-            jq -n --arg detail "$detail" --argjson parts "$parts" --argjson sent "$sent_parts" \
-                '{"success":false,"error":"send_failed","detail":$detail,"parts":$parts,"sent_parts":$sent}'
+            # concat_ref / refs / ambiguous pass through from qsms as-is (null when absent, false kept).
+            extra=$(printf '%s' "$result" | jq -c '{concat_ref: .concat_ref, refs: .refs, ambiguous: .ambiguous}' 2>/dev/null)
+            [ -z "$extra" ] && extra='{"concat_ref":null,"refs":null,"ambiguous":null}'
+            jq -n --arg detail "$detail" --argjson parts "$parts" --argjson sent "$sent_parts" --argjson extra "$extra" \
+                '{"success":false,"error":"send_failed","detail":$detail,"parts":$parts,"sent_parts":$sent} + $extra'
         fi
         exit 0
     fi

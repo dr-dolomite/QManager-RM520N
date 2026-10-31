@@ -25,7 +25,7 @@ ERROR_FILE="/tmp/qmanager_cell_scan_error"
 SCANNER_BIN="/usr/bin/qmanager_cell_scanner"
 # Shared with neighbour_scan_start.sh on purpose — a full sweep and a
 # neighbour read must never run concurrently, since both serialize through
-# the same AT mutex (qmanager_at.lock) and a short read launched into a
+# the same AT mutex (/run/qmanager_at/at.lock) and a short read launched into a
 # 180s sweep would just sit blocked with no way to tell the user why.
 SCAN_LOCK="/tmp/qmanager_scan.lock"
 

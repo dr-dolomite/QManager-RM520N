@@ -46,12 +46,15 @@ fi
 CACHE_FILE="/tmp/qmanager_status.json"
 CMD_GAP=0.2
 PUB_IP_TIMEOUT=3
+PUB_IP_CACHE="/tmp/qmanager_public_ip"
+PUB_IP_TTL=300
 
 # --- Cleanup for temp files --------------------------------------------------
 pub4_file="/tmp/qmanager_pub_ipv4.$$"
 pub6_file="/tmp/qmanager_pub_ipv6.$$"
+pub_ip_tmp="/tmp/qmanager_public_ip.$$"
 cleanup() {
-    rm -f "$pub4_file" "$pub6_file"
+    rm -f "$pub4_file" "$pub6_file" "$pub_ip_tmp"
 }
 trap cleanup EXIT INT TERM
 
@@ -62,22 +65,7 @@ if [ "$REQUEST_METHOD" != "GET" ]; then
 fi
 
 # =============================================================================
-# 1. Fire off public IP fetches FIRST (background, non-blocking)
-#    These run in parallel while we do everything else.
-# =============================================================================
-if command -v curl >/dev/null 2>&1; then
-    # -L: follow redirects; -k: tolerate missing CA certs
-    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api.ipify.org > "$pub4_file" 2>/dev/null ) &
-    pid4=$!
-    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api6.ipify.org > "$pub6_file" 2>/dev/null ) &
-    pid6=$!
-else
-    pid4=""
-    pid6=""
-fi
-
-# =============================================================================
-# 2. Read poller cache (single jq call)
+# 1. Read poller cache (single jq call)
 # =============================================================================
 c_firmware=""
 c_build_date=""
@@ -101,6 +89,40 @@ if [ -f "$CACHE_FILE" ]; then
         @sh "lan_ip=\(.network.device_ip // "")",
         @sh "lan_gateway=\(.network.lan_gateway // "")"
     ' "$CACHE_FILE" 2>/dev/null)"
+fi
+
+# =============================================================================
+# 2. Public IPs: reuse the cache, else fire the fetches (background, parallel)
+# =============================================================================
+# Cache line "wan4|wan6|pub4|pub6|epoch" is reused only if it is ours, a plain
+# file, under PUB_IP_TTL old, and the WAN IPs it was fetched for still match.
+public_ipv4=""
+public_ipv6=""
+pub_cached=0
+pid4=""
+pid6=""
+if [ -O "$PUB_IP_CACHE" ] && [ -f "$PUB_IP_CACHE" ] && [ ! -L "$PUB_IP_CACHE" ]; then
+    IFS='|' read -r k_wan4 k_wan6 k_pub4 k_pub6 k_ts < "$PUB_IP_CACHE"
+    case "$k_ts" in
+        ''|*[!0-9]*) ;;
+        *)
+            k_age=$(( $(date +%s) - k_ts ))
+            if [ "$k_age" -ge 0 ] && [ "$k_age" -lt "$PUB_IP_TTL" ] \
+               && [ -n "$c_wan_ipv4" ] && [ "$k_wan4" = "$c_wan_ipv4" ] && [ "$k_wan6" = "$c_wan_ipv6" ]; then
+                public_ipv4="$k_pub4"
+                public_ipv6="$k_pub6"
+                pub_cached=1
+            fi
+            ;;
+    esac
+fi
+
+if [ "$pub_cached" = "0" ] && command -v curl >/dev/null 2>&1; then
+    # -L: follow redirects; -k: tolerate missing CA certs
+    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api.ipify.org > "$pub4_file" 2>/dev/null ) &
+    pid4=$!
+    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api6.ipify.org > "$pub6_file" 2>/dev/null ) &
+    pid6=$!
 fi
 
 # =============================================================================
@@ -171,26 +193,30 @@ sys_openwrt=$(resolve_firmware_revision)
 # =============================================================================
 # 5. Collect public IP results (wait for background jobs, bounded by timeout)
 # =============================================================================
-public_ipv4=""
-public_ipv6=""
-
 [ -n "$pid4" ] && wait "$pid4" 2>/dev/null
 [ -n "$pid6" ] && wait "$pid6" 2>/dev/null
 
 # Read and validate (basic sanity: no HTML, no error pages)
-if [ -f "$pub4_file" ]; then
+if [ "$pub_cached" = "0" ] && [ -f "$pub4_file" ]; then
     raw=$(cat "$pub4_file" 2>/dev/null | tr -d '\n\r ')
     case "$raw" in
         *"<"*|"") ;;  # HTML or empty — skip
         *) public_ipv4="$raw" ;;
     esac
 fi
-if [ -f "$pub6_file" ]; then
+if [ "$pub_cached" = "0" ] && [ -f "$pub6_file" ]; then
     raw=$(cat "$pub6_file" 2>/dev/null | tr -d '\n\r ')
     case "$raw" in
         *"<"*|"") ;;
         *) public_ipv6="$raw" ;;
     esac
+fi
+
+# Cache a fresh result: never a failed v4; an empty v6 only when no WAN IPv6 exists.
+if [ "$pub_cached" = "0" ] && [ -n "$public_ipv4" ] && [ -n "$c_wan_ipv4" ] \
+   && { [ -n "$public_ipv6" ] || [ -z "$c_wan_ipv6" ]; }; then
+    printf '%s|%s|%s|%s|%s\n' "$c_wan_ipv4" "$c_wan_ipv6" "$public_ipv4" "$public_ipv6" "$(date +%s)" > "$pub_ip_tmp" 2>/dev/null \
+        && mv -f "$pub_ip_tmp" "$PUB_IP_CACHE" 2>/dev/null
 fi
 
 # =============================================================================

@@ -63,6 +63,8 @@ NOW=0
 LAST_FULL=0
 WATCH_UP=0
 WATCHER_PID=""
+WATCH_GONE=0   # 1 once qsms watch reported it is permanently unavailable (rc 2)
+_sf_sleep_pid=""
 FIFO_OK=0
 EV_ME=0
 EV_SM=0
@@ -292,11 +294,27 @@ sf_send_with_retry() {
         [ -z "$_detail" ] && _detail="The message could not be sent."
         _last_err="$_detail"
         qlog_warn "SMS forward: send failed attempt $_attempt/$_max_attempts (rc=$_rc) — $_detail"
-        # A retry resends every part, so once any part went out, stop rather than duplicate it.
-        case "$(printf '%s' "$_out" | jq -r '.sent_parts // 0' 2>/dev/null)" in
-            ''|0|*[!0-9]*) ;;
-            *) qlog_warn "SMS forward: some parts already sent, not retrying"; break ;;
-        esac
+        # A retry resends every part. Once any part went out, stop; except one
+        # resume of the missing parts when the broker says the failure was a definite reject.
+        set -- $(printf '%s' "$_out" | jq -r '[(.sent_parts // 0 | tostring), (.ambiguous | tostring),
+            (if (.concat_ref | type) == "number" then (.concat_ref | tostring) else "" end)] | join(" ")' 2>/dev/null)
+        _sp="${1:-0}"; _amb="${2:-null}"; _cref="${3:-}"
+        case "$_sp" in ''|0|*[!0-9]*) continue ;; esac
+        case "$_cref" in ''|*[!0-9]*) _cref="" ;; esac
+        if [ "$_amb" = "false" ] && [ -n "$_cref" ]; then
+            qlog_warn "SMS forward: resuming at part $((_sp + 1)) (ref $_cref)"
+            _out=$("$QSMS" send --ref "$_cref" --from "$((_sp + 1))" "$_send_target" "$_send_body" 2>/dev/null </dev/null)
+            if [ $? -eq 0 ]; then
+                qlog_info "SMS forward: resume succeeded"
+                return 0
+            fi
+            _detail=$(printf '%s' "$_out" | jq -r 'if (.detail | type) == "string" then .detail else "" end' 2>/dev/null)
+            [ -n "$_detail" ] && _last_err="$_detail"
+            qlog_warn "SMS forward: resume failed — ${_last_err}"
+        else
+            qlog_warn "SMS forward: some parts already sent, not retrying"
+        fi
+        break
     done
 
     printf '%s' "$_last_err"
@@ -398,12 +416,10 @@ sf_handle() {
     _body="From ${_h_sender}: ${_h_content}"
     qlog_info "SMS forward: forwarding message from ${_h_sender} to ${SF_SEND_TARGET}"
 
-    if _err=$(sf_send_with_retry "$SF_SEND_TARGET" "$_body"); then
-        sf_mark_seen "$_id"
-    else
-        # 3 attempts exhausted: mark seen so we don't retry forever, and
-        # record the failure for the CGI/UI. Feature stays enabled.
-        sf_mark_seen "$_id"
+    # Mark seen BEFORE sending: at-most-once, so a SIGKILL mid-send never resends in full.
+    sf_mark_seen "$_id"
+    if ! _err=$(sf_send_with_retry "$SF_SEND_TARGET" "$_body"); then
+        # Attempts exhausted: record the failure for the CGI/UI. Feature stays enabled.
         _now_ts=$(date +%s)
         [ -z "$_h_ts" ] && _h_ts="$_now_ts"
         [ -z "$_err" ] && _err="send failed"
@@ -494,7 +510,8 @@ sf_ensure_seen() {
 # =============================================================================
 
 # Background supervisor: runs `qsms watch` into the event FIFO (fd 3), prints
-# "down" when it ends, and respawns with a growing delay. Never exits on its own.
+# "down" when it ends, and respawns with a growing delay. rc 2 (permanently
+# unavailable on this modem) prints "unavailable" and stops respawning.
 sf_watch_supervisor() {
     _w_qp=""
     _w_fail=0
@@ -505,6 +522,11 @@ sf_watch_supervisor() {
         "$QSMS" watch >&3 2>/dev/null </dev/null &
         _w_qp=$!
         wait "$_w_qp"
+        _w_rc=$?
+        if [ "$_w_rc" -eq 2 ]; then
+            printf 'unavailable\n' >&3
+            exit 0
+        fi
         printf 'down\n' >&3
         sf_now
         if [ $((NOW - _w_t0)) -ge 60 ]; then
@@ -522,6 +544,7 @@ sf_watch_supervisor() {
 
 sf_start_watcher() {
     [ "$FIFO_OK" = "1" ] || return 1
+    [ "$WATCH_GONE" = "1" ] && return 1
     if [ -n "$WATCHER_PID" ] && kill -0 "$WATCHER_PID" 2>/dev/null; then
         return 0
     fi
@@ -551,7 +574,21 @@ sf_note_event() {
             WATCH_UP=0
             qlog_warn "SMS forward: qsms watch ended, polling every ${SF_INTERVAL}s until it is back"
             ;;
+        unavailable)
+            WATCH_UP=0
+            [ "$WATCH_GONE" = "1" ] || qlog_warn "SMS forward: qsms watch unavailable on this modem; polling only"
+            WATCH_GONE=1
+            ;;
     esac
+}
+
+# Sleep that TERM can interrupt: BusyBox ash defers traps until a foreground
+# child ends, so background the sleep and wait on it (killed in sf_cleanup).
+sf_sleep() {
+    sleep "$1" &
+    _sf_sleep_pid=$!
+    wait "$_sf_sleep_pid"
+    _sf_sleep_pid=""
 }
 
 # Wait for a wake-up event (or SF_INTERVAL), then coalesce a burst.
@@ -564,7 +601,7 @@ sf_wait() {
             done
         fi
     else
-        sleep "$SF_INTERVAL"
+        sf_sleep "$SF_INTERVAL"
     fi
 }
 
@@ -601,6 +638,7 @@ sf_dispatch() {
 # =============================================================================
 
 sf_cleanup() {
+    [ -n "$_sf_sleep_pid" ] && kill "$_sf_sleep_pid" 2>/dev/null
     sf_stop_watcher
     rm -f "$PID_FILE" "$FAILURES_TMP" "$EVENT_FIFO" "$PENDING_NEW" "$PENDING_TMP"
 }
@@ -648,14 +686,14 @@ main() {
 
         if [ "$SF_ENABLED" != "1" ]; then
             sf_stop_watcher
-            sleep "$SF_INTERVAL"
+            sf_sleep "$SF_INTERVAL"
             continue
         fi
 
         if ! sf_target_valid; then
             qlog_warn "SMS forward: enabled but target_phone is invalid/empty — idling"
             sf_stop_watcher
-            sleep "$SF_INTERVAL"
+            sf_sleep "$SF_INTERVAL"
             continue
         fi
 
