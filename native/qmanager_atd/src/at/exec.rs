@@ -268,7 +268,9 @@ impl<D: Device> Executor<'_, D> {
             if let Err(e) = warm {
                 let _ = std::fs::remove_file(LONG_FLAG);
                 let _ = std::fs::remove_file(PID_FILE);
-                self.log.error(&format!("Modem warm-up failed before: {cmd} ({e:?})"));
+                let msg = format!("Modem warm-up failed before: {cmd} ({e:?})");
+                // While down the one "AT channel down" line already covers it.
+                if self.ch.is_down() { self.log.debug(&msg) } else { self.log.error(&msg) }
                 return Outcome::Err(Code::ModemNotReady);
             }
         }

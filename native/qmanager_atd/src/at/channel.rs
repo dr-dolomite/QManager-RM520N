@@ -723,6 +723,11 @@ mod tests {
 
     /// A fake modem that reads every line and never answers (a wedged AT port).
     fn silent_dev() -> UnixStream {
+        silent_dev_counting(Arc::new(Mutex::new(0)))
+    }
+
+    /// `silent_dev` that adds every byte the modem side receives to `seen`.
+    fn silent_dev_counting(seen: Arc<Mutex<usize>>) -> UnixStream {
         let (near, mut far) = UnixStream::pair().unwrap();
         near.set_nonblocking(true).unwrap();
         thread::spawn(move || {
@@ -731,6 +736,7 @@ mod tests {
                 if n == 0 {
                     return;
                 }
+                *seen.lock().unwrap() += n;
             }
         });
         near
@@ -742,13 +748,16 @@ mod tests {
         let silent = 4usize;
         let opens = Arc::new(Mutex::new(0usize));
         let o2 = opens.clone();
+        let written = Arc::new(Mutex::new(0usize));
+        let w2 = written.clone();
         let mut ch: Channel<UnixStream> = Channel::new(Box::new(move || {
             let mut n = o2.lock().unwrap();
             *n += 1;
-            Ok(if *n <= silent { silent_dev() } else { healthy_dev() })
+            Ok(if *n <= silent { silent_dev_counting(w2.clone()) } else { healthy_dev() })
         }));
-        ch.probe_min = Duration::from_millis(40);
-        ch.probe_max = Duration::from_millis(100);
+        // probe_min outlasts the settle sleeps below, so no probe runs inside them.
+        ch.probe_min = Duration::from_millis(200);
+        ch.probe_max = Duration::from_millis(400);
         ch.sync_timeout = Duration::from_millis(50);
 
         assert!(matches!(ch.exchange("AT+HANG", soon(100)), Err(AtError::Timeout)));
@@ -760,9 +769,14 @@ mod tests {
         assert_eq!(after_down, 2);
 
         // While down, commands fail at once and never touch the port.
+        thread::sleep(Duration::from_millis(30));
+        let bytes_before = *written.lock().unwrap();
+        assert!(bytes_before > 0);
         let t = Instant::now();
         assert!(matches!(ch.exchange("AT+CSQ", soon(500)), Err(AtError::NotReady)));
         assert!(t.elapsed() < Duration::from_millis(20), "{:?}", t.elapsed());
+        thread::sleep(Duration::from_millis(30));
+        assert_eq!(*written.lock().unwrap(), bytes_before, "a write reached the port while down");
         assert_eq!(*opens.lock().unwrap(), after_down);
         assert_eq!(ch.take_event(), None, "no second down event");
 
