@@ -1019,7 +1019,7 @@ apply_imei() {
     # Clean up the response (just the 15-digit IMEI)
     current_imei=$(printf '%s' "$current_imei" | grep -o '[0-9]\{15\}' | head -1)
     if [ -z "$current_imei" ]; then
-        qlog_warn "IMEI step skipped: AT+CGSN reply had no IMEI"
+        qlog_warn "IMEI step failed: AT+CGSN reply had no IMEI"
         mark_step_failed "imei" "Failed to read current IMEI"
         return
     fi
@@ -1045,7 +1045,7 @@ apply_imei() {
     # Marker is an empty dir: mkdir/rmdir never follow a planted link in this www-data-owned dir.
     _imei_attempt_clear
     if [ -z "$boot_id" ] || { ! mkdir "$attempt_new" 2>/dev/null && { [ ! -d "$attempt_new" ] || [ -L "$attempt_new" ]; }; }; then
-        qlog_warn "IMEI step skipped: could not record the attempt marker"
+        qlog_warn "IMEI step failed: could not record the attempt marker"
         mark_step_failed "imei" "Could not prepare the IMEI change; not applied"
         return
     fi
@@ -1056,6 +1056,8 @@ apply_imei() {
     local resp
     resp=$(run_at "AT+EGMR=1,7,\"${p_imei}\"")
     if [ $? -ne 0 ]; then
+        # No restart happened, so this attempt must not count against the next boot.
+        _imei_attempt_clear
         mark_step_failed "imei" "Failed to write IMEI"
         return
     fi

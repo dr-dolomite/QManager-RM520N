@@ -571,6 +571,7 @@ step "Removing runtime state and temporary files"
 # underscore, so `qmanager_*` does not match it.
 rm -f  /tmp/qmanager_*   2>/dev/null || true
 rm -f  /tmp/qmanager.log* 2>/dev/null || true
+rm -f  /run/qmanager_profile_boot_applied 2>/dev/null || true
 rm -rf "$SESSION_DIR"
 rm -rf /tmp/qmanager_console_tokens
 rm -rf /tmp/qmanager_stage   # OTA stage dir (a staged download is tens of MB of RAM)
