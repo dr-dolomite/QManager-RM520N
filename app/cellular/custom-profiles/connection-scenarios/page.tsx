@@ -41,7 +41,9 @@ function ConnectionScenariosRedirect() {
     // hosts both profiles and scenarios, so a bare `create` no longer says
     // which one — translate it on the way through instead of dropping it and
     // silently breaking the scenario picker's "Create new custom scenario…".
-    if (next.get("action") === "create") {
+    // `?create=1` is the RM551E alias for the same deep link.
+    if (next.get("action") === "create" || next.get("create") === "1") {
+      next.delete("create");
       next.set("action", SCENARIO_CREATE_ACTION);
     }
     const query = next.toString();

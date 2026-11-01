@@ -13,9 +13,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMotionReduced } from "@/components/motion-preference";
 import { toast } from "sonner";
 
-import CustomProfileViewComponent from "@/components/cellular/custom-profiles/custom-profile-view";
+import ProfileViewComponent from "@/components/cellular/custom-profiles/profile-view";
 import { ProfileFormDialog } from "@/components/cellular/custom-profiles/profile-form-dialog";
-import type { WizardTab } from "@/components/cellular/custom-profiles/custom-profile-form";
+import type { WizardTab } from "@/components/cellular/custom-profiles/profile-input";
+import { iccidMismatch } from "@/components/cellular/custom-profiles/sim-match";
 import { ApplyProgressDialog } from "@/components/cellular/custom-profiles/apply-progress-dialog";
 import {
   DeactivateProgressDialog,
@@ -51,7 +52,7 @@ import {
   useConnectionScenarios,
   ConnectionScenariosProvider,
 } from "@/hooks/use-connection-scenarios";
-import type { SimProfile } from "@/types/sim-profile";
+import type { ProfileSummary, SimProfile } from "@/types/sim-profile";
 import {
   DEFAULT_SCENARIOS,
   type ConnectionScenario,
@@ -85,7 +86,6 @@ import { CellularPageHeader } from "@/components/cellular/page-header";
 import { Button } from "@/components/ui/button";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
-import type { MutationResult } from "@/types/mutation-result";
 
 /**
  * The hero <-> NoActiveProfile cross-fade.
@@ -173,6 +173,7 @@ const CustomProfilePageBody = () => {
   const { t: tc } = useTranslation("common");
   const now = useMinuteClock();
 
+  const sim = useSimProfiles();
   const {
     profiles,
     activeProfileId,
@@ -180,11 +181,10 @@ const CustomProfilePageBody = () => {
     error,
     createProfile,
     updateProfile,
-    deleteProfile,
     deactivateProfile,
     getProfile,
     refresh,
-  } = useSimProfiles();
+  } = sim;
 
   const { applyState, applyProfile, error: applyError } = useProfileApply();
 
@@ -205,16 +205,21 @@ const CustomProfilePageBody = () => {
   // the SAME instance this reads, so a rename in the card lands in the hero.
   const { customScenarios } = useConnectionScenarios();
 
+  // Built-ins carry English fallbacks; overlay the translated name here.
   const scenarios: ConnectionScenario[] = useMemo(
     () => [
-      ...DEFAULT_SCENARIOS,
+      ...DEFAULT_SCENARIOS.map((s) => ({
+        ...s,
+        name: t(`scenarios.default_${s.id}_name`),
+        description: t(`scenarios.default_${s.id}_description`),
+      })),
       ...customScenarios.map((s) => ({
         ...s,
         pattern: "custom" as const,
         isDefault: false,
       })),
     ],
-    [customScenarios],
+    [customScenarios, t],
   );
 
   // ---------------------------------------------------------------------------
@@ -224,7 +229,7 @@ const CustomProfilePageBody = () => {
   // the ribbon and every row's mini-bar are already satisfied) but deliberately
   // omits `settings`. The hero renders APN / CID / PDP / TTL / HL / IMEI, so it
   // needs the full record and has to ask for it by id.
-  const [activeProfile, setActiveProfile] = useState<SimProfile | null>(null);
+  const [detail, setDetail] = useState<SimProfile | null>(null);
 
   // -------------------------------------------------------------------------
   // THE DETAIL NONCE — the only thing that can re-run the fetch below
@@ -288,12 +293,8 @@ const CustomProfilePageBody = () => {
   const [settledDetailId, setSettledDetailId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!activeProfileId) return;
     let cancelled = false;
-    if (!activeProfileId) {
-      setActiveProfile(null);
-      setSettledDetailId(null);
-      return;
-    }
     // Keep the previous hero mounted while the detail lands, rather than
     // blanking it — a hero that flickers on every refresh reads as the page
     // reloading.
@@ -303,7 +304,7 @@ const CustomProfilePageBody = () => {
       // a successful one, and the render path below is what tells those apart.
       setSettledDetailId(activeProfileId);
       if (p) {
-        setActiveProfile(p);
+        setDetail(p);
         return;
       }
       // A detail GET that came back empty is NOT evidence that nothing is
@@ -312,13 +313,16 @@ const CustomProfilePageBody = () => {
       // (it still names this id). Blanking here would flash `NoActiveProfile`
       // on a dropped request, which matters more now that the nonce re-runs
       // this after every mutation rather than once per id change.
-      setActiveProfile((prev) => (prev?.id === activeProfileId ? prev : null));
+      setDetail((prev) => (prev?.id === activeProfileId ? prev : null));
     });
     return () => {
       cancelled = true;
     };
     // `detailNonce` is the invalidation channel — see the block above.
   }, [activeProfileId, getProfile, detailNonce]);
+
+  // Nothing active means no hero record, derived rather than cleared.
+  const activeProfile = activeProfileId ? detail : null;
 
   const heroDetailSettled = Boolean(
     activeProfileId && settledDetailId === activeProfileId,
@@ -409,9 +413,7 @@ const CustomProfilePageBody = () => {
   const allLocallyReady =
     profilesLocallyReady && scenariosLocallyReady && heroLocallyReady;
   const [pageReady, setPageReady] = useState(false);
-  useEffect(() => {
-    if (allLocallyReady) setPageReady(true);
-  }, [allLocallyReady]);
+  if (!pageReady && allLocallyReady) setPageReady(true);
 
   const handleProfilesLocalReadyChange = useCallback((ready: boolean) => {
     setProfilesLocallyReady(ready);
@@ -465,6 +467,7 @@ const CustomProfilePageBody = () => {
   // ---------------------------------------------------------------------------
   const [editingProfile, setEditingProfile] = useState<SimProfile | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Latched once at mount below; a later re-render never re-opens the wizard.
   // Which wizard step the dialog opens on. "Edit schedule" is the one entry
   // point that wants "scenario" instead of the default "identity" — see
   // `handleEditSchedule` below.
@@ -481,7 +484,7 @@ const CustomProfilePageBody = () => {
   // pre-merge behavior, where the same link scrolled the always-mounted form
   // into view; only the mechanism changed.
   const searchParams = useSearchParams();
-  const [arrivedFromCreateLink] = useState(
+  const [formOpenFromLink] = useState(
     () => searchParams.get("action") === "create",
   );
   const [arrivedFromScenarioLink] = useState(
@@ -492,13 +495,18 @@ const CustomProfilePageBody = () => {
   // each increment — see `openAddSignal` there for why a boolean cannot work.
   const [scenarioCreateSignal, setScenarioCreateSignal] = useState(0);
 
-  useEffect(() => {
-    if (arrivedFromCreateLink) {
-      setEditingProfile(null);
-      setFormOpen(true);
-    }
-    // Mount only; ignore later search-param changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const [consumedCreateLink, setConsumedCreateLink] = useState(false);
+  if (formOpenFromLink && !consumedCreateLink) {
+    setConsumedCreateLink(true);
+    setEditingProfile(null);
+    setFormOpen(true);
+  }
+
+  // "+ Create scenario" inside the wizard: close it, open the card's dialog.
+  const handleCreateScenarioFromWizard = useCallback(() => {
+    setFormOpen(false);
+    setEditingProfile(null);
+    setScenarioCreateSignal((n) => n + 1);
   }, []);
 
   const handleNewProfile = useCallback(() => {
@@ -563,7 +571,7 @@ const CustomProfilePageBody = () => {
   // it. The apply is not awaited inside `onSave` — it is latched here and fired
   // by `handleFormOpenChange` once the wizard has actually closed, so the two
   // modals never overlap.
-  const [pendingReapplyId, setPendingReapplyId] = useState<string | null>(null);
+  const pendingReapplyRef = useRef<string | null>(null);
 
   const handleSave = useCallback(
     async (data: ProfileFormData): Promise<string | null> => {
@@ -579,7 +587,7 @@ const CustomProfilePageBody = () => {
       // Bug 1's fix, at the site that most needed it: the id did not change, so
       // nothing else in the detail effect's dep array moved.
       invalidateActiveProfile();
-      if (wasActive) setPendingReapplyId(editedId);
+      if (wasActive) pendingReapplyRef.current = editedId;
       return editedId;
     },
     [
@@ -591,26 +599,16 @@ const CustomProfilePageBody = () => {
     ],
   );
 
-  const handleDelete = useCallback(
-    async (id: string): Promise<MutationResult> => {
-      const result = await deleteProfile(id);
-      if (result.ok && editingProfile?.id === id) {
-        setEditingProfile(null);
-        setFormOpen(false);
-      }
-      return result;
-    },
-    [deleteProfile, editingProfile],
-  );
 
   // ---------------------------------------------------------------------------
   // Activate / deactivate / reapply
   // ---------------------------------------------------------------------------
-  const [activateTarget, setActivateTarget] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [showApplyProgress, setShowApplyProgress] = useState(false);
+  // apply.sh never checks the ICCID, so a profile bound to another SIM asks
+  // first; every other activation starts straight away.
+  const [pendingMismatch, setPendingMismatch] = useState<ProfileSummary | null>(
+    null,
+  );
+  const [userApplyOpen, setShowApplyProgress] = useState(false);
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [deactivatePhase, setDeactivatePhase] =
     useState<DeactivatePhase>("confirm");
@@ -653,32 +651,65 @@ const CustomProfilePageBody = () => {
   //      marking the run adopted is a no-op.
   //
   // It only ever sets `true`; closing stays entirely the close handler's job.
-  const adoptedApplyRunRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (applyState?.status !== "applying") return;
-    const runKey = `${applyState.profile_id}:${applyState.started_at}`;
-    if (adoptedApplyRunRef.current === runKey) return;
-    adoptedApplyRunRef.current = runKey;
-    setShowApplyProgress(true);
-  }, [applyState]);
+  const runKey = applyState
+    ? `${applyState.profile_id}:${applyState.started_at}`
+    : null;
+  const [adoptedRunKey, setAdoptedRunKey] = useState<string | null>(null);
+  if (
+    applyState?.status === "applying" &&
+    runKey !== null &&
+    runKey !== adoptedRunKey
+  ) {
+    setAdoptedRunKey(runKey);
+  }
+  const showApplyProgress =
+    userApplyOpen || (runKey !== null && runKey === adoptedRunKey);
 
-  const handleActivateRequest = useCallback(
+  const startApply = useCallback(
     (id: string) => {
-      const profile = profiles.find((p) => p.id === id);
-      if (profile) setActivateTarget({ id: profile.id, name: profile.name });
+      setShowApplyProgress(true);
+      void applyProfile(id);
     },
-    [profiles],
+    [applyProfile],
   );
 
-  const handleActivateConfirm = useCallback(async () => {
-    if (!activateTarget) return;
-    setActivateTarget(null);
-    setShowApplyProgress(true);
-    await applyProfile(activateTarget.id);
-  }, [activateTarget, applyProfile]);
+  const handleActivateRequest = useCallback(
+    (profile: ProfileSummary) => {
+      if (iccidMismatch(profile.sim_iccid, currentIccid)) {
+        setPendingMismatch(profile);
+        return;
+      }
+      startApply(profile.id);
+    },
+    [currentIccid, startApply],
+  );
 
+  const handleMismatchConfirm = useCallback(() => {
+    if (!pendingMismatch) return;
+    const target = pendingMismatch;
+    setPendingMismatch(null);
+    startApply(target.id);
+  }, [pendingMismatch, startApply]);
+
+  // Close is only reachable at a terminal state: one toast for the outcome,
+  // read from the state BEFORE anything re-reads it.
   const handleApplyProgressClose = useCallback(() => {
+    const finished = applyState?.status;
+    const name = applyState?.profile_name ?? "";
+    if (finished === "complete" || finished === "partial") {
+      toast.success(
+        t(
+          finished === "partial"
+            ? "custom_profiles.view.toast.activated_partial"
+            : "custom_profiles.view.toast.activated",
+          { name },
+        ),
+      );
+    } else if (finished === "failed" || applyError) {
+      toast.error(applyError ?? t("custom_profiles.view.toast.activate_error"));
+    }
     setShowApplyProgress(false);
+    setAdoptedRunKey(null);
     // Intentionally NOT calling resetApply() — leaving applyState in memory so
     // the row can show "Applied at HH:MM" until the next activation.
     //
@@ -690,7 +721,7 @@ const CustomProfilePageBody = () => {
     // a completed apply may have changed (the reboot flag, a rewritten IMEI).
     refresh();
     invalidateActiveProfile();
-  }, [refresh, invalidateActiveProfile]);
+  }, [applyState, applyError, refresh, invalidateActiveProfile, t]);
 
   /**
    * Re-run the apply pipeline.
@@ -739,44 +770,26 @@ const CustomProfilePageBody = () => {
   }, [applyState, applyProfile]);
 
   /**
-   * The wizard's open/close.
+   * The wizard's open/close, and the launch point for auto-reapply.
    *
-   * This used to also be the launch point for auto-reapply: it read
-   * `pendingReapplyId` directly and fired `applyProfile` inline. That read a
-   * STALE closure. `handleSave` calls `setPendingReapplyId(editedId)` and
-   * `ProfileFormDialog.handleSave` calls this handler (as `onOpenChange(false)`)
-   * in the very same synchronous continuation, before React has re-rendered —
-   * so `handleFormOpenChange`'s closure still had `pendingReapplyId` from the
-   * PREVIOUS render (null) and its `if (!pendingReapplyId) return;` guard
-   * exited without ever calling `applyProfile`. The apply only ever fired once
-   * something ELSE later happened to re-invoke this same stale-free callback
-   * (a second `onOpenChange` from Radix, a re-render racing the close
-   * animation) — which is exactly the several-second, inconsistent gap this
-   * page was showing instead of an instant dialog.
-   *
-   * The fix is to stop relying on a closure racing a state update at all:
-   * this handler only ever WRITES `formOpen`, and the effect below reads the
-   * COMMITTED value of both `formOpen` and `pendingReapplyId` once React has
-   * actually applied them — no ordering assumption, no race.
+   * The latch is a REF, not state: `ProfileFormDialog.handleSave` calls this
+   * in the same continuation as `handleSave`, before a re-render, so a state
+   * value read here was stale and the apply never fired. A ref is current.
+   * Cleared before firing so a reopened wizard can never replay it.
    */
-  const handleFormOpenChange = useCallback((open: boolean) => {
-    setFormOpen(open);
-    if (!open) setEditingProfile(null);
-  }, []);
-
-  // Fires the moment BOTH the wizard has actually closed and a save latched a
-  // reapply — i.e. as soon as React commits those two facts, not on whatever
-  // stale snapshot `handleFormOpenChange` happened to close over. This is what
-  // makes the apply dialog appear instantly instead of several seconds late.
-  useEffect(() => {
-    if (formOpen || !pendingReapplyId) return;
-    // Cleared before firing so a cancelled-then-reopened wizard can never
-    // replay someone else's apply.
-    const id = pendingReapplyId;
-    setPendingReapplyId(null);
-    setShowApplyProgress(true);
-    void applyProfile(id);
-  }, [formOpen, pendingReapplyId, applyProfile]);
+  const handleFormOpenChange = useCallback(
+    (open: boolean) => {
+      setFormOpen(open);
+      if (open) return;
+      setEditingProfile(null);
+      const id = pendingReapplyRef.current;
+      if (!id) return;
+      pendingReapplyRef.current = null;
+      setShowApplyProgress(true);
+      void applyProfile(id);
+    },
+    [applyProfile],
+  );
 
   const handleDeactivateRequest = useCallback(() => {
     setDeactivatePhase("confirm");
@@ -1076,42 +1089,24 @@ const CustomProfilePageBody = () => {
             tabIndex={-1}
             className={SAVED_PROFILES_ANCHOR}
           >
-            <CustomProfileViewComponent
-              profiles={profiles}
-              activeProfileId={activeProfileId}
-              isLoading={isLoading}
-              error={error}
+            <ProfileViewComponent
+              sim={sim}
+              currentIccid={currentIccid}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onAdd={handleNewProfile}
               onActivate={handleActivateRequest}
               onDeactivate={handleDeactivateRequest}
-              onRefresh={refresh}
-              currentIccid={currentIccid}
-              lastApplyState={applyState}
-              scenarios={scenarios}
-              onReapply={handleReapply}
+              applyingProfileId={
+                applyState?.status === "applying" ? applyState.profile_id : null
+              }
+              pageBusy={heroBusy}
               now={now}
-              // Recommended for your SIM — rendered as rows INSIDE the saved list,
-              // not as a separate card. They stay a sibling prop rather than being
-              // merged into `profiles`, which is what keeps the count badge, the
-              // detail prefetch, and the activate/delete wiring honest.
+              // Recommended for your SIM: rows inside the list, never merged
+              // into `profiles`, so the count and per-row actions stay honest.
               suggestions={suggestions}
               creatingSuggestionId={creatingId}
-              suggestionError={suggestionsError ?? error}
+              suggestionError={suggestionsError}
               onCreateSuggestion={handleCreateFromSuggestion}
-              // The card's own empty state needs the same create action the page
-              // header carries. It is the SAME handler, so the wizard opens on
-              // `identity` from all three entry points and no second create path
-              // can drift away from this one.
-              onNewProfile={handleNewProfile}
-              // The same "modem is mid-mutation" signal the hero's actions take.
-              // Until the adoption effect above existed this was unreachable —
-              // both progress dialogs are modal and non-dismissable while a
-              // mutation runs, so the list was never clickable during one. An
-              // ADOPTED apply has no dialog until it opens, and the list's own
-              // `busy` is scoped to the profile being applied, so every OTHER
-              // row's Activate stayed live. The two fixes are one fix.
-              pageBusy={heroBusy}
               holdSkeleton={!pageReady}
               onLocalReadyChange={handleProfilesLocalReadyChange}
             />
@@ -1121,6 +1116,7 @@ const CustomProfilePageBody = () => {
             openAddSignal={scenarioCreateSignal}
             nextFireByScenarioId={nextFireByScenarioId}
             radioOwnedByProfile={radioOwnedByProfile}
+            ownerProfileName={radioOwnedByProfile ? (activeProfile?.name ?? null) : undefined}
             holdSkeleton={!pageReady}
             onLocalReadyChange={handleScenariosLocalReadyChange}
           />
@@ -1143,32 +1139,30 @@ const CustomProfilePageBody = () => {
         // was actually reconciled. Suppress it here; the reapply's own ledger
         // reports the outcome once, same as the rest of this page's actions.
         willAutoReapply={editingProfile?.id === activeProfileId}
+        onCreateScenario={handleCreateScenarioFromWizard}
       />
 
       <AlertDialog
-        open={!!activateTarget}
-        onOpenChange={(open) => !open && setActivateTarget(null)}
+        open={pendingMismatch !== null}
+        onOpenChange={(open) => !open && setPendingMismatch(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("custom_profiles.activate_dialog.title")}
+              {t("custom_profiles.view.mismatch_confirm.title", {
+                name: pendingMismatch?.name ?? "",
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("custom_profiles.activate_dialog.description", {
-                name: activateTarget?.name ?? "",
-              })}
+              {t("custom_profiles.view.mismatch_confirm.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel variant="tonal" size="action">
               {tc("actions.cancel")}
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleActivateConfirm}
-              size="action"
-            >
-              {t("custom_profiles.activate_dialog.confirm")}
+            <AlertDialogAction onClick={handleMismatchConfirm} size="action">
+              {t("custom_profiles.view.mismatch_confirm.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

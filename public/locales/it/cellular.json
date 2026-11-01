@@ -1352,7 +1352,10 @@
         "deactivated": "{{name}} disattivato",
         "deactivate_error": "Impossibile disattivare il profilo",
         "deleted": "{{name}} eliminato",
-        "delete_error": "Impossibile eliminare il profilo"
+        "delete_error": "Impossibile eliminare il profilo",
+        "activated": "{{name}} è attivo",
+        "activated_partial": "{{name}} è attivo con alcuni passaggi saltati",
+        "activate_error": "Impossibile attivare il profilo."
       },
       "delete_title": "Eliminare “{{name}}”?",
       "audit": {
@@ -1363,7 +1366,13 @@
       "locks_bands": "Blocca le bande",
       "row_menu_aria": "Azioni per {{name}}",
       "reapply": "Riapplica il profilo",
-      "reapply_hint": "La riapplicazione esegue di nuovo tutti e quattro i passaggi: APN, TTL e hop limit, scenario e IMEI."
+      "reapply_hint": "La riapplicazione esegue di nuovo tutti e quattro i passaggi: APN, TTL e hop limit, scenario e IMEI.",
+      "mismatch_confirm": {
+        "title": "Applicare “{{name}}” a questa SIM?",
+        "description": "Questo profilo è associato a un'altra SIM. Le sue impostazioni vengono applicate ora alla SIM nel modem e si disattivano al prossimo riavvio o cambio di SIM.",
+        "confirm": "Applica a questa SIM"
+      },
+      "scenario_scheduled": "{{scenario}} su pianificazione giornaliera"
     },
     "table": {
       "headers": {
@@ -1657,7 +1666,12 @@
       "failed_notice_title": "Il profilo non è stato applicato",
       "reapply_notice": "La riapplicazione esegue di nuovo l'intera sequenza dall'inizio: il modem non può ritentare un singolo passaggio.",
       "reapply_action": "Riapplica il profilo",
-      "reboot_notice_deferred": "Questo profilo scrive un IMEI, che richiede un riavvio. Ora non viene riavviato nulla: riceverai un banner quando sarà pronto."
+      "reboot_notice_deferred": "Questo profilo scrive un IMEI, che richiede un riavvio. Ora non viene riavviato nulla: riceverai un banner quando sarà pronto.",
+      "step_state_unchanged": "Invariato",
+      "errors": {
+        "start_failed": "Impossibile avviare l'applicazione del profilo.",
+        "not_started": "L'applicazione del profilo non è partita. Riprova."
+      }
     },
     "empty_state": {
       "refresh": "Aggiorna",
@@ -1676,7 +1690,9 @@
       "cid": "CID {{cid}}",
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
-      "imei_override": "Override IMEI"
+      "imei_override": "Override IMEI",
+      "apn_prefix": "APN ",
+      "other_sim": "Altra SIM"
     },
     "list": {
       "new_button": "Nuovo",
@@ -1691,6 +1707,9 @@
     "card": {
       "label_iccid": "SIM",
       "label_updated": "Aggiornato"
+    },
+    "registry": {
+      "error_title": "Impossibile caricare i tuoi profili"
     }
   },
   "frequency_locking": {
@@ -2165,7 +2184,9 @@
         "creating": "Creazione…",
         "save_changes": "Salva modifiche",
         "saving": "Salvataggio…"
-      }
+      },
+      "description": "Lascia vuoto un campo banda per lasciare la scelta al modem.",
+      "name_required": "Dai un nome allo scenario."
     },
     "active_config": {
       "title": "Configurazione {{name}}",
@@ -2184,7 +2205,10 @@
         "lte_bands": "Bande LTE",
         "nr_sa_bands": "Bande NR5G-SA",
         "nr_nsa_bands": "Bande NR5G-NSA"
-      }
+      },
+      "edit": "Modifica",
+      "show_details": "Mostra dettagli",
+      "hide_details": "Nascondi dettagli"
     },
     "tile": {
       "in_force": "Attivo",
@@ -2221,7 +2245,20 @@
       "throughput": "Velocità",
       "custom": "Personalizzato"
     },
-    "bands_auto": "Automatico"
+    "bands_auto": "Automatico",
+    "schedule_lock": {
+      "badge": "Pianificato",
+      "next_change": "Prossimo cambio alle {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "Blocco bande"
+    },
+    "errors": {
+      "load_failed": "Il modem non ha restituito i tuoi scenari. Riprova tra poco.",
+      "activate_failed": "Impossibile attivare lo scenario.",
+      "save_failed": "Impossibile salvare lo scenario.",
+      "delete_failed": "Impossibile eliminare lo scenario."
+    }
   },
   "sms": {
     "page": {

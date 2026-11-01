@@ -7,6 +7,7 @@ import { useMotionReduced } from "@/components/motion-preference";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { iccidMatches } from "@/lib/carrier-match";
 
 import {
   Field,
@@ -28,7 +29,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -36,7 +36,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CardFoot } from "@/components/ui/card-foot";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
+import { SegmentedField } from "@/components/ui/segmented-field";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type { SimProfile, CurrentModemSettings } from "@/types/sim-profile";
@@ -63,23 +65,26 @@ import {
   MNO_CUSTOM_ID,
   getMnoPreset,
 } from "@/constants/mno-presets";
-import { DUR, EASE_STANDARD } from "@/lib/motion";
+import { transitionStandard } from "@/lib/motion";
 import {
   MACHINE_VALUE,
 } from "@/components/cellular/custom-profiles/shapes";
 
 // =============================================================================
-// CustomProfileFormComponent — Create / Edit SIM Profile Wizard
+// ProfileInputComponent — Create / Edit SIM Profile Wizard
 // =============================================================================
-// A four-step wizard (identity → network → scenario → review) rendered inside a
-// single card. Fields are controlled so Submit emits the flat ProfileFormData
-// the backend save.sh expects (APN keys top-level; the backend nests them into
-// settings.apn and mirrors scenario.default → settings.scenario_id). The
-// coordinator prop contract is unchanged: create vs. edit is driven by
-// `editingProfile`, and `onSave` returns the profile id (or null on failure).
+// A four-step wizard (identity -> network -> scenario -> review) in one card,
+// committed from the card's own CardFoot (Cancel, then Next or the SaveButton
+// last on the right). Fields are controlled so Submit emits the flat
+// ProfileFormData save.sh expects (APN keys top-level; the backend nests them
+// into settings.apn and mirrors scenario.default -> settings.scenario_id).
+// The Scenario step keeps RM520N's schedule editor (ScheduleRuleRow blocks,
+// all seven days, reorder, validateSchedule) inside the RM551E tab layout.
+// Create vs. edit is driven by `editingProfile`; `onSave` returns the
+// profile id, or null on failure.
 // =============================================================================
 
-interface CustomProfileFormProps {
+interface ProfileInputProps {
   editingProfile?: SimProfile | null;
   onSave: (data: ProfileFormData) => Promise<string | null>;
   onCancel?: () => void;
@@ -102,6 +107,8 @@ interface CustomProfileFormProps {
    * three steps to reach the thing they actually clicked for.
    */
   initialTab?: WizardTab;
+  /** "+ Create scenario" in the default-scenario picker: the page takes over. */
+  onCreateScenario?: () => void;
 }
 
 // Up to two daily schedule windows per profile — mirrors the device cron
@@ -119,7 +126,7 @@ export type WizardTab = (typeof TAB_ORDER)[number];
 const APN_CUSTOM_VALUE = "__custom__";
 
 // One wizard step. Slides in from the direction of travel (+ forward, - back)
-// and fades on the system EXPO curve. Reduced motion shows it instantly.
+// and fades on the standard transition. Reduced motion shows it instantly.
 const WizardPanel = ({
   dir,
   children,
@@ -130,13 +137,10 @@ const WizardPanel = ({
   const reduceMotion = useMotionReduced();
   return (
     <motion.div
+      className="max-w-3xl"
       initial={reduceMotion ? false : { opacity: 0, x: dir * 12 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={
-        reduceMotion
-          ? { duration: 0 }
-          : { duration: DUR.standard, ease: EASE_STANDARD }
-      }
+      transition={reduceMotion ? { duration: 0 } : transitionStandard}
     >
       {children}
     </motion.div>
@@ -204,7 +208,7 @@ const ERROR_TAB: Record<string, WizardTab> = {
   schedule: "scenario",
 };
 
-const CustomProfileFormComponent = ({
+const ProfileInputComponent = ({
   editingProfile,
   onSave,
   onCancel,
@@ -212,7 +216,8 @@ const CustomProfileFormComponent = ({
   onLoadCurrentSettings,
   willAutoReapply = false,
   initialTab = "identity",
-}: CustomProfileFormProps) => {
+  onCreateScenario,
+}: ProfileInputProps) => {
   const { t } = useTranslation("cellular");
   const {
     scenarios,
@@ -233,6 +238,7 @@ const CustomProfileFormComponent = ({
 
   const [tab, setTab] = useState<WizardTab>(initialTab);
   const [tabDir, setTabDir] = useState(1);
+  const formId = React.useId();
 
   const isEditing = !!editingProfile;
   const isReview = tab === "review";
@@ -413,14 +419,15 @@ const CustomProfileFormComponent = ({
 
   // ---------------------------------------------------------------------------
   // Live duplicate-ICCID guard. An ICCID may belong to only one profile — a
-  // second profile on the same SIM would make activation ambiguous.
+  // second profile on the same SIM would make activation ambiguous. Canonical
+  // compare, so a trailing BCD F pad cannot slip a duplicate through.
   // ---------------------------------------------------------------------------
   const trimmedIccid = form.sim_iccid.trim();
   const duplicateIccid =
     trimmedIccid !== "" &&
     profiles.some(
       (p) =>
-        p.id !== editingProfile?.id && (p.sim_iccid ?? "").trim() === trimmedIccid,
+        p.id !== editingProfile?.id && iccidMatches(p.sim_iccid, trimmedIccid),
     );
 
   // ---------------------------------------------------------------------------
@@ -622,7 +629,7 @@ const CustomProfileFormComponent = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit}>
+        <form id={formId} onSubmit={handleSubmit} noValidate>
           <FieldGroup>
             <Tabs
               value={tab}
@@ -648,7 +655,7 @@ const CustomProfileFormComponent = ({
               <TabsContent value="identity">
                 <WizardPanel dir={tabDir}>
                   <FieldSet>
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <FieldDescription>
                         {t("custom_profiles.form.sections.identity_desc")}
                       </FieldDescription>
@@ -767,7 +774,7 @@ const CustomProfileFormComponent = ({
                     </FieldDescription>
                     <FieldGroup>
                       {hasSavedApn ? (
-                        <div className="grid grid-cols-1 @md/card:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 @xl/card:grid-cols-2">
                           <Field>
                             <FieldLabel htmlFor="apnName">
                               {t("custom_profiles.form.fields.apn_name_label")}
@@ -838,7 +845,7 @@ const CustomProfileFormComponent = ({
                         </Field>
                       )}
 
-                      <div className="grid grid-cols-1 @md/card:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 @xl/card:grid-cols-2">
                         <Field>
                           <FieldLabel htmlFor="pdpType">
                             {t("custom_profiles.form.fields.ip_protocol_label")}
@@ -920,7 +927,7 @@ const CustomProfileFormComponent = ({
                         )}
                       </Field>
 
-                      <div className="grid grid-cols-1 @md/card:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 @xl/card:grid-cols-2">
                         <Field>
                           <FieldLabel htmlFor="ttl">
                             {t("custom_profiles.form.fields.ttl_label")}
@@ -994,34 +1001,43 @@ const CustomProfileFormComponent = ({
                             "custom_profiles.form.default_scenario_label",
                           )}
                           onChange={(id) => updateScenario({ default: id })}
+                          onCreateScenario={onCreateScenario}
                         />
                         <FieldDescription>
                           {t("custom_profiles.form.default_scenario_hint")}
                         </FieldDescription>
                       </Field>
 
-                      <div className="flex items-center justify-between gap-4 rounded-tile bg-surface-container p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="grid gap-0.5">
-                          <Label htmlFor="scheduleEnabled">
+                          <Label>
                             {t("custom_profiles.form.schedule_inline_label")}
                           </Label>
                           <span className="text-on-surface-variant text-xs">
                             {t("custom_profiles.form.schedule_inline_hint")}
                           </span>
                         </div>
-                        <Switch
-                          id="scheduleEnabled"
-                          checked={form.scenario.schedule.enabled}
-                          onCheckedChange={(checked) =>
-                            updateSchedule({ enabled: checked })
+                        <SegmentedField
+                          value={form.scenario.schedule.enabled ? "on" : "off"}
+                          onValueChange={(v) =>
+                            updateSchedule({ enabled: v === "on" })
                           }
+                          options={[
+                            { value: "off", label: t("state.off", { ns: "common" }) },
+                            { value: "on", label: t("state.on", { ns: "common" }) },
+                          ]}
+                          ariaLabel={t("custom_profiles.form.schedule_inline_label")}
+                          breakpoint="never"
+                          glyph={(cls) => (
+                            <MaterialSymbol name="check" size={16} className={cls} />
+                          )}
                         />
                       </div>
 
                       {form.scenario.schedule.enabled && (
                         <div className="flex flex-col gap-3">
                           {scenarioBlocks.length === 0 ? (
-                            <div className="text-on-surface-variant rounded-tile border border-dashed p-4 text-center text-sm">
+                            <div className="text-on-surface-variant rounded-tile bg-surface-container p-4 text-center text-sm">
                               {t("custom_profiles.form.windows_empty")}
                             </div>
                           ) : (
@@ -1066,7 +1082,7 @@ const CustomProfileFormComponent = ({
                             </span>
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="tonal-neutral"
                               size="sm"
                               onClick={addScheduleBlock}
                               disabled={atScheduleCap}
@@ -1237,46 +1253,61 @@ const CustomProfileFormComponent = ({
               </TabsContent>
             </Tabs>
 
-            <FieldSeparator />
-
-            <Field orientation="horizontal">
-              {/*
-                Distinct keys are LOAD-BEARING, not cosmetic. Without them React
-                reconciles these two buttons by position and reuses the same
-                <button> DOM node, mutating its `type` from "button" to "submit"
-                in place. Because React 18 flushes the "Next" click synchronously,
-                that mutation lands BEFORE the browser performs the click's
-                default action — so the browser sees a submit button and submits
-                the form, silently saving the profile on every Next→Review step.
-                Separate keys force a remount: the clicked node stays type="button"
-                for its whole life, so no stray submit fires.
-              */}
-              {isReview ? (
-                <SaveButton
-                  key="profile-submit"
-                  type="submit"
-                  isSaving={isSaving}
-                  saved={saved}
-                  disabled={!requiredFilled}
-                  label={
-                    isEditing
-                      ? t("custom_profiles.form.submit_edit")
-                      : t("custom_profiles.form.submit_add")
-                  }
-                  size="action"
-                />
-              ) : (
-                <Button key="profile-next" type="button" onClick={goNext}>
-                  {t("custom_profiles.form.next")}
-                </Button>
-              )}
-              <Button variant="outline" type="button" onClick={handleCancel}>
-                {t("custom_profiles.form.cancel")}
-              </Button>
-            </Field>
           </FieldGroup>
         </form>
       </CardContent>
+
+      <CardFoot
+        className="px-6"
+        status={
+          duplicateIccid ? (
+            <span className="text-destructive-on-surface inline-flex items-center gap-1.5">
+              <MaterialSymbol name="error" size={16} />
+              {t("custom_profiles.form.fields.sim_iccid_duplicate")}
+            </span>
+          ) : null
+        }
+        actions={
+          <>
+            <Button variant="ghost" size="action" type="button" onClick={handleCancel}>
+              {t("actions.cancel", { ns: "common" })}
+            </Button>
+            {/* Distinct keys are load-bearing: reused by position, the Next
+                button's node turns into a submit mid-click and saves. */}
+            {isReview ? (
+              <SaveButton
+                key="profile-submit"
+                type="submit"
+                form={formId}
+                size="action"
+                isSaving={isSaving}
+                saved={saved}
+                disabled={!requiredFilled}
+                label={
+                  isEditing
+                    ? t("custom_profiles.form.submit_edit")
+                    : t("custom_profiles.form.submit_add")
+                }
+                blockedReason={
+                  duplicateIccid
+                    ? t("custom_profiles.form.fields.sim_iccid_duplicate")
+                    : null
+                }
+              />
+            ) : (
+              <Button
+                key="profile-next"
+                type="button"
+                variant="tonal-neutral"
+                size="action"
+                onClick={goNext}
+              >
+                {t("custom_profiles.form.next")}
+              </Button>
+            )}
+          </>
+        }
+      />
     </Card>
   );
 };
@@ -1367,4 +1398,4 @@ const SummarySection = ({
   );
 };
 
-export default CustomProfileFormComponent;
+export default ProfileInputComponent;

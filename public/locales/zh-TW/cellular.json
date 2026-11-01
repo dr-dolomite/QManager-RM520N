@@ -1352,7 +1352,10 @@
         "deactivated": "已停用 {{name}}",
         "deactivate_error": "停用設定檔失敗",
         "deleted": "已刪除 {{name}}",
-        "delete_error": "刪除設定檔失敗"
+        "delete_error": "刪除設定檔失敗",
+        "activated": "{{name}} 已啟用",
+        "activated_partial": "{{name}} 已啟用，部分步驟已略過",
+        "activate_error": "無法啟用設定。"
       },
       "delete_title": "刪除“{{name}}”？",
       "audit": {
@@ -1363,7 +1366,13 @@
       "locks_bands": "鎖定頻段",
       "row_menu_aria": "{{name}} 的操作",
       "reapply": "重新套用設定檔",
-      "reapply_hint": "重新套用會再次執行全部四個步驟：APN、TTL 與躍點限制、場景和 IMEI。"
+      "reapply_hint": "重新套用會再次執行全部四個步驟：APN、TTL 與躍點限制、場景和 IMEI。",
+      "mismatch_confirm": {
+        "title": "將「{{name}}」套用到此 SIM 卡？",
+        "description": "此設定檔綁定到另一張 SIM 卡。其設定將立即套用到數據機中的 SIM 卡，並在下次重新啟動或更換 SIM 卡時關閉。",
+        "confirm": "套用到此 SIM 卡"
+      },
+      "scenario_scheduled": "{{scenario}}，按每日計劃"
     },
     "table": {
       "headers": {
@@ -1657,7 +1666,12 @@
       "failed_notice_title": "設定檔未被套用",
       "reapply_notice": "重新套用會從頭再執行整個流程——數據機無法只重試單一步驟。",
       "reapply_action": "重新套用設定檔",
-      "reboot_notice_deferred": "此設定檔會寫入 IMEI，需要重新開機才能生效。現在不會重新開機——準備就緒後會顯示提示橫幅。"
+      "reboot_notice_deferred": "此設定檔會寫入 IMEI，需要重新開機才能生效。現在不會重新開機——準備就緒後會顯示提示橫幅。",
+      "step_state_unchanged": "無變化",
+      "errors": {
+        "start_failed": "無法開始套用設定檔。",
+        "not_started": "設定檔套用未啟動，請重試。"
+      }
     },
     "empty_state": {
       "refresh": "重新整理",
@@ -1676,7 +1690,9 @@
       "cid": "CID {{cid}}",
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
-      "imei_override": "IMEI 覆蓋"
+      "imei_override": "IMEI 覆蓋",
+      "apn_prefix": "APN ",
+      "other_sim": "其他 SIM 卡"
     },
     "list": {
       "new_button": "新建",
@@ -1691,6 +1707,9 @@
     "card": {
       "label_iccid": "SIM",
       "label_updated": "更新時間"
+    },
+    "registry": {
+      "error_title": "無法載入您的設定"
     }
   },
   "frequency_locking": {
@@ -2165,7 +2184,9 @@
         "creating": "建立中…",
         "save_changes": "儲存變更",
         "saving": "儲存中…"
-      }
+      },
+      "description": "頻段欄位留空即由數據機自動選擇。",
+      "name_required": "請為場景命名。"
     },
     "active_config": {
       "title": "「{{name}}」設定",
@@ -2184,7 +2205,10 @@
         "lte_bands": "LTE 頻段",
         "nr_sa_bands": "NR5G-SA 頻段",
         "nr_nsa_bands": "NR5G-NSA 頻段"
-      }
+      },
+      "edit": "編輯",
+      "show_details": "顯示詳細資訊",
+      "hide_details": "隱藏詳細資訊"
     },
     "tile": {
       "in_force": "生效中",
@@ -2221,7 +2245,20 @@
       "throughput": "高吞吐",
       "custom": "自訂"
     },
-    "bands_auto": "自動"
+    "bands_auto": "自動",
+    "schedule_lock": {
+      "badge": "已計劃",
+      "next_change": "下次切換於 {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "頻段鎖定"
+    },
+    "errors": {
+      "load_failed": "數據機未回傳您的場景，請稍後再試。",
+      "activate_failed": "無法啟用場景。",
+      "save_failed": "無法儲存場景。",
+      "delete_failed": "無法刪除場景。"
+    }
   },
   "sms": {
     "page": {

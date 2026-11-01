@@ -1352,7 +1352,10 @@
         "deactivated": "{{name}} dinonaktifkan",
         "deactivate_error": "Gagal menonaktifkan profil",
         "deleted": "{{name}} dihapus",
-        "delete_error": "Gagal menghapus profil"
+        "delete_error": "Gagal menghapus profil",
+        "activated": "{{name}} aktif",
+        "activated_partial": "{{name}} aktif dengan beberapa langkah dilewati",
+        "activate_error": "Tidak dapat mengaktifkan profil."
       },
       "delete_title": "Hapus “{{name}}”?",
       "audit": {
@@ -1363,7 +1366,13 @@
       "locks_bands": "Mengunci band",
       "row_menu_aria": "Tindakan untuk {{name}}",
       "reapply": "Terapkan ulang profil",
-      "reapply_hint": "Menerapkan ulang menjalankan keempat langkah lagi — APN, TTL dan hop limit, skenario, dan IMEI."
+      "reapply_hint": "Menerapkan ulang menjalankan keempat langkah lagi — APN, TTL dan hop limit, skenario, dan IMEI.",
+      "mismatch_confirm": {
+        "title": "Terapkan “{{name}}” ke SIM ini?",
+        "description": "Profil ini terikat dengan SIM lain. Pengaturannya diterapkan ke SIM di modem sekarang dan nonaktif saat modem dimulai ulang atau SIM diganti berikutnya.",
+        "confirm": "Terapkan ke SIM ini"
+      },
+      "scenario_scheduled": "{{scenario}} sesuai jadwal harian"
     },
     "table": {
       "headers": {
@@ -1657,7 +1666,12 @@
       "failed_notice_title": "Profil tidak diterapkan",
       "reapply_notice": "Menerapkan ulang menjalankan seluruh urutan dari awal — modem tidak dapat mengulang satu langkah saja.",
       "reapply_action": "Terapkan ulang profil",
-      "reboot_notice_deferred": "Profil ini menulis IMEI, yang memerlukan reboot. Tidak ada yang direboot sekarang — Anda akan mendapat banner saat siap."
+      "reboot_notice_deferred": "Profil ini menulis IMEI, yang memerlukan reboot. Tidak ada yang direboot sekarang — Anda akan mendapat banner saat siap.",
+      "step_state_unchanged": "Tidak berubah",
+      "errors": {
+        "start_failed": "Tidak dapat memulai penerapan profil.",
+        "not_started": "Penerapan profil tidak dimulai. Silakan coba lagi."
+      }
     },
     "empty_state": {
       "refresh": "Muat Ulang",
@@ -1676,7 +1690,9 @@
       "cid": "CID {{cid}}",
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
-      "imei_override": "Penggantian IMEI"
+      "imei_override": "Penggantian IMEI",
+      "apn_prefix": "APN ",
+      "other_sim": "SIM lain"
     },
     "list": {
       "new_button": "Baru",
@@ -1691,6 +1707,9 @@
     "card": {
       "label_iccid": "SIM",
       "label_updated": "Diperbarui"
+    },
+    "registry": {
+      "error_title": "Tidak dapat memuat profil Anda"
     }
   },
   "frequency_locking": {
@@ -2165,7 +2184,9 @@
         "creating": "Membuat…",
         "save_changes": "Simpan Perubahan",
         "saving": "Menyimpan…"
-      }
+      },
+      "description": "Biarkan kolom band kosong agar modem yang memilih.",
+      "name_required": "Beri nama skenario."
     },
     "active_config": {
       "title": "Konfigurasi {{name}}",
@@ -2184,7 +2205,10 @@
         "lte_bands": "Band LTE",
         "nr_sa_bands": "Band NR5G-SA",
         "nr_nsa_bands": "Band NR5G-NSA"
-      }
+      },
+      "edit": "Ubah",
+      "show_details": "Tampilkan detail",
+      "hide_details": "Sembunyikan detail"
     },
     "tile": {
       "in_force": "Berlaku",
@@ -2221,7 +2245,20 @@
       "throughput": "Kecepatan",
       "custom": "Kustom"
     },
-    "bands_auto": "Otomatis"
+    "bands_auto": "Otomatis",
+    "schedule_lock": {
+      "badge": "Terjadwal",
+      "next_change": "Perubahan berikutnya pukul {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "Kunci band"
+    },
+    "errors": {
+      "load_failed": "Modem tidak mengembalikan skenario Anda. Coba lagi sebentar lagi.",
+      "activate_failed": "Tidak dapat mengaktifkan skenario.",
+      "save_failed": "Tidak dapat menyimpan skenario.",
+      "delete_failed": "Tidak dapat menghapus skenario."
+    }
   },
   "sms": {
     "page": {

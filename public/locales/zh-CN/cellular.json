@@ -1352,7 +1352,10 @@
         "deactivated": "已停用 {{name}}",
         "deactivate_error": "停用配置文件失败",
         "deleted": "已删除 {{name}}",
-        "delete_error": "删除配置文件失败"
+        "delete_error": "删除配置文件失败",
+        "activated": "{{name}} 已激活",
+        "activated_partial": "{{name}} 已激活，部分步骤已跳过",
+        "activate_error": "无法激活配置。"
       },
       "delete_title": "删除“{{name}}”？",
       "audit": {
@@ -1363,7 +1366,13 @@
       "locks_bands": "锁定频段",
       "row_menu_aria": "{{name}} 的操作",
       "reapply": "重新应用配置文件",
-      "reapply_hint": "重新应用会再次执行全部四个步骤：APN、TTL 与跳数限制、场景和 IMEI。"
+      "reapply_hint": "重新应用会再次执行全部四个步骤：APN、TTL 与跳数限制、场景和 IMEI。",
+      "mismatch_confirm": {
+        "title": "将“{{name}}”应用到此 SIM 卡？",
+        "description": "此配置文件绑定到另一张 SIM 卡。其设置将立即应用到调制解调器中的 SIM 卡，并在下次重启或更换 SIM 卡时关闭。",
+        "confirm": "应用到此 SIM 卡"
+      },
+      "scenario_scheduled": "{{scenario}}，按每日计划"
     },
     "table": {
       "headers": {
@@ -1657,7 +1666,12 @@
       "failed_notice_title": "配置文件未被应用",
       "reapply_notice": "重新应用会从头再执行整个流程——调制解调器无法只重试单个步骤。",
       "reapply_action": "重新应用配置文件",
-      "reboot_notice_deferred": "此配置文件会写入 IMEI，需要重启才能生效。现在不会重启——准备就绪后会显示提示横幅。"
+      "reboot_notice_deferred": "此配置文件会写入 IMEI，需要重启才能生效。现在不会重启——准备就绪后会显示提示横幅。",
+      "step_state_unchanged": "无变化",
+      "errors": {
+        "start_failed": "无法开始应用配置文件。",
+        "not_started": "配置文件应用未启动，请重试。"
+      }
     },
     "empty_state": {
       "refresh": "刷新",
@@ -1676,7 +1690,9 @@
       "cid": "CID {{cid}}",
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
-      "imei_override": "IMEI 覆盖"
+      "imei_override": "IMEI 覆盖",
+      "apn_prefix": "APN ",
+      "other_sim": "其他 SIM 卡"
     },
     "list": {
       "new_button": "新建",
@@ -1691,6 +1707,9 @@
     "card": {
       "label_iccid": "SIM",
       "label_updated": "更新时间"
+    },
+    "registry": {
+      "error_title": "无法加载您的配置"
     }
   },
   "frequency_locking": {
@@ -2165,7 +2184,9 @@
         "creating": "创建中…",
         "save_changes": "保存更改",
         "saving": "保存中…"
-      }
+      },
+      "description": "频段字段留空即由调制解调器自动选择。",
+      "name_required": "请为场景命名。"
     },
     "active_config": {
       "title": "「{{name}}」配置",
@@ -2184,7 +2205,10 @@
         "lte_bands": "LTE 频段",
         "nr_sa_bands": "NR5G-SA 频段",
         "nr_nsa_bands": "NR5G-NSA 频段"
-      }
+      },
+      "edit": "编辑",
+      "show_details": "显示详情",
+      "hide_details": "隐藏详情"
     },
     "tile": {
       "in_force": "生效中",
@@ -2221,7 +2245,20 @@
       "throughput": "高吞吐",
       "custom": "自定义"
     },
-    "bands_auto": "自动"
+    "bands_auto": "自动",
+    "schedule_lock": {
+      "badge": "已计划",
+      "next_change": "下次切换于 {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "频段锁定"
+    },
+    "errors": {
+      "load_failed": "调制解调器未返回您的场景，请稍后重试。",
+      "activate_failed": "无法激活场景。",
+      "save_failed": "无法保存场景。",
+      "delete_failed": "无法删除场景。"
+    }
   },
   "sms": {
     "page": {

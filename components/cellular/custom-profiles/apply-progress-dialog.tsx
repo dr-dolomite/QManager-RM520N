@@ -16,6 +16,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import { transitionStandard } from "@/lib/motion";
 import {
   APPLY_DIALOG_PANEL,
@@ -359,7 +360,18 @@ export function ApplyProgressDialog({
             </p>
             <ul className={LEDGER_SHAPE.LIST} aria-live="polite">
               {steps.map((step) => {
-                const { fill, glyph, spin } = ledgerStepTone(step.status);
+                // "Skipped" means the value was already right: read it as
+                // Unchanged, and as done once the whole apply completed.
+                const eff =
+                  step.status === "skipped" && status === "complete"
+                    ? "done"
+                    : step.status;
+                const detailText =
+                  step.status === "skipped"
+                    ? step.detail ||
+                      t("custom_profiles.apply_dialog.step_state_unchanged")
+                    : step.detail;
+                const { fill, glyph, spin } = ledgerStepTone(eff);
                 return (
                   <li
                     key={step.name}
@@ -371,7 +383,7 @@ export function ApplyProgressDialog({
                   >
                     <MaterialSymbol
                       name={glyph}
-                      filled={step.status !== "pending"}
+                      filled={eff !== "pending"}
                       size={18}
                       className={cn(
                         LEDGER_SHAPE.GLYPH,
@@ -393,12 +405,12 @@ export function ApplyProgressDialog({
                         panel and got sheared off at the padding edge instead of
                         ellipsizing inside its own row. `title` keeps the full
                         string reachable either way. */}
-                    {step.detail ? (
+                    {detailText ? (
                       <span
                         className={cn(LEDGER_VALUE, LEDGER_SHAPE.VALUE)}
-                        title={step.detail}
+                        title={detailText}
                       >
-                        {step.detail}
+                        {detailText}
                       </span>
                     ) : null}
                   </li>
@@ -435,8 +447,9 @@ export function ApplyProgressDialog({
             tone="warning"
             icon="warning"
             title={
-              applyState?.error ||
-              t("custom_profiles.apply_dialog.partial_notice_title")
+              applyState?.error
+                ? resolveErrorMessage(t, applyState.error, undefined, applyState.error)
+                : t("custom_profiles.apply_dialog.partial_notice_title")
             }
           >
             {t("custom_profiles.apply_dialog.reapply_notice")}
@@ -448,8 +461,9 @@ export function ApplyProgressDialog({
             tone="destructive"
             icon="cancel"
             title={
-              applyState?.error ||
-              t("custom_profiles.apply_dialog.failed_notice_title")
+              applyState?.error
+                ? resolveErrorMessage(t, applyState.error, undefined, applyState.error)
+                : t("custom_profiles.apply_dialog.failed_notice_title")
             }
           >
             {t("custom_profiles.apply_dialog.reapply_notice")}

@@ -1,16 +1,13 @@
-import { Suspense } from 'react'
-import CustomProfileComponent from '@/components/cellular/custom-profiles/custom-profile'
+import { Suspense } from "react";
 
-// Suspense wrapper is required because CustomProfileComponent reads
-// `useSearchParams()` to support the ?action=create deep-link from the SIM-swap
-// banner. Without it Next.js fails the static-export build with a CSR-bailout
-// error.
-const CustomProfilePage = () => {
-  return (
-    <Suspense>
-      <CustomProfileComponent />
-    </Suspense>
-  )
-}
+import CustomProfileComponent from "@/components/cellular/custom-profiles/custom-profile";
 
-export default CustomProfilePage
+// Suspense is required: the page reads `?action=` deep links through
+// useSearchParams, which fails the static export build when unwrapped.
+const CustomProfilePage = () => (
+  <Suspense>
+    <CustomProfileComponent />
+  </Suspense>
+);
+
+export default CustomProfilePage;

@@ -1352,7 +1352,10 @@
         "deactivated": "{{name}} deactivated",
         "deactivate_error": "Failed to deactivate profile",
         "deleted": "{{name}} deleted",
-        "delete_error": "Failed to delete profile"
+        "delete_error": "Failed to delete profile",
+        "activated": "{{name}} is active",
+        "activated_partial": "{{name}} is active with some steps skipped",
+        "activate_error": "Couldn't activate the profile."
       },
       "delete_title": "Delete “{{name}}”?",
       "audit": {
@@ -1363,7 +1366,13 @@
       "locks_bands": "Locks bands",
       "row_menu_aria": "Actions for {{name}}",
       "reapply": "Reapply profile",
-      "reapply_hint": "Reapplying runs all four steps again — APN, TTL and hop limit, scenario, and IMEI."
+      "reapply_hint": "Reapplying runs all four steps again — APN, TTL and hop limit, scenario, and IMEI.",
+      "mismatch_confirm": {
+        "title": "Apply “{{name}}” to this SIM?",
+        "description": "This profile is bound to a different SIM. Its settings apply to the SIM in the modem now and turn off at the next restart or SIM change.",
+        "confirm": "Apply to this SIM"
+      },
+      "scenario_scheduled": "{{scenario}} on a daily schedule"
     },
     "table": {
       "headers": {
@@ -1657,7 +1666,12 @@
       "failed_notice_title": "The profile was not applied",
       "reapply_notice": "Reapplying runs the whole sequence again from the start — the modem has no way to retry a single step.",
       "reapply_action": "Reapply profile",
-      "reboot_notice_deferred": "This profile writes an IMEI, which needs a reboot. Nothing reboots now — you will get a banner when it is ready."
+      "reboot_notice_deferred": "This profile writes an IMEI, which needs a reboot. Nothing reboots now — you will get a banner when it is ready.",
+      "step_state_unchanged": "Unchanged",
+      "errors": {
+        "start_failed": "Could not start the profile apply.",
+        "not_started": "The profile apply did not start. Please try again."
+      }
     },
     "empty_state": {
       "refresh": "Refresh",
@@ -1676,7 +1690,9 @@
       "cid": "CID {{cid}}",
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
-      "imei_override": "IMEI override"
+      "imei_override": "IMEI override",
+      "apn_prefix": "APN ",
+      "other_sim": "Other SIM"
     },
     "list": {
       "new_button": "New",
@@ -1691,6 +1707,9 @@
     "card": {
       "label_iccid": "SIM",
       "label_updated": "Updated"
+    },
+    "registry": {
+      "error_title": "Couldn't load your profiles"
     }
   },
   "frequency_locking": {
@@ -2165,7 +2184,9 @@
         "creating": "Creating…",
         "save_changes": "Save Changes",
         "saving": "Saving…"
-      }
+      },
+      "description": "Leave a band field empty to let the modem choose.",
+      "name_required": "Give the scenario a name."
     },
     "active_config": {
       "title": "{{name}} Configuration",
@@ -2184,7 +2205,10 @@
         "lte_bands": "LTE Bands",
         "nr_sa_bands": "NR5G-SA Bands",
         "nr_nsa_bands": "NR5G-NSA Bands"
-      }
+      },
+      "edit": "Edit",
+      "show_details": "Show details",
+      "hide_details": "Hide details"
     },
     "tile": {
       "in_force": "In force",
@@ -2221,7 +2245,20 @@
       "throughput": "Throughput",
       "custom": "Custom"
     },
-    "bands_auto": "Auto"
+    "bands_auto": "Auto",
+    "schedule_lock": {
+      "badge": "Scheduled",
+      "next_change": "Next change at {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "Band lock"
+    },
+    "errors": {
+      "load_failed": "The modem didn't answer with your scenarios. Try again in a moment.",
+      "activate_failed": "Couldn't activate the scenario.",
+      "save_failed": "Couldn't save the scenario.",
+      "delete_failed": "Couldn't delete the scenario."
+    }
   },
   "sms": {
     "page": {
