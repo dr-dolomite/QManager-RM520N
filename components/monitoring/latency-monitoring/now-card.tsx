@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import {
@@ -44,7 +44,9 @@ import {
   msParts,
   msText,
   resolveCuts,
+  spanParts,
   type Cuts,
+  type SpanUnit,
   type UnitLabels,
 } from "./derive";
 import {
@@ -190,14 +192,22 @@ function ProbeStrip({ slots, cuts, units, intervalSec, ariaLabel }: ProbeStripPr
 interface NowBodyProps {
   connectivity: ConnectivityStatus;
   history: PingHistoryEntry[];
+  snapshotAt: number | null;
+  onOutage: () => void;
 }
 
-function NowBody({ connectivity, history }: NowBodyProps) {
+function NowBody({ connectivity, history, snapshotAt, onOutage }: NowBodyProps) {
   const { t } = useTranslation("dashboard");
   const cuts = resolveCuts(connectivity);
   const units: UnitLabels = {
     ms: t("latencyMonitor.unit_ms"),
     s: t("latencyMonitor.unit_s"),
+  };
+  const spanUnits: Record<SpanUnit, string> = {
+    s: t("latencyMonitor.unit_s"),
+    min: t("latencyMonitor.unit_min"),
+    h: t("latencyMonitor.unit_h"),
+    d: t("latencyMonitor.unit_d"),
   };
   const dash = t("latencyMonitor.unmeasured");
 
@@ -207,14 +217,23 @@ function NowBody({ connectivity, history }: NowBodyProps) {
     ...Array<undefined>(Math.max(0, STRIP_SLOTS - probes.length)).fill(undefined),
     ...probes,
   ];
-  const stripMinutes = Math.max(
-    1,
-    Math.round((STRIP_SLOTS * (connectivity.history_interval_sec || 5)) / 60),
-  );
+  const intervalSec = connectivity.history_interval_sec || 5;
+  const stripMinutes = Math.max(1, Math.round((STRIP_SLOTS * intervalSec) / 60));
 
   const rtt = connectivity.latency_ms;
-  const tone = rtt === null ? "bad" : latencyTone(rtt, cuts);
   const parts = rtt === null ? null : msParts(rtt);
+  // The archive's own timestamp; ring slots are not evenly spaced during an outage.
+  const down = rtt === null;
+  const found = down ? lastAnswer(history) : null;
+  const outageSec = found && snapshotAt !== null ? snapshotAt - found.atMs / 1000 : NaN;
+  const outage = spanParts(outageSec);
+  const last = found && outage.length > 0 ? found : null;
+  // Pull the archive forward when an outage starts, so its newest answer is fresh.
+  useEffect(() => {
+    if (down) onOutage();
+  }, [down, onOutage]);
+  // A live reading takes its tone; an outage reads in plain ink, the chip carries the verdict.
+  const tone = rtt === null ? "ok" : latencyTone(rtt, cuts);
 
   let caption = "";
   if (rtt !== null) {
@@ -224,14 +243,32 @@ function NowBody({ connectivity, history }: NowBodyProps) {
         worst: msText(connectivity.max_latency_ms, units),
       });
     }
+  } else if (last) {
+    caption = t("latencyMonitor.now.last_answer", {
+      time: hhmm(last.atMs),
+      value: msText(last.ms, units),
+    });
   } else {
-    const last = lastAnswer(history);
-    if (last) {
-      caption = t("latencyMonitor.now.last_answer", {
-        time: hhmm(last.atMs),
-        value: msText(last.ms, units),
-      });
-    }
+    caption = t("latencyMonitor.now.no_reply");
+  }
+
+  let figure: React.ReactNode;
+  if (parts) {
+    figure = (
+      <>
+        {parts.value}
+        <small className={NOW.VALUE_UNIT}>{units[parts.unit]}</small>
+      </>
+    );
+  } else if (last) {
+    figure = outage.map((p, i) => (
+      <Fragment key={p.unit}>
+        <span className={cn(i > 0 && NOW.VALUE_PAIR)}>{p.value}</span>
+        <small className={NOW.VALUE_UNIT}>{spanUnits[p.unit]}</small>
+      </Fragment>
+    ));
+  } else {
+    figure = <span className={NOW.VALUE_DASH}>{dash}</span>;
   }
 
   const collecting =
@@ -258,17 +295,10 @@ function NowBody({ connectivity, history }: NowBodyProps) {
     <>
       <div className={NOW.FIGURE}>
         <span className={cn(EYEBROW, EYEBROW_H)}>
-          {t("latencyMonitor.now.eyebrow")}
+          {t(last ? "latencyMonitor.now.eyebrow_down" : "latencyMonitor.now.eyebrow")}
         </span>
         <span className={cn(NOW.VALUE, NOW.VALUE_H, FIGURE_INK[tone], TRANSITION_INK)}>
-          {parts ? (
-            <>
-              {parts.value}
-              <small className={NOW.VALUE_UNIT}>{units[parts.unit]}</small>
-            </>
-          ) : (
-            t("latencyMonitor.now.no_reply")
-          )}
+          {figure}
         </span>
         <span className={cn(NOW.CAPTION, NOW.CAPTION_H)}>{caption}</span>
         <div
@@ -363,11 +393,22 @@ function NowBody({ connectivity, history }: NowBodyProps) {
 export interface NowCardProps {
   connectivity: ConnectivityStatus | null;
   history: PingHistoryEntry[];
+  /** Modem clock of the connectivity snapshot; an outage is dated against it. */
+  snapshotAt: number | null;
   unreachable: boolean;
   onRetry: () => void;
+  /** Called when the live reading goes missing, to refresh the archive. */
+  onOutage: () => void;
 }
 
-export function NowCard({ connectivity, history, unreachable, onRetry }: NowCardProps) {
+export function NowCard({
+  connectivity,
+  history,
+  snapshotAt,
+  unreachable,
+  onRetry,
+  onOutage,
+}: NowCardProps) {
   const { t } = useTranslation("dashboard");
   const status = unreachable ? "unknown" : (connectivity?.status ?? "unknown");
   const Glyph = STATUS_GLYPH[status];
@@ -403,7 +444,12 @@ export function NowCard({ connectivity, history, unreachable, onRetry }: NowCard
             actionIcon={RotateCwIcon}
           />
         ) : connectivity ? (
-          <NowBody connectivity={connectivity} history={history} />
+          <NowBody
+            connectivity={connectivity}
+            history={history}
+            snapshotAt={snapshotAt}
+            onOutage={onOutage}
+          />
         ) : (
           <NowSkeleton />
         )}

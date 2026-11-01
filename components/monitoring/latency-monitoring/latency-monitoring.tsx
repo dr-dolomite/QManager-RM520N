@@ -17,6 +17,7 @@ const LatencyMonitoringComponent = () => {
   const { t } = useTranslation("dashboard");
   const {
     connectivity,
+    snapshotAt,
     unreachable,
     refreshStatus,
     history,
@@ -43,8 +44,10 @@ const LatencyMonitoringComponent = () => {
         <NowCard
           connectivity={connectivity}
           history={history}
+          snapshotAt={snapshotAt}
           unreachable={unreachable}
           onRetry={refreshStatus}
+          onOutage={refreshHistory}
         />
         <HistoryCard
           connectivity={connectivity}
@@ -56,7 +59,10 @@ const LatencyMonitoringComponent = () => {
       </motion.div>
 
       <motion.div variants={staggerItem}>
-        <SitesCard cuts={resolveCuts(connectivity)} />
+        <SitesCard
+          cuts={resolveCuts(connectivity)}
+          linkDown={!unreachable && connectivity?.status === "disconnected"}
+        />
       </motion.div>
     </motion.div>
   );

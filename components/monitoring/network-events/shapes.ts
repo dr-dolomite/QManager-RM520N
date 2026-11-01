@@ -87,12 +87,19 @@ export const ACTIVITY = {
   LEGEND_LINE: "mt-3 h-5",
 } as const;
 
-/** Series fill, bottom-up in the stack. Routine is neutral: a count is not a verdict. */
+/** Bottom-up fills. Problems are destructive: amber fails contrast on the neutral
+ *  and collapses with green under protanopia. */
 export const ACTIVITY_SERIES_COLOR = {
-  problems: "var(--warning)",
-  recoveries: "var(--success)",
+  problems: "var(--destructive)",
   routine: "var(--tag-neutral-border)",
+  recoveries: "var(--success)",
 } as const;
+
+/** Bottom-up stack order; the topmost non-empty segment wears the rounded data end. */
+export const ACTIVITY_STACK = ["problems", "routine", "recoveries"] as const;
+
+/** The data end's corner, and the surface gap drawn between touching segments. */
+export const ACTIVITY_BAR = { RADIUS: 4, GAP: 2 } as const;
 
 // -----------------------------------------------------------------------------
 // The log card
