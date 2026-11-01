@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
-import { Badge } from "@/components/ui/badge";
 import { HintIcon } from "@/components/ui/hint-icon";
 import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
@@ -32,11 +31,9 @@ import {
   AUTO_GRID,
   AUTO_METER,
   AUTO_TILE,
-  BADGE_GLYPH_SIZE,
   FAILOVER_BADGE,
   FIELD_CONTROL,
   METER_BARS,
-  PERSIST_BADGE,
   SKELETON_SHAPE,
   discTone,
   failoverKey,
@@ -44,9 +41,7 @@ import {
   meterBarHeight,
   meterBarLit,
   lockPresence,
-  persistPosture,
   type TowerFailoverKey,
-  type TowerPersistPosture,
 } from "./shapes";
 
 // =============================================================================
@@ -68,13 +63,6 @@ const FAILOVER_STATE_LABEL: Record<TowerFailoverKey, string> = {
   released: `${K}.automation.failover_state_released`,
   stalled: `${K}.automation.failover_state_stalled`,
   unknown: `${K}.automation.failover_state_unknown`,
-};
-
-const PERSIST_STATE_LABEL: Record<TowerPersistPosture, string> = {
-  on: `${K}.live.persist_state_on`,
-  off: `${K}.live.persist_state_off`,
-  split: `${K}.live.persist_state_split`,
-  unknown: `${K}.live.persist_state_unknown`,
 };
 
 const renderCheckGlyph = (className: string) => (
@@ -147,18 +135,6 @@ export function TowerAutomationTiles({
   const thresholdErrored = !thresholdBlank && !thresholdValid;
   const thresholdUnread = savedThreshold === null;
 
-  const handlePersist = async (next: boolean) => {
-    if (!config || next === config.persist) return;
-    await writeTowerSettings(
-      t,
-      onUpdateSettings,
-      { persist: next },
-      next
-        ? t(`${K}.live.persist_toast_enabled`)
-        : t(`${K}.live.persist_toast_disabled`),
-    );
-  };
-
   const handleFailover = async (next: boolean) => {
     if (!config || next === config.failover.enabled) return;
     await writeTowerSettings(
@@ -220,8 +196,6 @@ export function TowerAutomationTiles({
   );
   const failBadge = FAILOVER_BADGE[failState];
   const failLabel = t(FAILOVER_STATE_LABEL[failState]);
-  const persistState = persistPosture(modemState);
-  const persistBadge = PERSIST_BADGE[persistState];
 
   const qualityPct =
     activeRsrp === null ? null : rsrpToQualityPercent(activeRsrp);
@@ -236,7 +210,6 @@ export function TowerAutomationTiles({
         {[0, 1].map((i) => (
           <Skeleton key={i} className={SKELETON_SHAPE.AUTO_TILE} />
         ))}
-        <Skeleton className={`${SKELETON_SHAPE.PERSIST_TILE} ${AUTO_TILE.WIDE}`} />
       </div>
     );
   }
@@ -401,45 +374,6 @@ export function TowerAutomationTiles({
 
       <motion.div variants={staggerRowItem} className="h-full">
         <ScheduleTile config={config} onScheduleChange={onScheduleChange} />
-      </motion.div>
-
-      {/* --- Keep after reboot (modem-wide). The switch drives the CONFIG;
-          the chip reports the MODEM, so a split read-back stays visible. --- */}
-      <motion.div
-        variants={staggerRowItem}
-        className={`${AUTO_TILE.ROOT} ${AUTO_TILE.WIDE}`}
-      >
-        <div className={AUTO_TILE.HEAD}>
-          <span className={`${AUTO_TILE.DISC} ${AUTO_TILE.DISC_NEUTRAL}`}>
-            <MaterialSymbol name="restart_alt" size={20} aria-hidden="true" />
-          </span>
-          <span className={AUTO_TILE.TITLE}>
-            {t(`${K}.live.persist_label`)}
-          </span>
-          <Badge variant={persistBadge.variant}>
-            <MaterialSymbol name={persistBadge.glyph} size={BADGE_GLYPH_SIZE} />
-            {t(PERSIST_STATE_LABEL[persistState])}
-          </Badge>
-          <div className="ml-auto" role="group">
-            <SegmentedField
-              value={config?.persist ? "on" : "off"}
-              onValueChange={(v) => void handlePersist(v === "on")}
-              options={[
-                { value: "off", label: t("state.off", { ns: "common" }) },
-                { value: "on", label: t("state.on", { ns: "common" }) },
-              ]}
-              ariaLabel={t(`${K}.live.persist_label`)}
-              disabled={controlsDisabled}
-              breakpoint="never"
-              glyph={renderCheckGlyph}
-            />
-          </div>
-        </div>
-        <p className={AUTO_TILE.BODY}>
-          {persistState === "split"
-            ? t(`${K}.live.persist_split_help`)
-            : t(`${K}.live.persist_help`)}
-        </p>
       </motion.div>
     </motion.div>
   );

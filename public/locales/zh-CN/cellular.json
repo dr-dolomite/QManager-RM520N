@@ -2534,6 +2534,8 @@
       "slot_in_use": "位于小区 {{index}}"
     },
     "card": {
+      "persist_label": "重启后保持",
+      "persist_aria": "重启后保持 {{leg}} 锁定",
       "gate_nsa_title": "5G NSA 下不可用",
       "gate_nsa_body": "独立组网锁定要求调制解调器处于 SA 模式。当前 5G 锚定在一个 LTE 小区上。",
       "gate_lte_title": "无 5G 连接",
@@ -2592,6 +2594,8 @@
       "unlock_body": "无线电将恢复自行选择小区。重新附着期间连接会短暂中断。"
     },
     "toast": {
+      "persist_enabled": "重启后将保持 {{leg}} 锁定",
+      "persist_disabled": "重启后将不再保持 {{leg}} 锁定",
       "locked": "已应用 {{leg}} 基站锁定",
       "unlocked": "已清除 {{leg}} 基站锁定",
       "incomplete": "请填写所有字段后再锁定",

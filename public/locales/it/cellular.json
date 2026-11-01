@@ -2534,6 +2534,8 @@
       "slot_in_use": "Nella cella {{index}}"
     },
     "card": {
+      "persist_label": "Mantieni dopo il riavvio",
+      "persist_aria": "Mantieni il blocco {{leg}} dopo il riavvio",
       "gate_nsa_title": "Non disponibile in 5G NSA",
       "gate_nsa_body": "Il blocco standalone richiede il modem in modalità SA. Attualmente usa il 5G ancorato a una cella LTE.",
       "gate_lte_title": "Nessuna connessione 5G",
@@ -2592,6 +2594,8 @@
       "unlock_body": "La radio torna a scegliere la cella da sola. La connessione si interrompe brevemente durante il riaggancio."
     },
     "toast": {
+      "persist_enabled": "Il blocco {{leg}} verrà mantenuto dopo il riavvio",
+      "persist_disabled": "Il blocco {{leg}} non verrà mantenuto dopo il riavvio",
       "locked": "Blocco BTS {{leg}} applicato",
       "unlocked": "Blocco BTS {{leg}} rimosso",
       "incomplete": "Compila tutti i campi prima di bloccare",

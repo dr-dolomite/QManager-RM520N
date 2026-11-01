@@ -2534,6 +2534,8 @@
       "slot_in_use": "Di sel {{index}}"
     },
     "card": {
+      "persist_label": "Pertahankan setelah reboot",
+      "persist_aria": "Pertahankan kunci {{leg}} setelah reboot",
       "gate_nsa_title": "Tidak tersedia di 5G NSA",
       "gate_nsa_body": "Penguncian standalone memerlukan modem dalam mode SA. Saat ini modem memakai 5G yang di-anchor ke sel LTE.",
       "gate_lte_title": "Tidak ada koneksi 5G",
@@ -2592,6 +2594,8 @@
       "unlock_body": "Radio kembali memilih selnya sendiri. Koneksi terputus sejenak saat terhubung ulang."
     },
     "toast": {
+      "persist_enabled": "Kunci {{leg}} akan dipertahankan setelah reboot",
+      "persist_disabled": "Kunci {{leg}} tidak akan dipertahankan setelah reboot",
       "locked": "Kunci tower {{leg}} diterapkan",
       "unlocked": "Kunci tower {{leg}} dihapus",
       "incomplete": "Isi semua kolom sebelum mengunci",

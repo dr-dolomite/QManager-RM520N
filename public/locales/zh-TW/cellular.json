@@ -2534,6 +2534,8 @@
       "slot_in_use": "位於小區 {{index}}"
     },
     "card": {
+      "persist_label": "重新啟動後保持",
+      "persist_aria": "重新啟動後保持 {{leg}} 鎖定",
       "gate_nsa_title": "5G NSA 下無法使用",
       "gate_nsa_body": "獨立組網鎖定需要數據機處於 SA 模式。目前 5G 錨定於一個 LTE 小區上。",
       "gate_lte_title": "無 5G 連線",
@@ -2592,6 +2594,8 @@
       "unlock_body": "無線電將恢復自行選擇小區。重新附著期間連線會短暫中斷。"
     },
     "toast": {
+      "persist_enabled": "重新啟動後將保持 {{leg}} 鎖定",
+      "persist_disabled": "重新啟動後將不再保持 {{leg}} 鎖定",
       "locked": "已套用 {{leg}} 基站鎖定",
       "unlocked": "已清除 {{leg}} 基站鎖定",
       "incomplete": "請填寫所有欄位後再鎖定",

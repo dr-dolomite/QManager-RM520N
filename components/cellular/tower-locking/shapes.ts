@@ -260,8 +260,6 @@ export const AUTO_TILE = {
   TITLE: "text-sm font-semibold",
   BODY: "text-xs leading-relaxed text-pretty text-on-surface-variant",
   FOOT: "mt-auto",
-  /** Keep-after-reboot spans the row under the two-up, so neither is orphaned. */
-  WIDE: "@xl/section:col-span-2",
 } as const;
 
 /**
@@ -388,36 +386,6 @@ export function failoverKey(
   return "ready";
 }
 
-export type TowerPersistPosture = "on" | "off" | "split" | "unknown";
-
-/** Keep-after-reboot as the MODEM reads it back. `split`: one radio did not take. */
-export const PERSIST_BADGE: Record<
-  TowerPersistPosture,
-  { variant: BadgeVariant; glyph: MaterialSymbolName }
-> = {
-  on: { variant: "success", glyph: "check_circle" },
-  off: { variant: "muted", glyph: "do_not_disturb_on" },
-  split: { variant: "warning", glyph: "warning" },
-  unknown: { variant: "muted", glyph: "help" },
-};
-
-/**
- * `save_ctrl,v,v` writes one value to both radios but they read back apart, so
- * the modem can report `1,0`. A failed read is `unknown`, never `off`.
- */
-export function persistPosture(
-  modemState: {
-    persist_lte: boolean;
-    persist_nr: boolean;
-    persist_read_ok?: boolean;
-  } | null,
-): TowerPersistPosture {
-  if (!modemState || modemState.persist_read_ok === false) return "unknown";
-  if (modemState.persist_lte && modemState.persist_nr) return "on";
-  if (!modemState.persist_lte && !modemState.persist_nr) return "off";
-  return "split";
-}
-
 export type LegPosture = "locked" | "unlocked" | "unknown";
 
 // --- Skeletons ---------------------------------------------------------------
@@ -439,7 +407,7 @@ export const SKELETON_SHAPE = {
   CARRIER_TILE: "h-[5.4375rem] w-full rounded-tile",
   AUTO_TILE: "h-[14.625rem] w-full rounded-tile",
   VERDICT: "h-[3.25rem] w-full rounded-tile",
-  PERSIST_TILE: "h-[6.625rem] w-full rounded-tile",
+  PERSIST_FIELD: "h-[2.625rem] w-[17.125rem] rounded-pill",
   DAY_CHIP: "size-11 rounded-pill",
 } as const;
 

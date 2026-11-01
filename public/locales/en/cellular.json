@@ -2534,6 +2534,8 @@
       "slot_in_use": "In cell {{index}}"
     },
     "card": {
+      "persist_label": "Keep after reboot",
+      "persist_aria": "Keep {{leg}} lock after reboot",
       "gate_nsa_title": "Not available in 5G NSA",
       "gate_nsa_body": "Standalone locking needs the modem in SA mode. It is currently using 5G anchored to an LTE cell.",
       "gate_lte_title": "No 5G connection",
@@ -2592,6 +2594,8 @@
       "unlock_body": "The radio goes back to choosing its own cell. The connection drops briefly while it reattaches."
     },
     "toast": {
+      "persist_enabled": "{{leg}} lock will be kept after reboot",
+      "persist_disabled": "{{leg}} lock will not be kept after reboot",
       "locked": "{{leg}} tower lock applied",
       "unlocked": "{{leg}} tower lock cleared",
       "incomplete": "Fill in every field before locking",

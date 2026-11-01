@@ -23,7 +23,7 @@
 #   tower_unlock_nr               → Clear NR-SA lock
 #   tower_read_lte_lock           → Query and parse LTE lock state
 #   tower_read_nr_lock            → Query and parse NR-SA lock state
-#   tower_set_persist <0|1>       → Send AT+QNWLOCK="save_ctrl"
+#   tower_set_persist <lte> [nr]  → Send AT+QNWLOCK="save_ctrl" (nr defaults to lte)
 #   tower_read_persist            → Query and parse persist state
 #   calc_signal_quality <rsrp>    → Returns 0-100 integer
 # =============================================================================
@@ -383,13 +383,12 @@ tower_read_nr_lock() {
 # AT Command Operations — Persistence Control
 # =============================================================================
 
-# Set persistence for both LTE and NR locks
-# Args: $1=value (0 or 1)
+# Set persistence per radio. Args: $1=lte (0|1), $2=nr (0|1, defaults to $1)
 tower_set_persist() {
-    local val="$1"
-    qlog_info "Setting tower lock persistence: $val"
+    local lte="$1" nr="${2:-$1}"
+    qlog_info "Setting tower lock persistence: lte=$lte nr=$nr"
     local result
-    result=$(qcmd "AT+QNWLOCK=\"save_ctrl\",$val,$val" 2>/dev/null)
+    result=$(qcmd "AT+QNWLOCK=\"save_ctrl\",$lte,$nr" 2>/dev/null)
     local rc=$?
     printf '%s' "$result"
     return $rc
