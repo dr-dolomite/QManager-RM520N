@@ -36,6 +36,8 @@ When no browser is polling, `qmanager_poller` stops asking the modem every cycle
 - Discord bot status: LTE signal is QMI-fresh while the lane is up; otherwise up to 60 s old in Deep (accepted, user 2026-10-27 and 2026-10-29).
 - Signal history gets a per-antenna point every 15 s in Idle and none in Deep. Events (band, PCI, SCC) are detected at touch time.
 
+**Detached radio skips the radio reads (2026-11-02).** When this cycle's serving-cell read leaves neither `lte_state` nor `nr_state` `connected` (`radio_attached` in the poller), the per-antenna read and the Tier 2 time-advance / MIMO groups send nothing: each returns ERROR while detached, and `network_type` still holds the last attached mode. A skipped or failed per-antenna read writes `[null,null,null,null]` to `status.json` and signal history rather than repeating the last reading; `lte.ta` / `nr.ta` go blank. Measured on the RG501Q-EU (weak cell): of 136 `lte_time_advance` / `QRSRP` ERRORs in ~40 h of `qmanager.log`, 89 fell in such a cycle. The other 47 came while QENG still reported a cell on a link that dropped every minute or two; the gate cannot see those, and `qcmd` has no way to read without logging the ERROR. Both commands return OK on a stable attach.
+
 ## Watchdog heartbeat
 
 `qmanager_watchcat` writes `mono` (uptime s) and `stale_after` into `/tmp/qmanager_watchcat.json` on every write: `3 × check_interval + 60`, or `600` just before a recovery tier runs. The poller publishes `watchcat.age_sec` (uptime delta, never negative) and `watchcat.stale_after`; both are `null` when unknown. A missing state file resets every `watchcat.*` field. The watchdog page does not read these yet.

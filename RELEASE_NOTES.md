@@ -61,6 +61,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **4G SINR now reads in real dB.** The LTE SINR on the dashboard and the **Cellular** page was the modem's raw value and could read several dB off; it now matches the modem's own per-antenna figures. (QENG raw X → 2X−20.)
 - **Reverting to the carrier APN no longer fails silently.** "Use carrier default" on the APN card now completes cleanly, and if the modem changed but QManager could not save the setting, you get a warning instead of a quiet success. (`apn.sh` no longer leaves a stray temp file when a save fails.)
 - **Clearer APN error messages.** When an APN change fails, the message now says what went wrong (the modem couldn't detach, didn't confirm it re-registered, was given a different APN, or another change was still running) in all five languages.
+- **Quieter logs when the signal drops.** While the modem has lost its cell, QManager no longer asks it for per-antenna signal and timing values it can't answer, so **System Settings → System Logs** no longer fills with errors after each drop, and the antenna charts show a gap instead of repeating the last reading. (Skips `AT+QRSRP` and `AT+QNWCFG` time-advance / MIMO reads while no radio is attached.)
 - **Cell Scanner locks NR cells with the right spacing.** Locking an NR cell from **Cellular → Cell Scanner** now picks the subcarrier spacing from the band instead of always 30 kHz, which mis-locked bands such as n71 and n25.
 
 ## 📥 Installation
