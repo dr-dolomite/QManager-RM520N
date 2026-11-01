@@ -150,9 +150,11 @@ export interface TowerLockResponse {
   detail?: string;
 }
 
-/** One settings write. An absent part keeps its saved value (the hook fills it: `settings.sh` takes persist and
- * failover in one body); `persist` is modem-wide. */
+/** One settings write. Persistence is sent only when given, so a failover save never touches it and one radio's
+ * value never touches the other; `persist` sets both radios. */
 export interface TowerSettingsChange {
+  persist_lte?: boolean;
+  persist_nr?: boolean;
   persist?: boolean;
   /** Only the fields given change; the rest are read when the write is sent. */
   failover?: { enabled?: boolean; threshold?: number };
@@ -162,6 +164,9 @@ export interface TowerSettingsChange {
 export interface TowerSettingsResponse {
   success: boolean;
   persist?: boolean;
+  /** Each radio's value after the call; null when persistence was not asked or could not be read. */
+  persist_lte?: boolean | null;
+  persist_nr?: boolean | null;
   failover_enabled?: boolean;
   failover_threshold?: number;
   persist_command_failed?: boolean;

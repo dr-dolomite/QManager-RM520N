@@ -488,9 +488,8 @@ const ConnectionQualityComponent = ({
       ) : null}
       {hasOutageField ? (
         <div className="flex h-5 items-center gap-2">
-          {/* `history` is not in the Material subset; the clock glyph stands in. */}
           <MaterialSymbol
-            name="schedule"
+            name="history"
             size={16}
             className="shrink-0 text-on-surface-variant"
           />

@@ -185,68 +185,6 @@
       "scenario_note": "Beralih ke skenario Seimbang untuk mengambil kendali manual.",
       "profile_note": "Skenario aktif dijadwalkan berubah pada {{time}}."
     },
-    "live": {
-      "title": "Konfigurasi langsung",
-      "eyebrow": "Status penguncian",
-      "rail_subtitle_unknown": "Belum dilaporkan",
-      "rail_subtitle_unavailable": "Konfigurasi band tidak terbaca",
-      "rail_subtitle_none": "Tidak ada pembatasan band saat ini",
-      "rail_subtitle_all": "Ketiga radio dibatasi",
-      "rail_subtitle_partial": "{{count}} dari {{total}} radio dibatasi",
-      "rail_ratio": "{{count}} dari {{total}} band diizinkan",
-      "rail_unavailable": "Tidak dapat membaca band radio ini",
-      "rail_status_locked": "Terkunci",
-      "rail_status_unrestricted": "Tanpa batasan",
-      "rail_status_unknown": "Belum dilaporkan",
-      "rail_status_unavailable": "Tidak tersedia",
-      "on_air": "Sedang mengudara",
-      "on_air_summary_one": "{{count}} carrier · {{mhz}} MHz",
-      "on_air_summary_other": "{{count}} carrier · {{mhz}} MHz",
-      "on_air_empty_title": "Tidak ada carrier aktif",
-      "on_air_empty_body": "Modem sedang tidak terhubung ke sel mana pun. Kunci di bawah tetap berlaku begitu modem terhubung.",
-      "absent_nr_title": "Tidak ada carrier 5G",
-      "absent_nr_body": "Modem hanya memakai LTE. Tidak ada sel NR dalam jangkauan saat ini.",
-      "absent_lte_title": "Tidak ada anchor LTE",
-      "absent_lte_body": "Modem berada di 5G standalone. Tidak ada carrier LTE yang dipakai.",
-      "tile_tech_LTE": "LTE",
-      "tile_tech_NR": "5G NR",
-      "tile_earfcn": "EARFCN",
-      "tile_rsrp": "{{value}} dBm",
-      "tile_rsrq": "{{value}} dB",
-      "tile_sinr": "{{value}} dB",
-      "tile_no_value": "—",
-      "failover_label": "Failover band",
-      "failover_help_label": "Tentang failover band",
-      "failover_help": "Jika diaktifkan, modem otomatis kembali ke band bawaannya bila band yang dikunci tetap tidak tersedia selama sekitar 30 detik.",
-      "failover_state": {
-        "disabled": "Nonaktif",
-        "fallback": "Fallback aktif",
-        "monitoring": "Memantau",
-        "ready": "Siap"
-      },
-      "failover_toast_enabled": "Failover band diaktifkan",
-      "failover_toast_disabled": "Failover band dinonaktifkan",
-      "failover_toast_error": "Tidak dapat memperbarui failover band"
-    },
-    "categories": {
-      "lte": {
-        "title": "LTE",
-        "description": "Band yang boleh dipakai modem untuk koneksi 4G-nya."
-      },
-      "nsa_nr5g": {
-        "title": "5G NSA",
-        "description": "Band 5G yang dipakai bersama anchor LTE."
-      },
-      "sa_nr5g": {
-        "title": "5G SA",
-        "description": "Band 5G yang dipakai standalone, tanpa anchor LTE."
-      }
-    },
-    "short": {
-      "lte": "LTE",
-      "nsa_nr5g": "5G NSA",
-      "sa_nr5g": "5G SA"
-    },
     "card": {
       "status_scenario": "Dikendalikan skenario",
       "status_unrestricted": "Semua band",
@@ -259,10 +197,6 @@
       "legend_live": "Terkunci saat ini",
       "empty_title": "Tidak ada yang bisa dikunci di sini",
       "empty_body": "Modem tidak melaporkan band yang didukung pada kategori ini."
-    },
-    "states": {
-      "read_error_title": "Tidak dapat membaca konfigurasi band",
-      "read_error_body": "Modem tidak merespons, sehingga halaman ini tidak dapat menampilkan band mana yang sedang dikunci. Coba lagi sebentar. {{reason}}"
     },
     "actions": {
       "lock_selected": "Kunci pita terpilih",
@@ -948,8 +882,6 @@
         "verifying": "Memastikan apa yang diterapkan modem"
       },
       "footer": {
-        "reread": "Baca ulang dari modem",
-        "in_sync": "Pengaturan tersimpan cocok dengan modem.",
         "refresh": "Segarkan"
       },
       "strip": {
@@ -1095,11 +1027,6 @@
         "title": "IMEI Perangkat",
         "description": "Yang dilaporkan modem sekarang, dan yang akan dilaporkan setelah boot berikutnya.",
         "rows": {
-          "current": {
-            "label": "Saat ini",
-            "consequence": "Dibaca dari modem, bukan dari penyimpanan.",
-            "unavailable": "Belum dilaporkan"
-          },
           "write": {
             "label": "Tulis IMEI baru",
             "consequence": "15 digit. Baru berlaku setelah mulai ulang.",
@@ -1119,7 +1046,6 @@
         "actions": {
           "write": "Tulis IMEI",
           "reset": "Kembalikan ke IMEI pada modem",
-          "copy": "Salin IMEI saat ini",
           "reset_short": "Atur Ulang"
         },
         "toasts": {
@@ -1255,28 +1181,20 @@
   "custom_profiles": {
     "suggestions": {
       "badge": "Disarankan",
-      "bands_nsa": "5G NSA {{bands}}",
-      "bands_sa": "5G SA {{bands}}",
-      "bands_nsa_auto": "5G NSA Otomatis",
-      "bands_sa_auto": "5G SA Otomatis",
-      "not_saved_yet": "Belum disimpan",
       "create": "Buat",
       "creating": "Membuat",
       "create_aria": "Buat profil {{name}}",
       "rationale_bands": "Penguncian band membuat modem tetap pada band 5G utama operator, yang biasanya meningkatkan stabilitas. Namun bisa juga mengurangi jangkauan di tempat yang hanya terjangkau band lain. Band yang tidak dilaporkan didukung oleh modem akan dilewati, dan menonaktifkan profil akan menghapus penguncian.",
-      "rationale_ttl": "TTL dan hop limit diatur ke 64 agar lalu lintas dari perangkat di belakang modem keluar dengan nilai yang sama seperti lalu lintas modem itu sendiri. Menonaktifkan profil akan mengembalikan nilai sebelumnya.",
-      "will_bind": "Akan mengikat: {{scenario}}"
+      "rationale_ttl": "TTL dan hop limit diatur ke 64 agar lalu lintas dari perangkat di belakang modem keluar dengan nilai yang sama seperti lalu lintas modem itu sendiri. Menonaktifkan profil akan mengembalikan nilai sebelumnya."
     },
     "page": {
       "title": "Profil SIM Kustom",
       "description": "Profil membawa identitas: APN, TTL dan hop limit, serta IMEI opsional. Profil mengikat satu skenario koneksi, yang mengendalikan radio. Mengaktifkannya akan mengonfigurasi ulang modem yang sedang berjalan.",
       "new_profile": "Profil baru",
-      "new_scenario": "Skenario baru",
-      "error_load_failed": "Gagal memuat profil. Periksa koneksi dan coba lagi."
+      "new_scenario": "Skenario baru"
     },
     "hero": {
       "eyebrow": "BERLAKU SEKARANG",
-      "unknown_operator": "Operator tidak dikenal",
       "iccid": "ICCID {{value}}",
       "edit": "Edit",
       "deactivate": "Nonaktifkan",
@@ -1305,8 +1223,7 @@
       },
       "scenario": {
         "unknown": "Skenario tidak dikenal",
-        "next_change": "{{name}} mengambil alih pukul {{time}}",
-        "no_next_change": "Tidak ada perubahan lagi hari ini"
+        "next_change": "{{name}} mengambil alih pukul {{time}}"
       },
       "ribbon": {
         "title": "Jadwal hari ini",
@@ -1343,8 +1260,6 @@
       "subtitle": "Aktifkan, edit, atau hapus profil seluler di perangkat ini.",
       "none_saved_yet": "Belum ada profil tersimpan. Mulai dari rekomendasi di bawah, atau buat sendiri.",
       "activating": "Mengaktifkan",
-      "schedule_live_one": "{{scenario}} sekarang, {{count}} blok terjadwal",
-      "schedule_live_other": "{{scenario}} sekarang, {{count}} blok terjadwal",
       "scenario_always_on": "{{scenario}}, selalu aktif",
       "delete_description": "Tindakan ini menghapus profil dari perangkat. Setiap jadwal yang terikat padanya akan dihapus. Tindakan ini tidak dapat dibatalkan.",
       "delete_keep": "Pertahankan profil",
@@ -1359,15 +1274,8 @@
         "activate_error": "Tidak dapat mengaktifkan profil."
       },
       "delete_title": "Hapus “{{name}}”?",
-      "audit": {
-        "applied": "Diterapkan pukul {{time}}",
-        "partial": "Penerapan sebagian pukul {{time}}",
-        "failed": "Penerapan gagal pukul {{time}}"
-      },
-      "locks_bands": "Mengunci band",
       "row_menu_aria": "Tindakan untuk {{name}}",
       "reapply": "Terapkan ulang profil",
-      "reapply_hint": "Menerapkan ulang menjalankan keempat langkah lagi — APN, TTL dan hop limit, skenario, dan IMEI.",
       "mismatch_confirm": {
         "title": "Terapkan “{{name}}” ke SIM ini?",
         "description": "Profil ini terikat dengan SIM lain. Pengaturannya diterapkan ke SIM di modem sekarang dan nonaktif saat modem dimulai ulang atau SIM diganti berikutnya.",
@@ -1379,7 +1287,6 @@
       "headers": {
         "profile": "Profil",
         "status": "Status",
-        "last_updated": "Terakhir Diperbarui",
         "actions": ""
       },
       "status_badge": {
@@ -1390,7 +1297,6 @@
       "pagination": {
         "total_one": "{{count}} Total profil",
         "total_other": "{{count}} Total profil",
-        "page_info": "halaman {{current}} dari {{total}}",
         "previous": "Sebelumnya",
         "next": "Selanjutnya"
       },
@@ -1606,11 +1512,6 @@
         "dual": "IPv4 & IPv6"
       }
     },
-    "activate_dialog": {
-      "title": "Aktifkan Profil",
-      "description": "Terapkan \"{{name}}\" ke modem? Ini akan memperbarui pengaturan APN, TTL/HL, dan IMEI sesuai konfigurasi profil. Pengaturan yang tidak berubah akan dilewati.",
-      "confirm": "Aktifkan"
-    },
     "deactivate_dialog": {
       "title": "Nonaktifkan Profil",
       "working_title": "Menonaktifkan Profil",
@@ -1667,7 +1568,7 @@
       "failed_notice_title": "Profil tidak diterapkan",
       "reapply_notice": "Menerapkan ulang menjalankan seluruh urutan dari awal — modem tidak dapat mengulang satu langkah saja.",
       "reapply_action": "Terapkan ulang profil",
-      "reboot_notice_deferred": "Profil ini menulis IMEI, yang memerlukan reboot. Tidak ada yang direboot sekarang — Anda akan mendapat banner saat siap.",
+      "reboot_notice_deferred": "Profil ini menulis IMEI, sehingga modem direboot untuk menerapkannya. Koneksi terputus sesaat.",
       "step_state_unchanged": "Tidak berubah",
       "errors": {
         "start_failed": "Tidak dapat memulai penerapan profil.",
@@ -1695,18 +1596,7 @@
       "apn_prefix": "APN ",
       "other_sim": "SIM lain"
     },
-    "list": {
-      "new_button": "Baru",
-      "bound_sim": "Terikat ke SIM {{iccid}}",
-      "detail_unavailable": "Tidak dapat memuat pengaturan profil ini.",
-      "only_active_hint": "Satu-satunya profil Anda adalah yang sedang aktif. Buat profil lain untuk berpindah pengaturan."
-    },
-    "edit": {
-      "not_found_title": "Profil tidak ditemukan",
-      "not_found_desc": "Profil ini mungkin telah dihapus. Kembali ke profil tersimpan Anda."
-    },
     "card": {
-      "label_iccid": "SIM",
       "label_updated": "Diperbarui"
     },
     "registry": {
@@ -1947,8 +1837,6 @@
     "tiles": {
       "network": {
         "label": "Tipe jaringan",
-        "mark_5g": "5G",
-        "mark_4g": "4G",
         "caption_nsa": "Non-standalone, berjangkar pada LTE",
         "caption_sa": "Inti 5G standalone",
         "caption_lte": "Tidak ada kaki 5G yang terpasang",
@@ -2180,8 +2068,6 @@
         "optimization_label": "Label Optimasi",
         "optimization_placeholder": "mis. Latensi, Throughput, Kustom",
         "icon_label": "Ikon",
-        "preview_label": "Pratinjau",
-        "preview_name_fallback": "Nama Skenario",
         "preview_description_fallback": "Konfigurasi kustom"
       },
       "buttons": {
@@ -2203,7 +2089,6 @@
       "activate": "Aktifkan",
       "edit_aria": "Edit pengaturan skenario",
       "disabled_tooltip": "Aktivasi skenario dikelola oleh Profil SIM Kustom {{profile}}.",
-      "disabled_tooltip_next": " Perubahan berikutnya pada {{time}}.",
       "rows": {
         "network_mode": "Mode Jaringan",
         "optimization": "Optimasi",
@@ -2217,22 +2102,14 @@
     },
     "tile": {
       "in_force": "Berlaku",
-      "caption_in_force": "Berlaku sekarang",
       "caption_next": "Berikutnya pukul {{time}}",
-      "caption_unscheduled": "Tidak dijadwalkan",
-      "band_count_nr": "{{bands}} NR",
-      "band_count_lte": "{{bands}} LTE",
-      "custom_tag": "Kustom",
-      "bands_auto": "Band otomatis",
-      "delete_aria": "Hapus skenario {{name}}",
       "delete_dialog": {
         "title": "Hapus Skenario",
         "description": "Apakah Anda yakin ingin menghapus \"{{name}}\"? Tindakan ini tidak dapat dibatalkan.",
         "confirm": "Hapus"
       },
       "add": {
-        "title": "Skenario baru",
-        "description": "Pilih mode dan band"
+        "title": "Skenario baru"
       }
     },
     "redirect": {
@@ -2558,10 +2435,8 @@
     },
     "live": {
       "title": "Saat ini",
-      "camped_on": "Terhubung saat ini",
       "camped_empty_title": "Tidak ada carrier aktif",
       "camped_empty_body": "Modem sedang tidak terhubung ke sel mana pun. Kunci tetap berlaku begitu modem terhubung.",
-      "note_hint": "Tambah menyalin sel ini ke formulir di bawah. Kunci tower mengikat kanal dan PCI-nya sekaligus, jadi modem bertahan tepat di sel itu.",
       "absent_nr_title": "Tidak ada carrier 5G",
       "absent_lte_title": "Tidak ada anchor LTE",
       "tile_tech_LTE": "LTE",
@@ -2570,17 +2445,10 @@
       "tile_earfcn": "EARFCN",
       "tile_arfcn": "ARFCN",
       "tile_rsrp": "{{value}} dBm",
-      "tile_rsrq": "{{value}} dB",
-      "tile_sinr": "{{value}} dB",
       "tile_no_value": "—",
-      "tile_use": "Pakai sel",
-      "tile_use_a11y": "Pakai band {{band}}, PCI {{pci}} sebagai target kunci {{leg}}",
-      "tile_locked_a11y": "Band {{band}}, PCI {{pci}} adalah target kunci saat ini",
       "tile_blocked_nsa": "Penguncian 5G perlu mode standalone",
       "tile_blocked_lte_only": "Tidak ada koneksi 5G untuk dikunci",
       "tile_blocked_slots_full": "Ketiga sel LTE sudah terisi",
-      "tile_band_channel": "{{band}} – {{channel}}",
-      "rail_target_pair": "{{channel}}, PCI {{pci}}",
       "refresh": "Baca ulang status kunci dari modem",
       "persist_label": "Pertahankan kunci setelah reboot",
       "persist_help": "Menyimpan kunci di modem itu sendiri, sehingga dipulihkan otomatis setelah dinyalakan ulang.",
@@ -2591,25 +2459,15 @@
       "persist_split_help": "Modem melaporkan pengaturan ini tersimpan untuk satu radio saja. Matikan lalu nyalakan lagi untuk menulis ulang keduanya.",
       "persist_toast_enabled": "Kunci akan dipertahankan setelah reboot",
       "persist_toast_disabled": "Kunci tidak akan dipertahankan setelah reboot",
-      "persist_toast_error": "Tidak dapat memperbarui pengaturan reboot",
       "failover_label": "Failover sinyal",
       "failover_help_label": "Tentang failover sinyal",
       "failover_help": "Melepas kunci tower secara otomatis jika kualitas sinyal tetap di bawah ambang, agar sel yang buruk tidak memutus koneksi. Kedua radio dilepas, bukan hanya yang lemah.",
       "failover_state_disabled": "Nonaktif",
-      "failover_state_standby": "Tidak ada kunci",
-      "failover_state_armed": "Memantau",
       "failover_state_stalled": "Tidak memantau",
       "failover_state_unknown": "Belum dilaporkan",
-      "failover_state_fallback": "Dilepas — lemah",
-      "failover_toast_enabled": "Failover sinyal diaktifkan",
-      "failover_toast_disabled": "Failover sinyal dinonaktifkan",
-      "failover_toast_error": "Tidak dapat memperbarui failover sinyal",
       "threshold_label": "Lepas di bawah",
       "threshold_invalid": "Masukkan nilai antara 0 dan 100",
       "threshold_unread": "Belum terbaca dari modem.",
-      "threshold_toast_saved": "Ambang failover diperbarui",
-      "threshold_toast_error": "Tidak dapat memperbarui ambang",
-      "quality_label": "Kualitas sinyal saat ini",
       "quality_value": "{{value}}%",
       "quality_unknown": "Belum dilaporkan",
       "verdict_on_target_title": "Sesuai target",
@@ -2672,17 +2530,12 @@
       "slot": "Sel {{index}}",
       "slot_clear": "Kosongkan sel {{index}}",
       "scs_guess": "Diisi dari nilai bawaan band {{band}}. Periksa terhadap tower Anda jika penguncian gagal.",
-      "scs_from_serving": "Dibaca dari sel tempat modem terhubung.",
       "pick_placeholder": "Pilih carrier yang mengudara",
       "slot_in_use": "Di sel {{index}}"
     },
     "card": {
-      "status_locked": "Terkunci",
-      "status_unlocked": "Tidak terkunci",
-      "status_unknown": "Belum dilaporkan",
-      "readback_label": "Laporan modem",
-      "status_gated_nsa": "Perlu mode SA",
-      "status_gated_lte": "Tidak ada sinyal 5G",
+      "persist_label": "Pertahankan setelah reboot",
+      "persist_aria": "Pertahankan kunci {{leg}} setelah reboot",
       "gate_nsa_title": "Tidak tersedia di 5G NSA",
       "gate_nsa_body": "Penguncian standalone memerlukan modem dalam mode SA. Saat ini modem memakai 5G yang di-anchor ke sel LTE.",
       "gate_lte_title": "Tidak ada koneksi 5G",
@@ -2718,7 +2571,6 @@
       "status_inactive": "Nonaktif",
       "toast_saved": "Jadwal diperbarui",
       "toast_error": "Tidak dapat menyimpan jadwal",
-      "toast_no_targets": "Tetapkan target kunci sebelum menjadwalkan",
       "arm_warning": "Tersimpan, tetapi jadwal belum aktif: {{reason}}",
       "arm_reason_unit_absent": "layanan penjadwalan belum terpasang di perangkat ini — perbarui ke firmware terbaru untuk mengaktifkannya",
       "arm_reason_unknown": "alasan tidak diketahui",
@@ -2742,12 +2594,11 @@
       "unlock_body": "Radio kembali memilih selnya sendiri. Koneksi terputus sejenak saat terhubung ulang."
     },
     "toast": {
+      "persist_enabled": "Kunci {{leg}} akan dipertahankan setelah reboot",
+      "persist_disabled": "Kunci {{leg}} tidak akan dipertahankan setelah reboot",
       "locked": "Kunci tower {{leg}} diterapkan",
       "unlocked": "Kunci tower {{leg}} dihapus",
-      "lock_error": "Tidak dapat menerapkan kunci tower {{leg}}",
-      "unlock_error": "Tidak dapat menghapus kunci tower {{leg}}",
       "incomplete": "Isi semua kolom sebelum mengunci",
-      "no_targets": "Masukkan kanal dan ID sel terlebih dahulu",
       "filled": "{{leg}} diisi dari band {{band}}, PCI {{pci}}",
       "slots_full": "Ketiga sel LTE sudah terisi",
       "cell_added": "Sel ditambahkan ke penguncian {{leg}}",
@@ -2759,7 +2610,7 @@
       "threshold_saved": "Ambang batas failover diperbarui"
     },
     "warning": {
-      "service_enable_failed": "Kunci aktif sekarang, tetapi tidak akan bertahan setelah reboot — modem menolak perintah penyimpanan.",
+      "service_enable_failed": "Kunci aktif sekarang, tetapi tidak dapat diatur untuk berjalan saat boot, jadi tidak akan bertahan setelah reboot.",
       "service_disable_failed": "Kunci sudah dilepas, tetapi tidak bisa dihapus dari proses boot — kunci bisa kembali setelah reboot.",
       "persist_command_failed": "\"Pertahankan kunci setelah reboot\" tidak diterapkan. Modem menolak perintah penyimpanan.",
       "dismiss": "Tutup"
@@ -2768,19 +2619,15 @@
       "title": "Tidak dapat membaca status kunci tower",
       "body": "Modem tidak menjawab setelah tiga kali percobaan. Selama ini belum berhasil, semua yang tampil di bawah tidak mencerminkan status kunci radio yang sebenarnya.",
       "retry": "Coba lagi",
-      "retrying": "Mencoba lagi…",
-      "retry_tip": "Minta status penguncian dari modem sekali lagi."
+      "retrying": "Mencoba lagi…"
     },
     "blocked": {
       "lock_empty_lte": "Masukkan kanal dan PCI, atau pilih sel dari kartu di atas.",
       "lock_incomplete_lte": "Setiap slot yang sudah diisi memerlukan kanal dan PCI sekaligus.",
       "lock_empty_nr": "Masukkan kanal, PCI, jarak subcarrier, dan band, atau pilih sel dari kartu di atas.",
       "lock_incomplete_nr": "Keempat kolom harus terisi sebelum sel ini bisa dikunci.",
-      "lock_unchanged": "Radio sudah terkunci tepat pada target ini, jadi tidak ada yang perlu ditulis.",
       "lock_gated_nsa": "Modem berada di 5G NSA, sehingga sisi 5G tidak punya sel standalone untuk dikunci.",
       "lock_gated_lte_only": "Modem tidak memiliki pembawa 5G yang aktif, jadi tidak ada yang bisa dikunci.",
-      "threshold_empty": "Masukkan persentase antara 0 dan 100.",
-      "refresh_in_flight": "Sedang membaca ulang modem. Ini bisa memakan waktu beberapa detik.",
       "refresh_writing": "Perubahan tower sedang diterapkan."
     },
     "a11y": {

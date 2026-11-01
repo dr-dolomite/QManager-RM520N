@@ -174,14 +174,6 @@ export const CAMPED_ABSENT =
 
 // --- Leg cards: fields -------------------------------------------------------
 
-export const READBACK = {
-  ROOT: "flex flex-col gap-1 rounded-field bg-surface-container px-4 py-2.5",
-  LABEL: "flex items-center gap-1.5 text-xs font-medium text-on-surface-variant",
-  LIST: "flex flex-col gap-0.5",
-  ROW: "flex min-h-8 flex-wrap items-center gap-x-2.5 gap-y-1",
-  VALUE: "text-[13px]/5 font-semibold tabular-nums",
-} as const;
-
 /** One labelled control row (Simple Mode). */
 export const CONTROL_ROW =
   "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-field bg-surface-container px-4 py-3";
@@ -268,8 +260,6 @@ export const AUTO_TILE = {
   TITLE: "text-sm font-semibold",
   BODY: "text-xs leading-relaxed text-pretty text-on-surface-variant",
   FOOT: "mt-auto",
-  /** Keep-after-reboot spans the row under the two-up, so neither is orphaned. */
-  WIDE: "@xl/section:col-span-2",
 } as const;
 
 /**
@@ -396,46 +386,7 @@ export function failoverKey(
   return "ready";
 }
 
-export type TowerPersistPosture = "on" | "off" | "split" | "unknown";
-
-/** Keep-after-reboot as the MODEM reads it back. `split`: one radio did not take. */
-export const PERSIST_BADGE: Record<
-  TowerPersistPosture,
-  { variant: BadgeVariant; glyph: MaterialSymbolName }
-> = {
-  on: { variant: "success", glyph: "check_circle" },
-  off: { variant: "muted", glyph: "do_not_disturb_on" },
-  split: { variant: "warning", glyph: "warning" },
-  unknown: { variant: "muted", glyph: "help" },
-};
-
-/**
- * `save_ctrl,v,v` writes one value to both radios but they read back apart, so
- * the modem can report `1,0`. A failed read is `unknown`, never `off`.
- */
-export function persistPosture(
-  modemState: {
-    persist_lte: boolean;
-    persist_nr: boolean;
-    persist_read_ok?: boolean;
-  } | null,
-): TowerPersistPosture {
-  if (!modemState || modemState.persist_read_ok === false) return "unknown";
-  if (modemState.persist_lte && modemState.persist_nr) return "on";
-  if (!modemState.persist_lte && !modemState.persist_nr) return "off";
-  return "split";
-}
-
 export type LegPosture = "locked" | "unlocked" | "unknown";
-
-export const LEG_BADGE: Record<
-  LegPosture,
-  { variant: BadgeVariant; glyph: MaterialSymbolName }
-> = {
-  locked: { variant: "warning", glyph: "lock" },
-  unlocked: { variant: "success", glyph: "lock_open" },
-  unknown: { variant: "muted", glyph: "help" },
-};
 
 // --- Skeletons ---------------------------------------------------------------
 
@@ -456,7 +407,7 @@ export const SKELETON_SHAPE = {
   CARRIER_TILE: "h-[5.4375rem] w-full rounded-tile",
   AUTO_TILE: "h-[14.625rem] w-full rounded-tile",
   VERDICT: "h-[3.25rem] w-full rounded-tile",
-  PERSIST_TILE: "h-[6.625rem] w-full rounded-tile",
+  PERSIST_FIELD: "h-[2.625rem] w-[17.125rem] rounded-pill",
   DAY_CHIP: "size-11 rounded-pill",
 } as const;
 

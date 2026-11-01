@@ -95,14 +95,11 @@
     "reset_error": "無法排入重設佇列，請再試一次。",
     "cell_distance": "基站距離",
     "cell_distance_short": "距離",
-    "lte_cell_distance": "LTE 基站距離",
-    "nr_cell_distance": "NR 基站距離",
     "lte_distance_tooltip": "這只是基於 LTE 時間提前量 {{ta}} 的估算值。",
     "nr_distance_tooltip": "這只是基於 NR 時間提前量 {{ta}} 的估算值。",
     "ta_unavailable": "時間提前量資料不可用。",
     "connection_uptime": "連線執行時長",
-    "device_uptime": "裝置執行時長",
-    "more_info_aria": "更多資訊"
+    "device_uptime": "裝置執行時長"
   },
   "signal_status": {
     "lte_primary_title": "4G 主載波狀態",
@@ -268,10 +265,7 @@
   "speedtest": {
     "run_short": "開始測速",
     "view_running": "查看",
-    "section_label": "速度測試",
-    "start_button_aria": "開始速度測試",
     "dialog_idle_description": "測量當前的下載速度、上傳速度和延遲。",
-    "result_label": "測試結果：",
     "title": "速度測試",
     "running_badge": "進行中",
     "server_label": "伺服器",
@@ -314,10 +308,6 @@
     "failed_during": "在{{step}}階段失敗",
     "close_aria": "關閉",
     "tile_running_label": "進行中",
-    "time_just_now": "剛剛",
-    "time_minutes_ago": "{{count}} 分鐘前",
-    "time_hours_ago": "{{count}} 小時前",
-    "time_days_ago": "{{count}} 天前",
     "server_option": "{{name}} — {{location}}，{{country}}"
   },
   "ca": {

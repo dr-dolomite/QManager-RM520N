@@ -4,6 +4,7 @@ import React from "react";
 import { motion } from "motion/react";
 
 import { staggerRowItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { ROW } from "./shapes";
 
 // =============================================================================
@@ -37,13 +38,13 @@ export interface PillRowProps {
 
 export function PillRow({ label, children }: PillRowProps) {
   return (
-    <motion.div variants={staggerRowItem} className={ROW.ROOT}>
+    <motion.div variants={staggerRowItem} className={cn(ROW.ROOT, "flex-wrap gap-y-1 @max-sm/card:gap-x-2 @max-sm/card:px-3")}>
       {/* Container-Pair Rule: text on `surface-container` takes that
           container's own ink, never a solid role colour. */}
-      <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-on-surface-variant">
+      <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-on-surface-variant @max-sm/card:text-[13px]">
         {label}
       </div>
-      <div className="flex shrink-0 items-center gap-3">{children}</div>
+      <div className="ml-auto flex shrink-0 items-center gap-3 @max-sm/card:gap-2">{children}</div>
     </motion.div>
   );
 }

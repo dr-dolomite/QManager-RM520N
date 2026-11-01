@@ -68,7 +68,7 @@ export function PackRow({
   const compatible = isPackCompatible(pack.entry.app_min_version);
 
   const size = formatBytes(pack.entry.size_bytes);
-  const contributors = pack.entry.contributors.length;
+  const contributors = pack.entry.contributors?.length ?? 0;
 
   const progress = Math.max(0, Math.min(100, install.progress));
 

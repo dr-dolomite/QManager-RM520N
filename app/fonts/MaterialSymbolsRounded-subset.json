@@ -42,6 +42,7 @@
     "first_page",
     "graphic_eq",
     "help",
+    "history",
     "home",
     "info",
     "layers",
@@ -119,6 +120,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 42772,
-  "sha256": "e042a449bcb1c99520025e4c8cdabfabe47550f0d7157624689fb2654ba39d4a"
+  "bytes": 43072,
+  "sha256": "23d9ac9c718ebd4a6e585a520d8926899a4507d6dabce2167f322e5ae968efc9"
 }
