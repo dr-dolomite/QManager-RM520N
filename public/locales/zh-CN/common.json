@@ -109,7 +109,9 @@
       "consequence_absent": "此设备上没有可配置的以太网端口。",
       "toast_success": "链路速度已更新",
       "toast_error": "设置链路速度失败",
-      "toast_confirm_error": "无法确认新速度。请检查链路。"
+      "toast_confirm_error": "无法确认新速度。请检查链路。",
+      "apply": "应用",
+      "discard": "放弃"
     },
     "lan_config": {
       "card_title": "LAN 地址",
@@ -341,19 +343,19 @@
       "refresh": "刷新"
     },
     "strip": {
-      "label": "rmnet 上已生效",
+      "label": "当前已生效",
       "chip_custom": "自定义",
       "chip_default": "运营商默认值",
       "retry": "重试",
       "unavailable_title": "无法读取 TTL 或 MTU",
-      "unavailable_body": "两个接口都没有响应。调制解调器上未做任何更改。",
+      "unavailable_body": "调制解调器没有响应。未做任何更改。",
       "idle_title": "没有生效的覆盖值",
       "idle_body": "调制解调器完全按协商结果使用运营商的 TTL 和 MTU。在下方开启其中一项即可改变。"
     },
     "tiles": {
       "shared": {
         "caption_pending": "仍在读取",
-        "caption_unread": "此接口没有响应"
+        "caption_unread": "调制解调器没有响应"
       },
       "ttl": {
         "label": "TTL（IPv4）",
@@ -409,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "覆盖 MTU",
-        "consequence": "关闭后，所有 rmnet_data 接口都会恢复运营商协商的数值。"
+        "consequence": "关闭后，蜂窝接口会恢复运营商协商的数值。"
       },
       "mtu_value": {
         "label": "MTU 值",
@@ -431,10 +433,10 @@
       "no_value": "请先填写 TTL 或跳数限制，再应用。",
       "mtu_range": "MTU 必须在 {{min}} 到 {{max}} 之间。"
     },
-    "toast_ttl_applied": "已应用 — TTL {{ttl}}，跳数限制 {{hl}}。",
+    "toast_ttl_applied": "已应用（TTL {{ttl}}，跳数限制 {{hl}}）。",
     "toast_ttl_cleared": "调制解调器已恢复使用运营商自己的跳数。",
     "toast_ttl_error": "无法应用 TTL 和跳数限制。",
-    "toast_mtu_applied": "已将所有 rmnet_data 接口的 MTU 设为 {{mtu}}。",
+    "toast_mtu_applied": "已将 MTU 设为 {{mtu}}。",
     "toast_mtu_cleared": "MTU 已恢复为运营商协商的数值。",
     "toast_mtu_error": "无法应用 MTU。"
   },

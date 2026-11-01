@@ -109,7 +109,9 @@
       "consequence_absent": "此裝置上沒有可設定的乙太網路連接埠。",
       "toast_success": "鏈路速度已更新",
       "toast_error": "設定鏈路速度失敗",
-      "toast_confirm_error": "無法確認新速度。請檢查鏈路。"
+      "toast_confirm_error": "無法確認新速度。請檢查鏈路。",
+      "apply": "套用",
+      "discard": "捨棄"
     },
     "lan_config": {
       "card_title": "LAN 地址",
@@ -341,19 +343,19 @@
       "refresh": "重新整理"
     },
     "strip": {
-      "label": "rmnet 上已生效",
+      "label": "目前已生效",
       "chip_custom": "自訂",
       "chip_default": "電信商預設值",
       "retry": "重試",
       "unavailable_title": "無法讀取 TTL 或 MTU",
-      "unavailable_body": "兩個端點都沒有回應。數據機上未做任何變更。",
+      "unavailable_body": "數據機沒有回應。未做任何變更。",
       "idle_title": "沒有生效的覆寫值",
       "idle_body": "數據機完全依協商結果使用電信商的 TTL 與 MTU。在下方開啟其中一項即可變更。"
     },
     "tiles": {
       "shared": {
         "caption_pending": "仍在讀取",
-        "caption_unread": "此端點沒有回應"
+        "caption_unread": "數據機沒有回應"
       },
       "ttl": {
         "label": "TTL（IPv4）",
@@ -409,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "覆寫 MTU",
-        "consequence": "關閉後，所有 rmnet_data 介面都會回到電信商協商的數值。"
+        "consequence": "關閉後，行動網路介面會回到電信商協商的數值。"
       },
       "mtu_value": {
         "label": "MTU 值",
@@ -431,10 +433,10 @@
       "no_value": "請先填寫 TTL 或跳躍限制，再套用。",
       "mtu_range": "MTU 必須介於 {{min}} 到 {{max}} 之間。"
     },
-    "toast_ttl_applied": "已套用 — TTL {{ttl}}，跳躍限制 {{hl}}。",
+    "toast_ttl_applied": "已套用（TTL {{ttl}}，跳躍限制 {{hl}}）。",
     "toast_ttl_cleared": "數據機已回到電信商自己的跳躍數。",
     "toast_ttl_error": "無法套用 TTL 與跳躍限制。",
-    "toast_mtu_applied": "已將所有 rmnet_data 介面的 MTU 設為 {{mtu}}。",
+    "toast_mtu_applied": "已將 MTU 設為 {{mtu}}。",
     "toast_mtu_cleared": "MTU 已回到電信商協商的數值。",
     "toast_mtu_error": "無法套用 MTU。"
   },
