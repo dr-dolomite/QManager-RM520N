@@ -345,7 +345,7 @@ Returns the saved config plus a snapshot of daemon/failover/swap state, and `rec
    { "success": false, "error": "invalid_field", "field": "cooldown", "reason": "must be an integer between 10 and 300" }
    ```
 
-2. **Pass 2 (apply):** only reached when every field validated. First runs the defensive `migrate_fail_threshold()` (in case this device hasn't been touched by the installer migration yet), then writes each key via `qm_config_set`, touches the reload flag, and toggles the service — enable and start-only-if-down when `enabled=1` (also clearing `auto_disabled`; a running daemon reloads from the flag, a restart would drop its live recovery state), or stop+disable when `enabled=0`. A `probe_interval` that differs from the current cadence is written to `ping_profile.json.interval_sec` (see below).
+2. **Pass 2 (apply):** only reached when every field validated. First runs the defensive `migrate_fail_threshold()` (in case this device hasn't been touched by the installer migration yet), then writes each key via `qm_config_set`, touches the reload flag, and toggles the service — enable and, when `enabled=1`, start only if down or hung (also clearing `auto_disabled`; a live daemon reloads from the flag, a restart would drop its recovery state; hung = state file `mono` older than `stale_after` by uptime, `watchcat_state_stale`), or stop+disable when `enabled=0`. A `probe_interval` that differs from the current cadence is written to `ping_profile.json.interval_sec` (see below).
 
    ```json
    { "success": true }

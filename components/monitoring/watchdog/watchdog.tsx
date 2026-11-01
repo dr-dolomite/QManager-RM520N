@@ -244,9 +244,9 @@ function WatchdogSurface({
 
       <motion.div variants={staggerItem}>
         <RecoveryActivityCard
-              activities={activities}
-              recentReboots={hook.recentReboots}
-            />
+          activities={activities}
+          recentReboots={hook.recentReboots}
+        />
       </motion.div>
     </>
   );

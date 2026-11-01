@@ -58,6 +58,20 @@ migrate_fail_threshold() {
     fi
 }
 
+# True when the daemon's own heartbeat (uptime delta, the poller's test) is past
+# its limit: the unit can be active while the daemon is hung. Unknown reads as live.
+watchcat_state_stale() {
+    local up mono limit v
+    read -r up _ < /proc/uptime 2>/dev/null
+    up="${up%%.*}"
+    set -- $(jq -r '[(.mono // 0), (.stale_after // 0)] | map(tostring) | join(" ")' "$WATCHCAT_STATE" 2>/dev/null)
+    mono="$1" limit="$2"
+    for v in "$up" "$mono" "$limit"; do
+        case "$v" in ''|*[!0-9]*) return 1 ;; esac
+    done
+    [ "$mono" -gt 0 ] && [ "$limit" -gt 0 ] && [ $((up - mono)) -gt "$limit" ]
+}
+
 # reject_field: emit a structured validation error and exit. Used only
 # during PASS 1 (validation) — never after any qm_config_set write.
 reject_field() {
@@ -311,13 +325,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 cgi_error "service_enable_failed" "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)"
                 exit 0
             fi
-            # A running daemon reloads from the flag touched above; a restart would
-            # drop its live recovery state, so start it only when it is down.
-            if svc_is_running qmanager_watchcat; then
+            # A live daemon reloads from the flag touched above (a restart would drop
+            # its recovery state); start it when down, restart it when hung.
+            if svc_is_running qmanager_watchcat && ! watchcat_state_stale; then
                 qlog_info "Watchdog settings saved, running watchcat will reload"
             else
-                ( svc_start qmanager_watchcat & )
-                qlog_info "Watchdog settings saved, watchcat enabled and started"
+                ( svc_restart qmanager_watchcat & )
+                qlog_info "Watchdog settings saved, watchcat enabled and (re)started"
             fi
         else
             # Stop and disable the watchcat service BEFORE persisting enabled=0,
