@@ -117,6 +117,10 @@ export const NOW = {
     "flex items-baseline gap-1.5 text-[2.5rem] leading-10 font-bold tracking-[-0.02em] tabular-nums",
   VALUE_H: "h-10",
   VALUE_UNIT: "text-on-surface-variant text-base font-semibold tracking-normal",
+  /** Gap between the pairs of a two-part outage length (2 h 5 min). */
+  VALUE_PAIR: "ml-2",
+  /** No reading and no last answer: a quiet dash, never a red phrase. */
+  VALUE_DASH: "text-on-surface-variant",
   CAPTION: "text-on-surface-variant truncate text-[0.8125rem] leading-5 tabular-nums",
   CAPTION_H: "h-5",
   /** The RTT bar: 8px, scaled to twice the cut, a tick at the cut. */
@@ -132,7 +136,8 @@ export const STRIP = {
   BARS_H: "h-11",
   BAR: "block min-h-[3px] rounded-[2px]",
   EMPTY: "bg-surface-container-high h-[3px]",
-  MISS: "bg-destructive h-full opacity-85",
+  /** A missed probe is an empty track with a red base tick: a gap, not a wall. */
+  MISS: "bg-surface-container-high relative h-full after:absolute after:inset-x-0 after:bottom-0 after:h-[5px] after:rounded-[2px] after:bg-destructive",
   FOOT: "text-on-surface-variant flex justify-between text-[0.71875rem] leading-4 tabular-nums",
   /** The bars' box anchors the hover readout; it sits above the bars, clamped to the card. */
   HOVER_ROOT: "relative touch-pan-y",
@@ -281,3 +286,7 @@ export const CONDITION_TONE = {
 export const NOTICE =
   "rounded-field bg-destructive-container text-on-destructive-container flex items-center gap-2 px-3.5 py-2 text-xs leading-4 font-medium";
 export const NOTICE_GLYPH = "size-3.5 flex-none";
+
+/** A quiet fact above the content: the link is down, so the figures below are expected. */
+export const NOTICE_QUIET =
+  "rounded-field bg-surface-container text-on-surface-variant flex items-center gap-2 px-3.5 py-2 text-xs leading-4 font-medium";

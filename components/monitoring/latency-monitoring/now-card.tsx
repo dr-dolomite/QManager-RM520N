@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import {
@@ -40,11 +40,14 @@ import {
   hhmm,
   lastAnswer,
   latencyTone,
+  liveLastAnswer,
   lossTone,
   msParts,
   msText,
   resolveCuts,
+  spanParts,
   type Cuts,
+  type SpanUnit,
   type UnitLabels,
 } from "./derive";
 import {
@@ -82,6 +85,9 @@ const FAMILY_LABEL_KEY = {
 } as const;
 
 const LIMITS_HREF = "/monitoring/connection-quality/";
+
+/** The outage length's clock; minute-grain after the first minute, so 15 s is plenty. */
+const CLOCK_TICK_MS = 15_000;
 
 /** Height of a probe's bar: RTT against twice the cut, floored so it reads. */
 function barHeight(ms: number, cuts: Cuts): string {
@@ -192,12 +198,29 @@ interface NowBodyProps {
   history: PingHistoryEntry[];
 }
 
+/** Wall clock in seconds, ticking so an outage length counts up between polls. */
+function useNowSec(): number {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), CLOCK_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 function NowBody({ connectivity, history }: NowBodyProps) {
   const { t } = useTranslation("dashboard");
+  const nowSec = useNowSec();
   const cuts = resolveCuts(connectivity);
   const units: UnitLabels = {
     ms: t("latencyMonitor.unit_ms"),
     s: t("latencyMonitor.unit_s"),
+  };
+  const spanUnits: Record<SpanUnit, string> = {
+    s: t("latencyMonitor.unit_s"),
+    min: t("latencyMonitor.unit_min"),
+    h: t("latencyMonitor.unit_h"),
+    d: t("latencyMonitor.unit_d"),
   };
   const dash = t("latencyMonitor.unmeasured");
 
@@ -207,14 +230,17 @@ function NowBody({ connectivity, history }: NowBodyProps) {
     ...Array<undefined>(Math.max(0, STRIP_SLOTS - probes.length)).fill(undefined),
     ...probes,
   ];
-  const stripMinutes = Math.max(
-    1,
-    Math.round((STRIP_SLOTS * (connectivity.history_interval_sec || 5)) / 60),
-  );
+  const intervalSec = connectivity.history_interval_sec || 5;
+  const stripMinutes = Math.max(1, Math.round((STRIP_SLOTS * intervalSec) / 60));
 
   const rtt = connectivity.latency_ms;
-  const tone = rtt === null ? "bad" : latencyTone(rtt, cuts);
   const parts = rtt === null ? null : msParts(rtt);
+  const last =
+    rtt === null
+      ? (liveLastAnswer(probes, intervalSec, nowSec) ?? lastAnswer(history))
+      : null;
+  // A live reading takes its tone; an outage reads in plain ink, the chip carries the verdict.
+  const tone = rtt === null ? "ok" : latencyTone(rtt, cuts);
 
   let caption = "";
   if (rtt !== null) {
@@ -224,14 +250,32 @@ function NowBody({ connectivity, history }: NowBodyProps) {
         worst: msText(connectivity.max_latency_ms, units),
       });
     }
+  } else if (last) {
+    caption = t("latencyMonitor.now.last_answer", {
+      time: hhmm(last.atMs),
+      value: msText(last.ms, units),
+    });
   } else {
-    const last = lastAnswer(history);
-    if (last) {
-      caption = t("latencyMonitor.now.last_answer", {
-        time: hhmm(last.atMs),
-        value: msText(last.ms, units),
-      });
-    }
+    caption = t("latencyMonitor.now.no_reply");
+  }
+
+  let figure: React.ReactNode;
+  if (parts) {
+    figure = (
+      <>
+        {parts.value}
+        <small className={NOW.VALUE_UNIT}>{units[parts.unit]}</small>
+      </>
+    );
+  } else if (last) {
+    figure = spanParts(nowSec - last.atMs / 1000).map((p, i) => (
+      <Fragment key={p.unit}>
+        <span className={cn(i > 0 && NOW.VALUE_PAIR)}>{p.value}</span>
+        <small className={NOW.VALUE_UNIT}>{spanUnits[p.unit]}</small>
+      </Fragment>
+    ));
+  } else {
+    figure = <span className={NOW.VALUE_DASH}>{dash}</span>;
   }
 
   const collecting =
@@ -258,17 +302,10 @@ function NowBody({ connectivity, history }: NowBodyProps) {
     <>
       <div className={NOW.FIGURE}>
         <span className={cn(EYEBROW, EYEBROW_H)}>
-          {t("latencyMonitor.now.eyebrow")}
+          {t(last ? "latencyMonitor.now.eyebrow_down" : "latencyMonitor.now.eyebrow")}
         </span>
         <span className={cn(NOW.VALUE, NOW.VALUE_H, FIGURE_INK[tone], TRANSITION_INK)}>
-          {parts ? (
-            <>
-              {parts.value}
-              <small className={NOW.VALUE_UNIT}>{units[parts.unit]}</small>
-            </>
-          ) : (
-            t("latencyMonitor.now.no_reply")
-          )}
+          {figure}
         </span>
         <span className={cn(NOW.CAPTION, NOW.CAPTION_H)}>{caption}</span>
         <div

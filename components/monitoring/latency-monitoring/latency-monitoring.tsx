@@ -56,7 +56,10 @@ const LatencyMonitoringComponent = () => {
       </motion.div>
 
       <motion.div variants={staggerItem}>
-        <SitesCard cuts={resolveCuts(connectivity)} />
+        <SitesCard
+          cuts={resolveCuts(connectivity)}
+          linkDown={!unreachable && connectivity?.status === "disconnected"}
+        />
       </motion.div>
     </motion.div>
   );
