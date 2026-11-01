@@ -404,3 +404,113 @@ export function findAllMatchingNRBands(nrarfcn: number): NRBandEntry[] {
     (b) => nrarfcn >= b.nrarfcnRange[0] && nrarfcn <= b.nrarfcnRange[1]
   );
 }
+
+// --- NR PRB → Channel Bandwidth --------------------------------------------
+//
+// AT+QSCAN reports an NR carrier's bandwidth as a PRB (Physical Resource Block)
+// count, NOT megahertz — and the same PRB count means different MHz at
+// different subcarrier spacings (e.g. 106 PRB = 20 MHz @ 15 kHz but 40 MHz
+// @ 30 kHz). Conversion therefore requires BOTH the PRB count and the SCS.
+//
+// Tables below invert 3GPP TS 38.101-1 Table 5.3.2-1 (FR1) — the maximum
+// transmission bandwidth configuration N_RB — keyed [SCS kHz][PRB] → MHz.
+// FR2 (mmWave, SCS 120 kHz, bands n257+) is included for completeness but is
+// out of scope for this project's sub-6 hardware (RM520N/RM551E). SCS 60 kHz
+// here is the FR1 mapping; the FR2 SCS-60 variant is not modeled.
+const NR_PRB_TO_MHZ: Record<number, Record<number, number>> = {
+  // SCS 15 kHz (FR1)
+  15: { 25: 5, 52: 10, 79: 15, 106: 20, 133: 25, 160: 30, 216: 40, 270: 50 },
+  // SCS 30 kHz (FR1)
+  30: {
+    11: 5, 24: 10, 38: 15, 51: 20, 65: 25, 78: 30, 106: 40, 133: 50,
+    162: 60, 189: 70, 217: 80, 245: 90, 273: 100,
+  },
+  // SCS 60 kHz (FR1)
+  60: {
+    11: 10, 18: 15, 24: 20, 31: 25, 38: 30, 51: 40, 65: 50, 79: 60,
+    93: 70, 107: 80, 121: 90, 135: 100,
+  },
+  // SCS 120 kHz (FR2, mmWave — unreachable on sub-6 hardware)
+  120: { 32: 50, 66: 100, 132: 200, 264: 400 },
+};
+
+/**
+ * Normalize a raw SCS field to its subcarrier spacing in kHz.
+ *
+ * The modem may report SCS either as a 3GPP numerology index (0=15, 1=30,
+ * 2=60, 3=120, 4=240 kHz) or as a literal kHz value. The two encodings are
+ * disjoint — indices are {0..4}, kHz values are {15,30,60,120,240} — so a
+ * single normalizer accepts either without ambiguity.
+ *
+ * @returns SCS in kHz, or null if the value is missing/unrecognized.
+ */
+export function normalizeScs(raw: number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  switch (raw) {
+    case 15:
+    case 30:
+    case 60:
+    case 120:
+    case 240:
+      return raw;
+    case 0:
+      return 15;
+    case 1:
+      return 30;
+    case 2:
+      return 60;
+    case 3:
+      return 120;
+    case 4:
+      return 240;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Convert an NR PRB count + SCS into the 3GPP channel bandwidth in MHz.
+ *
+ * @param prb    Carrier bandwidth as a PRB count (QSCAN field 12 for NR5G).
+ * @param rawScs Raw SCS field — either a numerology index or a kHz value.
+ * @returns Channel bandwidth in MHz, or null when SCS is missing/unknown or
+ *          the PRB count is not in the standard table (caller should then fall
+ *          back to showing the raw PRB count rather than a guessed MHz value).
+ */
+export function prbToBandwidthMhz(
+  prb: number | null | undefined,
+  rawScs: number | null | undefined
+): number | null {
+  if (prb === null || prb === undefined || prb <= 0) return null;
+  const scsKhz = normalizeScs(rawScs);
+  if (scsKhz === null) return null;
+  const table = NR_PRB_TO_MHZ[scsKhz];
+  if (!table) return null;
+  return table[prb] ?? null;
+}
+
+/**
+ * Human-readable bandwidth label for a cell-scan row, correct per RAT.
+ *
+ * LTE rows already carry MHz (the scanner daemon converts RB→MHz backend-side),
+ * so they pass through. NR rows carry a raw PRB count and are converted using
+ * the row's SCS; when SCS is missing/unknown or the PRB count is off-table, the
+ * raw PRB count is shown labeled "PRB" — an honest fallback that never prints a
+ * wrong MHz figure. Two PRB counts can map to different MHz at different SCS, so
+ * guessing a default SCS would be actively misleading, not merely imprecise.
+ */
+export function formatCellBandwidth(
+  networkType: string,
+  bandwidth: number | null | undefined,
+  scs: number | null | undefined
+): string {
+  if (bandwidth === null || bandwidth === undefined || bandwidth <= 0) {
+    return "—";
+  }
+  if (networkType === "NR5G") {
+    const mhz = prbToBandwidthMhz(bandwidth, scs);
+    return mhz !== null ? `${mhz} MHz` : `${bandwidth} PRB`;
+  }
+  // LTE (and any other RAT) is already in MHz from the backend.
+  return `${bandwidth} MHz`;
+}

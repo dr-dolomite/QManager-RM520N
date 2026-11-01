@@ -38,7 +38,7 @@ export const SCAN_RESULTS_CARD = cn(RESULTS_CARD, "p-5 sm:p-7");
 export const SECTION_HEAD = {
   ROOT: "flex flex-wrap items-start gap-x-6 gap-y-3",
   TITLES: "flex min-w-0 flex-col gap-1",
-  TITLE: "text-base font-semibold",
+  TITLE: "text-base leading-normal font-semibold",
   DESC: "max-w-[56ch] text-sm text-on-surface-variant text-pretty",
   META: "ms-auto flex flex-wrap items-center gap-2",
 } as const;

@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
@@ -194,12 +194,12 @@ const FrequencyCalculator = () => {
         <Card className={CALC_HERO}>
           <div className={SECTION_HEAD.ROOT}>
             <div className={SECTION_HEAD.TITLES}>
-              <h2 className={SECTION_HEAD.TITLE}>
+              <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
                 {t("cell_scanner.calculator.form.title")}
-              </h2>
-              <p className={SECTION_HEAD.DESC}>
+              </CardTitle>
+              <CardDescription className={SECTION_HEAD.DESC}>
                 {t("cell_scanner.calculator.form.description")}
-              </p>
+              </CardDescription>
             </div>
             <div className={SECTION_HEAD.META}>
               <SiblingRouteLink
@@ -279,12 +279,12 @@ const FrequencyCalculator = () => {
           <Card className={`${RESULTS_CARD} h-full min-w-0 flex-1`}>
             <div className={SECTION_HEAD.ROOT}>
               <div className={SECTION_HEAD.TITLES}>
-                <h2 className={SECTION_HEAD.TITLE}>
+                <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
                   {t("cell_scanner.calculator.result.bands_title")}
-                </h2>
-                <p className={SECTION_HEAD.DESC}>
+                </CardTitle>
+                <CardDescription className={SECTION_HEAD.DESC}>
                   {t("cell_scanner.calculator.result.bands_description")}
-                </p>
+                </CardDescription>
               </div>
               {specTag ? (
                 <div className={SECTION_HEAD.META}>
@@ -313,12 +313,12 @@ const FrequencyCalculator = () => {
           <Card className={`${RESULTS_CARD} h-full min-w-0 flex-1`}>
             <div className={SECTION_HEAD.ROOT}>
               <div className={SECTION_HEAD.TITLES}>
-                <h2 className={SECTION_HEAD.TITLE}>
+                <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
                   {t("cell_scanner.calculator.history.title")}
-                </h2>
-                <p className={SECTION_HEAD.DESC}>
+                </CardTitle>
+                <CardDescription className={SECTION_HEAD.DESC}>
                   {t("cell_scanner.calculator.history.description")}
-                </p>
+                </CardDescription>
               </div>
               {history.length > 0 ? (
                 <div className={SECTION_HEAD.META}>

@@ -16,11 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { prbToBandwidthMhz } from "@/lib/earfcn";
+import { HintIcon } from "@/components/ui/hint-icon";
 import type { CellScanResult } from "@/types/cell-scanner";
 
 import ScanTable from "./scan-table";
@@ -73,7 +70,7 @@ export function createCellScanColumns(
     lockCell: string;
     lockOtherNetwork: string;
   },
-  format: { bandwidth: (value: number) => string; signal: (value: number) => string },
+  format: { bandwidth: (cell: CellScanResult) => string; signal: (value: number) => string },
   onLockCell?: (cell: CellScanResult) => void,
   /** Rows answering `false` keep the item, disabled: the SIM cannot register there. */
   canLockCell: (cell: CellScanResult) => boolean = () => true,
@@ -102,22 +99,11 @@ export function createCellScanColumns(
       cell: ({ row }) => (
         <span className="flex items-center gap-1">
           <span className="font-semibold">{row.original.provider}</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="-m-2 inline-flex p-2"
-                aria-label={labels.networkCodes}
-              >
-                <MaterialSymbol name="info" size={12} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <span className={TABLE.IDENT}>
-                {row.original.mcc} {row.original.mnc}
-              </span>
-            </TooltipContent>
-          </Tooltip>
+          <HintIcon label={labels.networkCodes}>
+            <span className={TABLE.IDENT}>
+              MCC {row.original.mcc} / MNC {row.original.mnc}
+            </span>
+          </HintIcon>
         </span>
       ),
     },
@@ -162,7 +148,7 @@ export function createCellScanColumns(
       header: () => <span>{copy.bandwidth}</span>,
       cell: ({ row }) => (
         <span className={TABLE.FIGURE}>
-          {format.bandwidth(row.original.bandwidth)}
+          {format.bandwidth(row.original)}
         </span>
       ),
     },
@@ -285,7 +271,18 @@ export function ScanResultView({
           lockOtherNetwork: t("cell_scanner.actions.lock_other_network"),
         },
         {
-          bandwidth: (value) => t("cell_scanner.cells.bandwidth", { value }),
+          // NR rows carry a PRB count, not MHz; convert with the row's own SCS
+          // and show the raw count when SCS is missing or the count is off-table.
+          bandwidth: (cell) => {
+            if (!cell.bandwidth || cell.bandwidth <= 0) return "—";
+            if (cell.networkType.toUpperCase().startsWith("NR")) {
+              const mhz = prbToBandwidthMhz(cell.bandwidth, cell.scs);
+              return mhz !== null
+                ? t("cell_scanner.cells.bandwidth", { value: mhz })
+                : t("cell_scanner.cells.bandwidth_prb", { value: cell.bandwidth });
+            }
+            return t("cell_scanner.cells.bandwidth", { value: cell.bandwidth });
+          },
           signal: (value) => t("cell_scanner.cells.signal", { value }),
         },
         onLockCell,

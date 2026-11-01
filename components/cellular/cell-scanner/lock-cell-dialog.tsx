@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { authFetch } from "@/lib/auth-fetch";
+import { NR_BANDS, suggestNRSCS } from "@/lib/earfcn";
 
 import { TABLE } from "./shapes";
 
@@ -48,7 +49,7 @@ import { TABLE } from "./shapes";
 export interface LockCellTarget {
   /** Which `tower/lock.sh` payload shape this cell needs. */
   kind: "nr_sa" | "lte";
-  /** Display only — the row's reported radio, e.g. `LTE` or `NR5G-SA`. */
+  /** Display only — the row's reported radio, e.g. `LTE` or `NR5G`. */
   networkType: string;
   pci: number;
   /** EARFCN for LTE, NR-ARFCN for NR. One field because the endpoint takes one. */
@@ -57,14 +58,23 @@ export interface LockCellTarget {
   band?: number | null;
   /**
    * Subcarrier spacing, NR only. Null when the modem did not report one — the
-   * common 30 kHz default is applied here rather than being fabricated upstream,
-   * so there is one place to look when a lock lands on the wrong numerology.
+   * band-inferred fallback (`lockScs`) is applied here rather than being
+   * fabricated upstream, so there is one place to look when a lock lands on the wrong numerology.
    */
   scs?: number | null;
   provider?: string | null;
 }
 
-const NR_DEFAULT_SCS = 30;
+/**
+ * The SCS an NR lock sends. Prefer what the modem reported; otherwise infer it
+ * from the band's duplex mode (FDD 15, TDD 30, FR2 60), and fall back to 30 kHz
+ * only for a band the table does not know. A blind 30 kHz mis-locks n71 and n25.
+ */
+function lockScs(target: LockCellTarget): number {
+  if (target.scs != null) return target.scs;
+  const band = NR_BANDS.find((b) => b.band === target.band);
+  return band ? suggestNRSCS(band) : 30;
+}
 
 export interface LockCellDialogProps {
   /** The staged cell, or null when the dialog is closed. */
@@ -82,7 +92,7 @@ function buildLockBody(target: LockCellTarget): Record<string, unknown> {
       action: "lock",
       pci: target.pci,
       arfcn: target.earfcn,
-      scs: target.scs ?? NR_DEFAULT_SCS,
+      scs: lockScs(target),
       band: target.band,
     };
   }
@@ -166,7 +176,7 @@ export function LockCellDialog({
             // The cell's identifiers, in the table's own figure voice.
             <p className={`${TABLE.IDENT} text-on-surface-variant`}>
               {/* Two literal keys rather than one key plus a hand-glued
-                  ` · ${provider}` tail: the separator belongs to the sentence,
+                  ` (${provider})` tail: the punctuation belongs to the sentence,
                   and a translator who reorders the run has to be able to move
                   it. */}
               {target.provider

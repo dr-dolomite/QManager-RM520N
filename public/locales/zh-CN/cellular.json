@@ -376,6 +376,7 @@
     },
     "cells": {
       "bandwidth": "{{value}} MHz",
+      "bandwidth_prb": "{{value}} PRB",
       "signal": "{{value}} dBm"
     },
     "signal": {
