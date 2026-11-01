@@ -6,7 +6,7 @@
 # =============================================================================
 # GET:  Returns installation status, daemon state, connection info, and peers.
 # POST: Connect/disconnect, start/stop daemon, enable/disable on boot,
-#       install/uninstall, install_status.
+#       install/uninstall, install_status, check_update, update.
 #
 # Tailscale binaries live at /usrdata/tailscale/ (persistent partition).
 # Service control via platform.sh (systemd). Privileged operations via
@@ -89,11 +89,68 @@ ts_cmd() {
     $_SUDO "$TAILSCALE_BIN" "$@"
 }
 
+# --- Update check: newest stable build, cached; GET never waits on the network.
+# Cache line is "<epoch> <version>"; a check older than 6 h (or from before a
+# clock step) is due again.
+LATEST_CACHE="/tmp/qmanager_tailscale_latest"
+LATEST_URL="https://pkgs.tailscale.com/stable/?mode=json"
+
+ts_latest_read() {
+    [ -f "$LATEST_CACHE" ] && awk 'NR==1 {print $2}' "$LATEST_CACHE" 2>/dev/null
+}
+
+ts_latest_due() {
+    [ -f "$LATEST_CACHE" ] || return 0
+    _at=$(awk 'NR==1 {print $1}' "$LATEST_CACHE" 2>/dev/null)
+    case "$_at" in ''|*[!0-9]*) return 0 ;; esac
+    _now=$(date +%s)
+    [ "$_now" -lt "$_at" ] && return 0
+    [ $((_now - _at)) -gt 21600 ]
+}
+
+ts_latest_refresh() {
+    _body=$(curl -fsS -m 10 "$LATEST_URL" 2>/dev/null) || return 1
+    _ver=$(printf '%s' "$_body" | jq -r '.TarballsVersion // .Version // empty' 2>/dev/null)
+    case "$_ver" in ''|*[!0-9.]*) return 1 ;; esac
+    printf '%s %s\n' "$(date +%s)" "$_ver" > "$LATEST_CACHE"
+}
+
+# True when $1 is a newer dotted version than $2 (device jq has no regex).
+ts_version_gt() {
+    jq -n -e --arg a "$1" --arg b "$2" \
+        '($a | split(".") | map(tonumber? // 0)) > ($b | split(".") | map(tonumber? // 0))' \
+        >/dev/null 2>&1
+}
+
+# An update holds the install lock; the daemon restarts under it, so GET says so
+# instead of reporting a stopped service.
+ts_update_busy() {
+    [ -f "$INSTALL_PID" ] || return 1
+    _bp=$(tr -d ' \n\r' < "$INSTALL_PID" 2>/dev/null)
+    { [ -n "$_bp" ] && pid_alive "$_bp"; } || return 1
+    [ "$(jq -r '.op // empty' "$INSTALL_RESULT" 2>/dev/null)" = "update" ]
+}
+
+# Sets latest_version / update_available for the GET tiers (cache only).
+ts_update_facts() {
+    latest_version=$(ts_latest_read)
+    update_available="false"
+    if [ -n "$latest_version" ] && [ -n "$1" ] && ts_version_gt "$latest_version" "$1"; then
+        update_available="true"
+    fi
+}
+
+
 
 # =============================================================================
 # GET — Fetch installation status, daemon state, connection info, peers
 # =============================================================================
 if [ "$REQUEST_METHOD" = "GET" ]; then
+
+    if ts_update_busy; then
+        jq -n '{ success: true, installed: true, busy: "update" }'
+        exit 0
+    fi
 
     # --- Tier 1: Not installed -----------------------------------------------
     if ! is_installed; then
@@ -108,6 +165,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     ts_version=$(get_ts_version)
     boot_enabled=$(get_boot_enabled)
+    ts_update_facts "$ts_version"
 
     # --- Tier 2: Installed but daemon not running ----------------------------
     if ! is_daemon_running; then
@@ -119,13 +177,17 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             --argjson enabled_on_boot "$boot_enabled" \
             --argjson ssh_enabled "$ssh_enabled" \
             --arg version "$ts_version" \
+            --arg latest_version "$latest_version" \
+            --argjson update_available "$update_available" \
             '{
                 success: true,
                 installed: $installed,
                 daemon_running: $daemon_running,
                 enabled_on_boot: $enabled_on_boot,
                 ssh_enabled: $ssh_enabled,
-                version: $version
+                version: $version,
+                latest_version: $latest_version,
+                update_available: $update_available
             }'
         exit 0
     fi
@@ -144,6 +206,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             --argjson enabled_on_boot "$boot_enabled" \
             --argjson ssh_enabled "$ssh_enabled" \
             --arg version "$ts_version" \
+            --arg latest_version "$latest_version" \
+            --argjson update_available "$update_available" \
             '{
                 success: true,
                 installed: $installed,
@@ -151,6 +215,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 enabled_on_boot: $enabled_on_boot,
                 ssh_enabled: $ssh_enabled,
                 version: $version,
+                latest_version: $latest_version,
+                update_available: $update_available,
                 backend_state: "Unknown",
                 error_detail: "Could not retrieve status from tailscale daemon"
             }'
@@ -213,6 +279,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson enabled_on_boot "$boot_enabled" \
         --argjson ssh_enabled "$ssh_enabled" \
         --arg version "$ts_version" \
+        --arg latest_version "$latest_version" \
+        --argjson update_available "$update_available" \
         --arg backend_state "$backend_state" \
         --arg auth_url "$auth_url" \
         --argjson self "$self_json" \
@@ -226,6 +294,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             enabled_on_boot: $enabled_on_boot,
             ssh_enabled: $ssh_enabled,
             version: $version,
+            latest_version: $latest_version,
+            update_available: $update_available,
             backend_state: $backend_state,
             auth_url: $auth_url,
             self: $self,
@@ -311,6 +381,59 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # All remaining POST actions require tailscale to be installed
     if ! is_installed; then
         cgi_error "not_installed" "Tailscale is not installed"
+        exit 0
+    fi
+
+    # -------------------------------------------------------------------------
+    # action: check_update — newest stable version (cached 6 h); force:true
+    # always asks pkgs.tailscale.com. Needs no root beyond `tailscale version`.
+    # -------------------------------------------------------------------------
+    if [ "$ACTION" = "check_update" ]; then
+        cu_force=$(printf '%s' "$POST_DATA" | jq -r 'if .force == true then "1" else "0" end' 2>/dev/null)
+        cu_installed=$(get_ts_version)
+        if [ "$cu_force" = "1" ] || ts_latest_due; then
+            if ! ts_latest_refresh; then
+                cgi_error "update_check_failed" "Could not check for Tailscale updates"
+                exit 0
+            fi
+        fi
+        cu_latest=$(ts_latest_read)
+        if [ -z "$cu_latest" ]; then
+            cgi_error "update_check_failed" "Could not check for Tailscale updates"
+            exit 0
+        fi
+        cu_available="false"
+        if [ -n "$cu_installed" ] && ts_version_gt "$cu_latest" "$cu_installed"; then
+            cu_available="true"
+        fi
+        jq -n \
+            --arg latest_version "$cu_latest" \
+            --argjson update_available "$cu_available" \
+            '{ success: true, latest_version: $latest_version, update_available: $update_available }'
+        exit 0
+    fi
+
+    # -------------------------------------------------------------------------
+    # action: update — `tailscale update` through the root helper, in the
+    # background; progress is read through install_status (op "update").
+    # -------------------------------------------------------------------------
+    if [ "$ACTION" = "update" ]; then
+        if [ -f "$INSTALL_PID" ]; then
+            up_pid=$(tr -d ' \n\r' < "$INSTALL_PID" 2>/dev/null)
+            if [ -n "$up_pid" ] && pid_alive "$up_pid"; then
+                cgi_error "update_in_progress" "An install or update is already running"
+                exit 0
+            fi
+        fi
+        up_installed=$(get_ts_version)
+        up_latest=$(ts_latest_read)
+        if [ -n "$up_latest" ] && [ -n "$up_installed" ] && ! ts_version_gt "$up_latest" "$up_installed"; then
+            cgi_error "up_to_date" "Tailscale is already up to date"
+            exit 0
+        fi
+        qlog_info "Starting Tailscale update from $up_installed"
+        ( $_SUDO /usr/bin/qmanager_tailscale_mgr update ) </dev/null >/dev/null 2>&1 &
+        cgi_success
         exit 0
     fi
 
