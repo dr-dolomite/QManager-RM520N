@@ -56,7 +56,8 @@ CID, so "profile index 1" is "CID 1".
 `AT+CGCONTRDP` is queried only for contexts that are currently active. An
 inactive or undefined context returns a bare `OK` with no `+CGCONTRDP:` line on
 this firmware, so empty output simply means "no runtime data" — it is not an
-error.
+error. The SIM-profile APN step relies on the same rule: a bare `OK` proceeds, a
+qcmd failure or an unrecognised reply skips (see sim-profiles.md, Fail-closed guards).
 
 The Quectel-native `AT+QICSGP` reports the stored password, but `apn.sh` reads
 it only to derive the `has_password` boolean. **The password is never emitted

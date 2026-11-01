@@ -181,7 +181,7 @@ Differences from the retired shell `qcmd`, all deliberate:
 
 - **Long-flag gate.** While a trusted `/run/qmanager_at/long_running` exists, a short command answers `modem_busy` at once instead of waiting 5 s for the lock.
 - **Non-AT input is refused.** The shell sent it to `atcli_smd11`, which never returned and held the AT lock until killed (reproduced 2026-10-28 with `qcmd hello`).
-- **A wait cap exists.** `qcmd -t MS` or `QCMD_WAIT_MS=MS` (50–60000) caps a short command's wait. No RM520N caller uses it.
+- **A wait cap exists.** `qcmd -t MS` or `QCMD_WAIT_MS=MS` (50–60000) caps how long the **caller** waits for a short command. It does not shorten the exchange: the broker still holds the port and the lock until the command's own deadline (20 s short, 60 s slow). The poller sets `QCMD_WAIT_MS=5000` on its `AT+QMAP` reads; nothing else uses it.
 - **`COPS=2` and `COPS=0` are long commands.** They get the 10 s lock budget and set the long flag, so short commands answer `modem_busy` while an attach cycle runs.
 - **Only a root client creates the lock** when `qmanager_setup` has not yet; the shell created it 0666 for anyone (T4.3).
 

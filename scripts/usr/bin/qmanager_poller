@@ -44,6 +44,8 @@ CACHE_FILE="/tmp/qmanager_status.json"
 CACHE_TMP="/tmp/qmanager_status.json.tmp"
 # Raised by the root broker around long commands; trusted via qm_long_flag_up.
 LONG_FLAG="/run/qmanager_at/long_running"
+# "<boot_id> <iccid>" whose auto-apply already ran; /run is root-only tmpfs, so www-data cannot plant it.
+PROFILE_BOOT_APPLIED_FILE="/run/qmanager_profile_boot_applied"
 # Touched by external triggers (e.g. SIM-slot-change CGI) to pull the warm
 # refresh into the next cycle instead of waiting up to ~30s for the normal
 # Tier 2 cadence to land.
@@ -429,6 +431,25 @@ qlog_init "poller"
 log_info()  { qlog_info  "$1"; }
 log_warn()  { qlog_warn  "$1"; }
 log_error() { qlog_error "$1"; }
+
+# AT+QMAP goes through QCMAP; with QCMAP dead it wedged the AT port (RG501Q, R6 F1).
+# A firmware without the unit is treated as up.
+_qcmap_was_up=1
+qcmap_up() {
+    local st
+    st=$(systemctl show -p LoadState -p ActiveState QCMAP_ConnectionManagerd 2>/dev/null)
+    case "$st" in
+        *LoadState=loaded*) ;;
+        *) return 0 ;;
+    esac
+    case "$st" in
+        *ActiveState=active*) [ "$_qcmap_was_up" = 1 ] || log_info "QCMAP active again: AT+QMAP reads resume"
+                              _qcmap_was_up=1; return 0 ;;
+    esac
+    [ "$_qcmap_was_up" = 0 ] || log_warn "QCMAP not active: skipping AT+QMAP reads"
+    _qcmap_was_up=0
+    return 1
+}
 
 # Hardware identity — model / SoC parser, tier table, profile generator.
 #
@@ -1080,7 +1101,7 @@ update_data_used() {
 collect_boot_data() {
     log_info "Collecting boot-only data..."
 
-    local result
+    local result qmap_ok=0
 
     # =========================================================================
     # Group A: Identity reads — compound AT (7 → 1 call)
@@ -1237,7 +1258,9 @@ collect_boot_data() {
     sleep "$SIP_DELAY"
 
     # --- B3: IP Passthrough MPDN rule + NAT ---
-    result=$(qcmd 'AT+QMAP="MPDN_RULE";+QMAP="IPPT_NAT"' 2>/dev/null)
+    qcmap_up && qmap_ok=1
+    result=""
+    [ "$qmap_ok" = 1 ] && result=$(QCMD_WAIT_MS=5000 qcmd 'AT+QMAP="MPDN_RULE";+QMAP="IPPT_NAT"' 2>/dev/null)
     if [ -n "$result" ]; then
         parse_ippt_mpdn_rule "$result"
         parse_ippt_nat "$result"
@@ -1257,7 +1280,8 @@ collect_boot_data() {
     # The parser silently sets empty values when the response shape doesn't
     # match the canonical +QMAP: "LANIP",start,end,gateway form.
     # =========================================================================
-    result=$(qcmd 'AT+QMAP="LANIP"' 2>/dev/null)
+    result=""
+    [ "$qmap_ok" = 1 ] && result=$(QCMD_WAIT_MS=5000 qcmd 'AT+QMAP="LANIP"' 2>/dev/null)
     if [ -n "$result" ]; then
         parse_lan_ip "$result"
     fi
@@ -1271,7 +1295,8 @@ collect_boot_data() {
     # usbnet state on that device too. Isolating it here means a firmware
     # that lacks it only loses this one field.
     # =========================================================================
-    result=$(qcmd 'AT+QMAP="DHCPV4DNS"' 2>/dev/null)
+    result=""
+    [ "$qmap_ok" = 1 ] && result=$(QCMD_WAIT_MS=5000 qcmd 'AT+QMAP="DHCPV4DNS"' 2>/dev/null)
     if [ -n "$result" ]; then
         parse_ippt_dhcpv4dns "$result"
     fi
@@ -1304,8 +1329,15 @@ collect_boot_data() {
     # deactivated above (ICCID mismatch), this finds and applies the profile
     # for the new SIM instead.
     # =========================================================================
+    # Once per boot and SIM: a poller respawn must not re-run the apply.
     if [ -n "$boot_iccid" ]; then
-        auto_apply_profile "$boot_iccid" "boot"
+        _bp_boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+        if [ -n "$_bp_boot_id" ] && [ "$(cat "$PROFILE_BOOT_APPLIED_FILE" 2>/dev/null)" = "$_bp_boot_id $boot_iccid" ]; then
+            log_info "Profile auto-apply already ran this boot, skipping"
+        else
+            printf '%s %s\n' "$_bp_boot_id" "$boot_iccid" > "$PROFILE_BOOT_APPLIED_FILE" 2>/dev/null
+            auto_apply_profile "$boot_iccid" "boot"
+        fi
     fi
 
     log_info "Boot data: FW=$boot_firmware BUILD=$boot_build_date MFG=$boot_manufacturer MODEL=$boot_model"
@@ -1490,7 +1522,11 @@ poll_tier2() {
     # (in SA mode) or NR errors (in LTE-only) cannot kill the whole chain.
 
     # --- Group 1: APN + WAN IPs (always safe, mode-independent) ---
-    result=$(qcmd 'AT+CGCONTRDP;+QMAP="WWAN"' 2>/dev/null)
+    if qcmap_up; then
+        result=$(QCMD_WAIT_MS=5000 qcmd 'AT+CGCONTRDP;+QMAP="WWAN"' 2>/dev/null)
+    else
+        result=$(qcmd 'AT+CGCONTRDP' 2>/dev/null)
+    fi
     if [ -n "$result" ]; then
         if printf '%s\n' "$result" | grep -q '+CGCONTRDP:'; then
             parse_cgcontrdp "$result"
