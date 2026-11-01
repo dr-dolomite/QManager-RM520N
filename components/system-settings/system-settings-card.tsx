@@ -106,7 +106,7 @@ const DISTANCE_LABEL_ID = "preferences-distance-label";
 
 type SystemSettingsCardProps = Pick<
   UseSystemSettingsReturn,
-  "settings" | "isLoading" | "isSaving" | "error" | "saveSettings" | "refresh"
+  "settings" | "isLoading" | "isSaving" | "error" | "errorDetail" | "saveSettings" | "refresh"
 > & {
   sims: TrackedSimsGroupProps;
 };
@@ -116,6 +116,7 @@ export default function SystemSettingsCard({
   isLoading,
   isSaving,
   error,
+  errorDetail,
   saveSettings,
   refresh,
   sims,
@@ -144,8 +145,8 @@ export default function SystemSettingsCard({
             ariaRole="alert"
             title={t(`${K}.states.error_title`)}
             description={
-              error
-                ? t(`${K}.states.error_body_detail`, { detail: error })
+              errorDetail
+                ? t(`${K}.states.error_body_detail`, { detail: errorDetail })
                 : t(`${K}.states.error_body`)
             }
             onRetry={() => refresh()}

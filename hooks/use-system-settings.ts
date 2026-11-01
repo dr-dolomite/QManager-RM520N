@@ -100,7 +100,10 @@ export interface UseSystemSettingsReturn {
   deviceClock: DeviceClockReading | null;
   isLoading: boolean;
   isSaving: boolean;
+  /** Last READ failed: a localized sentence, never raw transport text. */
   error: string | null;
+  /** The device's own reason for that failure, when it gave one. */
+  errorDetail: string | null;
   saveSettings: (payload: SaveSettingsPayload) => Promise<SaveResult>;
   saveScheduledReboot: (
     payload: SaveScheduledRebootPayload,
@@ -127,8 +130,12 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  // Held in a ref so a language switch does not rebuild fetchSettings and refetch.
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // Responses settle out of order, so every request claims a sequence at ISSUE
   // time and a late one that lost the race is dropped instead of applied.
@@ -149,34 +156,37 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     const seq = ++reqSeqRef.current;
     if (!silent) setIsLoading(true);
     setError(null);
+    setErrorDetail(null);
 
     try {
       const resp = await authFetch(CGI_ENDPOINT);
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
+      if (!resp.ok) throw new Error();
 
-      const json: SystemSettingsResponse = await resp.json();
+      const json = (await resp.json()) as SystemSettingsResponse & {
+        error?: string;
+        detail?: string;
+      };
       if (!mountedRef.current) return;
       // A newer answer already landed, so this one is stale by definition.
       if (seq <= appliedSeqRef.current) return;
       appliedSeqRef.current = seq;
 
       if (!json.success) {
-        setError("Failed to fetch system settings");
+        const reason = resolveErrorMessage(tRef.current, json.error, json.detail, "").trim();
+        setError(reason || tRef.current("unknown"));
+        setErrorDetail(reason || null);
         return;
       }
 
       setSettings(json.settings);
       setScheduledReboot(json.scheduled_reboot);
       setDeviceClock(toClockReading(json.device_clock));
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
       if (seq <= appliedSeqRef.current) return;
       appliedSeqRef.current = seq;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch system settings",
-      );
+      // Transport failures carry no device reason; HTTP/network text stays out of the UI.
+      setError(tRef.current("unknown"));
     } finally {
       // Deliberately unsequenced: gating this would strand the spinner whenever
       // a silent refetch supersedes a visible one and never clears it.
@@ -209,9 +219,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           body: JSON.stringify(payload),
         });
 
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-        }
+        if (!resp.ok) throw new Error();
 
         const json: SaveResponse = await resp.json();
         if (!mountedRef.current) return { success: false };
@@ -247,13 +255,10 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           reason: json.reason,
           timezoneNotApplied: json.timezone_apply_status === "failed",
         };
-      } catch (err) {
+      } catch {
         if (!mountedRef.current) return { success: false };
-        return {
-          success: false,
-          rejection: "network",
-          rejectionDetail: err instanceof Error ? err.message : undefined,
-        };
+        // No device reason on a transport failure; the "network" token has its own copy.
+        return { success: false, rejection: "network" };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);
@@ -298,6 +303,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     isLoading,
     isSaving,
     error,
+    errorDetail,
     saveSettings,
     saveScheduledReboot,
     refresh: fetchSettings,

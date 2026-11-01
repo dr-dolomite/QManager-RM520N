@@ -205,12 +205,15 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
       const res = await authFetch(
         `${CGI_BASE}/status.sh?test_id=${encodeURIComponent(testId)}`,
       );
-      if (!res.ok) throw new Error(`status ${res.status}`);
+      // The panel shows the message as is, so throw an already-localized one.
+      if (!res.ok) throw new Error(describe(new HealthCheckError(undefined, undefined)));
       const data = (await res.json()) as TestOutputResponse;
-      if (!data.success) throw new Error(data.error || "fetch failed");
+      if (!data.success) {
+        throw new Error(describe(new HealthCheckError(data.error, data.detail)));
+      }
       return { output: data.output ?? "", truncated: data.truncated === true };
     },
-    [],
+    [describe],
   );
 
   /**

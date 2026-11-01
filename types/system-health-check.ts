@@ -61,4 +61,5 @@ export interface TestOutputResponse {
   output?: string;
   truncated?: boolean;
   error?: string;
+  detail?: string;
 }

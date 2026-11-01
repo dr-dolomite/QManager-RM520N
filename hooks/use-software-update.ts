@@ -207,7 +207,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
 
     try {
       const resp = await authFetch(CGI_ENDPOINT);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      if (!resp.ok) throw new Error();
 
       const json = await resp.json();
       if (!mountedRef.current) return;
@@ -233,9 +233,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
       const now = new Date().toISOString();
       localStorage.setItem(LAST_CHECKED_KEY, now);
       setLastChecked(now);
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      fail("check", err instanceof Error ? err.message : null);
+      fail("check", null);
     } finally {
       if (mountedRef.current && !silent) setIsLoading(false);
     }
@@ -351,9 +351,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
       }
 
       startDownloadPolling();
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      fail("download", err instanceof Error ? err.message : null);
+      fail("download", null);
       setIsDownloading(false);
       setDownloadState(null);
     }
@@ -382,9 +382,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
       }
 
       startPolling();
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      fail("install", err instanceof Error ? err.message : null);
+      fail("install", null);
       setIsUpdating(false);
       setUpdateStatus({ status: "idle" });
     }
@@ -502,9 +502,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
       }
 
       startChainedPolling(version);
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      fail("install", err instanceof Error ? err.message : null);
+      fail("install", null);
       setIsUpdating(false);
       setUpdateStatus({ status: "idle" });
     }
@@ -538,9 +538,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
       }
 
       startPolling();
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      fail("install", err instanceof Error ? err.message : null);
+      fail("install", null);
       setIsUpdating(false);
     }
   }, [updateInfo, startPolling, fail, clearFailure, settleStall]);
@@ -571,9 +571,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
       // Re-check with new preference
       await fetchUpdateInfo(true);
       return null;
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return null;
-      return err instanceof Error ? err.message : "";
+      return "";
     }
   }, [fetchUpdateInfo]);
 
@@ -592,9 +592,9 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
 
       await fetchUpdateInfo(true);
       return null;
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return null;
-      return err instanceof Error ? err.message : "";
+      return "";
     }
   }, [fetchUpdateInfo]);
 
