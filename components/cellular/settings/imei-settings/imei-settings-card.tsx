@@ -53,10 +53,8 @@ import {
 // =============================================================================
 // Device IMEI — the write surface
 // =============================================================================
-// One row: the draft, seeded from what the modem reports now. An IMEI write
-// lands in NVM immediately and in the network's view of the device only after a
-// restart, so a leading check badge marks the draft as already matching the
-// modem, and the footer says what a write will do.
+// One row: the draft, seeded from the modem. An IMEI write lands in NVM at once but reaches the network only after a
+// restart, so a check badge marks a draft matching the modem and the footer says what a write will do.
 //
 // -----------------------------------------------------------------------------
 // THE LUHN GATE

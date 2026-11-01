@@ -7,11 +7,8 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // One file so a strip, its skeleton and its loaded state cannot drift apart
 // (Skeleton-Mirror Rule). Layout ported from RM551E v0.1.34.
 //
-// Page anatomy: header -> "Right now" (the match verdict, then the carriers on
-// air: the only part that changes by itself) -> automation (failover, schedule,
-// keep-after-reboot) -> a 2-up of the leg cards (where the target changes).
-// Failover and keep-after-reboot live in the automation section because both
-// act on the whole modem, not a leg (`save_ctrl,v,v` writes both radios).
+// Page anatomy: header, "Right now", automation (failover, schedule, keep-after-reboot), then a 2-up of leg cards.
+// Failover and keep-after-reboot act on the whole modem, not a leg (`save_ctrl,v,v` writes both radios).
 // =============================================================================
 
 // --- Surfaces ----------------------------------------------------------------
@@ -93,9 +90,8 @@ export const VERDICT_ROW = {
 } as const;
 
 /**
- * Verdict -> fill, disc, glyph. The three neutral verdicts share a fill, so the
- * glyph is what separates them. `unlocked` is neutral, not success: with no
- * lock there was no ask, so "nothing to match" is neither good nor bad news.
+ * Verdict -> fill, disc, glyph. The three neutral verdicts share a fill; `unlocked` is neutral, not success, since
+ * with no lock there was no ask.
  */
 export const VERDICT_TONE: Record<
   TowerMatchVerdict,
@@ -130,10 +126,8 @@ export const VERDICT_TONE: Record<
 };
 
 /**
- * A leg matches when SOME camped carrier of that radio carries the exact
- * (channel, PCI) pair the modem reports as a target; LTE needs only one of its
- * three. An unread leg makes the verdict `unknown` (tested `=== false`: absent
- * means read). A lock on a radio with nothing on air is `off_target`.
+ * A leg matches when SOME camped carrier of that radio has the modem's exact (channel, PCI) target (LTE needs one of
+ * three). Unread leg = `unknown` (tested `=== false`); a lock with nothing on air is `off_target`.
  */
 export function matchVerdict(
   modemState: {
@@ -279,9 +273,8 @@ export const AUTO_TILE = {
 } as const;
 
 /**
- * The tile disc carries the state itself: its fill is the same tonal pair the
- * matching `Badge` variant uses, so the verdict reads without a chip beside it.
- * The state's name rides on the disc as its accessible label.
+ * The disc carries the state: its fill is the matching `Badge` variant's tonal pair, with the state name as its
+ * accessible label.
  */
 const DISC_TONE: Partial<Record<BadgeVariant, string>> = {
   success: "bg-success-container text-on-success-container",
@@ -295,13 +288,8 @@ export function discTone(variant: BadgeVariant): string {
   return DISC_TONE[variant] ?? AUTO_TILE.DISC_NEUTRAL;
 }
 
-/**
- * Live-quality strip: rising columns, deliberately not a horizontal track, so
- * it never reads as a second slider beside the threshold control. Each column
- * is 5% of quality, shaded in the primary hue from faint to full, so the strip
- * is also the scale: the lit columns are the reading, the neutral ones are the
- * headroom, and a notch under the strip marks where failover releases.
- */
+/** Live-quality strip: rising columns (not a track, so it never reads as a second slider); each is 5% of
+ * quality, with a notch where failover releases. */
 export const METER_BARS = 20;
 export const AUTO_METER = {
   ROOT: "relative pb-2",
@@ -317,9 +305,8 @@ export function meterBarHeight(index: number): string {
 }
 
 /**
- * Column colour: one hue (primary), shade by position. A lit column steps from
- * a light tint at the weak end to full primary at the strong end; an unlit one
- * is neutral, so the headroom never competes with the reading.
+ * Column colour: one hue (primary), shade by position; unlit columns are neutral so headroom never competes with the
+ * reading.
  */
 export function meterBarColor(index: number, lit: boolean): string {
   if (!lit) return "var(--surface-container-high)";

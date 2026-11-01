@@ -70,12 +70,8 @@ import {
 // =============================================================================
 // LteTowerCard — pin the LTE radio to up to three cells (EARFCN + PCI)
 // =============================================================================
-// Three slot rows; a half-filled slot is dropped on write, so the card warns.
-// "Pick" mode swaps the channel field for the carriers on air (PCI stays typed:
-// a PCI read off a scan must always be enterable). The modem's read-back sits
-// above the slots because it is what the form may disagree with. Unlock stays
-// live whenever the modem reports a lock: a lock on an unreachable cell can
-// take this page down, and removing it must survive every state.
+// Three slot rows; a half-filled slot is dropped on write, so the card warns. Unlock stays live whenever the modem
+// reports a lock: a lock on an unreachable cell can take this page down.
 // =============================================================================
 
 const K = "tower_locking";

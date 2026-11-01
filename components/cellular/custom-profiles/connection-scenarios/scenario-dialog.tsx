@@ -28,14 +28,8 @@ import { cn } from "@/lib/utils";
 import { NETWORK_MODE_OPTIONS } from "@/types/connection-scenario";
 import { DEFAULT_SCENARIO_ICON_ID, SCENARIO_ICONS } from "./scenario-icons";
 
-// =============================================================================
-// ScenarioDialog — ONE dialog for adding and editing a custom scenario
-// =============================================================================
-// Replaces the two near-identical inline Add / Edit dialogs. It only edits a
-// draft; the card builds the request body from it, so what reaches save.sh is
-// unchanged. The parent remounts it per open through `key`, which seeds the
-// draft from `initial` once.
-// =============================================================================
+// ONE dialog for adding and editing a custom scenario; it only edits a draft, the card builds the request body. The
+// parent remounts it per open via `key`, which seeds the draft from `initial` once.
 
 export interface ScenarioDraft {
   name: string;

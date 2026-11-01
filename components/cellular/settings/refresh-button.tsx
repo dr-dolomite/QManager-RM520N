@@ -15,13 +15,8 @@ export interface RefreshButtonProps {
   disabled?: boolean;
 }
 
-/**
- * Re-reads the modem. The same tonal-neutral action button Band Locking uses for
- * its Refresh, but icon-only at rest: the label unfolds on hover or keyboard
- * focus. It animates `grid-template-columns`, which `MotionConfig` cannot see, so
- * the transition is dropped under reduced motion (the label still reveals, just
- * without easing). The accessible name is always the full label.
- */
+/** Re-reads the modem. Icon-only at rest, label unfolds on hover/focus; `MotionConfig` cannot see the
+ * grid-template-columns animation, so it is dropped under reduced motion. */
 export function RefreshButton({ onClick, disabled }: RefreshButtonProps) {
   const { t } = useTranslation("cellular");
   const reduceMotion = useMotionReduced();

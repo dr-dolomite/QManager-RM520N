@@ -76,16 +76,11 @@ import {
 // =============================================================================
 // NrSaTowerCard — pin the 5G standalone radio to a single cell
 // =============================================================================
-// Four value tiles (channel, PCI, spacing, band). Locking needs standalone
-// mode: in 5G NSA the card says so (warning) and in LTE-only it says there is
-// nothing to pin (info), at full contrast with a notice rather than a dimmed
-// card. Remove Lock is gated on the modem's lock state only, never on the
-// network gate: removing a bad lock must survive every state.
+// Locking needs standalone mode: 5G NSA warns, LTE-only says there is nothing to pin. Remove Lock is gated on the
+// modem's lock state only, never the network gate: removing a bad lock must survive every state.
 //
-// SCS is the field most likely to be wrong and the only one with provenance:
-// read from the serving cell when the picked cell is the one on air, otherwise
-// a band-default guess, flagged as such. A wrong SCS is accepted by the modem
-// and then never camps.
+// SCS is the field most likely to be wrong: read from the serving cell when it is the one on air, otherwise a flagged
+// band-default guess; a wrong SCS is accepted by the modem and then never camps.
 // =============================================================================
 
 const K = "tower_locking";

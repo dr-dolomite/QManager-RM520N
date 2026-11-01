@@ -27,12 +27,8 @@ import {
 // =============================================================================
 // ScheduleTile — apply the tower lock only inside a daily window
 // =============================================================================
-// Enabling saves at once (and reverts if the backend refuses, e.g. no lock
-// target is set). Time and day edits are debounced 800 ms and saved only while
-// the schedule is enabled; a disabled schedule just holds the draft. Every
-// finished save toasts; a save that landed but could not arm its systemd timers
-// warns instead of claiming success. Config sync is value-keyed so a re-read that returns
-// the same schedule never clobbers an edit in progress.
+// Enabling saves at once (reverts if refused); time/day edits debounce 800 ms and save only while enabled. A save
+// that could not arm its systemd timers warns. Config sync is value-keyed so a re-read keeps an in-progress edit.
 // =============================================================================
 
 const K = "tower_locking";

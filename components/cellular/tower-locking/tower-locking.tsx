@@ -39,19 +39,11 @@ import {
 //   useModemStatus()   -> carrier_components, network type, per-leg RSRP/PCI/SCS
 //   useTowerLocking()  -> config, modem lock state, failover state, writes
 //
-// Anatomy: header (scanner link, Refresh), the read-failure condition, then
-//   1. "Right now"         the carriers on air (the only part that changes on
-//                          its own);
-//   2. automation          failover, schedule and keep-after-reboot (standing
-//                          orders; failover and `save_ctrl,v,v` both act on
-//                          the whole modem, so neither is a leg-card setting);
-//   3. the leg cards, 2-up on a wide column (where the target changes).
-// Do not re-merge 1 and 2: each section's header describes only its own body.
+// Anatomy: header, read-failure condition, "Right now" (carriers on air), automation (acts on the whole modem), then
+// 2-up leg cards. Do not re-merge the first two: each section's header describes only its own body.
 //
-// Tile actions: a carrier tile locks, adds to, or removes from the lock in one
-// click. LTE re-applies the whole cell set (the modem takes the list in one
-// command, so no unlock first); NR holds a single cell. The cell set comes from
-// the LIVE modem state, never from a leg card's unsaved draft.
+// Tile actions lock, add to, or remove from the lock in one click. LTE re-applies the whole cell set (one modem
+// command, no unlock first); the set comes from the LIVE modem state, never a leg card's unsaved draft.
 // =============================================================================
 
 const K = "tower_locking";
@@ -75,9 +67,8 @@ const TowerLockingComponent = () => {
     [carriers],
   );
 
-  // Which legs can take a lock from a tile, and why not. The reason is shown
-  // on the control rather than the control being hidden. Removing a lock is
-  // never gated (the strip lets an unlock through).
+  // Which legs can take a lock from a tile, and why not (shown on the control, not hidden). Removing a lock is never
+  // gated.
   const lteHeld = tower.modemState?.lte_locked
     ? (tower.modemState.lte_cells ?? [])
     : [];

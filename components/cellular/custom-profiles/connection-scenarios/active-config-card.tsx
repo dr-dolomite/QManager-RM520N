@@ -29,13 +29,8 @@ import type { Scenario } from "./scenario-item";
 // =============================================================================
 // ActiveConfigCard — the Selected-scenario card
 // =============================================================================
-// Shows the configuration of the tile the user selected and commits it from
-// the CardFoot: Activate is the SaveButton, last on the right; Delete and Edit
-// (custom scenarios only) sit before it. While the active profile owns the
-// radio (a non-Balanced binding, or an enabled schedule) Activate is withheld
-// and the body says why. The body folds on the `0fr -> 1fr` grid-row morph,
-// closed by default; Activate follows the fold, so a collapsed card is a
-// glance, not a commit. A band lock still on Auto renders quiet.
+// Shows the selected tile's config and commits it from the CardFoot; Activate is withheld (body says why) while the
+// active profile owns the radio. The body folds on a `0fr -> 1fr` grid-row morph, closed by default.
 // =============================================================================
 
 /** Glance metric pill: key left, value right, no dividers. */

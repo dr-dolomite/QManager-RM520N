@@ -55,17 +55,11 @@ import {
 // =============================================================================
 // ConnectionScenariosCard — Scenarios card + Selected-scenario card
 // =============================================================================
-// Two cards. The Scenarios card lists every scenario as a tile (built-ins, then
-// customs) with "New scenario" in its header; selecting a tile only views it.
-// The Selected-scenario card shows that tile's configuration and commits it
-// from its CardFoot (Activate, plus Edit / Delete for customs). One dialog adds
-// and edits.
+// Scenarios card lists tiles (built-ins, then customs); selecting only views. The Selected-scenario card commits
+// (Activate, Edit/Delete for customs).
 //
-// RM520N: an active profile owns activation when it binds a non-Balanced
-// scenario OR its schedule is enabled; the ProfileOverrideAlert says so and
-// Activate is withheld (the backend also refuses with
-// `scenario_locked_by_schedule`). Request bodies are built here exactly as the
-// retired inline dialogs built them, legacy `config.mode` mirror included.
+// RM520N: an active profile owns activation (non-Balanced binding or enabled schedule), so Activate is withheld; the
+// backend also refuses with `scenario_locked_by_schedule`. Request bodies keep the legacy `config.mode` mirror.
 // =============================================================================
 
 /** Deep-link action (`?action=create-scenario`) the page maps to Add. */

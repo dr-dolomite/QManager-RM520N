@@ -20,11 +20,8 @@ const WARNING_KEY: Record<TowerWarningCode, string> = {
   service_disable_failed: `${K}.warning.service_disable_failed`,
 };
 
-/**
- * One toast for one finished tower write: the error, the partial-success
- * warning in place of the success, or the success. Returns whether it landed
- * cleanly.
- */
+/** One toast for one finished tower write (error, partial-success warning, or success); returns whether it
+ * landed cleanly. */
 export function reportTowerResult(
   t: TFunction,
   result: TowerActionResult,
@@ -43,11 +40,7 @@ export function reportTowerResult(
   return true;
 }
 
-/**
- * One settings write, one toast, whichever control asked for it. Failover and
- * keep-after-reboot go through the same CGI call. Returns whether the write
- * landed (a rejected `save_ctrl` warns and counts as not landed).
- */
+/** One settings write, one toast, whichever control asked; a rejected `save_ctrl` warns and counts as not landed. */
 export async function writeTowerSettings(
   t: TFunction,
   update: UpdateTowerSettings,

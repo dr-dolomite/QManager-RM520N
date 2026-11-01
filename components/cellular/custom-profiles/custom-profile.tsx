@@ -772,10 +772,8 @@ const CustomProfilePageBody = () => {
   /**
    * The wizard's open/close, and the launch point for auto-reapply.
    *
-   * The latch is a REF, not state: `ProfileFormDialog.handleSave` calls this
-   * in the same continuation as `handleSave`, before a re-render, so a state
-   * value read here was stale and the apply never fired. A ref is current.
-   * Cleared before firing so a reopened wizard can never replay it.
+   * The latch is a REF, not state: `ProfileFormDialog.handleSave` calls this before a re-render, so state was stale
+   * and the apply never fired. Cleared before firing so a reopened wizard cannot replay it.
    */
   const handleFormOpenChange = useCallback(
     (open: boolean) => {

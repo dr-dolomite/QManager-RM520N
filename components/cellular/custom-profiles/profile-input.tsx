@@ -70,19 +70,8 @@ import {
   MACHINE_VALUE,
 } from "@/components/cellular/custom-profiles/shapes";
 
-// =============================================================================
-// ProfileInputComponent — Create / Edit SIM Profile Wizard
-// =============================================================================
-// A four-step wizard (identity -> network -> scenario -> review) in one card,
-// committed from the card's own CardFoot (Cancel, then Next or the SaveButton
-// last on the right). Fields are controlled so Submit emits the flat
-// ProfileFormData save.sh expects (APN keys top-level; the backend nests them
-// into settings.apn and mirrors scenario.default -> settings.scenario_id).
-// The Scenario step keeps RM520N's schedule editor (ScheduleRuleRow blocks,
-// all seven days, reorder, validateSchedule) inside the RM551E tab layout.
-// Create vs. edit is driven by `editingProfile`; `onSave` returns the
-// profile id, or null on failure.
-// =============================================================================
+// Create / Edit SIM Profile wizard (identity, network, scenario, review), committed from the CardFoot; emits the flat
+// ProfileFormData save.sh expects. `onSave` returns the profile id, or null on failure.
 
 interface ProfileInputProps {
   editingProfile?: SimProfile | null;
@@ -92,20 +81,10 @@ interface ProfileInputProps {
   currentSettings?: CurrentModemSettings | null;
   /** Callback to trigger loading current modem settings */
   onLoadCurrentSettings?: () => void;
-  /**
-   * True when this save is about to trigger an auto-reapply. Withholds the
-   * save toast below — the reapply's own `ApplyProgressDialog` reports the
-   * real outcome seconds later, and a toast claiming success first was
-   * exactly the "activated" toast landing before the dialog finished.
-   */
+  /** True when this save triggers an auto-reapply: withholds the save toast, since the reapply dialog reports
+   * the real outcome. */
   willAutoReapply?: boolean;
-  /**
-   * Which step the wizard opens on. Defaults to "identity" — the normal
-   * create/edit entry. The Today strip's "Edit schedule" affordance opens
-   * straight into "scenario" instead, since that is the only step the
-   * schedule lives on and landing on Identity first made the user re-walk
-   * three steps to reach the thing they actually clicked for.
-   */
+  /** Step the wizard opens on; the Today strip's "Edit schedule" opens straight into "scenario". */
   initialTab?: WizardTab;
   /** "+ Create scenario" in the default-scenario picker: the page takes over. */
   onCreateScenario?: () => void;
@@ -119,10 +98,8 @@ const MAX_WINDOWS = 2;
 const TAB_ORDER = ["identity", "network", "scenario", "review"] as const;
 export type WizardTab = (typeof TAB_ORDER)[number];
 
-// Synthetic "Custom" value for the saved-APN quick-pick Select — shown when the
-// typed APN matches none of the saved slots. Picking it is a no-op (the APN Name
-// field stays the source of truth); it exists so the trigger reads "Custom"
-// instead of going blank while the user types a custom APN.
+// Synthetic "Custom" value for the saved-APN quick-pick when the typed APN matches no slot; picking it is a no-op
+// (the APN Name field stays the source of truth).
 const APN_CUSTOM_VALUE = "__custom__";
 
 // One wizard step. Slides in from the direction of travel (+ forward, - back)
@@ -172,10 +149,8 @@ function profileToFormData(profile: SimProfile): ProfileFormData {
     imei: s.imei,
     ttl: s.ttl,
     hl: s.hl,
-    // The backend always normalizes `scenario` onto every profile (legacy
-    // profiles fall back to DEFAULT_SCENARIO_BINDING at read time), but stay
-    // defensive here too. Seed client-only `_key`s for the schedule editor —
-    // persisted profiles never carry them.
+    // The backend always normalizes `scenario` (legacy profiles fall back to DEFAULT_SCENARIO_BINDING), but stay
+    // defensive; seed client-only `_key`s for the schedule editor, which persisted profiles never carry.
     scenario: ensureScenarioKeys(profile.scenario ?? DEFAULT_SCENARIO_BINDING),
   };
 }
@@ -224,9 +199,8 @@ const ProfileInputComponent = ({
     isLoading: scenariosLoading,
     nameForId,
   } = useScenarioList();
-  // Read-only use of the profiles list to power the live duplicate-ICCID guard.
-  // A second hook instance is fine here — it only reads; the coordinator owns
-  // the authoritative CRUD instance.
+  // Read-only use of the profiles list for the live duplicate-ICCID guard; the coordinator owns the authoritative
+  // CRUD instance.
   const { profiles } = useSimProfiles();
   const savedApn = useApnSettings();
 
@@ -243,9 +217,7 @@ const ProfileInputComponent = ({
   const isEditing = !!editingProfile;
   const isReview = tab === "review";
 
-  // Route every tab change through here so the wizard panel knows which way it
-  // travelled (forward from Next / a later tab, back from an earlier tab or an
-  // Edit jump on Review). Direction drives the slide-in offset sign.
+  // Route every tab change through here so the panel knows its travel direction (drives the slide-in offset sign).
   const changeTab = (next: WizardTab) => {
     setTabDir(TAB_ORDER.indexOf(next) >= TAB_ORDER.indexOf(tab) ? 1 : -1);
     setTab(next);
@@ -273,23 +245,8 @@ const ProfileInputComponent = ({
     setTabDir(1);
   }
 
-  // Pre-fill from current modem settings when loaded (create mode only).
-  // Compare during render instead of useEffect to avoid cascading setState.
-  //
-  // Two arrival paths land here and must behave differently:
-  //   MOUNT    — useCurrentSettings(true) fires the ~2-3s AT read on page load.
-  //              The user may already be typing when it resolves, so this path
-  //              is FILL-EMPTY-ONLY: whatever is already in the form (typed, or
-  //              seeded by an MNO preset) always wins. It also never writes
-  //              IMEI — apply step 4 (qmanager_profile_apply) issues
-  //              AT+EGMR=1,7 and REBOOTS the modem whenever a profile's stored
-  //              IMEI differs from live, and a stored IMEI also stamps an
-  //              "IMEI override" pill on the saved-profile row. Neither should
-  //              be armed silently on every new profile.
-  //   EXPLICIT — the user pressed "Load from SIM", which means "replace what's
-  //              in the form with what the SIM says": SIM values win, IMEI
-  //              included. `explicitLoad` is set by the click handler and
-  //              consumed by the next settings object to arrive.
+  // Create-mode pre-fill, compared during render. MOUNT is fill-empty-only and never writes IMEI (apply step 4
+  // REBOOTS the modem if a stored IMEI differs from live); EXPLICIT ("Load from SIM") overwrites, IMEI included.
   const [prevSettings, setPrevSettings] = useState<CurrentModemSettings | null>(
     null,
   );
@@ -299,11 +256,8 @@ const ProfileInputComponent = ({
     setPrevSettings(currentSettings);
     setExplicitLoad(false);
 
-    // The settings object is consumed (prevSettings advanced) even while
-    // editing, so a response that lands mid-edit can never write itself into a
-    // form the user opens later. That window is real: handleEdit is async, so
-    // the mount fetch can resolve between the Edit click and editingProfile
-    // arriving — and the form-reset block above would then be racing this one.
+    // Consume the settings object (advance prevSettings) even while editing, so a mid-edit response (handleEdit is
+    // async) never writes into a form opened later.
     if (!isEditing) {
       const primary =
         currentSettings.apn_profiles && currentSettings.apn_profiles.length > 0
@@ -326,12 +280,8 @@ const ProfileInputComponent = ({
           next.imei = currentSettings.imei;
         }
 
-        // APN triple. `cid` (default 1) and `pdp_type` (default IPV4V6) have no
-        // "empty" value, so fill-empty-only can't be expressed for them on
-        // their own — they ride along with apn_name so the triple is either
-        // fully SIM-sourced or fully untouched, never half-overwritten.
-        // An empty SIM APN never writes: the live device reports active_cid 1
-        // with an empty APN string, which under the old code blanked the field.
+        // APN triple: `cid` and `pdp_type` have no empty value, so they ride with apn_name (all SIM-sourced or
+        // untouched). An empty SIM APN never writes (the live device reports active_cid 1 with an empty APN).
         const simApn = (primary?.apn ?? "").trim();
         if (primary && simApn !== "" && (explicitLoad || prev.apn_name.trim() === "")) {
           next.apn_name = simApn;
@@ -375,25 +325,15 @@ const ProfileInputComponent = ({
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Load current SIM settings (create mode). The button fires the coordinator
-  // callback; the render-time compare above prefills once currentSettings lands.
-  // Arming `explicitLoad` marks that arrival as user-requested, which upgrades
-  // the prefill from fill-empty-only to overwrite and lets it include IMEI. If a
-  // mount fetch is still in flight when this is clicked, that in-flight response
-  // is treated as the explicit one — same endpoint, same data, and the user did
-  // ask for it.
-  // ---------------------------------------------------------------------------
+  // Load current SIM settings (create mode): arming `explicitLoad` upgrades the render-time prefill to overwrite,
+  // IMEI included; an in-flight mount fetch is then treated as the explicit one (same endpoint, same data).
   const handleLoadFromSim = () => {
     setExplicitLoad(true);
     if (onLoadCurrentSettings) onLoadCurrentSettings();
   };
 
-  // ---------------------------------------------------------------------------
-  // Saved-APN quick-pick. The single stored APN setting (APN Settings page) is
-  // offered as a one-click pre-fill. Only shown when the stored APN is non-empty.
-  // The Select value is DERIVED from the typed APN — no separate state.
-  // ---------------------------------------------------------------------------
+  // Saved-APN quick-pick: the stored APN setting as a one-click pre-fill, shown only when non-empty; the Select value
+  // is derived from the typed APN.
   const hasSavedApn = (savedApn.apn?.apn ?? "").trim() !== "";
   const savedApnMatch =
     hasSavedApn &&
@@ -417,11 +357,8 @@ const ProfileInputComponent = ({
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Live duplicate-ICCID guard. An ICCID may belong to only one profile — a
-  // second profile on the same SIM would make activation ambiguous. Canonical
-  // compare, so a trailing BCD F pad cannot slip a duplicate through.
-  // ---------------------------------------------------------------------------
+  // Live duplicate-ICCID guard: one SIM, one profile, or activation is ambiguous. Canonical compare so a trailing BCD
+  // F pad cannot slip through.
   const trimmedIccid = form.sim_iccid.trim();
   const duplicateIccid =
     trimmedIccid !== "" &&
@@ -430,9 +367,6 @@ const ProfileInputComponent = ({
         p.id !== editingProfile?.id && iccidMatches(p.sim_iccid, trimmedIccid),
     );
 
-  // ---------------------------------------------------------------------------
-  // Scenario binding — default scenario + optional up-to-2-window schedule
-  // ---------------------------------------------------------------------------
   const scenarioBlocks = form.scenario.schedule.blocks;
   const atScheduleCap = scenarioBlocks.length >= MAX_WINDOWS;
 
@@ -493,9 +427,6 @@ const ProfileInputComponent = ({
     [form.scenario.schedule],
   );
 
-  // ---------------------------------------------------------------------------
-  // Validation & submit
-  // ---------------------------------------------------------------------------
   const requiredFilled = form.name.trim() !== "" && !duplicateIccid;
 
   const validate = (): Record<string, string> => {
@@ -586,22 +517,8 @@ const ProfileInputComponent = ({
     }
   };
 
-  /**
-   * The footer's secondary action. CLOSES THE DIALOG IN BOTH MODES.
-   *
-   * It used to branch: edit mode closed, create mode wiped every field and
-   * threw you back to the first tab. Both halves were defensible on their own
-   * and the button was even labelled honestly ("Clear" vs "Cancel") — but the
-   * pairing was not. The slot beside a submit button in a dialog footer is
-   * where a user reaches WITHOUT READING when they want out, and in create mode
-   * that reach silently destroyed a four-tab wizard's worth of typing with no
-   * undo. A destructive action that shares a position with a non-destructive
-   * one is a mis-click trap regardless of its label.
-   *
-   * `onCancel` is optional on the props, so the reset survives as the fallback
-   * for any caller that mounts this form outside a dialog. `ProfileFormDialog`
-   * — the only caller today — always passes it, in both modes.
-   */
+  /** Footer secondary action: closes the dialog in BOTH modes. A create-mode reset beside submit silently
+   * destroyed a wizard's typing; `onCancel` falls back to reset only outside a dialog. */
   const handleCancel = () => {
     if (onCancel) {
       onCancel();
@@ -1217,17 +1134,12 @@ const ProfileInputComponent = ({
                                       "custom_profiles.form.window_label",
                                       { index: i + 1 },
                                     ),
-                                    // Non-null so the "not set" branch never
-                                    // fires; actual rendering reads namePart/
-                                    // machinePart, not this string.
+                                    // Non-null so the "not set" branch never fires; rendering reads
+                                    // namePart/machinePart.
                                     value: name,
                                     namePart: name,
-                                    // "· " is a bare separator glyph, not
-                                    // human-authored text, so it rides along
-                                    // inside the mono segment with the time
-                                    // range it precedes (reuses the same
-                                    // `scenario.time_range` key the collapsed
-                                    // row uses in schedule-rule-row.tsx).
+                                    // "· " is a bare separator glyph, so it rides in the mono segment with the time
+                                    // range (same `scenario.time_range` key as schedule-rule-row.tsx).
                                     machinePart: `· ${t(
                                       "custom_profiles.form.scenario.time_range",
                                       { start: b.start, end: b.end },
@@ -1312,23 +1224,15 @@ const ProfileInputComponent = ({
   );
 };
 
-// -----------------------------------------------------------------------------
-// Review-tab building blocks (presentational summary bound to live form state).
-// -----------------------------------------------------------------------------
 interface SummaryRow {
   label: string;
   value: string | null;
   numeric?: boolean;
-  /** A value the device consumes verbatim (ICCID, APN, IMEI, CID, TTL/HL)
-   * rather than a label a human wrote — the Machine-Voice Rule, via
-   * `MACHINE_VALUE` from shapes.ts. Ignored when `machinePart` is set. */
+  /** A device-consumed value (ICCID, APN, IMEI, CID, TTL/HL), rendered in `MACHINE_VALUE` (Machine-Voice Rule);
+   * ignored when `machinePart` is set. */
   mono?: boolean;
-  /** Split composition for a row that mixes a human-authored name with a
-   * device-emitted value in one line — a schedule window's scenario name
-   * plus its HH:MM range. The Machine-Voice Rule applies PER SEGMENT: when
-   * set, `namePart` renders proportional and `machinePart` renders in
-   * `MACHINE_VALUE`, instead of `value`/`mono` wrapping the whole composed
-   * string in mono (which would also monospace the human-typed name). */
+  /** Split row mixing a human name with a device value (schedule scenario + HH:MM): `namePart` proportional,
+   * `machinePart` mono, per segment. */
   namePart?: string;
   machinePart?: string;
 }

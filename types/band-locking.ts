@@ -55,10 +55,8 @@ export interface FailoverState {
   watcher_running: boolean;
 }
 
-/**
- * The result a band mutation returns. `error` is already resolved through
- * `resolveErrorMessage`, so the caller toasts it as-is (no stale closure).
- */
+/** Result of a band mutation; `error` is already resolved through `resolveErrorMessage`, so the caller toasts
+ * it as-is. */
 export type BandActionResult = { ok: true } | { ok: false; error: string };
 
 /**

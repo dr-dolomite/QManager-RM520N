@@ -34,18 +34,13 @@ import { categoryCardId } from "./shapes";
 // =============================================================================
 // BandLockingComponent — page coordinator for /cellular/cell-locking
 // =============================================================================
-// Owns every hook and distributes data down as props; no child talks to CGI.
-// Layout ported from RM551E v0.1.34: header (with Refresh), the read-failure
-// condition, the gate, the status card, then one card per category.
+// Owns every hook and distributes data down as props; no child talks to CGI. Layout ported from RM551E v0.1.34.
 //
-//   useModemStatus()          → supported_* bands, carrier_components
-//   useBandLocking()          → currentBands, failover, lock/unlock, refresh
-//   useConnectionScenarios()  → activeScenarioId (the scenario gate)
-//   useSimProfiles()          → the profile gate (RM520N only; outranks scenario)
+// Hooks: useModemStatus (supported bands, carriers), useBandLocking, useConnectionScenarios (scenario gate),
+// useSimProfiles (profile gate, RM520N only; outranks scenario).
 //
-// The profile gate resolves the scenario in force NOW (schedule windows
-// included), not `scenario.default`: the on-device timer applies the windowed
-// one, and both write the same `AT+QNWPREFCFG` registers.
+// The profile gate resolves the scenario in force NOW (schedule windows included), not `scenario.default`: the
+// on-device timer applies the windowed one, and both write the same `AT+QNWPREFCFG` registers.
 //
 // Refresh is blocked while any write or the failover watcher runs: `current.sh`
 // takes the AT lock, and the watcher treats a failed check as "no carrier".

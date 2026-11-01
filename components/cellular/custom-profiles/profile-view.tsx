@@ -63,30 +63,8 @@ import {
   type PdpType,
 } from "@/types/sim-profile";
 
-// =============================================================================
-// ProfileViewComponent — the registry: every saved Custom SIM Profile
-// =============================================================================
-// The left column of the merged SIM Profiles page. One card holds the whole
-// roster; each profile is one `surface-container` row, the active profile
-// first, with its day schedule as a mini bar.
-//
-// Identity (the carrier, the config: APN, CID, PDP, TTL, HL) is `Tag`s. A fact
-// that changes what the modem does (an IMEI override, a binding to another
-// SIM) is a Fact-Is-Info `info` badge, shown only while it applies. Status is
-// the filled chip on the row's right edge.
-//
-// list.sh returns summaries only, so every profile's full config is prefetched
-// in parallel and ONE skeleton is held until all are in. SIM mismatch is the
-// canonical compare (`iccidMismatch`, trailing BCD `F` ignored).
-//
-// RM520N keeps "Recommended for your SIM" suggestions as dashed rows under the
-// saved ones; they are never merged into `profiles`, so the count, the detail
-// prefetch and the per-row actions only ever see real records.
-//
-// Activate and Deactivate belong to the page (`custom-profile.tsx`): it owns
-// the mismatch confirm, the apply dialog, the deactivate dialog and their
-// toasts. Delete stays here with its own confirm.
-// =============================================================================
+// Registry of saved SIM profiles, active first. list.sh returns summaries, so full configs prefetch behind ONE
+// skeleton. RM520N's dashed "Recommended" rows stay out of `profiles`; Activate lives in `custom-profile.tsx`.
 
 type ProfileStatus = "active" | "mismatch" | "inactive";
 
@@ -204,9 +182,8 @@ const ProfileViewComponent = ({
     }
   };
 
-  // ---- Detail hydration -----------------------------------------------------
-  // One skeleton for the summary fetch AND the detail prefetch; later runs
-  // refresh in the background because `detailsHydrated` only ever turns true.
+  // One skeleton for the summary fetch AND the detail prefetch; later runs refresh in the background
+  // (`detailsHydrated` only turns true).
   const [details, setDetails] = React.useState<Record<string, SimProfile>>({});
   const [detailsHydrated, setDetailsHydrated] = React.useState(false);
 
@@ -393,10 +370,7 @@ const ProfileViewComponent = ({
   );
 };
 
-// -----------------------------------------------------------------------------
-// One profile. Narrow: a stacked block. Wide: identity and config on the left,
-// status and the action on the right edge.
-// -----------------------------------------------------------------------------
+// One profile row: stacked when narrow; identity and config left, status and action right when wide.
 const ProfileRow = ({
   summary,
   status,
@@ -539,10 +513,8 @@ const ProfileRow = ({
   );
 };
 
-// -----------------------------------------------------------------------------
-// Config readout: identity is Tags; facts that change the modem's behaviour
-// are Fact-Is-Info badges, each with its own glyph, shown only when they apply.
-// -----------------------------------------------------------------------------
+// Config readout: identity is Tags; facts that change modem behaviour are Fact-Is-Info badges, shown only when they
+// apply.
 const ConfigPills = ({
   profile,
   otherSim,
@@ -597,10 +569,7 @@ const ConfigPills = ({
   );
 };
 
-// -----------------------------------------------------------------------------
-// Suggestion row (RM520N): a dashed, unfilled offer that says what it would
-// write before the user presses Create.
-// -----------------------------------------------------------------------------
+// Suggestion row (RM520N): a dashed, unfilled offer that shows what it would write before Create.
 const SuggestionRow = ({
   view,
   isCreating,
@@ -706,9 +675,7 @@ const SuggestionRow = ({
   );
 };
 
-// -----------------------------------------------------------------------------
 // Skeleton: the row shape, imported from `ROW` so the two cannot drift.
-// -----------------------------------------------------------------------------
 const SkeletonRow = () => (
   <div className={ROW}>
     <div className="flex flex-col gap-3 @3xl/card:flex-row @3xl/card:justify-between">

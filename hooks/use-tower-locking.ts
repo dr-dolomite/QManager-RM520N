@@ -40,11 +40,8 @@ export type {
 // process completes. This detects whether failover activated and updates
 // the UI accordingly — without touching the modem.
 //
-// Read and write failures are separate channels. `readError` belongs to the
-// `status.sh` read; each mutator RETURNS its own result, with the failure
-// already resolved through `resolveErrorMessage`, so the page can toast it and
-// scope it to the card that wrote without reading hook state after an `await`.
-//
+// Read and write failures are separate: `readError` is the `status.sh` read; each mutator RETURNS its own result,
+// already resolved through `resolveErrorMessage`, so the page toasts it without reading hook state after an `await`.
 // Backend endpoints:
 //   GET  /cgi-bin/quecmanager/tower/status.sh           → full state
 //   GET  /cgi-bin/quecmanager/tower/failover_status.sh  → lightweight flag check
@@ -131,9 +128,8 @@ export interface UseTowerLockingReturn {
   /** True while a persist / failover settings save is in flight */
   isSavingSettings: boolean;
   /**
-   * Why the last `status.sh` read failed, or null. A failed read keeps the
-   * previous state (`null` on first load), so this is the only signal that the
-   * figures on screen are not the modem's.
+   * Why the last `status.sh` read failed, or null; a failed read keeps the previous state, so this is the only signal
+   * the figures are stale.
    */
   readError: string | null;
 
@@ -182,13 +178,8 @@ export function useTowerLocking(): UseTowerLockingReturn {
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
-   * True while ANY lock/unlock request is in flight. A ref so `sendLockRequest`
-   * reads it at call time without re-creating itself on each flip.
-   *
-   * This replaces a guard that blocked a lock while `watcher_running` was true.
-   * The tower watcher is `while true` and only exits once no lock is active, so
-   * with failover on and a leg locked that guard made re-targeting permanently
-   * impossible. In-flight is the fact the guard actually wanted.
+   * True while ANY lock/unlock is in flight (a ref, read at call time). Replaces a `watcher_running` guard that made
+   * re-targeting impossible, since the tower watcher only exits once no lock is active.
    */
   const lockInFlightRef = useRef(false);
   // A language switch changes `t`; through a ref it never re-runs the first read.
@@ -395,10 +386,8 @@ export function useTowerLocking(): UseTowerLockingReturn {
           failoverPollRef.current = null;
         }
 
-        // If failover is armed, the backend has spawned the watcher because
-        // the user had Signal Failover already enabled. Only update runtime
-        // state (watcher_running / activated); never force enabled=true —
-        // that's the user's explicit toggle and lives in config.failover.
+        // If failover is armed the backend spawned the watcher: update runtime state only (watcher_running /
+        // activated); never force enabled=true, which is the user's explicit toggle in config.failover.
         if (data.failover_armed) {
           setFailoverState((prev) =>
             prev

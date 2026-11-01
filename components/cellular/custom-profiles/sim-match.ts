@@ -1,9 +1,7 @@
 import { canonicalizeIccid, iccidMatches } from "@/lib/carrier-match";
 
-/**
- * Bound to a SIM other than the live one. Both sides must be known: an empty
- * binding is SIM-agnostic and an unread live ICCID is "don't know".
- */
+/** Bound to a SIM other than the live one; both sides must be known (empty binding is SIM-agnostic, unread
+ * ICCID is unknown). */
 export function iccidMismatch(
   profileIccid: string | null | undefined,
   currentIccid: string | null | undefined,

@@ -28,12 +28,8 @@ import { bandArrayToString } from "@/types/band-locking";
 // process completes. This detects whether failover activated and updates
 // the UI accordingly — without touching the modem.
 //
-// Read and write failures are separate channels. `readError` belongs to the
-// `current.sh` read (a first-load failure belongs to no card); each mutator
-// RETURNS its own failure reason, already resolved through
-// `resolveErrorMessage`, so the page can toast it and scope it to the card that
-// wrote without reading hook state after an `await`.
-//
+// Read and write failures are separate: `readError` is the `current.sh` read; each mutator RETURNS its failure,
+// already resolved through `resolveErrorMessage`, so the page toasts it with no hook-state read after an `await`.
 // Backend endpoints:
 //   GET  /cgi-bin/quecmanager/bands/current.sh           → locked bands + failover
 //   GET  /cgi-bin/quecmanager/bands/failover_status.sh   → lightweight flag check
@@ -57,9 +53,8 @@ export interface UseBandLockingReturn {
   /** Which band category is currently being locked/unlocked (null = idle) */
   lockingCategory: BandCategory | null;
   /**
-   * Why the last `current.sh` read failed, or null. A failed read keeps the
-   * previous `currentBands` (`null` on first load), so this is the only signal
-   * that the figures on screen are not the modem's.
+   * Why the last `current.sh` read failed, or null; a failed read keeps the previous `currentBands`, so this is the
+   * only signal the figures are stale.
    */
   readError: string | null;
   /** Lock specific bands for one category, then re-read the current bands. */
@@ -306,10 +301,8 @@ export function useBandLocking(): UseBandLockingReturn {
   // ---------------------------------------------------------------------------
   // Adopt a watcher this tab did not start
   // ---------------------------------------------------------------------------
-  // The poll above is armed by `lock.sh` returning `failover_armed`. If the
-  // flag arrives some other way (a poll this tab began before a remount), keep
-  // polling until the watcher reports done, so the "Checking" state can never
-  // latch on.
+  // The poll above is armed by `lock.sh` returning `failover_armed`; if the flag arrives another way (a poll begun
+  // before a remount), keep polling until the watcher reports done so "Checking" cannot latch on.
   useEffect(() => {
     if (failover.watcher_running && !failoverPollRef.current) {
       startFailoverPolling();

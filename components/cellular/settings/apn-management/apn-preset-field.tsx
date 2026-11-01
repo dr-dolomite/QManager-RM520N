@@ -18,21 +18,8 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { ApnPreset } from "@/lib/apn-presets";
 import { cn } from "@/lib/utils";
 
-// =============================================================================
-// ApnPresetField: the APN input, plus the carrier's known APNs one click away
-// =============================================================================
-// A free-text field first: typing works exactly as before and any valid APN
-// can be saved. When the SIM's home network has known internet APNs, a
-// trailing expand button opens them as a menu, the way a phone's APN screen
-// offers them. Picking one fills the draft (the card's Save still commits).
-// With no suggestions the button is absent and the field is a plain input.
-//
-// The network's own APNs come first; brands that ride the network (MVNOs)
-// follow under their own heading so the host's entries stay easy to find.
-//
-// The menu takes the field's width (measured when it opens) so both edges
-// line up under the field at every card width.
-// =============================================================================
+// APN input plus the carrier's known APNs on a trailing expand menu: typing works as a plain field, picking fills the
+// draft (Save still commits). MVNO brands sit under their own heading; the menu takes the field's measured width.
 
 const K = "core_settings.apn.edit.fields.apn.presets";
 

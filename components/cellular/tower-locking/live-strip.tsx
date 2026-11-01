@@ -41,11 +41,8 @@ import {
 // =============================================================================
 // TowerLiveStrip — the match verdict, then every carrier the radio is camped on
 // =============================================================================
-// The verdict is the one fact neither source carries alone: is the radio on
-// the cell the modem was told to hold? Below it, the carriers on air as tiles.
-// Each tile's button acts at once: lock this cell, add it to the LTE lock, or
-// (on a tile that is a lock target) remove it. A tile that is a current lock
-// target wears an inset ring and a filled lock.
+// The verdict (is the radio on the cell the modem was told to hold?) sits above the carrier tiles; each tile's button
+// locks, adds to the LTE lock, or removes at once, and a lock-target tile wears an inset ring and a filled lock.
 // =============================================================================
 
 const K = "tower_locking";
@@ -82,9 +79,8 @@ export interface CanTarget {
 }
 
 /**
- * What a tile's button does. `lock`: nothing locked on that radio yet. `add`:
- * LTE already holds a lock, this joins it. `replace`: NR holds one cell, this
- * one takes its place. `unlock`: this tile is the lock; click removes it.
+ * What a tile's button does: `lock` (nothing locked yet), `add` (join the LTE lock), `replace` (NR swaps its one
+ * cell), `unlock` (this tile is the lock).
  */
 export type TileAction = "lock" | "add" | "replace" | "unlock";
 

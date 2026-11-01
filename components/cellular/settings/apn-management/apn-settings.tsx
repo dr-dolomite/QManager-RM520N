@@ -23,21 +23,15 @@ import { APN_PAIR, BANNER_ACTION, PAGE_ROOT } from "../shapes";
 // =============================================================================
 // APN Management — the route shell (RM551E v0.1.34 layout)
 // =============================================================================
-// Two write cards side by side on desktop (`APN_PAIR`), stacked below
-// `@4xl/main`: the APN card (what the data connection dials, plus what the
-// network granted) and the carrier profile (MBN). The granted readout now lives
-// inside the APN card, so the configured value and the network's answer sit on
-// one surface.
+// Two write cards side by side on desktop (`APN_PAIR`), stacked below `@4xl/main`: the APN card (including the
+// network-granted readout) and the carrier profile (MBN).
 //
 // THREE DATA SOURCES, DELIBERATELY SEPARATE:
-//   useApnSettings   the writable APN CGI (apn_setting.json + live CIDs)
-//   useMbnSettings   the carrier-bundle CGI, on its own clock
-//   useModemStatus   the poller: the +CGCONTRDP granted APN, WAN addresses and
-//                    the IMSI that picks the suggested APNs
+// Hooks: useApnSettings (apn_setting.json + live CIDs), useMbnSettings (own clock), useModemStatus (granted APN, WAN
+// addresses, IMSI for suggestions).
 //
-// THE OVERRIDE GATE covers only the APN card. When a Custom SIM Profile owns the
-// APN it is a disabled fieldset, held in loading until the verdict resolves.
-// MBN sits outside it: no profile manages carrier bundles.
+// THE OVERRIDE GATE covers only the APN card (a disabled fieldset while a Custom SIM Profile owns the APN); MBN sits
+// outside it.
 // =============================================================================
 
 const K = "core_settings.apn";

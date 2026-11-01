@@ -50,14 +50,11 @@ import {
 // =============================================================================
 // BandGridCard — one band category as a grid of two-axis chips
 // =============================================================================
-// Ported from RM551E v0.1.34. The parent owns every CGI call; this card owns
-// the local selection and calls back. A failed write is reported in the
-// CardFoot status, scoped to this card, from the result the mutator returned.
+// Ported from RM551E v0.1.34. The parent owns every CGI call; this card owns the local selection. A failed write
+// shows in this card's CardFoot, from the result the mutator returned.
 //
-// `isGated` (a scenario owns radio config: standing) and `isBusy` (a write is in
-// flight anywhere: transient) are separate. A lock in ANY category blocks all:
-// `lock.sh` replaces the failover watcher, so two quick locks would leave the
-// first one unmonitored.
+// `isGated` (a scenario owns radio config) is standing, `isBusy` (a write in flight) is transient. A lock in ANY
+// category blocks all: `lock.sh` replaces the failover watcher, so two quick locks would leave one unmonitored.
 // =============================================================================
 
 const K = "band_locking";
@@ -101,9 +98,7 @@ const chipVariants: Variants = {
   }),
 };
 
-// The two selection buttons sit in a flex row, so an expanding one pushes its
-// neighbour along instead of covering it (the footer's status text shifts with
-// it). See `RevealButton`.
+// The two selection buttons share a flex row, so an expanding one pushes its neighbour along (see `RevealButton`).
 const SELECTION_TOOLS = "flex flex-none items-center gap-1.5";
 
 export function BandGridCard({
@@ -131,10 +126,8 @@ export function BandGridCard({
     () => new Set(currentLockedBands),
   );
 
-  // "Adjust state when a prop changes", during render. Never an effect: the
-  // array is rebuilt every parent render. The `length > 0` guard keeps an
-  // unreported category from wiping a selection in progress. This is also the
-  // only thing that repaints the grid after a successful write.
+  // Adjust state during render, never in an effect (the array is rebuilt every render); `length > 0` keeps an
+  // unreported category from wiping a selection, and this is what repaints the grid after a write.
   const [prevLockedKey, setPrevLockedKey] = useState("");
   const lockedKey = currentLockedBands.join(":");
   if (prevLockedKey !== lockedKey && currentLockedBands.length > 0) {

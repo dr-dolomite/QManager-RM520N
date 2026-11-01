@@ -949,10 +949,8 @@ export const BREAKDOWN = {
   CELL_NEUTRAL: "bg-surface-container",
   /**
    * The check digit — the only part of an IMEI the machine derives rather than
-   * the manufacturer assigns, and the part the Luhn test is judging. The cell
-   * keeps the neutral fill and carries the verdict as an inset ring (no layout
-   * shift against its neighbours); its label line also prints the verdict as
-   * text, so the colour never carries it alone.
+   * the manufacturer assigns, and the part the Luhn test judges. The cell keeps a neutral fill and carries the
+   * verdict as an inset ring, with the verdict also printed as text so colour never carries it alone.
    */
   CELL_VALID: "ring-2 ring-inset ring-success",
   CELL_INVALID: "ring-2 ring-inset ring-destructive",
@@ -1383,34 +1381,17 @@ export const SIM_STATUS_BADGE: Record<
 /** Glyph size inside a dense chip. */
 export const BADGE_GLYPH_SIZE = 12;
 
-// -----------------------------------------------------------------------------
-// APN Management — the write pair
-// -----------------------------------------------------------------------------
 
-/**
- * The APN card and the Carrier Profile card as desktop peers: two write
- * surfaces of comparable weight, each with its own CardFoot, locked to one
- * height (The Symmetric-Pair Rule). The APN card never stretches internally.
- */
+/** APN card and Carrier Profile card as desktop peers locked to one height (The Symmetric-Pair Rule); the APN
+ * card never stretches internally. */
 export const APN_PAIR = {
   GRID: "grid grid-cols-1 gap-4 @4xl/main:grid-cols-2",
-  /**
-   * Carries the grid row's stretch into each Card. The APN card sits one box
-   * deeper, behind the profile-override fieldset, so this clears both cells.
-   */
+  /** Carries the grid row's stretch into each Card; the APN card sits one box deeper behind the override fieldset. */
   CELL: "h-full [&>fieldset]:h-full [&_[data-slot=card]]:h-full",
 } as const;
 
-/**
- * The live verdict a readout row carries: glyph plus ink, never a chip.
- *
- * The page used to answer "is my APN live?" with a status `Badge` stacked over
- * the form. The answer now sits on the readout row it is about — the glyph
- * beside the APN the network actually dialled — so the fact and its verdict
- * read as one line. Each state owns its own glyph (The Every-Chip-Has-A-Glyph
- * Rule still applies to a glyph without its chip), and the default states are
- * quiet so a mismatch is the only thing that finds the eye.
- */
+/** Live verdict a readout row carries: glyph plus ink, never a chip; default states are quiet so a mismatch is
+ * the only thing that finds the eye. */
 export const APN_VERDICT = {
   GLYPH: 16,
   MATCH: "text-success-on-surface",

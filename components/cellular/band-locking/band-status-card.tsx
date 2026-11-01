@@ -56,18 +56,8 @@ import {
   type BandPosture,
 } from "./shapes";
 
-// =============================================================================
-// BandStatusCard — what the modem is doing right now
-// =============================================================================
-// The status card above the band cards, ported from RM551E v0.1.34 (it
-// replaces this repo's `live-band-hero.tsx`). Left: the carriers on air, PCC first.
-// Right: one posture row per category, each scrolling to the card that changes
-// it. Below both: the failover safety net, a property of the whole modem
-// (`lock.sh` arms one watcher whichever category was written).
-//
-// Failover is a persistent toggle, so it commits on change and toasts the
-// returned result; there is no draft and no CardFoot here.
-// =============================================================================
+// Status card ported from RM551E v0.1.34 (replaces `live-band-hero.tsx`): carriers on air, per-category posture,
+// failover net. Failover is a persistent toggle that commits on change and toasts the result; no draft, no CardFoot.
 
 const K = "band_locking";
 
@@ -100,9 +90,8 @@ function sortCarriers(components: CarrierComponent[]): CarrierComponent[] {
 function OnAirTile({ carrier }: { carrier: CarrierComponent }) {
   const { t } = useTranslation("cellular");
   const quality = getSignalQuality(carrier.rsrp, RSRP_THRESHOLDS);
-  // `null` for no reading drives all three channels: no fill, neutral ink, and
-  // a dash. Decided upstream of `signalToProgress`, which returns 0 (a red
-  // stub) rather than null for a missing reading.
+  // `null` (no reading) drives fill, ink and dash together; decided upstream of `signalToProgress`, which returns 0
+  // (a red stub) for a missing reading.
   const tone = qualityMeterTone(quality);
   const percent =
     tone === null ? null : signalToProgress(carrier.rsrp, RSRP_THRESHOLDS);
@@ -216,9 +205,8 @@ export function BandStatusCard({
   );
   const restrictedCount = reported.filter((p) => p.posture === "locked").length;
 
-  // Any restriction at all is a locked posture; the subtitle tells partial
-  // from full in words. `unavailable` is checked first: a failed read zeroes
-  // both counters, which would otherwise read as "never reported".
+  // Any restriction is a locked posture; `unavailable` is checked first because a failed read zeroes both counters,
+  // which would read as "never reported".
   const overall: BandPosture = !hasCurrentReading
     ? "unavailable"
     : reported.length === 0

@@ -150,11 +150,8 @@ export interface TowerLockResponse {
   detail?: string;
 }
 
-/**
- * One settings write. An absent part keeps its saved value; the hook fills it
- * in, because `settings.sh` takes persist and failover in one body. `persist`
- * is modem-wide: `AT+QNWLOCK="save_ctrl",v,v` writes both radios at once.
- */
+/** One settings write. An absent part keeps its saved value (the hook fills it: `settings.sh` takes persist and
+ * failover in one body); `persist` is modem-wide. */
 export interface TowerSettingsChange {
   persist?: boolean;
   /** Only the fields given change; the rest are read when the write is sent. */
@@ -200,31 +197,23 @@ export interface TowerScheduleResponse {
 // --- Hook results --------------------------------------------------------------
 
 /**
- * A non-fatal partial success: the write landed but something alongside it did
- * not. `persist_command_failed`: the modem rejected `save_ctrl`.
- * `service_enable_failed` / `service_disable_failed`: the lock or unlock landed
- * but the boot unit could not be enabled / disabled (`lock.sh`, `settings.sh`).
+ * A non-fatal partial success: the write landed but something alongside did not (`persist_command_failed`, or
+ * `service_enable_failed` / `service_disable_failed` when the boot unit could not be toggled).
  */
 export type TowerWarningCode =
   | "persist_command_failed"
   | "service_enable_failed"
   | "service_disable_failed";
 
-/**
- * What every tower mutation resolves to. `error` is already translated
- * (through `resolveErrorMessage`), so the caller toasts it without reading
- * hook state after an `await`.
- */
+/** What every tower mutation resolves to; `error` is already translated through `resolveErrorMessage`. */
 export interface TowerActionResult {
   ok: boolean;
   error?: string;
   warning?: TowerWarningCode;
 }
 
-/**
- * A schedule save. `armed:false` + `reason` (e.g. "unit_absent") means it
- * persisted but no live timer was installed; absent `armed` = assume armed.
- */
+/** A schedule save. `armed:false` + `reason` (e.g. "unit_absent") means persisted but no live timer; absent
+ * `armed` = assume armed. */
 export interface TowerScheduleSaveResult extends TowerActionResult {
   armed?: boolean;
   reason?: string;

@@ -13,12 +13,8 @@ export interface ResetButtonProps {
   disabled?: boolean;
 }
 
-/**
- * Discards the draft. Icon-only at rest, the label unfolds on hover or keyboard
- * focus (same reveal as the Cellular Settings `RefreshButton`). It animates
- * `grid-template-columns`, which `MotionConfig` cannot see, so the transition is
- * dropped under reduced motion. The accessible name is always the label.
- */
+/** Discards the draft. Icon-only at rest, label unfolds on hover/focus; the grid-template-columns animation is
+ * dropped under reduced motion. */
 export function ResetButton({ label, onClick, disabled }: ResetButtonProps) {
   const reduceMotion = useMotionReduced();
 

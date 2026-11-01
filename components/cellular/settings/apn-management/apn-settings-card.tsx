@@ -74,21 +74,8 @@ import {
 } from "../shapes";
 import { ApnPresetField } from "./apn-preset-field";
 
-// =============================================================================
-// APN Configuration — the write card (RM551E v0.1.34 layout)
-// =============================================================================
-// What is live, then what you can change, then the commit.
-//
-//   Readout   pill rows: the mode, the APN the network GRANTED (+CGCONTRDP via
-//             the poller), the data context and the granted IP families. The
-//             verdict rides the granted-APN row as glyph + ink, never a chip.
-//   Settings  one ROW_GROUP of SettingRows: APN (with the SIM's suggested APNs),
-//             IP protocol, data context.
-//
-// The verdict is held ("unknown") while a write or its re-read is in flight,
-// while the poller is stale, and whenever either half is missing: an attach
-// cycle legitimately reports a disagreeing APN mid-apply.
-// =============================================================================
+// APN write card (RM551E v0.1.34 layout): live readout incl. the GRANTED APN (+CGCONTRDP), settings, then commit. The
+// verdict is held "unknown" mid-write, on a stale poller, or with either half missing.
 
 const K = "core_settings.apn";
 const R = `${K}.readout`;
@@ -142,9 +129,6 @@ export interface ApnSettingsCardProps {
   statusError: string | null;
 }
 
-// -----------------------------------------------------------------------------
-// CID tag — what a context IS (IMS, SOS, Internet) is identity, so a `Tag`.
-// -----------------------------------------------------------------------------
 
 function CidTag({ ctx }: { ctx: CidContext }) {
   const { t } = useTranslation("cellular");
@@ -177,9 +161,6 @@ function CidTag({ ctx }: { ctx: CidContext }) {
   return null;
 }
 
-// -----------------------------------------------------------------------------
-// The readout — what the modem and network are actually doing
-// -----------------------------------------------------------------------------
 
 type Verdict = "match" | "drift" | "unknown";
 
@@ -373,9 +354,6 @@ function ApnReadout({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Header — identical in every state, so the title never swaps on load
-// -----------------------------------------------------------------------------
 
 function ApnCardHeader() {
   const { t } = useTranslation("cellular");
@@ -412,9 +390,6 @@ function ApnSettingsCardSkeleton() {
   );
 }
 
-// =============================================================================
-// Component
-// =============================================================================
 
 export function ApnSettingsCard({
   apn,

@@ -58,6 +58,11 @@ export function useImeiSettings(): UseImeiSettingsReturn {
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  // A language switch changes `t`; through a ref it never re-runs the mount read.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
 
   useEffect(() => {
     mountedRef.current = true;
@@ -83,7 +88,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!data.success) {
-        setError(resolveErrorMessage(t, data.error, undefined, "Failed to fetch IMEI settings"));
+        setError(resolveErrorMessage(tRef.current, data.error, undefined, "Failed to fetch IMEI settings"));
         return;
       }
 
@@ -100,7 +105,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         setIsLoading(false);
       }
     }
-  }, [t]);
+  }, []);
 
   // Fetch on mount
   useEffect(() => {

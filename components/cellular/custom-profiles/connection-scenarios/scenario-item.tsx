@@ -13,14 +13,8 @@ import { resolveScenarioIcon } from "./scenario-icons";
 // =============================================================================
 // ScenarioItem — one scenario as a selectable tile
 // =============================================================================
-// Identity is a glyph disc plus neutral Tags (the network mode, a band-lock
-// marker when the scenario pins bands, the next scheduled start). Selecting a
-// tile only shows it in the Selected-scenario card; activation is the explicit
-// commit there. The selected tile is a quiet neutral step up with an outline
-// ring, so "what I'm looking at" never competes with "what is running". The
-// running scenario is the one place colour moves: its disc turns `success`
-// with the ambient pulse rings (`animate-pulse-ring`, off under reduced
-// motion), and an sr-only label carries the state for assistive tech.
+// Selecting a tile only shows it in the Selected-scenario card; activation is the explicit commit there. Only the
+// running scenario uses colour: `success` disc, pulse rings (off under reduced motion), sr-only label.
 // =============================================================================
 
 export interface Scenario extends Omit<ConnectionScenario, "isDefault"> {

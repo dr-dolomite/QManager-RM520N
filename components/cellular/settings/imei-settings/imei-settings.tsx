@@ -51,13 +51,8 @@ import IMEIToolsCard from "./imei-tools-card";
 // -----------------------------------------------------------------------------
 // THE DEFERRED REBOOT
 // -----------------------------------------------------------------------------
-// Writing an IMEI does nothing until the modem restarts. The dialog offers
-// "Reboot now" / "Later", and Later is recorded: it sets the app-wide
-// pending-reboot flag (`requestRebootLater("imei")`), so the shell's
-// `PendingRebootBanner` stays on every route until the modem restarts. The fork
-// kept a page-local sessionStorage key and its own banner here; this target
-// already has the one banner, mounted once in the app layout, so the page only
-// sets the flag and renders no copy of it.
+// An IMEI write needs a modem restart; "Later" sets the app-wide pending-reboot flag (`requestRebootLater("imei")`),
+// so the shell's one `PendingRebootBanner` shows it and this page renders no banner of its own.
 //
 // NEVER reboot inline in a request path. The app is served BY the modem, so an
 // in-flight reboot kills its own HTTP response; the reboot always sits behind a

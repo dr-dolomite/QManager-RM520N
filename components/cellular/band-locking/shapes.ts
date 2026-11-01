@@ -8,19 +8,11 @@ import type { BandCategory } from "@/types/band-locking";
 // Ported back from RM551E v0.1.34 (itself a port of this file). RM520N keeps
 // three categories: RM551E's NR-DC slot is not ported (unverified here).
 //
-// Two kinds of object live on this page:
-//   1. THE STATUS CARD (`BAND_HERO`) reports what the modem is doing now: the
-//      carriers on air, each category's lock posture, and the failover net.
-//   2. THE CATEGORY CARDS change it. One per lockable category.
-// The loading, empty and loaded branches of every card import their shell
-// from here, so the three can never disagree about their own radius.
+// Two kinds of object: the STATUS CARD (`BAND_HERO`) reports what the modem is doing; the CATEGORY CARDS change it.
+// Loading, empty and loaded branches import their shell from here so they cannot disagree on radius.
 //
-// THE TWO-AXIS BAND CHIP. A checkbox has one channel and a band has two facts:
-//   SELECTED (local draft) rides the FILL: `primary-container` when picked.
-//   LIVE (configured on the modem now) rides a 2px inset `--primary` RING.
-// So a pending add (fill, no ring) and a pending removal (ring, no fill) are
-// visible before Apply. The ring is an inset shadow, not a border, so a chip
-// gaining it repaints without reflowing the grid.
+// TWO-AXIS BAND CHIP: SELECTED (draft) rides the FILL, LIVE (on the modem now) rides a 2px inset `--primary` RING, so
+// pending adds and removals show before Apply; an inset shadow, not a border, so the grid never reflows.
 // =============================================================================
 
 /** The page's status card. `rounded-hero` (20px), one per surface. */
@@ -38,9 +30,7 @@ export const CARD_PAD = "px-6";
 // The status card
 // -----------------------------------------------------------------------------
 
-/** On-air panel beside the posture rail; stacks below `@2xl/hero`. The panels
- *  stretch to one height and the on-air tiles grow into it, so the pair reads
- *  as a single aligned band rather than a short panel beside a tall one. */
+/** On-air panel beside the posture rail; stacks below `@2xl/hero`, panels stretch to one height. */
 export const HERO_SPLIT =
   "flex flex-col gap-4 @2xl/hero:flex-row @2xl/hero:items-stretch";
 
@@ -79,9 +69,7 @@ export const HERO_ONAIR_GRID =
 export const ONAIR_TILE_MIN_H = "min-h-[8.5rem]";
 
 /**
- * One on-air tile. The body is neutral and the disc carries identity, so the
- * signal ramp can land on the RSRP numeral and its bar (DESIGN.md > The signal
- * quality ramp) without fighting an identity fill.
+ * One on-air tile: neutral body, identity on the disc, so the RSRP ramp lands on the numeral and bar.
  */
 export const HERO_ONAIR_TILE = {
   ROOT: `relative flex ${ONAIR_TILE_MIN_H} flex-col gap-2.5 rounded-tile bg-surface px-5 py-4`,
@@ -125,10 +113,8 @@ export const BAND_CHIP = {
   /** Wraps rather than scrolls: a hidden band is an unlockable band. */
   GRID: "flex flex-wrap gap-2",
   /**
-   * One chip: paints at 40px, and the `before:` overlay brings the hit area to
-   * the 44px coarse-pointer floor without adding a layout box. A band is a
-   * quantity, so Rethink + tabular-nums. Named transition properties, never
-   * `transition-all`.
+   * One chip: paints at 40px, the `before:` overlay lifts the hit area to the 44px coarse-pointer floor. Named
+   * transition properties, never `transition-all`.
    */
   ROOT: [
     "relative inline-flex h-10 min-w-[3.5rem] items-center justify-center rounded-pill px-3.5",
@@ -202,9 +188,8 @@ export function failoverKey(failover: {
 export type BandPosture = "locked" | "unrestricted" | "unknown" | "unavailable";
 
 /**
- * Category status -> chip. `locked` is `warning` because a narrowed band list
- * is the state that can cost the connection; `scenario` is `info` because
- * something else owns the setting (a fact, not a fault).
+ * Category status -> chip. `locked` is `warning` (a narrowed list can cost the connection); `scenario` is `info`
+ * (something else owns it).
  */
 export const CATEGORY_BADGE: Record<
   BandPosture | "scenario",
@@ -220,10 +205,8 @@ export const CATEGORY_BADGE: Record<
 export const BADGE_GLYPH_SIZE = 12;
 
 /**
- * One category's posture. `hasReading` is a parameter because an empty locked
- * list is never a modem state: it only arrives when `current.sh` failed, and
- * the supported list (from the poller) stays populated through that failure,
- * so the arrays alone would report "0 of 31 locked" for a failed read.
+ * `hasReading` is a parameter because an empty locked list only arrives when `current.sh` failed, while the poller's
+ * supported list stays populated, so the arrays alone would report "0 of 31 locked".
  */
 export function categoryPosture(
   locked: number[],

@@ -52,12 +52,8 @@ import {
 // =============================================================================
 // TowerAutomationTiles — what the lock does while nobody is watching
 // =============================================================================
-// Release the lock when signal collapses (failover), apply it on a daily window
-// (schedule), and keep it across a reboot. Each reports the SAVED state (config)
-// and, where the modem has an opinion, the LIVE state separately: the failover
-// disc is the watcher's, the persistence chip is the AT read-back. The
-// threshold renders empty until it has actually been read. Keep-after-reboot is
-// one modem-wide switch here: `save_ctrl,v,v` writes both radios at once.
+// Failover, schedule and keep-after-reboot, each showing the SAVED state (config) and, where the modem has one, the
+// LIVE state. Keep-after-reboot is one modem-wide switch: `save_ctrl,v,v` writes both radios.
 // =============================================================================
 
 const K = "tower_locking";
@@ -123,9 +119,8 @@ export function TowerAutomationTiles({
   const [prevThreshold, setPrevThreshold] = useState(savedThreshold);
   if (savedThreshold !== prevThreshold) {
     setPrevThreshold(savedThreshold);
-    // Adopt the saved value only while the draft is untouched. A draft that
-    // moved on (the user kept dragging while the save was in flight) is newer
-    // than the echo of the previous commit and must not be overwritten.
+    // Adopt the saved value only while the draft is untouched: a draft that moved on while the save was in flight is
+    // newer than the echo.
     const prevText = prevThreshold === null ? "" : String(prevThreshold);
     if (thresholdInput === prevText) setThresholdInput(savedText);
   }
