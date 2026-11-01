@@ -202,7 +202,7 @@ write_name() {
     _wnew=$(printf '%s' "$_wcur" | jq -c --arg k "$_wc" --arg v "$_wn" '.[$k]=$v' 2>/dev/null)
     [ -z "$_wnew" ] && return 1
     _wtmp="${NAME_FILE}.tmp.$$"
-    printf '%s\n' "$_wnew" > "$_wtmp" 2>/dev/null || return 1
+    printf '%s\n' "$_wnew" > "$_wtmp" 2>/dev/null || { rm -f "$_wtmp" 2>/dev/null; return 1; }
     chmod 644 "$_wtmp" 2>/dev/null
     mv "$_wtmp" "$NAME_FILE" 2>/dev/null || { rm -f "$_wtmp" 2>/dev/null; return 1; }
     chmod 644 "$NAME_FILE" 2>/dev/null
@@ -239,7 +239,7 @@ write_setting_json() {
         '{apn: $apn, pdp_type: $pdp_type, cid: $cid, active: $active}' 2>/dev/null)
     [ -z "$_snew" ] && return 1
     _stmp="${SETTING_FILE}.tmp.$$"
-    printf '%s\n' "$_snew" > "$_stmp" 2>/dev/null || return 1
+    printf '%s\n' "$_snew" > "$_stmp" 2>/dev/null || { rm -f "$_stmp" 2>/dev/null; return 1; }
     chmod 644 "$_stmp" 2>/dev/null
     mv "$_stmp" "$SETTING_FILE" 2>/dev/null || { rm -f "$_stmp" 2>/dev/null; return 1; }
     chmod 644 "$SETTING_FILE" 2>/dev/null
@@ -508,10 +508,19 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         esac
 
         # --- Persist active=0. A persist failure AFTER a successful modem
-        # revert still reports success: the modem is already on carrier-
-        # default, so failing the request would mislead the UI. Warn only.
+        # revert still reports success (the modem is already on carrier
+        # default). Fallback: drop the sidecar (a missing file reads as
+        # active=0 and frees space on a full disk); if even that fails,
+        # reply persisted:false so the UI knows the next GET may disagree.
         if ! write_setting_json "" "$SET_PDP" "$SET_CID" 0; then
             qlog_warn "Reverted cid $SET_CID on modem but failed to persist active=0 to $SETTING_FILE"
+            if rm -f "$SETTING_FILE" 2>/dev/null && [ ! -e "$SETTING_FILE" ]; then
+                qlog_warn "Removed $SETTING_FILE instead (missing sidecar reads as active=0)"
+            else
+                qlog_error "Could not remove $SETTING_FILE; sidecar still says active=1"
+                jq -n '{success: true, active: 0, persisted: false}'
+                exit 0
+            fi
         fi
 
         jq -n '{success: true, active: 0}'
@@ -613,6 +622,8 @@ EOF
             # matters if the two ever diverge.
             if ! write_setting_json "$APN_APPLY_NEGOTIATED_APN" "$WS_PDP" "$IDX" 1; then
                 qlog_warn "Applied APN to modem but failed to persist $SETTING_FILE"
+                jq -n '{success: true, active: 1, persisted: false}'
+                exit 0
             fi
 
             jq -n '{success: true, active: 1}'

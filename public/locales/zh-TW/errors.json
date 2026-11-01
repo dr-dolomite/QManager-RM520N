@@ -207,5 +207,13 @@
   "port_in_use": "該連接埠已被其他服務佔用。",
   "token_generation_failed": "無法建立安全權杖。請重試。",
   "poller_not_running": "背景服務未回應，請稍後再試",
-  "reset_failed": "無法重設計數器"
+  "reset_failed": "無法重設計數器",
+  "cops_detach_failed": "數據機無法從網路中斷連線，因此未做任何變更。請再試一次。",
+  "cops_attach_failed": "數據機未確認已重新註冊到網路。請檢查連線；變更可能已經生效。",
+  "apn_mismatch": "網路指派的 APN 與您要求的不一致。請檢查 APN 名稱後再試一次。",
+  "apn_busy": "另一項 APN 變更正在進行中。請稍後再試。",
+  "cgact_failed": "無法開啟或關閉此連線。請再試一次。",
+  "invalid_index": "設定檔槽位無效。請選擇 1 到 6 之間的數字。",
+  "qicsgp_failed": "無法儲存 APN 登入設定（使用者名稱、密碼和驗證類型）。請再試一次。",
+  "internal_error": "QManager 內部發生問題。請再試一次。"
 }
