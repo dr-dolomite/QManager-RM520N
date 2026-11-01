@@ -52,14 +52,18 @@ MAX_CHECKS=5     # number of checks after settle (total monitoring: 5 + 5*5 = 30
 echo $$ > "$PID_FILE"
 
 cleanup() {
-    rm -f "$PID_FILE"
+    # Only our own pid file: a newer watcher may already own it.
+    [ "$(cat "$PID_FILE" 2>/dev/null)" = "$$" ] && rm -f "$PID_FILE"
 }
-trap cleanup EXIT INT TERM
+# Without the explicit exit, TERM only ran cleanup and the watcher kept going.
+trap cleanup EXIT
+trap 'cleanup; exit 143' INT TERM
 
 qlog_info "Failover watcher started (PID=$$), settling ${SETTLE_DELAY}s then monitoring ${MAX_CHECKS}x${CHECK_INTERVAL}s"
 
 # --- Wait for modem to settle ------------------------------------------------
-sleep "$SETTLE_DELAY"
+# `sleep & wait` so a trapped TERM fires at once, not after the sleep returns.
+sleep "$SETTLE_DELAY" & wait $!
 
 # --- Poll signal via AT+QCAINFO over monitoring window ----------------------
 # Check every CHECK_INTERVAL seconds, up to MAX_CHECKS times.
@@ -81,7 +85,7 @@ while [ "$check" -lt "$MAX_CHECKS" ]; do
     qlog_debug "No carrier data (check ${check}/${MAX_CHECKS})"
 
     # Don't sleep after the last check
-    [ "$check" -lt "$MAX_CHECKS" ] && sleep "$CHECK_INTERVAL"
+    if [ "$check" -lt "$MAX_CHECKS" ]; then sleep "$CHECK_INTERVAL" & wait $!; fi
 done
 
 qlog_warn "No carrier data after ${MAX_CHECKS} checks over ~30s — triggering failover"
@@ -130,7 +134,7 @@ if [ -n "$all_lte" ]; then
             qlog_info "FAILOVER: LTE bands reset OK"
             ;;
     esac
-    sleep 0.2
+    sleep 0.2 & wait $!
 fi
 
 if [ -n "$all_nsa" ]; then
@@ -144,7 +148,7 @@ if [ -n "$all_nsa" ]; then
             qlog_info "FAILOVER: NSA NR bands reset OK"
             ;;
     esac
-    sleep 0.2
+    sleep 0.2 & wait $!
 fi
 
 if [ -n "$all_sa" ]; then

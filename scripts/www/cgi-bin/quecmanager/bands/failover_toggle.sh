@@ -59,8 +59,8 @@ else
     # Kill any running watcher to prevent unexpected failovers
     if [ -f "$FAILOVER_PID_FILE" ]; then
         old_pid=$(cat "$FAILOVER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
-        if pid_alive "$old_pid"; then
-            kill -9 "$old_pid" 2>/dev/null
+        if pid_is "$old_pid" qmanager_band_failover; then
+            kill "$old_pid" 2>/dev/null
             qlog_warn "Killed active failover watcher (PID=$old_pid) due to toggle OFF"
         fi
         rm -f "$FAILOVER_PID_FILE"

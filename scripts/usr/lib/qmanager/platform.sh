@@ -225,6 +225,17 @@ pid_alive() {
     [ -n "$1" ] && [ -d "/proc/$1" ]
 }
 
+# True only if <pid>'s cmdline contains <name>; guards kill against a reused PID.
+# Usage: pid_is <pid> <name>
+pid_is() {
+    case "$1" in ''|*[!0-9]*) return 1 ;; esac
+    [ -n "$2" ] && [ -r "/proc/$1/cmdline" ] || return 1
+    case "$(tr '\000' ' ' < "/proc/$1/cmdline" 2>/dev/null)" in
+        *"$2"*) return 0 ;;
+    esac
+    return 1
+}
+
 # --- qm_timeout: portable `timeout` wrapper (BusyBox 1.29 vs 1.31 straddle) --
 # This is the canonical copy, for any future consumer that already sources
 # this lib. install_rm520n.sh and qmanager_health_check each carry their own
