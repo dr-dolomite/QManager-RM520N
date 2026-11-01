@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -41,13 +42,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CARD_FOOT, CARD_FOOT_ACTIONS } from "@/components/ui/card-foot";
+import { CardFoot } from "@/components/ui/card-foot";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import type {
+  SaveResult,
   SaveSettingsPayload,
   UseSystemSettingsReturn,
 } from "@/hooks/use-system-settings";
@@ -55,6 +57,9 @@ import { TIMEZONES } from "@/types/system-settings";
 
 import { ConditionBlock } from "./condition-block";
 import { formatOffset } from "./derive";
+import TrackedSimsGroup, {
+  type TrackedSimsGroupProps,
+} from "./tracked-sims-group";
 import {
   CARD_BODY,
   CARD_DESC,
@@ -66,7 +71,7 @@ import {
   DELTA,
   FIELD,
   FIELD_GLYPH,
-  GROUP_FILL,
+  GROUP_LABEL,
   LABEL_LINE,
   NOTICE,
   ROW,
@@ -77,20 +82,26 @@ import {
 } from "./shapes";
 
 // =============================================================================
-// Time & Units — the writable half of /system-settings' preferences
+// Device & Units — the writable half of /system-settings' preferences
 // =============================================================================
-// Three decisions in one tonal group: the zone the whole device measures time
-// against, and the two units every reading is rendered in. The zone leads
+// Two labelled groups. Time & Units: the zone the whole device measures time
+// against, and the two units every reading is rendered in; the zone leads
 // because it is the only one of the three with a consequence beyond display.
+// Tracked SIMs: the remembered-SIM count with its inline Clear.
+//
+// The foot commits the units draft only. Tracked SIMs owns its own data and
+// acts at once, so it renders in every state of the units half (loading, failed
+// read, form) rather than waiting on it.
 //
 // The always-visible clock readout lives on the page's status band, not here.
-// What this card keeps is the FAILURE case — the zone was saved but never
-// reached the live clock — which is a fact about this card's own write.
+// What this card keeps is the FAILURE case: the zone was saved but never
+// reached the live clock, which is a fact about this card's own write.
 // =============================================================================
 
 const K = "preferences";
 
 const TZ_LABEL_ID = "preferences-timezone-label";
+const TZ_LIST_ID = "preferences-timezone-list";
 const TEMP_LABEL_ID = "preferences-temperature-label";
 const DISTANCE_LABEL_ID = "preferences-distance-label";
 
@@ -99,7 +110,9 @@ const DISTANCE_LABEL_ID = "preferences-distance-label";
 type SystemSettingsCardProps = Pick<
   UseSystemSettingsReturn,
   "settings" | "isLoading" | "isSaving" | "error" | "saveSettings" | "refresh"
->;
+> & {
+  sims: TrackedSimsGroupProps;
+};
 
 export default function SystemSettingsCard({
   settings,
@@ -108,8 +121,10 @@ export default function SystemSettingsCard({
   error,
   saveSettings,
   refresh,
+  sims,
 }: SystemSettingsCardProps) {
   const { t } = useTranslation("system-settings");
+  const simsGroup = <TrackedSimsGroup {...sims} />;
 
   return (
     <Card className={CARD_SHELL}>
@@ -122,7 +137,7 @@ export default function SystemSettingsCard({
 
       <CardContent className={cn(CARD_PAD, CARD_BODY, "gap-4")}>
         {isLoading ? (
-          <PreferencesSkeleton />
+          <PreferencesSkeleton sims={simsGroup} />
         ) : !settings ? (
           // No settings to show — a failed read, or an envelope carrying none.
           // The form would otherwise fill itself with its own fallbacks.
@@ -146,8 +161,10 @@ export default function SystemSettingsCard({
             isSaving={isSaving}
             error={error}
             saveSettings={saveSettings}
+            sims={simsGroup}
           />
         )}
+        {!isLoading && !settings ? simsGroup : null}
       </CardContent>
     </Card>
   );
@@ -159,10 +176,16 @@ export default function SystemSettingsCard({
  * Real `ROW_GROUP` / `ROW.ROOT` boxes wearing slivers, so the skeleton's height
  * RESOLVES to the loaded row's rather than being asserted against it.
  */
-function PreferencesSkeleton(): React.JSX.Element {
+function PreferencesSkeleton({
+  sims,
+}: {
+  sims: React.ReactNode;
+}): React.JSX.Element {
+  const { t } = useTranslation("system-settings");
   return (
     <>
-      <div className={cn(ROW_GROUP, GROUP_FILL)}>
+      <span className={GROUP_LABEL}>{t(`${K}.section`)}</span>
+      <div className={ROW_GROUP}>
         {[0, 1, 2].map((i) => (
           <div key={i} className={ROW.ROOT}>
             <div className={ROW.TEXT}>
@@ -179,12 +202,13 @@ function PreferencesSkeleton(): React.JSX.Element {
           </div>
         ))}
       </div>
+      {sims}
       {/* The card foot. Absent, the card grows by its height plus the gap. */}
-      <div className={CARD_FOOT}>
-        <div className={CARD_FOOT_ACTIONS}>
-          <Skeleton className={SKELETON.TIME.ACTION} />
-        </div>
-      </div>
+      <CardFoot
+        liveStatus={false}
+        aria-hidden="true"
+        actions={<Skeleton className={SKELETON.TIME.ACTION} />}
+      />
     </>
   );
 }
@@ -195,7 +219,9 @@ interface PreferencesFormProps {
   settings: UseSystemSettingsReturn["settings"];
   isSaving: boolean;
   error: string | null;
-  saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
+  saveSettings: (payload: SaveSettingsPayload) => Promise<SaveResult>;
+  /** The Tracked SIMs group, slotted above the foot that commits the units. */
+  sims: React.ReactNode;
 }
 
 function PreferencesForm({
@@ -203,6 +229,7 @@ function PreferencesForm({
   isSaving,
   error,
   saveSettings,
+  sims,
 }: PreferencesFormProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
   const { saved, markSaved } = useSaveFlash();
@@ -218,15 +245,24 @@ function PreferencesForm({
   const [timezone, setTimezone] = useState(settings?.timezone ?? "UTC0");
   const [tzOpen, setTzOpen] = useState(false);
 
-  // Server → local during render, never in an effect: a data-derived remount
+  // Server -> local during render, never in an effect: a data-derived remount
   // would kill the pending `saved` flash, since the refetch and markSaved()
   // land in one React batch. `tzOpen` is popover state, deliberately not synced.
   if (settings !== prevSettings) {
     setPrevSettings(settings);
-    setTempUnit(settings?.temp_unit ?? "celsius");
-    setDistanceUnit(settings?.distance_unit ?? "km");
-    setZonename(settings?.zonename ?? "UTC");
-    setTimezone(settings?.timezone ?? "UTC0");
+    if (settings?.temp_unit !== prevSettings?.temp_unit) {
+      setTempUnit(settings?.temp_unit ?? "celsius");
+    }
+    if (settings?.distance_unit !== prevSettings?.distance_unit) {
+      setDistanceUnit(settings?.distance_unit ?? "km");
+    }
+    if (
+      settings?.zonename !== prevSettings?.zonename ||
+      settings?.timezone !== prevSettings?.timezone
+    ) {
+      setZonename(settings?.zonename ?? "UTC");
+      setTimezone(settings?.timezone ?? "UTC0");
+    }
   }
 
   const tzDirty = Boolean(
@@ -237,7 +273,8 @@ function PreferencesForm({
   const distanceDirty = Boolean(
     settings && distanceUnit !== settings.distance_unit,
   );
-  const canSave = (tzDirty || tempDirty || distanceDirty) && !isSaving;
+  const isDirty = tzDirty || tempDirty || distanceDirty;
+  const canSave = isDirty && !isSaving;
 
   const tzLabel = useMemo(
     () => TIMEZONES.find((tz) => tz.zonename === zonename)?.label,
@@ -251,10 +288,18 @@ function PreferencesForm({
     setTimezone(entry.timezone);
   }, []);
 
+  const handleDiscard = useCallback(() => {
+    if (!settings) return;
+    setTempUnit(settings.temp_unit);
+    setDistanceUnit(settings.distance_unit);
+    setZonename(settings.zonename);
+    setTimezone(settings.timezone);
+  }, [settings]);
+
   const handleSave = useCallback(async () => {
     if (!canSave) return;
 
-    const success = await saveSettings({
+    const result = await saveSettings({
       action: "save_settings",
       temp_unit: tempUnit,
       distance_unit: distanceUnit,
@@ -262,11 +307,16 @@ function PreferencesForm({
       zonename,
     });
 
-    if (success) {
+    if (result.success) {
       markSaved();
-      toast.success(t(`${K}.toast.saved`));
+      // Saved, but the zone never reached the live clock: one honest toast.
+      if (result.timezoneNotApplied) {
+        toast.warning(t(`${K}.toast.tz_not_applied`));
+      } else {
+        toast.success(t(`${K}.toast.saved`));
+      }
     } else {
-      toast.error(t(`${K}.toast.failed`));
+      toast.error(result.message ?? t(`${K}.toast.failed`));
     }
   }, [
     canSave,
@@ -294,10 +344,8 @@ function PreferencesForm({
 
       {/* No `initial`/`animate`: this container is a child of the page cascade
           and must stay on the parent's clock. */}
-      <motion.div
-        className={cn(ROW_GROUP, GROUP_FILL)}
-        variants={staggerRows}
-      >
+      <span className={GROUP_LABEL}>{t(`${K}.section`)}</span>
+      <motion.div className={ROW_GROUP} variants={staggerRows}>
         {/* ── Time zone ───────────────────────────────────────────────── */}
         <motion.div variants={staggerRowItem} className={ROW.ROOT}>
           <div className={ROW.TEXT}>
@@ -320,6 +368,7 @@ function PreferencesForm({
                   type="button"
                   role="combobox"
                   aria-expanded={tzOpen}
+                  aria-controls={TZ_LIST_ID}
                   aria-labelledby={TZ_LABEL_ID}
                   className={cn(
                     fieldVariants({ host: "container" }),
@@ -337,6 +386,7 @@ function PreferencesForm({
                 </button>
               </PopoverTrigger>
               <PopoverContent
+                id={TZ_LIST_ID}
                 align="end"
                 className="w-(--radix-popover-trigger-width) min-w-64 rounded-field p-0"
               >
@@ -378,8 +428,7 @@ function PreferencesForm({
           </div>
         </motion.div>
 
-        {/* The field is tri-state: an older backend omits it, and absent means
-            applied. Only an explicit `false` is a failure. */}
+        {/* Tri-state: an older backend omits it, and absent means applied. */}
         {settings?.timezone_applied === false ? (
           <motion.div variants={staggerRowItem} className={TZ_NOTICE}>
             <Badge variant="warning">
@@ -389,10 +438,7 @@ function PreferencesForm({
             <span className={ROW.CONSEQUENCE}>
               {t(`${K}.states.tz_not_applied_body`, {
                 zone: settings.zonename,
-                // `effective_offset` is optional and nothing couples it to
-                // `timezone_applied`, so this branch is reachable with no
-                // offset — and i18next substitutes an EMPTY string, leaving
-                // "…still running at ." on screen.
+                // The offset is optional; an empty one would read "running at .".
                 offset: formatOffset(settings.effective_offset) || VALUE_NONE,
               })}
             </span>
@@ -478,19 +524,33 @@ function PreferencesForm({
         </motion.div>
       </motion.div>
 
-      {/* No card-level status: each row carries its own unsaved marker. */}
-      <div className={CARD_FOOT}>
-        <div className={CARD_FOOT_ACTIONS}>
-          <SaveButton
-            onClick={handleSave}
-            isSaving={isSaving}
-            saved={saved}
-            label={t(`${K}.card.save`)}
-            disabled={!canSave}
-            size="action"
-          />
-        </div>
-      </div>
+      {sims}
+
+      {/* Each row carries its own unsaved marker; the foot only commits the
+          units (Tracked SIMs acts inline). */}
+      <CardFoot
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="action"
+              onClick={handleDiscard}
+              disabled={!isDirty || isSaving}
+            >
+              {t("actions.discard", { ns: "common" })}
+            </Button>
+            <SaveButton
+              onClick={handleSave}
+              isSaving={isSaving}
+              saved={saved}
+              label={t(`${K}.card.save`)}
+              disabled={!canSave}
+              size="action"
+            />
+          </>
+        }
+      />
     </>
   );
 }

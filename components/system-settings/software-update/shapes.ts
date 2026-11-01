@@ -535,6 +535,7 @@ export const FAILURE_CHIP: Record<
   check: { variant: "destructive", glyph: CloudOffIcon },
   download: { variant: "destructive", glyph: XCircleIcon },
   install: { variant: "destructive", glyph: OctagonAlertIcon },
+  stalled: { variant: "warning", glyph: TriangleAlertIcon },
 };
 
 /**

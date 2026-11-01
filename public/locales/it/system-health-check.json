@@ -175,5 +175,14 @@
       "label": "Configurazione",
       "description": "File di configurazione di QManager e aggiornamento della cache del poller"
     }
+  },
+  "diagnostics": {
+    "card_title": "Report di debug",
+    "card_description": "Un'istantanea di questo modem da condividere durante la risoluzione dei problemi.",
+    "body": "Genera un'istantanea in testo semplice dello stato attuale del modem (stato radio, configurazione di rete e log recenti) e la scarica sul tuo dispositivo. Nessun dato lascia il modem finché non scegli di condividere il file.",
+    "button_capture": "Scarica report di debug",
+    "button_capturing": "Acquisizione…",
+    "toast_success": "Report di debug scaricato",
+    "toast_failed": "Impossibile acquisire la diagnostica. Riprova."
   }
 }

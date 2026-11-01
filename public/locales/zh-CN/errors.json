@@ -207,5 +207,9 @@
   "port_in_use": "该端口已被其他服务占用。",
   "token_generation_failed": "无法创建安全令牌。请重试。",
   "poller_not_running": "后台服务未响应，请稍后重试",
-  "reset_failed": "无法重置计数器"
+  "reset_failed": "无法重置计数器",
+  "report_tool_missing": "此调制解调器未安装调试报告工具。",
+  "capture_failed": "无法生成调试报告。",
+  "invalid_version": "该版本号无效。",
+  "invalid_rollback": "无法回滚到该版本。"
 }

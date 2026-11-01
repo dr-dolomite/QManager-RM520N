@@ -6,6 +6,7 @@ import {
   DownloadIcon,
   Loader2Icon,
   OctagonAlertIcon,
+  RotateCwIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -48,7 +49,7 @@ const K = "software_update";
  */
 const NOTICE_COPY: Record<
   UpdateView,
-  "rest" | "staged" | "running" | "failed" | null
+  "rest" | "staged" | "running" | "failed" | "stalled" | null
 > = {
   loading: null,
   unreachable: "failed",
@@ -83,6 +84,8 @@ export interface UpdateCardProps {
   packageStaged: boolean;
   onDownload: () => void;
   onInstall: () => void;
+  /** Opens the confirm for the manual reboot offered by a stalled install. */
+  onReboot: () => void;
 }
 
 /**
@@ -98,6 +101,7 @@ export function UpdateCard({
   packageStaged,
   onDownload,
   onInstall,
+  onReboot,
 }: UpdateCardProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
 
@@ -110,9 +114,12 @@ export function UpdateCard({
   const next = SHOWS_NEXT[view] ? (info?.latest_version ?? null) : null;
   const version = info?.latest_version ?? VALUE_NONE;
 
-  const notice = NOTICE_COPY[view];
+  const stalled = view === "installing" && failure?.kind === "stalled";
+  const notice = stalled ? "stalled" : NOTICE_COPY[view];
   const failed = notice === "failed";
-  const noticeKey = failed
+  const noticeKey = stalled
+    ? "notice.stalled"
+    : failed
     ? failure?.kind === "download"
       ? "notice.failed_download"
       : failure?.kind === "install"
@@ -228,13 +235,22 @@ export function UpdateCard({
                 NOTICE.BOX,
                 failed ? NOTICE.DESTRUCTIVE : NOTICE.WARNING,
               )}
-              role={failed ? "alert" : "status"}
+              role={failed || stalled ? "alert" : "status"}
             >
               <NoticeGlyph className={NOTICE.GLYPH} aria-hidden="true" />
               <div className={NOTICE.STACK}>
                 <p className={NOTICE.TEXT}>{t(`${K}.${noticeKey}`)}</p>
                 {detail && <p className={NOTICE.DETAIL}>{detail}</p>}
               </div>
+            </div>
+          )}
+
+          {stalled && (
+            <div className="flex justify-end">
+              <Button size="action" onClick={onReboot}>
+                <RotateCwIcon className={PILL_GLYPH} aria-hidden="true" />
+                {t(`${K}.actions.reboot_now`)}
+              </Button>
             </div>
           )}
         </CardContent>

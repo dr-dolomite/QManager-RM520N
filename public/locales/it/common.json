@@ -19,7 +19,8 @@
     "reconnect_modem": "Riconnetti modem",
     "change_display_name": "Modifica nome visualizzato",
     "change_password": "Cambia password",
-    "toggle_theme": "Cambia tema"
+    "toggle_theme": "Cambia tema",
+    "discard": "Annulla modifiche"
   },
   "motion": {
     "label": "Animazioni",

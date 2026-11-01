@@ -53,10 +53,10 @@ export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-5 p-2";
  */
 export const PAGE_HEAD = {
   ROOT: "flex flex-col gap-5 @3xl/main:flex-row @3xl/main:items-end",
-  TITLES: "flex max-w-[41rem] flex-col gap-1.5",
+  TITLES: "flex min-w-0 max-w-[41rem] flex-col gap-1.5",
   TITLE: "text-3xl font-bold tracking-[-0.02em]",
   DESC: "text-on-surface-variant text-sm leading-relaxed text-pretty",
-  ACTIONS: "flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto",
+  ACTIONS: "flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto @3xl/main:flex-none @3xl/main:flex-nowrap",
 } as const;
 
 /** The lucide glyph inside an action pill. */
@@ -225,8 +225,8 @@ export const CARD_DESC = "text-on-surface-variant text-sm";
  * `text-warning` is a fill role's ink with nothing under it.
  *
  * `BOX` carries no fill: the tone is the caller's, because the same box says
- * "this read is stale" in `warning` on three cards and "this write failed" in
- * `destructive` on SSH Access. Written here because the four cards had each
+ * "this read is stale" in `warning` and "this check failed" in `destructive`
+ * on the Passwords card. Written here because the cards had each
  * kept a private copy of `text-[0.8125rem] leading-relaxed text-pretty`, a size
  * this module already speaks.
  */
@@ -265,6 +265,12 @@ export const ROW_GROUP =
 
 /** A card's slack absorber: the page grid locks the cell, the group grows. */
 export const GROUP_FILL = "min-h-0 flex-1";
+
+/** The heading over one of a card's row groups. The card's own title stays the card's. */
+export const GROUP_LABEL = "text-on-surface-variant px-1 text-xs font-semibold";
+
+/** A password row: label above a full-width field at every width. */
+export const STACK_ROW = "flex flex-col gap-2.5 rounded-field px-4 py-4";
 
 /**
  * One setting row.
@@ -340,8 +346,8 @@ export const FOCUS_RING =
  * layout box, so the control keeps its painted size and its row keeps its
  * baseline. Same technique as `SWITCH_TARGET` in tower-locking's module.
  *
- * `Switch` paints 32x18 and the password eye toggle paints 32x32; both are
- * under the floor and neither can grow without breaking the row it rides in.
+ * The password eye toggle paints 32x32, under the floor, and cannot grow
+ * without breaking the field it rides in.
  */
 export const COARSE_TARGET =
   "relative before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-['']";
@@ -414,43 +420,13 @@ export const SAVE_LAYER =
   "col-start-1 row-start-1 flex items-center justify-end gap-1.5 text-on-surface-variant text-xs font-medium transition-opacity duration-[var(--duration-quick)] ease-out";
 
 /**
- * One row in Tracked SIMs.
- *
- * `ACTIVE` is Highlight-by-Container: the active SIM's row becomes a
- * `primary-container` with its own ink. It replaces a hairline over an alpha
- * wash, which was both a stroke on a fill and a request to whatever happened to
- * be behind it rather than to the token.
- *
- * A resting row has NO fill — it sits on `ROW_GROUP` — so promotion is the only
- * colour on the list.
- */
-/**
  * A status chip riding a PROMOTED row. `Badge variant="info"` resolves to
- * `bg-primary-container` — byte-identical to `SIM_ROW.ACTIVE` — so a stock chip
+ * `bg-primary-container`, the promoted row's own fill, so a stock chip
  * dissolves into the row it sits on. Re-grounded on the row's own ink at the
  * alpha that measures 1.41:1 fill-vs-ground, matching how that chip reads on a
  * plain card (1.39:1). Same technique as `CONDITION_TONE.action`.
  */
 export const CHIP_ON_TONAL = "bg-on-primary-container/20";
-
-/**
- * The registry list's own box. The scroll cap stops a long registry from
- * stretching this card's row-mate in a symmetric grid row; short lists never
- * reach it. It lives here rather than at the call site because it is geometry,
- * and this module is where the family's geometry is.
- */
-export const SIM_LIST = "max-h-96 min-h-0 flex-1 overflow-y-auto";
-
-export const SIM_ROW = {
-  ROOT: "flex min-h-[4.5rem] flex-col gap-1.5 rounded-field px-4 py-3.5 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4",
-  ACTIVE: "bg-primary-container text-on-primary-container",
-  TRANSITION:
-    "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
-  /** ICCID and MSISDN: identifiers the device emits verbatim, so mono. */
-  ID: "truncate font-mono text-[0.8125rem] tabular-nums",
-  TEXT: "flex min-w-0 flex-1 flex-col gap-1",
-  LABEL: "text-[0.9375rem] font-semibold",
-} as const;
 
 // -----------------------------------------------------------------------------
 // Conditions
@@ -525,7 +501,7 @@ const LINE = {
  * by ~21px, and a missing action row under-states the card by its full height
  * plus the gap. Both are why `CONSEQUENCE_2` and the action slivers exist.
  *
- * SSH Access has no GET, so it has no skeleton.
+ * The Passwords card has no GET, so it has no skeleton.
  */
 export const SKELETON = {
   /** The status band: three tiles, worn inside the real `TILE.ROOT`. */
@@ -551,20 +527,46 @@ export const SKELETON = {
     CONSEQUENCE: LINE.CONSEQUENCE,
     /** Row 1's consequence wraps to two lines at real card widths. */
     CONSEQUENCE_2: LINE.CONSEQUENCE,
-    /** The `Switch` in row 1's control box — 24px tall, not a field. */
-    SWITCH: "h-6 w-10 rounded-pill",
+    /** The On/Off pill in row 1's control box, at its natural width. */
+    PILL: `${FIELD_HEIGHT} w-36 rounded-pill`,
     /** The autosave receipt strip: a 16px line, shorter than a consequence. */
     RECEIPT: "h-4 w-32 rounded-inline",
     FIELD: `${FIELD_HEIGHT} w-full rounded-field ${FIELD_WIDTH}`,
     /** Wears a `DAY_PILL.RAIL` cell, so it tracks the grid, not a flex basis. */
     DAY: `${DAY_PILL_HEIGHT} min-w-0 rounded-pill`,
+    /** The modem-clock reading in the last row. */
+    CLOCK: "h-5 w-52 rounded-inline",
   },
-  /** Tracked SIMs: a list wearing `SIM_ROW.ROOT`. */
+  /** Tracked SIMs: the count row in the Device & Units card. */
   SIMS: {
     LABEL: LINE.LABEL,
     ID: LINE.CONSEQUENCE,
     CHIP: "h-[1.375rem] w-20 rounded-pill",
-    /** The footer's Clear action. */
+    /** The inline Clear action. */
     ACTION: `${FIELD_HEIGHT} w-28 rounded-pill`,
   },
+} as const;
+
+/** The modem-clock figure: a reading, so the UI face with tabular numerals. */
+export const CLOCK_VALUE = "text-[0.9375rem] font-semibold tabular-nums";
+
+/**
+ * A tab rail in the app's tab language: a pill track on `surface-container`,
+ * pill triggers, and the selected one FILLED `primary` with no shadow. The
+ * primitive still defaults to the legacy chip, so shape and fill live here.
+ *
+ * Both `dark:` repeats are load-bearing: the primitive writes its rest ink and
+ * active fill under `dark:`, which out-ranks a bare utility. The transition is
+ * the two-clock longhand `Badge` uses, so the fill does not cut in.
+ */
+export const TAB_RAIL = {
+  LIST_TWO_UP:
+    "grid h-auto w-full grid-cols-2 gap-1 rounded-pill bg-surface-container p-1",
+  TRIGGER: [
+    "h-9 rounded-pill border-0 px-4 text-sm font-medium pointer-coarse:h-11",
+    "text-on-surface-variant hover:text-on-surface dark:text-on-surface-variant dark:hover:text-on-surface",
+    "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none",
+    "dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground",
+    "[transition:color_var(--duration-standard)_var(--ease-standard),background-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
+  ].join(" "),
 } as const;

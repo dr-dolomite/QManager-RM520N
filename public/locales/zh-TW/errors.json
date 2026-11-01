@@ -207,5 +207,9 @@
   "port_in_use": "該連接埠已被其他服務佔用。",
   "token_generation_failed": "無法建立安全權杖。請重試。",
   "poller_not_running": "背景服務未回應，請稍後再試",
-  "reset_failed": "無法重設計數器"
+  "reset_failed": "無法重設計數器",
+  "report_tool_missing": "此數據機未安裝偵錯報告工具。",
+  "capture_failed": "無法產生偵錯報告。",
+  "invalid_version": "該版本號無效。",
+  "invalid_rollback": "無法回復到該版本。"
 }

@@ -1,10 +1,18 @@
 {
   "known_sims": {
-    "row_label": "Known SIMs",
-    "info_aria": "Known SIMs info",
-    "tooltip": "QManager remembers the SIMs it has seen, so it only alerts you when a genuinely new SIM is inserted. Clearing forgets every SIM except the one currently inserted.",
-    "remembered_count_one": "{{count}} SIM",
-    "remembered_count_other": "{{count}} SIMs",
+    "section": "Tracked SIMs",
+    "rows": {
+      "count": {
+        "consequence": "QManager remembers the SIMs it has seen, so it only alerts you when a genuinely new SIM is inserted. Clearing forgets every SIM except the one currently inserted.",
+        "label": "SIMs remembered"
+      }
+    },
+    "states": {
+      "empty_title": "No SIMs tracked yet",
+      "empty_description": "QManager records each SIM the first time it is inserted. Insert a SIM to start the list.",
+      "error_title": "Couldn't read the tracked SIMs",
+      "error_description": "The device didn't answer. Nothing has been forgotten; this is a read failure and the count is still on the modem."
+    },
     "clear_button": "Clear",
     "clear_dialog_title": "Clear known SIMs?",
     "clear_dialog_description": "This forgets every SIM QManager has seen, except the one currently inserted — so your active SIM won't be flagged as new. Previously-used SIMs will alert again the next time they are inserted.",
@@ -12,67 +20,12 @@
     "clear_dialog_clearing": "Clearing…",
     "toast_cleared": "Known SIMs cleared",
     "toast_clear_failed": "Failed to clear known SIMs",
-    "remembered_unknown": "Couldn't read the remembered count"
-  },
-  "sim_registry": {
-    "title": "Tracked SIMs",
-    "description": "Every SIM QManager has seen, and whether it still raises a new-SIM alert.",
-    "carrier_unknown": "Unknown carrier",
-    "no_phone_number": "No number provisioned",
-    "added_on": "Added {{date}}",
-    "added_unknown": "Added before tracking began",
-    "badge_active": "Active",
-    "badge_alerts_on": "Alerts on",
-    "badge_alerts_off": "Alerts off",
-    "show_alert": "Show Alert",
-    "restoring": "Turning on…",
-    "retry": "Retry",
-    "stale_notice": "Showing the last successful read. The device didn't answer the latest refresh.",
-    "empty_title": "No SIMs tracked yet",
-    "empty_description": "QManager records each SIM the first time it is inserted. Insert a SIM to start the list.",
-    "toast_restored": "Alert turned back on",
-    "toast_restored_detail": "QManager will alert again when the {{carrier}} SIM is inserted.",
-    "toast_restore_failed": "Couldn't turn the alert back on",
-    "remembered_count_one": "{{count}} SIM remembered",
-    "remembered_count_other": "{{count}} SIMs remembered",
-    "toast_cleared_partial": "Cleared, but the list may be stale",
-    "toast_cleared_partial_detail": "The device forgot the SIMs but couldn't update this list. Reload the page to check.",
-    "error_title": "Couldn't read the tracked SIMs",
-    "error_description": "The device didn't answer. Nothing has been forgotten — this is a read failure, and the list is still on the modem."
-  },
-  "ssh": {
-    "card": {
-      "title": "SSH Access",
-      "description": "The root password for SSH sessions into this modem. It is separate from the password you sign in to QManager with.",
-      "save": "Update SSH Password"
-    },
-    "fields": {
-      "current": {
-        "label": "Your QManager password",
-        "consequence": "Proves it is you. This is the web password you signed in with, not the SSH one."
-      },
-      "new": {
-        "label": "New SSH password",
-        "consequence": "At least six characters. Takes effect immediately — existing SSH sessions stay open."
-      },
-      "confirm": {
-        "label": "Confirm new password"
-      }
-    },
-    "toggle": {
-      "show": "Show password",
-      "hide": "Hide password"
-    },
-    "errors": {
-      "too_short": "SSH password must be at least 6 characters.",
-      "mismatch": "Passwords do not match.",
-      "failed": "SSH password change failed."
-    },
-    "toast_saved": "SSH password updated successfully."
+    "toast_cleared_partial": "Known SIMs cleared, but not completely",
+    "toast_cleared_partial_detail": "The device forgot the SIMs but couldn't update its per-SIM records. Reload the page to check."
   },
   "page": {
     "title": "System Settings",
-    "description": "How this device keeps time, who can reach it, and which SIMs it remembers.",
+    "description": "How this device keeps time, when it restarts, and which SIMs it remembers.",
     "refresh": "Refresh"
   },
   "band": {
@@ -98,16 +51,16 @@
     "sims": {
       "eyebrow": "Tracked SIMs",
       "caption_none": "Nothing recorded yet",
-      "caption_all_alerting": "All raising new-SIM alerts",
-      "caption_muted_one": "{{count}} muted from new-SIM alerts",
-      "caption_muted_other": "{{count}} muted from new-SIM alerts"
+      "caption_known": "Only a new SIM raises an alert",
+      "caption_unread": "Could not read the count"
     },
     "stale": "Last confirmed read"
   },
   "preferences": {
+    "section": "Time & Units",
     "card": {
-      "title": "Time & Units",
-      "description": "How this modem keeps time, and the units every reading is shown in.",
+      "title": "Device & Units",
+      "description": "How this modem keeps time, the units readings use, and the SIMs it remembers.",
       "save": "Save Preferences"
     },
     "rows": {
@@ -142,7 +95,8 @@
     },
     "toast": {
       "saved": "Preferences saved",
-      "failed": "Couldn't save preferences"
+      "failed": "Couldn't save preferences",
+      "tz_not_applied": "Preferences saved, but the time zone hasn't reached the device clock yet"
     }
   },
   "reboot": {
@@ -166,6 +120,12 @@
         "label": "Repeat on",
         "consequence": "With no day selected the schedule never fires.",
         "rail": "Reboot days of the week"
+      },
+      "clock": {
+        "label": "Modem time",
+        "consequence": "The date and time the schedule runs on, in the time zone set under Device & Units.",
+        "unsynced": "Not set yet",
+        "unsynced_consequence": "The modem hasn't set its clock from the network yet, so a scheduled reboot can't fire until it does."
       }
     },
     "days": {
@@ -202,7 +162,9 @@
       "rejected": {
         "no_days": "Pick at least one day, or turn the schedule off.",
         "invalid_time": "That time isn't valid. Use a 24-hour HH:MM time.",
-        "network": "Couldn't reach the device to save. Check the connection and try again."
+        "network": "Couldn't reach the device to save. Check the connection and try again.",
+        "invalid_day": "One of the selected days isn't valid. Pick days from Sunday to Saturday.",
+        "missing_enabled": "The device didn't receive the on/off setting. Try again."
       }
     }
   },
@@ -577,7 +539,8 @@
       "read_full_notes": "Read the full notes",
       "rebooting": "Restarting...",
       "verifying": "Verifying...",
-      "retry_download": "Try download again"
+      "retry_download": "Try download again",
+      "reboot_now": "Restart now"
     },
     "band": {
       "head": "Update status",
@@ -712,7 +675,8 @@
       "failed_check": "QManager couldn't read the release list. The build on this modem is untouched, so this is a read failure and not a loss.",
       "failed_download": "The download didn't finish, so nothing has been installed. The build already on the modem is untouched.",
       "versions": "Every option here restarts the modem, and an older build can undo settings a newer one introduced.",
-      "failed_install": "The install did not finish, so the modem may be running a mixed set of files. Installing again puts it back on a known build."
+      "failed_install": "The install did not finish, so the modem may be running a mixed set of files. Installing again puts it back on a known build.",
+      "stalled": "The installer has gone quiet for two minutes. If it does not recover, restart the modem to finish or undo the install."
     },
     "notes": {
       "title": "What changed",
@@ -789,6 +753,12 @@
       "auto_on": "Automatic updates enabled",
       "auto_off": "Automatic updates disabled",
       "save_failed": "Couldn't save that preference"
+    },
+    "stall_dialog": {
+      "title": "Restart the modem now?",
+      "description": "The install looks stuck. Restarting interrupts it and drops this session; the modem comes back on its own.",
+      "cancel": "Keep waiting",
+      "confirm": "Restart now"
     }
   },
   "at_terminal": {
@@ -972,6 +942,57 @@
         "title": "Session ended",
         "description": "The shell on the modem exited, so this terminal is closed. Nothing was lost — start a new session whenever you need one."
       }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "Passwords",
+      "description": "Change the password you sign in to QManager with, or the root password for SSH. Each asks for its current password first."
+    },
+    "tabs": {
+      "aria": "Password to change",
+      "web": "Web Password",
+      "ssh": "SSH Password"
+    },
+    "web": {
+      "label": "Current web password",
+      "consequence": "The password you sign in to QManager with.",
+      "dialog_title": "Change web password",
+      "dialog_description": "You will be signed out after changing it."
+    },
+    "ssh": {
+      "label": "Current SSH password",
+      "consequence": "The root password for SSH sessions into this modem.",
+      "dialog_title": "Change SSH password",
+      "dialog_description": "Takes effect immediately; existing SSH sessions stay open.",
+      "toast_saved": "SSH password updated successfully."
+    },
+    "continue": "Continue",
+    "toggle": {
+      "show": "Show password",
+      "hide": "Hide password"
+    },
+    "dialog": {
+      "new_label": "New password",
+      "confirm_label": "Confirm new password",
+      "match": "Passwords match",
+      "mismatch": "Passwords don't match",
+      "cancel": "Cancel",
+      "save": "Save password"
+    },
+    "errors": {
+      "too_short": "Password must be at least {{min}} characters.",
+      "weak": "Password must be at least {{min}} characters and include uppercase, lowercase, and a number.",
+      "verify_failed": "Couldn't check the password. Try again.",
+      "change_failed": "Couldn't change the password. Try again.",
+      "rate_limited_one": "Too many wrong attempts. Try again in {{count}} second.",
+      "rate_limited_other": "Too many wrong attempts. Try again in {{count}} seconds."
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "Device Access",
+      "description": "The password and ports used to reach this modem."
     }
   }
 }

@@ -34,10 +34,11 @@ export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-5 p-2";
 /** The page header: titles left, actions pushed right once the page is wide. */
 export const PAGE_HEAD = {
   ROOT: "flex flex-col gap-5 @3xl/main:flex-row @3xl/main:items-end",
-  TITLES: "flex max-w-[41rem] flex-col gap-1.5",
+  TITLES: "flex min-w-0 max-w-[41rem] flex-col gap-1.5",
   TITLE: "text-3xl font-bold tracking-[-0.02em]",
   DESC: "text-on-surface-variant text-sm leading-relaxed text-pretty",
-  ACTIONS: "flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto",
+  ACTIONS:
+    "flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto @3xl/main:shrink-0",
 } as const;
 
 /** The lucide glyph inside an action pill. */

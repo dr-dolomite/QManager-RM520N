@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
+  DeviceClock,
+  DeviceClockReading,
   SystemSettings,
   ScheduleConfig,
   SystemSettingsResponse,
@@ -67,6 +70,18 @@ interface SaveResponse {
   timezone_apply_status?: TimezoneApplyStatus;
 }
 
+/**
+ * What a preferences save returns. Callers toast from this and never from the
+ * hook's `error`, which describes the last READ only.
+ */
+export interface SaveResult {
+  success: boolean;
+  /** The device's reason, translated through `resolveErrorMessage`. Absent when none was given. */
+  message?: string;
+  /** The zone was saved but did not reach the live clock (partial success). */
+  timezoneNotApplied?: boolean;
+}
+
 // Internal outcome returned by postAction — carries the raw success plus the
 // arm status so saveScheduledReboot can surface an honest toast.
 interface PostActionResult {
@@ -75,15 +90,18 @@ interface PostActionResult {
   reason?: string;
   rejection?: string;
   rejectionDetail?: string;
+  timezoneNotApplied?: boolean;
 }
 
 export interface UseSystemSettingsReturn {
   settings: SystemSettings | null;
   scheduledReboot: ScheduleConfig | null;
+  /** The modem's clock as of the last read; null before one or on an old backend. */
+  deviceClock: DeviceClockReading | null;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
+  saveSettings: (payload: SaveSettingsPayload) => Promise<SaveResult>;
   saveScheduledReboot: (
     payload: SaveScheduledRebootPayload,
   ) => Promise<ScheduledRebootSaveResult>;
@@ -92,10 +110,20 @@ export interface UseSystemSettingsReturn {
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
+/** A clock reading the UI can tick from; an epoch of 0 means the device could not read it. */
+function toClockReading(clock: DeviceClock | undefined): DeviceClockReading | null {
+  if (!clock || !(clock.epoch > 0) || typeof clock.local !== "string") return null;
+  return { ...clock, receivedAt: Date.now() };
+}
+
 export function useSystemSettings(): UseSystemSettingsReturn {
+  const { t } = useTranslation("errors");
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [scheduledReboot, setScheduledReboot] =
     useState<ScheduleConfig | null>(null);
+  const [deviceClock, setDeviceClock] = useState<DeviceClockReading | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +169,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
 
       setSettings(json.settings);
       setScheduledReboot(json.scheduled_reboot);
+      setDeviceClock(toClockReading(json.device_clock));
     } catch (err) {
       if (!mountedRef.current) return;
       if (seq <= appliedSeqRef.current) return;
@@ -207,19 +236,17 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         // The silent re-fetch also pulls the fresh timezone ground-truth fields
         // (effective_offset / timezone_applied) so the card can render its badge.
         if (payload.action === "save_settings") {
-          // Config saved, but the zone did not reach the live clock. Warn the
-          // user honestly (partial success); the settings themselves persisted.
-          if (json.timezone_apply_status === "failed") {
-            toast.warning(
-              "Timezone saved, but couldn't apply to the device clock — check again in a moment",
-            );
-          }
           await fetchSettings(true);
         }
 
-        // Thread through the arm status so save_scheduled_reboot can warn the
-        // user when the schedule persisted but no live timer was installed.
-        return { success: true, armed: json.armed, reason: json.reason };
+        // Arm status lets the reboot card warn on an unarmed schedule; the zone
+        // flag lets the preferences card warn instead of claiming success.
+        return {
+          success: true,
+          armed: json.armed,
+          reason: json.reason,
+          timezoneNotApplied: json.timezone_apply_status === "failed",
+        };
       } catch (err) {
         if (!mountedRef.current) return { success: false };
         return {
@@ -240,9 +267,22 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   // Per-action save wrappers
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    async (payload: SaveSettingsPayload) =>
-      (await postAction(payload)).success,
-    [postAction],
+    async (payload: SaveSettingsPayload): Promise<SaveResult> => {
+      const result = await postAction(payload);
+      if (result.success) {
+        return { success: true, timezoneNotApplied: result.timezoneNotApplied };
+      }
+      // A transport failure has no device reason; the caller's generic line covers it.
+      if (result.rejection === "network") return { success: false };
+      const message = resolveErrorMessage(
+        t,
+        result.rejection,
+        result.rejectionDetail,
+        "",
+      );
+      return { success: false, message: message || undefined };
+    },
+    [postAction, t],
   );
 
   const saveScheduledReboot = useCallback(
@@ -254,6 +294,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   return {
     settings,
     scheduledReboot,
+    deviceClock,
     isLoading,
     isSaving,
     error,

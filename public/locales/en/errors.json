@@ -207,5 +207,9 @@
   "port_in_use": "That port is already used by another service.",
   "token_generation_failed": "Couldn't create a secure token. Try again.",
   "poller_not_running": "The background service did not respond, try again in a moment",
-  "reset_failed": "Could not reset the counter"
+  "reset_failed": "Could not reset the counter",
+  "report_tool_missing": "The debug report tool isn't installed on this modem.",
+  "capture_failed": "The debug report couldn't be generated.",
+  "invalid_version": "That version name isn't valid.",
+  "invalid_rollback": "That build can't be rolled back to."
 }

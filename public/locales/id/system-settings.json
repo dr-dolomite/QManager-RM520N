@@ -1,10 +1,18 @@
 {
   "known_sims": {
-    "row_label": "SIM Dikenal",
-    "info_aria": "Info SIM dikenal",
-    "tooltip": "QManager mengingat SIM yang pernah terdeteksi, sehingga hanya memberi tahu Anda saat SIM yang benar-benar baru dipasang. Menghapus akan melupakan semua SIM kecuali yang sedang terpasang.",
-    "remembered_count_one": "{{count}} SIM",
-    "remembered_count_other": "{{count}} SIM",
+    "section": "SIM Terdaftar",
+    "rows": {
+      "count": {
+        "consequence": "QManager mengingat SIM yang pernah terdeteksi, sehingga hanya memberi tahu Anda saat SIM yang benar-benar baru dipasang. Menghapus akan melupakan semua SIM kecuali yang sedang terpasang.",
+        "label": "SIM yang diingat"
+      }
+    },
+    "states": {
+      "empty_title": "Belum ada SIM yang tercatat",
+      "empty_description": "QManager mencatat setiap SIM saat pertama kali dipasang. Pasang SIM untuk memulai daftar.",
+      "error_title": "Tidak dapat membaca SIM terdaftar",
+      "error_description": "Perangkat tidak menjawab. Tidak ada yang dilupakan; ini kegagalan pembacaan dan jumlahnya masih tersimpan di modem."
+    },
     "clear_button": "Hapus",
     "clear_dialog_title": "Hapus SIM yang dikenal?",
     "clear_dialog_description": "Ini akan melupakan setiap SIM yang pernah dikenali QManager, kecuali yang sedang terpasang — sehingga SIM aktif Anda tidak ditandai sebagai baru. SIM yang pernah digunakan akan diberitahukan lagi saat dipasang berikutnya.",
@@ -12,67 +20,12 @@
     "clear_dialog_clearing": "Menghapus…",
     "toast_cleared": "SIM yang dikenal telah dihapus",
     "toast_clear_failed": "Gagal menghapus SIM yang dikenal",
-    "remembered_unknown": "Tidak bisa membaca jumlah yang diingat"
-  },
-  "sim_registry": {
-    "title": "SIM Terdaftar",
-    "description": "Semua SIM yang pernah dikenali QManager, dan apakah masih memunculkan peringatan SIM baru.",
-    "carrier_unknown": "Operator tidak diketahui",
-    "no_phone_number": "Nomor belum tersedia",
-    "added_on": "Ditambahkan {{date}}",
-    "added_unknown": "Ditambahkan sebelum pencatatan dimulai",
-    "badge_active": "Aktif",
-    "badge_alerts_on": "Peringatan aktif",
-    "badge_alerts_off": "Peringatan mati",
-    "show_alert": "Aktifkan Peringatan",
-    "restoring": "Mengaktifkan…",
-    "retry": "Coba lagi",
-    "stale_notice": "Menampilkan data terakhir yang berhasil dibaca. Perangkat tidak menjawab pembaruan terakhir.",
-    "empty_title": "Belum ada SIM yang tercatat",
-    "empty_description": "QManager mencatat setiap SIM saat pertama kali dipasang. Pasang SIM untuk memulai daftar.",
-    "toast_restored": "Peringatan diaktifkan kembali",
-    "toast_restored_detail": "QManager akan memberi tahu lagi saat SIM {{carrier}} dipasang.",
-    "toast_restore_failed": "Gagal mengaktifkan kembali peringatan",
-    "remembered_count_one": "{{count}} SIM diingat",
-    "remembered_count_other": "{{count}} SIM diingat",
-    "toast_cleared_partial": "Sudah dihapus, tetapi daftar mungkin belum diperbarui",
-    "toast_cleared_partial_detail": "Perangkat sudah melupakan SIM tersebut tetapi gagal memperbarui daftar ini. Muat ulang halaman untuk memeriksa.",
-    "error_title": "Tidak dapat membaca SIM terdaftar",
-    "error_description": "Perangkat tidak menjawab. Tidak ada yang dilupakan — ini kegagalan pembacaan, dan daftarnya masih tersimpan di modem."
-  },
-  "ssh": {
-    "card": {
-      "title": "Akses SSH",
-      "description": "Kata sandi root untuk sesi SSH ke modem ini. Berbeda dari kata sandi yang Anda pakai untuk masuk ke QManager.",
-      "save": "Perbarui Kata Sandi SSH"
-    },
-    "fields": {
-      "current": {
-        "label": "Kata sandi QManager Anda",
-        "consequence": "Untuk memastikan ini memang Anda. Ini kata sandi web yang Anda pakai saat masuk, bukan kata sandi SSH."
-      },
-      "new": {
-        "label": "Kata sandi SSH baru",
-        "consequence": "Minimal enam karakter. Langsung berlaku — sesi SSH yang sedang berjalan tetap terbuka."
-      },
-      "confirm": {
-        "label": "Konfirmasi kata sandi baru"
-      }
-    },
-    "toggle": {
-      "show": "Tampilkan kata sandi",
-      "hide": "Sembunyikan kata sandi"
-    },
-    "errors": {
-      "too_short": "Kata sandi SSH minimal 6 karakter.",
-      "mismatch": "Kata sandi tidak cocok.",
-      "failed": "Gagal mengubah kata sandi SSH."
-    },
-    "toast_saved": "Kata sandi SSH berhasil diperbarui."
+    "toast_cleared_partial": "SIM yang dikenal dihapus, tetapi belum seluruhnya",
+    "toast_cleared_partial_detail": "Perangkat telah melupakan SIM tersebut tetapi tidak dapat memperbarui catatan per SIM. Muat ulang halaman untuk memeriksa."
   },
   "page": {
     "title": "Pengaturan Sistem",
-    "description": "Bagaimana perangkat ini menyimpan waktu, siapa yang bisa mengaksesnya, dan SIM mana saja yang diingatnya.",
+    "description": "Bagaimana perangkat ini menyimpan waktu, kapan perangkat dimulai ulang, dan SIM mana saja yang diingatnya.",
     "refresh": "Segarkan"
   },
   "band": {
@@ -98,16 +51,16 @@
     "sims": {
       "eyebrow": "SIM Terdaftar",
       "caption_none": "Belum ada yang tercatat",
-      "caption_all_alerting": "Semua memunculkan peringatan SIM baru",
-      "caption_muted_one": "{{count}} dibisukan dari peringatan SIM baru",
-      "caption_muted_other": "{{count}} dibisukan dari peringatan SIM baru"
+      "caption_known": "Hanya SIM baru yang memunculkan peringatan",
+      "caption_unread": "Tidak dapat membaca jumlahnya"
     },
     "stale": "Pembacaan terakhir yang dikonfirmasi"
   },
   "preferences": {
+    "section": "Waktu & Satuan",
     "card": {
-      "title": "Waktu & Satuan",
-      "description": "Bagaimana modem ini menyimpan waktu, dan satuan yang dipakai untuk setiap pembacaan.",
+      "title": "Perangkat & Satuan",
+      "description": "Bagaimana modem ini menyimpan waktu, satuan yang dipakai pembacaan, dan SIM yang diingatnya.",
       "save": "Simpan Preferensi"
     },
     "rows": {
@@ -142,7 +95,8 @@
     },
     "toast": {
       "saved": "Preferensi tersimpan",
-      "failed": "Gagal menyimpan preferensi"
+      "failed": "Gagal menyimpan preferensi",
+      "tz_not_applied": "Preferensi disimpan, tetapi zona waktu belum diterapkan ke jam perangkat"
     }
   },
   "reboot": {
@@ -166,6 +120,12 @@
         "label": "Ulangi pada",
         "consequence": "Tanpa hari yang dipilih, jadwal tidak akan pernah berjalan.",
         "rail": "Hari reboot dalam seminggu"
+      },
+      "clock": {
+        "label": "Waktu modem",
+        "consequence": "Tanggal dan waktu yang dipakai jadwal, dalam zona waktu yang diatur di Perangkat & Satuan.",
+        "unsynced": "Belum diatur",
+        "unsynced_consequence": "Modem belum mengambil waktu dari jaringan, jadi reboot terjadwal tidak bisa berjalan sampai itu terjadi."
       }
     },
     "days": {
@@ -202,7 +162,9 @@
       "rejected": {
         "no_days": "Pilih minimal satu hari, atau matikan jadwalnya.",
         "invalid_time": "Waktu tersebut tidak valid. Gunakan format 24 jam HH:MM.",
-        "network": "Tidak dapat menjangkau perangkat untuk menyimpan. Periksa koneksi lalu coba lagi."
+        "network": "Tidak dapat menjangkau perangkat untuk menyimpan. Periksa koneksi lalu coba lagi.",
+        "invalid_day": "Salah satu hari yang dipilih tidak valid. Pilih hari dari Minggu sampai Sabtu.",
+        "missing_enabled": "Perangkat tidak menerima pengaturan aktif/nonaktif. Coba lagi."
       }
     }
   },
@@ -577,7 +539,8 @@
       "read_full_notes": "Baca catatan lengkapnya",
       "rebooting": "Me-reboot…",
       "verifying": "Memverifikasi…",
-      "retry_download": "Coba unduh lagi"
+      "retry_download": "Coba unduh lagi",
+      "reboot_now": "Reboot sekarang"
     },
     "band": {
       "head": "Status pembaruan",
@@ -712,7 +675,8 @@
       "failed_check": "QManager gagal membaca daftar rilis. Build di modem ini tidak tersentuh, jadi ini kegagalan pembacaan, bukan kehilangan.",
       "failed_download": "Unduhan tidak selesai, jadi tidak ada yang terpasang. Build yang sudah ada di modem tidak tersentuh.",
       "versions": "Setiap opsi di sini me-reboot modem, dan build yang lebih lama bisa membatalkan pengaturan yang dibawa build yang lebih baru.",
-      "failed_install": "Pemasangan tidak selesai, jadi modem mungkin menjalankan berkas yang tercampur. Memasang lagi mengembalikannya ke build yang pasti."
+      "failed_install": "Pemasangan tidak selesai, jadi modem mungkin menjalankan berkas yang tercampur. Memasang lagi mengembalikannya ke build yang pasti.",
+      "stalled": "Pemasang tidak menunjukkan kemajuan selama dua menit. Jika tidak pulih, reboot modem untuk menyelesaikan atau membatalkan pemasangan."
     },
     "notes": {
       "title": "Apa yang berubah",
@@ -789,6 +753,12 @@
       "auto_on": "Pembaruan otomatis diaktifkan",
       "auto_off": "Pembaruan otomatis dinonaktifkan",
       "save_failed": "Tidak dapat menyimpan preferensi itu"
+    },
+    "stall_dialog": {
+      "title": "Reboot modem sekarang?",
+      "description": "Pemasangan tampak macet. Reboot akan menghentikannya dan memutus sesi ini; modem kembali sendiri.",
+      "cancel": "Tetap tunggu",
+      "confirm": "Reboot sekarang"
     }
   },
   "at_terminal": {
@@ -972,6 +942,57 @@
         "title": "Sesi berakhir",
         "description": "Shell pada modem sudah keluar, jadi terminal ini tertutup. Tidak ada yang hilang — mulai sesi baru kapan pun Anda membutuhkannya."
       }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "Kata Sandi",
+      "description": "Ubah kata sandi yang Anda pakai untuk masuk ke QManager, atau kata sandi root untuk SSH. Masing-masing meminta kata sandinya yang sekarang terlebih dahulu."
+    },
+    "tabs": {
+      "aria": "Kata sandi yang diubah",
+      "web": "Kata Sandi Web",
+      "ssh": "Kata Sandi SSH"
+    },
+    "web": {
+      "label": "Kata sandi web saat ini",
+      "consequence": "Kata sandi yang Anda pakai untuk masuk ke QManager.",
+      "dialog_title": "Ubah kata sandi web",
+      "dialog_description": "Anda akan keluar setelah mengubahnya."
+    },
+    "ssh": {
+      "label": "Kata sandi SSH saat ini",
+      "consequence": "Kata sandi root untuk sesi SSH ke modem ini.",
+      "dialog_title": "Ubah kata sandi SSH",
+      "dialog_description": "Langsung berlaku; sesi SSH yang sedang berjalan tetap terbuka.",
+      "toast_saved": "Kata sandi SSH berhasil diperbarui."
+    },
+    "continue": "Lanjutkan",
+    "toggle": {
+      "show": "Tampilkan kata sandi",
+      "hide": "Sembunyikan kata sandi"
+    },
+    "dialog": {
+      "new_label": "Kata sandi baru",
+      "confirm_label": "Konfirmasi kata sandi baru",
+      "match": "Kata sandi cocok",
+      "mismatch": "Kata sandi tidak cocok",
+      "cancel": "Batal",
+      "save": "Simpan kata sandi"
+    },
+    "errors": {
+      "too_short": "Kata sandi minimal {{min}} karakter.",
+      "weak": "Kata sandi minimal {{min}} karakter dan menyertakan huruf besar, huruf kecil, dan angka.",
+      "verify_failed": "Tidak dapat memeriksa kata sandi. Coba lagi.",
+      "change_failed": "Tidak dapat mengubah kata sandi. Coba lagi.",
+      "rate_limited_one": "Terlalu banyak percobaan yang salah. Coba lagi dalam {{count}} detik.",
+      "rate_limited_other": "Terlalu banyak percobaan yang salah. Coba lagi dalam {{count}} detik."
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "Akses Perangkat",
+      "description": "Kata sandi dan port yang dipakai untuk menjangkau modem ini."
     }
   }
 }

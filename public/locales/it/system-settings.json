@@ -1,10 +1,18 @@
 {
   "known_sims": {
-    "row_label": "SIM note",
-    "info_aria": "Info SIM note",
-    "tooltip": "QManager ricorda le SIM già viste, così ti avvisa solo quando viene inserita una SIM davvero nuova. La cancellazione dimentica tutte le SIM tranne quella attualmente inserita.",
-    "remembered_count_one": "{{count}} SIM",
-    "remembered_count_other": "{{count}} SIM",
+    "section": "SIM registrate",
+    "rows": {
+      "count": {
+        "consequence": "QManager ricorda le SIM già viste, così ti avvisa solo quando viene inserita una SIM davvero nuova. La cancellazione dimentica tutte le SIM tranne quella attualmente inserita.",
+        "label": "SIM ricordate"
+      }
+    },
+    "states": {
+      "empty_title": "Nessuna SIM registrata",
+      "empty_description": "QManager registra ogni SIM al primo inserimento. Inserisci una SIM per iniziare l'elenco.",
+      "error_title": "Impossibile leggere le SIM registrate",
+      "error_description": "Il dispositivo non ha risposto. Non è stato dimenticato nulla: è un errore di lettura e il conteggio è ancora sul modem."
+    },
     "clear_button": "Cancella",
     "clear_dialog_title": "Cancellare le SIM note?",
     "clear_dialog_description": "Verranno dimenticate tutte le SIM viste da QManager, tranne quella attualmente inserita, così la tua SIM attiva non verrà segnalata come nuova. Le SIM già usate verranno segnalate di nuovo al prossimo inserimento.",
@@ -12,67 +20,12 @@
     "clear_dialog_clearing": "Cancellazione…",
     "toast_cleared": "SIM note cancellate",
     "toast_clear_failed": "Impossibile cancellare le SIM note",
-    "remembered_unknown": "Impossibile leggere il numero memorizzato"
-  },
-  "sim_registry": {
-    "title": "SIM registrate",
-    "description": "Tutte le SIM che QManager ha visto e se generano ancora l'avviso di nuova SIM.",
-    "carrier_unknown": "Operatore sconosciuto",
-    "no_phone_number": "Nessun numero assegnato",
-    "added_on": "Aggiunta il {{date}}",
-    "added_unknown": "Aggiunta prima dell'avvio del registro",
-    "badge_active": "Attiva",
-    "badge_alerts_on": "Avvisi attivi",
-    "badge_alerts_off": "Avvisi disattivati",
-    "show_alert": "Riattiva avviso",
-    "restoring": "Riattivazione…",
-    "retry": "Riprova",
-    "stale_notice": "Vengono mostrati gli ultimi dati letti correttamente: il dispositivo non ha risposto all'ultimo aggiornamento.",
-    "empty_title": "Nessuna SIM registrata",
-    "empty_description": "QManager registra ogni SIM al primo inserimento. Inserisci una SIM per iniziare l'elenco.",
-    "toast_restored": "Avviso riattivato",
-    "toast_restored_detail": "QManager avviserà di nuovo quando verrà inserita la SIM {{carrier}}.",
-    "toast_restore_failed": "Impossibile riattivare l'avviso",
-    "remembered_count_one": "{{count}} SIM memorizzata",
-    "remembered_count_other": "{{count}} SIM memorizzate",
-    "toast_cleared_partial": "Cancellate, ma l'elenco potrebbe non essere aggiornato",
-    "toast_cleared_partial_detail": "Il dispositivo ha dimenticato le SIM ma non è riuscito ad aggiornare questo elenco. Ricarica la pagina per verificare.",
-    "error_title": "Impossibile leggere le SIM registrate",
-    "error_description": "Il dispositivo non ha risposto. Non è stato dimenticato nulla: è un errore di lettura, l'elenco è ancora sul modem."
-  },
-  "ssh": {
-    "card": {
-      "title": "Accesso SSH",
-      "description": "La password root per le sessioni SSH su questo modem. È separata dalla password con cui accedi a QManager.",
-      "save": "Aggiorna password SSH"
-    },
-    "fields": {
-      "current": {
-        "label": "La tua password QManager",
-        "consequence": "Serve a confermare che sei tu. È la password web con cui hai effettuato l'accesso, non quella SSH."
-      },
-      "new": {
-        "label": "Nuova password SSH",
-        "consequence": "Almeno sei caratteri. Ha effetto immediato: le sessioni SSH già aperte restano attive."
-      },
-      "confirm": {
-        "label": "Conferma la nuova password"
-      }
-    },
-    "toggle": {
-      "show": "Mostra password",
-      "hide": "Nascondi password"
-    },
-    "errors": {
-      "too_short": "La password SSH deve avere almeno 6 caratteri.",
-      "mismatch": "Le password non coincidono.",
-      "failed": "Modifica della password SSH non riuscita."
-    },
-    "toast_saved": "Password SSH aggiornata correttamente."
+    "toast_cleared_partial": "SIM note cancellate, ma non del tutto",
+    "toast_cleared_partial_detail": "Il dispositivo ha dimenticato le SIM ma non è riuscito ad aggiornare i dati delle singole SIM. Ricarica la pagina per verificare."
   },
   "page": {
     "title": "Impostazioni di sistema",
-    "description": "Come questo dispositivo tiene l'ora, chi può raggiungerlo e quali SIM ricorda.",
+    "description": "Come questo dispositivo tiene l'ora, quando si riavvia e quali SIM ricorda.",
     "refresh": "Aggiorna"
   },
   "band": {
@@ -98,16 +51,16 @@
     "sims": {
       "eyebrow": "SIM registrate",
       "caption_none": "Ancora nessuna registrazione",
-      "caption_all_alerting": "Tutte generano l'avviso di nuova SIM",
-      "caption_muted_one": "{{count}} esclusa dagli avvisi di nuova SIM",
-      "caption_muted_other": "{{count}} escluse dagli avvisi di nuova SIM"
+      "caption_known": "Solo una SIM nuova genera un avviso",
+      "caption_unread": "Impossibile leggere il conteggio"
     },
     "stale": "Ultima lettura confermata"
   },
   "preferences": {
+    "section": "Ora e unità",
     "card": {
-      "title": "Ora e unità",
-      "description": "Come questo modem tiene l'ora e in quali unità viene mostrata ogni lettura.",
+      "title": "Dispositivo e unità",
+      "description": "Come questo modem tiene l'ora, le unità usate dalle letture e le SIM che ricorda.",
       "save": "Salva preferenze"
     },
     "rows": {
@@ -142,7 +95,8 @@
     },
     "toast": {
       "saved": "Preferenze salvate",
-      "failed": "Impossibile salvare le preferenze"
+      "failed": "Impossibile salvare le preferenze",
+      "tz_not_applied": "Preferenze salvate, ma il fuso orario non è ancora arrivato all'orologio del dispositivo"
     }
   },
   "reboot": {
@@ -166,6 +120,12 @@
         "label": "Ripeti il",
         "consequence": "Senza nessun giorno selezionato la pianificazione non parte mai.",
         "rail": "Giorni della settimana del riavvio"
+      },
+      "clock": {
+        "label": "Ora del modem",
+        "consequence": "La data e l'ora su cui si basa la pianificazione, nel fuso orario impostato in Dispositivo e unità.",
+        "unsynced": "Non ancora impostata",
+        "unsynced_consequence": "Il modem non ha ancora preso l'ora dalla rete, quindi il riavvio pianificato non può partire finché non lo fa."
       }
     },
     "days": {
@@ -202,7 +162,9 @@
       "rejected": {
         "no_days": "Seleziona almeno un giorno, oppure disattiva la pianificazione.",
         "invalid_time": "L'ora non è valida. Usa un orario in formato 24 ore HH:MM.",
-        "network": "Impossibile raggiungere il dispositivo per salvare. Controlla la connessione e riprova."
+        "network": "Impossibile raggiungere il dispositivo per salvare. Controlla la connessione e riprova.",
+        "invalid_day": "Uno dei giorni selezionati non è valido. Scegli i giorni da domenica a sabato.",
+        "missing_enabled": "Il dispositivo non ha ricevuto l'impostazione attivo/disattivo. Riprova."
       }
     }
   },
@@ -577,7 +539,8 @@
       "read_full_notes": "Leggi le note complete",
       "rebooting": "Riavvio…",
       "verifying": "Verifica…",
-      "retry_download": "Riprova il download"
+      "retry_download": "Riprova il download",
+      "reboot_now": "Riavvia ora"
     },
     "band": {
       "head": "Stato dell'aggiornamento",
@@ -712,7 +675,8 @@
       "failed_check": "QManager non è riuscito a leggere l'elenco delle release. La build su questo modem è intatta: è un errore di lettura, non una perdita.",
       "failed_download": "Il download non è stato completato, quindi non è stato installato nulla. La build già presente sul modem è intatta.",
       "versions": "Ogni opzione qui riavvia il modem, e una build più vecchia può annullare impostazioni introdotte da una più recente.",
-      "failed_install": "L'installazione non è stata completata, quindi il modem potrebbe avere file misti. Installare di nuovo lo riporta su una build nota."
+      "failed_install": "L'installazione non è stata completata, quindi il modem potrebbe avere file misti. Installare di nuovo lo riporta su una build nota.",
+      "stalled": "L'installazione non dà segni di vita da due minuti. Se non riparte, riavvia il modem per completarla o annullarla."
     },
     "notes": {
       "title": "Cosa è cambiato",
@@ -789,6 +753,12 @@
       "auto_on": "Aggiornamenti automatici attivati",
       "auto_off": "Aggiornamenti automatici disattivati",
       "save_failed": "Impossibile salvare questa preferenza"
+    },
+    "stall_dialog": {
+      "title": "Riavviare il modem ora?",
+      "description": "L'installazione sembra bloccata. Il riavvio la interrompe e chiude questa sessione; il modem torna da solo.",
+      "cancel": "Continua ad aspettare",
+      "confirm": "Riavvia ora"
     }
   },
   "at_terminal": {
@@ -972,6 +942,57 @@
         "title": "Sessione terminata",
         "description": "La shell sul modem è uscita, quindi questo terminale è chiuso. Non è andato perso nulla: avvia una nuova sessione quando ti serve."
       }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "Password",
+      "description": "Cambia la password con cui accedi a QManager o la password root per SSH. Ognuna richiede prima la sua password attuale."
+    },
+    "tabs": {
+      "aria": "Password da cambiare",
+      "web": "Password web",
+      "ssh": "Password SSH"
+    },
+    "web": {
+      "label": "Password web attuale",
+      "consequence": "La password con cui accedi a QManager.",
+      "dialog_title": "Cambia la password web",
+      "dialog_description": "Dopo la modifica verrai disconnesso."
+    },
+    "ssh": {
+      "label": "Password SSH attuale",
+      "consequence": "La password root per le sessioni SSH su questo modem.",
+      "dialog_title": "Cambia la password SSH",
+      "dialog_description": "Ha effetto immediato: le sessioni SSH già aperte restano attive.",
+      "toast_saved": "Password SSH aggiornata correttamente."
+    },
+    "continue": "Continua",
+    "toggle": {
+      "show": "Mostra password",
+      "hide": "Nascondi password"
+    },
+    "dialog": {
+      "new_label": "Nuova password",
+      "confirm_label": "Conferma la nuova password",
+      "match": "Le password coincidono",
+      "mismatch": "Le password non coincidono",
+      "cancel": "Annulla",
+      "save": "Salva password"
+    },
+    "errors": {
+      "too_short": "La password deve avere almeno {{min}} caratteri.",
+      "weak": "La password deve contenere almeno {{min}} caratteri e includere lettere maiuscole, minuscole e un numero.",
+      "verify_failed": "Impossibile verificare la password. Riprova.",
+      "change_failed": "Impossibile cambiare la password. Riprova.",
+      "rate_limited_one": "Troppi tentativi errati. Riprova tra {{count}} secondo.",
+      "rate_limited_other": "Troppi tentativi errati. Riprova tra {{count}} secondi."
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "Accesso al dispositivo",
+      "description": "La password e le porte usate per raggiungere questo modem."
     }
   }
 }

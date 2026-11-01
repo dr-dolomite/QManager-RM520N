@@ -67,6 +67,14 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     tz_applied=false
     [ "$eff_applied" = "1" ] && tz_applied=true
 
+    # One `date` call so epoch and wall time come from the same second.
+    clock_now=$(date '+%s %Y-%m-%dT%H:%M:%S' 2>/dev/null)
+    clock_epoch=${clock_now%% *}
+    clock_local=${clock_now#* }
+    case "$clock_epoch" in
+        ''|*[!0-9]*) clock_epoch=0; clock_local="" ;;
+    esac
+
     jq -n \
         --argjson wan_guard "$wan_guard_enabled" \
         --arg hostname "$hostname" \
@@ -81,6 +89,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson sched_enabled "$sched_enabled" \
         --arg sched_time "$sched_time" \
         --argjson sched_days "$sched_days_json" \
+        --argjson clock_epoch "$clock_epoch" \
+        --arg clock_local "$clock_local" \
         '{
             success: true,
             settings: {
@@ -99,6 +109,10 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 enabled: ($sched_enabled == 1),
                 time: $sched_time,
                 days: $sched_days
+            },
+            device_clock: {
+                epoch: $clock_epoch,
+                local: $clock_local
             }
         }'
     exit 0
