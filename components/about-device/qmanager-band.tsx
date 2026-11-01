@@ -2,7 +2,12 @@
 
 import type * as React from "react";
 import Image from "next/image";
-import { ExternalLinkIcon, FileTextIcon, HeartIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  FileTextIcon,
+  HeartIcon,
+  UsersIcon,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
@@ -33,6 +38,7 @@ function GitHubIcon({ className }: { className?: string }): React.JSX.Element {
 
 export interface QManagerBandProps {
   onSupport: () => void;
+  onCredits: () => void;
 }
 
 /**
@@ -42,6 +48,7 @@ export interface QManagerBandProps {
  */
 export function QManagerBand({
   onSupport,
+  onCredits,
 }: QManagerBandProps): React.JSX.Element {
   const { t } = useTranslation("common");
 
@@ -105,6 +112,16 @@ export function QManagerBand({
                 aria-hidden="true"
               />
               {t(`${K}.qmanager.support`)}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="action"
+              onClick={onCredits}
+            >
+              <UsersIcon className={PILL_GLYPH} aria-hidden="true" />
+              {t(`${K}.qmanager.credits`)}
             </Button>
           </div>
         </div>

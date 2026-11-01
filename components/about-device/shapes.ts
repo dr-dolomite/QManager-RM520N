@@ -315,3 +315,25 @@ export const SKELETON = {
   MODEM_ROWS: 8,
   ADDRESS_ROWS: 6,
 } as const;
+
+// -----------------------------------------------------------------------------
+// The Credits dialog
+// -----------------------------------------------------------------------------
+
+/**
+ * Sized by constraint, not a breakpoint. The marker beats the primitive's own
+ * responsive max-width, and the min() keeps the mobile inset it provides.
+ */
+export const CREDITS = {
+  ROOT: "flex w-full max-w-[min(34rem,calc(100%-2rem))]! flex-col gap-[1.125rem] rounded-card p-[1.625rem]",
+  /** The right padding reserves the primitive's absolutely-placed close button. */
+  HEAD: "flex flex-col gap-1 pr-7 text-left",
+  TITLE: "text-lg leading-tight font-semibold",
+  DESC: "text-on-surface-variant text-sm leading-relaxed text-pretty",
+  LIST: "flex flex-col gap-2",
+  /** One credited party: a link row, 64px floor so a longer translation cannot clip. */
+  ROW: "flex min-h-16 items-center gap-3.5 rounded-field bg-surface-container px-4 py-2.5 transition-[background-color] duration-[var(--duration-quick)] ease-quick hover:bg-surface-container-high focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
+  TEXT: "flex min-w-0 flex-1 flex-col gap-px",
+  NAME: "text-sm font-semibold",
+  ROLE: "text-on-surface-variant text-xs text-pretty",
+} as const;

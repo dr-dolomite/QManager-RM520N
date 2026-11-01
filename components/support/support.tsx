@@ -212,8 +212,8 @@ export function SupportComponent(): React.JSX.Element {
                   <Image
                     src="/discord-qr.svg"
                     alt={t(`${K}.community.qr_alt`)}
-                    width={160}
-                    height={160}
+                    width={192}
+                    height={192}
                     className={COMMUNITY.IMAGE}
                   />
                 </div>

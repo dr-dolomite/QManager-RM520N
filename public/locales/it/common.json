@@ -1548,13 +1548,23 @@
       "modem": "Questi valori provengono dal dispositivo, che non ha risposto.",
       "addresses": "Gli indirizzi vengono letti dalla stessa richiesta."
     },
+    "credits": {
+      "title": "Crediti",
+      "description": "QManager si appoggia a alcuni servizi esterni e a dati aperti. Grazie a tutti coloro che li rendono possibili.",
+      "roles": {
+        "apn": "Preset APN degli operatori",
+        "logos": "Loghi dei brand per mittenti SMS e siti monitorati",
+        "icons": "Icone dei siti quando non si trova un logo"
+      }
+    },
     "qmanager": {
       "title": "Informazioni su QManager",
       "note": "Ciao! Sono Rus. QManager è l’ultima evoluzione di QuecManager, costruita con un approccio più moderno e affidabile rispetto al suo predecessore — pur continuando a unire impostazioni tecniche per utenti esperti a un’interfaccia semplice per chi inizia. Un ringraziamento speciale a iamromulan, clndwhr e Wutang Clan!",
       "copyright": "© {{year}} QManager. Tutti i diritti riservati.",
       "repository": "Repository GitHub",
       "release_notes": "Note di rilascio",
-      "support": "Sostieni il progetto"
+      "support": "Sostieni il progetto",
+      "credits": "Crediti"
     }
   },
   "support": {
