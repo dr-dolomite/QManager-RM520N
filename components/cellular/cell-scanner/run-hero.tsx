@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Card } from "@/components/ui/card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,9 +94,9 @@ export function RunHero({
     <Card className={RUN_HERO}>
       <div className={SECTION_HEAD.ROOT}>
         <div className={SECTION_HEAD.TITLES}>
-          <h2 className={SECTION_HEAD.TITLE}>{title}</h2>
+          <CardTitle as="h2" className={SECTION_HEAD.TITLE}>{title}</CardTitle>
           {description ? (
-            <p className={SECTION_HEAD.DESC}>{description}</p>
+            <CardDescription className={SECTION_HEAD.DESC}>{description}</CardDescription>
           ) : null}
         </div>
 
