@@ -169,7 +169,7 @@ export function TowerAutomationTiles({
     await writeTowerSettings(
       t,
       onUpdateSettings,
-      { failover: { ...config.failover, enabled: next } },
+      { failover: { enabled: next } },
       next
         ? t(`${K}.toast.failover_enabled`)
         : t(`${K}.toast.failover_disabled`),
@@ -195,7 +195,7 @@ export function TowerAutomationTiles({
       const landed = await writeTowerSettings(
         tr,
         update,
-        { failover: { ...cfg.failover, threshold: value } },
+        { failover: { threshold: value } },
         tr(`${K}.toast.threshold_saved`),
       );
       // A failed write leaves the control showing a value the modem never took;

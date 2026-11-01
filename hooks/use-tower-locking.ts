@@ -477,14 +477,16 @@ export function useTowerLocking(): UseTowerLockingReturn {
   // ---------------------------------------------------------------------------
   // Update Settings (persist + failover)
   // ---------------------------------------------------------------------------
-  const updateSettings = useCallback(
+  // Settings writes run one at a time, so each one merges with the result of the last.
+  const settingsQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const sendSettings = useCallback(
     async (change: TowerSettingsChange): Promise<TowerActionResult> => {
       const fallback = t(`${K}.settings_failed`);
       const saved = configRef.current;
       if (!saved) return { ok: false, error: fallback };
       // `settings.sh` takes the whole body; the part not changing is sent as saved.
       const persist = change.persist ?? saved.persist;
-      const failover = change.failover ?? saved.failover;
+      const failover = { ...saved.failover, ...change.failover };
       const asksPersist = change.persist !== undefined;
       setIsSavingSettings(true);
 
@@ -527,6 +529,10 @@ export function useTowerLocking(): UseTowerLockingReturn {
                 }
               : prev
           );
+        }
+        const nextPersist = asksPersist && persistTook ? persist : saved.persist;
+        if (configRef.current) {
+          configRef.current = { ...configRef.current, persist: nextPersist, failover };
         }
         setConfig((prev) =>
           prev
@@ -581,6 +587,14 @@ export function useTowerLocking(): UseTowerLockingReturn {
       }
     },
     [startFailoverPolling, t]
+  );
+  const updateSettings = useCallback(
+    (change: TowerSettingsChange): Promise<TowerActionResult> => {
+      const run = settingsQueueRef.current.then(() => sendSettings(change));
+      settingsQueueRef.current = run.catch(() => undefined);
+      return run;
+    },
+    [sendSettings]
   );
 
   // ---------------------------------------------------------------------------

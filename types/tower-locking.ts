@@ -157,7 +157,8 @@ export interface TowerLockResponse {
  */
 export interface TowerSettingsChange {
   persist?: boolean;
-  failover?: { enabled: boolean; threshold: number };
+  /** Only the fields given change; the rest are read when the write is sent. */
+  failover?: { enabled?: boolean; threshold?: number };
 }
 
 /** Response from POST /cgi-bin/quecmanager/tower/settings.sh */
