@@ -87,6 +87,7 @@ export const MATERIAL_SYMBOL_NAMES = [
   "first_page",
   "graphic_eq",
   "help",
+  "history",
   "home",
   "info",
   "layers",
