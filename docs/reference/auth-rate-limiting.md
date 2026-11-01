@@ -18,6 +18,7 @@ Short version: the limiter is a small JSON file in `/tmp` guarded by a lock file
 | Lock file | `/tmp/qmanager_auth_attempts.lock` (lazily created by `www-data`, `chmod 666`) |
 | Login endpoint | `POST /cgi-bin/quecmanager/auth/login.sh` |
 | Password-change endpoint | `POST /cgi-bin/quecmanager/auth/password.sh` — its current-password check shares the ladder |
+| SSH password endpoint | `POST /cgi-bin/quecmanager/auth/ssh_password.sh` — its current **root** password check shares the ladder too ([passwords.md](passwords.md)) |
 | Strength check | `qm_password_is_strong` in `cgi_auth.sh`; client mirror `components/auth/password-requirements.tsx` |
 | Status endpoint | `GET /cgi-bin/quecmanager/auth/check.sh` (public, `_SKIP_AUTH=1`) |
 | Frontend hook | `hooks/use-auth.ts` → `useLogin()` returns `lockout: LockoutState` |
@@ -94,7 +95,7 @@ The state is written atomically (`jq -n … > "$file.tmp" && mv "$file.tmp" "$fi
 | `qm_get_rate_limit_status()` | **Never** | Read-only probe. Sets `RATE_LIMIT_RETRY_AFTER` and `RATE_LIMIT_ATTEMPTS_REMAINING`. Returns `0` = not locked, `1` = locked |
 | `qm_check_rate_limit()` | Yes | Login-path gate. Same read, plus the level-0 → level-1 engage and the expired-window reset. Signature unchanged from before the ladder |
 | `qm_record_failed_attempt()` | Yes | Called after a failed `qm_verify_password`. Bumps `count`; if the ladder is already engaged, escalates a rung and re-locks |
-| `qm_clear_attempts()` | Yes | Called on successful login and on a correct current password in `password.sh`. Deletes the state file — level, count and lock all gone |
+| `qm_clear_attempts()` | Yes | Called on successful login and on a correct current password in `password.sh` or `ssh_password.sh`. Deletes the state file — level, count and lock all gone |
 | `qm_attempts_flock_wait <fd> <timeout>` | — | Bounded lock acquisition, see below |
 
 `cgi_base.sh` gained a stub for `qm_get_rate_limit_status` alongside the existing auth stubs, so a script sourcing the base without the auth library still resolves the symbol.
@@ -193,18 +194,22 @@ A signed-in session could otherwise guess the current password without limit, so
 | Wrong current password | 200 | `{"success":false,"error":"invalid_password","detail":"Current password is incorrect","attempts_remaining":2}` — after `qm_record_failed_attempt` |
 | Correct current password | — | `qm_clear_attempts`, then the save proceeds |
 
-The counter is the same one the login form reads, so failed change attempts also lock **sign-in**. `changePassword()` in `hooks/use-auth.ts` passes only `error` / `detail` on; the Change Password dialog toasts the translated code and does not show `attempts_remaining`.
+The counter is the same one the login form reads, so failed change attempts also lock **sign-in**. A `{"current_password":"...","verify_only":true}` request runs the same rate-limit and verify steps and stops before the save, so the Device Access card's verify step is limited exactly like a change.
+
+`auth/ssh_password.sh` follows the same order for the current **root** password, which it checks through the root helper's `--verify` mode. Only its `invalid_password` branch calls `qm_record_failed_attempt`; a check that could not run (`verify_unavailable`, `no_password_set`, …) does not count. So a wrong SSH guess also counts toward the web sign-in lockout. Details in [passwords.md](passwords.md).
+
+`verifyPassword()` and `changePassword()` in `hooks/use-auth.ts` now pass `retry_after` and `attempts_remaining` on, and the Passwords card shows the guesses left (`passwords.errors.invalid_password`) and the lockout seconds (`passwords.errors.rate_limited`).
 
 ### Password strength rule
 
-`login.sh` (first-time setup) and `password.sh` apply the same rule; the request field is `enforce_strong`.
+`login.sh` (first-time setup), `password.sh` and `ssh_password.sh` apply the same rule; the request field is `enforce_strong`. `verify_only` requests skip it.
 
 | Check | Applies | Failure |
 |-------|---------|---------|
 | At least 6 (`wc -c`) | always | `password_weak` |
 | An uppercase, a lowercase and a digit (`qm_password_is_strong`) | unless `enforce_strong` is literally `false` — **absent means `true`** | `password_weak` |
 
-`password_weak` replaced `password_too_short` on these two endpoints. `auth/ssh_password.sh` is separate: it still returns `password_too_short` (no `errors.json` key), and `changeSSHPassword()` shows the backend `detail` verbatim. The client mirror is `isPasswordValid()` in `components/auth/password-requirements.tsx` (`PASSWORD_MIN_LENGTH = 6`; RM551E uses 5).
+`password_weak` replaced `password_too_short` on all three endpoints and in `qmanager_set_ssh_password`'s own length check. The client mirror is `isPasswordValid()` in `components/auth/password-requirements.tsx` (`PASSWORD_MIN_LENGTH = 6`; RM551E uses 5).
 
 > ℹ️ NOTE: the server counts **bytes** (`wc -c`) and the client counts UTF-16 units (`.length`). They agree for ASCII; a short password of multibyte characters can pass the server and fail the client check.
 

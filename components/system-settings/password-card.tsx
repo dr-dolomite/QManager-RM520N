@@ -185,9 +185,8 @@ function PasswordPanel({ kind, actions }: PanelProps) {
         />
       </form>
 
-      {/* A SIBLING of the form, not a child: the dialog portals to <body> but
-          React still bubbles its submit event up the component tree, so inside
-          the form every Save would also fire Continue. */}
+      {/* Sibling, not child: React bubbles the portaled dialog's submit up the
+          tree, so inside the form every Save would also fire Continue. */}
       <PasswordChangeDialog
         key={`dialog-${formKey}`}
         open={dialogOpen}

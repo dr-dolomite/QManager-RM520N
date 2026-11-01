@@ -439,9 +439,8 @@ function EnableRow({
           {t(`${ns}.rows.enabled.consequence`)}
         </span>
       </div>
-      {/* A pill rather than a bare Switch (DESIGN.md > Segmented pills). It
-          still autosaves: a pick commits at once, exactly as the switch did,
-          and the receipt strip below says so. */}
+      {/* A pill, not a Switch (DESIGN.md > Segmented pills); a pick still
+          autosaves at once, as the receipt strip below says. */}
       <div id={id} className={ROW.CONTROL} aria-describedby={AUTOSAVE_HINT_ID}>
         <SegmentedField
           value={checked ? "on" : "off"}

@@ -43,6 +43,7 @@ actually fires.
 | Fire guard | `_qm_timer_fire_allowed "$time" "$days"` — [see below](#the-guard-making-the-spurious-fires-harmless) | (same) |
 | Skip trace | `/usrdata/qmanager/crash.log`, `<epoch>\|skip\|<reason>` | (none) |
 | Sudoers grants | `scripts/etc/sudoers.d/qmanager` (two bare-path arm-helper lines) | (same file) |
+| Device clock readback | `settings.sh` GET `device_clock` → the card's Modem time row — [see below](#the-modem-time-row) | (none) |
 
 Units install to `/lib/systemd/system/`; the boot symlink lives in
 `/lib/systemd/system/timers.target.wants/`.
@@ -194,6 +195,37 @@ and a human `detail` string, following the same convention as
 `tower/schedule.sh` emits the same shape with `warning: "tower_schedule_arm_failed"`.
 Before this, a save whose arm step failed returned a response indistinguishable
 from a clean one — an unqualified success for a schedule that would never fire.
+
+### The Modem time row
+
+The Scheduled Reboot card shows the modem's own clock, because that is the
+clock the timer fires on — not the browser's. `settings.sh` GET adds:
+
+```json
+"device_clock": { "epoch": 1730430000, "local": "2026-11-01T11:00:00" }
+```
+
+- **One `date` call** — `date '+%s %Y-%m-%dT%H:%M:%S'` — so `epoch` and `local`
+  come from the same second. Two calls could straddle a second boundary.
+- **`epoch: 0` and `local: ""`** when `date` did not return a number.
+  `toClockReading()` in `hooks/use-system-settings.ts` maps that, and a
+  missing `device_clock` (an older backend), to `null`; the row then shows the
+  empty-value dash.
+- **The UI ticks the clock itself.** `DeviceClockRow` in
+  `scheduled-operations-card.tsx` parses `local` as a wall time and adds the
+  milliseconds elapsed since the response arrived (`receivedAt`), once a
+  second. It formats with `timeZone: "UTC"` on purpose: `local` is already the
+  modem's wall time, so no browser zone may be applied on top. No extra request
+  is made per tick.
+- **"Not set yet" below 2025.** When the ticked year is below
+  `CLOCK_TRUSTED_YEAR = 2025`, the row shows a warning chip and says a schedule
+  cannot fire yet. That is the same threshold as `_qm_clock_sane` in
+  `schedule_timer.sh`, so the row warns exactly when the fire guard would deny
+  a fire. It is the [1970 boot window](#the-1970-boot-window) made visible.
+
+> ⚠️ WARNING: keep `CLOCK_TRUSTED_YEAR` and `_qm_clock_sane`'s `2025` equal. If
+> they drift, the row either warns about a clock the guard accepts or stays
+> quiet while the guard is denying every fire.
 
 ---
 
