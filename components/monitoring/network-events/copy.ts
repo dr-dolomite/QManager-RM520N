@@ -17,7 +17,7 @@ export const NETWORK_EVENTS_EN = {
   "networkEvents.actions.paused": "Paused",
   "networkEvents.actions.refresh": "Refresh",
 
-  "networkEvents.now.title": "Right now",
+  "networkEvents.now.title": "Right Now",
   "networkEvents.now.description":
     "What is still standing, and what keeps repeating.",
   "networkEvents.now.ongoing_one": "{{count}} problem ongoing",
@@ -54,7 +54,7 @@ export const NETWORK_EVENTS_EN = {
   "networkEvents.span.hours_one": "{{count}} hour",
   "networkEvents.span.hours_other": "{{count}} hours",
 
-  "networkEvents.log.title": "Event log",
+  "networkEvents.log.title": "Event Log",
   "networkEvents.log.description_loading": "Loading events.",
   "networkEvents.log.description_unreadable":
     "No counts to show while the log cannot be read.",

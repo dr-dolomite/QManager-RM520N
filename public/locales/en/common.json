@@ -547,7 +547,7 @@
       "paused": "Paused"
     },
     "now": {
-      "title": "Right now",
+      "title": "Right Now",
       "description": "What is still standing, and what keeps repeating.",
       "ongoing_one": "{{count}} problem ongoing",
       "ongoing_other": "{{count}} problems ongoing",
@@ -583,7 +583,7 @@
       "hours_other": "{{count}} hours"
     },
     "log": {
-      "title": "Event log",
+      "title": "Event Log",
       "description_loading": "Loading events.",
       "description_unreadable": "No counts to show while the log cannot be read.",
       "description": "Repeats are grouped; open one to see each event.",
