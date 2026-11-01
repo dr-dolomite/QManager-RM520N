@@ -1,6 +1,6 @@
 # 🚀 QManager RM520N BETA v0.1.18-draft
 
-QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so both modems get lighter polling, a faster SMS inbox and fresher signal readings, plus a live **Now** view for Sites.
+QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so both modems get lighter polling, a faster SMS inbox and fresher signal readings, plus a live **Now** view for Sites and a redesign of the dashboard, Cellular and System Settings pages to match QManager on the RM551E.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
@@ -9,6 +9,10 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **Live "Now" view for Sites.** The **Sites** card on **Monitoring → Latency Monitor** now opens on **Now**, which re-checks every site about every 2 seconds while the page is open and visible; switching to 1 h / 24 h / 7 d, leaving the page or hiding the tab stops it within about 10 seconds, and history keeps its normal 5-minute checks. (Live checks are a light HTTP request, about 25 MB per hour while open, and are never written to history; the first live value lands about 6 seconds after opening.)
 - **A new setup wizard.** A fresh install now opens a step-by-step wizard: set your password and device name, then optionally choose the network mode, an APN or SIM profile, and a band preset before landing on the dashboard. You can skip any optional step, and a step that fails stays put and says why instead of moving on.
 - **Change the modem's LAN address.** **Local Network → Ethernet** has a new **LAN Address** card where you set the gateway IP and subnet; applying it reboots the modem, and the page opens the new address on its own once the modem is back, on both the RM520N-GL and the RG501Q-EU. (Edits `mobileap_cfg.xml` without needing `xmllint`, which the RG501Q-EU lacks; the DHCP range moves into the new subnet.)
+- **See your last outage at a glance.** The **Connection Quality** card on the dashboard now shows how long the last drop lasted, how long ago it was, and whether you came back on a new WAN IP. (Tracked by the alert engine from the kernel routing table; resets on reboot.)
+- **Suggested APNs for your SIM.** On **Cellular → Settings → APN Management**, the APN field now offers the known internet APNs for the SIM in the modem; pick one and the APN (and its IP protocol, when the carrier lists one) fills in, then Save as usual. (Matched by the SIM's home network from its IMSI against a bundled list of about 800 networks built from LineageOS APN data; typing your own APN still works.)
+- **Device Access page.** **System Settings → Device Access** holds a Passwords card with Web and SSH tabs; each asks for its current password first, and the SSH tab now checks the real root password. (Wrong guesses share the sign-in lockout and show the attempts left.)
+- **Debug Report.** **System Settings → System Health Check** has a one-click download of a plain-text snapshot to share when troubleshooting. (IMEI, IMSI, ICCID and phone numbers are masked.)
 
 ## 🛠️ Improvements
 
@@ -25,6 +29,18 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **A new page-not-found screen.** A broken or mistyped link now lands on a small pixel-art campfire scene with a **Back to Dashboard** button; the fire holds still when **Animations** is set to Reduced.
 - **Clearer password rules.** The setup wizard and **Change Password** in the account menu now show a checklist that ticks off each rule as you type, and **Use strong password** (on by default) asks for an uppercase letter, a lowercase letter and a number. Turn it off to allow any password of 6 characters or more. (The modem checks the same rules.)
 - **Clearer signal colours.** Signal readings on the dashboard and the **Cellular** pages now use plain red, yellow and green, so fair and good signal no longer look alike. (Five quality levels on three colours; the bar icon still tells neighbouring levels apart.)
+- **Speed Test moved to Device Metrics.** The last result sits in a pinned tile at the foot of the dashboard's **Device Metrics** card, and both cell distances share one row.
+- **Radio page tidy-up.** On **Cellular**, Copy diagnostics now sits in the corner of the Spectrum card, the distance estimate gets a tappable hint, and cell numbers use the regular typeface.
+- **A redesigned Band Locking page.** **Cellular → Band Locking** opens on a status card showing the carriers on air and how each band category is locked, with Band Failover as an Off/On switch. Cards owned by a SIM profile now say "Profile controlled". (NR-DC band locking is not included.)
+- **A redesigned Tower Locking page.** **Cellular → Tower Locking** lets you lock, add or remove a cell straight from its carrier tile, and the failover threshold has a slider with a live signal meter. (Keep after reboot stays one switch for both radios, because the modem stores it as one setting.)
+- **A redesigned Frequency Locking page.** **Cellular → Frequency Locking** drops the bar under the cards: each card now has its own Apply, Clear lock and clear-fields buttons, and a failed lock says why.
+- **A redesigned Custom Profiles page.** **Cellular → Custom Profiles** lists your profiles with an Active / SIM Mismatch / Inactive chip, and creating or editing one opens a four-step wizard. Applying a profile made for a different SIM now asks first. (Scenarios are added and edited in one dialog, and the running scenario pulses.)
+- **Tidier Settings and IMEI buttons.** **Cellular → Settings** gets a compact Refresh button, and **IMEI Settings** gets a Reset button and a check mark when the field already matches the modem's IMEI. "Reboot later" after an IMEI change keeps the reboot reminder on every page until you restart.
+- **NR bandwidth in MHz on the Cell Scanner.** **Cellular → Cell Scanner** shows NR bandwidth in MHz instead of resource blocks, in the table and the CSV export. (Converted with the cell's subcarrier spacing per 3GPP TS 38.101-1; the raw PRB count shows when it can't be converted.)
+- **System Settings matches RM551E.** **System Settings** is now two cards: Device & Units (with Tracked SIMs and a Discard button) and Scheduled Reboot, which shows the modem's live clock and a day rail.
+- **Stuck installs are caught.** **Software Update** notices when an install goes quiet for two minutes and offers a confirmed Restart now; failure messages now say why.
+- **Ethernet speed waits for Apply.** On **Local Network → Ethernet**, choosing a link speed no longer applies it at once; press Apply (or Discard) in the card. **Local Network** now opens on Ethernet.
+- **Small extras.** **Logs** has a Copy button, the **AT Terminal** refuses text that isn't an AT command, **About** has a Credits dialog, and the **Support** page is easier to read on a phone.
 
 ## 🐛 Fixes
 
@@ -39,6 +55,10 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **Long SMS no longer arrive twice or merge with an older text.** When a multi-part alert or forwarded SMS fails partway, QManager no longer resends the parts that already went out, and **Cellular → SMS Center** keeps two different long messages apart even when the network reused their part number; the compose box now counts parts the way the modem sends them (accented letters like é no longer halve the limit). (A failed send in the compose box says how many parts were already delivered.)
 - **Tighter system permissions for the web app.** The web interface could ask for more system access than its features need; it is now limited to exactly those actions, and nothing changes in how you use it. (Service, firewall and Custom DNS changes go through small root helpers that check every request; the reboot-cause log moved to `/usrdata/qmanager/` and is migrated automatically.)
 - **Other programs on the modem can no longer block it.** Any local account could take the lock QManager uses to talk to the modem and stall signal readings and settings changes; now only QManager itself can, and nothing changes in how you use it. (The AT lock moved from `/tmp` to the root-owned `/run/qmanager_at/`; updates and rollbacks across the move are handled automatically.)
+- **4G SINR now reads in real dB.** The LTE SINR on the dashboard and the **Cellular** page was the modem's raw value and could read several dB off; it now matches the modem's own per-antenna figures. (QENG raw X → 2X−20.)
+- **Reverting to the carrier APN no longer fails silently.** "Use carrier default" on the APN card now completes cleanly, and if the modem changed but QManager could not save the setting, you get a warning instead of a quiet success. (`apn.sh` no longer leaves a stray temp file when a save fails.)
+- **Clearer APN error messages.** When an APN change fails, the message now says what went wrong (the modem couldn't detach, didn't confirm it re-registered, was given a different APN, or another change was still running) in all five languages.
+- **Cell Scanner locks NR cells with the right spacing.** Locking an NR cell from **Cellular → Cell Scanner** now picks the subcarrier spacing from the band instead of always 30 kHz, which mis-locked bands such as n71 and n25.
 
 ## 📥 Installation
 
