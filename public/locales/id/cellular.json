@@ -2677,6 +2677,8 @@
       "slot_in_use": "Di sel {{index}}"
     },
     "card": {
+      "persist_label": "Pertahankan setelah reboot",
+      "persist_aria": "Pertahankan kunci {{leg}} setelah reboot",
       "status_locked": "Terkunci",
       "status_unlocked": "Tidak terkunci",
       "status_unknown": "Belum dilaporkan",
@@ -2742,6 +2744,8 @@
       "unlock_body": "Radio kembali memilih selnya sendiri. Koneksi terputus sejenak saat terhubung ulang."
     },
     "toast": {
+      "persist_enabled": "Kunci {{leg}} akan dipertahankan setelah reboot",
+      "persist_disabled": "Kunci {{leg}} tidak akan dipertahankan setelah reboot",
       "locked": "Kunci tower {{leg}} diterapkan",
       "unlocked": "Kunci tower {{leg}} dihapus",
       "lock_error": "Tidak dapat menerapkan kunci tower {{leg}}",

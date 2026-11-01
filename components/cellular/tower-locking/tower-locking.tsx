@@ -21,7 +21,7 @@ import TowerAutomationTiles from "./automation-tiles";
 import TowerLiveStrip, { type CanTarget, type TileAction } from "./live-strip";
 import LteTowerCard from "./lte-tower-card";
 import NrSaTowerCard from "./nr-sa-tower-card";
-import { reportTowerResult } from "./settings-write";
+import { reportTowerResult, writeTowerSettings } from "./settings-write";
 import { defaultScsForBand } from "./simple-mode-utils";
 import {
   LEG_KEYS,
@@ -94,6 +94,19 @@ const TowerLockingComponent = () => {
     fallback: string,
   ) => {
     reportTowerResult(t, result, success, fallback);
+  };
+
+  // One radio's "Keep after reboot"; the other radio is left as the modem has it.
+  const handleSetPersist = (leg: TowerLeg, on: boolean) => {
+    const legName = t(LEG_KEYS[leg].short);
+    void writeTowerSettings(
+      t,
+      tower.updateSettings,
+      leg === "lte" ? { persist_lte: on } : { persist_nr: on },
+      on
+        ? t(`${K}.toast.persist_enabled`, { leg: legName })
+        : t(`${K}.toast.persist_disabled`, { leg: legName }),
+    );
   };
 
   // One click on a tile's button. The result is the toast.
@@ -322,6 +335,8 @@ const TowerLockingComponent = () => {
               isLocking={tower.isLteLocking}
               onLock={tower.lockLte}
               onUnlock={tower.unlockLte}
+              isSavingSettings={tower.isSavingSettings}
+              onSetPersist={(on) => handleSetPersist("lte", on)}
             />
           </motion.div>
 
@@ -343,6 +358,8 @@ const TowerLockingComponent = () => {
               isLocking={tower.isNrLocking}
               onLock={tower.lockNrSa}
               onUnlock={tower.unlockNrSa}
+              isSavingSettings={tower.isSavingSettings}
+              onSetPersist={(on) => handleSetPersist("nr_sa", on)}
             />
           </motion.div>
         </motion.div>

@@ -143,8 +143,8 @@ export interface UseTowerLockingReturn {
   unlockNrSa: () => Promise<TowerActionResult>;
 
   /**
-   * Update persist (both radios) and failover settings. The parts not passed
-   * are sent at their saved value, since `settings.sh` takes them together.
+   * Update persist (per radio) and failover settings. Failover is sent whole
+   * (unchanged parts at their saved value); persistence only when asked.
    */
   updateSettings: (change: TowerSettingsChange) => Promise<TowerActionResult>;
 
@@ -473,10 +473,10 @@ export function useTowerLocking(): UseTowerLockingReturn {
       const fallback = t(`${K}.settings_failed`);
       const saved = configRef.current;
       if (!saved) return { ok: false, error: fallback };
-      // `settings.sh` takes the whole body; the part not changing is sent as saved.
-      const persist = change.persist ?? saved.persist;
+      const { persist, persist_lte, persist_nr } = change;
       const failover = { ...saved.failover, ...change.failover };
-      const asksPersist = change.persist !== undefined;
+      const asksPersist =
+        persist !== undefined || persist_lte !== undefined || persist_nr !== undefined;
       setIsSavingSettings(true);
 
       try {
@@ -484,7 +484,9 @@ export function useTowerLocking(): UseTowerLockingReturn {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            persist,
+            ...(persist !== undefined ? { persist } : null),
+            ...(persist_lte !== undefined ? { persist_lte } : null),
+            ...(persist_nr !== undefined ? { persist_nr } : null),
             failover_enabled: failover.enabled,
             failover_threshold: failover.threshold,
           }),
@@ -506,20 +508,22 @@ export function useTowerLocking(): UseTowerLockingReturn {
 
         // A rejected `save_ctrl` leaves the modem as it was: report it, don't claim it.
         const persistTook = !data.persist_command_failed;
+        const lteNow = data.persist_lte;
+        const nrNow = data.persist_nr;
         if (asksPersist && persistTook) {
-          // `save_ctrl,v,v` writes both radios, so both read back as `persist`.
           setModemState((prev) =>
             prev
               ? {
                   ...prev,
-                  persist_lte: persist,
-                  persist_nr: persist,
+                  persist_lte: typeof lteNow === "boolean" ? lteNow : prev.persist_lte,
+                  persist_nr: typeof nrNow === "boolean" ? nrNow : prev.persist_nr,
                   persist_read_ok: true,
                 }
               : prev
           );
         }
-        const nextPersist = asksPersist && persistTook ? persist : saved.persist;
+        const nextPersist =
+          asksPersist && typeof data.persist === "boolean" ? data.persist : saved.persist;
         if (configRef.current) {
           configRef.current = { ...configRef.current, persist: nextPersist, failover };
         }
@@ -527,7 +531,7 @@ export function useTowerLocking(): UseTowerLockingReturn {
           prev
             ? {
                 ...prev,
-                persist: asksPersist && persistTook ? persist : prev.persist,
+                persist: nextPersist,
                 failover: {
                   enabled: failover.enabled,
                   threshold: failover.threshold,

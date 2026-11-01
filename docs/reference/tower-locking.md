@@ -5,7 +5,7 @@
 
 **Tower Locking pins the radio to one specific physical cell — an (EARFCN, PCI) pair on LTE, or a (PCI, ARFCN, SCS, band) tuple on 5G SA — and it is the sharpest instrument in QManager.** Where [Band Locking](band-locking.md) narrows which *frequencies* the modem may use, this page names the *tower*. Get it right and a marginal fixed-wireless install becomes stable; get it wrong and the modem is pinned to a cell it cannot reach, on a device that is serving the very page you are reading. That asymmetry shapes everything below: the failover watcher that releases the lock when signal collapses, Remove Lock staying live in every state, and the honesty about which readings on screen are live and which were read once.
 
-The page layout is a port of RM551E v0.1.34 (2026-11-01, `839b2c14`). The port is **frontend-only**: the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` are unchanged, and the NR-SA request body is identical in both trees. RM520N keeps three things RM551E does not have: the match verdict (`matchVerdict`), the `service_enable_failed` / `service_disable_failed` warnings, and the per-read honesty flags. Persistence stays one modem-wide control — see [Persistence is one modem-wide tile](#persistence-is-one-modem-wide-tile).
+The page layout is a port of RM551E v0.1.34 (2026-11-01, `839b2c14`). The layout port was **frontend-only**: the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` were unchanged by it, and the NR-SA request body is identical in both trees. RM520N keeps three things RM551E does not have: the match verdict (`matchVerdict`), the `service_enable_failed` / `service_disable_failed` warnings, and the per-read honesty flags. Per-radio "Keep after reboot" followed on 2026-11-01 with a backend change — see [Keep after reboot is per radio](#keep-after-reboot-is-per-radio).
 
 ## Quick Reference
 
@@ -16,7 +16,8 @@ The page layout is a port of RM551E v0.1.34 (2026-11-01, `839b2c14`). The port i
 | Geometry, tone maps, verdict logic | `components/cellular/tower-locking/shapes.ts` |
 | One toast per write | `components/cellular/tower-locking/settings-write.ts` (`reportTowerResult`, `writeTowerSettings`) |
 | "Right now" body: verdict + carrier tiles | `components/cellular/tower-locking/live-strip.tsx` (`TowerLiveStrip`) |
-| Automation body: failover, schedule, keep-after-reboot | `components/cellular/tower-locking/automation-tiles.tsx` (`TowerAutomationTiles`) |
+| Automation body: failover, schedule | `components/cellular/tower-locking/automation-tiles.tsx` (`TowerAutomationTiles`) |
+| Per-radio keep-after-reboot (in each leg card's `CardFoot`) | `components/cellular/tower-locking/persist-field.tsx` (`TowerPersistField`) |
 | Schedule tile | `components/cellular/tower-locking/schedule-tile.tsx` |
 | LTE leg card / NR-SA leg card | `components/cellular/tower-locking/lte-tower-card.tsx` / `nr-sa-tower-card.tsx` |
 | Simple-mode helpers (`defaultScsForBand`, `compositeValue`) | `components/cellular/tower-locking/simple-mode-utils.ts` |
@@ -25,7 +26,7 @@ The page layout is a port of RM551E v0.1.34 (2026-11-01, `839b2c14`). The port i
 | Types (**shared** — see Known gaps) | `types/tower-locking.ts` (`TowerActionResult`, `TowerWarningCode`, `TowerSettingsChange`) |
 | Read lock state | `GET /cgi-bin/quecmanager/tower/status.sh` (3 AT commands) |
 | Apply / clear a lock | `POST …/tower/lock.sh` |
-| Persist + failover settings | `POST …/tower/settings.sh` — body `{ "persist": true, "failover_enabled": true, "failover_threshold": 20 }` |
+| Persist + failover settings | `POST …/tower/settings.sh` — any subset of `{ "persist_lte": true, "persist_nr": false, "failover_enabled": true, "failover_threshold": 20 }`; legacy `"persist"` sets both radios |
 | Schedule + timer arm | `POST …/tower/schedule.sh` |
 | Failover flags (no modem contact) | `GET …/tower/failover_status.sh` |
 | Failover watcher | `scripts/usr/bin/qmanager_tower_failover` |
@@ -50,7 +51,7 @@ The page layout is a port of RM551E v0.1.34 (2026-11-01, `839b2c14`). The port i
 | Lock NR-SA | `AT+QNWLOCK="common/5g",<pci>,<arfcn>,<scs>,<band>` | `tower_lock_nr` |
 | Clear NR-SA | `AT+QNWLOCK="common/5g",0` | `tower_unlock_nr` |
 | Read persistence | `AT+QNWLOCK="save_ctrl"` | `tower_read_persist` |
-| Write persistence | `AT+QNWLOCK="save_ctrl",<v>,<v>` | `tower_set_persist` |
+| Write persistence | `AT+QNWLOCK="save_ctrl",<lte>,<nr>` | `tower_set_persist <lte> [nr]` (`nr` defaults to `lte`) |
 
 `status.sh` issues the three read forms (`common/4g`, `common/5g`, `save_ctrl`) with a `sleep 0.1` between each, the "sip, don't gulp" convention for the shared AT lock (see [at-command-transport.md](at-command-transport.md)).
 
@@ -65,11 +66,10 @@ TowerLockingComponent                    ← owns every hook; no child talks to 
     ├── Card TOWER_HERO   "Right now"     rounded-hero; h2 tower_locking.live.title
     │   └── TowerLiveStrip                body only: verdict row, carrier tiles
     ├── Card TOWER_SECTION  automation    rounded-card; h2 + description
-    │   └── TowerAutomationTiles          body only: failover tile, ScheduleTile,
-    │                                     keep-after-reboot tile (spans the row)
+    │   └── TowerAutomationTiles          body only: failover tile, ScheduleTile
     └── grid (1 col → 2 at @3xl/main)
-        ├── LteTowerCard
-        └── NrSaTowerCard
+        ├── LteTowerCard                  CardFoot: TowerPersistField (lte), Lock / Remove lock
+        └── NrSaTowerCard                 CardFoot: TowerPersistField (nr_sa), Lock / Remove lock
 ```
 
 Reading order: **what is happening now**, then **what happens unattended**, then **where the lock points**. The coordinator owns both section shells and both `<h2>`s; the children render bodies only, so the two headers' geometry cannot drift. Each section is labelled by `aria-labelledby` pointing at its own heading. Both shells declare `@container/section`, which `AUTO_GRID` queries.
@@ -99,26 +99,28 @@ export type TowerWarningCode =
 
 `reportTowerResult(t, result, successMessage, fallback)` turns one result into **exactly one toast**: `toast.error` on failure, `toast.warning(t("tower_locking.warning.<code>"))` for a partial success, `toast.success` otherwise. It returns whether the write landed cleanly. The warning keys are a literal `WARNING_KEY` map, because `i18n:check` cannot see an interpolated key.
 
-`writeTowerSettings(t, update, change, successMessage)` is the settings variant used by all three automation controls. It returns whether the setting **landed**: a `persist_command_failed` warning counts as not landed (the modem rejected `save_ctrl`), while a `service_*_failed` warning still counts as landed, because the setting itself was written and only the boot unit did not follow.
+`writeTowerSettings(t, update, change, successMessage)` is the settings variant used by the automation controls and both per-radio persist fields. It returns whether the setting **landed**: a `persist_command_failed` warning counts as not landed (the modem rejected `save_ctrl`), while a `service_*_failed` warning still counts as landed, because the setting itself was written and only the boot unit did not follow.
 
 This replaced a dismissible page-level warning notice and a `lastWarning` / `clearWarning()` pair in the hook. Both are gone.
 
-### `updateSettings(change)` sends the whole body
+### `updateSettings(change)` sends persistence only when asked
 
 ```ts
 export interface TowerSettingsChange {
-  persist?: boolean;
-  failover?: { enabled: boolean; threshold: number };
+  persist_lte?: boolean;
+  persist_nr?: boolean;
+  persist?: boolean; // both radios; older callers
+  failover?: { enabled?: boolean; threshold?: number };
 }
 ```
 
-`settings.sh` takes `persist`, `failover_enabled` and `failover_threshold` together, so the hook fills the part not being changed from the saved config (`configRef.current`) and always POSTs all three:
+Failover is always sent whole (the part not changing comes from `configRef.current`). The persist fields are sent **only when given**, so a failover save never touches `save_ctrl` and one radio's write never touches the other:
 
 ```json
-{ "persist": true, "failover_enabled": true, "failover_threshold": 20 }
+{ "persist_nr": true, "failover_enabled": false, "failover_threshold": 20 }
 ```
 
-The request body is unchanged from before the port; only the hook's signature moved from positional arguments to a change object. After a successful response the hook updates `config` and, when `persist` was asked and `save_ctrl` took, sets both `persist_lte` and `persist_nr` in `modemState` to the new value (one write sets both radios).
+After a successful response the hook sets `modemState.persist_lte` / `persist_nr` from the response's per-radio values (a `null` keeps the previous value) and `config.persist` from the response's `persist`.
 
 ## The two clocks
 
@@ -251,7 +253,7 @@ tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
 
 It has no per-leg RSRP to work from either — it reads `.lte.rsrp` from the poller cache and falls back to `.nr.rsrp`, giving one quality figure for the device, not one per leg.
 
-**That is why the failover control lives in the automation tiles and not on either leg card.** Rendering it as a row inside the LTE card would say it protects LTE; it protects the modem. It sits with `persist` and the schedule in the one group whose three members are exactly the settings that belong to no single leg. See [The automation section](#the-automation-section).
+**That is why the failover control lives in the automation tiles and not on either leg card.** Rendering it as a row inside the LTE card would say it protects LTE; it protects the modem. It sits with the schedule in the one group whose members are exactly the settings that belong to no single leg; keep-after-reboot is per radio, so it moved onto the leg cards. See [The automation section](#the-automation-section).
 
 ### Tower unlock silently disables the user's failover preference
 
@@ -294,7 +296,7 @@ lte_rc=$?                          # NOT after the `[ -z ... ]` below
 Three rules, all load-bearing:
 
 1. **`success: true` still means only "the endpoint ran".** The response shape never changes on a failed read — the `*_locked` / `persist_*` fields keep their pre-failure seed value of `false`, so a consumer that reads `lte_locked` without checking `lte_read_ok` sees "unlocked", not an error. The flags exist as separate fields, rather than as a tri-state on the booleans themselves, precisely so the shape is stable.
-2. **ABSENT MEANS `true`. Test `=== false`, NEVER `!== true`.** A statically-exported page bundle can outlive the CGI it talks to, so a cached client will meet an un-upgraded `status.sh` that emits none of these. `!== true` would repaint an entire working page as `unknown` the moment the two halves fall out of step. The fields are optional in `TowerModemState` for exactly this reason, and every consumer (`lockPresence`, `persistPosture`, `matchVerdict`, both leg cards) is written against `=== false`.
+2. **ABSENT MEANS `true`. Test `=== false`, NEVER `!== true`.** A statically-exported page bundle can outlive the CGI it talks to, so a cached client will meet an un-upgraded `status.sh` that emits none of these. `!== true` would repaint an entire working page as `unknown` the moment the two halves fall out of step. The fields are optional in `TowerModemState` for exactly this reason, and every consumer (`lockPresence`, `TowerPersistField`, `matchVerdict`, both leg cards) is written against `=== false`.
 3. **Per-field, not all-or-nothing.** One transient NR read failure must not blind the UI to the two reads that succeeded. `status.sh` deliberately does **not** refuse the whole endpoint on any single failed read; it emits the flags and logs `qlog_error` once with all three return codes.
 
 > ℹ️ NOTE: the flags are emitted with `jq --argjson`, not `--arg`. Via `--arg` they would land as JSON **strings** — and `"false"` is truthy in JavaScript, so every `=== false` test would silently never match and the whole mechanism would be inert while looking correct in the response body.
@@ -380,34 +382,26 @@ Two consequences:
 
 > ℹ️ NOTE: **no installer change was needed.** `install_rm520n.sh:1202` glob-installs every `qmanager*.service` unconditionally on every install and every OTA run, so a unit-file edit ships with the next update on its own.
 
-## `persist` is one AT write to both radios, and can read back split
+## Keep after reboot is per radio
 
-"Keep lock after reboot" writes a **single** value to both slots:
+**Short version: each leg card's footer holds that radio's "Keep after reboot" (`TowerPersistField`), shows what the modem reads back, and writes on change.** `AT+QNWLOCK=?` on the RM520N-GL lists `"save_ctrl",(0,1),(0,1)`: the two slots are independent, so `1,0` is a valid setting, not a fault.
 
-```sh
-tower_set_persist()  →  AT+QNWLOCK="save_ctrl",$val,$val
-```
+`save_ctrl` still takes both slots in one command, so `settings.sh` reads the live pair first (`tower_read_persist`) and rewrites only the radio that was asked:
 
-But `tower_read_persist` parses the two fields back **independently** (`+QNWLOCK: "save_ctrl",<lte>,<nr>`), and `status.sh` surfaces them as two separate booleans, `persist_lte` and `persist_nr`.
+| Request | Write |
+| ------- | ----- |
+| `persist_lte` and/or `persist_nr` | `save_ctrl,<want_lte>,<want_nr>`, the untouched radio at its read value |
+| legacy `persist` | both radios to that value; `persist_lte` / `persist_nr` in the same body override it |
+| values equal to the read | no AT write |
+| read fails | **no write**, `persist_command_failed`; the untouched radio is never guessed |
 
-The incumbent UI rendered `config.persist` — the config file's *belief* — and never read either field, so a modem reporting `1,0` displayed as a confident "Enabled".
+The response carries `persist_lte` / `persist_nr` (each radio after the call; `null` when persistence was not asked or could not be read). `config.persist` now means "both radios on"; nothing reads it for display.
 
-`persistPosture(modemState)` in `shapes.ts` now derives the chip from the modem's report:
+`TowerPersistField` renders from `modemState.persist_lte` / `persist_nr`, never the config. When `persist_read_ok === false` or there is no read yet, **neither option is selected** and the control is disabled: an unread value must not render as "Off" (the old `unknown` chip existed for the same reason; see [The `read_ok` contract](#the-read_ok-contract-absent-means-true)). It is also disabled while that card's lock write or any settings write is in flight. The toast names the radio (`tower_locking.toast.persist_enabled` / `persist_disabled`).
 
-| Modem reports | Posture | Chip |
-| ------------- | ------- | ---- |
-| both true | `on` | `success` / `check_circle` |
-| both false | `off` | `muted` / `do_not_disturb_on` |
-| **disagreement** | `split` | `warning` / `warning` |
-| `persist_read_ok === false`, or no read yet (`modemState === null`) | `unknown` | `muted` / `help` |
+> ℹ️ NOTE: an older page bundle always sends `persist` with every failover save. Against the new `settings.sh`, a device set to `1,0` would be rewritten to `0,0` by such a save. Page and CGI ship together in one OTA, so this needs a stale cached bundle.
 
-`split` is a **real, reportable fault**, not a configuration anyone chose: one write went to both slots, so a split reading means one of them did not take. The tile's body copy swaps to `tower_locking.live.persist_split_help` in that state, so the chip is explained where it is shown.
-
-> ℹ️ NOTE — corrected 2026-08-23: **the `unknown` row existed but could not be reached.** It was gated on `modemState === null`, which a `success: true` response never produces. `status.sh` seeds both persist flags `false` before it asks the modem anything, so a **failed** read arrived here as `false, false` and rendered the muted `Disabled` chip — "the user turned this off". That was the single most dishonest pixel on the surface, because it describes a deliberate choice nobody made. `persist_read_ok === false` is what makes the branch reachable; see [The `read_ok` contract](#the-read_ok-contract-absent-means-true).
->
-> The glyph moved from `schedule` to `help` at the same time. A clock says *"waiting, this will arrive"*; the state is *"the modem did not answer and nothing is coming until you retry"*. It also has to stay distinct from `off`'s `do_not_disturb_on` — both are `muted`, so the glyph is the **only** thing separating "switched off" from "never read". The same swap was made on `LEG_BADGE.unknown`, for the same reason.
-
-The persist tile keeps both channels visible on purpose: **the chip reports the modem, the switch drives the config.** They can disagree, and when they do, the `split` chip is the only thing on screen that would tell you.
+The old modem-wide tile, its `split` chip and `persistPosture` / `PERSIST_BADGE` were removed with this change. The `tower_locking.live.persist_*` locale keys are now unused (catalogs are add-only).
 
 ## Three backend honesty flags are now surfaced
 
@@ -477,20 +471,9 @@ Two reasons the give-up exit refuses to write:
 
 That exit is also what makes `failoverKey`'s new `stalled` state reachable: it leaves exactly `enabled && !activated && !watcher_running` with the lock still on.
 
-## Persistence is one modem-wide tile
-
-**Short version: "Keep lock after reboot" is one control for the whole modem, because the backend can only write one value.** RM551E v0.1.34 shows a persist control per radio. RM520N does not, and the reason is in `settings.sh`, not the UI:
-
-- `settings.sh` accepts a single `persist` boolean (`jq … has("persist")`, `settings.sh:39`).
-- `tower_set_persist` sends `AT+QNWLOCK="save_ctrl",$val,$val`, writing the same value to the LTE and NR slots in one command.
-
-A per-radio control would therefore be a UI over a write that cannot carry two values. The keep-after-reboot tile spans the full row under the two-up (`AUTO_TILE.WIDE`), holds one `SegmentedField` off/on, and drives `config.persist`. Its chip (`PERSIST_BADGE[persistPosture(modemState)]`) reports what the modem **read back**, which is two values, so a `split` read-back stays visible. The body copy swaps to `tower_locking.live.persist_split_help` in that state.
-
-> ℹ️ NOTE: per-radio persistence is a **known gap** that needs a backend change first: a `settings.sh` body that takes `persist_lte` / `persist_nr`, and a `tower_set_persist` that writes `save_ctrl,<lte>,<nr>`. Port the RM551E per-radio tiles only after that lands.
-
 ## The automation section
 
-`TowerAutomationTiles` renders three tiles in `AUTO_GRID` (one column, two at `@xl/section`): signal failover, the schedule, and keep-after-reboot spanning the row beneath them. Each reports the **saved** state (config) and, where the modem has its own opinion, the **live** state separately.
+`TowerAutomationTiles` renders two tiles in `AUTO_GRID` (one column, two at `@xl/section`): signal failover and the schedule. Keep-after-reboot is per radio and lives on the leg cards. Each reports the **saved** state (config) and, where the modem has its own opinion, the **live** state separately.
 
 ### Signal failover tile
 
@@ -603,7 +586,6 @@ Four `FIELD_TILE`s in `FIELD_GRID`: channel, PCI, SCS, band. The gate is a **sta
 | `DAY_CHIP`, `dayChipFill` | Schedule day chips (44px) |
 | `TowerLockPresence`, `lockPresence` | `present` / `absent` / `unknown`; an unread leg never counts as absent |
 | `TowerFailoverKey`, `FAILOVER_BADGE`, `failoverKey` | Failover state |
-| `TowerPersistPosture`, `PERSIST_BADGE`, `persistPosture` | Keep-after-reboot read-back |
 | `CONTROL_ROW`, `FIELD_CONTROL`, `FIELD_LABEL`, `SLOT_ROW`, `FIELD_GRID`, `FIELD_TILE`, `NOTICE`, `NOTICE_TONE` | Leg-card fields and notices |
 | `SKELETON_SHAPE` | Loaded geometry restated for skeletons |
 | `TowerLeg`, `LEG_KEYS`, `LEG_CARD_ID` | Leg identity, literal i18n keys, card DOM ids (`tower-card-lte`, `tower-card-nr-sa`) |
@@ -626,7 +608,7 @@ Four `FIELD_TILE`s in `FIELD_GRID`: channel, PCI, SCS, band. The gate is a **sta
 | Prop | Type | Notes |
 | ---- | ---- | ----- |
 | `config` | `TowerLockConfig \| null` | Saved state; `null` disables the controls and blanks the threshold |
-| `modemState` | `TowerModemState \| null` | For `lockPresence` and `persistPosture` |
+| `modemState` | `TowerModemState \| null` | For `lockPresence` |
 | `failover` | `TowerFailoverState \| null` | Watcher flags |
 | `activeRsrp` | `number \| null` | RSRP of the registered leg |
 | `isLoading`, `isSavingSettings` | `boolean` | |
@@ -643,12 +625,14 @@ Four `FIELD_TILE`s in `FIELD_GRID`: channel, PCI, SCS, band. The gate is a **sta
 | `isLoading`, `isLocking` | `boolean` | |
 | `onLock` | LTE `(cells: LteLockCell[]) => Promise<TowerActionResult>`; NR `(cell: NrSaLockCell) => Promise<TowerActionResult>` | |
 | `onUnlock` | `() => Promise<TowerActionResult>` | |
+| `isSavingSettings` | `boolean` | Disables the persist field during any settings write |
+| `onSetPersist` | `(on: boolean) => void` | The coordinator writes that radio and toasts |
 | `networkType` (NR only) | `NetworkType` | `""` until the first poll lands |
 | `servingNr` (NR only) | `{ arfcn, pci, scs }`, each `number \| null` | SCS provenance |
 
 ## Known gaps
 
-- **Per-radio persistence needs a backend change.** See [Persistence is one modem-wide tile](#persistence-is-one-modem-wide-tile).
+- **The automation description still mentions reboot.** `tower_locking.automation.description` ("…across a reboot, in bad signal, and on a timer") predates moving keep-after-reboot onto the leg cards.
 - **Carrier-tile actions skip the confirmation dialog** that guards the leg cards' Lock and Remove Lock. A single click on a tile can pin the radio. This is the RM551E v0.1.34 behaviour, ported as is.
 - **`tower/lock.sh` has no reciprocal frequency-lock check.** A tower lock silently clobbers a frequency lock. Backend change.
 - **Unlock disables the failover preference and locking never re-enables it** — see [above](#tower-unlock-silently-disables-the-users-failover-preference).

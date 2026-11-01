@@ -2677,6 +2677,8 @@
       "slot_in_use": "In cell {{index}}"
     },
     "card": {
+      "persist_label": "Keep after reboot",
+      "persist_aria": "Keep {{leg}} lock after reboot",
       "status_locked": "Locked",
       "status_unlocked": "Unlocked",
       "status_unknown": "Not reported",
@@ -2742,6 +2744,8 @@
       "unlock_body": "The radio goes back to choosing its own cell. The connection drops briefly while it reattaches."
     },
     "toast": {
+      "persist_enabled": "{{leg}} lock will be kept after reboot",
+      "persist_disabled": "{{leg}} lock will not be kept after reboot",
       "locked": "{{leg}} tower lock applied",
       "unlocked": "{{leg}} tower lock cleared",
       "lock_error": "Couldn't apply the {{leg}} tower lock",

@@ -2677,6 +2677,8 @@
       "slot_in_use": "位于小区 {{index}}"
     },
     "card": {
+      "persist_label": "重启后保持",
+      "persist_aria": "重启后保持 {{leg}} 锁定",
       "status_locked": "已锁定",
       "status_unlocked": "未锁定",
       "status_unknown": "尚未上报",
@@ -2742,6 +2744,8 @@
       "unlock_body": "无线电将恢复自行选择小区。重新附着期间连接会短暂中断。"
     },
     "toast": {
+      "persist_enabled": "重启后将保持 {{leg}} 锁定",
+      "persist_disabled": "重启后将不再保持 {{leg}} 锁定",
       "locked": "已应用 {{leg}} 基站锁定",
       "unlocked": "已清除 {{leg}} 基站锁定",
       "lock_error": "无法应用 {{leg}} 基站锁定",

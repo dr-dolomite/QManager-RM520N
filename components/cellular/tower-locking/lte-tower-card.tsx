@@ -51,6 +51,7 @@ import type {
   TowerModemState,
 } from "@/types/tower-locking";
 
+import { TowerPersistField } from "./persist-field";
 import { reportTowerResult } from "./settings-write";
 import { compositeValue, parseCompositeValue } from "./simple-mode-utils";
 import {
@@ -146,6 +147,8 @@ export interface LteTowerCardProps {
   isLocking: boolean;
   onLock: (cells: LteLockCell[]) => Promise<TowerActionResult>;
   onUnlock: () => Promise<TowerActionResult>;
+  isSavingSettings: boolean;
+  onSetPersist: (on: boolean) => void;
 }
 
 export default function LteTowerCard({
@@ -156,6 +159,8 @@ export default function LteTowerCard({
   isLocking,
   onLock,
   onUnlock,
+  isSavingSettings,
+  onSetPersist,
 }: LteTowerCardProps): React.JSX.Element {
   const { t } = useTranslation("cellular");
   const { saved, markSaved } = useSaveFlash();
@@ -359,6 +364,7 @@ export default function LteTowerCard({
             <Skeleton className={SKELETON_SHAPE.REVEAL} />
           </div>
           <div className={CARD_FOOT_ACTIONS}>
+            <Skeleton className={SKELETON_SHAPE.PERSIST_FIELD} />
             <Skeleton className={SKELETON_SHAPE.ACTION} />
           </div>
         </div>
@@ -692,6 +698,12 @@ export default function LteTowerCard({
           }
           actions={
             <>
+              <TowerPersistField
+                leg="lte"
+                modemState={modemState}
+                disabled={isLocking || isSavingSettings}
+                onSetPersist={onSetPersist}
+              />
               {/* One write at a time, whichever the state calls for: Remove
                   lock while the saved lock is what is on the modem, Lock when
                   there is none or the fields now differ from it. An unreadable

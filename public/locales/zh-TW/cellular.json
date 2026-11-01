@@ -2677,6 +2677,8 @@
       "slot_in_use": "位於小區 {{index}}"
     },
     "card": {
+      "persist_label": "重新啟動後保持",
+      "persist_aria": "重新啟動後保持 {{leg}} 鎖定",
       "status_locked": "已鎖定",
       "status_unlocked": "未鎖定",
       "status_unknown": "尚未回報",
@@ -2742,6 +2744,8 @@
       "unlock_body": "無線電將恢復自行選擇小區。重新附著期間連線會短暫中斷。"
     },
     "toast": {
+      "persist_enabled": "重新啟動後將保持 {{leg}} 鎖定",
+      "persist_disabled": "重新啟動後將不再保持 {{leg}} 鎖定",
       "locked": "已套用 {{leg}} 基站鎖定",
       "unlocked": "已清除 {{leg}} 基站鎖定",
       "lock_error": "無法套用 {{leg}} 基站鎖定",

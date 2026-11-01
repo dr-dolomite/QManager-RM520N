@@ -56,6 +56,7 @@ import {
   type TowerModemState,
 } from "@/types/tower-locking";
 
+import { TowerPersistField } from "./persist-field";
 import { reportTowerResult } from "./settings-write";
 import { compositeValue, defaultScsForBand, parseCompositeValue } from "./simple-mode-utils";
 import {
@@ -188,6 +189,8 @@ export interface NrSaTowerCardProps {
   isLocking: boolean;
   onLock: (cell: NrSaLockCell) => Promise<TowerActionResult>;
   onUnlock: () => Promise<TowerActionResult>;
+  isSavingSettings: boolean;
+  onSetPersist: (on: boolean) => void;
 }
 
 export default function NrSaTowerCard({
@@ -200,6 +203,8 @@ export default function NrSaTowerCard({
   isLocking,
   onLock,
   onUnlock,
+  isSavingSettings,
+  onSetPersist,
 }: NrSaTowerCardProps): React.JSX.Element {
   const { t } = useTranslation("cellular");
   const { saved, markSaved } = useSaveFlash();
@@ -373,6 +378,7 @@ export default function NrSaTowerCard({
             <Skeleton className={SKELETON_SHAPE.REVEAL} />
           </div>
           <div className={CARD_FOOT_ACTIONS}>
+            <Skeleton className={SKELETON_SHAPE.PERSIST_FIELD} />
             <Skeleton className={SKELETON_SHAPE.ACTION} />
           </div>
         </div>
@@ -698,6 +704,12 @@ export default function NrSaTowerCard({
           }
           actions={
             <>
+              <TowerPersistField
+                leg="nr_sa"
+                modemState={modemState}
+                disabled={isLocking || isSavingSettings}
+                onSetPersist={onSetPersist}
+              />
               {/* One write at a time, whichever the state calls for: Remove
                   lock while the saved lock is what is on the modem, Lock when
                   there is none or the fields now differ from it. An unreadable
