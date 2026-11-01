@@ -338,8 +338,8 @@ window.location.href = "/reboot/";
 The OTA worker waits for the `/reboot/` page's `reboot_ack` before issuing the reboot syscall, so
 the navigation must happen while lighttpd is still alive to serve that static page. The
 installer keeps it alive on a UI OTA by deferring its lighttpd restart to the reboot (see
-[qmanager-independence.md](./qmanager-independence.md#a-ui-ota-runs-inside-lighttpds-cgroup-the-lighttpd-restart-is-deferred));
-a UI rollback to an older release still restarts it. Clearing
+[qmanager-independence.md](./qmanager-independence.md#the-ota-worker-runs-in-its-own-transient-unit-the-lighttpd-restart-is-deferred));
+a downgrade to an older release still restarts it briefly. Clearing
 `qm_logged_in` is what stops the auth guard bouncing the browser to `/login/` instead, and the
 `sessionStorage` flag is what tells `/reboot/` it is a legitimate arrival rather than a stray
 visit. Dropping any one line breaks `cgi_reboot_response`'s ack wait **silently** — the install

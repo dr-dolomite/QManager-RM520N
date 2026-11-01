@@ -742,24 +742,37 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 - **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (run by the auto-update systemd timer). The two worker/timer scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
 - **v0.1.4 → v0.1.5 requires ADB/SSH**: v0.1.4's CGI has no sudo and v0.1.4's sudoers has no `qmanager_update` rule, so OTA cannot self-update from v0.1.4. From v0.1.5 onward, OTA works via the UI.
 
-### A UI OTA runs inside lighttpd's cgroup: the lighttpd restart is deferred
+### The OTA worker runs in its own transient unit; the lighttpd restart is deferred
 
-A UI OTA starts as `update.sh` → `sudo -n qmanager_update` → `install_rm520n.sh`, so the installer is a process in `lighttpd.service`'s cgroup. A `systemctl restart lighttpd` from there cannot finish while the installer is still in that cgroup, so lighttpd sat in `final-sigterm` until the reboot: the Software Update page never saw `rebooting`, `/reboot/` could not send `reboot_ack`, and the updater waited out its 20 s `REBOOT_ACK_TIMEOUT`.
+A UI OTA starts as `update.sh` → `sudo -n qmanager_update`, so the worker begins inside `lighttpd.service`'s cgroup. Left there, any stop of lighttpd kills the whole cgroup, worker and installer included, and a `systemctl restart lighttpd` from inside it cannot finish (lighttpd sat in `final-sigterm` until the reboot). The auto-update timer has the same problem one level down: `stop_services()` stops `qmanager-auto-update.service`, the oneshot whose process `exec`s the worker.
 
-`start_services()` now checks `grep -q 'lighttpd\.service' /proc/self/cgroup`:
+**Detach.** At the top of `qmanager_update`, before any side effect, when `/proc/self/cgroup` names `lighttpd.service` or `qmanager-auto-update.service` and `systemd-run` exists, the worker re-launches itself and the outer copy exits:
 
-| Install path | cgroup | lighttpd |
-| ------------ | ------ | -------- |
-| UI OTA (`install_staged`, `install`) | `lighttpd.service` | Not restarted. Logs `lighttpd restart deferred to the reboot`; the verify loop skips lighttpd; after the other services start, runs `/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf` and `die`s on failure (`lighttpd config test failed — not rebooting into a broken web server`), else logs `lighttpd config test passed`. The reboot that follows starts the new config. |
-| SSH install, auto-update timer | anything else | `systemctl restart lighttpd` as before (`lighttpd restarted with QManager config`, or the warning `Could not restart lighttpd`) |
+```sh
+systemd-run --unit=qm-update-worker --no-block --collect --quiet -E QM_UPDATE_DETACHED=1 /usr/bin/qmanager_update "$@"
+```
+
+- **No sudoers change.** The worker already runs as root through its bare-path grant; www-data never calls `systemd-run`.
+- **The name is not `qmanager-*`** on purpose: `qmanager_svc` accepts any `qmanager-` unit, and the installer's unit globs scan `/lib/systemd/system`, never `/run/systemd/transient`.
+- **The fixed name refuses a second update.** If the unit already exists the worker retries once after 2 s (a finished `download` unit may still be deactivating), then exits 1 **without** writing the status file, which belongs to the live update. Any other `systemd-run` failure (`LoadState` reads `not-found`) runs the worker in place, as before.
+- **An argument containing `$` skips the detach.** systemd 239/244 expand `$VAR` in a unit's arguments and drop the word when it is empty (measured: `'$HOME'` vanished; `""` and `%n` passed through unchanged). `--expand-environment=no` only exists from systemd 254.
+- `--collect` unloads the unit when it ends, failed or not, so nothing persists and the uninstaller has nothing to remove.
+- Measured on both devices (2026-11-02, systemd 244 / 239): the unit gets its own cgroup, `-E` reaches the child, a duplicate name fails with rc 1, and `systemctl show -p LoadState --value` works on 239.
+
+**Deferral.** `start_services()` skips the lighttpd restart when `QM_DEFER_LIGHTTPD_RESTART=1` (set by `qmanager_update` on its `sh install_rm520n.sh` line; a reboot always follows a successful install) **or** `/proc/self/cgroup` names `lighttpd.service`. The cgroup arm covers an older worker still running inside lighttpd — the first OTA *to* this version runs the device's old worker.
+
+| Install path | lighttpd |
+| ------------ | -------- |
+| Any `qmanager_update` run (UI OTA, auto-update), or an old worker inside lighttpd's cgroup | Not restarted. Logs `lighttpd restart deferred to the reboot`; the verify loop skips lighttpd; after the other services start, runs `/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf` and `die`s on failure (`lighttpd config test failed — not rebooting into a broken web server`), else logs `lighttpd config test passed`. The reboot that follows starts the new config. |
+| SSH install | `systemctl restart lighttpd` as before (`lighttpd restarted with QManager config`, or the warning `Could not restart lighttpd`) |
+
+The deferral stays even though the restart can no longer kill the worker: a restart leaves a ~1 s gap, and a 2 s status poll that lands in it takes the hook's `catch` branch to `/reboot/` early, whose one-shot `reboot_ack` `wait_for_reboot_ack` then discards.
 
 The config test runs at the end of `start_services()`, not at the deferral point, so a bad conf fails the install with the QManager daemons already running again instead of leaving them all stopped. `qmanager_update` reboots only after a successful install, so it never reboots into a conf that failed the test.
 
 Measured on the RM520N-GL (`61368cd2`, 2026-10-31, UI OTA with sms-forward and watchcat running): lighttpd stayed `active (running)` for the whole install, the page reached `rebooting`, `reboot_ack` arrived and the reboot followed at once; after boot no qmanager unit was `failed` and every unit had `NRestarts=0`.
 
-> ⚠️ WARNING: A UI **rollback** runs the target release's own installer. A target older than this change has no deferral, so lighttpd still restarts mid-rollback and the page loses the hand-off. Not fixed: the updater does not skip the target's restart.
-
-> ℹ️ NOTE: The complete fix is to run the updater outside lighttpd's cgroup (for example through `systemd-run`), which needs a new sudoers grant. Not done.
+> ⚠️ WARNING: A **rollback or downgrade** (the CGI `rollback` action, or picking an older release in the version list) runs the target release's own installer, and inherits its bugs. Running the current installer on the old payload is not an option: `build.sh` bakes `VERSION` into the installer and its file lists and cleanup assume the current tree. Since the worker detaches, an old installer's unconditional `systemctl restart lighttpd` is a ~1 s restart instead of a hang; the page may reach `/reboot/` early and the reboot then waits out the 20 s ack timeout.
 
 `stop_services()` also changed for the OTA window:
 

@@ -3965,10 +3965,11 @@ start_services() {
     # running across OTA, so `start` would be a no-op and skip the new rules.
     systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
-    # A UI OTA runs inside lighttpd's cgroup, so a restart leaves the web UI down until the
-    # reboot. Defer it; the conf is tested after the services start (end of this function).
+    # qmanager_update reboots after us, so defer; the cgroup arm covers an older updater running
+    # inside lighttpd. The conf is tested after the services start (end of this function).
     local lighttpd_deferred=0
-    if grep -q 'lighttpd\.service' /proc/self/cgroup 2>/dev/null; then
+    if [ "${QM_DEFER_LIGHTTPD_RESTART:-}" = "1" ] \
+       || grep -q 'lighttpd\.service' /proc/self/cgroup 2>/dev/null; then
         lighttpd_deferred=1
         info "lighttpd restart deferred to the reboot"
     elif systemctl restart lighttpd 2>/dev/null; then
@@ -4057,7 +4058,7 @@ start_services() {
         /usr/bin/qmanager_console_mgr install 2>/dev/null || warn "ttyd download failed — web console unavailable"
     elif [ -L "$SYSTEMD_DIR/multi-user.target.wants/qmanager-console.service" ]; then
         # stop_services stopped it; restart so an update's console gate applies now.
-        # --no-block: After=lighttpd, whose restart cannot finish while a UI OTA runs in its cgroup.
+        # --no-block: After=lighttpd, whose restart hangs if an older updater runs in its cgroup.
         systemctl --no-block start qmanager-console 2>/dev/null || warn "Could not start qmanager-console"
     fi
 

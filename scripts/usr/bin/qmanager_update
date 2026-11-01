@@ -270,10 +270,9 @@ run_install_with_progress() {
     local last_label="" current_label="" step_line="" rc=0
 
     : > "$INSTALL_LOG"
-    # --force skips the firmware-detection prompt; OTA only ever targets an
-    # already-running QManager device, and the installer's stdin is closed in
-    # this CGI-spawned context (read would EOF and abort under set -e).
-    sh install_rm520n.sh --force --skip-packages --no-reboot >> "$INSTALL_LOG" 2>&1 &
+    # --force skips the firmware prompt (stdin is closed). The flag defers lighttpd's
+    # restart: a reboot always follows a successful install.
+    QM_DEFER_LIGHTTPD_RESTART=1 sh install_rm520n.sh --force --skip-packages --no-reboot >> "$INSTALL_LOG" 2>&1 &
     local install_pid=$!
 
     while pid_alive "$install_pid"; do
@@ -383,6 +382,27 @@ die() {
     cleanup
     exit 1
 }
+
+# --- Detach ------------------------------------------------------------------
+
+# Leave the caller's cgroup: stopping lighttpd or the auto-update oneshot would kill us mid-install.
+# systemd expands "$VAR" in unit arguments (and drops it if empty), so such arguments run in place.
+case "$*" in *'$'*) _qm_detach=0 ;; *) _qm_detach=1 ;; esac
+if [ "$_qm_detach" = 1 ] && [ -z "${QM_UPDATE_DETACHED:-}" ] \
+   && grep -qE 'lighttpd\.service|qmanager-auto-update\.service' /proc/self/cgroup 2>/dev/null \
+   && command -v systemd-run >/dev/null 2>&1; then
+    _try=0
+    while [ $_try -lt 2 ]; do
+        systemd-run --unit=qm-update-worker --no-block --collect --quiet \
+            -E QM_UPDATE_DETACHED=1 /usr/bin/qmanager_update "$@" </dev/null >/dev/null 2>&1 && exit 0
+        # not-found: the start failed for another reason, so run in place below
+        [ "$(systemctl show -p LoadState --value qm-update-worker 2>/dev/null)" = "not-found" ] && break
+        _try=$((_try + 1))
+        [ $_try -lt 2 ] && sleep 2
+    done
+    # Still present after the retry: a live update owns the status file, so leave it alone.
+    [ $_try -ge 2 ] && exit 1
+fi
 
 # --- Lock & setup ------------------------------------------------------------
 
