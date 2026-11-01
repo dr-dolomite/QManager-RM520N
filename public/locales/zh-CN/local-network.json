@@ -94,6 +94,7 @@
     "chart_aria": "最近 60 秒每秒处理的新连接，峰值 {{max}}",
     "chart_aria_idle": "最近 60 秒未处理任何连接",
     "chart_empty": "开启一种模式即可查看连接",
+    "chart_waiting": "正在等待首个读数",
     "chart_x_start": "60 秒前",
     "chart_x_end": "现在",
     "engine_title": "引擎",

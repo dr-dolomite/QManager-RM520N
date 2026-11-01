@@ -106,7 +106,7 @@ When `/etc/data/dnsmasq.conf` does not exist at all, `build_get_payload` (`:243-
 
 > ⚠️ **The presence test is a `grep`, deliberately, and the `xmlstarlet` branch below it is decoration.** `command -v xmlstarlet` returns nothing on **both** live devices (see `platform-matrix.md`'s toolchain table), so `:58`'s `grep -qE '<DNSMode([[:space:]]|>|/>)'`, `:63`'s `<DHCPCfg` container check and `:74`'s `grep -oE` fallback are the only lines that have ever executed on hardware. Never move the presence decision into the `xmlstarlet` branch: on these devices it would be a decision made by a command that is not installed.
 
-Frontend consequence: `ABSENT` is `available`, so the page renders it exactly like `PROXY` and never shows the mode name. Only an unavailable read names it, in the Resolver card's condition title (`dns.unavailable_title`, "DNS mode is {{mode}}, not PROXY"). That title interpolates the raw value, so an unreadable file reads "DNS mode is UNKNOWN, not PROXY" — the same raw-sentinel leak the retired Source tile had with `ABSENT`.
+Frontend consequence: `ABSENT` is `available`, so the page renders it exactly like `PROXY` and never shows the mode name. Only an unavailable read names it, in the Resolver card's condition title (`dns.unavailable_title`, "DNS mode is {{mode}}, not PROXY"). An empty or `UNKNOWN` mode (unreadable file) never interpolates: it gets its own copy, `dns.unavailable_title_unknown` / `dns.unavailable_desc_unknown`.
 
 ### POST request
 
@@ -147,7 +147,7 @@ Thirteen failure paths return `ok:false`. **Six carry a `field`, and it is only 
 
 The other seven carry **no `field` at all**: `:350` unavailable, `:410` conf missing, `:431` staging write, `:441` the CGI's own `dnsmasq --test` rejected the candidate, and three from the apply helper's exit code — `:455` reload failed (exit 8), `:460` the helper's `dnsmasq --test` rejected the rebuilt file (exit 5), `:466` any other helper failure (`"failed to install config: <reason>"`).
 
-Consequence for the UI: even when `dnsmasq` names the offending address in its prose message (`"invalid IP address: 1.1.1.999"`), there is no machine-readable row index. Targeting the individual input would mean string-parsing the message. The frontend therefore shows the backend's message verbatim in the Resolver card's foot status, not on a row, and the failure toast stays one fixed sentence (`dns.toast_error_apply`).
+Consequence for the UI: even when `dnsmasq` names the offending address in its prose message (`"invalid IP address: 1.1.1.999"`), there is no machine-readable row index. Targeting the individual input would mean string-parsing the message. The frontend therefore shows a fixed translated line in the Resolver card's foot status (`dns.save_failed_servers` when `field` is `servers`, else `dns.toast_error_apply`), never the backend text and not on a row, and the failure toast stays one fixed sentence (`dns.toast_error_apply`).
 
 ### Sentinel block format
 
@@ -270,7 +270,7 @@ Provider and the fallback row are held (dimmed, disabled) while Custom DNS is of
 
 > ⚠️ **"Answering now" is `currentUpstream`, so it inherits that field's limit.** With custom DNS on, the CGI echoes the configured servers rather than measuring what dnsmasq resolves against (see [GET response](#get-response)). The sub-line says "as applied on the modem", which is as far as the data goes.
 
-The foot is the page's only commit point: status on the left (the backend's failure message verbatim until the next save, else the reason Apply is blocked), then Discard and `SaveButton` (Apply). The foot sits outside the `<form>` so `mt-auto` reaches the card edge; the Apply button joins the form through `form=`.
+The foot is the page's only commit point: status on the left (the translated failure line until the next save, else the reason Apply is blocked), then Discard and `SaveButton` (Apply). The foot sits outside the `<form>` so `mt-auto` reaches the card edge; the Apply button joins the form through `form=`.
 
 #### One draft across three cards
 

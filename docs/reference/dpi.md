@@ -229,7 +229,7 @@ Retired in that rebuild, do not look for them: `live-strip.tsx`, `targets-card.t
 | --- | --- | --- |
 | Page header | `traffic-engine.tsx` | Title, description, Refresh pill |
 | Banners, only while they apply | `traffic-engine.tsx` | Stale poll (`stale`, Retry); failed uninstall (`stale`, Dismiss); redirect rule missing (`degraded`) |
-| Engine card (the `rounded-hero` anchor) | `engine-card.tsx` | **Live view:** Off / Video Optimizer / Full Bypass `SegmentedField` (a `Select` on a narrow card), Bypass Hotspot row, uptime, packets, a Package drill row; packet chart on the right from `@[46rem]/card`. **Package view:** rule state, engine, source, Remove behind an `AlertDialog` |
+| Engine card (the `rounded-hero` anchor) | `engine-card.tsx` | **Live view:** Off / Video Optimizer / Full Bypass `SegmentedField` (a `Select` on a narrow card), Bypass Hotspot row, uptime, new connections, a Package drill row; connections chart on the right from `@[46rem]/card`. **Package view:** rule state, engine, source, Remove behind an `AlertDialog` |
 | Mode pair | `mode-card.tsx` | `VideoOptimizerCard`, `FullBypassCard`: handshake diagram (`handshake-strip.tsx`), two metric rows (`metric-row.tsx`), a `CardFoot` |
 | Last pair | `verify-card.tsx`, `force-tcp-card.tsx` | Bypass benefit test; QUIC Force-TCP |
 
@@ -255,7 +255,7 @@ Every mode change goes through `run()` in `traffic-engine.tsx`: set `pending` (`
 
 > ⚠️ WARNING: **post-write refetches must stay silent.** A non-silent `refresh()` sets `isLoading`, the shell renders the skeleton, and every card unmounts: a running Bypass benefit test loses its poll loop (the backend worker carries on, the card comes back idle), and an unapplied hostname draft is lost. `refresh(silent?: boolean)` is on all three read hooks (`use-video-optimizer`, `use-full-bypass`, `use-cdn-hostlist`) for this reason.
 >
-> The header Refresh pill and the Retry buttons are **non-silent on purpose** — a user who asks for a re-read should see it — so they do unmount the page. Pressing Refresh discards an unapplied hostname draft and drops a running test's display. That is the current trade-off, not a bug to fix by making Retry silent.
+> The header Refresh pill is silent: a running test keeps its poll loop, and the hostname draft keeps pending edits (`useHostlistDraft` adopts a re-read list only when the draft has none). The Retry buttons after a failed read are non-silent and show the loading state; nothing editable is on screen then.
 
 ### The redirect-rule banner
 
@@ -283,7 +283,7 @@ The main view shows the handshake diagram, a "Carrier reads" row and an "Acts on
 - **Import** (≤ 256 KB) strips `#` comments and blanks, lowercases, drops invalid entries, dedupes against the draft and caps at 300. It merges into the draft, never replaces it, and toasts only when lines were lost or nothing was added. **Export** writes `# QManager Video Optimizer hostlist` then one domain per line — the device's own file format — so a round trip is lossless.
 - **Restore defaults** is a direct write, not a draft: `restore_hostlist` copies the factory file, and the confirm names `defaultDomains.length`.
 
-> ⚠️ WARNING: **the client is the only guard against an empty list.** Apply is disabled when the draft is empty (`invalid: draft.length === 0`). The CGI does not refuse `[]`: `.domains // empty` passes an empty array (jq treats `[]` as true), `length <= 300` passes, the validation loop runs zero times, and a header-only file is written — Video Optimizer then matches nothing. The comments in `use-cdn-hostlist.ts` and `hostnames-view.tsx` that say the CGI rejects an empty list are wrong (read from the CGI source, not run on a device).
+> ⚠️ WARNING: **the client is the only guard against an empty list.** Apply is disabled when the draft is empty (`invalid: draft.length === 0`). The CGI does not refuse `[]`: `.domains // empty` passes an empty array (jq treats `[]` as true), `length <= 300` passes, the validation loop runs zero times, and a header-only file is written — Video Optimizer then matches nothing. (Read from the CGI source, not run on a device.)
 
 ### The Full Bypass card
 

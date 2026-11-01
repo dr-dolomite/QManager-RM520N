@@ -58,7 +58,7 @@ import { VerifyCard, VerifyCardSkeleton } from "./verify-card";
 /** Sent with every Full Bypass write; inert on tpws, kept for RM551E contract parity. */
 const FULL_BYPASS_SNI = "speedtest.net";
 
-/** The hooks' poll period, so a per-poll packet delta reads as packets per second. */
+/** The hooks' poll period, so a per-poll counter delta reads as new connections per second. */
 const POLL_SECONDS = 2;
 
 /** How long a `?mode=` deep link keeps its card highlighted. */
@@ -72,7 +72,7 @@ type Pending = { kind: EngineTransition; target: EngineMode | null } | null;
 const EMPTY_HISTORY: readonly (number | null)[] = Array(CHART_SAMPLES).fill(null);
 
 /**
- * The engine's packet rate over the last minute, one sample per poll. Every fetch is a new
+ * The engine's new-connection rate over the last minute, one sample per poll. Every fetch is a new
  * object, so its identity is the tick; a stop or a mode switch starts the history over.
  */
 function usePacketHistory(sample: object | null, mode: EngineMode | null, packets: number) {
@@ -227,7 +227,7 @@ export default function TrafficEngine() {
     ttl.refresh();
   }, [refreshEngine, hostlist, ttl]);
 
-  // Header Refresh is silent so a running test and an unapplied hostname draft survive it.
+  // Header Refresh is silent; a running test survives it and the hostname draft keeps pending edits.
   const refreshAll = useCallback(() => {
     refreshEngine(true);
     hostlist.refresh(true);

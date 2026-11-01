@@ -94,6 +94,7 @@
     "chart_aria": "New connections handled per second over the last 60 seconds, peaking at {{max}}",
     "chart_aria_idle": "No connections handled in the last 60 seconds",
     "chart_empty": "Turn on a mode to see connections",
+    "chart_waiting": "Waiting for the first reading",
     "chart_x_start": "60 s ago",
     "chart_x_end": "Now",
     "engine_title": "Engine",

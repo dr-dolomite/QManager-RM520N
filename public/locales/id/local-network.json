@@ -94,6 +94,7 @@
     "chart_aria": "Koneksi baru ditangani per detik selama 60 detik terakhir, puncak {{max}}",
     "chart_aria_idle": "Tidak ada koneksi ditangani dalam 60 detik terakhir",
     "chart_empty": "Nyalakan mode untuk melihat koneksi",
+    "chart_waiting": "Menunggu pembacaan pertama",
     "chart_x_start": "60 dtk lalu",
     "chart_x_end": "Sekarang",
     "engine_title": "Mesin",

@@ -60,7 +60,7 @@ function monotone(pts: Point[]) {
 interface PacketChartProps {
   /** Oldest first, one entry per poll. `null` is a gap (idle or restarting), never a zero. */
   history: readonly (number | null)[];
-  /** Packets are flowing now: draws the endpoint and its pulse. */
+  /** A mode is running: draws the endpoint and its pulse. */
   live: boolean;
 }
 
@@ -197,7 +197,9 @@ export function PacketChart({ history, live }: PacketChartProps) {
           </span>
         ))}
         {values.length === 0 ? (
-          <div className={LIVE.EMPTY}>{t("traffic_engine.chart_empty")}</div>
+          <div className={LIVE.EMPTY}>
+            {t(live ? "traffic_engine.chart_waiting" : "traffic_engine.chart_empty")}
+          </div>
         ) : null}
       </div>
       <div className={LIVE.X_AXIS} aria-hidden="true">

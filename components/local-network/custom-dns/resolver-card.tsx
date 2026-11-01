@@ -143,7 +143,7 @@ export interface ResolverCardProps {
   canApply: boolean;
   /** Why Apply is blocked, as a translation key; null when it is not. */
   blockedKey: string | null;
-  /** The backend's reason for the last failed save, verbatim. */
+  /** Translated reason for the last failed save; never the backend text. */
   saveError: string | null;
   onToggle: (enabled: boolean) => void;
   onIgnoreCarrier: (ignore: boolean) => void;

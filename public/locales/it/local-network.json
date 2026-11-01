@@ -94,6 +94,7 @@
     "chart_aria": "Nuove connessioni gestite al secondo negli ultimi 60 secondi, picco {{max}}",
     "chart_aria_idle": "Nessuna connessione gestita negli ultimi 60 secondi",
     "chart_empty": "Attiva una modalità per vedere le connessioni",
+    "chart_waiting": "In attesa della prima lettura",
     "chart_x_start": "60 s fa",
     "chart_x_end": "Ora",
     "engine_title": "Motore",

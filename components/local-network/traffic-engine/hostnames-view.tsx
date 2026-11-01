@@ -52,6 +52,12 @@ const DOMAIN_PATTERN = /^[a-z0-9._-]+$/;
 const EXPORT_HEADER = "# QManager Video Optimizer hostlist";
 
 /** The locale key for why a domain cannot join the list, or null when it can. */
+function sameSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every((d) => set.has(d));
+}
+
 function domainErrorKey(value: string, list: readonly string[]): string | null {
   if (value.length > MAX_DOMAIN_LENGTH) return "traffic_engine.hosts_too_long";
   if (!DOMAIN_PATTERN.test(value) || !value.includes(".")) return "traffic_engine.hosts_invalid";
@@ -73,14 +79,11 @@ export function useHostlistDraft(hostlist: Hostlist) {
   const [prevDomains, setPrevDomains] = useState(domains);
   if (domains !== prevDomains) {
     setPrevDomains(domains);
-    setDraft(domains);
+    // A re-read adopts the new list only when nothing is pending; a save lands as draft == domains.
+    if (sameSet(draft, prevDomains) || sameSet(draft, domains)) setDraft(domains);
   }
 
-  const dirty = useMemo(() => {
-    if (draft.length !== domains.length) return true;
-    const savedSet = new Set(domains);
-    return draft.some((d) => !savedSet.has(d));
-  }, [draft, domains]);
+  const dirty = useMemo(() => !sameSet(draft, domains), [draft, domains]);
 
   const add = useCallback((domain: string) => setDraft((prev) => [domain, ...prev]), []);
   const remove = useCallback(
