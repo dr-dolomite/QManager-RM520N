@@ -24,25 +24,27 @@ import { formatFrequency, getDLFrequency } from "@/lib/earfcn";
 // order, top to bottom:
 //
 //   1. THE LIVE STRIP — what is the radio on right now, and is it inside the
-//      list? A verdict panel states the posture in one sentence; beside it the
-//      carriers currently on air, each offering to join the list.
+//      list? The carriers currently on air, each offering to join the list; a
+//      carrier inside the list wears a primary ring, one outside it an amber ring.
 //   2. THE TWO LOCK CARDS — the lists themselves. One per AT lock parameter
 //      (`AT+QNWCFG="lte_earfcn_lock"`, `="nr5g_earfcn_lock"`). LTE takes up to
-//      2 channels, NR up to 32 (ARFCN, SCS) pairs.
-//   3. THE APPLY BAR — one bar owning the disclaimer, Clear all, and Apply.
+//      2 channels, NR up to 32 (ARFCN, SCS) pairs. Each owns its own Apply and
+//      Clear; a listed channel the radio is on shows a live dot, one it is not
+//      on an amber outline.
 //
 // -----------------------------------------------------------------------------
 // FIVE THINGS THAT MUST NOT DRIFT (each cost a recon round to establish)
 // -----------------------------------------------------------------------------
 //
 // 1. NEVER RENDER THE AT COMMAND. The design comp this page was built from
-//    printed `AT+QNWCFG="lte_freq_lock",1,1300,3350` in the apply bar. Every
+//    printed `AT+QNWCFG="lte_freq_lock",1,1300,3350` in a bar under the cards. Every
 //    token of that is wrong: the key is `lte_earfcn_lock` (`lte_freq_lock` does
 //    not exist on this modem and returns ERROR), the count must equal the entry
 //    count, and `lock.sh:93` joins values with COLONS, not commas. A
 //    hand-written AT string in JSX cannot stay in sync with `lock.sh` — which is
 //    exactly how the comp ended up with three wrong ones. Render the modem's
-//    READ-BACK instead: what it answered, not what we asked. See `APPLY_BAR`.
+//    READ-BACK instead: what it answered, not what we asked. The bar is gone;
+//    the same rule now covers the slot rows, which come from the read-back.
 //
 // 2. THERE IS NO PERSISTENCE, AND NO TIMESTAMP. `AT+QNWCFG` has no save/persist
 //    key at all — the full 90-key enumeration was captured live and there is
@@ -72,8 +74,8 @@ import { formatFrequency, getDLFrequency } from "@/lib/earfcn";
 //    the modem never sees the command. Do not write copy saying "the modem
 //    refuses". The reverse direction has NO guard: `tower/lock.sh` contains no
 //    frequency check, so applying a tower lock SILENTLY WIPES a live frequency
-//    lock. That is why `LOCK_BADGE` carries a `blocked` posture and why the
-//    apply bar reports read-back rather than intention — the read-back is the
+//    lock. That is why `lockPosture` carries a `blocked` state and why rows and
+//    tiles are drawn from read-back rather than intention — the read-back is the
 //    only thing that can show a lock that vanished underneath the user.
 
 // -----------------------------------------------------------------------------
@@ -89,7 +91,7 @@ import { formatFrequency, getDLFrequency } from "@/lib/earfcn";
 // Nesting, outermost first, which is what this file's fills encode:
 //
 //   background              the page
-//   surface                 a section card (the hero, the apply bar)
+//   surface                 a section card (the hero)
 //   surface-container       a panel inside one (the verdict, the carrier rail)
 //   surface-container-high  a tile inside a panel (a carrier, an input)
 //
@@ -144,94 +146,17 @@ export const HERO = {
    */
   BODY: "flex flex-col gap-3.5 px-5 py-4 @lg/card:px-6 @lg/card:py-5",
   HEAD: "flex flex-wrap items-center gap-2.5",
-  TITLE: "text-base font-semibold",
-  /**
-   * Verdict rail + carriers. The rail is fixed so the verdict sentence keeps a
-   * stable measure while the carrier grid absorbs the reflow; below the query
-   * they stack and the rail goes full width.
-   */
-  SPLIT: "grid grid-cols-1 gap-3 @2xl/main:grid-cols-[minmax(0,19rem)_1fr]",
+  TITLE: "text-base leading-normal font-semibold",
 } as const;
-
-/**
- * The verdict panel — one tonal block stating the posture in a sentence.
- *
- * Tones key onto `LockPosture`. `locked` is the AMBER one, matching the chip in
- * `LOCK_BADGE` and the same treatment band locking and tower locking give a
- * constrained radio.
- *
- * `blocked` is `surface-container-high`, NOT a destructive red. The comp painted
- * it red; nothing failed there — the user deliberately set a tower lock, and
- * red would also encode the two locks as different severities when they are the
- * same kind of thing.
- */
-export const VERDICT = {
-  /**
-   * CENTRED, on the shadcn `Empty` model: disc, title, body and chips are one
-   * centred group, vertically centred in whatever height the carrier rail
-   * opposite forces.
-   *
-   * The rail sets the row height and always outgrows this panel, so a
-   * top-aligned stack left a growing void under the chips — the panel looked
-   * like it had failed to load its last element. Centring turns that slack into
-   * symmetric breathing room, which is exactly the empty-state read this panel
-   * wants: one glyph, one sentence, done.
-   *
-   * Note the FOOT deliberately does NOT carry `mt-auto` any more. `mt-auto` on
-   * the last child eats all the free space before it, which pins the group to
-   * the top and silently cancels `justify-center`.
-   */
-  ROOT: "flex flex-col items-center justify-center gap-3 rounded-tile p-5 text-center",
-  DISC: "flex size-10 items-center justify-center rounded-pill",
-  TITLE: "text-lg font-semibold text-balance",
-  BODY: "max-w-[17rem] text-[13px]/5 text-pretty",
-  /** Chip row, centred under the sentence it qualifies. */
-  FOOT: "flex flex-wrap items-center justify-center gap-1.5",
-} as const;
-
-export const VERDICT_TONE: Record<
-  LockPosture,
-  { panel: string; disc: string; glyph: MaterialSymbolName; filled: boolean }
-> = {
-  locked: {
-    panel: "bg-warning-container text-on-warning-container",
-    disc: "bg-warning text-warning-foreground",
-    glyph: "lock",
-    filled: true,
-  },
-  unlocked: {
-    panel: "bg-surface-container text-on-surface",
-    disc: "bg-surface-container-high text-on-surface-variant",
-    glyph: "lock_open",
-    filled: false,
-  },
-  blocked: {
-    panel: "bg-surface-container-high text-on-surface",
-    disc: "bg-surface text-on-surface-variant",
-    glyph: "block",
-    filled: false,
-  },
-  unknown: {
-    panel: "bg-surface-container text-on-surface",
-    disc: "bg-surface-container-high text-on-surface-variant",
-    glyph: "schedule",
-    filled: false,
-  },
-};
 
 // -----------------------------------------------------------------------------
 // Carriers on air
 // -----------------------------------------------------------------------------
 
 export const CAMPED = {
-  ROOT: "flex flex-col gap-3 rounded-tile bg-surface-container p-5",
-  HEAD: "flex flex-wrap items-center gap-2",
-  LABEL: "text-sm font-semibold",
-  META: "ms-auto text-xs tabular-nums text-on-surface-variant",
-  /** Auto-fit so 1–3 carriers fill the rail without a dead third column. */
-  GRID: "grid grid-cols-1 gap-2 @xl/main:grid-cols-2 @4xl/main:grid-cols-3",
-  /** Trailing note pinned to the floor, matching the verdict panel opposite. */
-  NOTE: "mt-auto text-xs text-on-surface-variant text-pretty",
+  ROOT: "flex min-w-0 flex-col gap-2.5 rounded-tile bg-surface-container px-4 py-3.5",
+  /** Auto-fit so 1–3 carriers fill the panel without a dead third column. */
+  GRID: "grid grid-cols-1 gap-3 @xl/main:grid-cols-2 @4xl/main:grid-cols-3",
 } as const;
 
 /**
@@ -243,12 +168,14 @@ export const CAMPED = {
  * stroke colour in the first place. Band locking's live-band ring and tower
  * locking's `CARRIER_TILE.MATCH` both resolve this the same way — an inset
  * primary ring, which reads as "this one is spoken for" without claiming a
- * health role. Amber stays on the CHIP and the VERDICT, which is where the
- * user's mental model for "constrained" is being built.
+ * health role. Amber is the ring on a carrier outside the lock list, and on a
+ * listed channel the radio is not on.
  */
 export const CARRIER_TILE = {
-  ROOT: "flex flex-col gap-2 rounded-field bg-surface-container-high p-3.5",
+  ROOT: "flex flex-col gap-2 rounded-field bg-surface-container-high p-3.5 transition-[box-shadow] duration-[var(--duration-standard)] ease-standard",
   MATCH: "shadow-[inset_0_0_0_2px_var(--primary)]",
+  /** On air, but outside a lock list the modem is holding: the lock is not in use. */
+  WARN: "shadow-[inset_0_0_0_2px_var(--warning)]",
   HEAD: "flex items-center gap-2",
   /**
    * Channel number: the tile's headline.
@@ -256,17 +183,19 @@ export const CARRIER_TILE = {
    * 22px is a literal rather than a ramp step, and that is correct here rather
    * than sloppy. DESIGN.md's Numeric step is "deliberately not a fixed ramp" —
    * a numeral is read at the distance its container implies, so its size comes
-   * from the slot holding it, and a literal `text-[Npx]` on a mono
-   * `tabular-nums` figure is correct by construction. Shipped siblings run 52,
+   * from the slot holding it, and a literal `text-[Npx]` on a
+   * `tabular-nums` figure is correct by construction. The channel number is a
+   * short numeric device label, so it stays Rethink Sans per the Machine-Voice
+   * Rule (mono is for strings whose character grid carries meaning). Shipped siblings run 52,
    * 44, 26 and 17px on the same rule. Prose never qualifies; this is a figure.
    */
-  VALUE: "font-mono text-[22px]/none font-semibold tabular-nums",
+  VALUE: "text-[22px]/none font-semibold tabular-nums",
   VALUE_LABEL: "text-xs text-on-surface-variant",
-  META: "font-mono text-xs tabular-nums text-on-surface-variant",
+  META: "text-xs tabular-nums text-on-surface-variant",
   /** The add/locked affordance in the tile's top-right. */
   ACTION: "ms-auto flex size-7 items-center justify-center",
   ACTION_FREE: "bg-primary-container text-on-primary-container",
-  ACTION_HELD: "bg-warning-container text-on-warning-container",
+  ACTION_HELD: "bg-primary-container text-on-primary-container",
   ACTION_OFF: "bg-surface-container text-on-surface-variant opacity-60",
 } as const;
 
@@ -281,13 +210,20 @@ export const CARRIER_NOTE_TILE =
 export const SLOT = {
   LIST: "flex flex-col gap-2",
   /** Filled row: a channel is staged or locked here. */
-  ROW: "flex min-h-[3.625rem] flex-wrap items-center gap-x-3 gap-y-2 rounded-field bg-surface-container px-4 py-3",
+  ROW: "flex min-h-[3.625rem] flex-wrap items-center gap-x-3 gap-y-2 rounded-field bg-surface-container px-4 py-3 transition-[box-shadow] duration-[var(--duration-standard)] ease-standard",
+  /** Locked on the modem, but the radio is not on this channel. */
+  UNUSED: "shadow-[inset_0_0_0_2px_var(--warning)]",
+  /** The "Slot N" label with a reserved dot slot, so labels line up. */
+  INDEX_ROW: "flex w-16 flex-none items-center gap-1.5",
+  DOT_SLOT: "relative grid size-2 flex-none place-items-center",
+  DOT: "size-2 rounded-pill bg-success",
+  DOT_PING: "absolute inset-0 rounded-pill bg-success animate-live-ping",
   /** Empty row: dashed, quieter, same height so the list does not jump. */
   ROW_EMPTY:
     "flex min-h-[3.625rem] flex-wrap items-center gap-x-3 gap-y-2 rounded-field border border-dashed border-outline px-4 py-3",
-  INDEX: "w-11 flex-none text-xs font-semibold text-on-surface-variant",
+  INDEX: "text-xs font-semibold text-on-surface-variant",
   /** The staged channel. Numeric step, sized to the row — see CARRIER_TILE.VALUE. */
-  VALUE: "font-mono text-[15px] font-semibold tabular-nums",
+  VALUE: "text-[15px] font-semibold tabular-nums",
   META: "text-xs text-on-surface-variant",
   HINT: "text-[13px] text-on-surface-variant text-pretty",
   /** Trailing remove button. */
@@ -297,7 +233,7 @@ export const SLOT = {
 
 /** Input inside a slot row; shape and fill come from the primitive. */
 export const SLOT_INPUT =
-  "min-w-0 flex-1 font-mono text-[13px] tabular-nums";
+  "min-w-0 flex-1 text-[13px] tabular-nums";
 
 /**
  * The "Use current" control.
@@ -319,7 +255,7 @@ export const PILL_USE_CURRENT =
 export const EMPTY = {
   ROOT: "flex flex-1 flex-col items-center justify-center gap-2 rounded-tile border border-dashed border-outline p-6 text-center",
   TITLE: "text-sm font-semibold",
-  BODY: "max-w-[19rem] text-xs text-on-surface-variant text-pretty",
+  BODY: "text-xs text-on-surface-variant text-balance",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -358,30 +294,6 @@ export const NOTICE_TONE: Record<
   },
 };
 
-// -----------------------------------------------------------------------------
-// The apply bar
-// -----------------------------------------------------------------------------
-
-/**
- * One bar owning the reconnect disclaimer, Clear all and Apply.
- *
- * Its second line is the MODEM'S READ-BACK, never the AT command — see rule 1 in
- * the header. An echoed command tells you what QManager tried; a read-back tells
- * you what the modem did, and on this page those can disagree (a rejected entry,
- * or a tower lock silently clobbering the lock). The AT string structurally
- * cannot show that, because it echoes the request.
- */
-export const APPLY_BAR = {
-  ROOT: "flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-surface px-5 py-4",
-  COPY: "flex min-w-0 flex-col gap-0.5",
-  TITLE: "text-[13px] font-semibold",
-  /** The read-back line. Machine voice, so mono — per the Machine-Voice Rule. */
-  READBACK: "font-mono text-xs tabular-nums text-on-surface-variant",
-  /** Disclaimer when there is nothing to read back yet. */
-  NOTE: "max-w-[34rem] text-xs/relaxed text-on-surface-variant text-pretty",
-  ACTIONS: "ms-auto flex flex-wrap items-center gap-2",
-} as const;
-
 /** The quiet third action. Matches tower locking's scale. */
 export const PILL_QUIET = "h-9 px-3.5 text-xs font-semibold";
 
@@ -395,39 +307,8 @@ export const BADGE_GLYPH_SIZE = 12;
 export type LockPosture = "locked" | "unlocked" | "blocked" | "unknown";
 
 /**
- * Lock posture -> Badge variant + glyph.
- *
- * `locked` is `warning` and `unlocked` is `success`, which is a deliberate
- * reading of the functional contract rather than a value judgement: narrowing
- * the radio to a short list of channels is the state that can cost you the
- * connection, and `warning` means "constrained", not "you did something wrong".
- * Band locking and tower locking apply the same inversion, and matching them is
- * the point — a user who learns "amber = the radio is constrained" on two
- * sibling routes must not find a different colour here.
- *
- * `blocked` is `muted` — a deliberately-inactive state, which is precisely what
- * `muted` is for. It is NOT `destructive`: nothing failed, the user set a tower
- * lock on purpose.
- *
- * Every posture carries a DISTINCT glyph, and that is load-bearing rather than
- * decorative: `success-container` and `warning-container` measure 1.03:1 apart,
- * so they are the same surface under deuteranopia and very nearly the same
- * surface to everyone else. The glyph is what separates locked from unlocked.
- * `blocked` and `unknown` share `muted` and are told apart the same way.
- */
-export const LOCK_BADGE: Record<
-  LockPosture,
-  { variant: BadgeVariant; glyph: MaterialSymbolName; filled: boolean }
-> = {
-  locked: { variant: "warning", glyph: "lock", filled: true },
-  unlocked: { variant: "success", glyph: "lock_open", filled: false },
-  blocked: { variant: "muted", glyph: "block", filled: false },
-  unknown: { variant: "muted", glyph: "schedule", filled: false },
-};
-
-/**
- * The "Experimental" chip is a NON-STATUS label, so it takes `secondary` rather
- * than a status role.
+ * The "Experimental" chip is a fact that is neither fault nor health, so it is
+ * a filled `info` badge (Fact-Is-Info) rather than a status role.
  *
  * It was amber in the comp, which put a permanently-lit `warning` chip in the
  * title row of a page whose whole state system is about to use amber for
@@ -438,11 +319,11 @@ export const LOCK_BADGE: Record<
  * the feature, and a warning chip that is always on is a warning nobody reads
  * after the first visit. The risk this page actually carries — a lock onto an
  * unsupported band can crash-dump the modem (`lock.sh:10`), and nothing here
- * self-heals — is communicated where it can be acted on: in the apply bar and
+ * self-heals — is communicated where it can be acted on: in the lock cards and
  * in the confirmation dialogs, contextually and unavoidably.
  */
 export const EXPERIMENTAL_BADGE = {
-  variant: "secondary" as BadgeVariant,
+  variant: "info" as BadgeVariant,
   glyph: "science" as MaterialSymbolName,
 };
 
@@ -516,8 +397,6 @@ export const SKELETON_SHAPE = {
   /** `CardTitle` (17px/600) and `CardDescription` (13px) line boxes. */
   TITLE: "h-6 w-40 rounded-inline",
   DESC: "h-5 w-56 rounded-inline",
-  /** A status chip: 22px tall, pill. */
-  CHIP: "h-[1.375rem] w-24 rounded-pill",
   /** A slot row, mirroring `SLOT.ROW`'s min-height exactly. */
   SLOT_ROW: "h-[3.625rem] w-full rounded-field",
   /**
@@ -526,10 +405,6 @@ export const SKELETON_SHAPE = {
    * lost its meta line when the tile narrowed to the channel number.
    */
   CARRIER: "h-[5.375rem] w-full rounded-field",
-  /** The verdict panel. */
-  VERDICT: "h-[13rem] w-full rounded-tile",
-  /** `CAMPED.LABEL`'s text-sm/600 line box ("Camped on now"). */
-  CAMPED_LABEL: "h-5 w-32 rounded-inline",
   /** An action pill at the action Button size's 42px height. */
   ACTION: "h-[2.625rem] w-32 rounded-pill",
 } as const;

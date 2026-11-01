@@ -1730,7 +1730,8 @@
       "compare_hint": "基站锁定会同时固定频点和小区。频点锁定更宽松：同一频点，任意小区。",
       "compare_hint_unknown": "无法读取基站锁定状态。基站锁定生效期间频点锁定会被拒绝，因此在该读取成功之前，这里的任何设置都无法应用。",
       "add_blocked": "在解除基站锁定之前无法添加。",
-      "add_blocked_unknown": "在能够读取基站锁定状态之前无法添加。"
+      "add_blocked_unknown": "在能够读取基站锁定状态之前无法添加。",
+      "outside_list": "带边框的载波正在使用，但不在你的频点列表中。"
     },
     "verdict": {
       "unlocked_title": "允许所有频点",
@@ -1775,7 +1776,8 @@
       "blocked_body": "解除基站锁定后才能编辑此列表。",
       "scs_warning": "间隔填错看起来仍是有效条目，但调制解调器永远不会使用它。从上方添加载波时，此值会一并复制过来。",
       "no_pci_note": "频点锁定绝不会固定小区。调制解调器会在你允许的频点范围内继续重选。",
-      "count": "{{used}} / {{max}}"
+      "count": "{{used}} / {{max}}",
+      "unused": "带边框的频点已锁定，但无线电未使用它们。"
     },
     "blocked": {
       "tower_lock_active": "基站锁定正占用此射频。请先解除后再锁定频点。",
@@ -1793,7 +1795,8 @@
       "staged": "待应用",
       "in_list": "在列表中",
       "remove": "移除条目",
-      "staged_count": "已暂存 {{count}} / {{max}} 个条目。尚未写入调制解调器。"
+      "staged_count": "已暂存 {{count}} / {{max}} 个条目。尚未写入调制解调器。",
+      "on_air": "使用中"
     },
     "actions": {
       "use_current": "使用当前",
@@ -1858,7 +1861,8 @@
       "unsupported_confirm": "仍然锁定",
       "cancel": "取消",
       "confirm_lock": "锁定频点",
-      "confirm_unlock": "清除锁定"
+      "confirm_unlock": "清除锁定",
+      "no_recovery": "频点锁定没有故障转移守护。与频段锁定和基站锁定不同，若这些频点失去覆盖，没有任何机制会自动恢复服务。"
     },
     "bands": {
       "possible": "可能的频段：",

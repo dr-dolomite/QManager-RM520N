@@ -1730,7 +1730,8 @@
       "compare_hint": "Un blocco BTS fissa sia il canale sia la cella. Il blocco delle frequenze è l'opzione più permissiva: stesso canale, qualsiasi cella.",
       "compare_hint_unknown": "Non è stato possibile leggere lo stato del blocco BTS. Un blocco delle frequenze viene rifiutato mentre è attivo un blocco BTS, quindi qui non si può applicare nulla finché quella lettura non riesce.",
       "add_blocked": "L'aggiunta è disattivata finché il blocco BTS non viene rimosso.",
-      "add_blocked_unknown": "L'aggiunta è disattivata finché non si riesce a leggere lo stato del blocco BTS."
+      "add_blocked_unknown": "L'aggiunta è disattivata finché non si riesce a leggere lo stato del blocco BTS.",
+      "outside_list": "Le portanti evidenziate sono attive ma fuori dal tuo elenco di canali."
     },
     "verdict": {
       "unlocked_title": "Tutti i canali consentiti",
@@ -1775,7 +1776,8 @@
       "blocked_body": "Rimuovi il blocco BTS per modificare questo elenco.",
       "scs_warning": "Una spaziatura sbagliata sembra una voce valida, ma il modem non la usa mai. Il valore viene copiato dalla portante quando la aggiungi da sopra.",
       "no_pci_note": "Un blocco delle frequenze non fissa mai la cella. Il modem continua a riselezionare all'interno dei canali che consenti.",
-      "count": "{{used}} di {{max}}"
+      "count": "{{used}} di {{max}}",
+      "unused": "I canali evidenziati sono bloccati, ma la radio non li sta usando."
     },
     "blocked": {
       "tower_lock_active": "Un blocco BTS sta trattenendo questa radio. Rimuovilo prima di bloccare una frequenza.",
@@ -1793,7 +1795,8 @@
       "staged": "Da applicare",
       "in_list": "Nell'elenco",
       "remove": "Rimuovi voce",
-      "staged_count": "{{count}} di {{max}} voci pronte. Non c'è ancora nulla sul modem."
+      "staged_count": "{{count}} di {{max}} voci pronte. Non c'è ancora nulla sul modem.",
+      "on_air": "In uso"
     },
     "actions": {
       "use_current": "Usa attuali",
@@ -1858,7 +1861,8 @@
       "unsupported_confirm": "Blocca comunque",
       "cancel": "Annulla",
       "confirm_lock": "Blocca canali",
-      "confirm_unlock": "Rimuovi blocco"
+      "confirm_unlock": "Rimuovi blocco",
+      "no_recovery": "Il blocco delle frequenze non ha alcun controllo di failover. A differenza del blocco delle bande e del blocco BTS, nulla ripristina il servizio da solo se questi canali perdono copertura."
     },
     "bands": {
       "possible": "Bande possibili:",

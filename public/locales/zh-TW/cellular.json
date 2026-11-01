@@ -1730,7 +1730,8 @@
       "compare_hint": "基站鎖定會同時固定頻點與小區。頻點鎖定較為寬鬆：相同頻點，任意小區。",
       "compare_hint_unknown": "無法讀取基站鎖定狀態。基站鎖定生效期間頻點鎖定會被拒絕，因此在該讀取成功之前，這裡的任何設定都無法套用。",
       "add_blocked": "在解除基站鎖定之前無法新增。",
-      "add_blocked_unknown": "在能夠讀取基站鎖定狀態之前無法新增。"
+      "add_blocked_unknown": "在能夠讀取基站鎖定狀態之前無法新增。",
+      "outside_list": "有框線的載波正在使用，但不在你的頻點清單中。"
     },
     "verdict": {
       "unlocked_title": "允許所有頻點",
@@ -1775,7 +1776,8 @@
       "blocked_body": "解除基站鎖定後才能編輯此清單。",
       "scs_warning": "間隔填錯看起來仍是有效項目，但數據機永遠不會使用它。從上方新增載波時，此值會一併複製過來。",
       "no_pci_note": "頻點鎖定絕不會固定小區。數據機會在你允許的頻點範圍內持續重選。",
-      "count": "{{used}} / {{max}}"
+      "count": "{{used}} / {{max}}",
+      "unused": "有框線的頻點已鎖定，但無線電並未使用它們。"
     },
     "blocked": {
       "tower_lock_active": "基站鎖定正佔用此射頻。請先解除後再鎖定頻點。",
@@ -1793,7 +1795,8 @@
       "staged": "待套用",
       "in_list": "在清單中",
       "remove": "移除項目",
-      "staged_count": "已暫存 {{count}} / {{max}} 個項目。尚未寫入數據機。"
+      "staged_count": "已暫存 {{count}} / {{max}} 個項目。尚未寫入數據機。",
+      "on_air": "使用中"
     },
     "actions": {
       "use_current": "使用目前",
@@ -1858,7 +1861,8 @@
       "unsupported_confirm": "仍要鎖定",
       "cancel": "取消",
       "confirm_lock": "鎖定頻點",
-      "confirm_unlock": "清除鎖定"
+      "confirm_unlock": "清除鎖定",
+      "no_recovery": "頻點鎖定沒有容錯移轉監控。與頻段鎖定和基站鎖定不同，若這些頻點失去涵蓋範圍，沒有任何機制會自動恢復服務。"
     },
     "bands": {
       "possible": "可能的頻段：",
