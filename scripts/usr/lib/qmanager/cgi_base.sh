@@ -33,6 +33,7 @@ export PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
 # ---------------------------------------------------------------------------
 . /usr/lib/qmanager/platform.sh 2>/dev/null || {
     pid_alive() { [ -n "$1" ] && [ -d "/proc/$1" ]; }
+    pid_is() { return 1; }
 }
 
 # ---------------------------------------------------------------------------
