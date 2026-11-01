@@ -2,7 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type { AlertLogEntry } from "@/types/alerts";
 
 // =============================================================================
@@ -35,6 +37,7 @@ export interface UseAlertsLogReturn {
 }
 
 export function useAlertsLog(): UseAlertsLogReturn {
+  const { t } = useTranslation("errors");
   const [entries, setEntries] = useState<AlertLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +80,12 @@ export function useAlertsLog(): UseAlertsLogReturn {
           setTotal(data.total);
           setLastFetched(new Date());
         } else {
-          const msg = data.error || "Failed to load alert log";
+          const msg = resolveErrorMessage(
+            t,
+            data.error,
+            undefined,
+            "Failed to load alert log",
+          );
           setError(msg);
           // A failed load on mount shows in the card; only a user's refresh toasts.
           if (mode === "refresh") toast.error(msg);
@@ -95,7 +103,7 @@ export function useAlertsLog(): UseAlertsLogReturn {
         }
       }
     },
-    [],
+    [t],
   );
 
   useEffect(() => {

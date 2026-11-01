@@ -616,7 +616,7 @@ Header (title, one **Refresh** that reloads both the settings and the log), then
 | File | Role |
 |------|------|
 | `alerts.tsx` | Page shell, bento, the shared Refresh; `isComplete` stops a partial payload before `useAlertsForm` reads it |
-| `coverage-card.tsx` | `AlertsCoverageCard` — three receipt rows (`COVERAGE_ROW`), one per event, listing the channels that will deliver and the ones that will try and fail; one verdict `Badge` in the header (`all` success, `outage` / `partial` warning, `none` destructive) |
+| `coverage-card.tsx` | `AlertsCoverageCard` — three receipt rows (`COVERAGE_ROW`), one per event, listing the channels that will deliver and the ones that will try and fail; one verdict `Badge` in the header (`all` success, `outage` / `partial` warning); `none` shows no chip, because the rows already say nothing is delivered |
 | `alerts-settings-card.tsx` | `AlertsSettingsCard` — the **Wait before alerting** row (`WaitRow`), the channel rail, one channel's panel (Off/On `SegmentedField`, **Sends for** event ticks, then its fields), and one `CardFoot` holding the selected channel's test button, **Discard** (while dirty) and **Save** for all three channels |
 | `channel-field.tsx` | `ChannelPanelHead`, `ChannelField`, `ChannelSecretField`, `ChannelNotice` |
 | `channel-rail.tsx` | `ChannelRail` — the three-pill channel tabs, each with a saved-status dot |
