@@ -32,7 +32,9 @@ Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 | Frontend hook (6-slot) | `hooks/use-wan-profiles.ts` |
 | Frontend types (single-APN, page-active) | `types/apn-settings.ts` |
 | Frontend hook (single-APN, page-active) | `hooks/use-apn-settings.ts` |
-| Frontend components | `components/cellular/settings/apn-management/` (page renders `apn-settings-card.tsx` + `mbn-card.tsx` + a read-only poller strip; the legacy `wan-profile-list.tsx`/`wan-profile-edit.tsx` are **deleted**) |
+| Frontend components | `components/cellular/settings/apn-management/` (page renders `apn-settings-card.tsx`, with the granted readout inside it, beside `mbn-card.tsx`; the legacy `wan-profile-list.tsx`/`wan-profile-edit.tsx` are **deleted**) |
+| Suggested APNs | `public/data/apn-presets.json`, `lib/apn-presets.ts`, `hooks/use-apn-presets.ts`, `apn-preset-field.tsx`; regenerate with `bun run apn:update` — see [Suggested APNs](#suggested-apns) |
+| Error-code copy | `public/locales/{en,zh-CN,zh-TW,it,id}/errors.json` (one key per `apn.sh` code) |
 | `data_source` | Always `"at"` on RM520N-GL |
 
 A "PDP context" is the modem's record of a data connection — which APN to dial,
@@ -103,7 +105,9 @@ name-sidecar write, so a single-APN save can never blank a legacy slot's stored
 credentials or profile name. It does not lease the lock, because it issues no
 modem write of its own before the bracket. On success it re-applies persisted
 TTL/HL rules and persists the **negotiated** APN (`APN_APPLY_NEGOTIATED_APN`) to
-`apn_setting.json`.
+`apn_setting.json`. If that write fails the reply is
+`{"success":true,"active":1,"persisted":false}` — see
+[Sidecar write failures](#sidecar-write-failures-and-persisted-false).
 
 ### POST `deactivate`
 
@@ -111,7 +115,9 @@ Reverts the stored CID to carrier default via
 `apn_apply_write <cid> <pdp> "" 1` — a blank APN with `allow_empty=1`, the
 explicit opt-in the primitive requires before it will bracket-cycle an empty
 APN. A request while the sidecar already reads `active: 0` is a no-op that never
-touches the modem.
+touches the modem. If persisting `active: 0` fails, it removes the sidecar
+instead (a missing file reads as `active: 0`), and replies `persisted: false`
+only if that also fails.
 
 ### POST `toggle`
 
@@ -339,6 +345,27 @@ the network returned.
 be presented as "try again shortly", not a hard failure — the modem was never
 touched.
 
+`cops_attach_failed` carries **two** meanings: rc 3 (`AT+COPS=0` itself failed,
+the modem may be deregistered) and rc 5 (attached, but no `+CGCONTRDP` answer
+within 15 s). Its copy is worded for both: the modem did not confirm it
+re-registered, and the change may still have applied.
+
+Every code `apn.sh` emits has a key in `errors.json` in all five locales since
+`2484f45e` (`cgdcont_failed` already had one). The hook resolves them through
+`resolveErrorMessage(t, error, detail, fallback)`, so an unmapped code falls back
+to "Modem reported: <detail>":
+
+| Code | Emitted when |
+| ---- | ------------ |
+| `cops_detach_failed` | rc 2 |
+| `cops_attach_failed` | rc 3 or rc 5 |
+| `apn_mismatch` | rc 4 |
+| `apn_busy` | rc 7: another APN apply holds the bracket lock |
+| `cgact_failed` | `AT+CGACT=<0\|1>,<cid>` failed (`toggle`) |
+| `invalid_index` | `index` / `cid` is not a number 1–6 |
+| `qicsgp_failed` | the legacy save's `AT+QICSGP` auth write failed |
+| `internal_error` | `apn_apply.sh` is missing or failed to load |
+
 ### The bracket lock
 
 The whole write-detach-attach-verify sequence is serialized by an advisory
@@ -522,10 +549,11 @@ their writers run as `www-data`, and that directory is deliberately locked to
 The mechanism is a Unix rule that surprises people: creating, renaming, or
 deleting a file needs write permission on the file's **parent directory**, not
 on the file. Think of a filing cabinet — the folder's own lock is irrelevant if
-you can't open the drawer. Both sidecars are written with the atomic
-`mktemp`-beside-the-target + `mv` pattern, and that `mktemp` is a *create* in
-the parent directory, so it failed outright on a directory `www-data` cannot
-write.
+you can't open the drawer. Both sidecars are written to a temp file beside the
+target (`${FILE}.tmp.$$`) and then `mv`'d over it, and creating that temp file
+is a *create* in the parent directory, so it failed outright on a directory
+`www-data` cannot write. (The installer's one-time `migrate_apn_sidecars()` is
+the only writer that uses `mktemp`.)
 
 `/usrdata/qmanager/` is `0755 root:root` on purpose and must stay that way:
 `qmanager-console.service` runs as root and executes `ttyd` from a
@@ -646,8 +674,8 @@ controls that have no AT equivalent: **Default Route**, **IP Passthrough**, and
 | `hooks/use-wan-profiles.ts` | Exposes `dataSource`; on the AT path, skips the optimistic-reconcile background fetch because the CGI write is synchronous |
 | `types/apn-settings.ts` | `ApnSaveOutcome` (`"saved" \| "reconciling" \| "failed"`) — what a write to `apn.sh` actually resolved to. A boolean cannot carry the third case; see [the lost-response contract](#a-lost-response-is-not-a-refusal--the-frontend-contract) below |
 | `hooks/use-apn-settings.ts` | The single-APN read/write hook. Returns `ApnSaveOutcome` from `save` / `deactivate`, and publishes `isReconciling` for the window between an optimistic patch and the delayed re-read |
-| `components/cellular/settings/apn-management/apn-settings.tsx` | Page container; owns the **page-header status chip** (verifies against `+CGCONTRDP` — see below) and the "What the network granted" band, both fed by `useModemStatus` |
-| `components/cellular/settings/apn-management/apn-settings-card.tsx` | The single-APN write surface (WS6 contract). Its deactivate button is gated on `active === 1`, and its reserved-context (IMS/SOS) confirmation has a fallback gate on CID 2 / CID 3 for when the modem reports no contexts at all |
+| `components/cellular/settings/apn-management/apn-settings.tsx` | Page container (212 lines): the three hooks, the profile-override gate, and the `APN_PAIR` two-up of the APN and MBN cards. Passes the poller snapshot and the matched suggestions into the APN card |
+| `components/cellular/settings/apn-management/apn-settings-card.tsx` | The single-APN write surface (WS6 contract), with the granted readout (mode, granted APN + verdict, data context, IP families) at its top. Its "Use carrier default" button is gated on `active === 1` and a clean draft, and its reserved-context (IMS/SOS) confirmation has a fallback gate on CID 2 / CID 3 for when the modem reports no contexts at all |
 | `components/cellular/settings/apn-management/mbn-card.tsx` | MBN sub-feature (`AT+QMBNCFG`) — AT-native backend unchanged; the card was rebuilt (Switch + choice list, sequential `auto_sel` → `apply_profile` save) |
 
 > ℹ️ NOTE: `wan-profile-list.tsx` and `wan-profile-edit.tsx` **no longer exist** — they were deleted once they had zero importers. `types/wan-profiles.ts` and `hooks/use-wan-profiles.ts` remain, and the 6-slot AT machinery in `apn.sh` is untouched, so the legacy contract is still reachable if a future page wants it.
@@ -660,13 +688,9 @@ worded.
 
 ### The frontend now holds the same verification rule
 
-> ℹ️ NOTE: **The page-header status chip on `/cellular/settings/apn-management` verifies against `+CGCONTRDP`, not `AT+CGDCONT?`** — as of 2026-08-31. This is the frontend half of the rule stated above under [Why save requires a full attach cycle](#why-save-requires-a-full-attach-cycle), and until that date the frontend was breaking it.
+> ℹ️ NOTE: **The APN card's live verdict reads `+CGCONTRDP`, not `AT+CGDCONT?`.** This is the frontend half of the rule stated under [Why save requires a full attach cycle](#why-save-requires-a-full-attach-cycle).
 
-`useApnStatusChip` used to derive its live/not-live verdict from `cids.find((c) => c.cid === activeCid)?.apn`. That looks like a reading and is not one: `apn.sh:407-408` builds `cids[]` from the `AT+CGDCONT?` loop with **no extra AT calls**, so it is the *configured* view — the one that "matches even when the bearer is stale". The one element on the page claiming to report "is it live" was therefore running the same self-concealing comparison that this document already names as the root cause of the profile worker's silent-failure bug, and rendering a green `success` **Active** over the result.
-
-The chip now reads `status.network.apn` — the poller's `+CGCONTRDP`-derived negotiated value, from a source that cannot echo the request back. **No backend change was required**: the page already fetched the poller snapshot for its "What the network granted" band. The comparison **case-folds**, matching `apn_apply.sh`'s own `tr 'A-Z' 'a-z'`, and an empty string from the poller resolves to "not reported" rather than to a mismatch.
-
-The chip's verdict is suspended (not fallen through to `success`) while a write is in flight, because an attach cycle legitimately reports the old granted APN while it runs; and a stale poller outranks the verdict entirely. The full ordered branch table is in [cellular-settings-family.md](cellular-settings-family.md).
+`cids[]` is built from the `AT+CGDCONT?` loop with no extra AT calls, so it is the *configured* view, which matches even when the bearer is stale. The verdict therefore compares the stored APN against `status.network.apn`, the poller's `+CGCONTRDP`-derived **negotiated** value. Since the 2026-11 RM551E port it renders as a glyph on the card's "granted APN" readout row (`APN_VERDICT`), not as a page-header chip; the earlier `useApnStatusChip` is deleted. The comparison **case-folds**, matching `apn_apply.sh`'s `tr 'A-Z' 'a-z'`; an empty poller value is "not reported", never a mismatch; and the verdict is held while a write or its re-read is in flight, or while the poller is stale. Detail in [cellular-settings-family.md](cellular-settings-family.md#the-apn-card).
 
 ### A lost response is not a refusal — the frontend contract
 
@@ -683,6 +707,52 @@ The attach cycle documented above has a consequence the frontend has to absorb: 
 A module-private `HttpStatusError` is what makes the third case detectable: a non-2xx status means the server was reachable and said no, whereas a rejection means nobody said anything. The `"reconciling"` branch patches optimistically exactly as the success path does and runs the existing delayed silent re-read, letting that re-read decide — so the page neither claims a success it has not earned nor reports a failure that did not happen. `deactivate()` runs `apn_apply_write <cid> <pdp> "" 1`, the identical cycle, and carries the identical contract.
 
 > ⚠️ WARNING: this is a **frontend** reconciliation, not a backend guarantee. `apn_apply.sh` still owns the authoritative verify (`AT+CGCONTRDP` polling, the rc contract above); the hook's re-read simply asks the GET endpoint again once the link is back. If a future change moves the attach cycle to a backgrounded worker with a status file, this three-outcome shape becomes unnecessary — but until then, treating a dead socket as a refusal reports a successful save as a failure.
+
+---
+
+## Sidecar write failures and `persisted: false`
+
+**Short version: when the modem change landed but `apn_setting.json` could not be written, `apn.sh` now says so instead of answering a plain success, and it never leaves a stray temp file behind.**
+
+Both sidecar writers — `write_setting_json` (`apn_setting.json`) and `write_name` (`apn_names.json`) — write to `${FILE}.tmp.$$` beside the target, `chmod 644` it, then `mv` it over the target. Before `2484f45e`, a failed `printf` redirect returned without cleaning up, leaving a 0-byte `*.tmp.$$` in `/etc/qmanager/`. Every failure path now runs `rm -f` on the temp file first.
+
+| Action | Sidecar write fails | Reply |
+| ------ | ------------------- | ----- |
+| `save` (WS6) | `write_setting_json "$APN_APPLY_NEGOTIATED_APN" … 1` | `{ "success": true, "active": 1, "persisted": false }` |
+| `deactivate` | `write_setting_json "" … 0`, then the fallback `rm -f "$SETTING_FILE"` **succeeds** | `{ "success": true, "active": 0 }` — a missing sidecar reads as `active: 0`, and removing it frees space on a full disk |
+| `deactivate` | both the write and the `rm` fail | `{ "success": true, "active": 0, "persisted": false }` |
+
+`success` stays `true` in all three because the modem change had already landed; failing the request would tell the UI the APN did not change when it did. `persisted: false` tells the UI the **next GET may disagree** with what is on the modem. The APN card shows it as a warning toast (`core_settings.apn.toast.saved_not_persisted` / `deactivated_not_persisted`); the hook reads it as `data.persisted !== false`, so an endpoint that omits the field counts as persisted.
+
+> ℹ️ NOTE: **the root cause behind this fix.** The 2026-11-01 log line "Reverted cid … but failed to persist active=0" was `ENOSPC` during an unrelated full-disk incident, not a defect in the deactivate path: the same code answered `{"success":true,"active":0}` when run as `www-data` with space available. The real defects it exposed were the orphaned temp file and the silent `success: true`. Proven on the live RM520N-GL `61368cd2` after the fix: a save (`SMARTLTE`, cid 1) and a deactivate both returned 200, left `apn_setting.json` `www-data` `0644` with no `*.tmp.*` file, and logged no "failed to persist" line.
+
+## Suggested APNs
+
+The APN field suggests the internet APNs known for the SIM's home network, the way a phone's APN screen does. It is frontend-only: `apn.sh` is not involved.
+
+| Piece | Where |
+| ----- | ----- |
+| Data file (static, served with the web root) | `public/data/apn-presets.json` → `GET /data/apn-presets.json` |
+| Loader + matcher | `lib/apn-presets.ts` (`loadApnPresets`, `matchApnPresets`) |
+| Hook | `hooks/use-apn-presets.ts` (`useApnPresets(imsi)`) |
+| Field | `components/cellular/settings/apn-management/apn-preset-field.tsx` (`ApnPresetField`) |
+| Generator | `scripts-dev/build-apn-presets.ts`, run with `bun run apn:update` (or `bun run apn:update <sha>`) |
+| Hand overlay | `scripts-dev/apn-presets-overlay.json` (`{ "add": { "<plmn>": [row…] }, "remove": {} }`) |
+
+**Matching.** `useApnPresets(status.device.imsi)` loads the file once per page lifetime (a failed load is retried on the next call) and resolves the IMSI's home PLMN — 3 MCC digits plus a 2- or 3-digit MNC — by trying the 6-digit prefix first, then the 5-digit one, against the data itself rather than a per-country MNC-length table. A 6–15 digit IMSI is required. The hook returns `null` while loading, without an IMSI, for an unknown network or after a failed load; in every case the field is a plain input.
+
+**The file.** Generated from LineageOS `android_vendor_apn` (Apache-2.0) at a pinned commit (`PINNED_SHA` in the generator; `_source.commit` in the output, `35d822d7` at `afc517fe`). It keeps only entries a data connection can use with the APN string alone: `type` includes `default` (or `*`), no `proxy`, no `user` / `password` (the APN save sends no credentials), not hidden or carrier-disabled, and an APN that passes the card's own validation pattern. Output at `afc517fe`: 809 PLMNs, 51,396 bytes. Keys are sorted, so the same commit produces byte-identical output.
+
+```json
+{ "_source": { "repo": "https://github.com/LineageOS/android_vendor_apn", "commit": "35d822d750556e09dafaa2950ea87e912b49eab1", "license": "Apache-2.0" },
+  "plmns": { "<mcc><mnc>": [["<label>", "<apn>", "ipv4v6"], ["<label>", "<apn>"]] } }
+```
+
+A row is `[label, apn]`, `[label, apn, pdp]` or `[label, apn, pdp | "", 1]`, where the trailing `1` marks an MVNO riding the host network. `pdp` is one of `ipv4` / `ipv6` / `ipv4v6`, the same values `apn.sh` accepts for `pdp_type`. The overlay currently adds `["Smart Bro", "smartbro"]` for PLMN `51503`, which the upstream data lacks.
+
+**Picking a suggestion** fills the draft APN and, when the row carries a `pdp`, the IP protocol too. Nothing is written until Save.
+
+> ⚠️ WARNING: regenerate the file with `bun run apn:update`, never by hand-editing `public/data/apn-presets.json`. A hand edit is lost on the next regeneration; put manual additions or removals in the overlay.
 
 ---
 

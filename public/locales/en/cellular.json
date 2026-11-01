@@ -291,7 +291,7 @@
     },
     "settings_card": {
       "band_failover_label": "Band Failover",
-      "band_failover_tooltip": "If the locked bands find no signal within about 5 seconds, the modem returns to all supported bands.",
+      "band_failover_tooltip": "If the locked bands find no signal within about 30 seconds, the modem returns to all supported bands.",
       "band_failover_info_aria": "Band failover info",
       "status": {
         "disabled": "Disabled",

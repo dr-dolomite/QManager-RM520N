@@ -291,7 +291,7 @@
     },
     "settings_card": {
       "band_failover_label": "Failover Pita Frekuensi",
-      "band_failover_tooltip": "Jika band yang dikunci tidak menemukan sinyal dalam sekitar 5 detik, modem kembali ke semua band yang didukung.",
+      "band_failover_tooltip": "Jika band yang dikunci tidak menemukan sinyal dalam sekitar 30 detik, modem kembali ke semua band yang didukung.",
       "band_failover_info_aria": "Info band failover",
       "status": {
         "disabled": "Nonaktif",

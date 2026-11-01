@@ -528,10 +528,13 @@ app/cellular/settings/            route
    ├─ setting-row.tsx             label + consequence + control, promotes when dirty
    ├─ segmented-field.tsx         ToggleGroup above the row's breakpoint, Select below
    ├─ apply-foot.tsx              `ApplyFoot` / `ApplyFootSkeleton` — the family's
-   │                              CardFoot: count or three-step apply ledger left,
-   │                              optional secondary · Discard · Save right (also
-   │                              Network Priority's; skeleton used by IMEI, APN,
-   │                              MBN). Copy keys are still `*.save_bar.*`
+   │                              CardFoot: optional `leading` action, then the
+   │                              note or three-step apply ledger left; optional
+   │                              secondary · Discard · Save right (also Network
+   │                              Priority's; skeleton used by IMEI, APN, MBN).
+   │                              Copy keys are still `*.save_bar.*`
+   ├─ refresh-button.tsx          `RefreshButton` — icon-only Refresh in the
+   │                              Network card's `ApplyFoot` `leading` slot
    └─ shapes.ts                   geometry + tone contract (all of the above import it)
                                   — incl. STRIP, RATE_CEILING, SLOT_CHIP / SLOT_GLYPH
 ```
@@ -548,7 +551,15 @@ app/cellular/settings/            route
 | 4 | **Band A2 — rate ceiling** | `RateCeilingDisclosure` | **settings GET only** (does not tick) |
 | 5 | **Band B — the write cards** | two `CellularSettingsCard`s; the Network card ends in `ApplyFoot` | settings GET |
 
-Bands 3–5 arrive as a Motion cascade 120 ms apart. There is no page-level save bar: one POST covers both cards, so `cellular-settings.tsx` passes a single `foot` to the **Network** card (field counts tie 3/3 with SIM, and Network is last in reading order). Its status names pending fields on **both** cards, so an edit on the SIM card is visible from the footer. Re-read (`form.refresh`) is a ghost secondary action in that footer, always shown and disabled while saving; Discard is always rendered and disabled when nothing is pending.
+Bands 3–5 arrive as a Motion cascade 120 ms apart. There is no page-level save bar: one POST covers both cards, so `cellular-settings.tsx` passes a single `foot` to the **Network** card (field counts tie 3/3 with SIM, and Network is last in reading order). Since the 2026-11 RM551E v0.1.34 port (`839b2c14`) the footer reads, left to right:
+
+| Slot | Content |
+| ---- | ------- |
+| `leading` | `RefreshButton` (`components/cellular/settings/refresh-button.tsx`), calls `form.refresh`, disabled while saving. `tonal-neutral`, `refresh` glyph, its `core_settings.basic.footer.refresh` label unfolds on hover or keyboard focus; `aria-label` and `title` always carry the full label |
+| status | While saving, the three-step ledger. With pending changes, `save_bar.note` (or `save_bar.failed` naming the fields that did not take). With nothing pending, nothing |
+| actions | Discard (ghost, always rendered, disabled when nothing is pending), then Save |
+
+The port removed the footer's change **count** and its **detail** line (the comma-joined names of every pending field on both cards), and the idle "Saved settings match the modem" line: `ApplyFoot`'s `copy` no longer has `count` or `detail` keys, and this page no longer passes `idle`. The dirty rows themselves carry which fields are pending. The ghost "Re-read from modem" secondary became the `RefreshButton`. The `core_settings.basic.footer.reread` / `in_sync` keys remain in the catalogs, unread by this page.
 
 #### Why one clock per band
 
@@ -639,7 +650,7 @@ const refresh = useCallback(() => {
 }, [fetchSettings]);
 ```
 
-`fetchSettings(silent = false)` was previously exported directly as `refresh`. Both call sites pass it as a bare handler (`onClick={form.refresh}`), so React handed it a `MouseEvent` as the `silent` argument — and a `MouseEvent` is truthy. **Try again** and **Re-read from modem** therefore both ran in silent mode by accident: no spinner, no loading feedback, a button that looked inert while working.
+`fetchSettings(silent = false)` was previously exported directly as `refresh`. Both call sites pass it as a bare handler (`onClick={form.refresh}`), so React handed it a `MouseEvent` as the `silent` argument — and a `MouseEvent` is truthy. **Try again** and the footer's re-read action therefore both ran in silent mode by accident: no spinner, no loading feedback, a button that looked inert while working.
 
 This is a general trap, not a one-off. Any function with an optional leading boolean is unsafe to hand straight to `onClick`; wrap it.
 

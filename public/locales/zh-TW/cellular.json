@@ -291,7 +291,7 @@
     },
     "settings_card": {
       "band_failover_label": "頻段故障轉移",
-      "band_failover_tooltip": "如果鎖定的頻段在約 5 秒內沒有訊號，數據機將恢復使用所有支援的頻段。",
+      "band_failover_tooltip": "如果鎖定的頻段在約 30 秒內沒有訊號，數據機將恢復使用所有支援的頻段。",
       "band_failover_info_aria": "頻段故障轉移說明",
       "status": {
         "disabled": "已停用",

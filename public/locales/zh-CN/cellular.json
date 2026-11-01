@@ -291,7 +291,7 @@
     },
     "settings_card": {
       "band_failover_label": "频段故障转移",
-      "band_failover_tooltip": "如果锁定的频段在约 5 秒内没有信号，调制解调器将恢复使用所有支持的频段。",
+      "band_failover_tooltip": "如果锁定的频段在约 30 秒内没有信号，调制解调器将恢复使用所有支持的频段。",
       "band_failover_info_aria": "频段故障转移说明",
       "status": {
         "disabled": "已禁用",

@@ -258,7 +258,7 @@ const BandLockingComponent = () => {
           description={t(`${K}.scenario_gate_note`)}
           action={
             <Link
-              href="/cellular/custom-profiles/connection-scenarios/"
+              href="/cellular/custom-profiles/"
               className={bannerActionVariants({ tone: "primary" })}
             >
               {t(`${K}.scenario_gate_action`)}

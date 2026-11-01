@@ -291,7 +291,7 @@
     },
     "settings_card": {
       "band_failover_label": "Failover della banda",
-      "band_failover_tooltip": "Se le bande bloccate non trovano segnale entro circa 5 secondi, il modem torna a tutte le bande supportate.",
+      "band_failover_tooltip": "Se le bande bloccate non trovano segnale entro circa 30 secondi, il modem torna a tutte le bande supportate.",
       "band_failover_info_aria": "Informazioni sul failover della banda",
       "status": {
         "disabled": "Disabilitato",
