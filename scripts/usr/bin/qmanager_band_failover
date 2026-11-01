@@ -52,7 +52,8 @@ MAX_CHECKS=5     # number of checks after settle (total monitoring: 5 + 5*5 = 30
 echo $$ > "$PID_FILE"
 
 cleanup() {
-    rm -f "$PID_FILE"
+    # Only our own pid file: a newer watcher may already own it.
+    [ "$(cat "$PID_FILE" 2>/dev/null)" = "$$" ] && rm -f "$PID_FILE"
 }
 # Without the explicit exit, TERM only ran cleanup and the watcher kept going.
 trap cleanup EXIT
