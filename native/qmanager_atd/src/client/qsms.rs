@@ -2,6 +2,7 @@
 //! Any other model: AT through the broker socket first, never run twice, like qcmd.
 
 use super::transport::{try_broker_raw, Broker};
+use crate::at::qcmap::Qcmap;
 use crate::at::exec::{self, Executor};
 use crate::at::new_channel;
 use crate::at::output::Code;
@@ -72,7 +73,7 @@ pub(crate) fn run_qsms(args: &[String]) -> i32 {
             match LockFile::open_or_create_modem() {
                 Ok(lock) => {
                     let mut ch = new_channel();
-                    sms::run(&mut Executor { ch: &mut ch, lock: &lock, log: &log }, &op, Duration::ZERO)
+                    sms::run(&mut Executor { ch: &mut ch, lock: &lock, log: &log, qcmap: Qcmap::system() }, &op, Duration::ZERO)
                 }
                 Err(_) => (false, client_fail(&op, Code::ModemBusy)),
             }

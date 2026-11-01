@@ -23,6 +23,7 @@
 
 use super::peer_gone;
 use crate::at::channel::{Channel, Device};
+use crate::at::qcmap::Qcmap;
 use crate::at::exec::{Executor, Outcome};
 use crate::at::output::Code;
 use crate::common::lock::LockFile;
@@ -99,7 +100,7 @@ pub(crate) struct ModemRunner<D: Device> {
 
 impl<D: Device> AtRunner for ModemRunner<D> {
     fn run(&mut self, req: &AtRequest, waited: Duration) -> Reply {
-        let mut ex = Executor { ch: &mut self.ch, lock: &self.lock, log: &self.log };
+        let mut ex = Executor { ch: &mut self.ch, lock: &self.lock, log: &self.log, qcmap: Qcmap::system() };
         match req {
             AtRequest::Req(cmd) => match ex.run_after(cmd, waited) {
                 Outcome::Ok(raw) => Reply::Ok(raw),

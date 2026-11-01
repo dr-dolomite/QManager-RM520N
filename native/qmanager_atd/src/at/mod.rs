@@ -5,6 +5,7 @@ pub mod channel;
 pub mod classify;
 pub mod exec;
 pub mod output;
+pub mod qcmap;
 
 use channel::{open_smd, Channel};
 

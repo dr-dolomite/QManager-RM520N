@@ -78,6 +78,8 @@ fn ask_broker(socket: &str, args: &[String], timeout: Duration) -> Option<(bool,
             Ok(0) => break,
             Ok(n) => buf.extend_from_slice(&tmp[..n]),
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            // SO_RCVTIMEO can fire a hair early: the deadline above decides.
+            Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
             Err(_) => return None,
         }
     }
