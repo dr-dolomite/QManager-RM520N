@@ -1,0 +1,71 @@
+{
+  "dns": {
+    "page_title": "Custom DNS",
+    "page_description": "Override carrier-assigned DNS servers with your preferred resolvers for all devices on the local network.",
+    "provider_custom": "Custom",
+    "placeholder_primary_dns": "e.g. 8.8.8.8",
+    "placeholder_secondary_dns": "e.g. 1.1.1.1",
+    "placeholder_primary_dns6": "e.g. 2606:4700:4700::1111",
+    "placeholder_secondary_dns6": "e.g. 2606:4700:4700::1001",
+    "error_at_least_one": "Enter at least one DNS server address",
+    "error_invalid_ipv4": "Enter a valid IPv4 address (e.g. 9.9.9.9).",
+    "error_invalid_ipv6": "Enter a valid IPv6 address (e.g. 2606:4700:4700::1111).",
+    "blocked_invalid": "Fix the highlighted address first.",
+    "blocked_too_many": "At most {{max}} servers in total. Clear one first.",
+    "toast_success_enabled": "Custom DNS applied successfully",
+    "toast_success_disabled": "Reverted to carrier DNS",
+    "toast_error_apply": "Could not apply the DNS settings",
+    "error_load_title": "Could not read DNS settings",
+    "error_load_desc": "The modem did not answer. Check the connection and try again.",
+    "unavailable_title": "DNS mode is {{mode}}, not PROXY",
+    "unavailable_desc": "The mode lives in /etc/data/mobileap_cfg.xml and has to be changed outside QManager. Until it reads PROXY, saving here would have no effect.",
+    "banner_corrupt_title": "QManager's block in dnsmasq.conf looks malformed",
+    "banner_corrupt_desc": "A begin marker without its end, or the reverse. The upstream list below may not reflect what dnsmasq is actually using. Check /etc/data/dnsmasq.conf over SSH before saving.",
+    "action_discard": "Discard",
+    "action_check_again": "Check again",
+    "cards": {
+      "resolver": {
+        "title": "Resolver",
+        "description": "Which DNS servers the devices on your network are given."
+      },
+      "ipv4": {
+        "title": "IPv4 Servers",
+        "description": "Tried in order. Four servers at most across both lists."
+      },
+      "ipv6": {
+        "title": "IPv6 Servers",
+        "description": "For devices that use IPv6. They count toward the four."
+      }
+    },
+    "rows": {
+      "mode": {
+        "label": "Custom DNS",
+        "consequence_on": "Devices on your network use the servers below.",
+        "consequence_off": "Devices use the servers your carrier assigns."
+      },
+      "provider": {
+        "label": "Provider",
+        "consequence": "Fills both server lists. Editing an address makes it Custom."
+      },
+      "ignore_carrier": {
+        "label": "Never fall back to carrier DNS",
+        "consequence_on": "On, a lookup fails outright when your resolvers are unreachable rather than leaking to the carrier.",
+        "consequence_off": "If your servers are unreachable, lookups fall back to the carrier's."
+      },
+      "answering": {
+        "label": "Answering now",
+        "source_custom": "Your servers, as applied on the modem.",
+        "source_carrier": "Assigned by the carrier on the last attach.",
+        "source_unknown": "The modem could not tell where these came from.",
+        "none": "None reported"
+      },
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "tertiary": "Tertiary",
+      "slot_n": "Server {{n}}"
+    }
+  },
+  "traffic_engine": {
+    "page_title": "Traffic Engine"
+  }
+}

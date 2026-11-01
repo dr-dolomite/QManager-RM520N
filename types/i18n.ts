@@ -14,7 +14,8 @@ export type Namespace =
   | "system-settings"
   | "system-health-check"
   | "errors"
-  | "onboarding";
+  | "onboarding"
+  | "local-network";
 
 export interface LanguageMeta {
   code: LanguageCode;

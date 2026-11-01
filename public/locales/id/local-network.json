@@ -1,0 +1,71 @@
+{
+  "dns": {
+    "page_title": "DNS Kustom",
+    "page_description": "Timpa server DNS yang ditetapkan operator dengan resolver pilihan Anda untuk semua perangkat di jaringan lokal.",
+    "provider_custom": "Kustom",
+    "placeholder_primary_dns": "contoh: 8.8.8.8",
+    "placeholder_secondary_dns": "contoh: 1.1.1.1",
+    "placeholder_primary_dns6": "contoh: 2606:4700:4700::1111",
+    "placeholder_secondary_dns6": "contoh: 2606:4700:4700::1001",
+    "error_at_least_one": "Masukkan setidaknya satu alamat server DNS",
+    "error_invalid_ipv4": "Masukkan alamat IPv4 yang valid (contoh: 9.9.9.9).",
+    "error_invalid_ipv6": "Masukkan alamat IPv6 yang valid (contoh: 2606:4700:4700::1111).",
+    "blocked_invalid": "Perbaiki dulu alamat yang ditandai.",
+    "blocked_too_many": "Maksimal {{max}} server secara total. Kosongkan satu dulu.",
+    "toast_success_enabled": "DNS kustom berhasil diterapkan",
+    "toast_success_disabled": "Kembali ke DNS operator",
+    "toast_error_apply": "Tidak dapat menerapkan pengaturan DNS",
+    "error_load_title": "Tidak dapat membaca pengaturan DNS",
+    "error_load_desc": "Modem tidak merespons. Periksa koneksi lalu coba lagi.",
+    "unavailable_title": "Mode DNS adalah {{mode}}, bukan PROXY",
+    "unavailable_desc": "Mode ini tersimpan di /etc/data/mobileap_cfg.xml dan harus diubah di luar QManager. Sampai nilainya PROXY, menyimpan di sini tidak akan berpengaruh.",
+    "banner_corrupt_title": "Blok QManager di dnsmasq.conf tampak rusak",
+    "banner_corrupt_desc": "Ada penanda awal tanpa penanda akhir, atau sebaliknya. Daftar upstream di bawah mungkin tidak mencerminkan yang benar-benar dipakai dnsmasq. Periksa /etc/data/dnsmasq.conf lewat SSH sebelum menyimpan.",
+    "action_discard": "Buang",
+    "action_check_again": "Periksa lagi",
+    "cards": {
+      "resolver": {
+        "title": "Resolver",
+        "description": "Server DNS yang diberikan ke perangkat di jaringan Anda."
+      },
+      "ipv4": {
+        "title": "Server IPv4",
+        "description": "Dicoba berurutan. Maksimal empat server dari kedua daftar."
+      },
+      "ipv6": {
+        "title": "Server IPv6",
+        "description": "Untuk perangkat yang memakai IPv6. Ikut dihitung dalam empat."
+      }
+    },
+    "rows": {
+      "mode": {
+        "label": "DNS Kustom",
+        "consequence_on": "Perangkat di jaringan Anda memakai server di bawah.",
+        "consequence_off": "Perangkat memakai server yang ditetapkan operator."
+      },
+      "provider": {
+        "label": "Penyedia",
+        "consequence": "Mengisi kedua daftar server. Mengubah alamat menjadikannya Kustom."
+      },
+      "ignore_carrier": {
+        "label": "Jangan pernah beralih ke DNS operator",
+        "consequence_on": "Jika aktif, kueri langsung gagal saat resolver Anda tidak terjangkau, bukan bocor ke operator.",
+        "consequence_off": "Jika server Anda tidak terjangkau, kueri beralih ke server operator."
+      },
+      "answering": {
+        "label": "Menjawab sekarang",
+        "source_custom": "Server Anda, sudah diterapkan di modem.",
+        "source_carrier": "Ditetapkan operator saat attach terakhir.",
+        "source_unknown": "Modem tidak tahu asal server ini.",
+        "none": "Tidak ada yang dilaporkan"
+      },
+      "primary": "Primer",
+      "secondary": "Sekunder",
+      "tertiary": "Tersier",
+      "slot_n": "Server {{n}}"
+    }
+  },
+  "traffic_engine": {
+    "page_title": "Traffic Engine"
+  }
+}

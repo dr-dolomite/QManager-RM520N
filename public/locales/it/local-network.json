@@ -1,0 +1,71 @@
+{
+  "dns": {
+    "page_title": "DNS personalizzato",
+    "page_description": "Sostituisci i server DNS assegnati dall'operatore con i tuoi risolutori preferiti per tutti i dispositivi sulla rete locale.",
+    "provider_custom": "Personalizzato",
+    "placeholder_primary_dns": "ad es. 8.8.8.8",
+    "placeholder_secondary_dns": "ad es. 1.1.1.1",
+    "placeholder_primary_dns6": "ad es. 2606:4700:4700::1111",
+    "placeholder_secondary_dns6": "ad es. 2606:4700:4700::1001",
+    "error_at_least_one": "Inserisci almeno un indirizzo server DNS",
+    "error_invalid_ipv4": "Inserisci un indirizzo IPv4 valido (ad es. 9.9.9.9).",
+    "error_invalid_ipv6": "Inserisci un indirizzo IPv6 valido (ad es. 2606:4700:4700::1111).",
+    "blocked_invalid": "Correggi prima l'indirizzo evidenziato.",
+    "blocked_too_many": "Al massimo {{max}} server in totale. Svuotane uno prima.",
+    "toast_success_enabled": "La personalizzazione DNS è stata applicata correttamente",
+    "toast_success_disabled": "Ripristinato all'operatore DNS",
+    "toast_error_apply": "Impossibile applicare le impostazioni DNS",
+    "error_load_title": "Impossibile leggere le impostazioni DNS",
+    "error_load_desc": "Il modem non ha risposto. Controlla la connessione e riprova.",
+    "unavailable_title": "La modalità DNS è {{mode}}, non PROXY",
+    "unavailable_desc": "La modalità si trova in /etc/data/mobileap_cfg.xml e va cambiata fuori da QManager. Finché non riporta PROXY, salvare qui non avrebbe alcun effetto.",
+    "banner_corrupt_title": "Il blocco di QManager in dnsmasq.conf sembra malformato",
+    "banner_corrupt_desc": "Un marcatore di inizio senza quello di fine, o viceversa. L'elenco di upstream qui sotto potrebbe non riflettere ciò che dnsmasq sta davvero usando. Controlla /etc/data/dnsmasq.conf via SSH prima di salvare.",
+    "action_discard": "Annulla modifiche",
+    "action_check_again": "Ricontrolla",
+    "cards": {
+      "resolver": {
+        "title": "Resolver",
+        "description": "Quali server DNS ricevono i dispositivi della tua rete."
+      },
+      "ipv4": {
+        "title": "Server IPv4",
+        "description": "Provati in ordine. Al massimo quattro server tra i due elenchi."
+      },
+      "ipv6": {
+        "title": "Server IPv6",
+        "description": "Per i dispositivi che usano IPv6. Contano nei quattro."
+      }
+    },
+    "rows": {
+      "mode": {
+        "label": "DNS personalizzato",
+        "consequence_on": "I dispositivi della rete usano i server qui sotto.",
+        "consequence_off": "I dispositivi usano i server assegnati dall'operatore."
+      },
+      "provider": {
+        "label": "Provider",
+        "consequence": "Compila entrambi gli elenchi. Modificare un indirizzo lo rende Personalizzato."
+      },
+      "ignore_carrier": {
+        "label": "Non ricorrere mai al DNS dell'operatore",
+        "consequence_on": "Se attivo, quando i tuoi resolver non sono raggiungibili la richiesta fallisce del tutto invece di finire all'operatore.",
+        "consequence_off": "Se i tuoi server non sono raggiungibili, le richieste passano ai server dell'operatore."
+      },
+      "answering": {
+        "label": "Risponde ora",
+        "source_custom": "I tuoi server, applicati sul modem.",
+        "source_carrier": "Assegnati dall'operatore all'ultimo aggancio.",
+        "source_unknown": "Il modem non sa da dove provengano.",
+        "none": "Nessuno riportato"
+      },
+      "primary": "Primario",
+      "secondary": "Secondario",
+      "tertiary": "Terziario",
+      "slot_n": "Server {{n}}"
+    }
+  },
+  "traffic_engine": {
+    "page_title": "Traffic Engine"
+  }
+}
