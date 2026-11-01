@@ -467,15 +467,23 @@
       },
       "group": {
         "hostnames": "Nama host",
-        "fallback": "Cadangan IPv4"
+        "fallback": "Cadangan IPv4",
+        "sensitivity": "Sensitivitas"
       },
       "fallback_hint": "Tidak perlu DNS, jadi gangguan resolver tidak dianggap sebagai pemadaman.",
       "fallback_hint_label": "Tentang cadangan IPv4",
       "interval": {
         "label": "Interval probe",
-        "value": "Setiap {{seconds}} detik"
+        "value": "Setiap {{seconds}} detik",
+        "override": "Setiap {{seconds}} detik (Watchdog)"
       },
-      "failed": "Gagal menyimpan"
+      "failed": "Gagal menyimpan",
+      "profile": {
+        "sensitive": "Sensitif",
+        "regular": "Reguler",
+        "relaxed": "Santai",
+        "quiet": "Senyap"
+      }
     },
     "thresholds": {
       "title": "Ambang Kualitas",
@@ -489,7 +497,8 @@
       "preset": {
         "standard": "Standar",
         "tolerant": "Toleran",
-        "very_tolerant": "Sangat toleran"
+        "very_tolerant": "Sangat toleran",
+        "custom": "Kustom"
       },
       "unsaved": "Belum tersimpan",
       "save": "Simpan Ambang",
@@ -504,13 +513,15 @@
       },
       "row": {
         "flags": "Ditandai setelah",
-        "now": "Saat ini"
+        "now": "Saat ini",
+        "limit": "Batas"
       },
       "flags": {
         "latency_one": "{{count}} sampel di atas {{ms}} ms",
         "latency_other": "{{count}} sampel di atas {{ms}} ms",
         "loss_one": "{{count}} sampel pada {{pct}}% atau lebih",
-        "loss_other": "{{count}} sampel pada {{pct}}% atau lebih"
+        "loss_other": "{{count}} sampel pada {{pct}}% atau lebih",
+        "pending": "Masukkan batas"
       },
       "now": {
         "latency": "{{ms}} ms",
@@ -521,7 +532,14 @@
         "over_loss": "Melebihi batas {{pct}}%"
       },
       "default_chip": "Nilai bawaan",
-      "failed": "Gagal menyimpan"
+      "failed": "Gagal menyimpan",
+      "unit": {
+        "latency": "ms",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "Masukkan bilangan bulat dari {{min}} sampai {{max}}."
+      }
     }
   },
   "software_update": {

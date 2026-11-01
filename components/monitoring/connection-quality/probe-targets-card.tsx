@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import {
   ArrowUpRightIcon,
+  CheckIcon,
   CircleAlertIcon,
   CircleCheckIcon,
   CircleDashedIcon,
@@ -31,11 +32,18 @@ import { CardFoot } from "@/components/ui/card-foot";
 import { HintIcon } from "@/components/ui/hint-icon";
 import { Input } from "@/components/ui/input";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
+import {
+  SEGMENTED,
+  SegmentedField,
+  type SegmentedOption,
+} from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useModemStatus } from "@/hooks/use-modem-status";
-import type {
-  PingProfileTargets,
-  UsePingProfileReturn,
+import {
+  PING_PROFILES,
+  type PingProfile,
+  type PingProfileTargets,
+  type UsePingProfileReturn,
 } from "@/hooks/use-ping-profile";
 import { cn } from "@/lib/utils";
 import type { ConnectivityStatus } from "@/types/modem-status";
@@ -58,7 +66,9 @@ import {
   GROUP_HEAD,
   HOSTNAME_LEGS,
   LEG,
+  METRIC_HEAD,
   PILL_GLYPH,
+  PROFILE_INTERVAL_SEC,
   ROW,
   ROW_STACK,
   SKELETON_LOCAL,
@@ -66,14 +76,15 @@ import {
   type SlotKey,
 } from "./shapes";
 
-// Probe Targets: the four endpoints the modem pings, in probe order. Cadence
-// and the failure threshold belong to the Watchdog, linked from the interval row.
+// Probe Targets: the sensitivity profile and the four endpoints the modem pings, in
+// probe order. A cadence set on the Watchdog page overrides the profile's own.
 
 const K = "connection_quality.targets";
 const WATCHDOG_HREF = "/monitoring/watchdog/";
 
 /** The seeded chain, so a restore lands where a fresh install would. */
 const DEFAULT_TARGETS: PingProfileTargets = {
+  profile: "relaxed",
   target_host_1: "cloudflare.com",
   target_host_2: "google.com",
   target_ip_1: "1.1.1.1",
@@ -81,6 +92,10 @@ const DEFAULT_TARGETS: PingProfileTargets = {
 };
 
 const PLACEHOLDER: Record<SlotKey, string> = DEFAULT_TARGETS;
+
+const renderCheckGlyph = (className: string) => (
+  <CheckIcon size={SEGMENTED.GLYPH} className={className} aria-hidden="true" />
+);
 
 /** Label leaf per slot; the key says which leg, never the config key name. */
 const LABEL_LEAF: Record<SlotKey, string> = {
@@ -241,7 +256,7 @@ export default function ProbeTargetsCard({
             profile={profile}
             targets={targets}
             answered={verdict?.index ?? -1}
-            intervalSec={statusLoading ? undefined : (connectivity?.history_interval_sec ?? null)}
+            liveInterval={connectivity?.history_interval_sec}
           />
         )}
       </CardContent>
@@ -254,6 +269,15 @@ export default function ProbeTargetsCard({
 function ProbeTargetsSkeleton(): React.JSX.Element {
   return (
     <>
+      <div className={GROUP}>
+        <div className={METRIC_HEAD}>
+          <span className={cn(EYEBROW, "mr-auto")}>
+            <Skeleton className={cn(SKELETON_LOCAL.EYEBROW, "inline-block w-20 align-middle")} />
+          </span>
+          <Skeleton className={SKELETON_LOCAL.SEGMENT} />
+        </div>
+        <IntervalRowSkeleton />
+      </div>
       {[0, 1].map((group) => (
         <div key={group} className={GROUP}>
           <div className={GROUP_HEAD}>
@@ -269,9 +293,7 @@ function ProbeTargetsSkeleton(): React.JSX.Element {
           </div>
         </div>
       ))}
-      <IntervalRowSkeleton />
       <CardFoot
-        className="mt-0"
         liveStatus={false}
         actions={
           <>
@@ -286,7 +308,7 @@ function ProbeTargetsSkeleton(): React.JSX.Element {
 
 function IntervalRowSkeleton(): React.JSX.Element {
   return (
-    <div className={cn(ROW.ROOT, "mt-auto")} aria-hidden="true">
+    <div className={ROW.ROOT} aria-hidden="true">
       <Skeleton className={cn(SKELETON_LOCAL.ROW_TEXT, "w-24")} />
       <Skeleton className={cn(SKELETON_LOCAL.ROW_TEXT, "w-20")} />
     </div>
@@ -301,18 +323,18 @@ interface ProbeChainProps {
   targets: PingProfileTargets;
   /** The answering leg's index in the SAVED chain, or -1. */
   answered: number;
-  /** `undefined` while the modem status loads, `null` when it does not report one. */
-  intervalSec: number | null | undefined;
+  /** The poller's live probe interval; absent until the status reports one. */
+  liveInterval: number | undefined;
 }
 
 function ProbeChain({
   profile,
   targets,
   answered,
-  intervalSec,
+  liveInterval,
 }: ProbeChainProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
-  const { isSaving, save } = profile;
+  const { isSaving, save, intervalOverride } = profile;
   const { saved, markSaved } = useSaveFlash();
 
   // Edits are HELD and overlaid on the server values, never synced by an effect.
@@ -322,11 +344,14 @@ function ProbeChain({
 
   const values = React.useMemo(() => {
     const out = {} as PingProfileTargets;
+    out.profile = edits.profile ?? targets.profile;
     for (const slot of SLOT_ORDER) out[slot] = edits[slot] ?? targets[slot];
     return out;
   }, [edits, targets]);
 
-  const isDirty = SLOT_ORDER.some((slot) => values[slot] !== targets[slot]);
+  const isDirty =
+    values.profile !== targets.profile ||
+    SLOT_ORDER.some((slot) => values[slot] !== targets[slot]);
   const hasEdits = SLOT_ORDER.some((slot) => edits[slot] !== undefined);
   const hasValidationErrors = SLOT_ORDER.some((slot) => errors[slot]);
   const canSave = isDirty && !isSaving && !hasValidationErrors;
@@ -334,6 +359,11 @@ function ProbeChain({
   const setSlot = (slot: SlotKey, value: string) => {
     setEdits((prev) => ({ ...prev, [slot]: value }));
     setErrors((prev) => ({ ...prev, [slot]: validateSlot(slot, value) }));
+    setFailed(false);
+  };
+
+  const setProfile = (next: PingProfile) => {
+    setEdits((prev) => ({ ...prev, profile: next }));
     setFailed(false);
   };
 
@@ -355,6 +385,7 @@ function ProbeChain({
     if (SLOT_ORDER.some((slot) => submitErrors[slot])) return;
 
     const payload: PingProfileTargets = {
+      profile: values.profile,
       target_host_1: values.target_host_1.trim(),
       target_host_2: values.target_host_2.trim(),
       target_ip_1: values.target_ip_1.trim(),
@@ -433,10 +464,45 @@ function ProbeChain({
     );
   };
 
-  const hasInterval = typeof intervalSec === "number" && intervalSec > 0;
+  const profileOptions: SegmentedOption<PingProfile>[] = PING_PROFILES.map((p) => ({
+    value: p,
+    label: t(`${K}.profile.${p}`),
+  }));
+
+  // A Watchdog cadence wins over any profile; otherwise an edited profile previews its own.
+  const intervalSec =
+    intervalOverride ??
+    (values.profile === targets.profile
+      ? (liveInterval ?? PROFILE_INTERVAL_SEC[values.profile])
+      : PROFILE_INTERVAL_SEC[values.profile]);
 
   return (
     <>
+      <div className={GROUP}>
+        <div className={METRIC_HEAD}>
+          <span className={cn(EYEBROW, "mr-auto")}>{t(`${K}.group.sensitivity`)}</span>
+          <SegmentedField
+            value={values.profile}
+            onValueChange={setProfile}
+            options={profileOptions}
+            ariaLabel={t(`${K}.group.sensitivity`)}
+            breakpoint="lg"
+            glyph={renderCheckGlyph}
+          />
+        </div>
+        <div className={ROW.ROOT}>
+          <span className={ROW.KEY}>{t(`${K}.interval.label`)}</span>
+          <span className={ROW.VALUE}>
+            <Link href={WATCHDOG_HREF} className={cn(ROW.LINK, FOCUS_RING)}>
+              {t(intervalOverride === null ? `${K}.interval.value` : `${K}.interval.override`, {
+                seconds: intervalSec,
+              })}
+              <ArrowUpRightIcon aria-hidden="true" className={ROW.LINK_GLYPH} />
+            </Link>
+          </span>
+        </div>
+      </div>
+
       <div className={GROUP}>
         <div className={GROUP_HEAD}>
           <span className={EYEBROW}>{t(`${K}.group.hostnames`)}</span>
@@ -460,23 +526,7 @@ function ProbeChain({
         </div>
       </div>
 
-      {/* Slack sits above this row, so the foot stays on the card's bottom edge. */}
-      {intervalSec === undefined ? (
-        <IntervalRowSkeleton />
-      ) : hasInterval ? (
-        <div className={cn(ROW.ROOT, "mt-auto")}>
-          <span className={ROW.KEY}>{t(`${K}.interval.label`)}</span>
-          <span className={ROW.VALUE}>
-            <Link href={WATCHDOG_HREF} className={cn(ROW.LINK, FOCUS_RING)}>
-              {t(`${K}.interval.value`, { seconds: intervalSec })}
-              <ArrowUpRightIcon aria-hidden="true" className={ROW.LINK_GLYPH} />
-            </Link>
-          </span>
-        </div>
-      ) : null}
-
       <CardFoot
-        className={hasInterval || intervalSec === undefined ? "mt-0" : undefined}
         status={
           failed ? (
             <span className={FAILED.ROOT}>

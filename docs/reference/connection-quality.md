@@ -32,7 +32,7 @@
 | Daemon reload flag | `/tmp/qmanager_ping_reload` |
 | Probe Targets CGI | `GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh` |
 | Quality Thresholds CGI | `GET/POST /cgi-bin/quecmanager/settings/quality_thresholds.sh` |
-| Quality Thresholds config | `/etc/qmanager/quality_thresholds.json` — `latency.preset`, `loss.preset`, `alert_after_min`; merge-written; read by the poller, `events.sh` and `alert_engine.sh` through `conn_state.sh` |
+| Quality Thresholds config | `/etc/qmanager/quality_thresholds.json` — `latency.preset` (+ `latency.custom_ms`), `loss.preset` (+ `loss.custom_pct`), `alert_after_min`; merge-written; read by the poller, `events.sh` and `alert_engine.sh` through `conn_state.sh` |
 | Quality reload flag | `/tmp/qmanager_events_reload` (consumed by `cq_thresholds_refresh` in the poller) |
 | Poller status output | `/tmp/qmanager_status.json` → `connectivity` block (typed as `ConnectivityStatus` in `types/modem-status.ts`) |
 | Dashboard "Internet" chip | `buildInternetChip()` in `components/dashboard/network-status.tsx` — reads `connectivity.status` and nothing else |
@@ -226,7 +226,7 @@ The per-leg deadlines were deliberately **not** shortened to buy a faster verdic
 
 `recover_secs` was **not** inflated to match. The success path short-circuits on leg 1, so a healthy cycle costs ~0.3s and the fixed-rate loop makes its period exactly `interval_sec`; every `recover_secs` above is at or over its own `interval_sec`, which is the only floor that path has. The degraded case (legs 1–3 dead, leg 4 answering, ~10s) recovers *later* than promised, which is the conservative direction.
 
-Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`) override the profile table when present and numeric. `interval_sec` is the one override a UI writes: `settings/ping_profile.sh` accepts it directly (1–60), and the Watchdog page writes it through `monitoring/watchdog.sh` (see [one owner, two write paths](#ping_profilejson--one-owner-two-write-paths)). A save that **changes `profile` without sending `interval_sec` deletes the stored override**, so the new profile's cadence applies instead of an old number shadowing it. `conn_state_cadence` resolves the effective cadence the same way `resolve_profile()` does (override, else the profile table); both CGIs' GETs report that value.
+Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`) override the profile table when present and numeric. `interval_sec` is the one override a UI writes: `settings/ping_profile.sh` accepts it directly (1–60), and the Watchdog page writes it through `monitoring/watchdog.sh` (see [one owner, two write paths](#ping_profilejson--one-owner-two-write-paths)). A stored `interval_sec` is the cadence the **Watchdog page owns**, and a profile save **never removes it** (user decision, 2026-11-02). The profile still sets the debounce windows (`fail_secs` / `recover_secs`), but while an override is stored it also shadows the profile's cadence, so the UI shows "Every N s (Watchdog)" and links to the Watchdog page. There is no separate ownership marker: any stored `interval_sec` counts, and the only writers are the Watchdog page's changed-value save and an explicit `interval_sec` in a `ping_profile.sh` POST (which no UI sends). Nothing in the UI removes the key: `watchdog.sh` writes `.interval_sec` whenever the posted Probe every differs from the effective cadence, so once any Watchdog cadence is saved it stays, and the profile selector only changes the debounce windows from then on. Clearing it means deleting the key by hand (or a new clear path, not built). `conn_state_cadence` resolves the effective cadence the same way `resolve_profile()` does (override, else the profile table); both CGIs' GETs report that value.
 
 **The complete set of config keys the daemon reads** is: `profile`, the four target slots `target_host_1` / `target_host_2` / `target_ip_1` / `target_ip_2`, and those four optional numeric overrides. Every target slot is defaulted **independently** in `load_config()`, so a device that somehow missed the installer's migration probes the four documented defaults *correctly* — not merely without crashing. The legacy keys (`target_ipv4`, `target_ipv6`, and the HTTP-era `target_1` / `target_2`) are **not** read here at all; carrying a user's customised value across is the [migration's](#ota-migration) job, and doing it in both places would make the migration untestable.
 
@@ -325,7 +325,7 @@ From those, in a single pass, it derives the `connectivity` block written into `
 | `last_outage_wan_ip` | The WAN address held when it cleared: IPv4, else IPv6, else `null` |
 | `last_outage_wan_changed` | `true` / `false` — whether that address differs from the pre-outage one (IPv4 compared first, IPv6 when an IPv4 side is unknown); `null` when either side is unknown |
 
-> ℹ️ NOTE: the four `last_outage_*` keys are additive (2026-11-01) and set together by `last_outage_fields` in `qmanager_poller`. All four are `null` until an outage clears this boot, and also on a cycle where `_MONO_TOP` is `0` (uptime unreadable). The dashboard Connection Quality card draws its **Last outage** row only when `last_outage_s` is present in the block (`!== undefined`): an older poller omits the keys and the row disappears, while `null` renders "None". The row shows the duration and its age, e.g. `1m 46s (12m ago)`; when `last_outage_wan_ip` is set, the address and the same/new wording sit behind a hint icon.
+> ℹ️ NOTE: the four `last_outage_*` keys are additive (2026-11-01) and set together by `last_outage_fields` in `qmanager_poller`. All four are `null` until an outage clears this boot, and also on a cycle where `_MONO_TOP` is `0` (uptime unreadable). The dashboard Connection Quality card draws its **Last outage** row only when `last_outage_s` is present in the block (`!== undefined`): an older poller omits the keys and the row disappears, while `null` renders "None". The row shows the duration and its age, e.g. `1m 46s (12m ago)`; when `last_outage_wan_ip` is set, the address and the same/new wording sit behind a hint icon. The label never truncates: at a narrow tile the value wraps under it, with the hint icon kept beside the duration.
 
 > ⚠️ **Ratio statistics go null below `MIN_STAT_SAMPLES` (10).** `jitter_ms` and `packet_loss_pct` are ratios over the window, so unlike `min`/`avg`/`max` — point statistics that are honest at one sample — they say nothing until the window is long enough to carry one. The poller emits a real JSON `null` for both below the floor, using the same literal-`null` idiom the latency stats already used at zero valid samples.
 >
@@ -424,12 +424,12 @@ Both cards commit from `CardFoot` and follow the toast rule: a save fires `toast
 
 ### Probe Targets card (`probe-targets-card.tsx`)
 
-The card owns the **four probe slots** — `target_host_1`, `target_host_2`, `target_ip_1`, `target_ip_2` — in probe order (`SLOT_ORDER`). Layout, top to bottom:
+The card owns the **sensitivity profile** and the **four probe slots** — `target_host_1`, `target_host_2`, `target_ip_1`, `target_ip_2` — in probe order (`SLOT_ORDER`). Layout, top to bottom:
 
 - **Verdict chip** in the header (`CardAction`), one filled `Badge` from `legState()`. A skeleton stands in while the profile or the modem status loads; there is no chip when the profile GET failed.
+- **Sensitivity** group: a `SegmentedField` over `PING_PROFILES` (sensitive / regular / relaxed / quiet, check glyph, `breakpoint="lg"`), then the **Probe interval** pill row, "Every N s", linking to `/monitoring/watchdog/`. The row always renders. With a Watchdog override stored (`interval_override` from the GET) it reads "Every N s (Watchdog)" and ignores the draft profile; otherwise an unsaved profile previews its own cadence from `PROFILE_INTERVAL_SEC` (`shapes.ts`, mirrors `conn_state_cadence`) and the saved one shows `connectivity.history_interval_sec`. The profile windows stay RM520N's own (the table above), not RM551E's.
 - **Two groups.** *Hostnames* (legs 1–2) and *IPv4 fallback* (legs 3–4, the group's one `HintIcon`). Each leg is a numbered 28px disc beside a mono input; the disc of the answering leg fills `primary`.
-- **Probe interval** pill row, "Every N s", linking to `/monitoring/watchdog/` where the cadence is edited. It reads `connectivity.history_interval_sec` and is **not rendered** when that is absent or not a positive number (a skeleton while the status loads).
-- **Foot:** **Restore defaults** (`tonal-neutral`) fills the draft with `cloudflare.com`, `google.com`, `1.1.1.1`, `8.8.8.8` without saving; **Save Probe Targets** commits it.
+- **Foot:** **Restore defaults** (`tonal-neutral`) fills the draft with `relaxed` and `cloudflare.com`, `google.com`, `1.1.1.1`, `8.8.8.8` without saving; **Save Probe Targets** commits it. A profile change alone is a dirty draft.
 
 `legState()` reads the **saved** targets, never the draft, so typing in a field cannot move the chip:
 
@@ -455,13 +455,13 @@ Data flow: `usePingProfile` hook (`hooks/use-ping-profile.ts`) → `GET/POST /cg
 
 > ℹ️ Both hooks expose a **`refresh()`** as of 2026-09-06. Before that neither did, so a failed GET rendered a bare `Alert` printing `HTTP <code>` at the user and the only recovery was a browser reload. The condition screens' Retry affordances are wired to it — do not add a retry button to this route without one behind it.
 
-- **GET** returns the label, the four slots and the **effective** cadence (`conn_state_cadence`: the stored override, else the profile table):
+- **GET** returns the label, the four slots, the **effective** cadence (`conn_state_cadence`: the stored override, else the profile table) and `interval_override` (the stored `interval_sec` when it is all digits and at least 1, as a number or a digit string, else `null`; additive. The ping daemon, `conn_state_cadence` and this field apply the same rule):
 
   ```json
-  { "success": true, "settings": { "profile": "relaxed", "interval_sec": 5, "fail_secs": 30, "recover_secs": 10,
+  { "success": true, "settings": { "profile": "relaxed", "interval_sec": 5, "interval_override": null, "fail_secs": 30, "recover_secs": 10,
     "target_host_1": "cloudflare.com", "target_host_2": "google.com", "target_ip_1": "1.1.1.1", "target_ip_2": "8.8.8.8" } }
   ```
-- **POST** sends `{ "action": "save_settings", "target_host_1": …, "target_host_2": …, "target_ip_1": …, "target_ip_2": … }`. All four target fields are required. `profile` is **optional** (one of `sensitive` / `regular` / `relaxed` / `quiet`; the stored label is kept when omitted). `interval_sec` is **optional** and, when the key is present, must be a JSON integer 1–60 (`0`, `61`, `5.5`, `"abc"`, `null`, `true` → `invalid_interval`). The CGI then performs an **atomic jq key-merge** — `profile` and the four slots always; `interval_sec` when posted; `del(.interval_sec)` when the profile changed and no `interval_sec` was posted; every other key, including unknown ones, passes through — and touches `/tmp/qmanager_ping_reload`.
+- **POST** sends `{ "action": "save_settings", "target_host_1": …, "target_host_2": …, "target_ip_1": …, "target_ip_2": … }`. All four target fields are required. `profile` is **optional** for the CGI (one of `sensitive` / `regular` / `relaxed` / `quiet`; the stored label is kept when omitted); the Probe Targets card always sends it. `interval_sec` is **optional** and, when the key is present, must be a JSON integer 1–60 (`0`, `61`, `5.5`, `"abc"`, `null`, `true` → `invalid_interval`). The CGI then performs an **atomic jq key-merge** — `profile` and the four slots always; `interval_sec` only when posted (a changed profile leaves a stored one alone); every other key, including unknown ones, passes through — and touches `/tmp/qmanager_ping_reload`.
 
 **Server-side target validation** (`validate_target()` in `scripts/www/cgi-bin/quecmanager/settings/ping_profile.sh`). Shared pre-checks for every slot: trimmed, non-empty, ≤ 128 characters, no interior whitespace (space or tab), and free of shell/HTML metacharacters (`` ` `` `$ ( ) ; | < > " \`). Then one of **two validator kinds**:
 
@@ -478,13 +478,16 @@ So the CGI **rejects a hostname in an IP slot**. That is the point of those two 
 
 **Short version:** this card decides *when a slow or lossy link gets flagged* — in the Network Events feed and, for loss, in the `degraded` status. It is not a recovery control: nothing here triggers a modem reset or SIM failover, and a degraded link never reaches an alert channel.
 
-It sets two independent presets — one for latency, one for packet loss — each `standard` / `tolerant` / `very-tolerant`. The table lives once, in `conn_state.sh` (`cq_preset_latency` / `cq_preset_loss`); the poller's `status` and the `events.sh` detector both read it. Debounce counts poll cycles and applies on **entry and exit**:
+It sets two independent presets — one for latency, one for packet loss — each `standard` / `tolerant` / `very-tolerant` / `custom`. The table lives once, in `conn_state.sh` (`cq_preset_latency` / `cq_preset_loss`); the poller's `status` and the `events.sh` detector both read it. Debounce counts poll cycles and applies on **entry and exit**:
 
 | Preset | Latency threshold / debounce | Loss threshold / debounce |
 |--------|------------------------------|---------------------------|
 | standard | 150 ms / 3 polls | 15 % / 3 polls |
 | tolerant *(default)* | 250 ms / 3 polls | 30 % / 3 polls |
 | very-tolerant | 500 ms / 2 polls | 50 % / 2 polls |
+| custom | the user's number, whole ms 1–10000 / 3 polls | the user's number, whole % 1–100 / 3 polls |
+
+**Custom** is stored as `latency.custom_ms` and `loss.custom_pct` beside the preset name (additive keys; no existing key was renamed, since there is no OTA migration primitive). `cq_preset_latency custom <ms>` / `cq_preset_loss custom <pct>` take the number as `$2`; a missing, non-integer or out-of-range number returns 1, and `cq_thresholds_load` then falls back to `tolerant`, so a half-written file never leaves a poller without a limit. Loss starts at 1, not RM551E's 0: the shell compares loss with `-ge`, so a 0 % cut would flag a link with no loss. A named-preset save keeps the stored custom number, so switching back to Custom reopens on it. The card shows a **Limit** pill row with a compact numeric input (field text is held while Custom is selected; an out-of-range entry shows the range error and disables Save).
 
 The same file also holds `alert_after_min`, the one wait before any channel hears about an outage (see [One detector, one alert](#one-detector-one-alert)). The card does not edit it yet; the Alerts page's per-channel field writes it.
 
@@ -504,12 +507,12 @@ Data flow: `useQualityThresholds` → `GET/POST /cgi-bin/quecmanager/settings/qu
 
   ```json
   { "success": true,
-    "settings": { "latency": { "preset": "tolerant", "value_ms": 250, "debounce": 3 },
-                  "loss": { "preset": "tolerant", "value_pct": 30, "debounce": 3 },
+    "settings": { "latency": { "preset": "tolerant", "value_ms": 250, "debounce": 3, "custom_ms": null },
+                  "loss": { "preset": "tolerant", "value_pct": 30, "debounce": 3, "custom_pct": null },
                   "alert_after_min": 5 },
     "is_default": true }
   ```
-- **POST** `{ "action": "save_settings", "latency": { "preset": … }, "loss": { "preset": … }, "alert_after_min": n }`. Both presets are required **unless** the POST carries only `alert_after_min`. `alert_after_min`, when present, is a whole number 1–1440 (`invalid_alert_after_min` otherwise). The write is `cq_quality_merge`: only the keys this POST carries change, unknown keys survive, and a file that is not a JSON object is replaced by `{}`.
+- **POST** `{ "action": "save_settings", "latency": { "preset": …, "custom_ms": n }, "loss": { "preset": …, "custom_pct": n }, "alert_after_min": n }`. Both presets are required **unless** the POST carries only `alert_after_min`. `custom_ms` / `custom_pct` are required, as JSON integers, only when that side's preset is `custom` (`invalid_custom_latency` / `invalid_custom_loss` otherwise). `alert_after_min`, when present, is a whole number 1–1440 (`invalid_alert_after_min` otherwise). The write is `cq_quality_merge`: only the keys this POST carries change, unknown keys survive, and a file that is not a JSON object is replaced by `{}`.
 
 > ⚠️ The file used to be rewritten from scratch with exactly two keys. It is merge-written now **because** it holds a third (`alert_after_min`) and `alerts.sh` writes it too. Never go back to a whole-file `jq -n` write here.
 
@@ -562,7 +565,7 @@ Connection Quality owns every key in `/etc/qmanager/ping_profile.json`. Two CGIs
 
 | CGI | Keys it writes | When | Reload flag |
 |-----|----------------|------|-------------|
-| `settings/ping_profile.sh` | `profile`, the four target slots, `interval_sec` (or `del(.interval_sec)` on a profile change) | Every save | `/tmp/qmanager_ping_reload` |
+| `settings/ping_profile.sh` | `profile`, the four target slots, `interval_sec` only when posted | Every save | `/tmp/qmanager_ping_reload` |
 | `monitoring/watchdog.sh` | `interval_sec` only | Only when the POSTed `probe_interval` **differs** from the current effective cadence | `/tmp/qmanager_ping_reload` |
 
 The Watchdog page's **Probe every** control is a view of `interval_sec`, not a second setting. `watchdog.sh` GET reports `probe_interval` = `conn_state_cadence`'s effective value; the redesigned page sends `probe_interval` with every per-card save, and the unchanged-value check is what stops a Ladder-card save from touching the cadence. `[watchcat].probe_interval` in `qmanager.conf` is never written or read by any CGI or daemon (the installer and the `config.sh` seed still create the key; it is inert). `propagate_probe_interval()` is gone.
@@ -632,7 +635,7 @@ The `limited` state is a **genuine capability loss**, and the 2026-09-01 chip fi
 |---------|--------|-------|---------|-----|
 | Probe cadence (how often) | `ping_profile.json.interval_sec` (override; else the profile table) | **Connection Quality** | `ping_profile.sh`; also the Watchdog page's Probe every, through `watchdog.sh` | this doc |
 | Probe targets (which hosts) | `ping_profile.json.target_host_1` / `target_host_2` / `target_ip_1` / `target_ip_2` | **Connection Quality** | Probe Targets card | this doc |
-| Profile label | `ping_profile.json.profile` | **Connection Quality** | `ping_profile.sh` (the card does not send it) | this doc |
+| Profile label | `ping_profile.json.profile` | **Connection Quality** | Probe Targets card, through `ping_profile.sh` | this doc |
 | Latency/loss thresholds and the `degraded` cut | `quality_thresholds.json.latency.preset` / `loss.preset` | **Connection Quality** | Quality Thresholds card | this doc |
 | Alert wait | `quality_thresholds.json.alert_after_min` | **Connection Quality** | written today by the Alerts page's per-channel field (`alerts.sh`) | this doc, [alerts.md](alerts.md) |
 | When recovery starts | `watchcat.fail_threshold` (× `interval_sec`, against `fail_elapsed_sec`) | **Watchdog** | Watchdog → Detection card | [connection-watchdog.md](connection-watchdog.md) |

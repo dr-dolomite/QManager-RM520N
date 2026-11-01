@@ -467,15 +467,23 @@
       },
       "group": {
         "hostnames": "Nomi host",
-        "fallback": "Riserva IPv4"
+        "fallback": "Riserva IPv4",
+        "sensitivity": "Sensibilità"
       },
       "fallback_hint": "Non serve il DNS, quindi un guasto del resolver non viene scambiato per un'interruzione.",
       "fallback_hint_label": "Informazioni sulla riserva IPv4",
       "interval": {
         "label": "Intervallo delle sonde",
-        "value": "Ogni {{seconds}} s"
+        "value": "Ogni {{seconds}} s",
+        "override": "Ogni {{seconds}} s (Watchdog)"
       },
-      "failed": "Salvataggio non riuscito"
+      "failed": "Salvataggio non riuscito",
+      "profile": {
+        "sensitive": "Sensibile",
+        "regular": "Normale",
+        "relaxed": "Rilassato",
+        "quiet": "Silenzioso"
+      }
     },
     "thresholds": {
       "title": "Soglie di qualità",
@@ -489,7 +497,8 @@
       "preset": {
         "standard": "Standard",
         "tolerant": "Tollerante",
-        "very_tolerant": "Molto tollerante"
+        "very_tolerant": "Molto tollerante",
+        "custom": "Personalizzato"
       },
       "unsaved": "Non salvato",
       "save": "Salva le soglie",
@@ -504,13 +513,15 @@
       },
       "row": {
         "flags": "Segnala dopo",
-        "now": "Adesso"
+        "now": "Adesso",
+        "limit": "Limite"
       },
       "flags": {
         "latency_one": "{{count}} campione oltre {{ms}} ms",
         "latency_other": "{{count}} campioni oltre {{ms}} ms",
         "loss_one": "{{count}} campione al {{pct}}% o più",
-        "loss_other": "{{count}} campioni al {{pct}}% o più"
+        "loss_other": "{{count}} campioni al {{pct}}% o più",
+        "pending": "Inserisci un limite"
       },
       "now": {
         "latency": "{{ms}} ms",
@@ -521,7 +532,14 @@
         "over_loss": "Oltre il limite del {{pct}}%"
       },
       "default_chip": "Valori predefiniti",
-      "failed": "Salvataggio non riuscito"
+      "failed": "Salvataggio non riuscito",
+      "unit": {
+        "latency": "ms",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "Inserisci un numero intero da {{min}} a {{max}}."
+      }
     }
   },
   "software_update": {
