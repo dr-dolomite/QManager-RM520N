@@ -2,52 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import type { MutationResult } from "@/types/mutation-result";
 
-// =============================================================================
-// useCdnHostlist — Traffic Engine Video Optimizer hostlist hook
-// =============================================================================
-// Reads the hostlist (?section=hostlist) and saves it (?action=save_hostlist).
-// The hostlist lives at /etc/qmanager/video_domains.txt; tpws hot-reloads it
-// (--hostlist-auto-reload), so a save takes effect without engine restart.
-//
-// Backend endpoint:
-//   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh
-//
-// -----------------------------------------------------------------------------
-// TWO FIELDS THAT WERE ALREADY ON THE WIRE AND WERE BEING THROWN AWAY
-// -----------------------------------------------------------------------------
-// `?section=hostlist` has always answered `{domains, default_domains, count}`
-// and `action=restore_hostlist` has always shipped in the CGI. This hook read
-// `json.domains` and discarded the rest, so the Restore defaults control could
-// not exist and nothing in the frontend could name the factory list. Both are
-// surfaced now — `defaultDomains` for the count the confirm dialog needs, and
-// `restoreDefaults` for the write itself.
-//
-// `count` is deliberately NOT surfaced. It is `domains | length` computed by
-// the same jq expression that emitted the array, so a second copy of a number
-// the caller can already derive is a second thing to keep in sync for no gain.
-// =============================================================================
+// Video Optimizer hostlist over network/video_optimizer.sh; tpws hot-reloads a
+// saved list. The caller holds the draft and passes the whole list to save.
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/video_optimizer.sh";
 
 export interface UseCdnHostlistReturn {
+  /** The saved list, as the device last answered it. */
   domains: string[];
-  /**
-   * The factory list the device shipped with, read from the same GET.
-   *
-   * Its only consumer is the Restore defaults confirm, which names how many
-   * domains are about to replace the saved list. It is a READ of the default
-   * file, not a preview of what `restoreDefaults` will write — the CGI copies
-   * the file itself rather than echoing this array back — so the two can only
-   * disagree if the file changes between the read and the write.
-   */
+  /** The factory list, read from the same GET (empty on an older CGI). */
   defaultDomains: string[];
   isLoading: boolean;
   isSaving: boolean;
+  isRestoring: boolean;
   error: string | null;
-  saveDomains: (domains: string[]) => Promise<boolean>;
-  restoreDefaults: () => Promise<boolean>;
-  refresh: () => void;
+  /** Writes the whole list. The CGI accepts an empty list; callers must refuse one. */
+  saveHostlist: (domains: string[]) => Promise<MutationResult>;
+  restoreDefaults: () => Promise<MutationResult>;
+  refresh: (silent?: boolean) => void;
 }
 
 export function useCdnHostlist(): UseCdnHostlistReturn {
@@ -55,6 +29,7 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
   const [defaultDomains, setDefaultDomains] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
@@ -80,9 +55,6 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
         return;
       }
       setDomains(Array.isArray(json.domains) ? json.domains : []);
-      // An older device whose CGI predates the field answers without it; an
-      // empty array is the honest reading of "no factory list here", and it is
-      // also what the CGI itself emits when the default file is missing.
       setDefaultDomains(Array.isArray(json.default_domains) ? json.default_domains : []);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -96,81 +68,63 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
     fetchHostlist();
   }, [fetchHostlist]);
 
-  const saveDomains = useCallback(
-    async (next: string[]): Promise<boolean> => {
+  /** One POST, its result returned so the caller toasts the real outcome. */
+  const post = useCallback(
+    async (
+      body: Record<string, unknown>,
+      setBusy: (busy: boolean) => void,
+      fallback: string,
+    ): Promise<MutationResult> => {
       setError(null);
-      setIsSaving(true);
+      setBusy(true);
       try {
         const resp = await authFetch(CGI_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "save_hostlist", domains: next }),
+          body: JSON.stringify(body),
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save hostlist");
-          return false;
+          const msg = json.detail || json.error || fallback;
+          setError(msg);
+          return { ok: false, error: msg };
         }
         await fetchHostlist(true);
-        return true;
+        return { ok: true, error: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save hostlist");
-        return false;
+        if (!mountedRef.current) return { ok: false, error: null };
+        const msg = err instanceof Error ? err.message : fallback;
+        setError(msg);
+        return { ok: false, error: msg };
       } finally {
-        if (mountedRef.current) setIsSaving(false);
+        if (mountedRef.current) setBusy(false);
       }
     },
     [fetchHostlist],
   );
 
-  /**
-   * `action=restore_hostlist`: the CGI copies the factory file over the live
-   * one. Same shape as `saveDomains` on purpose — same `isSaving` flag (it is
-   * still a write to the same file, and the card disables the same controls
-   * for it), same `detail || error` message order, same silent re-fetch so the
-   * list reconciles from the DEVICE rather than from a local guess at what the
-   * default contained, and the same boolean so the caller toasts on the real
-   * outcome instead of on having sent the request.
-   */
-  const restoreDefaults = useCallback(async (): Promise<boolean> => {
-    setError(null);
-    setIsSaving(true);
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "restore_hostlist" }),
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      const json = await resp.json();
-      if (!mountedRef.current) return false;
+  const saveHostlist = useCallback(
+    (next: string[]) =>
+      post({ action: "save_hostlist", domains: next }, setIsSaving, "Failed to save hostlist"),
+    [post],
+  );
 
-      if (!json.success) {
-        setError(json.detail || json.error || "Failed to restore hostlist");
-        return false;
-      }
-      await fetchHostlist(true);
-      return true;
-    } catch (err) {
-      if (!mountedRef.current) return false;
-      setError(err instanceof Error ? err.message : "Failed to restore hostlist");
-      return false;
-    } finally {
-      if (mountedRef.current) setIsSaving(false);
-    }
-  }, [fetchHostlist]);
+  const restoreDefaults = useCallback(
+    () => post({ action: "restore_hostlist" }, setIsRestoring, "Failed to restore hostlist"),
+    [post],
+  );
 
   return {
     domains,
     defaultDomains,
     isLoading,
     isSaving,
+    isRestoring,
     error,
-    saveDomains,
+    saveHostlist,
     restoreDefaults,
     refresh: fetchHostlist,
   };

@@ -18,7 +18,7 @@ export type DpiEngineStatus = "running" | "stopped" | "restarting" | "error";
  *
  * These strings are the WIRE values (config section, `?section=`, and the
  * `save_<mode>` action), not display labels: the UI reads its copy from
- * `trafficEngine.mode.*`.
+ * `local-network:traffic_engine.mode_*`.
  */
 export type DpiMode = "video_optimizer" | "full_bypass" | "none";
 

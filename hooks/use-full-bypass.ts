@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import type { MutationResult } from "@/types/mutation-result";
 import type { FullBypassStatus } from "@/types/traffic-engine";
 
 // =============================================================================
@@ -27,7 +28,7 @@ export interface UseFullBypassReturn {
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  save: (enabled: boolean, sniDomain: string) => Promise<boolean>;
+  save: (enabled: boolean, sniDomain: string) => Promise<MutationResult>;
   /**
    * Re-read the section. See `UseVideoOptimizerReturn.refresh` — the two hooks
    * are read together by one shell and must expose the same signature, or the
@@ -94,7 +95,7 @@ export function useFullBypass(): UseFullBypassReturn {
   }, [fetchStatus]);
 
   const save = useCallback(
-    async (enabled: boolean, sniDomain: string): Promise<boolean> => {
+    async (enabled: boolean, sniDomain: string): Promise<MutationResult> => {
       setError(null);
       setIsSaving(true);
       try {
@@ -105,18 +106,20 @@ export function useFullBypass(): UseFullBypassReturn {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save Full Bypass settings");
-          return false;
+          const msg = json.detail || json.error || "Failed to save Full Bypass settings";
+          setError(msg);
+          return { ok: false, error: msg };
         }
         await fetchStatus(true);
-        return true;
+        return { ok: true, error: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save Full Bypass settings");
-        return false;
+        if (!mountedRef.current) return { ok: false, error: null };
+        const msg = err instanceof Error ? err.message : "Failed to save Full Bypass settings";
+        setError(msg);
+        return { ok: false, error: msg };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }

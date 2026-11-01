@@ -1,125 +1,103 @@
 "use client";
 
-import * as React from "react";
-import { motion } from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
+import { motion } from "motion/react";
 import { toast } from "sonner";
-import { Loader2Icon, RefreshCcwIcon, Trash2Icon } from "lucide-react";
-
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { RefreshCcwIcon, TriangleAlertIcon } from "lucide-react";
+import { useMotionReduced } from "@/components/motion-preference";
 import { Banner, bannerActionVariants } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem } from "@/lib/motion";
-
 import { useCdnHostlist } from "@/hooks/use-cdn-hostlist";
 import { useFullBypass } from "@/hooks/use-full-bypass";
+import { useTtlSettings } from "@/hooks/use-ttl-settings";
 import { useVideoOptimizer } from "@/hooks/use-video-optimizer";
+import { staggerContainer, staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import type { MutationResult } from "@/types/mutation-result";
 
-import ForceTcpCard from "./force-tcp-card";
-import LiveStrip, { type LiveStripReading } from "./live-strip";
-import ModeCard, { ModeCardSkeleton } from "./mode-card";
-import Onboarding from "./onboarding";
-import TargetsCard, { TargetsCardSkeleton } from "./targets-card";
-import VerifyCard, { VerifyCardSkeleton } from "./verify-card";
 import {
-  CARD_PAIR,
-  CARD_PAIR_WIDE,
+  EngineCard,
+  type EngineChoice,
+  type EngineMode,
+  type EngineTransition,
+} from "./engine-card";
+import { EngineOnboarding } from "./engine-onboarding";
+import { ForceTcpCard } from "./force-tcp-card";
+import { FullBypassCard, VideoOptimizerCard, modeCardId } from "./mode-card";
+import { CHART_SAMPLES } from "./packet-chart";
+import {
+  CARD_ACTION,
+  CARD_BODY,
+  CARD_HEAD,
+  CARD_PAD,
+  CARD_SHELL,
+  CONDITION,
+  CONDITION_TONE,
+  CONTROL_COL,
+  ENGINE_GRID,
+  ENGINE_ROWS,
+  HEADER_PILL,
+  HERO_PAD,
+  HERO_SHELL,
+  HOTSPOT_GROUP,
+  LIVE,
   PAGE_HEAD,
   PAGE_ROOT,
-  TILE,
+  PAIR,
+  PILL_GLYPH,
+  ROWS,
+  SKELETON,
+  STACK,
 } from "./shapes";
-import type { DpiEngineStatus, DpiMode } from "@/types/traffic-engine";
+import { VerifyCard, VerifyCardSkeleton } from "./verify-card";
 
-// =============================================================================
-// TrafficEngine — the /local-network/traffic-engine page shell
-// =============================================================================
-// The page used to be organised around the CONFIG FILE: a status card, two tabs
-// named after the two config keys, a test, a QUIC toggle. The user arrives with
-// one question — "is my video throttled, and is the fix on?" — and a second one
-// they ask once: "is it actually helping?"
-//
-// It is now a page header, a live tile strip, and a band of peer cards ordered
-// by CADENCE: the live state, then the DECISION BESIDE THE MEASUREMENT THAT
-// JUDGES IT, then what that decision operates on, then the independent QUIC
-// control. QUIC is last because its independence from the engine is documented
-// and deliberate (docs/reference/dpi.md > QUIC handling).
-//
-// That cadence changed on 2026-08-31 at direct user request, and it REORDERS
-// what the paragraph above used to document. The retired order was a single
-// column: mode, then targets, then the occasional test. The mode card and the
-// verify card are now a two-up pair on the first row of one grid, with the
-// targets card spanning both columns beneath them — because "which mode is on"
-// and "is it actually helping" are the two halves of one question, and reading
-// them a scroll apart was what made the test feel occasional.
-//
-// CSS `order` was considered and rejected. It could have kept the old
-// single-column reading order under the new visual one, but that is precisely
-// the disagreement between DOM order and visual order that WCAG 1.3.2
-// (Meaningful Sequence) exists to forbid — a worse defect than the one it would
-// paper over. The DOM order below IS the reading order, on every width.
-//
-// -----------------------------------------------------------------------------
-// ONE ANSWER TO "WHICH MODE IS ACTIVE", AND IT IS DERIVED HERE
-// -----------------------------------------------------------------------------
-// This is the fix for the correctness bug. The shell used to hand the status
-// card `videoOptimizer.data ?? fullBypass.data` and let the card work out its
-// own shape from `"sni_domain" in data`. Both hooks fetch, so the Video
-// Optimizer's payload essentially always won — and with FULL BYPASS enabled the
-// card still rendered "Domains loaded", a figure for a mode that has no domain
-// list.
-//
-// `mode` is now derived ONCE, from the two `enabled` flags, and passed down. No
-// component below infers it, and no component sniffs a payload for its shape.
-//
-// The four LIVE fields are a separate question and are read differently: status,
-// uptime, packet count and rule presence are ENGINE-GLOBAL — there is one tpws
-// process and one REDIRECT rule, and both CGI sections report the same ones — so
-// either section answers them identically and the shell simply takes whichever
-// read succeeded. That was never the bug. The bug was using the same fallback to
-// decide the MODE.
-//
-// The backend contract is untouched: same endpoint, same actions, same fields,
-// same 2s cadence, same mutex enforced on the CGI side.
-// =============================================================================
-
-/**
- * Sent with every Full Bypass write and inert on this platform.
- *
- * tpws has no fake-ClientHello mode (that is nfqws-only), so this mode means
- * "split everything" rather than "spoof this name" — which is why it is no
- * longer called Traffic Masquerade. The key is accepted and
- * stored for API-contract compatibility with the RM551E and is documented as
- * inert (docs/reference/dpi.md > Modes). It is a constant here rather than a
- * field because there is nothing for a user to decide about it — the retired UI
- * removed the input for exactly that reason, and the orphaned
- * `trafficEngine.status.sni` key went with this re-author.
- */
+/** Sent with every Full Bypass write; inert on tpws, kept for RM551E contract parity. */
 const FULL_BYPASS_SNI = "speedtest.net";
 
+/** The hooks' poll period, so a per-poll counter delta reads as new connections per second. */
+const POLL_SECONDS = 2;
+
+/** How long a `?mode=` deep link keeps its card highlighted. */
+const HIGHLIGHT_MS = 1600;
+
+/** How long a transition may wait for the poll to confirm it. */
+const PENDING_TIMEOUT_MS = 8000;
+
+type Pending = { kind: EngineTransition; target: EngineMode | null } | null;
+
+const EMPTY_HISTORY: readonly (number | null)[] = Array(CHART_SAMPLES).fill(null);
+
 /**
- * True only once `active` has held for `delayMs`.
- *
- * Suppresses the flash-of-skeleton on fast loads, and this app runs ON the
- * modem, so loads are routinely sub-100ms. `setState` lives only in the timer
- * callback and the cleanup — never synchronously in the effect body — to stay
- * clear of the React-compiler setState-in-effect rule. Preserved verbatim from
- * the retired shell; it was already right.
+ * The engine's new-connection rate over the last minute, one sample per poll. Every fetch is a new
+ * object, so its identity is the tick; a stop or a mode switch starts the history over.
  */
+function usePacketHistory(sample: object | null, mode: EngineMode | null, packets: number) {
+  const [state, setState] = useState<{
+    sample: object | null;
+    mode: EngineMode | null;
+    last: number | null;
+    history: readonly (number | null)[];
+  }>({ sample: null, mode: null, last: null, history: EMPTY_HISTORY });
+
+  if (mode !== state.mode) {
+    setState({ sample, mode, last: mode ? packets : null, history: EMPTY_HISTORY });
+  } else if (mode && sample && sample !== state.sample) {
+    const rate =
+      state.last === null ? null : Math.round(Math.max(0, packets - state.last) / POLL_SECONDS);
+    setState({ sample, mode, last: packets, history: [...state.history.slice(1), rate] });
+  }
+
+  return state.history;
+}
+
+/** True only once `active` has held for `delayMs`, so a fast load never flashes a skeleton. */
 function useDelayedFlag(active: boolean, delayMs = 160) {
-  const [shown, setShown] = React.useState(false);
-  React.useEffect(() => {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
     if (!active) return;
     const id = setTimeout(() => setShown(true), delayMs);
     return () => {
@@ -130,392 +108,390 @@ function useDelayedFlag(active: boolean, delayMs = 160) {
   return active && shown;
 }
 
-const TrafficEngine = () => {
-  const { t } = useTranslation("common");
+/** The loading placeholder: the Engine card, then the mode pair, at their loaded geometry. */
+function PageSkeleton() {
+  const header = (pad: string, badge: boolean) => (
+    <CardHeader className={cn(pad, CARD_HEAD)}>
+      <Skeleton className={SKELETON.TITLE} />
+      <Skeleton className={SKELETON.DESC} />
+      {badge ? (
+        <div data-slot="card-action" className={cn("col-start-2 row-span-2 row-start-1", CARD_ACTION)}>
+          <Skeleton className={SKELETON.BADGE} />
+        </div>
+      ) : null}
+    </CardHeader>
+  );
+  return (
+    <div className={STACK} aria-hidden="true">
+      <Card className={HERO_SHELL}>
+        {header(HERO_PAD, true)}
+        <CardContent className={cn(HERO_PAD, ENGINE_GRID)}>
+          <div className={CONTROL_COL}>
+            <Skeleton className={SKELETON.LABEL} />
+            <Skeleton className={SKELETON.CONTROL} />
+            <div className={HOTSPOT_GROUP}>
+              <Skeleton className={SKELETON.LABEL} />
+              <Skeleton className={SKELETON.ONOFF} />
+            </div>
+            <div className={cn(ROWS, ENGINE_ROWS)}>
+              <Skeleton className={SKELETON.ROW} />
+              <Skeleton className={SKELETON.ROW} />
+              <Skeleton className={SKELETON.ROW} />
+            </div>
+          </div>
+          <div className={LIVE.ROOT}>
+            <div className={LIVE.HEAD}>
+              <Skeleton className={SKELETON.LEGEND} />
+              <Skeleton className={SKELETON.RATE} />
+            </div>
+            <Skeleton className={SKELETON.CHART} />
+          </div>
+        </CardContent>
+      </Card>
+      <div className={PAIR}>
+        {[0, 1].map((k) => (
+          <Card key={k} className={CARD_SHELL}>
+            {header(CARD_PAD, false)}
+            <CardContent className={cn(CARD_PAD, CARD_BODY)}>
+              <Skeleton className={SKELETON.STRIP} />
+              <div className={ROWS}>
+                <Skeleton className={SKELETON.ROW} />
+                <Skeleton className={SKELETON.ROW} />
+              </div>
+              <div className="mt-auto flex min-h-16 items-center justify-between gap-4 pt-4">
+                <Skeleton className={SKELETON.FOOT_STATUS} />
+                <Skeleton className={SKELETON.FOOT_ACTION} />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  const videoOptimizer = useVideoOptimizer();
-  const fullBypass = useFullBypass();
+export default function TrafficEngine() {
+  const { t } = useTranslation("local-network");
+  const searchParams = useSearchParams();
+  const reduceMotion = useMotionReduced();
+
+  const vo = useVideoOptimizer();
+  const fb = useFullBypass();
+  // Owned here so the Engine card's view swaps never refetch it.
+  const ttl = useTtlSettings();
+  // Owned here so the Video Optimizer card's Acts on row and its hostnames view read one list.
   const hostlist = useCdnHostlist();
 
-  // ---------------------------------------------------------------------------
-  // The two derivations, kept apart on purpose
-  // ---------------------------------------------------------------------------
-  // The mode comes from the two `enabled` flags, which the backend keeps
-  // mutually exclusive. Full Bypass is tested first only so the expression has a
-  // fixed order; the mutex means at most one can be true.
-  const mode: DpiMode = fullBypass.data?.enabled
+  // --- Engine truth. Live fields are engine-global (one tpws, one rule): either section answers.
+  const source = vo.data ?? fb.data;
+  const configMode: EngineMode | null = fb.data?.enabled
     ? "full_bypass"
-    : videoOptimizer.data?.enabled
-      ? "video_optimizer"
-      : "none";
-
-  // The live fields are engine-global, so either section answers them. Written
-  // out rather than as a `??` chain because the chain is what the wrong-mode bug
-  // looked like, and the two reads should not resemble each other.
-  const primary = videoOptimizer.data;
-  const secondary = fullBypass.data;
-  const source = primary !== null ? primary : secondary;
-
-  const reading: LiveStripReading | null = source
-    ? {
-        status: source.status,
-        uptime: source.uptime,
-        packets_processed: source.packets_processed,
-        kernel_module_loaded: source.kernel_module_loaded,
-      }
-    : null;
-
-  const status = (source?.status ?? "stopped") as DpiEngineStatus;
+    : vo.data?.enabled
+      ? "video"
+      : null;
+  const status = source?.status ?? "stopped";
+  const running = configMode !== null && status === "running";
   const installed = source?.binary_installed ?? false;
+  const ruleOk = source?.kernel_module_loaded ?? false;
+  const engineSaving = vo.isSaving || fb.isSaving;
 
-  // ---------------------------------------------------------------------------
-  // Packets per second, from successive samples of the same 2s poll
-  // ---------------------------------------------------------------------------
-  const prevRef = React.useRef<{ ts: number; pkts: number } | null>(null);
-  const [packetsPerSecond, setPacketsPerSecond] = React.useState(0);
-  const packets = source?.packets_processed ?? null;
+  // --- In-flight engine change: set the instant the user acts, held until the poll confirms it.
+  const [pending, setPending] = useState<Pending>(null);
+  if (pending && !engineSaving && configMode === pending.target) setPending(null);
+  // Safety net: a poll that never confirms must not strand the busy chip.
+  useEffect(() => {
+    if (pending === null) return;
+    const id = setTimeout(() => setPending(null), PENDING_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [pending]);
 
-  React.useEffect(() => {
-    if (packets === null) return;
-    const now = Date.now();
-    const prev = prevRef.current;
-    if (prev && now > prev.ts) {
-      const delta = packets - prev.pkts;
-      setPacketsPerSecond(Math.max(0, Math.round((delta * 1000) / (now - prev.ts))));
-    }
-    prevRef.current = { ts: now, pkts: packets };
-  }, [packets]);
+  const shownMode: EngineChoice = pending ? (pending.target ?? "off") : (configMode ?? "off");
+  const history = usePacketHistory(
+    source,
+    running ? configMode : null,
+    source?.packets_processed ?? 0,
+  );
 
-  // ---------------------------------------------------------------------------
-  // Read states
-  // ---------------------------------------------------------------------------
-  const isLoading = videoOptimizer.isLoading && fullBypass.isLoading;
-  const showSkeleton = useDelayedFlag(isLoading);
-  // Nothing was ever read. Distinct from a poll that failed on top of data.
-  const readFailed = source === null && !isLoading;
-  // The figures are STALE: they are held, because they are still the last thing
-  // the modem confirmed, and the banner says so rather than letting a dead poll
-  // and a healthy one render identically.
-  const pollFailed =
-    source !== null &&
-    (videoOptimizer.error !== null || fullBypass.error !== null);
+  const refreshEngine = useCallback(
+    (silent: boolean) => {
+      vo.refresh(silent);
+      fb.refresh(silent);
+    },
+    [vo, fb],
+  );
 
-  // The USER-INITIATED re-read, wired to the two banners' Retry buttons only.
-  // It is deliberately NOT silent: someone pressing Retry after a failed read
-  // is asking to see the read happen, and a button that changes nothing on
-  // screen reads as a button that did nothing. The post-write reconcile in
-  // `selectMode` is the opposite case and refetches silently — see there.
-  const retry = () => {
-    videoOptimizer.refresh();
-    fullBypass.refresh();
-  };
+  // Retry after a failed read shows the loading state; nothing on screen is lost.
+  const retryRead = useCallback(() => {
+    refreshEngine(false);
+    hostlist.refresh(true);
+    ttl.refresh();
+  }, [refreshEngine, hostlist, ttl]);
 
-  // ---------------------------------------------------------------------------
-  // The one write this page makes: which mode owns the engine
-  // ---------------------------------------------------------------------------
-  // WHICH mode is being switched to, not merely THAT one is. A boolean cannot
-  // name one of three rows, so the card had nothing to point at and spent the
-  // flag entirely on `disabled` — which dimmed all three rows equally and
-  // erased the very signal the user was waiting for.
-  //
-  // `null` is the no-write-in-flight state, and it is the whole vocabulary:
-  // there is one write on this page and the CGI enforces a mutex, so at most
-  // one mode can ever be pending.
-  const [pendingMode, setPendingMode] = React.useState<DpiMode | null>(null);
+  // Header Refresh is silent; a running test survives it and the hostname draft keeps pending edits.
+  const refreshAll = useCallback(() => {
+    refreshEngine(true);
+    hostlist.refresh(true);
+    ttl.refresh();
+  }, [refreshEngine, hostlist, ttl]);
 
-  const selectMode = async (next: DpiMode) => {
-    setPendingMode(next);
-    try {
-      const ok =
-        next === "video_optimizer"
-          ? await videoOptimizer.saveEnabled(true)
-          : next === "full_bypass"
-            ? await fullBypass.save(true, FULL_BYPASS_SNI)
-            : // Turning off means disabling whichever mode currently owns the
-              // engine. Writing "off" to the section that is already off would
-              // be a no-op that reported success.
-              mode === "full_bypass"
-              ? await fullBypass.save(false, FULL_BYPASS_SNI)
-              : await videoOptimizer.saveEnabled(false);
+  /** Every engine save: mark the transition, save, one toast, then re-read both sections silently. */
+  const run = useCallback(
+    async (next: Pending, save: () => Promise<MutationResult>, successKey: string) => {
+      setPending(next);
+      const result = await save();
+      if (result.ok) {
+        toast.success(t(successKey));
+      } else {
+        setPending(null);
+        toast.error(t("traffic_engine.toast_mode_error"));
+      }
+      // Both, even on failure: the backend mutex may have changed the other section.
+      refreshEngine(true);
+    },
+    [t, refreshEngine],
+  );
 
-      if (!ok) {
-        toast.error(t("trafficEngine.mode.toast_error"));
+  const onModeChange = useCallback(
+    (next: EngineChoice) => {
+      if (next === shownMode || pending) return;
+      if (next === "off") {
+        const stop: Pending = { kind: "stop", target: null };
+        if (configMode === "video") {
+          void run(stop, () => vo.saveEnabled(false), "traffic_engine.toast_engine_off");
+        } else if (configMode === "full_bypass") {
+          void run(stop, () => fb.save(false, FULL_BYPASS_SNI), "traffic_engine.toast_engine_off");
+        }
         return;
       }
-      toast.success(
-        t(
-          next === "video_optimizer"
-            ? "trafficEngine.mode.toast_video_optimizer"
-            : next === "full_bypass"
-              ? "trafficEngine.mode.toast_full_bypass"
-              : "trafficEngine.mode.toast_off",
-        ),
-      );
-      // Both sections are re-read, because the backend just changed the OTHER
-      // one too. Refreshing only the section written would leave the derived
-      // mode reading from a stale flag for one poll.
-      //
-      // SILENTLY, and this is the whole reason a mode switch has any animation
-      // at all. `refresh()` runs `fetchStatus(silent = false)`, which sets
-      // `isLoading` on both hooks; `isLoading` below then flips true and this
-      // component renders its loading branch instead of its content branch. The
-      // live strip, the mode card, the verify card and the targets card were
-      // all UNMOUNTED for the duration of two CGI round-trips and then built
-      // again from scratch. The user reported it as "it just refreshes", which
-      // is exactly what it was — there was never a missing spinner, there was
-      // nothing left on screen to put one in.
-      //
-      // A second defect falls out of the same fix, and it was the more
-      // expensive one. `VerifyCard` holds `isRunning`, its result and its poll
-      // loop in local state, and the loop aborts on `!mountedRef.current`. So a
-      // mode switch during a running Test Bypass silently killed a test that
-      // can take twelve minutes — the card came back reading "idle", said
-      // nothing about what was lost, and the backend worker carried on
-      // regardless. The two cards are now side by side (see the band below),
-      // which makes a mid-test switch MORE likely, not less.
-      videoOptimizer.refresh(true);
-      fullBypass.refresh(true);
-    } finally {
-      setPendingMode(null);
+      const kind: EngineTransition = configMode ? "switch" : "start";
+      if (next === "video") {
+        void run({ kind, target: "video" }, () => vo.saveEnabled(true), "traffic_engine.toast_video_enabled");
+      } else {
+        void run(
+          { kind, target: "full_bypass" },
+          () => fb.save(true, FULL_BYPASS_SNI),
+          "traffic_engine.toast_full_bypass_enabled",
+        );
+      }
+    },
+    [shownMode, pending, configMode, run, vo, fb],
+  );
+
+  const install = useCallback(async () => {
+    const result = await vo.installBinary();
+    if (result.ok) toast.success(t("traffic_engine.toast_install_success"));
+    else toast.error(t("traffic_engine.toast_install_error"));
+    refreshEngine(true);
+    hostlist.refresh(true);
+  }, [vo, t, refreshEngine, hostlist]);
+
+  const uninstall = useCallback(async () => {
+    const result = await vo.uninstallBinary();
+    if (result.ok) toast.success(t("traffic_engine.advanced_toast_success"));
+    else {
+      toast.error(t("traffic_engine.advanced_toast_error"));
     }
-  };
+    refreshEngine(true);
+  }, [vo, t, refreshEngine]);
 
-  // Kept as one flag for everything that only needs "is a write in flight",
-  // so the pending mode adds a channel rather than changing the shape of an
-  // existing one.
-  const isSaving =
-    pendingMode !== null || videoOptimizer.isSaving || fullBypass.isSaving;
+  // --- Read states ---
+  const isLoading = vo.isLoading || fb.isLoading;
+  const showSkeleton = useDelayedFlag(isLoading);
+  // Nothing was ever read, distinct from a poll that failed on top of data.
+  const readFailed = !isLoading && source === null;
+  const pollFailed = source !== null && !engineSaving && (vo.error !== null || fb.error !== null);
+  const ready = !isLoading && !readFailed && installed;
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-  // The cascade root declares `initial`/`animate` once. Every band below is a
-  // `staggerItem` child and must NOT declare its own, or it detaches from the
-  // parent's clock and renders at `hidden` forever.
-  return (
-    <motion.div
-      // `@container/main` is declared HERE rather than inside `PAGE_ROOT`,
-      // because the container name is this route's contract with every
-      // `@xl/main:` / `@5xl/main:` variant below it. It should be legible at
-      // the root of the route that owns it, not folded into an imported string.
-      className={cn("@container/main", PAGE_ROOT)}
-      aria-live="polite"
-      aria-atomic="false"
-      variants={staggerContainer}
-      initial="hidden"
-      animate="visible"
+  // --- `?mode=` deep link: scroll to that card and highlight it a moment. ---
+  const deepLink = searchParams.get("mode");
+  const linkTarget: EngineMode | null =
+    deepLink === "full_bypass" ? "full_bypass" : deepLink === "video" ? "video" : null;
+  const [highlight, setHighlight] = useState<EngineMode | null>(null);
+  const linkHandled = useRef(false);
+  useEffect(() => {
+    if (!ready || !linkTarget || linkHandled.current) return;
+    linkHandled.current = true;
+    const show = setTimeout(() => {
+      document.getElementById(modeCardId(linkTarget))?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "center",
+      });
+      setHighlight(linkTarget);
+    }, 0);
+    const hide = setTimeout(() => setHighlight(null), HIGHLIGHT_MS);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+    };
+  }, [ready, linkTarget, reduceMotion]);
+
+  const retryButton = (
+    <button
+      type="button"
+      onClick={retryRead}
+      className={bannerActionVariants({ tone: "destructive" })}
     >
-      <motion.div variants={staggerItem}>
-        <div className={PAGE_HEAD.ROOT}>
-          <div className={PAGE_HEAD.TITLES}>
-            <h1 className={PAGE_HEAD.TITLE}>{t("trafficEngine.page.title")}</h1>
-            <p className={PAGE_HEAD.DESC}>{t("trafficEngine.page.description")}</p>
-          </div>
+      <RefreshCcwIcon aria-hidden="true" />
+      {t("actions.retry", { ns: "common" })}
+    </button>
+  );
 
-          {installed ? (
-            <div className={PAGE_HEAD.ACTIONS}>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="tonal-neutral"
-                    disabled={videoOptimizer.isUninstalling}
-                    size="action"
-                  >
-                    {videoOptimizer.isUninstalling ? (
-                      <Loader2Icon className="size-4 motion-safe:animate-spin" />
-                    ) : (
-                      <Trash2Icon className="size-4" />
-                    )}
-                    {t("trafficEngine.uninstall.button")}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t("trafficEngine.uninstall.title")}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {t("trafficEngine.uninstall.description")}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={videoOptimizer.isUninstalling}>
-                      {t("trafficEngine.uninstall.cancel")}
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        videoOptimizer.uninstallBinary();
-                      }}
-                      disabled={videoOptimizer.isUninstalling}
-                    >
-                      {t("trafficEngine.uninstall.confirm")}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          ) : null}
+  let body: React.ReactNode;
+  if (isLoading) {
+    body = showSkeleton ? (
+      <div className={STACK}>
+        <PageSkeleton />
+        <div className={PAIR}>
+          <VerifyCardSkeleton />
+          <ForceTcpCard />
         </div>
-      </motion.div>
-
-      {/* A failed uninstall, or an install error surviving a successful one.
-          The onboarding screen owns the not-installed failure; this is the one
-          the installed page has to carry, and it stays until dismissed because
-          the next 2s poll would otherwise blink it away. */}
-      {installed && videoOptimizer.installPhase === "error" ? (
-        <motion.div variants={staggerItem}>
+      </div>
+    ) : null;
+  } else if (readFailed) {
+    const tone = CONDITION_TONE.destructive;
+    body = (
+      <div className={STACK}>
+        <Card className={HERO_SHELL}>
+          <CardContent className={CARD_PAD}>
+            <div role="alert" className={cn(CONDITION.ROOT, tone.ROOT)}>
+              <span aria-hidden className={cn(CONDITION.DISC, tone.DISC)}>
+                <TriangleAlertIcon className={CONDITION.GLYPH} />
+              </span>
+              <h2 className={CONDITION.TITLE}>{t("traffic_engine.error_load_title")}</h2>
+              <p className={CONDITION.DESC}>{t("traffic_engine.error_load_failed")}</p>
+              <div className={CONDITION.ACTIONS}>
+                <Button
+                  variant="ghost"
+                  size="action"
+                  onClick={retryRead}
+                  className={tone.ACTION}
+                >
+                  <RefreshCcwIcon aria-hidden="true" />
+                  {t("actions.retry", { ns: "common" })}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <ForceTcpCard />
+      </div>
+    );
+  } else if (!installed) {
+    body = (
+      <div className={STACK}>
+        <EngineOnboarding
+          phase={vo.installPhase}
+          installing={vo.isInstalling}
+          onInstall={() => void install()}
+          onRefresh={retryRead}
+        />
+        <ForceTcpCard />
+      </div>
+    );
+  } else {
+    const busy = pending !== null;
+    body = (
+      <div className={STACK}>
+        {pollFailed ? (
           <Banner
             role="stale"
-            title={t("trafficEngine.binary_op_failed")}
-            description={videoOptimizer.installMessage ?? videoOptimizer.error}
-            onDismiss={videoOptimizer.dismissBinaryOpError}
-            dismissLabel={t("actions.dismiss")}
+            title={t("traffic_engine.stale_title")}
+            description={t("traffic_engine.stale_body")}
+            action={retryButton}
           />
-        </motion.div>
-      ) : null}
-
-      {readFailed ? (
-        <motion.div variants={staggerItem}>
+        ) : null}
+        {/* A failed removal stays until dismissed. `stale` has no X, so the dismiss is the action. */}
+        {vo.installPhase === "error" && !vo.isUninstalling ? (
           <Banner
             role="stale"
-            title={t("trafficEngine.strip.unavailable_title")}
-            description={t("trafficEngine.strip.unavailable_body")}
+            title={t("traffic_engine.binary_op_failed")}
+            description={t("traffic_engine.binary_op_failed_body")}
             action={
               <button
                 type="button"
-                onClick={retry}
+                onClick={vo.dismissBinaryOpError}
                 className={bannerActionVariants({ tone: "destructive" })}
               >
-                <RefreshCcwIcon />
-                {t("actions.retry")}
+                {t("actions.dismiss", { ns: "common" })}
               </button>
             }
           />
-        </motion.div>
-      ) : isLoading ? (
-        showSkeleton ? (
-          /* THE SKELETON IS THE PAGE, NOT THE STRIP.
-
-             It used to be four tiles and nothing else, so the handoff grew the
-             mode card, the verify card and the targets card out of nothing --
-             roughly 800px of layout arriving after the fact, on a surface whose
-             own module exists because a skeleton had already drifted from its
-             content once (finding 08). The report was that it "doesnt really
-             show the true content once loaded", which is precisely what a
-             skeleton for one of four bands does.
-
-             Each card's mirror lives BESIDE that card rather than here. A
-             skeleton kept in the shell drifts the first time its card changes,
-             because nothing ever puts the two on one screen; kept next to the
-             card, the two are read together by anyone editing either. What the
-             shell owns is the BAND, and it lays the mirror out with the same
-             `CARD_PAIR` the loaded band uses -- so the column split, the gap
-             and the height lock cannot disagree between the two states.
-
-             `aria-hidden` on each mirror, and the whole thing is inert: the
-             root already carries `aria-live="polite"`, so an announced skeleton
-             would read its placeholder geometry aloud before the real content
-             arrived to replace it. */
-          <>
-            <motion.div variants={staggerItem}>
-              <div className={TILE.GRID}>
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <Skeleton key={index} className={cn(TILE.HEIGHT, "rounded-tile")} />
-                ))}
-              </div>
-            </motion.div>
-
-            <motion.div variants={staggerItem} className={CARD_PAIR}>
-              <ModeCardSkeleton />
-              <VerifyCardSkeleton />
-              <div className={CARD_PAIR_WIDE}>
-                <TargetsCardSkeleton />
-              </div>
-            </motion.div>
-          </>
-        ) : null
-      ) : !installed ? (
-        <motion.div variants={staggerItem}>
-          <Onboarding
-            isInstalling={videoOptimizer.isInstalling}
-            installPhase={videoOptimizer.installPhase}
-            installMessage={videoOptimizer.installMessage}
-            onInstall={videoOptimizer.installBinary}
-            onDismissError={videoOptimizer.dismissBinaryOpError}
+        ) : null}
+        {running && !ruleOk && !busy ? (
+          <Banner
+            role="degraded"
+            title={t("traffic_engine.rule_banner_title")}
+            description={t("traffic_engine.rule_banner_desc")}
           />
-        </motion.div>
-      ) : (
-        <>
-          {pollFailed ? (
-            <motion.div variants={staggerItem}>
-              <Banner
-                role="stale"
-                title={t("trafficEngine.strip.stale_title")}
-                description={t("trafficEngine.strip.stale_body")}
-                action={
-                  <button
-                    type="button"
-                    onClick={retry}
-                    className={bannerActionVariants({ tone: "destructive" })}
-                  >
-                    <RefreshCcwIcon />
-                    {t("actions.retry")}
-                  </button>
-                }
-              />
-            </motion.div>
-          ) : null}
+        ) : null}
+        <EngineCard
+          shownMode={shownMode}
+          activeMode={configMode}
+          transition={pending?.kind ?? null}
+          status={status}
+          ruleOk={ruleOk}
+          onModeChange={onModeChange}
+          uptime={source?.uptime ?? ""}
+          packets={source?.packets_processed ?? 0}
+          history={history}
+          ttl={ttl}
+          isUninstalling={vo.isUninstalling}
+          uninstallStep={vo.isUninstalling ? t("traffic_engine.pkg_status_removing") : null}
+          onUninstall={() => void uninstall()}
+        />
+        <div className={PAIR}>
+          <VideoOptimizerCard
+            hostlist={hostlist}
+            active={running && configMode === "video" && !busy}
+            owner={configMode === "video"}
+            otherOwns={configMode === "full_bypass"}
+            busy={busy}
+            highlighted={highlight === "video"}
+          />
+          <FullBypassCard
+            active={running && configMode === "full_bypass" && !busy}
+            owner={configMode === "full_bypass"}
+            otherOwns={configMode === "video"}
+            busy={busy}
+            highlighted={highlight === "full_bypass"}
+          />
+        </div>
+        <div className={PAIR}>
+          <VerifyCard binaryInstalled={installed} />
+          <ForceTcpCard />
+        </div>
+      </div>
+    );
+  }
 
-          <motion.div variants={staggerItem}>
-            <LiveStrip
-              mode={mode}
-              reading={reading}
-              packetsPerSecond={packetsPerSecond}
-              domainCount={hostlist.domains.length}
-            />
-          </motion.div>
-
-          {/* The decision, the measurement that judges it, and what the
-              decision operates on — one band, one grid, one stagger beat.
-
-              THE GRID WRAPPER IS ITSELF THE `staggerItem`, and the three cards
-              sit DIRECTLY inside it rather than each in its own nested
-              `motion.div`. That is a design statement before it is a technical
-              one: they are one band, so they should arrive as one beat rather
-              than counting themselves off in three. Do not declare
-              `initial`/`animate` here either — the cascade root above owns the
-              clock, and a child that declares its own detaches from it and
-              renders at `hidden` forever, which this repo has shipped before.
-
-              `TargetsCard` takes `CARD_PAIR_WIDE` through a plain wrapper
-              rather than a `className` prop, because the card's props are not
-              this file's to widen and the span belongs to the band, not to the
-              card. */}
-          <motion.div variants={staggerItem} className={CARD_PAIR}>
-            <ModeCard
-              mode={mode}
-              status={status}
-              isSaving={isSaving}
-              pendingMode={pendingMode}
-              onSelect={selectMode}
-            />
-
-            <VerifyCard binaryInstalled={installed} />
-
-            <div className={CARD_PAIR_WIDE}>
-              <TargetsCard hostlist={hostlist} mode={mode} />
-            </div>
-          </motion.div>
-        </>
-      )}
-
-      {/* Rendered in EVERY state, including before the engine is installed. It
-          reads on its own channel, so it stays usable when the engine read
-          fails — which is exactly when a user is most likely to want it. */}
+  return (
+    <motion.div className={PAGE_ROOT} variants={staggerContainer} initial="hidden" animate="visible">
       <motion.div variants={staggerItem}>
-        <ForceTcpCard />
+        <div className={PAGE_HEAD.ROOT}>
+          <div className={PAGE_HEAD.TITLES}>
+            <h1 className={PAGE_HEAD.TITLE}>{t("traffic_engine.page_title")}</h1>
+            <p className={PAGE_HEAD.DESC}>{t("traffic_engine.page_description")}</p>
+          </div>
+          <div className={PAGE_HEAD.ACTIONS}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="action"
+              onClick={refreshAll}
+              disabled={isLoading}
+              className={HEADER_PILL}
+            >
+              <RefreshCcwIcon
+                className={cn(PILL_GLYPH, isLoading && "motion-safe:animate-spin")}
+                aria-hidden="true"
+              />
+              {t("traffic_engine.refresh")}
+            </Button>
+          </div>
+        </div>
       </motion.div>
+
+      <motion.div variants={staggerItem}>{body}</motion.div>
     </motion.div>
   );
-};
-
-export default TrafficEngine;
+}
