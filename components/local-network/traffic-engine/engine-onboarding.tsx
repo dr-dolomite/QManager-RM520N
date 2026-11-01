@@ -7,15 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { InstallPhase } from "@/types/traffic-engine";
 import { ResultAlert } from "./result-alert";
-import { CARD_PAD, CONDITION, CONDITION_TONE, HERO_SHELL, NOTICE_DETAIL } from "./shapes";
+import { CARD_PAD, CONDITION, CONDITION_TONE, HERO_SHELL } from "./shapes";
 
-/** The installer's step lines end in "..."; this surface shows no trailing ellipsis. */
-const stepText = (message: string) => message.replace(/\s*(\.\.\.|…)$/, "");
-
+// The installer's step and failure lines are untranslated English, so this card shows none of them.
 interface EngineOnboardingProps {
   phase: InstallPhase;
-  /** The worker's current step, or its failure text. */
-  message: string | null;
   installing: boolean;
   onInstall: () => void;
   onRefresh: () => void;
@@ -27,7 +23,6 @@ interface EngineOnboardingProps {
  */
 export function EngineOnboarding({
   phase,
-  message,
   installing,
   onInstall,
   onRefresh,
@@ -85,13 +80,10 @@ export function EngineOnboarding({
             </Button>
           </div>
 
-          {running && message ? <p className={CONDITION.STEP}>{stepText(message)}</p> : null}
-
           {phase === "error" ? (
             <div className={CONDITION.NOTES}>
               <ResultAlert tone="destructive">
                 {t("traffic_engine.onboarding_failed")}
-                {message ? <span className={NOTICE_DETAIL}>{message}</span> : null}
               </ResultAlert>
             </div>
           ) : null}

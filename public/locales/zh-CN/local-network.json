@@ -115,6 +115,8 @@
     "advanced_toast_success": "引擎程序已移除",
     "advanced_toast_error": "移除引擎程序失败",
     "binary_op_failed": "引擎二进制操作失败",
+    "binary_op_failed_body": "上一次安装或移除未完成。请重试，或查看系统日志。",
+    "pkg_status_removing": "正在移除引擎…",
     "stale_title": "无响应",
     "stale_body": "最近一次轮询没有响应。下面的数值沿用上一次读取的结果，引擎仍在按原状态运行。",
     "error_load_title": "无法读取流量引擎",

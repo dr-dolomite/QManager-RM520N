@@ -115,6 +115,8 @@
     "advanced_toast_success": "Binario del motore rimosso",
     "advanced_toast_error": "Rimozione del binario del motore non riuscita",
     "binary_op_failed": "Operazione sul binario del motore non riuscita",
+    "binary_op_failed_body": "L'ultima installazione o rimozione non è terminata. Riprova o controlla i Log di sistema.",
+    "pkg_status_removing": "Rimozione del motore…",
     "stale_title": "Non risponde",
     "stale_body": "L'ultimo polling non ha risposto. I valori qui sotto sono quelli dell'ultima lettura riuscita e il motore continua a fare quello che stava facendo.",
     "error_load_title": "Impossibile leggere il Traffic Engine",

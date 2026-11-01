@@ -27,8 +27,8 @@ The feature ships on the `dev-rm520` mainline. Earlier `CLAUDE.md` listed Custom
 | Frontend types | `types/custom-dns.ts` |
 | Frontend hook | `hooks/use-custom-dns.ts` |
 | Frontend route | `app/local-network/custom-dns/page.tsx` (thin re-export) |
-| Frontend components | `components/local-network/custom-dns/` — `shapes.ts`, `dns-strip.tsx`, `custom-dns-card.tsx`, `custom-dns.tsx` (shell) |
-| i18n root | `customDns.*` (57 leaves × 5 locales) |
+| Frontend components | `components/local-network/custom-dns/` — `custom-dns.tsx` (shell), `resolver-card.tsx`, `servers-card.tsx`, `draft.ts`, `dns-providers.ts`, `shapes.ts` |
+| i18n root | `local-network:dns.*` (46 leaves in `public/locales/<lang>/local-network.json`) |
 | Sidebar entry | `components/app-sidebar.tsx` (under Local Network) |
 | Sudoers fragment | `scripts/etc/sudoers.d/qmanager` (last block, one rule: `/usr/bin/qmanager_dns_apply`) |
 | Max servers | 4 |
@@ -98,7 +98,7 @@ When `/etc/data/dnsmasq.conf` does not exist at all, `build_get_payload` (`:243-
 **The `ABSENT` branch needs two facts, not one.** `ABSENT` opens the write gate, so the code reaches it only when both conditions hold (`:58-69`); anything else falls through to `UNKNOWN`.
 
 1. **The presence `grep` exited exactly `1`.** BusyBox `grep` exits `1` on a clean no-match but `2` on an error, and the old `if ! grep …` form collapsed both into "absent". An error tells us nothing about whether the element is there — it says we failed to look. The status is therefore captured into `rc` immediately after the call and tested numerically, because `!` throws the distinction away.
-2. **`<DHCPCfg>` is in the file.** "The element is not here" is only evidence of anything if we can see we are reading a real parsed mobileap config. `<DHCPCfg>` is the container that holds `<DNSMode>` on SDX6X and exists on SDX55 too (where it carries only `StartIP`, `EndIP` and `LeaseTime`) — verified on both live devices. Seeing the container and not the child is what establishes "this firmware ships no DNS-mode selector". Without it, a truncated or half-rewritten file would produce a no-match, open the gate, and have the Source tile positively assert "dnsmasq, proxy mode" on the strength of a file we could not read. The container `grep` gets the same discipline: only a clean `0` counts as found. (`<DHCPCfg` cannot collide with the closing `</DHCPCfg>` — different byte sequence — so a plain fixed-string match is enough.)
+2. **`<DHCPCfg>` is in the file.** "The element is not here" is only evidence of anything if we can see we are reading a real parsed mobileap config. `<DHCPCfg>` is the container that holds `<DNSMode>` on SDX6X and exists on SDX55 too (where it carries only `StartIP`, `EndIP` and `LeaseTime`) — verified on both live devices. Seeing the container and not the child is what establishes "this firmware ships no DNS-mode selector". Without it, a truncated or half-rewritten file would produce a no-match, open the gate, and have the page accept writes on the strength of a file we could not read. The container `grep` gets the same discipline: only a clean `0` counts as found. (`<DHCPCfg` cannot collide with the closing `</DHCPCfg>` — different byte sequence — so a plain fixed-string match is enough.)
 
 > ⚠️ **Known limitation: both presence and value tests are line-scoped.** A `<DNSMode>` tag split across two lines (`<DNSMode` newline `>PROXY</DNSMode>`) reads as no-match, and with `<DHCPCfg>` present it would resolve to `ABSENT` — silently ignoring a real value. Confirmed latent on BusyBox 1.29.3 (RG501Q-EU) and 1.31.1 (RM520N-GL). It is latent rather than live because neither shipped firmware formats its XML that way, and the value-extraction `grep` at `:74` has been line-scoped in exactly the same way since first ship. Left alone deliberately; if a future firmware ever wraps tags, fix both greps together — do not widen `dns_mode_available`.
 
@@ -106,7 +106,7 @@ When `/etc/data/dnsmasq.conf` does not exist at all, `build_get_payload` (`:243-
 
 > ⚠️ **The presence test is a `grep`, deliberately, and the `xmlstarlet` branch below it is decoration.** `command -v xmlstarlet` returns nothing on **both** live devices (see `platform-matrix.md`'s toolchain table), so `:58`'s `grep -qE '<DNSMode([[:space:]]|>|/>)'`, `:63`'s `<DHCPCfg` container check and `:74`'s `grep -oE` fallback are the only lines that have ever executed on hardware. Never move the presence decision into the `xmlstarlet` branch: on these devices it would be a decision made by a command that is not installed.
 
-Frontend consequence: `dnsMode === "ABSENT"` renders the locale key `customDns.tiles.source.caption_implicit` ("dnsmasq, proxy mode") on the Source tile. Without it the tile interpolated the raw sentinel and read "dnsmasq, ABSENT mode".
+Frontend consequence: `ABSENT` is `available`, so the page renders it exactly like `PROXY` and never shows the mode name. Only an unavailable read names it, in the Resolver card's condition title (`dns.unavailable_title`, "DNS mode is {{mode}}, not PROXY"). That title interpolates the raw value, so an unreadable file reads "DNS mode is UNKNOWN, not PROXY" — the same raw-sentinel leak the retired Source tile had with `ABSENT`.
 
 ### POST request
 
@@ -147,7 +147,7 @@ Thirteen failure paths return `ok:false`. **Six carry a `field`, and it is only 
 
 The other seven carry **no `field` at all**: `:350` unavailable, `:410` conf missing, `:431` staging write, `:441` the CGI's own `dnsmasq --test` rejected the candidate, and three from the apply helper's exit code — `:455` reload failed (exit 8), `:460` the helper's `dnsmasq --test` rejected the rebuilt file (exit 5), `:466` any other helper failure (`"failed to install config: <reason>"`).
 
-Consequence for the UI: even when `dnsmasq` names the offending address in its prose message (`"invalid IP address: 1.1.1.999"`), there is no machine-readable row index. Targeting the individual input would mean string-parsing the message. The frontend therefore renders the message **keyed to the resolver group**, not to a row — accurate about what the backend actually told it.
+Consequence for the UI: even when `dnsmasq` names the offending address in its prose message (`"invalid IP address: 1.1.1.999"`), there is no machine-readable row index. Targeting the individual input would mean string-parsing the message. The frontend therefore shows the backend's message verbatim in the Resolver card's foot status, not on a row, and the failure toast stays one fixed sentence (`dns.toast_error_apply`).
 
 ### Sentinel block format
 
@@ -228,63 +228,74 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_dns_apply
 
 The helper owns every path, the ownership change and the HUP, so no raw `mv`, `chown` or `killall` is granted. The old three-line form and its colon-escape gotcha are described below for history.
 
-### Frontend (re-authored 2026-08-31)
+### Frontend (rebuilt 2026-11-01)
 
 | Layer | Path |
 |-------|------|
 | Route | `app/local-network/custom-dns/page.tsx` — thin re-export, no markup |
-| Shell | `components/local-network/custom-dns/custom-dns.tsx` |
-| Band A | `components/local-network/custom-dns/dns-strip.tsx` |
-| Band B | `components/local-network/custom-dns/custom-dns-card.tsx` |
+| Shell | `components/local-network/custom-dns/custom-dns.tsx` — the read, the one draft, validity, the submit handler |
+| Resolver card | `components/local-network/custom-dns/resolver-card.tsx` — owns the `<form>` and the page's only `CardFoot` |
+| Server cards | `components/local-network/custom-dns/servers-card.tsx` — one instance per family, IPv4 and IPv6 |
+| Draft logic | `components/local-network/custom-dns/draft.ts` — `baselineFrom`, `presetFill`, `providerFor`, `serversOf`, `isValidAddress`, `MAX_SERVERS`, `BASE_SLOTS` |
+| Presets | `components/local-network/custom-dns/dns-providers.ts` — `DNS_PROVIDERS`, `matchProvider`, `CUSTOM_PROVIDER_ID` |
 | Geometry | `components/local-network/custom-dns/shapes.ts` |
-| Hook | `hooks/use-custom-dns.ts` |
-| Types | `types/custom-dns.ts` |
+| Hook / types | `hooks/use-custom-dns.ts`, `types/custom-dns.ts` |
 
-The composition is now **page header + Refresh pill → Band A (live read-only tiles) → Band B (the write card)** — the grammar `/local-network/ethernet` landed on (`2511953`) and `/local-network/traffic-engine` adopted (`0fdfc65`). The route is **lucide**, per the Icon-Boundary Rule.
-
-Before this pass the page opened with the enable switch and buried the live upstream in a `MetaPanel` *below* it. On a product that runs on the modem it is reconfiguring, "which resolver am I actually using right now" is the first question, not the fourth.
+The page was rebuilt to the RM551E resolver + servers layout: **page header → Resolver card → IPv4 and IPv6 server cards side by side** (`FAMILY_GRID`, two columns from `@5xl/main`). The route is **lucide**, per the Icon-Boundary Rule. Retired in that rebuild: `dns-strip.tsx` (the four-tile live band), `custom-dns-card.tsx` (the single write card with a repeatable list), the `DnsState` chip, and the header Refresh pill.
 
 > ⚠️ **`shapes.ts` is this family's own module. Restate geometry in it; never import a shape from `components/cellular/` or from a sibling `/local-network/` family.**
 
-**The shell is new, and it had to be.** There was no client shell before — the page header lived in the *server* `page.tsx`, and a server component cannot own a motion cascade, which is why the header snapped in while the rest of `/local-network/` faded. `custom-dns.tsx` is now the cascade root (`staggerContainer` + `initial`/`animate` declared **once**; children are `staggerItem` and must not declare their own, or they detach from the parent clock and render at `hidden` forever).
+`custom-dns.tsx` is the motion cascade root (`staggerContainer` + `initial`/`animate` declared **once**; children are `staggerItem` and must not declare their own, or they detach from the parent clock and render at `hidden` forever).
 
-#### The page's one derived state
+#### Page status
 
-The shell computes a single `DnsState` and hands it down resolved. Every child reads it; **no component re-derives it from a payload's shape.**
+The shell derives one `status` and hands it down: `pending` (no payload yet, loading or not yet failed), `failed` (no payload and a read error), `unavailable` (`available === false` — note `ABSENT` is **not** here), `ready`.
 
-| State | When | Band chip |
-| ----- | ---- | --------- |
-| `unavailable` | `available === false` (`<DNSMode>` read as something other than `PROXY`, or could not be read at all — note `ABSENT` is **not** here) | `muted` |
-| `corrupt` | `blockCorrupt === true` | `warning` |
-| `custom` | `currentSource === "custom"` | `success` |
-| `carrier` | otherwise | `info` |
+- `failed` and `unavailable` render a condition block inside the Resolver card, with a re-read action, and the two server cards are **not rendered**. A form pre-filled with blanks under "could not read the device" would be the interface inventing state.
+- `unavailable` states the configuration fact and offers no in-app remedy, because there is none (see [Nothing in QManager writes `<DNSMode>`](#nothing-in-qmanager-writes-dnsmode--and-the-page-must-not-imply-otherwise)).
+- `blockCorrupt` adds a page-level lucide `Banner` (`role="degraded"`) above the Resolver card. It never changes `status`.
 
-Order matters: `unavailable` outranks `corrupt`, because on a device where dnsmasq is bypassed entirely the state of our sentinel block is not the user's problem. Each of the four chips carries its own glyph — `success-container` and `warning-container` measure **1.03:1** apart and are identical under deuteranopia, so the glyph is the channel that actually carries the state.
+#### The Resolver card
 
-#### Band A — four tiles
+Four rows, then the foot:
 
-| Tile | Value | Caption |
-| ---- | ----- | ------- |
-| Upstream 1 | the address in `font-mono`, or `—` | the recognised provider name where known, else "from the attach" / "yours" / an absence reason |
-| Upstream 2 | same | same |
-| Source | Custom / Carrier / Unknown | names the current `<DNSMode>` — or, when `dnsMode` is `ABSENT`, the fixed `caption_implicit` string "dnsmasq, proxy mode", because there is no mode name to interpolate |
-| Carrier fallback | On / Off | the **inverse** of `ignoreCarrier`, named once in the shell so the double negative never reaches the JSX |
+| Row | Control | Wire field |
+|-----|---------|------------|
+| Custom DNS | On / Off `SegmentedField` | `enabled` |
+| Provider | `Select`: Cloudflare, Google, Quad9, AdGuard, ControlD, Custom | none — fills the address fields |
+| Never fall back to carrier DNS | On / Off `SegmentedField` | `ignore_carrier` (`no-resolv`), read directly, not inverted |
+| Answering now | read-only list of `currentUpstream`, sub-line from `currentSource` | read only |
 
-Tile bodies are neutral; colour lives on the 52 px disc. In the `corrupt` state both upstream tiles take a `destructive` disc and a `TriangleAlertIcon`, and their caption switches to "untrusted" — because with a malformed block the parsed `servers` array is not trustworthy as a statement about the file. In the `unavailable` state the grid is replaced by one spanning `NoticeTile` whose copy states the configuration fact rather than apologising for a failure: it is a *designed* outcome on such a device, not a fault, and there is no in-app remedy (see below).
+Provider and the fallback row are held (dimmed, disabled) while Custom DNS is off.
 
-A read that failed and left nothing behind gets its own spanning `NoticeTile`. The write card is **not rendered at all** in that case — a form pre-filled with defaults, sitting under a band that just said it could not read the device, is the interface inventing state. The header's Refresh pill is the way back.
+> ⚠️ **"Answering now" is `currentUpstream`, so it inherits that field's limit.** With custom DNS on, the CGI echoes the configured servers rather than measuring what dnsmasq resolves against (see [GET response](#get-response)). The sub-line says "as applied on the modem", which is as far as the data goes.
 
-#### Band B — the write card
+The foot is the page's only commit point: status on the left (the backend's failure message verbatim until the next save, else the reason Apply is blocked), then Discard and `SaveButton` (Apply). The foot sits outside the `<form>` so `mt-auto` reaches the card edge; the Apply button joins the form through `form=`.
 
-One peer card holding the enable row, the repeatable resolver list (max 4, IPv4/IPv6 paste handling), and the "ignore carrier DNS" row (`no-resolv`). Every row carries a required consequence sentence that changes with the row's condition.
+#### One draft across three cards
 
-The card **mounts on the payload** rather than receiving a nullable one, which is what lets it seed every field from the device exactly once, at mount, instead of synchronising from an effect on every poll. The skeleton is the same card with the same rows, so the handoff moves nothing. Draft state is `Partial<Draft>` edits over a memoised baseline — see the same section in [`ttl-mtu.md`](./ttl-mtu.md) for why an effect sync is both a lint error here and a silent data-loss bug.
+The IPv4 and IPv6 cards have no foot. Their `Input`s carry `form={formId}`, the Resolver card's form id, so Enter in an address field submits the same form and one Apply commits all three cards in one POST.
 
-`formDisabled` is `isSaving || !available` — **and deliberately not `blockCorrupt`**. See below.
+The shell holds only the user's **edits** over a baseline derived from the read (`baselineFrom`), never an effect-synced copy — see [`ttl-mtu.md`](./ttl-mtu.md) for why an effect sync is both a lint error here and a silent data-loss bug. A successful save stores the applied payload, which re-bases the page, and the edits are cleared.
+
+- **An Off baseline is blank.** With custom DNS off, `currentUpstream` carries the carrier's servers; they never seed the address fields, so the page never presents the carrier's resolvers as a custom choice.
+- **Turning On with no address fills the first preset** (Cloudflare).
+- **Choosing a preset** fills two IPv4 and two IPv6 addresses. **Editing an address** recomputes the picker with `providerFor`, so it never names a preset the list no longer matches. A non-empty third IPv4 slot or any IPv6 slot past the second always reads Custom.
+- **Off sends `servers: []`.** The backend strips the block and ignores the list; the address fields keep their values, held, until Custom DNS is on again.
+
+#### Slots and the 4-server cap
+
+`BASE_SLOTS` = 2 per family. A saved list with more addresses in one family gets that many slots for it (labelled Primary, Secondary, Tertiary, then "Server N"). There is no add or remove control.
+
+`serversOf` sends **IPv4 slots first, then IPv6**, trimmed, empties dropped — that is the order dnsmasq tries them. The wire format is unchanged: one comma-separated `servers` string, validated server-side against `MAX_SERVERS=4`.
+
+Apply is blocked, with the reason in the foot, when custom DNS is on and any address fails `isValidAddress`, when no address is filled, or when more than `MAX_SERVERS` (4) are filled. A full preset is exactly 4, so the cap is reached only from a saved list that already used a third slot in one family and then fills a blank in the other. Enter can still submit a blocked form; the handler refuses it with an error toast.
+
+`canApply` is `ready && isDirty && blockedKey === null && !isSaving` — **and deliberately not `blockCorrupt`**. See below.
 
 #### `refresh` takes an argument, and the type now says so
 
-`useCustomDns`'s `refresh` is `fetchSettings`, implemented as `useCallback(async (silent = false) => …)` but formerly typed `() => void`. That let `onClick={refresh}` compile, handing React's `MouseEvent` to `silent` as a truthy value — so a user-initiated refresh ran with its own loading state suppressed and the button looked inert for the whole request. The signature is now `(silent?: boolean) => Promise<void>`, making the bare form a compile error; `onClick={() => refresh()}` is the only spelling that builds. On this surface the compiler is the enforcement — see [`ttl-mtu.md`](./ttl-mtu.md) for the three sibling hooks where it is not.
+`useCustomDns`'s `refresh` is `fetchSettings`, implemented as `useCallback(async (silent = false) => …)` but formerly typed `() => void`. That let `onClick={refresh}` compile, handing React's `MouseEvent` to `silent` as a truthy value — so a user-initiated refresh ran with its own loading state suppressed and the button looked inert for the whole request. The signature is now `(silent?: boolean) => Promise<void>`, making the bare form a compile error; `onRetry={() => refresh()}` is the spelling the shell uses. On this surface the compiler is the enforcement — see [`ttl-mtu.md`](./ttl-mtu.md) for the three sibling hooks where it is not.
 
 ---
 
@@ -476,7 +487,7 @@ Before `qmanager_dns_apply`, that truncated file was what got installed and relo
 Both facts point the same way, and the shipped design is the intersection of them:
 
 - The corruption notice is a page-level **lucide `Banner`** (`role="degraded"`) in the shell. It informs; it does not block.
-- `formDisabled` is `isSaving || !available` — **`blockCorrupt` is not in it**, so a false positive cannot lock anyone out of their own DNS settings.
+- `canApply` and the held state of the fields (`custom-dns.tsx`) depend on `status`, `isDirty`, the draft's validity and `isSaving` — **`blockCorrupt` is in none of them**, so a false positive cannot lock anyone out of their own DNS settings.
 - No in-app repair is offered. The remedy is to edit `/etc/data/dnsmasq.conf` by hand, or to save a normal configuration, which rewrites the block.
 - **No `clearSettings` call site may exist under `components/local-network/custom-dns/`** — and nothing enforces that automatically. It is a review rule a human upholds. Before the helper, the cost of missing it was the truncated `/etc/data/dnsmasq.conf` above, on a device reached over that LAN; the helper now prevents that outcome, but the rule has not been revisited.
 
@@ -496,7 +507,7 @@ get_passthrough_bypass() {
 
 A robust extraction of the IP Passthrough + per-MPDN-rule DNS state from `mobileap_cfg.xml` was deferred and never done. The field stays on the type for forward compatibility; treat `false` as "no interop concern **detected**", never as "passthrough is definitely off".
 
-**It is banned from rendering**, and the ban immediately paid for itself: `custom-dns-card.tsx:403` already rendered `{passthroughBypass && …}`, so the shipped "IP Passthrough is bypassing dnsmasq" notice was unreachable dead code that had **never once displayed** on any device.
+**It is banned from rendering**, and the ban immediately paid for itself: the retired `custom-dns-card.tsx` already rendered `{passthroughBypass && …}`, so the shipped "IP Passthrough is bypassing dnsmasq" notice was unreachable dead code that had **never once displayed** on any device.
 
 **The stub's blast radius grew with the `ABSENT` change.** Extending `available:true` to every SDX55-class device means the stub is now the only bypass signal on a whole new class of hardware whose passthrough behaviour nobody has measured — previously it was one under-measured field on one known device. Nothing false reaches the user today, because the field is still banned from rendering; the ban is what is holding this, not the field's correctness — and the ban is a review rule, not a check that will stop anyone. Anyone lifting it is now signing for two device classes, not one.
 
@@ -539,7 +550,7 @@ Direct on-device probing (see "Architecture Found On The Device") established vi
 
 ## Related
 
-- [`ttl-mtu.md`](./ttl-mtu.md), [`ip-passthrough.md`](./ip-passthrough.md) — the two sibling surfaces re-authored in the same 2026-08-31 pass, on the same page grammar
-- [`ethernet.md`](./ethernet.md) — the reference implementation for that grammar
-- [`dpi.md`](./dpi.md) — the other `/local-network/` family with its own `shapes.ts`
+- [`ttl-mtu.md`](./ttl-mtu.md) — the derived-draft pattern this page's shell follows
+- [`ip-passthrough.md`](./ip-passthrough.md) — the open question behind `passthroughBypass`
+- [`dpi.md`](./dpi.md) — the other `/local-network/` page rebuilt to the RM551E layout on 2026-11-01, with its own `shapes.ts`
 - [`icon-system.md`](./icon-system.md) — why this route is lucide and `TonalBanner` (Material) is unusable here

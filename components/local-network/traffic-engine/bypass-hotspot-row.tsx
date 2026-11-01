@@ -41,9 +41,7 @@ export function BypassHotspotRow({ ttl }: BypassHotspotRowProps) {
           t(next ? "traffic_engine.bypass_toast_enabled" : "traffic_engine.bypass_toast_disabled"),
         );
       } else {
-        toast.error(t("traffic_engine.bypass_toast_error"), {
-          description: result.error ?? undefined,
-        });
+        toast.error(t("traffic_engine.bypass_toast_error"));
       }
     },
     [saveTtlHl, t],

@@ -220,16 +220,19 @@ export default function TrafficEngine() {
     [vo, fb],
   );
 
-  // A user-asked re-read: the engine shows its loading state, the side reads stay quiet.
+  // Retry after a failed read shows the loading state; nothing on screen is lost.
   const retryRead = useCallback(() => {
     refreshEngine(false);
     hostlist.refresh(true);
-  }, [refreshEngine, hostlist]);
-
-  const refreshAll = useCallback(() => {
-    retryRead();
     ttl.refresh();
-  }, [retryRead, ttl]);
+  }, [refreshEngine, hostlist, ttl]);
+
+  // Header Refresh is silent so a running test and an unapplied hostname draft survive it.
+  const refreshAll = useCallback(() => {
+    refreshEngine(true);
+    hostlist.refresh(true);
+    ttl.refresh();
+  }, [refreshEngine, hostlist, ttl]);
 
   /** Every engine save: mark the transition, save, one toast, then re-read both sections silently. */
   const run = useCallback(
@@ -240,9 +243,7 @@ export default function TrafficEngine() {
         toast.success(t(successKey));
       } else {
         setPending(null);
-        toast.error(t("traffic_engine.toast_mode_error"), {
-          description: result.error ?? undefined,
-        });
+        toast.error(t("traffic_engine.toast_mode_error"));
       }
       // Both, even on failure: the backend mutex may have changed the other section.
       refreshEngine(true);
@@ -279,7 +280,7 @@ export default function TrafficEngine() {
   const install = useCallback(async () => {
     const result = await vo.installBinary();
     if (result.ok) toast.success(t("traffic_engine.toast_install_success"));
-    else toast.error(t("traffic_engine.toast_install_error"), { description: result.error ?? undefined });
+    else toast.error(t("traffic_engine.toast_install_error"));
     refreshEngine(true);
     hostlist.refresh(true);
   }, [vo, t, refreshEngine, hostlist]);
@@ -288,9 +289,7 @@ export default function TrafficEngine() {
     const result = await vo.uninstallBinary();
     if (result.ok) toast.success(t("traffic_engine.advanced_toast_success"));
     else {
-      toast.error(t("traffic_engine.advanced_toast_error"), {
-        description: result.error ?? undefined,
-      });
+      toast.error(t("traffic_engine.advanced_toast_error"));
     }
     refreshEngine(true);
   }, [vo, t, refreshEngine]);
@@ -382,7 +381,6 @@ export default function TrafficEngine() {
       <div className={STACK}>
         <EngineOnboarding
           phase={vo.installPhase}
-          message={vo.installMessage}
           installing={vo.isInstalling}
           onInstall={() => void install()}
           onRefresh={retryRead}
@@ -407,7 +405,7 @@ export default function TrafficEngine() {
           <Banner
             role="stale"
             title={t("traffic_engine.binary_op_failed")}
-            description={vo.installMessage ?? vo.error}
+            description={t("traffic_engine.binary_op_failed_body")}
             action={
               <button
                 type="button"
@@ -438,7 +436,7 @@ export default function TrafficEngine() {
           history={history}
           ttl={ttl}
           isUninstalling={vo.isUninstalling}
-          uninstallStep={vo.isUninstalling ? vo.installMessage : null}
+          uninstallStep={vo.isUninstalling ? t("traffic_engine.pkg_status_removing") : null}
           onUninstall={() => void uninstall()}
         />
         <div className={PAIR}>

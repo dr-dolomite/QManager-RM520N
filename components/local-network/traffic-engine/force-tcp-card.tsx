@@ -44,9 +44,7 @@ export function ForceTcpCard() {
         t(next ? "traffic_engine.force_tcp_toast_enabled" : "traffic_engine.force_tcp_toast_disabled"),
       );
     } else {
-      toast.error(t("traffic_engine.force_tcp_toast_error"), {
-        description: result.error ?? undefined,
-      });
+      toast.error(t("traffic_engine.force_tcp_toast_error"));
     }
   };
 

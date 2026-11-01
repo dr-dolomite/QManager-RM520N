@@ -95,9 +95,7 @@ export function useHostlistDraft(hostlist: Hostlist) {
       markSaved();
       toast.success(t("traffic_engine.toast_hosts_saved"));
     } else {
-      toast.error(t("traffic_engine.toast_hosts_save_error"), {
-        description: result.error ?? undefined,
-      });
+      toast.error(t("traffic_engine.toast_hosts_save_error"));
     }
     return result.ok;
   }, [draft, saveHostlist, markSaved, t]);
@@ -107,9 +105,7 @@ export function useHostlistDraft(hostlist: Hostlist) {
     if (result.ok) {
       toast.success(t("traffic_engine.toast_hosts_restored"));
     } else {
-      toast.error(t("traffic_engine.toast_hosts_restore_error"), {
-        description: result.error ?? undefined,
-      });
+      toast.error(t("traffic_engine.toast_hosts_restore_error"));
     }
   }, [restoreDefaults, t]);
 

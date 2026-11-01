@@ -115,6 +115,8 @@
     "advanced_toast_success": "Binary mesin dihapus",
     "advanced_toast_error": "Gagal menghapus binary mesin",
     "binary_op_failed": "Operasi biner mesin gagal",
+    "binary_op_failed_body": "Pemasangan atau penghapusan terakhir tidak selesai. Coba lagi, atau periksa Log Sistem.",
+    "pkg_status_removing": "Menghapus mesin…",
     "stale_title": "Tidak merespons",
     "stale_body": "Polling terakhir tidak menjawab. Angka di bawah berasal dari pembacaan sebelumnya, dan mesin tetap menjalankan apa pun yang sedang dilakukannya.",
     "error_load_title": "Tidak dapat membaca Traffic Engine",

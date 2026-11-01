@@ -115,6 +115,8 @@
     "advanced_toast_success": "Engine binary removed",
     "advanced_toast_error": "Failed to remove the engine binary",
     "binary_op_failed": "Engine binary operation failed",
+    "binary_op_failed_body": "The last install or removal did not finish. Try again, or check System Logs.",
+    "pkg_status_removing": "Removing the engine…",
     "stale_title": "Not responding",
     "stale_body": "The last poll didn't answer. The figures below are held from the previous read, and the engine keeps doing whatever it was doing.",
     "error_load_title": "Could not read the Traffic Engine",

@@ -150,22 +150,22 @@ export const LIVE = {
   ROOT: "flex min-w-0 flex-col gap-2.5",
   HEAD: "flex flex-wrap items-end justify-between gap-x-4 gap-y-2",
   LEGEND: "text-on-surface-variant inline-flex items-center gap-[0.4375rem] text-xs font-medium",
-  LEGEND_DOT: "size-2 flex-none rounded-pill bg-uplink-on-surface",
+  LEGEND_DOT: "size-2 flex-none rounded-pill bg-foreground",
   NUMERAL: "flex items-baseline gap-1.5 tabular-nums",
   ARROW:
-    "text-uplink-on-surface size-5 self-center transition-opacity duration-[var(--duration-standard)] ease-standard",
+    "text-foreground size-5 self-center transition-opacity duration-[var(--duration-standard)] ease-standard",
   /** 40px line box: the skeleton reads the same height. */
   RATE: "text-[2.5rem] leading-10 font-semibold tracking-[-0.02em] transition-[color] duration-[var(--duration-standard)] ease-standard",
-  RATE_ON: "text-uplink-on-surface",
+  RATE_ON: "text-foreground",
   RATE_OFF: "text-on-surface-variant",
   UNIT: "text-on-surface-variant text-sm font-medium",
   PLOT: `relative ${CHART_HEIGHT} min-w-0`,
   GRIDLINE: "stroke-border",
-  LINE: "fill-none stroke-uplink-on-surface",
-  ENDPOINT: "fill-uplink-on-surface",
+  LINE: "fill-none stroke-foreground",
+  ENDPOINT: "fill-foreground",
   /** The page's one ambient loop, only while packets are flowing. */
   ENDPOINT_RING:
-    "fill-uplink-on-surface origin-center [transform-box:fill-box] animate-live-ping",
+    "fill-foreground origin-center [transform-box:fill-box] animate-live-ping",
   Y_LABEL:
     "text-on-surface-variant pointer-events-none absolute left-0 -translate-y-[115%] text-[0.6875rem] leading-none tabular-nums",
   EMPTY:
