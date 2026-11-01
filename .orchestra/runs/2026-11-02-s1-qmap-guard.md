@@ -28,3 +28,12 @@ Board: `2026-10-26-atd-poller-port.md` (S1). Design: `2026-10-31-r6-proofs.md` >
 Validation: `cargo test` user + root; armv7 build; RG501Q-EU `/tmp` copy run `--qcmap` as root and as www-data (proves `/proc/*/comm`
 is readable to the fallback; checks hidepid). No service restart, no broker replace, no AT sent. Blind `qm-verifier`.
 Risk: a QCMAP restart window refuses QMAP for ≤2 s past recovery (cache). Rollback: revert the branch; wire code unchanged.
+
+## Build + validate (plan approved by the user 2026-11-02)
+
+- Commit 73398ad7: plan items 1–7 as written. Crate 0.7.5, proto 3.
+- `cargo test`: 324 passed as user and as root (`wsl -u root`). Flaky test 10/10 after the fix.
+- armv7 musl release (toolchain 1.99.0): md5 **d5b06114** = `dependencies/qmanager_atd`. Two build warnings predate this change (`fetch_update` deprecated, `Executor::run` unused in release).
+- RG501Q-EU (b7e3d6f1), PM slot "read-only /tmp only": `/tmp` copy md5 d5b06114, `--version` = 0.7.5 proto=3,
+  `--qcmap` = `qcmap=running` as root and as www-data (pid 430 comm matches), `/proc` mounted without hidepid. Files self-deleted. No AT sent, nothing restarted.
+- Not proven on a device: the refusal itself (needs QCMAP stopped = disruptive) and the WARN/INFO log lines; covered by the exec.rs test with a fake proc root.
