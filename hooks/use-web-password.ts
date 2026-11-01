@@ -14,14 +14,8 @@ import type {
   PasswordActions,
 } from "@/types/password-change";
 
-// =============================================================================
-// useWebPassword — the QManager (web) password, as the Passwords card's tab
-// =============================================================================
-// Wraps the two `use-auth` calls in the same result shape as `useSshPassword`,
-// so the card treats both tabs alike. A successful change destroys the session
-// on the device and `changePassword` sends the browser to /login/, so the page
-// is already leaving when this resolves.
-// =============================================================================
+// useWebPassword: wraps the `use-auth` calls in `useSshPassword`'s result shape so both tabs behave alike.
+// A successful change destroys the session and redirects to /login/ before this resolves.
 
 export function useWebPassword(): PasswordActions {
   const { t } = useTranslation("errors");

@@ -985,6 +985,8 @@
       "weak": "La password deve contenere almeno {{min}} caratteri e includere lettere maiuscole, minuscole e un numero.",
       "verify_failed": "Impossibile verificare la password. Riprova.",
       "change_failed": "Impossibile cambiare la password. Riprova.",
+      "invalid_password_one": "Password errata. {{count}} tentativo rimasto prima che l'accesso venga bloccato per un po'.",
+      "invalid_password_other": "Password errata. {{count}} tentativi rimasti prima che l'accesso venga bloccato per un po'.",
       "rate_limited_one": "Troppi tentativi errati. Riprova tra {{count}} secondo.",
       "rate_limited_other": "Troppi tentativi errati. Riprova tra {{count}} secondi."
     }

@@ -15,24 +15,28 @@ import type {
   PasswordActions,
 } from "@/types/password-change";
 
-// =============================================================================
-// useSshPassword — Mutation hook for changing the SSH root password
-// =============================================================================
-// Posts to /cgi-bin/quecmanager/auth/ssh_password.sh. Resolves to a result
-// object rather than a bare boolean, so the caller toasts the device's reason
-// from the returned value and never from hook state read after an `await`.
-// `verifyPassword` is the Passwords card's Continue step: the same endpoint in
-// `verify_only` mode, which checks the CURRENT ROOT password and changes nothing.
-// The QManager web session is NOT affected by a successful change.
-// =============================================================================
+// useSshPassword: posts to auth/ssh_password.sh and resolves to a result object (the card toasts its reason).
+// `verifyPassword` is the same endpoint in `verify_only` mode; the web session is unaffected by a change.
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/auth/ssh_password.sh";
 
 /** A failed password call as one translated sentence, or undefined for the caller's own line. */
 export function resolvePasswordFailure(
   t: TFunction,
-  failure: { error?: string; detail?: string; retry_after?: number },
+  failure: {
+    error?: string;
+    detail?: string;
+    retry_after?: number;
+    attempts_remaining?: number;
+  },
 ): string | undefined {
+  // 0 left falls through to the plain line, as on the login page.
+  if (failure.error === "invalid_password" && (failure.attempts_remaining ?? 0) > 0) {
+    return t("passwords.errors.invalid_password", {
+      ns: "system-settings",
+      count: failure.attempts_remaining,
+    });
+  }
   // The lockout carries its own countdown; the shared errors line has none.
   if (failure.error === "rate_limited" && (failure.retry_after ?? 0) > 0) {
     return t("passwords.errors.rate_limited", {

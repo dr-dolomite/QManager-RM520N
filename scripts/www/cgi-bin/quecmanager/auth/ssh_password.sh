@@ -90,9 +90,9 @@ if ! qm_verify_ssh_password "$_current"; then
             cgi_headers
             cgi_error "hash_tool_missing" "Password validation tool (openssl) is not installed"
             ;;
-        hash_parse_failed)
+        root_hash_unsupported)
             cgi_headers
-            cgi_error "hash_parse_failed" "Unsupported password hash format"
+            cgi_error "root_hash_unsupported" "Root password hash format is not supported"
             ;;
         *)
             qlog_error "Root password check unavailable"

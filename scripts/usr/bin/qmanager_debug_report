@@ -1,18 +1,6 @@
 #!/bin/sh
-# =============================================================================
-# qmanager_debug_report — On-demand plain-text diagnostic snapshot (RM520N-GL)
-# =============================================================================
-# Writes /tmp/qmanager_debug_<epoch>.txt (mode 0600) and prints that path as
-# the LAST line of stdout (the diagnostics.sh CGI reads only that line).
-#
-# Runs as www-data (no sudo): anything that needs root is reported as
-# "restricted", never as an error. Every source is an explicit allowlist;
-# identifiers (IMEI/IMSI/ICCID/phone) are masked; SMS, email/Discord, tokens,
-# sessions and /etc/qmanager config are never read. Never touches the modem,
-# never calls qcmd, never restarts anything.
-#
-# Install location: /usr/bin/qmanager_debug_report  (mode 755)
-# =============================================================================
+# qmanager_debug_report: writes /tmp/qmanager_debug_<epoch>.txt (0600); its path is the LAST stdout line.
+# Runs as www-data on allowlisted sources, IDs masked, read-only (no qcmd, no secrets, no restarts). Install: /usr/bin/ (755).
 
 PATH=/opt/bin:/opt/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 umask 077
@@ -133,7 +121,8 @@ log_tail() {
     tail -n 1000 /tmp/qmanager.log 2>/dev/null \
         | grep -v -i -E 'sms|email|smtp|discord|password|passwd|token|session|cookie|secret|otp' \
         | tail -n "$LOG_TAIL" \
-        | sed 's/[0-9]\{10,\}/[num]/g'
+        | sed -E -e 's/([Ii][Cc][Cc][Ii][Dd]|[Ii][Mm][Ss][Ii]|[Ii][Mm][Ee][Ii])([^A-Za-z0-9]*)[0-9][^[:space:]]*/\1\2[masked]/g' \
+                 -e 's/[0-9]{10,}/[num]/g'
 }
 
 : > "$TMP"

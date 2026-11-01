@@ -1,8 +1,4 @@
-// =============================================================================
-// ssh-password.ts — Types for the SSH Password change endpoint
-// =============================================================================
-// Mirrors the contract of /cgi-bin/quecmanager/auth/ssh_password.sh.
-// =============================================================================
+// Types for the SSH password endpoint; mirrors auth/ssh_password.sh.
 
 export interface SshPasswordChangeRequest {
   current_password: string;
@@ -24,6 +20,8 @@ export type SshPasswordErrorCode =
   | "invalid_password"
   | "no_password_set"
   | "hash_tool_missing"
+  | "root_hash_unsupported"
+  | "verify_unavailable"
   | "passwd_failed";
 
 export interface SshPasswordChangeSuccess {

@@ -246,10 +246,8 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
     fetchUpdateInfo();
   }, [fetchUpdateInfo]);
 
-  // ---------------------------------------------------------------------------
   // Install-stall tracking: any status change re-arms the 120 s timer while
   // "installing"; the timer firing means the installer went quiet.
-  // ---------------------------------------------------------------------------
   const trackStall = useCallback(
     (json: { status: string; message?: string; version?: string }) => {
       const signature = `${json.status}|${json.message ?? ""}|${json.version ?? ""}`;

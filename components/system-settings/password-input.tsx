@@ -11,9 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { COARSE_TARGET } from "./shapes";
 
-// The toggle rides INSIDE the field, so it paints 32px and cannot grow.
-// `COARSE_TARGET` reaches the 44px floor with a pseudo-element instead of
-// resizing the visible button.
+// The toggle sits inside the field (32px); `COARSE_TARGET` reaches 44px via a pseudo-element.
 const TOGGLE = `text-on-surface-variant hover:text-on-surface ${COARSE_TARGET}`;
 
 interface PasswordInputProps extends FieldHostProps {
@@ -28,12 +26,7 @@ interface PasswordInputProps extends FieldHostProps {
   className?: string;
 }
 
-/**
- * A password field with its own show/hide state. The Passwords card's field
- * rows and its new-password dialog both use it; `host` picks the fill that sits
- * one step above whatever it rests on (`container` inside a `ROW_GROUP`,
- * `surface` on a dialog).
- */
+/** Password field with its own show/hide state; `host` picks the fill one step above its backdrop. */
 export function PasswordInput({
   id,
   value,

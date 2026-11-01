@@ -985,6 +985,8 @@
       "weak": "密码至少需要 {{min}} 个字符，且包含大写字母、小写字母和数字。",
       "verify_failed": "无法验证密码，请重试。",
       "change_failed": "无法修改密码，请重试。",
+      "invalid_password_one": "密码错误。还剩 {{count}} 次尝试，之后登录将被暂时锁定。",
+      "invalid_password_other": "密码错误。还剩 {{count}} 次尝试，之后登录将被暂时锁定。",
       "rate_limited_one": "错误尝试次数过多。请在 {{count}} 秒后重试。",
       "rate_limited_other": "错误尝试次数过多。请在 {{count}} 秒后重试。"
     }

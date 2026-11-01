@@ -9,13 +9,8 @@ import type {
   DiagnosticsCaptureResult,
 } from "@/types/diagnostics";
 
-// =============================================================================
-// useDiagnostics — capture a plain-text debug report and download it.
-// =============================================================================
-// Backend: POST /cgi-bin/quecmanager/system/diagnostics.sh  body {"action":"capture"}
-// The returned `content` becomes a text/plain Blob downloaded through a
-// temporary <a download>. Action-only: there is no mount fetch.
-// =============================================================================
+// useDiagnostics: POST system/diagnostics.sh {"action":"capture"}; `content` downloads as a text/plain Blob.
+// Action-only, no mount fetch.
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/system/diagnostics.sh";
 const FALLBACK_FILENAME = "qmanager-debug-report.txt";
@@ -79,7 +74,7 @@ export function useDiagnostics(): UseDiagnosticsReturn {
         body: JSON.stringify({ action: "capture" }),
       });
       if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        return failWith(tRef.current("unknown"));
       }
 
       const json: DiagnosticsCaptureResponse = await resp.json();
@@ -106,10 +101,8 @@ export function useDiagnostics(): UseDiagnosticsReturn {
 
       if (mountedRef.current) setStage("done");
       return { ok: true };
-    } catch (err) {
-      return failWith(
-        err instanceof Error && err.message ? err.message : tRef.current("unknown"),
-      );
+    } catch {
+      return failWith(tRef.current("unknown"));
     }
   }, []);
 

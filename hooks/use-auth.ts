@@ -266,6 +266,8 @@ export interface PasswordCallResult {
   detail?: string;
   /** Present with `rate_limited`: seconds until the lockout lifts. */
   retry_after?: number;
+  /** Present with `invalid_password`: wrong guesses left before the lockout. */
+  attempts_remaining?: number;
 }
 
 /**
@@ -286,6 +288,8 @@ export async function verifyPassword(current: string): Promise<PasswordCallResul
       error: data.error,
       detail: data.detail,
       retry_after: typeof data.retry_after === "number" ? data.retry_after : undefined,
+      attempts_remaining:
+        typeof data.attempts_remaining === "number" ? data.attempts_remaining : undefined,
     };
   } catch {
     return { success: false };
@@ -321,6 +325,8 @@ export async function changePassword(
       error: data.error,
       detail: data.detail,
       retry_after: typeof data.retry_after === "number" ? data.retry_after : undefined,
+      attempts_remaining:
+        typeof data.attempts_remaining === "number" ? data.attempts_remaining : undefined,
     };
   } catch {
     return { success: false };

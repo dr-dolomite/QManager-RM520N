@@ -1,7 +1,9 @@
 {
   "auth_unavailable": "L'accesso non è disponibile al momento. Riprova tra poco.",
-  "hash_tool_missing": "Impossibile salvare la password perché manca uno strumento di sistema necessario.",
-  "no_password_set": "Nessuna password impostata. Completa prima la configurazione iniziale.",
+  "hash_tool_missing": "Questo modem non può verificare le password SSH: manca openssl.",
+  "no_password_set": "Per root non è ancora impostata una password SSH, quindi non c'è una password attuale da verificare.",
+  "root_hash_unsupported": "La password di root usa un formato di hash che questa verifica non può leggere.",
+  "verify_unavailable": "Impossibile verificare la password root attuale. L'helper delle password potrebbe essere obsoleto; riprova dopo l'aggiornamento.",
   "passwd_failed": "Impossibile cambiare la password del dispositivo. Riprova.",
   "ssh_password_failed": "Impossibile aggiornare la password di accesso remoto. Riprova.",
   "unknown": "Errore sconosciuto",

@@ -87,11 +87,8 @@ import {
 // Two labelled groups. Time & Units: the zone the whole device measures time
 // against, and the two units every reading is rendered in; the zone leads
 // because it is the only one of the three with a consequence beyond display.
-// Tracked SIMs: the remembered-SIM count with its inline Clear.
-//
-// The foot commits the units draft only. Tracked SIMs owns its own data and
-// acts at once, so it renders in every state of the units half (loading, failed
-// read, form) rather than waiting on it.
+// Tracked SIMs: the foot commits the units draft only; this group acts at once,
+// so it renders in every state of the units half.
 //
 // The always-visible clock readout lives on the page's status band, not here.
 // What this card keeps is the FAILURE case: the zone was saved but never

@@ -1,7 +1,9 @@
 {
   "auth_unavailable": "目前無法登入。請稍後再試。",
-  "hash_tool_missing": "無法儲存密碼，因為缺少所需的系統工具。",
-  "no_password_set": "尚未設定密碼。請先完成初始設定。",
+  "hash_tool_missing": "此數據機無法檢查 SSH 密碼：缺少 openssl。",
+  "no_password_set": "root 尚未設定 SSH 密碼，因此沒有可檢查的目前密碼。",
+  "root_hash_unsupported": "root 密碼使用了此檢查無法讀取的雜湊格式。",
+  "verify_unavailable": "無法檢查目前的 root 密碼。密碼輔助程式可能已過期，請更新後再試一次。",
   "passwd_failed": "無法變更裝置密碼。請再試一次。",
   "ssh_password_failed": "無法更新遠端存取密碼。請再試一次。",
   "unknown": "未知錯誤",

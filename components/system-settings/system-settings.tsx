@@ -14,8 +14,7 @@ import { staggerContainer, staggerItem } from "@/lib/motion";
 import ScheduledOperationsCard from "@/components/system-settings/scheduled-operations-card";
 import { StatusBand } from "@/components/system-settings/status-band";
 import SystemSettingsCard from "@/components/system-settings/system-settings-card";
-// Parked for future use: the System Health card (subsystem state + host
-// resource usage) stays on disk and can be restored to the grid at any time.
+// Parked: the System Health card stays on disk and can return to the grid.
 // import ModemSubsystemCard from "@/components/system-settings/modem-subsystem-card";
 
 import {
@@ -30,10 +29,8 @@ const K = "page";
 const SystemSettings = () => {
   const { t } = useTranslation("system-settings");
   const settingsState = useSystemSettings();
-  // Lifted rather than mounted twice: the hook fetches on mount with no shared
-  // cache, so a second consumer would mean a second GET and a band count that
-  // does not follow the Tracked SIMs row beneath it. It also lets the page's
-  // Refresh button reconcile the count.
+  // Lifted: the hook has no shared cache, so a second consumer would double the GET
+  // and drift from the Tracked SIMs row; Refresh also reconciles the count.
   const knownSims = useKnownSims();
 
   const { refresh: refreshSettings, isLoading, settings } = settingsState;

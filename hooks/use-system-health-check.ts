@@ -35,7 +35,7 @@ class HealthCheckError extends Error {
     readonly code: string | undefined,
     readonly detail: string | undefined,
   ) {
-    super(detail || code || "request failed");
+    super(detail || code || "");
   }
 }
 
@@ -83,9 +83,9 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
   /** The failure reason for a toast, from THIS call's own error. */
   const describe = useCallback((e: unknown): string => {
     if (e instanceof HealthCheckError) {
-      return resolveErrorMessage(tErrorsRef.current, e.code, e.detail, e.message);
+      return resolveErrorMessage(tErrorsRef.current, e.code, e.detail, tErrorsRef.current("unknown"));
     }
-    return e instanceof Error ? e.message : String(e);
+    return tErrorsRef.current("unknown");
   }, []);
 
   const fetchStatus = useCallback(async (): Promise<HealthCheckJob | null> => {
@@ -112,13 +112,13 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
       setError(null);
     } catch (e) {
       if (aborted.current) return;
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describe(e));
     } finally {
       // Latches false on the first settle. A later poll must never flip it back,
       // or a refresh would redraw the whole surface as skeletons.
       if (!aborted.current) setIsLoading(false);
     }
-  }, [fetchStatus]);
+  }, [fetchStatus, describe]);
 
   // Initial fetch on mount.
   useEffect(() => {
@@ -232,7 +232,7 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || contentType.includes("application/json")) {
         let code: string | undefined;
-        let detail: string | undefined = `status ${res.status}`;
+        let detail: string | undefined;
         try {
           const body = (await res.json()) as { error?: string; detail?: string };
           code = body.error;

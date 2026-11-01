@@ -1,10 +1,5 @@
-// types/diagnostics.ts
-//
-// Response shapes for the debug-report capture endpoint.
-// Backend: POST /cgi-bin/quecmanager/system/diagnostics.sh  body {"action":"capture"}
-//   success → { success: true, filename, content }
-//   error   → { success: false, error: CODE, detail?: MSG }
-//   codes: report_tool_missing | capture_failed | unknown_action | method_not_allowed
+// Response shapes for POST system/diagnostics.sh {"action":"capture"}.
+// Errors: report_tool_missing | capture_failed | unknown_action | method_not_allowed
 
 export interface DiagnosticsCaptureSuccess {
   success: true;

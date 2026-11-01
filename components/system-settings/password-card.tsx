@@ -38,19 +38,8 @@ import {
   TAB_RAIL,
 } from "./shapes";
 
-// =============================================================================
-// Passwords — the web (QManager) password and the SSH root password
-// =============================================================================
-// Two tabs, one flow. Each asks for ITS OWN current password first and checks it
-// on the device (`verify_only`), so a wrong one is refused before any new
-// password is typed. Only a correct one opens the dialog that takes the new
-// password; Save sends the current password again and the device re-checks it.
-//
-// Switching tabs unmounts the other panel, so a typed password never lingers
-// behind a tab. A web change destroys the session on the device and the hook
-// sends the browser to /login/: that navigation is the confirmation, so it does
-// not also toast (Toast-Confirms Rule). An SSH change toasts.
-// =============================================================================
+// Passwords card: each tab verifies its own current password (`verify_only`) before the new-password dialog.
+// A web change redirects to /login/ (that is the confirmation, no toast); an SSH change toasts.
 
 type Kind = "web" | "ssh";
 

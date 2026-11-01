@@ -985,6 +985,8 @@
       "weak": "Password must be at least {{min}} characters and include uppercase, lowercase, and a number.",
       "verify_failed": "Couldn't check the password. Try again.",
       "change_failed": "Couldn't change the password. Try again.",
+      "invalid_password_one": "Incorrect password. {{count}} attempt left before sign-in is locked for a while.",
+      "invalid_password_other": "Incorrect password. {{count}} attempts left before sign-in is locked for a while.",
       "rate_limited_one": "Too many wrong attempts. Try again in {{count}} second.",
       "rate_limited_other": "Too many wrong attempts. Try again in {{count}} seconds."
     }

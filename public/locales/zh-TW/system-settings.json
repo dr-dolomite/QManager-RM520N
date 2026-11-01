@@ -985,6 +985,8 @@
       "weak": "密碼至少需要 {{min}} 個字元，且包含大寫字母、小寫字母和數字。",
       "verify_failed": "無法驗證密碼，請再試一次。",
       "change_failed": "無法變更密碼，請再試一次。",
+      "invalid_password_one": "密碼錯誤。還剩 {{count}} 次嘗試，之後登入將被暫時鎖定。",
+      "invalid_password_other": "密碼錯誤。還剩 {{count}} 次嘗試，之後登入將被暫時鎖定。",
       "rate_limited_one": "錯誤嘗試次數過多。請在 {{count}} 秒後再試一次。",
       "rate_limited_other": "錯誤嘗試次數過多。請在 {{count}} 秒後再試一次。"
     }

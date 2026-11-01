@@ -557,10 +557,8 @@ qm_set_ssh_password() {
     fi
 }
 
-# Check a candidate root (SSH) password via the root helper's --verify mode.
-# Returns 0 on match; else 1 with QM_SSH_VERIFY_ERR set to the helper's error
-# code (invalid_password, no_password_set, hash_tool_missing, hash_parse_failed)
-# or verify_unavailable when the helper gave no usable answer.
+# Check a root (SSH) password via the helper's --verify; 0 on match, else 1 with QM_SSH_VERIFY_ERR
+# set to its error code (or verify_unavailable when it gave no usable answer).
 qm_verify_ssh_password() {
     QM_SSH_VERIFY_ERR="verify_unavailable"
     [ -z "$1" ] && return 1
@@ -578,7 +576,7 @@ qm_verify_ssh_password() {
 
     _vsp_err=$(printf '%s' "$_vsp_out" | jq -r '.error // empty' 2>/dev/null)
     case "$_vsp_err" in
-        invalid_password|no_password_set|hash_tool_missing|hash_parse_failed)
+        invalid_password|no_password_set|hash_tool_missing|root_hash_unsupported)
             QM_SSH_VERIFY_ERR="$_vsp_err" ;;
     esac
     return 1

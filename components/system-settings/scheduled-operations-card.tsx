@@ -79,12 +79,8 @@ const AUTOSAVE_HINT_ID = "scheduled-autosave-hint";
 /** The debounce between the last edit and the save it triggers. */
 const SAVE_DEBOUNCE_MS = 800;
 
-// -----------------------------------------------------------------------------
-// useAutosaveSchedule — the schedule's draft, debounce and revert rules
-// -----------------------------------------------------------------------------
-// The switch saves at once, every other edit saves 800ms after the last while
-// the schedule is on, and a failed save puts the server's values back. A save
-// that landed but armed no live timer warns instead of claiming success.
+// useAutosaveSchedule: the switch saves at once, other edits 800ms after the last while on; a failed save reverts.
+// A save that armed no live timer warns instead of claiming success.
 
 interface ScheduleLike {
   enabled: boolean;
@@ -298,9 +294,7 @@ function useAutosaveSchedule<C extends ScheduleLike>({
   return { draft, isSaving, edit, toggleDay, setEnabled };
 }
 
-// -----------------------------------------------------------------------------
 // Pieces
-// -----------------------------------------------------------------------------
 
 /** On / Off / Never-fires chip beside the switch's label. */
 function StateChip({
@@ -479,12 +473,7 @@ function parseWallTime(local: string): number | null {
   return Date.UTC(y, mo - 1, d, h, mi, se);
 }
 
-/**
- * The modem's own date and time, ticking. It is the device's wall clock and
- * zone, not the browser's: the GET reports both the epoch and the device's
- * local wall time, their difference is the device's UTC offset, and the
- * elapsed browser time since the read advances it.
- */
+/** The modem's own ticking clock: epoch minus local wall time gives its UTC offset, not the browser's. */
 function DeviceClockRow({ clock }: { clock: DeviceClockReading | null }) {
   const { t, i18n } = useTranslation("system-settings");
   const [now, setNow] = useState(() => Date.now());
@@ -538,9 +527,7 @@ function DeviceClockRow({ clock }: { clock: DeviceClockReading | null }) {
   );
 }
 
-// -----------------------------------------------------------------------------
 // Card
-// -----------------------------------------------------------------------------
 
 type ScheduledOperationsCardProps = Pick<
   UseSystemSettingsReturn,
@@ -648,9 +635,8 @@ const ScheduledOperationsCard = ({
     );
   }
 
-  // No schedule to show: a failed read, or an envelope carrying none. The form
-  // must not render, because its fields would be defaults and the switch would
-  // arm them.
+  // No schedule (failed read or none in the envelope): don't render the form, its
+  // default fields would be armed by the switch.
   if (!scheduledReboot) {
     return (
       <Card className={CARD_SHELL}>
@@ -682,11 +668,7 @@ const ScheduledOperationsCard = ({
   );
 };
 
-// -----------------------------------------------------------------------------
-// Form
-// -----------------------------------------------------------------------------
-// Mounted only once the schedule exists, so the draft starts from the device's
-// values and never from a seeded week the user did not choose.
+// Form: mounted only once the schedule exists, so the draft starts from the device's values.
 
 function ScheduledOperationsForm({
   head,

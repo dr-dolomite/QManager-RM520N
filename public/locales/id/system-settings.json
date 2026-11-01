@@ -985,6 +985,8 @@
       "weak": "Kata sandi minimal {{min}} karakter dan menyertakan huruf besar, huruf kecil, dan angka.",
       "verify_failed": "Tidak dapat memeriksa kata sandi. Coba lagi.",
       "change_failed": "Tidak dapat mengubah kata sandi. Coba lagi.",
+      "invalid_password_one": "Kata sandi salah. Sisa {{count}} percobaan sebelum proses masuk dikunci untuk sementara.",
+      "invalid_password_other": "Kata sandi salah. Sisa {{count}} percobaan sebelum proses masuk dikunci untuk sementara.",
       "rate_limited_one": "Terlalu banyak percobaan yang salah. Coba lagi dalam {{count}} detik.",
       "rate_limited_other": "Terlalu banyak percobaan yang salah. Coba lagi dalam {{count}} detik."
     }

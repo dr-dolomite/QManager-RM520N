@@ -1,7 +1,9 @@
 {
   "auth_unavailable": "Sign-in isn't available right now. Try again in a moment.",
-  "hash_tool_missing": "The password can't be saved because a required system tool is missing.",
-  "no_password_set": "No password is set yet. Complete the initial setup first.",
+  "hash_tool_missing": "This modem can't check SSH passwords: openssl is missing.",
+  "no_password_set": "Root has no SSH password set yet, so there is no current password to check.",
+  "root_hash_unsupported": "Root's password uses a hash format this check can't read.",
+  "verify_unavailable": "Couldn't check the current root password. The password helper may be out of date; try again after updating.",
   "passwd_failed": "Couldn't change the device password. Try again.",
   "ssh_password_failed": "Couldn't update the remote access password. Try again.",
   "unknown": "Unknown error",

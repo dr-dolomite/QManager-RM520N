@@ -551,13 +551,8 @@ export const SKELETON = {
 export const CLOCK_VALUE = "text-[0.9375rem] font-semibold tabular-nums";
 
 /**
- * A tab rail in the app's tab language: a pill track on `surface-container`,
- * pill triggers, and the selected one FILLED `primary` with no shadow. The
- * primitive still defaults to the legacy chip, so shape and fill live here.
- *
- * Both `dark:` repeats are load-bearing: the primitive writes its rest ink and
- * active fill under `dark:`, which out-ranks a bare utility. The transition is
- * the two-clock longhand `Badge` uses, so the fill does not cut in.
+ * Pill tab rail, active tab filled `primary`. The `dark:` repeats are load-bearing: the
+ * primitive's own `dark:` ink/fill out-rank bare utilities.
  */
 export const TAB_RAIL = {
   LIST_TWO_UP:

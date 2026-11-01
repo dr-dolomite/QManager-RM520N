@@ -1,7 +1,9 @@
 {
   "auth_unavailable": "目前无法登录。请稍后重试。",
-  "hash_tool_missing": "无法保存密码，因为缺少所需的系统工具。",
-  "no_password_set": "尚未设置密码。请先完成初始设置。",
+  "hash_tool_missing": "此调制解调器无法校验 SSH 密码：缺少 openssl。",
+  "no_password_set": "root 尚未设置 SSH 密码，因此没有可校验的当前密码。",
+  "root_hash_unsupported": "root 密码使用了此校验无法读取的哈希格式。",
+  "verify_unavailable": "无法校验当前 root 密码。密码辅助程序可能已过期，请更新后重试。",
   "passwd_failed": "无法更改设备密码。请重试。",
   "ssh_password_failed": "无法更新远程访问密码。请重试。",
   "unknown": "未知错误",

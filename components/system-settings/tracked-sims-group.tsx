@@ -33,18 +33,8 @@ import {
   VALUE_NONE,
 } from "./shapes";
 
-// =============================================================================
-// Tracked SIMs — the set of SIMs the device will not flag as new
-// =============================================================================
-// The second group of the Device & Units card. The device keeps a membership
-// set, not a list: it can say HOW MANY SIMs it remembers, and forget them, but
-// it cannot name them. So the group is one row holding the count, with Clear as
-// an inline operational action (it commits nothing from the card's draft, so it
-// stays off the card foot, which belongs to the units).
-//
-// `count === null` is a failed read and `0` is a genuine empty set. The row says
-// which: rendering the unknown as a zero would assert a fact.
-// =============================================================================
+// Tracked SIMs: the device keeps a set it can count and clear but not name; Clear is inline, off the card foot.
+// `count === null` is a failed read, `0` a genuinely empty set; the row shows which.
 
 const K = "known_sims";
 

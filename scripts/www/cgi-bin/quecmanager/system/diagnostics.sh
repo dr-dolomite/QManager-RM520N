@@ -1,23 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
-# =============================================================================
-# diagnostics.sh — CGI Endpoint: On-demand Diagnostic Report (POST)
-# =============================================================================
-# POST {"action":"capture"} → runs /usr/bin/qmanager_debug_report, reads the
-# artifact path from the tool's LAST stdout line, and returns the report body
-# inline so the frontend can offer it as a download / copy-to-clipboard blob.
-#
-# Auth: enforced at source time by cgi_base.sh (require_auth runs during the
-#       source above unless _SKIP_AUTH=1). No explicit auth call is needed.
-#
-# Response (success):
-#   {"success":true,"filename":"<path>","content":"<plain text>"}
-# Errors: report_tool_missing | capture_failed | unknown_action |
-#         method_not_allowed
-#
-# Endpoint: POST /cgi-bin/quecmanager/system/diagnostics.sh
-# Install location: /usrdata/qmanager/www/cgi-bin/quecmanager/system/diagnostics.sh
-# =============================================================================
+# diagnostics.sh: POST {"action":"capture"} runs qmanager_debug_report and returns {"success":true,"filename","content"}.
+# Errors: report_tool_missing | capture_failed | unknown_action | method_not_allowed. Auth via cgi_base.sh.
 
 qlog_init "cgi_diagnostics"
 cgi_headers
@@ -53,9 +37,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         qlog_info "Diagnostic report ready: $ARTIFACT"
 
-        # --rawfile reads the file as a raw string (no JSON parsing), so the
-        # plain-text report is embedded safely regardless of its content. The
-        # report tool already byte-sanitized the file.
+        # --rawfile embeds the report as a raw string (no JSON parsing); the tool
+        # already byte-sanitized it.
         jq -n \
             --arg filename "$ARTIFACT" \
             --rawfile content "$ARTIFACT" \

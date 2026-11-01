@@ -25,16 +25,8 @@ import { cn } from "@/lib/utils";
 
 import { PasswordInput } from "./password-input";
 
-// =============================================================================
-// PasswordChangeDialog — the second step of the Passwords card
-// =============================================================================
-// Opens only after the card has verified the current password. It collects the
-// new password, its confirmation and the strength rule, checks them against the
-// device's policy so a refusal costs no round trip, and hands them to the card.
-// The card owns the call, the toasts and the reset: a dialog does not confirm
-// its own mutation (Toast-Confirms Rule), and a server failure must toast the
-// reason the call returned.
-// =============================================================================
+// Second step of the Passwords card: collects and pre-validates the new password after the current one verified.
+// The card owns the call, toasts and reset (Toast-Confirms Rule).
 
 interface PasswordChangeDialogProps {
   open: boolean;

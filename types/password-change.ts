@@ -1,11 +1,5 @@
-// =============================================================================
-// password-change.ts — Shared result shape for the Passwords card's two tabs
-// =============================================================================
-// Web Password (`auth/password.sh`) and SSH Password (`auth/ssh_password.sh`)
-// both take `verify_only` (check the current password, change nothing) and a
-// full change. Their hooks resolve to this, so the card toasts the device's
-// reason from the returned value and never from hook state read after an await.
-// =============================================================================
+// Shared result shape for the Passwords card's two tabs (`verify_only` and full change).
+// The card toasts the device's reason from the returned value, never from hook state.
 
 export interface PasswordActionResult {
   success: boolean;
