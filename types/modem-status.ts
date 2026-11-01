@@ -397,7 +397,8 @@ export type ServingMetric = "rsrp" | "rsrq" | "sinr" | "rssi";
  * that grabbed the wrong CSV column.
  *
  * WHY THIS EXISTS. `AT+QCAINFO`'s LTE line reports RSSNR in field 10 as a RAW
- * value, while `AT+QENG="servingcell"` reports the same measurement in dB. The
+ * value, and `AT+QENG="servingcell"` reports a raw 0..25 too (dB = 2X−20, which
+ * `parse_at.sh` now applies; the `lte.sinr` = 8 below predates that). The
  * poller's NR branch rescales and rejects `-32768`; its LTE branch
  * (`parse_at.sh:632`) takes the field verbatim. Live capture, one poll, one
  * cell (B28 / EARFCN 9485 / PCI 407): `lte.sinr` = 8 while
@@ -648,6 +649,14 @@ export interface ConnectivityStatus {
   dns_resolver?: string | null;
   /** Alert thresholds the poller applies (Connection Quality settings). Absent on an older poller. */
   thresholds?: { latency_ms: number; loss_pct: number };
+  /** Seconds the last outage cleared this boot lasted. null until one clears. Absent on an older poller. */
+  last_outage_s?: number | null;
+  /** Seconds since it cleared, on the monotonic clock. null alongside last_outage_s. */
+  last_outage_ago_s?: number | null;
+  /** WAN address held when it cleared (IPv4 preferred). null when unknown. */
+  last_outage_wan_ip?: string | null;
+  /** Whether that address differs from the one before the outage. null when either side is unknown. */
+  last_outage_wan_changed?: boolean | null;
 }
 
 // --- Watchcat State (from /tmp/qmanager_watchcat.json via poller) ------------

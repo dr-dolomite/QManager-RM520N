@@ -188,7 +188,7 @@ export function ContextTiles({
               <span
                 key={part}
                 className={cn(
-                  "truncate font-mono font-semibold tabular-nums",
+                  "truncate font-semibold tabular-nums",
                   // Two legs drop two ramp steps so the stacked pair fits the
                   // 34px value budget inside the 104px `TILE_SHAPE.ROOT` pins
                   // and the skeleton mirrors. This was `text-base`, which

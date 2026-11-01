@@ -199,37 +199,39 @@ export function CarrierAggregationComponent({
   // Before the first snapshot lands there is no arrival time and nothing to
   // reconcile against, so the chain holds whatever it already had — the same
   // branch `isStale` takes, for the same reason.
-  const retained = React.useRef<ResolvedCarrier[]>([]);
+  //
+  // State adjusted during render once per arrival (RM551E v0.1.34), so no ref is
+  // read during render; a new `receivedAtMs` reconciles the chain exactly once.
+  const [chain, setChain] = React.useState<{
+    at: number | null;
+    previous: ResolvedCarrier[];
+    resolved: ResolvedCarrier[];
+  }>({ at: null, previous: [], resolved: [] });
   const now = receivedAtMs;
-  const resolved =
-    isStale || now === null
-      ? retained.current
-      : reconcileCarriers(retained.current, carriers, networkType, now);
-
-  // Committed after render, never during: a render React throws away must not
-  // advance the release clock.
-  React.useEffect(() => {
-    retained.current = resolved;
-  });
+  if (!isStale && now !== null && now !== chain.at) {
+    setChain({
+      at: now,
+      previous: chain.resolved,
+      resolved: reconcileCarriers(chain.resolved, carriers, networkType, now),
+    });
+  }
+  const resolved = chain.resolved;
 
   const summary = summarise(resolved, networkType);
   const shares = computeSegmentShares(resolved.map((c) => c.bandwidth_mhz));
 
   // A carrier is "entering" only if the card has already drawn a chain without
-  // it. Derived from `retained` — committed state, never a value this render
-  // invented — so a render React discards cannot mark a segment as new.
+  // it. Derived from `chain.previous` — the chain committed for the previous
+  // arrival, never a value this render invented — so a render React discards
+  // cannot mark a segment as new.
   //
   // The distinction matters because the two cases mean different things. Four
   // segments appearing together is the card arriving, and that belongs to the
   // skeleton crossfade; one segment appearing beside three that were already
   // there is the radio adding a carrier, which is the event this widget exists
   // to report. Only the second one grows.
-  //
-  // Read straight off the ref rather than memoised: the effect above commits
-  // `retained` AFTER render, so during render it still holds the PREVIOUS
-  // chain, which is exactly the set we need to diff against.
-  const previousKeys = new Set(retained.current.map((c) => c.key));
-  const hasDrawnChain = retained.current.length > 0;
+  const previousKeys = new Set(chain.previous.map((c) => c.key));
+  const hasDrawnChain = chain.previous.length > 0;
 
   // Skeleton handoff (Motion Guide recipe 03). The overlay lives for one
   // `quick` and then unmounts; nothing downstream depends on it, so a missed
@@ -433,7 +435,7 @@ export function CarrierAggregationComponent({
                 role: roleLabel(c),
                 bw: c.bandwidth_mhz,
               })}
-              title={`${c.band} · ${roleLabel(c)} · ${c.bandwidth_mhz} MHz`}
+              title={`${c.band} (${roleLabel(c)}, ${c.bandwidth_mhz} MHz)`}
               style={{ width: `${shares[i]}%` }}
               className={cn(
                 "ca-segment flex min-w-0 flex-col justify-center gap-px overflow-hidden rounded-tile py-1.5 whitespace-nowrap @md/ca:px-3.5",
@@ -444,7 +446,7 @@ export function CarrierAggregationComponent({
                 segmentTone(c),
               )}
             >
-              <span className="hidden font-mono text-sm leading-[1.1] font-semibold @md/ca:block">
+              <span className="hidden text-sm tabular-nums leading-[1.1] font-semibold @md/ca:block">
                 {c.band}
               </span>
               {/* No alpha on the ink: a released segment's pair measures 6.2:1
@@ -478,7 +480,7 @@ export function CarrierAggregationComponent({
                 )}
               >
                 <div className="flex items-center justify-between gap-2.5">
-                  <span className="font-mono text-base font-semibold">
+                  <span className="text-base font-semibold tabular-nums">
                     {c.band}
                   </span>
                   {/* The role is text, never colour alone — it is the affordance
@@ -494,7 +496,7 @@ export function CarrierAggregationComponent({
                   </span>
                 </div>
 
-                <div className="flex gap-3.5 font-mono text-xs font-medium tabular-nums">
+                <div className="flex gap-3.5 text-xs font-medium tabular-nums">
                   <span>PCI {c.pci ?? "—"}</span>
                   <span>
                     {c.technology === "NR" ? "ARFCN" : "EARFCN"} {c.earfcn ?? "—"}

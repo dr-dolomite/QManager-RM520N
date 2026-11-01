@@ -9,11 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { HintIcon } from "@/components/ui/hint-icon";
 
 import type {
   NetworkStatus,
@@ -399,35 +395,21 @@ export function DashboardStatusRail({
       </motion.span>
 
       {/* Internet */}
-      <motion.span variants={staggerRowItem} className="inline-flex">
+      <motion.span
+        variants={staggerRowItem}
+        className="inline-flex items-center gap-1"
+      >
+        <Chip tone={internet.tone} swapKey={internet.label}>
+          <InternetDot chip={internet} />
+          {internet.label}
+        </Chip>
+        {/* The explaining sentence lives in a tap-to-pin tip beside the chip,
+            so it is readable on a phone where a hover tooltip never opens. */}
         {internet.tooltip ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                // The chip is 30px tall; `before:` lifts the hit area to the
-                // 44px touch floor without shifting any layout.
-                //
-                // The ring arrives over `quick` and is never animated away: a
-                // focus ring that fades out on blur trails the caret through a
-                // keyboard pass and reads as lag, which is why only the
-                // appearing half is transitioned.
-                className="relative rounded-pill transition-[box-shadow] duration-(--duration-quick) ease-quick before:absolute before:-inset-[7px] before:content-[''] focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-              >
-                <Chip tone={internet.tone} swapKey={internet.label}>
-                  <InternetDot chip={internet} />
-                  {internet.label}
-                </Chip>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{internet.tooltip}</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Chip tone={internet.tone} swapKey={internet.label}>
-            <InternetDot chip={internet} />
-            {internet.label}
-          </Chip>
-        )}
+          <HintIcon label={t("network.internet_label")}>
+            {internet.tooltip}
+          </HintIcon>
+        ) : null}
       </motion.span>
     </motion.div>
   );

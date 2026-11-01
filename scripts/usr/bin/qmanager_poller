@@ -2047,6 +2047,24 @@ watchcat_heartbeat() {
     return 0
 }
 
+# Sets _LO_S/_LO_AGO/_LO_IP/_LO_CHG from the alert engine's last cleared outage; all unset-safe (null) until one clears.
+last_outage_fields() {
+    _LO_S=null
+    _LO_AGO=null
+    _LO_IP=""
+    _LO_CHG=null
+    case "${_ae_last_outage_s:-x}${_ae_last_outage_end_up:-x}" in
+        *x*|*[!0-9]*) return 0 ;;
+    esac
+    [ "$_MONO_TOP" -gt 0 ] || return 0
+    _LO_S="$_ae_last_outage_s"
+    _LO_AGO=$((_MONO_TOP - _ae_last_outage_end_up))
+    [ "$_LO_AGO" -lt 0 ] && _LO_AGO=0
+    _LO_IP="${_ae_last_outage_wan4:-$_ae_last_outage_wan6}"
+    case "$_ae_last_outage_wan_changed" in true|false) _LO_CHG="$_ae_last_outage_wan_changed" ;; esac
+    return 0
+}
+
 read_sim_state() {
     # SIM swap visibility — source of truth is now the persistent
     # /etc/qmanager/sim_registry.json record for the CURRENT ICCID, not the
@@ -2129,6 +2147,7 @@ write_cache() {
     local timestamp
     timestamp=$SECONDS
     watchcat_heartbeat
+    last_outage_fields
 
     # QMI overlay; $1 = 1 forces it off (boot write: no AT-vs-QMI cycle yet).
     qmi_gate "${1:-${_QENG_OK:-0}}"
@@ -2244,6 +2263,10 @@ write_cache() {
         --arg conn_last_family "$conn_last_family" \
         --argjson dns_ms "${dns_lookup_ms:-null}" \
         --arg dns_res "$dns_resolver" \
+        --argjson lo_s "${_LO_S:-null}" \
+        --argjson lo_ago "${_LO_AGO:-null}" \
+        --arg lo_ip "${_LO_IP:-}" \
+        --argjson lo_chg "${_LO_CHG:-null}" \
         --argjson wc_enabled "${wc_enabled:-false}" \
         --arg wc_state "${wc_state:-disabled}" \
         --argjson wc_tier "${wc_current_tier:-0}" \
@@ -2392,7 +2415,10 @@ write_cache() {
                 profile: $conn_profile,
                 dns_lookup_ms: $dns_ms,
                 dns_resolver: (if $dns_res == "" then null else $dns_res end),
-                last_family: (if $conn_last_family == "null" then null else $conn_last_family end)
+                last_family: (if $conn_last_family == "null" then null else $conn_last_family end),
+                last_outage_s: $lo_s, last_outage_ago_s: $lo_ago,
+                last_outage_wan_ip: (if $lo_ip == "" then null else $lo_ip end),
+                last_outage_wan_changed: $lo_chg
             },
             watchcat: {
                 enabled: $wc_enabled, state: $wc_state,

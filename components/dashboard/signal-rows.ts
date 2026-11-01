@@ -146,12 +146,10 @@ export function buildSignalRows(
         {
           label: t("signal_status.arfcn"),
           value: nr?.arfcn?.toString() ?? ABSENT,
-          isIdentifier: true,
         },
         {
           label: t("signal_status.pci"),
           value: nr?.pci?.toString() ?? ABSENT,
-          isIdentifier: true,
         },
         ...trio,
         // Subcarrier spacing is a configuration of the carrier, not a reading
@@ -159,7 +157,6 @@ export function buildSignalRows(
         {
           label: t("signal_status.scs"),
           value: fmt(nr?.scs, "kHz"),
-          isIdentifier: true,
         },
       ],
     };
@@ -175,12 +172,10 @@ export function buildSignalRows(
       {
         label: t("signal_status.earfcn"),
         value: lte?.earfcn?.toString() ?? ABSENT,
-        isIdentifier: true,
       },
       {
         label: t("signal_status.pci"),
         value: lte?.pci?.toString() ?? ABSENT,
-        isIdentifier: true,
       },
       ...trio.slice(0, 2),
       // RSSI is a measurement, and it sits between RSRQ and SINR exactly where

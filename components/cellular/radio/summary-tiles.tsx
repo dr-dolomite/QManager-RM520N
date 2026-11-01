@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 
-import { Tag, type TagVariant } from "@/components/ui/tag";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { TILE_SHAPE } from "@/components/cellular/tile-shape";
@@ -68,12 +67,9 @@ import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 //                 honest — and layers are neither a direction nor a state, so
 //                 spatial is its own axis, shared with the per-antenna surfaces.
 //
-// IDENTITY IS NOW TWO CHANNELS, NEITHER OF THEM A BLOCK. The network tile
-// carries its radio in the disc's fill and in an OUTLINE TAG on the mark
-// ("5G" / "4G"), which is the Two-Form Rule's identity half. It was a filled
-// `Badge variant="nr"` — a pale `primary-container` block that was byte-
-// identical to `variant="info"`, so the 5G mark and an informational chip were
-// literally the same object.
+// The network tile carries its radio in the disc's fill alone. The "5G" / "4G"
+// mark that used to sit before the value was removed: the value text
+// ("5G NR + LTE") already names the radio.
 //
 // WHAT COLOUR CAN AND CANNOT DO HERE, measured rather than assumed. Simulating
 // deuteranopia and protanopia across this system's CONTAINER tones in dark mode,
@@ -153,20 +149,11 @@ const TABULAR_VALUE = cn(VALUE, "tabular-nums");
 // The mock hardcodes "5G NR + LTE" with a `5g` glyph. LTE-only, SA and unknown
 // are all states this modem really reports, so the tile branches on RadioMode.
 //
-// `5g` is not in MATERIAL_SYMBOL_NAMES, and per DESIGN.md the "5G"/"4G+" marks
-// are TYPOGRAPHIC, not icons — they ship as text. So the disc carries
-// `cell_tower` (the radio itself) and the mark is an outline `Tag` in the
-// matching identity variant.
-//
-// Two identity channels, neither of them a block: the disc's strong FILL and
-// the tag's OUTLINE, on a neutral body. The mark was a filled `Badge`, whose
-// pale `primary-container` fill was byte-identical to `variant="info"` — so the
-// 5G mark and an informational chip rendered as the same object.
+// The disc carries `cell_tower` (the radio itself); the radio identity is the
+// disc fill (primary for NR, lte for LTE-only) plus the value text.
 
 type NetworkTileSpec = {
   disc: string;
-  markVariant: TagVariant;
-  markKey: string;
   valueKey: string;
   captionKey: string;
 };
@@ -180,8 +167,6 @@ type NetworkTileSpec = {
 const NETWORK_TILE: Record<RadioMode, NetworkTileSpec> = (() => {
   const nsa: NetworkTileSpec = {
     disc: "bg-primary text-primary-foreground",
-    markVariant: "nr",
-    markKey: "radio_info.tiles.network.mark_5g",
     valueKey: "radio_info.network_type.nsa",
     captionKey: "radio_info.tiles.network.caption_nsa",
   };
@@ -192,8 +177,6 @@ const NETWORK_TILE: Record<RadioMode, NetworkTileSpec> = (() => {
   };
   const lte: NetworkTileSpec = {
     disc: "bg-lte text-lte-foreground",
-    markVariant: "lte",
-    markKey: "radio_info.tiles.network.mark_4g",
     valueKey: "radio_info.network_type.lte",
     captionKey: "radio_info.tiles.network.caption_lte",
   };
@@ -202,8 +185,6 @@ const NETWORK_TILE: Record<RadioMode, NetworkTileSpec> = (() => {
   // degrade to the honest neutral tile — never to a confident "5G NR + LTE".
   const unknown: NetworkTileSpec = {
     disc: NEUTRAL_DISC,
-    markVariant: "neutral",
-    markKey: "radio_info.common.not_available",
     valueKey: "radio_info.network_type.unknown",
     captionKey: "radio_info.tiles.network.caption_unknown",
   };
@@ -264,12 +245,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
         disc={net.disc}
         caption={t(net.captionKey)}
       >
-        <span className="flex items-baseline gap-2">
-          <Tag variant={net.markVariant} className={cn(VALUE, "px-2.5 py-0.5")}>
-            {t(net.markKey)}
-          </Tag>
-          <span className={cn(VALUE, "truncate")}>{t(net.valueKey)}</span>
-        </span>
+        <span className={cn(VALUE, "truncate")}>{t(net.valueKey)}</span>
       </Tile>
 
       <Tile
@@ -376,7 +352,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
               <span
                 key={part}
                 className={cn(
-                  "truncate font-mono font-semibold tabular-nums",
+                  "truncate font-semibold tabular-nums",
                   // Two legs drop two ramp steps so the stacked pair fits the
                   // 34px value budget inside the 104px tile TILE_SHAPE pins and
                   // the skeleton mirrors. At `text-base` the pair measured 40px

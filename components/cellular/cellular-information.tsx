@@ -90,19 +90,28 @@ const CellularInformationComponent = () => {
   // `react-hooks/purity` to flag. `components/dashboard/carrier-aggregation.tsx`
   // takes the same prop from the same source; the decision is shared, not
   // duplicated per site.
-  const retained = React.useRef<ResolvedCarrier[]>([]);
-  const resolved =
-    isStale || receivedAtMs === null
-      ? retained.current
-      : reconcileCarriers(
-          retained.current,
-          data?.network?.carrier_components ?? [],
-          networkType,
-          receivedAtMs,
-        );
-  React.useEffect(() => {
-    retained.current = resolved;
-  });
+  //
+  // TARGET DEVIATION (ledger U4.13, same as U4.10's dashboard card): the fork
+  // kept the chain in a ref committed by an effect and read it during render,
+  // which `react-hooks/refs` rejects on this target. It is state now, adjusted
+  // during render once per arrival: a new `receivedAtMs` reconciles exactly
+  // once, and every other render (or a stale one) reads the stored result.
+  const [chain, setChain] = React.useState<{
+    at: number | null;
+    resolved: ResolvedCarrier[];
+  }>({ at: null, resolved: [] });
+  if (!isStale && receivedAtMs !== null && receivedAtMs !== chain.at) {
+    setChain({
+      at: receivedAtMs,
+      resolved: reconcileCarriers(
+        chain.resolved,
+        data?.network?.carrier_components ?? [],
+        networkType,
+        receivedAtMs,
+      ),
+    });
+  }
+  const resolved = chain.resolved;
 
   // `enrichCarriers` takes the arrival clock too, for the "released Ns ago"
   // reading. It used to call `Date.now()` internally, which the purity rule
@@ -157,7 +166,7 @@ const CellularInformationComponent = () => {
       animate="visible"
     >
       <motion.div variants={staggerItem}>
-        <RadioPageHeader buildDiagnostics={buildDiagnostics} />
+        <RadioPageHeader />
       </motion.div>
 
       {/* Outside the cascade on purpose: the banner carries its own
@@ -208,6 +217,7 @@ const CellularInformationComponent = () => {
               summary={summary}
               isLoading={isLoading}
               isStale={isStale}
+              buildDiagnostics={buildDiagnostics}
             />
           </motion.div>
           <motion.div variants={staggerItem}>

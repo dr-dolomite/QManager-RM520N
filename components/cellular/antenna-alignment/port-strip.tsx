@@ -44,7 +44,6 @@ import {
   GLYPH,
   PORT,
 } from "./shapes";
-import { countReportingPorts } from "./utils";
 import type { RadioMode } from "./utils";
 
 // =============================================================================
@@ -344,32 +343,13 @@ export function PortStripCard({
   mode: RadioMode;
 }) {
   const { t } = useTranslation("cellular");
-  const live = countReportingPorts(spa);
-  const allLive = live === ANTENNA_PORTS.length;
 
   return (
     <Card className={CARD_SHELL}>
-      {/* No icon in a CardHeader. The count chip is the header's only glyph
-          carrier, and it sits beside the title rather than inside it. */}
       <CardHeader className={CARD_HEADER}>
-        <div className="flex items-start gap-3">
-          <CardTitle className={cn(CARD_TITLE, "flex-1")}>
-            {t("antenna_alignment.ports.title")}
-          </CardTitle>
-          <Badge variant={allLive ? "success" : "warning"} className="shrink-0">
-            <MaterialSymbol
-              name={allLive ? "check_circle" : "warning"}
-              size={GLYPH.CHIP}
-              filled
-            />
-            {t("antenna_alignment.ports.reporting", {
-              live,
-              total: ANTENNA_PORTS.length,
-            })}
-          </Badge>
-        </div>
-        {/* Full width, under both: at 390px the description shares the title's
-            column only if it is allowed to wrap three times. */}
+        <CardTitle className={CARD_TITLE}>
+          {t("antenna_alignment.ports.title")}
+        </CardTitle>
         <CardDescription className={CARD_DESCRIPTION}>
           {t("antenna_alignment.ports.description")}
         </CardDescription>

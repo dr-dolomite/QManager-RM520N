@@ -161,6 +161,13 @@ parse_serving_cell() {
 
         function stripcr(s) { gsub(CR, "", s); return s }
 
+        # QENG LTE <SINR> is raw 0..25, dB = 2X-20; anything else -> empty (null).
+        function lte_sinr_db(v,   s) {
+            s = stripcr(v)
+            if (s !~ /^[0-9][0-9]?$/ || s + 0 > 25) return ""
+            return (s + 0) * 2 - 20
+        }
+
         # sed s/+QENG: //g | tr -d \" | tr -d " " [ | tr -d \r ]
         function mkcsv(s, docr,   t) {
             t = s
@@ -307,7 +314,7 @@ parse_serving_cell() {
                     lrsrp = f(12)
                     lrsrq = f(13)
                     lrssi = f(14)
-                    lsinr = f(15)
+                    lsinr = lte_sinr_db(f(15))
                 }
                 nline = ""
                 for (i = 1; i <= NLINES; i++) {
@@ -368,7 +375,7 @@ parse_serving_cell() {
                 lrsrp = f(14)
                 lrsrq = f(15)
                 lrssi = f(16)
-                lsinr = f(17)
+                lsinr = lte_sinr_db(f(17))
             } else {
                 ltest = "unknown"
                 nrst = "unknown"

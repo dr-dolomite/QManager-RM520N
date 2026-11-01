@@ -96,8 +96,11 @@ export const BAND = {
   FULL: "col-span-full",
   /** The hero + device-information band, restating the page grid one level down. */
   TOP: "col-span-full grid grid-cols-1 gap-6 @4xl/main:grid-cols-5",
-  /** The hero column: 3 of 5 once the container is wide enough to split. */
-  HERO_COL: "grid gap-4 col-span-1 @4xl/main:col-span-3",
+  /**
+   * The hero column: 3 of 5 once the container is wide enough to split. The carrier
+   * row takes the slack (auto/1fr) when Device Information is the taller column.
+   */
+  HERO_COL: "grid gap-4 col-span-1 @4xl/main:col-span-3 @4xl/main:grid-rows-[auto_1fr]",
   /** The device-information column: the remaining 2 of 5. */
   SIDE_COL: "col-span-1 @4xl/main:col-span-2 h-full *:data-[slot=card]:h-full",
   /** The LTE/NR carrier pair inside the hero column. */
@@ -442,6 +445,31 @@ export const QUALITY = {
   VALUE_COL: "w-16 shrink-0 text-right whitespace-nowrap",
   /** The latency tile, shared by the card and its skeleton. */
   TILE: "flex flex-col gap-2 rounded-tile bg-surface-container p-3.5",
+} as const;
+
+/**
+ * A labelled figure: an 11px eyebrow over a 22px numeral with its unit. Shared by
+ * Connection Quality's footer and the Device Metrics speed-test tile.
+ */
+export const FIGURE = {
+  ROOT: "flex min-w-0 flex-col gap-1",
+  LABEL:
+    "flex min-w-0 items-center gap-1 truncate text-[11px] leading-tight font-semibold tracking-[0.02em] text-on-surface-variant",
+  VALUE:
+    "flex items-baseline gap-0.5 whitespace-nowrap text-[22px] leading-none font-semibold tracking-[-0.01em] tabular-nums text-on-surface",
+  UNIT: "text-xs font-semibold tracking-normal text-on-surface-variant",
+} as const;
+
+/**
+ * The speed-test tile at the foot of Device Metrics. PINNED at 68px in every state
+ * (result, running, never-run, skeleton), so a run starting or ending moves nothing.
+ */
+export const SPEEDTEST = {
+  TILE: "h-[4.25rem] rounded-tile bg-surface-container p-3.5",
+  /** Mirrors TILE's pinned height, for the skeleton. */
+  TILE_H: "h-[4.25rem]",
+  /** Three content-sized figures spread edge to edge beside the run control. */
+  FIGS: "flex h-full items-center justify-between gap-2",
 } as const;
 
 /**
