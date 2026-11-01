@@ -127,12 +127,12 @@ export function PacketChart({ history, live }: PacketChartProps) {
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop
                 offset="0%"
-                stopColor="var(--uplink-on-surface)"
+                stopColor="var(--foreground)"
                 stopOpacity={CHART_WASH.TOP}
               />
               <stop
                 offset="100%"
-                stopColor="var(--uplink-on-surface)"
+                stopColor="var(--foreground)"
                 stopOpacity={CHART_WASH.BOTTOM}
               />
             </linearGradient>

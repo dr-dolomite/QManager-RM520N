@@ -67,7 +67,7 @@ export function VideoOptimizerCard({ hostlist, ...engine }: VideoOptimizerCardPr
 
   const actsOn = hostlist.isLoading || (hostlist.error && hostlist.domains.length === 0)
     ? t("traffic_engine.stat_empty")
-    : t("traffic_engine.acts_on_domains", { count: draft.draft.length });
+    : t("traffic_engine.acts_on_domains", { count: hostlist.domains.length });
 
   // A clean draft shows who owns the engine; a dirty one names when the edit takes effect.
   let status: ReactNode = ownership;
