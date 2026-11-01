@@ -12,7 +12,8 @@
     "lang": "bun run scripts-dev/lang.ts",
     "package": "bun run icons:check && bash build.sh",
     "icons:subset": "bun run scripts-dev/subset-icons.ts",
-    "icons:check": "bun run scripts-dev/check-icons.ts"
+    "icons:check": "bun run scripts-dev/check-icons.ts",
+    "apn:update": "bun run scripts-dev/build-apn-presets.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

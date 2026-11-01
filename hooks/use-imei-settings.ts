@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { enterRebootFlow } from "@/lib/reboot";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
   BackupImeiConfig,
   ImeiSettingsResponse,
@@ -39,18 +42,14 @@ export interface UseImeiSettingsReturn {
   saveImei: (imei: string) => Promise<boolean>;
   /** Save backup IMEI configuration. Returns true on success. */
   saveBackup: (config: BackupImeiConfig) => Promise<boolean>;
-  /**
-   * Hand off to the reboot countdown page and fire the reboot.
-   *
-   * Returns nothing on purpose — see the implementation note below. A reboot is
-   * never something this app can await.
-   */
-  rebootDevice: () => void;
+  /** Trigger device reboot. Returns true if command was sent. */
+  rebootDevice: () => Promise<boolean>;
   /** Re-fetch IMEI data */
   refresh: () => void;
 }
 
 export function useImeiSettings(): UseImeiSettingsReturn {
+  const { t } = useTranslation("errors");
   const [currentImei, setCurrentImei] = useState<string | null>(null);
   const [backupEnabled, setBackupEnabled] = useState<boolean | null>(null);
   const [backupImei, setBackupImei] = useState<string | null>(null);
@@ -84,7 +83,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!data.success) {
-        setError(data.error || "Failed to fetch IMEI settings");
+        setError(resolveErrorMessage(t, data.error, undefined, "Failed to fetch IMEI settings"));
         return;
       }
 
@@ -101,7 +100,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   // Fetch on mount
   useEffect(() => {
@@ -132,7 +131,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         if (!mountedRef.current) return false;
 
         if (!data.success) {
-          setError(data.detail || data.error || "Failed to write IMEI");
+          setError(resolveErrorMessage(t, data.error, data.detail, "Failed to write IMEI"));
           return false;
         }
 
@@ -151,7 +150,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         }
       }
     },
-    [fetchImei]
+    [fetchImei, t]
   );
 
   // ---------------------------------------------------------------------------
@@ -183,7 +182,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
 
         if (!data.success) {
           setError(
-            data.detail || data.error || "Failed to save backup configuration"
+            resolveErrorMessage(t, data.error, data.detail, "Failed to save backup configuration")
           );
           return false;
         }
@@ -205,36 +204,32 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         }
       }
     },
-    [fetchImei]
+    [fetchImei, t]
   );
 
   // ---------------------------------------------------------------------------
-  // Reboot device (separate from save — called from the reboot dialog/banner)
+  // Reboot device (separate from save — called from reboot dialog)
   // ---------------------------------------------------------------------------
-  // QManager is served BY the modem it reboots, so the request that starts the
-  // reboot kills its own HTTP response. Awaiting it can only ever resolve to a
-  // network error, and the incumbent implementation did exactly that: it
-  // reported "Reboot failed" on a reboot that was in fact already underway, and
-  // left the user sitting on a page whose backend had gone away.
-  //
-  // The product-wide handoff (nav-user.tsx, mbn-card.tsx, ip-passthrough-card.tsx,
-  // use-software-update.ts) is: mark the session, drop the login indicator
-  // cookie, fire the request `keepalive` so it survives the navigation, and go
-  // to /reboot/ immediately so the countdown page is already in browser memory
-  // when the device disappears. This is that flow, nothing more.
-  const rebootDevice = useCallback((): void => {
-    sessionStorage.setItem("qm_rebooting", "1");
-    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
+  const rebootDevice = useCallback(async (): Promise<boolean> => {
+    try {
+      const resp = await authFetch(CGI_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reboot" }),
+      });
 
-    const request: ImeiSaveRequest = { action: "reboot" };
-    fetch(CGI_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-      keepalive: true,
-    }).catch(() => {});
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      }
 
-    window.location.href = "/reboot/";
+      const data: ImeiSaveResponse = await resp.json();
+      if (data.success) {
+        enterRebootFlow("imei");
+      }
+      return data.success;
+    } catch {
+      return false;
+    }
   }, []);
 
   return {

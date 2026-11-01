@@ -56,6 +56,12 @@ export interface FailoverState {
 }
 
 /**
+ * The result a band mutation returns. `error` is already resolved through
+ * `resolveErrorMessage`, so the caller toasts it as-is (no stale closure).
+ */
+export type BandActionResult = { ok: true } | { ok: false; error: string };
+
+/**
  * Response from GET /cgi-bin/quecmanager/bands/current.sh
  *
  * `current` and `failover` are OPTIONAL because the error envelope omits them

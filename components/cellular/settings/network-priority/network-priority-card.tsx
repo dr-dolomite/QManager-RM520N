@@ -554,7 +554,6 @@ const NetworkPriorityCard = () => {
           onSave={handleSave}
           saved={saved}
           copy={{
-            count: t(`${K}.save_bar.count`, { count: changeCount }),
             note: t(`${K}.save_bar.note`),
             discard: t(`${K}.save_bar.discard`),
             save: t(`${K}.save_bar.save`),

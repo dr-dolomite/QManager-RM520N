@@ -277,7 +277,9 @@
       "lock_error": "Couldn't apply the {{category}} band lock",
       "unlock_error": "Couldn't restore {{category}} bands",
       "refresh_error": "Couldn't refresh the band configuration",
-      "none_selected": "Select at least one band to lock"
+      "none_selected": "Select at least one band to lock",
+      "locked_success": "{{category_label}} bands locked successfully",
+      "unlocked_success": "{{category_label}} bands unlocked"
     },
     "a11y": {
       "applying": "Applying the {{category}} band lock…",
@@ -286,6 +288,109 @@
       "band_selected": "{{band}}, selected",
       "band_unselected": "{{band}}, not selected",
       "band_live": "{{band}}, selected and active on the modem"
+    },
+    "settings_card": {
+      "band_failover_label": "Band Failover",
+      "band_failover_tooltip": "If the locked bands find no signal within about 5 seconds, the modem returns to all supported bands.",
+      "band_failover_info_aria": "Band failover info",
+      "status": {
+        "disabled": "Disabled",
+        "ready": "Ready",
+        "fallback": "Fallback active",
+        "monitoring": "Checking"
+      },
+      "toast": {
+        "failover_enabled": "Band failover enabled",
+        "failover_disabled": "Band failover disabled"
+      }
+    },
+    "cards": {
+      "lte": {
+        "title": "LTE Band Locking",
+        "description": "Select the LTE bands to lock for your device."
+      },
+      "nsa_nr5g": {
+        "title": "NSA Band Locking",
+        "description": "Select the 5G NSA bands to lock (5G via LTE anchor)."
+      },
+      "sa_nr5g": {
+        "title": "SA Band Locking",
+        "description": "Select the 5G SA bands to lock (standalone 5G)."
+      }
+    },
+    "card_badges": {
+      "bands_locked": "{{locked}} / {{total}} Bands",
+      "scenario": "Scenario controlled",
+      "unrestricted": "All bands",
+      "unavailable": "Not readable",
+      "unknown": "Not reported",
+      "profile": "Profile controlled"
+    },
+    "card_empty": "No supported bands reported by the modem for this category.",
+    "card_buttons": {
+      "lock_selected": "Lock Selected Bands",
+      "select_all": "Select All",
+      "deselect_all": "Deselect All",
+      "unlock_all": "Unlock all"
+    },
+    "card_live_region": "Applying {{category_label}} band lock…",
+    "card_category_label": {
+      "lte": "LTE",
+      "nsa_nr5g": "NSA",
+      "sa_nr5g": "SA"
+    },
+    "scenario_gate_title": "The {{scenario}} scenario manages your bands",
+    "scenario_gate_action": "Open scenarios",
+    "scenario_gate_note": "Switch to the Balanced scenario to lock bands by hand.",
+    "read_error_title": "Couldn't read the band configuration",
+    "refresh_blocked_watcher": "Wait for the failover check to finish",
+    "refreshing": "Reading the band configuration…",
+    "legend": {
+      "selected": "Selected",
+      "live": "Currently locked"
+    },
+    "errors": {
+      "read_failed": "The modem didn't answer with its band configuration. Try again in a moment.",
+      "no_bands": "Select at least one band to lock.",
+      "no_supported": "The modem hasn't reported its supported bands yet.",
+      "lock_failed": "Couldn't apply the band lock.",
+      "failover_failed": "Couldn't update band failover."
+    },
+    "status": {
+      "title": "Band status",
+      "on_air": "On air now",
+      "on_air_summary_one": "{{count}} carrier ({{mhz}} MHz)",
+      "on_air_summary_other": "{{count}} carriers ({{mhz}} MHz)",
+      "on_air_empty_title": "No carriers on air",
+      "on_air_empty_body": "The modem isn't connected to a cell right now.",
+      "tile_aria": "{{tech}} carrier, {{role}}",
+      "tech_lte": "LTE",
+      "tech_nr": "5G NR",
+      "mhz": "{{value}} MHz",
+      "earfcn": "EARFCN {{value}}",
+      "pci": "PCI {{value}}",
+      "dbm": "{{value}} dBm",
+      "rsrp": "RSRP",
+      "no_value": "–",
+      "quality": {
+        "excellent": "Excellent signal",
+        "good": "Good signal",
+        "fair": "Fair signal",
+        "poor": "Poor signal",
+        "none": "No reading"
+      },
+      "posture": "Lock posture",
+      "subtitle_locked": "{{count}} of {{total}} categories locked",
+      "subtitle_unrestricted": "Every category uses all bands",
+      "subtitle_unknown": "The modem hasn't reported its bands",
+      "subtitle_unavailable": "Band configuration unreadable",
+      "ratio": "{{count}} of {{total}} bands",
+      "ratio_unavailable": "Not readable",
+      "rail_locked": "Locked",
+      "rail_unrestricted": "All bands",
+      "rail_unknown": "Not reported",
+      "rail_unavailable": "Unknown",
+      "rail_aria": "{{category}}: {{ratio}} ({{status}})"
     }
   },
   "cell_scanner": {
@@ -618,7 +723,9 @@
         "save_error": "Failed to save APN settings",
         "deactivated": "Reverted to carrier default APN",
         "deactivate_error": "Failed to revert to carrier default",
-        "reconciling": "Verifying the connection came back…"
+        "reconciling": "Verifying the connection came back…",
+        "saved_not_persisted": "APN applied, but it couldn't be saved, so it may not survive a reboot.",
+        "deactivated_not_persisted": "Reverted to the carrier default APN, but the change couldn't be saved."
       },
       "controls_label": "APN configuration",
       "managed_by_profile_fallback": "active Custom SIM Profile",
@@ -627,7 +734,12 @@
           "apn": {
             "label": "APN *",
             "placeholder": "fast.t-mobile.com",
-            "error_required": "APN is required"
+            "error_required": "APN is required",
+            "presets": {
+              "trigger": "Show suggested APNs",
+              "group_network": "Suggested for this SIM",
+              "group_mvno": "Other brands on this network"
+            }
           },
           "pdp_type": {
             "label": "PDP Type",
@@ -698,7 +810,13 @@
         "source_negotiated": "Negotiated with the network",
         "stale": "Readings frozen",
         "stale_body": "The modem status feed has not reported recently. The values above may no longer be true.",
-        "reread": "Re-read from modem"
+        "reread": "Re-read from modem",
+        "mode_label": "Mode",
+        "custom": "Custom APN",
+        "context_label": "Data context",
+        "not_connected": "Not connected",
+        "matches": "Matches the saved APN",
+        "not_live_note": "The network is using a different APN than the one saved."
       },
       "mbn": {
         "title": "Carrier Profile (MBN)",
@@ -727,6 +845,16 @@
           "now": "Reboot now",
           "rebooting": "Rebooting…"
         }
+      },
+      "status": {
+        "carrier_default": "Carrier default",
+        "network_using_label": "Network is using",
+        "not_live": "Not live"
+      },
+      "errors": {
+        "load_failed": "The modem didn't answer with its APN settings. Try again in a moment.",
+        "save_failed": "Couldn't save the APN.",
+        "deactivate_failed": "Couldn't switch to the carrier default APN."
       }
     },
     "basic": {
@@ -820,7 +948,8 @@
       },
       "footer": {
         "reread": "Re-read from modem",
-        "in_sync": "Saved settings match the modem."
+        "in_sync": "Saved settings match the modem.",
+        "refresh": "Refresh"
       },
       "strip": {
         "label": "Live state",
@@ -958,7 +1087,8 @@
           "description": "The IMEI is stored, but the modem keeps presenting the old one until it restarts. Restarting drops the connection for about a minute.",
           "now": "Reboot now",
           "later": "Reboot later"
-        }
+        },
+        "toast_failed": "Couldn't start the reboot. It is still pending, so you can retry from the banner."
       },
       "device": {
         "title": "Device IMEI",
@@ -982,12 +1112,14 @@
         "status": {
           "empty": "Nothing to write. The field is empty.",
           "unchanged": "This is already the IMEI on the modem.",
-          "ready": "Ready to write. The modem keeps its current identity until it reboots."
+          "ready": "Ready to write. The modem keeps its current identity until it reboots.",
+          "unchanged_tip_label": "About the check mark"
         },
         "actions": {
           "write": "Write IMEI",
           "reset": "Reset to the IMEI on the modem",
-          "copy": "Copy the current IMEI"
+          "copy": "Copy the current IMEI",
+          "reset_short": "Reset"
         },
         "toasts": {
           "saved": "IMEI written. It applies at the next reboot.",
@@ -2448,11 +2580,32 @@
       "verdict_unlocked_body": "The modem picks its own cell and reselects freely.",
       "verdict_unknown_title": "Not read yet",
       "verdict_unknown_body": "The lock state has not been read back from the modem.",
-      "target_serving": "Serving"
+      "target_serving": "Serving",
+      "band_channel": "{{band}} ({{channel}})",
+      "target_pair": "{{channel}}, PCI {{pci}}",
+      "tile_add": "Add band {{band}}, PCI {{pci}} to the lock",
+      "tile_lock": "Lock to band {{band}}, PCI {{pci}}",
+      "tile_replace": "Lock to band {{band}}, PCI {{pci}} instead",
+      "tile_unlock": "Remove band {{band}}, PCI {{pci}} from the lock"
     },
     "automation": {
       "title": "While nobody is watching",
-      "description": "What the lock does across a reboot, in bad signal, and on a timer."
+      "description": "What the lock does across a reboot, in bad signal, and on a timer.",
+      "failover_help": "Releases the tower lock if signal quality stays below the threshold, so a bad cell cannot strand the connection. It releases both radios, not just the weak one.",
+      "failover_help_label": "About signal failover",
+      "failover_hint": "A lock is set, but failover is off. Locking never turns it on.",
+      "failover_label": "Signal failover",
+      "failover_state_disabled": "Off",
+      "failover_state_ready": "Ready",
+      "failover_state_released": "Released (weak signal)",
+      "failover_state_stalled": "Not guarding",
+      "failover_state_unknown": "Not reported",
+      "failover_state_watching": "Watching",
+      "quality_unknown": "Signal quality now: not reported",
+      "quality_value": "Signal quality now: {{value}}%",
+      "threshold_invalid": "Enter a value between 0 and 100",
+      "threshold_label": "Release below",
+      "threshold_unread": "The threshold could not be read."
     },
     "legs": {
       "lte": {
@@ -2494,7 +2647,13 @@
       "gate_lte_body": "The modem is on LTE only, so there is no NR cell to pin.",
       "empty_title": "No cell targets yet",
       "empty_body": "Pick a cell from the list above, or type a channel and PCI.",
-      "simple_mode": "Pick from carriers on air"
+      "simple_mode": "Pick from carriers on air",
+      "input_mode": "Enter cells by",
+      "mode_pick": "Detected",
+      "mode_type": "Manual",
+      "unread_note": "The modem did not report its lock state.",
+      "unused_lte": "Outlined cells are locked, but the modem is not using them.",
+      "unused_nr": "Locked, but the modem is not using this cell."
     },
     "schedule": {
       "title": "Lock schedule",
@@ -2521,12 +2680,15 @@
       "arm_warning": "Saved, but the schedule isn't armed: {{reason}}",
       "arm_reason_unit_absent": "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it",
       "arm_reason_unknown": "reason unknown",
-      "no_days": "Pick at least one day"
+      "no_days": "Pick at least one day",
+      "toast_disabled": "Lock schedule turned off",
+      "toast_enabled": "Lock schedule turned on"
     },
     "actions": {
       "lock": "Lock Tower",
       "unlock": "Remove Lock",
-      "clear_fields": "Clear fields"
+      "clear_fields": "Clear fields",
+      "refresh": "Refresh"
     },
     "dialog": {
       "lock_lte_title": "Lock LTE to this cell?",
@@ -2545,7 +2707,14 @@
       "incomplete": "Fill in every field before locking",
       "no_targets": "Enter a channel and cell ID first",
       "filled": "Filled {{leg}} from band {{band}}, PCI {{pci}}",
-      "slots_full": "All three LTE cells are already set"
+      "slots_full": "All three LTE cells are already set",
+      "cell_added": "Cell added to the {{leg}} lock",
+      "cell_exists": "That cell is already added",
+      "cell_removed": "Cell removed from the {{leg}} lock",
+      "failover_disabled": "Signal failover turned off",
+      "failover_enabled": "Signal failover turned on",
+      "refresh_error": "Couldn't refresh the lock state",
+      "threshold_saved": "Failover threshold updated"
     },
     "warning": {
       "service_enable_failed": "The lock is active now, but it will not survive a reboot — the modem rejected the save command.",
@@ -2569,11 +2738,21 @@
       "lock_gated_nsa": "The modem is on 5G NSA, where the 5G leg has no standalone cell to lock.",
       "lock_gated_lte_only": "The modem has no 5G carrier on air, so there is nothing to lock it to.",
       "threshold_empty": "Enter a percentage between 0 and 100.",
-      "refresh_in_flight": "Already re-reading the modem. This can take a few seconds."
+      "refresh_in_flight": "Already re-reading the modem. This can take a few seconds.",
+      "refresh_writing": "A tower change is being applied."
     },
     "a11y": {
       "applying": "Applying the {{leg}} tower lock…",
       "refreshing": "Re-reading tower lock state…"
+    },
+    "errors": {
+      "in_flight": "Another tower change is still being applied.",
+      "lock_failed": "Couldn't apply the tower lock.",
+      "no_cells": "Enter at least one channel and PCI first.",
+      "read_failed": "The modem did not report its tower lock state.",
+      "schedule_failed": "Couldn't save the lock schedule.",
+      "settings_failed": "Couldn't save the tower settings.",
+      "unlock_failed": "Couldn't remove the tower lock."
     }
   }
 }

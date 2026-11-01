@@ -15,7 +15,11 @@ import {
   CARD_PAD,
 } from "./shapes";
 
-// The settings family's persistent apply footer: change count, consequence or
+// Re-exported so the family's sub-pages (Network Priority) can type their
+// own step ledger without importing the parent page's hook.
+export type { ApplyPhase };
+
+// The settings family's persistent apply footer: consequence, failure or
 // the running step ledger on the left; Discard then Save on the right.
 
 /** The apply sequence, in order. `idle` is not a step. */
@@ -36,11 +40,10 @@ export interface ApplyFootProps {
   saved: boolean;
   /** Secondary actions, rendered before Discard. Text only, ghost or tonal-neutral. */
   secondary?: React.ReactNode;
+  /** An action on the foot's left edge, ahead of the status text. */
+  leading?: React.ReactNode;
   /** Copy, all pre-translated by the caller. */
   copy: {
-    count: string;
-    /** Which pending fields the count covers, when it spans more than this card. */
-    detail?: string;
     note: string;
     discard: string;
     save: string;
@@ -60,6 +63,7 @@ export function ApplyFoot({
   onSave,
   saved,
   secondary,
+  leading,
   copy,
 }: ApplyFootProps) {
   const activeIndex = APPLY_STEPS.indexOf(
@@ -93,10 +97,6 @@ export function ApplyFoot({
     </div>
   ) : changeCount > 0 ? (
     <>
-      <span className="text-foreground font-semibold tabular-nums">
-        {copy.count}
-      </span>
-      {copy.detail ? <span>{copy.detail}</span> : null}
       <span className="text-pretty">
         {failedLabels.length > 0 && copy.failed ? copy.failed : copy.note}
       </span>
@@ -108,7 +108,12 @@ export function ApplyFoot({
   return (
     <CardFoot
       className={CARD_PAD}
-      status={status}
+      status={
+        <>
+          {leading}
+          {status}
+        </>
+      }
       actions={
         <>
           {secondary}

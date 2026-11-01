@@ -277,7 +277,9 @@
       "lock_error": "Impossibile applicare il blocco delle bande {{category}}",
       "unlock_error": "Impossibile ripristinare le bande {{category}}",
       "refresh_error": "Impossibile aggiornare la configurazione delle bande",
-      "none_selected": "Seleziona almeno una banda da bloccare"
+      "none_selected": "Seleziona almeno una banda da bloccare",
+      "locked_success": "{{category_label}} bande bloccate con successo",
+      "unlocked_success": "{{category_label}} bande sbloccate"
     },
     "a11y": {
       "applying": "Applicazione del blocco delle bande {{category}}…",
@@ -286,6 +288,109 @@
       "band_selected": "{{band}}, selezionata",
       "band_unselected": "{{band}}, non selezionata",
       "band_live": "{{band}}, selezionata e attiva sul modem"
+    },
+    "settings_card": {
+      "band_failover_label": "Failover della banda",
+      "band_failover_tooltip": "Se le bande bloccate non trovano segnale entro circa 5 secondi, il modem torna a tutte le bande supportate.",
+      "band_failover_info_aria": "Informazioni sul failover della banda",
+      "status": {
+        "disabled": "Disabilitato",
+        "ready": "Pronto",
+        "fallback": "Ripiego attivo",
+        "monitoring": "Verifica in corso"
+      },
+      "toast": {
+        "failover_enabled": "Failover della banda abilitato",
+        "failover_disabled": "Failover della banda disabilitato"
+      }
+    },
+    "cards": {
+      "lte": {
+        "title": "Blocco bande LTE",
+        "description": "Seleziona i cinturini LTE da bloccare per il tuo dispositivo."
+      },
+      "nsa_nr5g": {
+        "title": "Blocco della banda NSA",
+        "description": "Seleziona le 5G bande NSA da bloccare (5G tramite LTE ancora)."
+      },
+      "sa_nr5g": {
+        "title": "Chiusura della banda SA",
+        "description": "Selezionare le bande SA 5G da bloccare (standalone 5G)."
+      }
+    },
+    "card_badges": {
+      "bands_locked": "{{locked}} / {{total}} Bande",
+      "scenario": "Controllato dallo scenario",
+      "unrestricted": "Tutte le bande",
+      "unavailable": "Non leggibile",
+      "unknown": "Non segnalato",
+      "profile": "Controllato dal profilo"
+    },
+    "card_empty": "Nessuna banda supportata segnalata dal modem per questa categoria.",
+    "card_buttons": {
+      "lock_selected": "Blocca le bande selezionate",
+      "select_all": "Seleziona tutto",
+      "deselect_all": "Deseleziona tutto",
+      "unlock_all": "Sblocca tutte"
+    },
+    "card_live_region": "Applicazione del blocco del cinturino {{category_label}}…",
+    "card_category_label": {
+      "lte": "LTE",
+      "nsa_nr5g": "NSA",
+      "sa_nr5g": "SA"
+    },
+    "scenario_gate_title": "Lo scenario {{scenario}} gestisce le tue bande",
+    "scenario_gate_action": "Apri scenari",
+    "scenario_gate_note": "Passa allo scenario Bilanciato per bloccare le bande manualmente.",
+    "read_error_title": "Impossibile leggere la configurazione delle bande",
+    "refresh_blocked_watcher": "Attendi la fine del controllo di failover",
+    "refreshing": "Lettura della configurazione delle bande…",
+    "legend": {
+      "selected": "Selezionata",
+      "live": "Bloccata ora"
+    },
+    "errors": {
+      "read_failed": "Il modem non ha restituito la configurazione delle bande. Riprova tra poco.",
+      "no_bands": "Seleziona almeno una banda da bloccare.",
+      "no_supported": "Il modem non ha ancora segnalato le bande supportate.",
+      "lock_failed": "Impossibile applicare il blocco delle bande.",
+      "failover_failed": "Impossibile aggiornare il failover della banda."
+    },
+    "status": {
+      "title": "Stato delle bande",
+      "on_air": "In uso ora",
+      "on_air_summary_one": "{{count}} portante ({{mhz}} MHz)",
+      "on_air_summary_other": "{{count}} portanti ({{mhz}} MHz)",
+      "on_air_empty_title": "Nessuna portante in uso",
+      "on_air_empty_body": "Il modem non è collegato a nessuna cella in questo momento.",
+      "tile_aria": "Portante {{tech}}, {{role}}",
+      "tech_lte": "LTE",
+      "tech_nr": "5G NR",
+      "mhz": "{{value}} MHz",
+      "earfcn": "EARFCN {{value}}",
+      "pci": "PCI {{value}}",
+      "dbm": "{{value}} dBm",
+      "rsrp": "RSRP",
+      "no_value": "–",
+      "quality": {
+        "excellent": "Segnale eccellente",
+        "good": "Segnale buono",
+        "fair": "Segnale discreto",
+        "poor": "Segnale scarso",
+        "none": "Nessuna lettura"
+      },
+      "posture": "Stato del blocco",
+      "subtitle_locked": "{{count}} categorie su {{total}} bloccate",
+      "subtitle_unrestricted": "Ogni categoria usa tutte le bande",
+      "subtitle_unknown": "Il modem non ha segnalato le sue bande",
+      "subtitle_unavailable": "Configurazione delle bande non leggibile",
+      "ratio": "{{count}} di {{total}} bande",
+      "ratio_unavailable": "Non leggibile",
+      "rail_locked": "Bloccata",
+      "rail_unrestricted": "Tutte le bande",
+      "rail_unknown": "Non segnalato",
+      "rail_unavailable": "Sconosciuto",
+      "rail_aria": "{{category}}: {{ratio}} ({{status}})"
     }
   },
   "cell_scanner": {
@@ -618,7 +723,9 @@
         "save_error": "Impossibile salvare le impostazioni APN",
         "deactivated": "Ripristinato all'APN predefinito dell'operatore",
         "deactivate_error": "Impossibile ripristinare il predefinito dell'operatore",
-        "reconciling": "Verifica del ritorno della connessione…"
+        "reconciling": "Verifica del ritorno della connessione…",
+        "saved_not_persisted": "APN applicato, ma non è stato possibile salvarlo, quindi potrebbe non sopravvivere a un riavvio.",
+        "deactivated_not_persisted": "Ripristinato all'APN predefinito dell'operatore, ma non è stato possibile salvare la modifica."
       },
       "controls_label": "Configurazione APN",
       "managed_by_profile_fallback": "profilo SIM personalizzato attivo",
@@ -627,7 +734,12 @@
           "apn": {
             "label": "APN *",
             "placeholder": "fast.t-mobile.com",
-            "error_required": "L'APN è obbligatorio"
+            "error_required": "L'APN è obbligatorio",
+            "presets": {
+              "trigger": "Mostra gli APN suggeriti",
+              "group_network": "Suggeriti per questa SIM",
+              "group_mvno": "Altri marchi su questa rete"
+            }
           },
           "pdp_type": {
             "label": "Tipo PDP",
@@ -698,7 +810,13 @@
         "source_negotiated": "Negoziato con la rete",
         "stale": "Letture ferme",
         "stale_body": "Il feed di stato del modem non riporta da un po'. I valori sopra potrebbero non essere più veri.",
-        "reread": "Rileggi dal modem"
+        "reread": "Rileggi dal modem",
+        "mode_label": "Modalità",
+        "custom": "APN personalizzato",
+        "context_label": "Contesto dati",
+        "not_connected": "Non connesso",
+        "matches": "Corrisponde all'APN salvato",
+        "not_live_note": "La rete sta usando un APN diverso da quello salvato."
       },
       "mbn": {
         "title": "Profilo operatore (MBN)",
@@ -727,6 +845,16 @@
           "now": "Riavvia ora",
           "rebooting": "Riavvio in corso…"
         }
+      },
+      "status": {
+        "carrier_default": "Predefinito operatore",
+        "network_using_label": "La rete sta usando",
+        "not_live": "Non attivo"
+      },
+      "errors": {
+        "load_failed": "Il modem non ha restituito le impostazioni APN. Riprova tra poco.",
+        "save_failed": "Impossibile salvare l'APN.",
+        "deactivate_failed": "Impossibile passare all'APN predefinito dell'operatore."
       }
     },
     "basic": {
@@ -820,7 +948,8 @@
       },
       "footer": {
         "reread": "Rileggi dal modem",
-        "in_sync": "Le impostazioni salvate corrispondono al modem."
+        "in_sync": "Le impostazioni salvate corrispondono al modem.",
+        "refresh": "Aggiorna"
       },
       "strip": {
         "label": "Stato in tempo reale",
@@ -958,7 +1087,8 @@
           "description": "L'IMEI è memorizzato, ma il modem continua a presentare quello precedente finché non si riavvia. Il riavvio interrompe la connessione per circa un minuto.",
           "now": "Riavvia ora",
           "later": "Riavvia più tardi"
-        }
+        },
+        "toast_failed": "Impossibile avviare il riavvio. È ancora in sospeso, quindi puoi riprovare dal banner."
       },
       "device": {
         "title": "IMEI del dispositivo",
@@ -982,12 +1112,14 @@
         "status": {
           "empty": "Niente da scrivere. Il campo è vuoto.",
           "unchanged": "Questo è già l'IMEI presente sul modem.",
-          "ready": "Pronto per la scrittura. Il modem mantiene l'identità attuale fino al riavvio."
+          "ready": "Pronto per la scrittura. Il modem mantiene l'identità attuale fino al riavvio.",
+          "unchanged_tip_label": "Informazioni sul segno di spunta"
         },
         "actions": {
           "write": "Scrivi IMEI",
           "reset": "Ripristina l'IMEI presente sul modem",
-          "copy": "Copia l'IMEI attuale"
+          "copy": "Copia l'IMEI attuale",
+          "reset_short": "Ripristina"
         },
         "toasts": {
           "saved": "IMEI scritto. Si applica al prossimo riavvio.",
@@ -2448,11 +2580,32 @@
       "verdict_unlocked_body": "Il modem sceglie la cella da solo e riseleziona liberamente.",
       "verdict_unknown_title": "Non ancora letto",
       "verdict_unknown_body": "Lo stato del blocco non è stato riletto dal modem.",
-      "target_serving": "In uso"
+      "target_serving": "In uso",
+      "band_channel": "{{band}} ({{channel}})",
+      "target_pair": "{{channel}}, PCI {{pci}}",
+      "tile_add": "Aggiungi la banda {{band}}, PCI {{pci}} al blocco",
+      "tile_lock": "Blocca sulla banda {{band}}, PCI {{pci}}",
+      "tile_replace": "Blocca invece sulla banda {{band}}, PCI {{pci}}",
+      "tile_unlock": "Rimuovi la banda {{band}}, PCI {{pci}} dal blocco"
     },
     "automation": {
       "title": "Quando nessuno guarda",
-      "description": "Cosa fa il blocco dopo un riavvio, con segnale scarso e su un timer."
+      "description": "Cosa fa il blocco dopo un riavvio, con segnale scarso e su un timer.",
+      "failover_help": "Rilascia il blocco della torre se la qualità del segnale resta sotto la soglia, così una cella scadente non lascia la connessione bloccata. Rilascia entrambe le radio, non solo quella debole.",
+      "failover_help_label": "Informazioni sul failover del segnale",
+      "failover_hint": "Un blocco è impostato, ma il failover è disattivato. Il blocco non lo attiva mai.",
+      "failover_label": "Failover del segnale",
+      "failover_state_disabled": "Disattivato",
+      "failover_state_ready": "Pronto",
+      "failover_state_released": "Rilasciato (segnale debole)",
+      "failover_state_stalled": "Non in protezione",
+      "failover_state_unknown": "Non segnalato",
+      "failover_state_watching": "In monitoraggio",
+      "quality_unknown": "Qualità del segnale ora: non segnalata",
+      "quality_value": "Qualità del segnale ora: {{value}}%",
+      "threshold_invalid": "Inserisci un valore tra 0 e 100",
+      "threshold_label": "Rilascia sotto",
+      "threshold_unread": "Impossibile leggere la soglia."
     },
     "legs": {
       "lte": {
@@ -2494,7 +2647,13 @@
       "gate_lte_body": "Il modem è solo su LTE, quindi non c'è alcuna cella NR da fissare.",
       "empty_title": "Nessuna cella di destinazione",
       "empty_body": "Scegli una cella dall'elenco qui sopra, oppure digita canale e PCI.",
-      "simple_mode": "Scegli tra le portanti attive"
+      "simple_mode": "Scegli tra le portanti attive",
+      "input_mode": "Inserisci le celle con",
+      "mode_pick": "Rilevate",
+      "mode_type": "Manuale",
+      "unread_note": "Il modem non ha segnalato lo stato del blocco.",
+      "unused_lte": "Le celle evidenziate sono bloccate, ma il modem non le usa.",
+      "unused_nr": "Bloccata, ma il modem non usa questa cella."
     },
     "schedule": {
       "title": "Pianificazione del blocco",
@@ -2521,12 +2680,15 @@
       "arm_warning": "Salvata, ma la pianificazione non è attiva: {{reason}}",
       "arm_reason_unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo — aggiorna al firmware più recente per abilitarlo",
       "arm_reason_unknown": "motivo sconosciuto",
-      "no_days": "Scegli almeno un giorno"
+      "no_days": "Scegli almeno un giorno",
+      "toast_disabled": "Pianificazione del blocco disattivata",
+      "toast_enabled": "Pianificazione del blocco attivata"
     },
     "actions": {
       "lock": "Blocca BTS",
       "unlock": "Rimuovi blocco",
-      "clear_fields": "Cancella campi"
+      "clear_fields": "Cancella campi",
+      "refresh": "Aggiorna"
     },
     "dialog": {
       "lock_lte_title": "Bloccare l'LTE su questa cella?",
@@ -2545,7 +2707,14 @@
       "incomplete": "Compila tutti i campi prima di bloccare",
       "no_targets": "Inserisci prima canale e ID cella",
       "filled": "{{leg}} compilato da banda {{band}}, PCI {{pci}}",
-      "slots_full": "Tutte e tre le celle LTE sono già impostate"
+      "slots_full": "Tutte e tre le celle LTE sono già impostate",
+      "cell_added": "Cella aggiunta al blocco {{leg}}",
+      "cell_exists": "Questa cella è già stata aggiunta",
+      "cell_removed": "Cella rimossa dal blocco {{leg}}",
+      "failover_disabled": "Failover del segnale disattivato",
+      "failover_enabled": "Failover del segnale attivato",
+      "refresh_error": "Impossibile aggiornare lo stato del blocco",
+      "threshold_saved": "Soglia di failover aggiornata"
     },
     "warning": {
       "service_enable_failed": "Il blocco è attivo adesso, ma non sopravvivrà a un riavvio: il modem ha rifiutato il comando di salvataggio.",
@@ -2569,11 +2738,21 @@
       "lock_gated_nsa": "Il modem è in 5G NSA: la parte 5G non ha una cella standalone da bloccare.",
       "lock_gated_lte_only": "Il modem non ha alcuna portante 5G attiva, quindi non c'è nulla su cui bloccarlo.",
       "threshold_empty": "Inserisci una percentuale tra 0 e 100.",
-      "refresh_in_flight": "Rilettura del modem già in corso. Può richiedere qualche secondo."
+      "refresh_in_flight": "Rilettura del modem già in corso. Può richiedere qualche secondo.",
+      "refresh_writing": "Una modifica alla torre è in corso di applicazione."
     },
     "a11y": {
       "applying": "Applicazione del blocco BTS {{leg}}…",
       "refreshing": "Rilettura dello stato del blocco BTS…"
+    },
+    "errors": {
+      "in_flight": "Un'altra modifica alla torre è ancora in corso di applicazione.",
+      "lock_failed": "Impossibile applicare il blocco della torre.",
+      "no_cells": "Inserisci prima almeno un canale e un PCI.",
+      "read_failed": "Il modem non ha segnalato lo stato del blocco della torre.",
+      "schedule_failed": "Impossibile salvare la pianificazione del blocco.",
+      "settings_failed": "Impossibile salvare le impostazioni della torre.",
+      "unlock_failed": "Impossibile rimuovere il blocco della torre."
     }
   }
 }
