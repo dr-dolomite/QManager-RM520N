@@ -174,14 +174,6 @@ export const CAMPED_ABSENT =
 
 // --- Leg cards: fields -------------------------------------------------------
 
-export const READBACK = {
-  ROOT: "flex flex-col gap-1 rounded-field bg-surface-container px-4 py-2.5",
-  LABEL: "flex items-center gap-1.5 text-xs font-medium text-on-surface-variant",
-  LIST: "flex flex-col gap-0.5",
-  ROW: "flex min-h-8 flex-wrap items-center gap-x-2.5 gap-y-1",
-  VALUE: "text-[13px]/5 font-semibold tabular-nums",
-} as const;
-
 /** One labelled control row (Simple Mode). */
 export const CONTROL_ROW =
   "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-field bg-surface-container px-4 py-3";
@@ -427,15 +419,6 @@ export function persistPosture(
 }
 
 export type LegPosture = "locked" | "unlocked" | "unknown";
-
-export const LEG_BADGE: Record<
-  LegPosture,
-  { variant: BadgeVariant; glyph: MaterialSymbolName }
-> = {
-  locked: { variant: "warning", glyph: "lock" },
-  unlocked: { variant: "success", glyph: "lock_open" },
-  unknown: { variant: "muted", glyph: "help" },
-};
 
 // --- Skeletons ---------------------------------------------------------------
 

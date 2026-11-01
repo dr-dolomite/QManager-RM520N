@@ -93,15 +93,9 @@ export function Languages(): React.JSX.Element {
   const handleInstall = React.useCallback(
     (code: string) => {
       toast.info(t(`${K}.toast.installing`, { language: nameFor(code) }));
-      void (async () => {
-        const res = await startInstall(code);
-        if (res.ok) return;
-        const key = installErrorKey(res.error);
-        toast.error(
-          t(`${K}.toast.install_failed`, { language: nameFor(code) }),
-          { description: key ? t(key) : res.error || undefined },
-        );
-      })();
+      // A refused start lands in `install` as a failed state, and the effect
+      // below toasts it once, so there is no second toast here.
+      void startInstall(code);
     },
     [startInstall, nameFor, t],
   );
@@ -139,18 +133,27 @@ export function Languages(): React.JSX.Element {
     if (install.state === "done" && install.code) {
       const code = install.code;
       toast.success(t(`${K}.toast.installed`, { language: nameFor(code) }), {
+        id: `language-install-done-${code}`,
         action: {
           label: t(`${K}.toast.use_now`),
           onClick: () => handleSelect(code),
         },
       });
     } else if (install.state === "cancelled") {
-      toast.info(t(`${K}.toast.install_cancelled`));
+      toast.info(t(`${K}.toast.install_cancelled`), {
+        id: "language-install-cancelled",
+      });
     } else if (install.state === "failed") {
       const key = installErrorKey(install.error_code);
-      toast.error(t(`${K}.toast.install_failed_generic`), {
-        description: key ? t(key) : install.message || undefined,
-      });
+      toast.error(
+        install.code
+          ? t(`${K}.toast.install_failed`, { language: nameFor(install.code) })
+          : t(`${K}.toast.install_failed_generic`),
+        {
+          id: "language-install-failed",
+          description: key ? t(key) : install.message || undefined,
+        },
+      );
     }
   }, [
     install.state,
