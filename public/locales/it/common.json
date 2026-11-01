@@ -1090,6 +1090,7 @@
       "aria": "Sequenza di ripristino",
       "status": {
         "blocked": "Serve uno slot",
+        "done": "Provato",
         "running": "In esecuzione"
       },
       "tier1": {
@@ -1149,6 +1150,7 @@
     "activity": {
       "title": "Attività di ripristino",
       "description": "Le azioni svolte dal watchdog, dalla più recente.",
+      "tier4Reboot": "Il watchdog ha riavviato il modem",
       "type": {
         "recovery": "Ripristino",
         "failover": "Failover SIM"

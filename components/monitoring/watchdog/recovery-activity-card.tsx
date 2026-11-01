@@ -41,7 +41,7 @@ import { rowCascadeDelay, transitionStandard } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { NetworkEvent, NetworkEventType } from "@/types/modem-status";
 
-import { useTimeAgo } from "./derive";
+import { CLOCK_PLAUSIBLE_AFTER, useTimeAgo } from "./derive";
 import {
   ABSOLUTE_INK,
   CARD_DESC,
@@ -81,6 +81,20 @@ const TONE_GLYPH = {
 } satisfies Record<EventTone, LucideIcon>;
 
 const DAY_SEC = 86_400;
+
+const NO_REBOOTS: readonly number[] = [];
+
+/** How far apart the log's own restart row and the recorded restart may sit. */
+const REBOOT_MATCH_SEC = 120;
+
+/** The event ring's own row for a Tier 4 restart, so the two are drawn once. */
+function isRebootEvent(event: NetworkEvent, epoch: number): boolean {
+  return (
+    event.type === "watchcat_recovery" &&
+    /reboot/i.test(event.message) &&
+    Math.abs(event.timestamp - epoch) <= REBOOT_MATCH_SEC
+  );
+}
 
 /** 80ms per row, capped by `rowCascadeDelay` so a long feed cannot choreograph. */
 const rowItem: Variants = {
@@ -129,8 +143,11 @@ interface DayGroup {
  */
 export function RecoveryActivityCard({
   activities,
+  recentReboots = NO_REBOOTS,
 }: {
   activities: UseRecentActivitiesReturn;
+  /** Epoch seconds of the watchdog's own restarts, newest first. */
+  recentReboots?: readonly number[];
 }) {
   const { t, i18n } = useTranslation("common");
   const { events, isLoading, error, refresh } = activities;
@@ -164,9 +181,30 @@ export function RecoveryActivityCard({
     // after a SIM-less reboot pre-date the ones already in the ring. Sort, or
     // the card contradicts its own "newest first" description. Indices are
     // carried through because `unresolved` keys into the unfiltered array.
-    const kept = events
+    const fromLog = events
       .map((event, index) => ({ event, index }))
-      .filter(({ event }) => WATCHDOG_TYPES.has(event.type))
+      .filter(({ event }) => WATCHDOG_TYPES.has(event.type));
+
+    // The watchdog's own restarts survive the reboot they cause, which the
+    // event ring does not always. A restart the ring still holds is not drawn
+    // twice. Index -1: a synthetic row is never "unresolved".
+    const fromReboots = recentReboots
+      .filter(
+        (epoch) =>
+          epoch > CLOCK_PLAUSIBLE_AFTER &&
+          !fromLog.some(({ event }) => isRebootEvent(event, epoch)),
+      )
+      .map((epoch) => ({
+        index: -1,
+        event: {
+          timestamp: epoch,
+          type: "watchcat_recovery",
+          message: t("watchdog.activity.tier4Reboot"),
+          severity: "error",
+        } satisfies NetworkEvent,
+      }));
+
+    const kept = [...fromLog, ...fromReboots]
       .sort((a, b) => b.event.timestamp - a.event.timestamp)
       .slice(0, LOG_LIMIT);
 
@@ -200,7 +238,7 @@ export function RecoveryActivityCard({
     });
 
     return out;
-  }, [events, nowSec, t, i18n.language, timeAgo, dayLabel]);
+  }, [events, recentReboots, nowSec, t, i18n.language, timeAgo, dayLabel]);
 
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
   // One counter across every day block: assuming three rows per group ran the

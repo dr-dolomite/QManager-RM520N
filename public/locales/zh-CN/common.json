@@ -1090,6 +1090,7 @@
       "aria": "恢复阶梯",
       "status": {
         "blocked": "需要插槽",
+        "done": "已尝试",
         "running": "正在运行"
       },
       "tier1": {
@@ -1149,6 +1150,7 @@
     "activity": {
       "title": "恢复活动",
       "description": "看门狗执行过的操作，最新优先。",
+      "tier4Reboot": "看门狗重启了调制解调器",
       "type": {
         "recovery": "恢复",
         "failover": "SIM 卡故障转移"

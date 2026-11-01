@@ -1090,6 +1090,7 @@
       "aria": "Recovery ladder",
       "status": {
         "blocked": "Needs a slot",
+        "done": "Tried",
         "running": "Running now"
       },
       "tier1": {
@@ -1149,6 +1150,7 @@
     "activity": {
       "title": "Recovery activity",
       "description": "What the watchdog has done, newest first.",
+      "tier4Reboot": "The watchdog restarted the modem",
       "type": {
         "recovery": "Recovery",
         "failover": "SIM failover"

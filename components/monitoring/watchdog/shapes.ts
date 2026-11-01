@@ -162,6 +162,9 @@ export const RUNG = {
   DISC: "col-start-1 row-start-1 mt-0.5 grid size-8 flex-none place-items-center rounded-pill text-[0.8125rem] font-semibold tabular-nums @[30rem]/card:mt-0",
   DISC_REST: "bg-surface-container-high text-on-surface-variant",
   DISC_RUNNING: "bg-primary text-primary-foreground",
+  /** Tried and climbed past: it did not restore the link, so neutral, not a verdict. */
+  DISC_DONE: "bg-surface-container-high text-on-surface",
+  DONE_GLYPH: "size-4",
   TEXT: "col-start-2 row-start-1 flex min-w-0 flex-col gap-px",
   NAME: "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-pretty",
   NAME_INACTIVE: "text-on-surface-variant",

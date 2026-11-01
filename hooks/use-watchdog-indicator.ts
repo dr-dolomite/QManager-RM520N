@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { isWatchcatLive } from "@/components/monitoring/watchdog/derive";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import type { WatchcatState } from "@/types/modem-status";
 
@@ -55,7 +56,8 @@ export function useWatchdogIndicator(): WatchdogIndicator | null {
     if (!data || isStale) return null;
 
     const watchcat = data.watchcat;
-    if (!watchcat?.enabled) return null;
+    // Enabled but silent: the last state on disk is not what it is doing now.
+    if (!isWatchcatLive(watchcat)) return null;
 
     const activity = REPORTABLE[watchcat.state as WatchcatState];
     if (!activity) return null;

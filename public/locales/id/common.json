@@ -1090,6 +1090,7 @@
       "aria": "Urutan pemulihan",
       "status": {
         "blocked": "Perlu slot",
+        "done": "Sudah dicoba",
         "running": "Sedang berjalan"
       },
       "tier1": {
@@ -1149,6 +1150,7 @@
     "activity": {
       "title": "Aktivitas pemulihan",
       "description": "Tindakan yang telah dilakukan watchdog, terbaru dulu.",
+      "tier4Reboot": "Watchdog me-restart modem",
       "type": {
         "recovery": "Pemulihan",
         "failover": "Failover SIM"

@@ -83,7 +83,7 @@ export const GRACE_MS = 60_000;
  * registered SIM, which makes every clock-difference staleness check read
  * "stale" forever. Below this epoch the modem clock is not evidence.
  */
-const CLOCK_PLAUSIBLE_AFTER = 1_600_000_000;
+export const CLOCK_PLAUSIBLE_AFTER = 1_600_000_000;
 
 export interface PhaseInput {
   /** Saved truth, not the draft. The band never reports a half-edited form. */
@@ -118,8 +118,20 @@ export function derivePhase({
     snapshotAt !== null && snapshotAt > CLOCK_PLAUSIBLE_AFTER;
   if (unreachable || (clockUsable && stale) || !watchcat) return "unknown";
 
-  if (watchcat.enabled) return watchcat.state;
+  if (isWatchcatLive(watchcat)) return watchcat.state;
+  // Enabled but its own state has gone quiet: no grace, it WAS reporting.
+  if (watchcat.enabled) return "not_running";
   return pastGrace ? "not_running" : "starting";
+}
+
+/**
+ * The daemon is enabled AND still reporting. A block with no age fields (an
+ * older backend) counts as live: absence of evidence is not staleness.
+ */
+export function isWatchcatLive(watchcat: WatchcatStatus | null): boolean {
+  if (!watchcat?.enabled) return false;
+  const { age_sec: age, stale_after: limit } = watchcat;
+  return !(age != null && limit != null && age > limit);
 }
 
 /** The disc is the only coloured thing in the status card's phase block. */

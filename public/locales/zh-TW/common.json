@@ -1090,6 +1090,7 @@
       "aria": "恢復階梯",
       "status": {
         "blocked": "需要插槽",
+        "done": "已嘗試",
         "running": "正在執行"
       },
       "tier1": {
@@ -1149,6 +1150,7 @@
     "activity": {
       "title": "恢復活動",
       "description": "看門狗執行過的操作，最新優先。",
+      "tier4Reboot": "看門狗重新啟動了數據機",
       "type": {
         "recovery": "恢復",
         "failover": "SIM 卡故障轉移"
