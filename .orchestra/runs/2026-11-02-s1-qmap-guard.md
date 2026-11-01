@@ -37,3 +37,7 @@ Risk: a QCMAP restart window refuses QMAP for ≤2 s past recovery (cache). Roll
 - RG501Q-EU (b7e3d6f1), PM slot "read-only /tmp only": `/tmp` copy md5 d5b06114, `--version` = 0.7.5 proto=3,
   `--qcmap` = `qcmap=running` as root and as www-data (pid 430 comm matches), `/proc` mounted without hidepid. Files self-deleted. No AT sent, nothing restarted.
 - Not proven on a device: the refusal itself (needs QCMAP stopped = disruptive) and the WARN/INFO log lines; covered by the exec.rs test with a fake proc root.
+- Blind `qm-verifier` on 73398ad7: **PASS_WITH_NOTES** (all 6 criteria; 324 user + root; flake 20/20; fresh armv7 md5 = d5b06114).
+  Notes, none fixed: (a) the in-process fallback logs the WARN once per process, not once per spell (poller's `qcmap_up` is in front);
+  (b) the 2 s cache can still say Running for up to 2 s after QCMAP exits, so one QMAP may slip through in that window (design's cache, accepted);
+  (c) unreadable comm reads Stopped = fail closed (device shows no hidepid, www-data reads it).
