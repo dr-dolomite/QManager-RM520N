@@ -104,6 +104,8 @@ export function LadderCard({ form, runningTier }: LadderCardProps) {
               onOff={onOff}
               // Live truth first: a rung the daemon is executing IS running.
               running={runningTier === tier}
+              // The ladder has climbed past this rung in the current outage.
+              passed={runningTier > tier}
             />
           ))}
         </ol>
@@ -118,17 +120,21 @@ function Rung({
   form,
   onOff,
   running,
+  passed,
 }: {
   tier: TierIndex;
   form: WatchdogForm;
   onOff: SegmentedOption<OnOff>[];
   running: boolean;
+  passed: boolean;
 }) {
   const { t } = useTranslation("common");
   const { draft } = form;
   const masterOff = !draft.enabled;
   const armed = draftTiers(draft)[tier];
   const needsSlot = tier === 3 && armed && !draft.backupSlot;
+  // A disarmed rung was skipped, not tried. The glyph, not the green alone, says "done".
+  const done = passed && armed && !running;
   const name = t(TIER_NAME_KEY[tier]);
   const ariaLabel = t("watchdog.ladder.tierAria", { name });
 
@@ -198,10 +204,10 @@ function Rung({
         className={cn(
           RUNG.DISC,
           RUNG.TRANSITION,
-          running ? RUNG.DISC_RUNNING : RUNG.DISC_REST,
+          running ? RUNG.DISC_RUNNING : done ? RUNG.DISC_DONE : RUNG.DISC_REST,
         )}
       >
-        {tier}
+        {done ? <CheckIcon className={RUNG.DONE_GLYPH} /> : tier}
       </span>
 
       <div className={RUNG.TEXT}>
@@ -212,6 +218,8 @@ function Rung({
               <span aria-hidden className={RUNG.MARKER_DOT} />
               {t("watchdog.ladder.status.running")}
             </span>
+          ) : done ? (
+            <span className="sr-only">{t("watchdog.ladder.status.done")}</span>
           ) : needsSlot ? (
             <Badge variant="warning">
               <TriangleAlertIcon className="size-3" />

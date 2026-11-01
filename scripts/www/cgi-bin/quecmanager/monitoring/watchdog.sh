@@ -3,6 +3,7 @@
 . /usr/lib/qmanager/config.sh
 . /usr/lib/qmanager/platform.sh
 . /usr/lib/qmanager/conn_state.sh
+[ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
 # =============================================================================
 # watchdog.sh — CGI Endpoint: Watchdog Settings & Status (GET + POST)
 # =============================================================================
@@ -31,6 +32,7 @@ RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
 PING_PROFILE_CONFIG="/etc/qmanager/ping_profile.json"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
+CRASH_LOG="${QM_CRASH_LOG:-/usrdata/qmanager/crash.log}"
 
 # validate_int: unsigned-integer-only range check (rejects "", leading +/-,
 # non-digits, and out-of-range values).
@@ -108,6 +110,15 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         sim_swap_json=$(cat "$SIM_SWAP_FLAG" 2>/dev/null)
     fi
 
+    # Recent Tier-4 reboots: epoch ints, newest first, at most 5. crash.log also
+    # holds scheduled/user reboots and skips; only the watchdog's own count here.
+    recent_reboots_json='[]'
+    if [ -f "$CRASH_LOG" ]; then
+        recent_reboots_json=$(awk -F'|' '$2 == "reboot" && $3 == "tier4_escalation" && $1 ~ /^[0-9]+$/ && $1 + 0 >= 1600000000 { print $1 }' \
+            "$CRASH_LOG" 2>/dev/null | tail -n 5 | jq -Rsc '[split("\n")[] | select(length > 0) | tonumber] | reverse' 2>/dev/null)
+    fi
+    [ -n "$recent_reboots_json" ] || recent_reboots_json='[]'
+
     # Check if watchcat was auto-disabled
     auto_disabled="false"
     [ -f "$DISABLED_FLAG" ] && auto_disabled="true"
@@ -128,6 +139,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson sim_failover "$sim_failover_json" \
         --argjson sim_swap "$sim_swap_json" \
         --argjson auto_disabled "$auto_disabled" \
+        --argjson recent_reboots "$recent_reboots_json" \
         '{
             success: true,
             settings: {
@@ -146,7 +158,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             status: $status,
             sim_failover: $sim_failover,
             sim_swap: $sim_swap,
-            auto_disabled: $auto_disabled
+            auto_disabled: $auto_disabled,
+            recent_reboots: $recent_reboots
         }'
     exit 0
 fi
@@ -298,8 +311,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 cgi_error "service_enable_failed" "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)"
                 exit 0
             fi
-            ( svc_restart qmanager_watchcat & )
-            qlog_info "Watchdog settings saved, watchcat enabled and started"
+            # A running daemon reloads from the flag touched above; a restart would
+            # drop its live recovery state, so start it only when it is down.
+            if svc_is_running qmanager_watchcat; then
+                qlog_info "Watchdog settings saved, running watchcat will reload"
+            else
+                ( svc_start qmanager_watchcat & )
+                qlog_info "Watchdog settings saved, watchcat enabled and started"
+            fi
         else
             # Stop and disable the watchcat service BEFORE persisting enabled=0,
             # so a failed disable never leaves stale "enabled=0" config behind.
