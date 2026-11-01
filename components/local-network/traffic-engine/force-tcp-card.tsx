@@ -2,119 +2,112 @@
 
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { CheckIcon, RefreshCcwIcon } from "lucide-react";
 
-import { Banner } from "@/components/ui/banner";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Banner, bannerActionVariants } from "@/components/ui/banner";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SEGMENTED, SegmentedField } from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Tag } from "@/components/ui/tag";
+import { useForceTcp } from "@/hooks/use-force-tcp";
 import { cn } from "@/lib/utils";
 
-import { useForceTcp } from "@/hooks/use-force-tcp";
 import {
+  CARD_ACTION,
+  CARD_BODY,
+  CARD_DESC,
   CARD_HEAD,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
-  HOST_ROW,
-  SETTING_ROW,
+  FIELD,
+  ONOFF_CTL,
+  SKELETON,
 } from "./shapes";
 
-// =============================================================================
-// ForceTcpCard — QUIC Force-TCP, fully independent of the engine
-// =============================================================================
-// Renders at the very bottom of the page in EVERY state, including before the
-// engine is installed. That placement is documented and deliberate
-// (docs/reference/dpi.md > QUIC handling), and the re-author keeps it: the card
-// talks through its own `use-force-tcp` hook with zero coupling to the engine
-// hooks, so it stays usable when the engine read fails.
-//
-// -----------------------------------------------------------------------------
-// THE CAVEAT WAS A WARNING DRAWN AS GREY BODY TEXT
-// -----------------------------------------------------------------------------
-// Finding 12. The retired tile hand-rolled two `rounded-tile bg-surface-container
-// p-3` blocks, one carrying a `CheckCircle2Icon` greyed to
-// `text-muted-foreground` — a success glyph in muted ink on a neutral block,
-// which is neither a chip nor a banner. Beside it sat a genuine `warning`
-// (forcing TCP can stream SLOWER on a network where QUIC already runs at full
-// speed) rendered in the same neutral grey as the reassurance above it, so the
-// two read as equally weighted notes.
-//
-// One is now a `degraded` Banner with the 36px glyph disc, and the other has no
-// block at all: "works with either mode, and with neither" is a property of the
-// control, so it belongs in the control's own consequence line, not in a box
-// competing with the warning.
-// =============================================================================
+// QUIC Force-TCP: its own hook and its own CGI action, independent of the engine, so it
+// renders in every state of the page (docs/reference/dpi.md > QUIC handling).
+
+const renderCheckGlyph = (className: string) => (
+  <CheckIcon size={SEGMENTED.GLYPH} className={className} aria-hidden="true" />
+);
 
 export function ForceTcpCard() {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("local-network");
   const forceTcp = useForceTcp();
+  const enabled = forceTcp.data?.force_tcp ?? false;
 
   const commit = async (next: boolean) => {
-    const ok = await forceTcp.save(next);
-    if (ok) {
+    const result = await forceTcp.save(next);
+    if (result.ok) {
       toast.success(
-        t(
-          next
-            ? "trafficEngine.forceTcp.toast_enabled"
-            : "trafficEngine.forceTcp.toast_disabled",
-        ),
+        t(next ? "traffic_engine.force_tcp_toast_enabled" : "traffic_engine.force_tcp_toast_disabled"),
       );
+    } else {
+      toast.error(t("traffic_engine.force_tcp_toast_error"), {
+        description: result.error ?? undefined,
+      });
     }
   };
 
   return (
-    <Card className={CARD_SHELL}>
-      <CardHeader className={cn(CARD_PAD, CARD_HEAD.ROOT)}>
-        <div className={CARD_HEAD.TITLES}>
-          <span className={CARD_TITLE}>{t("trafficEngine.forceTcp.title")}</span>
-          <span className={CARD_HEAD.DESC}>
-            {t("trafficEngine.forceTcp.description")}
-          </span>
-        </div>
-        <div className={CARD_HEAD.ACTIONS}>
-          {/* Identity, not status: it says what this control IS relative to the
-              engine, and there is no second state for a glyph to disambiguate.
-              That makes it a Tag, never a Badge (The Two-Form Rule). */}
-          <Tag variant="neutral">{t("trafficEngine.forceTcp.independent")}</Tag>
-        </div>
+    <Card id="traffic-engine-force-tcp" className={CARD_SHELL}>
+      <CardHeader className={cn(CARD_PAD, CARD_HEAD)}>
+        <CardTitle className={CARD_TITLE}>{t("traffic_engine.force_tcp_title")}</CardTitle>
+        <CardDescription className={CARD_DESC}>
+          {t("traffic_engine.force_tcp_description")}
+        </CardDescription>
+        <CardAction className={CARD_ACTION}>
+          <Tag variant="neutral">{t("traffic_engine.force_tcp_independent")}</Tag>
+        </CardAction>
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-        {forceTcp.isLoading ? (
-          <Skeleton className={cn(HOST_ROW.HEIGHT, "w-full rounded-pill")} />
-        ) : (
-          <div className={SETTING_ROW.ROOT}>
-            <span className={SETTING_ROW.TEXT}>
-              <span className={SETTING_ROW.LABEL}>
-                {t("trafficEngine.forceTcp.label")}
-              </span>
-              <span className={SETTING_ROW.HINT}>
-                {t("trafficEngine.forceTcp.hint")}
-              </span>
-            </span>
-            <Switch
-              checked={forceTcp.data?.force_tcp ?? false}
-              disabled={forceTcp.isSaving}
-              aria-label={t("trafficEngine.forceTcp.switch_aria")}
-              onCheckedChange={commit}
-            />
+      <CardContent className={cn(CARD_PAD, CARD_BODY, "gap-4")}>
+        <div className={FIELD.ROW}>
+          <div className={FIELD.TEXT}>
+            <p className={FIELD.LABEL}>{t("traffic_engine.force_tcp_label")}</p>
+            <p className={FIELD.HINT}>{t("traffic_engine.force_tcp_hint")}</p>
           </div>
-        )}
+          {forceTcp.isLoading ? (
+            <Skeleton className={SKELETON.ONOFF} />
+          ) : (
+            <SegmentedField
+              value={enabled ? "on" : "off"}
+              onValueChange={(next) => void commit(next === "on")}
+              ariaLabel={t("traffic_engine.force_tcp_label")}
+              disabled={forceTcp.isSaving || forceTcp.data === null}
+              breakpoint="never"
+              glyph={renderCheckGlyph}
+              className={ONOFF_CTL}
+              options={[
+                { value: "off", label: t("state.off", { ns: "common" }) },
+                { value: "on", label: t("state.on", { ns: "common" }) },
+              ]}
+            />
+          )}
+        </div>
 
-        {/* A real warning, drawn as one. The retired tile put this in the same
-            neutral block as the reassurance beside it. */}
         <Banner
           role="degraded"
-          title={t("trafficEngine.forceTcp.caveat_title")}
-          description={t("trafficEngine.forceTcp.caveat")}
+          title={t("traffic_engine.force_tcp_caveat_title")}
+          description={t("traffic_engine.force_tcp_caveat")}
         />
 
-        {forceTcp.error !== null ? (
+        {forceTcp.error !== null && forceTcp.data === null && !forceTcp.isLoading ? (
           <Banner
             role="stale"
-            title={t("trafficEngine.forceTcp.read_error")}
+            title={t("traffic_engine.force_tcp_read_error")}
             description={forceTcp.error}
+            action={
+              <button
+                type="button"
+                onClick={() => forceTcp.refresh()}
+                className={bannerActionVariants({ tone: "destructive" })}
+              >
+                <RefreshCcwIcon aria-hidden="true" />
+                {t("actions.retry", { ns: "common" })}
+              </button>
+            }
           />
         ) : null}
       </CardContent>

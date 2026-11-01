@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import type { MutationResult } from "@/types/mutation-result";
 import type { InstallPhase, VideoOptimizerStatus } from "@/types/traffic-engine";
 
 // =============================================================================
@@ -28,9 +29,9 @@ export interface UseVideoOptimizerReturn {
   installPhase: InstallPhase;
   installMessage: string | null;
   error: string | null;
-  saveEnabled: (enabled: boolean) => Promise<boolean>;
-  installBinary: () => Promise<boolean>;
-  uninstallBinary: () => Promise<boolean>;
+  saveEnabled: (enabled: boolean) => Promise<MutationResult>;
+  installBinary: () => Promise<MutationResult>;
+  uninstallBinary: () => Promise<MutationResult>;
   dismissBinaryOpError: () => void;
   /**
    * Re-read the section.
@@ -121,7 +122,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
   // Save enable/disable
   // ---------------------------------------------------------------------------
   const saveEnabled = useCallback(
-    async (enabled: boolean): Promise<boolean> => {
+    async (enabled: boolean): Promise<MutationResult> => {
       setError(null);
       setIsSaving(true);
       try {
@@ -132,18 +133,20 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save engine settings");
-          return false;
+          const msg = json.detail || json.error || "Failed to save engine settings";
+          setError(msg);
+          return { ok: false, error: msg };
         }
         await fetchStatus(true);
-        return true;
+        return { ok: true, error: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save engine settings");
-        return false;
+        if (!mountedRef.current) return { ok: false, error: null };
+        const msg = err instanceof Error ? err.message : "Failed to save engine settings";
+        setError(msg);
+        return { ok: false, error: msg };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }
@@ -157,7 +160,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
   // one state machine drives both; only the POST action and copy differ.
   // ---------------------------------------------------------------------------
   const runBinaryOperation = useCallback(
-    async (action: "install" | "uninstall"): Promise<boolean> => {
+    async (action: "install" | "uninstall"): Promise<MutationResult> => {
       const isInstall = action === "install";
       const copy = {
         start: isInstall ? "Starting zapret download..." : "Stopping Traffic Engine...",
@@ -169,7 +172,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
           : "Removal timed out — refresh the page in a few minutes",
       };
 
-      if (opBusyRef.current) return false;
+      if (opBusyRef.current) return { ok: false, error: null };
       opBusyRef.current = true;
       setError(null);
       setIsInstalling(isInstall);
@@ -184,14 +187,14 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
 
         if (json.success === false) {
           const msg = json.detail || json.error || copy.spawnFailed;
           setError(msg);
           setInstallMessage(msg);
           setInstallPhase("error");
-          return false;
+          return { ok: false, error: msg };
         }
         if (json.status === "already") {
           if (isInstall) {
@@ -201,7 +204,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
           // Uninstall flavor: leave zero residue — if the binary was already
           // gone the onboarding card must render exactly like a fresh install.
           await fetchStatus(true);
-          return true;
+          return { ok: true, error: null };
         }
 
         // Poll install_status to completion.
@@ -212,7 +215,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         let sawWorker = true; // the spawn itself reported success
         for (let i = 0; i < 300; i++) {
           await new Promise((r) => setTimeout(r, 3000));
-          if (!mountedRef.current) return false;
+          if (!mountedRef.current) return { ok: false, error: null };
           const stResp = await authFetch(`${CGI_ENDPOINT}?action=install_status`);
           if (!stResp.ok) continue;
           let st: {
@@ -228,7 +231,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
             // known message on screen rather than blanking it.
             continue;
           }
-          if (!mountedRef.current) return false;
+          if (!mountedRef.current) return { ok: false, error: null };
 
           if (!st.status || st.status === "idle") {
             // No usable marker content. If the worker is gone too, it died
@@ -241,7 +244,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
               setError(msg);
               setInstallMessage(msg);
               await fetchStatus(true);
-              return false;
+              return { ok: false, error: msg };
             }
             continue;
           }
@@ -250,10 +253,11 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
           setInstallPhase(st.status as InstallPhase);
           setInstallMessage(st.message || st.detail || null);
           if (st.status === "complete" || st.status === "error") {
+            let failMsg: string | null = null;
             if (st.status === "error") {
-              const msg = st.detail || st.message || copy.failed;
-              setError(msg);
-              setInstallMessage(msg);
+              failMsg = st.detail || st.message || copy.failed;
+              setError(failMsg);
+              setInstallMessage(failMsg);
             }
             await fetchStatus(true);
             if (!isInstall && st.status === "complete") {
@@ -264,20 +268,20 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
               setInstallPhase("idle");
               setInstallMessage(null);
             }
-            return st.status === "complete";
+            return st.status === "complete" ? { ok: true, error: null } : { ok: false, error: failMsg };
           }
         }
         setInstallPhase("error");
         setError(copy.timeout);
         setInstallMessage(copy.timeout);
-        return false;
+        return { ok: false, error: copy.timeout };
       } catch (err) {
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
         const msg = err instanceof Error ? err.message : copy.spawnFailed;
         setError(msg);
         setInstallPhase("error");
         setInstallMessage(msg);
-        return false;
+        return { ok: false, error: msg };
       } finally {
         opBusyRef.current = false;
         if (mountedRef.current) {

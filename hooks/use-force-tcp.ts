@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import type { MutationResult } from "@/types/mutation-result";
 
 // =============================================================================
 // useForceTcp — QUIC Force-TCP status & control hook (standalone)
@@ -31,7 +32,7 @@ export interface UseForceTcpReturn {
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  save: (enabled: boolean) => Promise<boolean>;
+  save: (enabled: boolean) => Promise<MutationResult>;
   refresh: () => void;
 }
 
@@ -85,7 +86,7 @@ export function useForceTcp(): UseForceTcpReturn {
   // Save enable/disable (auto-applies the iptables rule on the CGI side)
   // ---------------------------------------------------------------------------
   const save = useCallback(
-    async (enabled: boolean): Promise<boolean> => {
+    async (enabled: boolean): Promise<MutationResult> => {
       setError(null);
       setIsSaving(true);
       try {
@@ -96,18 +97,20 @@ export function useForceTcp(): UseForceTcpReturn {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save QUIC Force-TCP");
-          return false;
+          const msg = json.detail || json.error || "Failed to save QUIC Force-TCP";
+          setError(msg);
+          return { ok: false, error: msg };
         }
         await fetchStatus(true);
-        return true;
+        return { ok: true, error: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save QUIC Force-TCP");
-        return false;
+        if (!mountedRef.current) return { ok: false, error: null };
+        const msg = err instanceof Error ? err.message : "Failed to save QUIC Force-TCP";
+        setError(msg);
+        return { ok: false, error: msg };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }
