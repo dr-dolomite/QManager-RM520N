@@ -154,12 +154,17 @@ CQ_LOSS_PRESET="tolerant"; CQ_LOSS_PCT=30; CQ_LOSS_DEBOUNCE=3
 CQ_ALERT_AFTER_MIN=5
 _CQ_THR_PENDING=1   # 1 until the first successful cq_thresholds_load
 
-# Value (ms / %) and debounce (consecutive polls, entry and exit) per preset.
+# Value (ms / %) and debounce (consecutive polls, entry and exit) per preset. `custom` takes
+# its integer as $2 (latency 1-10000, loss 1-100), debounce 3; a bad value returns 1, globals untouched.
 cq_preset_latency() {
     case "$1" in
         standard)      CQ_LAT_MS=150; CQ_LAT_DEBOUNCE=3 ;;
         tolerant)      CQ_LAT_MS=250; CQ_LAT_DEBOUNCE=3 ;;
         very-tolerant) CQ_LAT_MS=500; CQ_LAT_DEBOUNCE=2 ;;
+        custom)
+            case "${2:-}" in ''|*[!0-9]*) return 1 ;; esac
+            [ "${#2}" -le 5 ] && [ "$2" -ge 1 ] && [ "$2" -le 10000 ] || return 1
+            CQ_LAT_MS="$2"; CQ_LAT_DEBOUNCE=3 ;;
         *) return 1 ;;
     esac
     CQ_LAT_PRESET="$1"
@@ -170,6 +175,10 @@ cq_preset_loss() {
         standard)      CQ_LOSS_PCT=15; CQ_LOSS_DEBOUNCE=3 ;;
         tolerant)      CQ_LOSS_PCT=30; CQ_LOSS_DEBOUNCE=3 ;;
         very-tolerant) CQ_LOSS_PCT=50; CQ_LOSS_DEBOUNCE=2 ;;
+        custom)
+            case "${2:-}" in ''|*[!0-9]*) return 1 ;; esac
+            [ "${#2}" -le 3 ] && [ "$2" -ge 1 ] && [ "$2" -le 100 ] || return 1
+            CQ_LOSS_PCT="$2"; CQ_LOSS_DEBOUNCE=3 ;;
         *) return 1 ;;
     esac
     CQ_LOSS_PRESET="$1"
@@ -211,19 +220,22 @@ cq_thresholds_load() {
         return 1
     fi
     _CQ_THR_PENDING=0
-    _cq_lp="-"; _cq_sp="-"
+    _cq_lp="-"; _cq_sp="-"; _cq_lc="-"; _cq_sc="-"
     if [ -f "$_cq_qcfg" ]; then
         _cq_row=$(jq -r 'def s: if type == "string" and . != "" then . else "-" end;
-            [((try .latency.preset catch null) | s), ((try .loss.preset catch null) | s)] | @tsv' \
+            def n: if type == "number" and . == floor then tostring else "-" end;
+            [((try .latency.preset catch null) | s), ((try .loss.preset catch null) | s),
+             ((try .latency.custom_ms catch null) | n), ((try .loss.custom_pct catch null) | n)] | @tsv' \
             "$_cq_qcfg" 2>/dev/null </dev/null)
         if [ -n "$_cq_row" ]; then
-            IFS="$_CQ_TAB" read -r _cq_lp _cq_sp <<EOF
+            IFS="$_CQ_TAB" read -r _cq_lp _cq_sp _cq_lc _cq_sc <<EOF
 $_cq_row
 EOF
         fi
     fi
-    cq_preset_latency "$_cq_lp" || cq_preset_latency tolerant
-    cq_preset_loss "$_cq_sp" || cq_preset_loss tolerant
+    # A custom preset with a missing or invalid number falls back to tolerant.
+    cq_preset_latency "$_cq_lp" "$_cq_lc" || cq_preset_latency tolerant
+    cq_preset_loss "$_cq_sp" "$_cq_sc" || cq_preset_loss tolerant
     cq_alert_after_min
     return 0
 }

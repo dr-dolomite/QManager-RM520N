@@ -7,8 +7,8 @@
 #       sensitive/regular/relaxed/quiet; preserved from the file when omitted)
 #       and an OPTIONAL interval_sec (1-60), merging them into
 #       /etc/qmanager/ping_profile.json, then pokes the daemon's reload flag at
-#       /tmp/qmanager_ping_reload. A changed profile with no interval_sec drops
-#       the stored interval_sec override so the new profile's cadence applies.
+#       /tmp/qmanager_ping_reload. A stored interval_sec (the cadence the Watchdog
+#       page owns) survives a profile change and shadows the profile's cadence.
 #
 # --- The four slots, and why they validate differently -----------------------
 # The probe chain walks four legs in a fixed order and short-circuits on the
@@ -87,9 +87,14 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # Effective cadence, same resolution as the daemon (override, else profile table).
     conn_state_cadence "$CONFIG"
 
+    # The stored override (the Watchdog's cadence), or null when the profile's own applies.
+    interval_override=$(jq -r '(try .interval_sec catch null) | if type == "number" and . == floor and . > 0 then tostring else "null" end' "$CONFIG" 2>/dev/null </dev/null) || interval_override=null
+    [ -n "$interval_override" ] || interval_override=null
+
     jq -n \
         --arg profile "$profile" \
         --argjson interval_sec "$CQ_CFG_INTERVAL_SEC" \
+        --argjson interval_override "$interval_override" \
         --argjson fail_secs "$CQ_CFG_FAIL_SECS" \
         --argjson recover_secs "$CQ_CFG_RECOVER_SECS" \
         --arg target_host_1 "$host_1" \
@@ -99,6 +104,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         '{success: true, settings: {
             profile: $profile,
             interval_sec: $interval_sec,
+            interval_override: $interval_override,
             fail_secs: $fail_secs,
             recover_secs: $recover_secs,
             target_host_1: $target_host_1,
@@ -298,8 +304,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     mkdir -p "$(dirname "$CONFIG")"
 
-    # Atomic key-merge: set the label + targets; cadence keys pass through unless the
-    # interval_sec is posted or the profile changed (which drops the stale interval_sec).
+    # Atomic key-merge: label + targets are set; a stored interval_sec (the Watchdog's cadence)
+    # survives a profile change and is replaced only when interval_sec is posted.
     existing_json='{}'
     if [ -f "$CONFIG" ]; then
         existing_json=$(cat "$CONFIG" 2>/dev/null)
@@ -317,17 +323,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
     fi
 
-    stored_profile=$(printf '%s' "$existing_json" | jq -r '.profile // "relaxed"' 2>/dev/null)
-    case "$stored_profile" in
-        sensitive|regular|relaxed|quiet) ;;
-        *) stored_profile="relaxed" ;;
-    esac
-    drop_interval=false
-    [ "$new_profile" != "$stored_profile" ] && drop_interval=true
-
     if ! printf '%s' "$existing_json" | jq \
         --argjson interval "${new_interval:-null}" \
-        --argjson drop_interval "$drop_interval" \
         --arg profile "$new_profile" \
         --arg host_1 "$new_h1" \
         --arg host_2 "$new_h2" \
@@ -338,9 +335,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
          | .target_host_2 = $host_2
          | .target_ip_1 = $ip_1
          | .target_ip_2 = $ip_2
-         | if $interval != null then .interval_sec = $interval
-           elif $drop_interval then del(.interval_sec)
-           else . end' \
+         | if $interval != null then .interval_sec = $interval else . end' \
         > "${CONFIG}.tmp" 2>/dev/null || [ ! -s "${CONFIG}.tmp" ]; then
         # -s guards the promote: never `mv` a zero-byte temp over a live
         # config. jq can exit 0 having written nothing if the redirect itself

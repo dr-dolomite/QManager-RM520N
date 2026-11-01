@@ -467,15 +467,23 @@
       },
       "group": {
         "hostnames": "主機名稱",
-        "fallback": "IPv4 備援"
+        "fallback": "IPv4 備援",
+        "sensitivity": "靈敏度"
       },
       "fallback_hint": "不需要 DNS，因此解析器故障不會被誤判為斷線。",
       "fallback_hint_label": "關於 IPv4 備援",
       "interval": {
         "label": "探測間隔",
-        "value": "每 {{seconds}} 秒"
+        "value": "每 {{seconds}} 秒",
+        "override": "每 {{seconds}} 秒（看門狗）"
       },
-      "failed": "儲存失敗"
+      "failed": "儲存失敗",
+      "profile": {
+        "sensitive": "靈敏",
+        "regular": "一般",
+        "relaxed": "寬鬆",
+        "quiet": "安靜"
+      }
     },
     "thresholds": {
       "title": "品質門檻",
@@ -489,7 +497,8 @@
       "preset": {
         "standard": "標準",
         "tolerant": "寬鬆",
-        "very_tolerant": "非常寬鬆"
+        "very_tolerant": "非常寬鬆",
+        "custom": "自訂"
       },
       "unsaved": "未儲存",
       "save": "儲存門檻",
@@ -504,13 +513,15 @@
       },
       "row": {
         "flags": "觸發條件",
-        "now": "目前"
+        "now": "目前",
+        "limit": "門檻"
       },
       "flags": {
         "latency_one": "{{count}} 個樣本超過 {{ms}} 毫秒",
         "latency_other": "{{count}} 個樣本超過 {{ms}} 毫秒",
         "loss_one": "{{count}} 個樣本達到 {{pct}}% 或以上",
-        "loss_other": "{{count}} 個樣本達到 {{pct}}% 或以上"
+        "loss_other": "{{count}} 個樣本達到 {{pct}}% 或以上",
+        "pending": "請輸入門檻"
       },
       "now": {
         "latency": "{{ms}} 毫秒",
@@ -521,7 +532,14 @@
         "over_loss": "超出 {{pct}}% 門檻"
       },
       "default_chip": "內建預設值",
-      "failed": "儲存失敗"
+      "failed": "儲存失敗",
+      "unit": {
+        "latency": "毫秒",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "請輸入 {{min}} 到 {{max}} 之間的整數。"
+      }
     }
   },
   "software_update": {

@@ -487,13 +487,13 @@ const ConnectionQualityComponent = ({
         </div>
       ) : null}
       {hasOutageField ? (
-        <div className="flex h-5 items-center gap-2">
+        <div className="flex min-h-5 items-center gap-2">
           <MaterialSymbol
             name="history"
             size={16}
             className="shrink-0 text-on-surface-variant"
           />
-          <span className="min-w-0 grow truncate text-[13px] font-semibold text-on-surface-variant">
+          <span className="shrink-0 text-[13px] font-semibold text-on-surface-variant">
             {t("connection_quality.last_outage")}
           </span>
           {outageS === null ? (
@@ -501,22 +501,22 @@ const ConnectionQualityComponent = ({
               {t("connection_quality.last_outage_none")}
             </span>
           ) : (
-            <span className="flex shrink-0 items-center gap-1">
+            <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-1 text-sm font-semibold tabular-nums text-on-surface">
               {/* The tip qualifies the reading, so it leads the value it describes. */}
-              {outageWanIp ? (
-                <HintIcon label={t("connection_quality.last_outage_ip_label")}>
-                  {t(`connection_quality.${outageWanKey}`)}{" "}
-                  <span className="font-mono">{outageWanIp}</span>
-                </HintIcon>
-              ) : null}
-              <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-on-surface">
-                {formatOutage(outageS, t)}
-                {outageAgoS !== null ? (
-                  <em className="font-semibold text-on-surface-variant not-italic">
-                    {` ${t("connection_quality.last_outage_ago", { ago: formatAgo(outageAgoS, t) })}`}
-                  </em>
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                {outageWanIp ? (
+                  <HintIcon label={t("connection_quality.last_outage_ip_label")}>
+                    {t(`connection_quality.${outageWanKey}`)}{" "}
+                    <span className="font-mono">{outageWanIp}</span>
+                  </HintIcon>
                 ) : null}
+                {formatOutage(outageS, t)}
               </span>
+              {outageAgoS !== null ? (
+                <span className="whitespace-nowrap text-on-surface-variant">
+                  {t("connection_quality.last_outage_ago", { ago: formatAgo(outageAgoS, t) })}
+                </span>
+              ) : null}
             </span>
           )}
         </div>
