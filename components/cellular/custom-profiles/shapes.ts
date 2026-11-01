@@ -145,7 +145,7 @@ export const BADGE_GLYPH_SIZE = 12;
  * HEIGHT IS A FLOOR, DELIBERATELY. `TILE_SHAPE` pins because a tile's content
  * is bounded; a row's is not — the tag strip wraps. The skeleton therefore
  * mirrors by rendering `ROOT` itself with placeholder children (see
- * `custom-profile-view.tsx`), not by restating a number, which is the only
+ * `profile-view.tsx`), not by restating a number, which is the only
  * honest mirror for a variable-height box.
  */
 export const PROFILE_ROW_SHAPE = {

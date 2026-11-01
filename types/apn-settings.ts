@@ -56,6 +56,7 @@ export interface ApnSettingsResponse {
   /** The modem's live PDP contexts (1-6), each tagged for the CID picker. */
   cids: CidContext[];
   error?: string;
+  detail?: string;
 }
 
 /** Response from POST save / deactivate operations. */
@@ -63,6 +64,9 @@ export interface ApnSaveResponse {
   success: boolean;
   active?: number;
   error?: string;
+  detail?: string;
+  /** `false` when the modem change landed but the apn_setting.json sidecar did not save. */
+  persisted?: boolean;
 }
 
 /**
@@ -84,6 +88,12 @@ export interface ApnSaveResponse {
  *   "failed"       the modem answered, and it answered no (or HTTP said no)
  */
 export type ApnSaveOutcome = "saved" | "reconciling" | "failed";
+
+/** A write's outcome plus what the handler needs to toast it; `error` is already translated. */
+export type ApnActionResult =
+  | { outcome: "saved"; persisted: boolean }
+  | { outcome: "reconciling" }
+  | { outcome: "failed"; error: string };
 
 // --- API Request Types -------------------------------------------------------
 

@@ -3,15 +3,16 @@
 import * as React from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import CellularPageHeader from "@/components/cellular/page-header";
 import { Banner, bannerActionVariants } from "@/components/ui/banner";
 import { useImeiSettings } from "@/hooks/use-imei-settings";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { clearPendingReboot, requestRebootLater } from "@/lib/reboot";
 import { cn } from "@/lib/utils";
 
 import { CARD_CELL, PAGE_ROOT, WORKBENCH_SPLIT } from "../shapes";
-import { isMotionReduced } from "@/lib/motion-preference";
 import BackupIMEICard from "./backup-imei-card";
 import IMEISettingsCard from "./imei-settings-card";
 import IMEIToolsCard from "./imei-tools-card";
@@ -50,32 +51,15 @@ import IMEIToolsCard from "./imei-tools-card";
 // -----------------------------------------------------------------------------
 // THE DEFERRED REBOOT
 // -----------------------------------------------------------------------------
-// Writing an IMEI does nothing until the modem restarts. The incumbent dialog
-// offered "Reboot Now" / "Reboot Later" and then DROPPED the choice: picking
-// Later recorded nothing, so the user got no reminder, no second chance, and a
-// modem still answering on its old identity with no indication why.
-//
-// The pending state is now persisted under `qm_imei_reboot_pending` in
-// sessionStorage — the same store the product-wide reboot handoff already uses
-// (`qm_rebooting`) — so it survives a route change and a return to this page,
-// and dies with the tab, which is the right lifetime for "you have not restarted
-// yet". It is deliberately NOT a global reboot-state system: exactly one surface
-// writes this key and exactly one reads it.
-//
-// While it is set, the page carries the `deferred-reboot` Banner — the one role
-// in `components/ui/banner.tsx` permitted two CTAs (a tonal "Review" and a
-// destructive "Reboot"), and until now the only role in the set with no call
-// sites at all.
+// An IMEI write needs a modem restart; "Later" sets the app-wide pending-reboot flag (`requestRebootLater("imei")`),
+// so the shell's one `PendingRebootBanner` shows it and this page renders no banner of its own.
 //
 // NEVER reboot inline in a request path. The app is served BY the modem, so an
 // in-flight reboot kills its own HTTP response; the reboot always sits behind a
 // dialog or this banner, and the actual restart is a handoff to /reboot/.
 // =============================================================================
 
-/** sessionStorage key holding "an IMEI was written, the modem has not restarted". */
-export const IMEI_REBOOT_PENDING_KEY = "qm_imei_reboot_pending";
-
-/** Anchor for the banner's "Review" action. */
+/** Anchor id for the device card. */
 const DEVICE_CARD_ID = "imei-device-card";
 
 const IMEISettings = () => {
@@ -95,38 +79,20 @@ const IMEISettings = () => {
 
   const K = "core_settings.imei";
 
-  // Read in an effect, not in a `useState` initialiser: this route is a static
-  // export, so the initialiser also runs where `sessionStorage` does not exist,
-  // and a value read during render would hydrate mismatched anyway.
-  const [rebootPending, setRebootPending] = React.useState(false);
-  React.useEffect(() => {
-    setRebootPending(
-      window.sessionStorage.getItem(IMEI_REBOOT_PENDING_KEY) === "1",
-    );
-  }, []);
-
   const markRebootPending = React.useCallback(() => {
-    window.sessionStorage.setItem(IMEI_REBOOT_PENDING_KEY, "1");
-    setRebootPending(true);
+    requestRebootLater("imei");
   }, []);
 
-  const handleReboot = React.useCallback(() => {
-    // Clear the marker BEFORE handing off. sessionStorage survives the reload
-    // that lands on /login/ after the modem comes back, so leaving it set would
-    // resurrect the banner for a reboot that already happened.
-    window.sessionStorage.removeItem(IMEI_REBOOT_PENDING_KEY);
-    rebootDevice();
-  }, [rebootDevice]);
-
-  const handleReview = React.useCallback(() => {
-    const card = document.getElementById(DEVICE_CARD_ID);
-    if (!card) return;
-    const reduced = isMotionReduced();
-    card.scrollIntoView({
-      behavior: reduced ? "auto" : "smooth",
-      block: "start",
-    });
-  }, []);
+  const handleReboot = React.useCallback(async () => {
+    // Rebooting now satisfies any reboot that was owed.
+    clearPendingReboot();
+    const sent = await rebootDevice();
+    if (!sent) {
+      // Keep the reboot owed so the banner can offer it again.
+      requestRebootLater("imei");
+      toast.error(t(`${K}.reboot.toast_failed`));
+    }
+  }, [rebootDevice, t]);
 
   return (
     <div className={PAGE_ROOT}>
@@ -134,32 +100,6 @@ const IMEISettings = () => {
         title={t(`${K}.page.title`)}
         description={t(`${K}.page.description`)}
       />
-
-      {rebootPending ? (
-        <Banner
-          role="deferred-reboot"
-          title={t(`${K}.reboot.banner.title`)}
-          description={t(`${K}.reboot.banner.description`)}
-          action={
-            <>
-              <button
-                type="button"
-                onClick={handleReview}
-                className={bannerActionVariants({ tone: "on-warning" })}
-              >
-                {t(`${K}.reboot.banner.review`)}
-              </button>
-              <button
-                type="button"
-                onClick={handleReboot}
-                className={bannerActionVariants({ tone: "destructive" })}
-              >
-                {t(`${K}.reboot.banner.reboot`)}
-              </button>
-            </>
-          }
-        />
-      ) : null}
 
       <Banner
         role="override"

@@ -1,231 +1,245 @@
-import React from "react";
+"use client";
+
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Button } from "@/components/ui/button";
+
+import { CONDITION_TONE } from "@/components/cellular/condition-screen";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { CardFoot } from "@/components/ui/card-foot";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { SaveButton } from "@/components/ui/save-button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   bandsLabel,
   modeLabel,
   optimizationLabel,
 } from "@/components/cellular/custom-profiles/scenario-labels";
 import { cn } from "@/lib/utils";
-import {
-  BADGE_GLYPH_SIZE,
-  CONFIG_CARD_SHAPE,
-  ICON_ACTION,
-  MACHINE_VALUE,
-  INLINE_ACTION_TYPE,
-  PROFILE_STATUS_BADGE,
-  SCENARIO_DISC_ACTIVE,
-  SCENARIO_DISC_IDLE,
-  TILE_CAPTION,
-} from "../shapes";
-import { resolveScenarioIcon } from "./scenario-icons";
+import { BADGE_GLYPH_SIZE } from "../shapes";
 import type { Scenario } from "./scenario-item";
 
 // =============================================================================
-// ActiveConfigCard — the selected scenario's full radio configuration
+// ActiveConfigCard — the Selected-scenario card
 // =============================================================================
-// NO LONGER A `<Card>`. Since the route merge this renders INSIDE the scenarios
-// card, and a card nested in a card is two shadowed shells claiming the same
-// role. It is now an inner tonal block at `rounded-tile` — the inner-block
-// radius the profile rows already use, one step below the `rounded-card` shell
-// hosting it (Radius-Follows-Size).
-//
-// It also no longer declares `@container/card`. That name is OWNED by the
-// parent card, and a nested container of the same name shadows it — the tile
-// grid's `@md/card:grid-cols-2` would have started resolving against this block
-// instead of the card. Nothing here queries a container, so the declaration was
-// pure hazard.
-//
-// The status chips keep `PROFILE_STATUS_BADGE`. That map is the fix for this
-// file's one real accessibility bug (a hand-drawn colour-only dot for
-// Active/Not Active, indistinguishable under deuteranopia) — do not regress it.
-//
-// THE GLYPH IS RESOLVED HERE, not handed in pre-resolved. `Scenario.icon` is
-// the persisted id (see `scenario-icons.ts`), and every render site on this
-// surface crosses the id→ligature boundary itself via `resolveScenarioIcon`.
-// This block used to render `scenario.icon` directly as a ligature, which only
-// worked because its caller had already resolved it — and that pre-resolution
-// is precisely what let the caller ship ligature names in an id-shaped field.
-//
-// It also prints the scenario DESCRIPTION. The re-authored tile dropped it (the
-// tile now carries name / band tags / schedule caption), and a user-authored
-// sentence that appears nowhere in the UI is a sentence the user cannot check.
+// Shows the selected tile's config and commits it from the CardFoot; Activate is withheld (body says why) while the
+// active profile owns the radio. The body folds on a `0fr -> 1fr` grid-row morph, closed by default.
 // =============================================================================
+
+/** Glance metric pill: key left, value right, no dividers. */
+const ROW =
+  "flex h-10 items-center justify-between gap-4 rounded-pill bg-surface-container px-4 text-[13px]";
+const ROW_GRID = "grid gap-2 @xl/card:grid-cols-2 @4xl/card:grid-cols-3";
+/** The card's own gap is cancelled outside and restored inside the clip, so a
+ *  folded body leaves no gap behind. */
+const FOLD =
+  "-mt-6 grid motion-safe:transition-[grid-template-rows] motion-safe:duration-[var(--duration-emphasized)] motion-safe:ease-[var(--ease-emphasized)]";
 
 interface ActiveConfigCardProps {
   scenario: Scenario | undefined;
   isActive: boolean;
-  isActivating?: boolean;
-  onEdit?: () => void;
-  onActivate?: () => void;
-  /** When true, hide/disable the Activate button — radio config is profile-
-   *  owned. Passed in by ConnectionScenariosCard when a Custom SIM Profile
-   *  with a bound scenario_id is active. */
-  activateDisabled?: boolean;
-  /** Display name of the active profile, used for the disabled-Activate
-   *  tooltip. Only meaningful when activateDisabled is true. */
-  activeProfileName?: string;
-  /** "HH:MM" of the next scheduled scenario change, appended to the
-   *  disabled-Activate tooltip when the lock comes from a schedule. */
-  nextChangeAt?: string | null;
+  isActivating: boolean;
+  isLoading: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onActivate: () => void;
+  /** The active profile owns scenario activation. */
+  locked: boolean;
+  /** The ownership comes from an enabled schedule (not a static binding). */
+  scheduleLocked: boolean;
+  /** "HH:MM" of the next scheduled transition (shown while schedule-locked). */
+  nextChangeAt: string | null;
+  /** Name of the profile that owns the scenario. */
+  ownerProfileName?: string | null;
 }
 
 export const ActiveConfigCard = ({
   scenario,
   isActive,
   isActivating,
+  isLoading,
   onEdit,
+  onDelete,
   onActivate,
-  activateDisabled,
-  activeProfileName,
+  locked,
+  scheduleLocked,
   nextChangeAt,
+  ownerProfileName,
 }: ActiveConfigCardProps) => {
   const { t } = useTranslation("cellular");
+  const K = "scenarios.active_config";
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
 
-  if (!scenario) return null;
+  if (isLoading || !scenario) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardFoot
+          className="px-6"
+          liveStatus={false}
+          aria-hidden="true"
+          actions={<Skeleton className="h-[2.625rem] w-32 rounded-pill" />}
+        />
+      </Card>
+    );
+  }
+
   const isCustom = !scenario.isDefault;
+  const info = CONDITION_TONE.primary;
+  const showActivate = open && !locked;
 
-  const status = isActivating ? "applying" : isActive ? "active" : "inactive";
-  const badge = PROFILE_STATUS_BADGE[status];
-  const statusLabel = t(`scenarios.active_config.status.${status}`);
-
-  const disabledTooltip =
-    activateDisabled && activeProfileName
-      ? t("scenarios.active_config.disabled_tooltip", {
-          profile: activeProfileName,
-        }) +
-        (nextChangeAt
-          ? t("scenarios.active_config.disabled_tooltip_next", {
-              time: nextChangeAt,
-            })
-          : "")
-      : undefined;
+  const { lte_bands, sa_nr_bands, nsa_nr_bands } = scenario.config;
+  const rows: { label: string; value: string; quiet?: boolean }[] = [
+    { label: t(`${K}.rows.network_mode`), value: modeLabel(t, scenario.config.atModeValue) },
+    {
+      label: t(`${K}.rows.optimization`),
+      value: optimizationLabel(t, scenario.config.optimization),
+    },
+    { label: t(`${K}.rows.lte_bands`), value: bandsLabel(t, lte_bands), quiet: !lte_bands },
+    { label: t(`${K}.rows.nr_sa_bands`), value: bandsLabel(t, sa_nr_bands), quiet: !sa_nr_bands },
+    {
+      label: t(`${K}.rows.nr_nsa_bands`),
+      value: bandsLabel(t, nsa_nr_bands),
+      quiet: !nsa_nr_bands,
+    },
+  ];
 
   return (
-    <section className="bg-surface-container text-on-surface rounded-tile flex flex-col gap-5 p-5">
-      {/* Header. Wraps rather than crushes: this now lives in a half-width
-          column, where a fixed row put the identity block and the action
-          cluster in a fight neither wins. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          {/* Same glyph disc the tile uses — and the same TONE RULE: filled
-              only when the scenario is actually in force, neutral otherwise.
-              It was pinned to `bg-primary` here regardless, so a scenario the
-              user was merely inspecting wore the "this is running" fill while
-              its own tile, three inches above, correctly did not. */}
+    <Card className="@container/card">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          {/* Mouse convenience only; the chevron is the keyboard trigger. */}
           <div
-            className={cn(
-              CONFIG_CARD_SHAPE.DISC,
-              isActive ? SCENARIO_DISC_ACTIVE : SCENARIO_DISC_IDLE,
-            )}
+            className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1.5"
+            onClick={() => setOpen((v) => !v)}
           >
-            <MaterialSymbol
-              name={resolveScenarioIcon(scenario.icon)}
-              size={24}
-              filled
-            />
+            <CardTitle>{t(`${K}.title`, { name: scenario.name })}</CardTitle>
+            <CardDescription>{scenario.description}</CardDescription>
           </div>
-          <div className="grid min-w-0 gap-1">
-            <h4 className="min-w-0 truncate font-semibold">
-              {t("scenarios.active_config.title", { name: scenario.name })}
-            </h4>
-            {scenario.description && (
-              <p className={cn(TILE_CAPTION, "min-w-0 truncate")}>
-                {scenario.description}
-              </p>
-            )}
-            <Badge variant={badge.variant} className="w-fit">
+          <div className="flex flex-none items-center gap-2">
+            {/* Running state lives on the tile's disc; only the schedule lock,
+                which explains the missing Activate, is stated here. */}
+            {scheduleLocked ? (
+              <Badge variant="info">
+                <MaterialSymbol name="lock_clock" size={BADGE_GLYPH_SIZE} />
+                {t("scenarios.schedule_lock.badge")}
+              </Badge>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-expanded={open}
+              aria-controls={bodyId}
+              aria-label={t(open ? `${K}.hide_details` : `${K}.show_details`)}
+              onClick={() => setOpen((v) => !v)}
+              className="-my-2 -mr-2"
+            >
               <MaterialSymbol
-                name={badge.glyph}
-                size={BADGE_GLYPH_SIZE}
-                className={
-                  badge.spin ? "motion-safe:animate-spin" : undefined
-                }
+                name="expand_more"
+                size={20}
+                className={cn(
+                  "motion-safe:transition-transform motion-safe:duration-[var(--duration-standard)] motion-safe:ease-[var(--ease-standard)]",
+                  open && "rotate-180",
+                )}
               />
-              {statusLabel}
-            </Badge>
+            </Button>
           </div>
         </div>
-        <div className="ml-auto flex flex-none items-center gap-1">
-          {isCustom && (
-            <Button
-              variant="ghost"
-              aria-label={t("scenarios.active_config.edit_aria")}
-              onClick={onEdit}
-              className={ICON_ACTION}
-            >
-              <MaterialSymbol name="settings" size={18} />
-            </Button>
-          )}
-          {!isActive && !isActivating && (
-            <Button
-              onClick={onActivate}
-              className={INLINE_ACTION_TYPE}
-              disabled={activateDisabled}
-              title={disabledTooltip}
-            >
-              {t("scenarios.active_config.activate")}
-            </Button>
-          )}
+      </CardHeader>
+
+      <div
+        id={bodyId}
+        inert={!open}
+        className={cn(FOLD, open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <CardContent className="flex flex-col gap-4 pt-6">
+            <div className={ROW_GRID}>
+              {rows.map((row) => (
+                <div key={row.label} className={ROW}>
+                  <span className="truncate font-semibold text-on-surface-variant">
+                    {row.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "truncate text-right tabular-nums",
+                      row.quiet ? "text-on-surface-variant" : "font-semibold",
+                    )}
+                  >
+                    {row.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {locked ? (
+              <div
+                role="status"
+                className={cn("flex items-start gap-3 rounded-tile px-4 py-3", info.container)}
+              >
+                <MaterialSymbol name="lock_clock" size={18} className="mt-px flex-none" />
+                <div className="grid gap-0.5 text-sm">
+                  <p>
+                    {ownerProfileName
+                      ? t(`${K}.disabled_tooltip`, { profile: ownerProfileName })
+                      : t("scenarios.ownership_notice")}
+                  </p>
+                  {scheduleLocked && nextChangeAt ? (
+                    <p className="text-xs tabular-nums opacity-80">
+                      {t("scenarios.schedule_lock.next_change", { time: nextChangeAt })}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
         </div>
       </div>
 
-      {/* Config Details */}
-      {/* Every value here is RESOLVED, not read. `config.mode` and
-          `config.optimization` are stored English tokens (see
-          `types/connection-scenario.ts`), and `bandsToDisplay` returns `null`
-          for an empty lock rather than inventing the word "Auto" — so this
-          block is where the five rows become the reader's language. */}
-      <div className="flex flex-col gap-2">
-        <ConfigRow
-          label={t("scenarios.active_config.rows.network_mode")}
-          value={modeLabel(t, scenario.config.atModeValue)}
+      {isCustom || showActivate ? (
+        <CardFoot
+          className="px-6"
+          actions={
+            <>
+              {isCustom ? (
+                <>
+                  <Button type="button" variant="ghost" size="action" onClick={onDelete}>
+                    <MaterialSymbol name="delete" size={18} />
+                    {t("scenarios.tile.delete_dialog.confirm")}
+                  </Button>
+                  <Button type="button" variant="tonal-neutral" size="action" onClick={onEdit}>
+                    <MaterialSymbol name="edit" size={18} />
+                    {t(`${K}.edit`)}
+                  </Button>
+                </>
+              ) : null}
+              {showActivate ? (
+                <SaveButton
+                  type="button"
+                  onClick={onActivate}
+                  isSaving={isActivating}
+                  saved={false}
+                  disabled={isActive}
+                  label={t(`${K}.activate`)}
+                  size="action"
+                />
+              ) : null}
+            </>
+          }
         />
-        <ConfigRow
-          label={t("scenarios.active_config.rows.optimization")}
-          value={optimizationLabel(t, scenario.config.optimization)}
-        />
-        <ConfigRow
-          label={t("scenarios.active_config.rows.lte_bands")}
-          value={bandsLabel(t, scenario.config.lte_bands)}
-        />
-        <ConfigRow
-          label={t("scenarios.active_config.rows.nr_sa_bands")}
-          value={bandsLabel(t, scenario.config.sa_nr_bands)}
-        />
-        <ConfigRow
-          label={t("scenarios.active_config.rows.nr_nsa_bands")}
-          value={bandsLabel(t, scenario.config.nsa_nr_bands)}
-        />
-      </div>
-    </section>
+      ) : null}
+    </Card>
   );
 };
-
-function ConfigRow({ label, value }: { label: string; value: string }) {
-  return (
-    // `ROW_FILL` is `surface-container` — the same tone this block now sits on,
-    // so the row takes the next step up to stay separable from its host. One
-    // class, not a new shape: the geometry is still `CONFIG_CARD_SHAPE.ROW`.
-    <div
-      className={cn(
-        CONFIG_CARD_SHAPE.ROW,
-        CONFIG_CARD_SHAPE.ROW_FILL,
-        "bg-surface-container-high gap-3",
-      )}
-    >
-      <p className={cn(CONFIG_CARD_SHAPE.LABEL, "min-w-0 flex-none")}>{label}</p>
-      <p
-        className={cn(
-          CONFIG_CARD_SHAPE.VALUE,
-          MACHINE_VALUE,
-          "min-w-0 truncate text-right",
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type { ProfileApplyState, ApplyStatus } from "@/types/sim-profile";
 
 // =============================================================================
@@ -20,6 +22,10 @@ import type { ProfileApplyState, ApplyStatus } from "@/types/sim-profile";
 
 const CGI_BASE = "/cgi-bin/quecmanager/profiles";
 const POLL_INTERVAL_MS = 500;
+// ~30 polls x 500ms: how long a started worker may stay "idle" before we give up.
+const MAX_IDLE_START_POLLS = 30;
+
+const START_FAILED = "custom_profiles.apply_dialog.errors.start_failed";
 
 export interface UseProfileApplyReturn {
   /** Current apply state (null before first apply or after reset) */
@@ -40,6 +46,17 @@ export function useProfileApply(): UseProfileApplyReturn {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
+  // `t` through a ref, so the polling callbacks never rebuild on a language switch.
+  const { t } = useTranslation("cellular");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+  const tr = useCallback((key: string) => tRef.current(key), []);
+  // apply.sh answers before the worker writes its state file, so the first
+  // polls can read "idle". While awaiting that first write, idle is not terminal.
+  const awaitingStartRef = useRef(false);
+  const idleStartPollsRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -73,22 +90,35 @@ export function useProfileApply(): UseProfileApplyReturn {
       const data: ProfileApplyState = await resp.json();
       if (!mountedRef.current) return;
 
+      if (data.status === "idle") {
+        if (awaitingStartRef.current) {
+          idleStartPollsRef.current += 1;
+          if (idleStartPollsRef.current >= MAX_IDLE_START_POLLS) {
+            awaitingStartRef.current = false;
+            idleStartPollsRef.current = 0;
+            setError(tr("custom_profiles.apply_dialog.errors.not_started"));
+            stopPolling();
+          }
+          return;
+        }
+        setApplyState(data);
+        stopPolling();
+        return;
+      }
+      awaitingStartRef.current = false;
+      idleStartPollsRef.current = 0;
+
       setApplyState(data);
 
       // Stop polling on terminal states
-      const terminalStates: ApplyStatus[] = [
-        "complete",
-        "partial",
-        "failed",
-        "idle",
-      ];
+      const terminalStates: ApplyStatus[] = ["complete", "partial", "failed"];
       if (terminalStates.includes(data.status)) {
         stopPolling();
       }
     } catch {
       // Network error during poll — not critical, retry next interval
     }
-  }, [stopPolling]);
+  }, [stopPolling, tr]);
 
   // ---------------------------------------------------------------------------
   // Start polling
@@ -115,7 +145,7 @@ export function useProfileApply(): UseProfileApplyReturn {
         });
 
         if (!resp.ok) {
-          setError("Failed to start profile apply (HTTP error)");
+          setError(tr(START_FAILED));
           return;
         }
 
@@ -128,21 +158,26 @@ export function useProfileApply(): UseProfileApplyReturn {
             startPolling();
             return;
           }
-          setError(data.detail || data.error || "Failed to start apply");
+          setError(
+            resolveErrorMessage(
+              tRef.current,
+              data.error,
+              data.detail,
+              tr(START_FAILED),
+            ),
+          );
           return;
         }
 
-        // Success — begin polling for progress
+        // Success — poll, treating "idle" as "not written yet" for a while.
+        awaitingStartRef.current = true;
+        idleStartPollsRef.current = 0;
         startPolling();
-      } catch (err) {
-        if (mountedRef.current) {
-          setError(
-            err instanceof Error ? err.message : "Failed to start profile apply"
-          );
-        }
+      } catch {
+        if (mountedRef.current) setError(tr(START_FAILED));
       }
     },
-    [startPolling]
+    [startPolling, tr]
   );
 
   // ---------------------------------------------------------------------------
@@ -150,6 +185,8 @@ export function useProfileApply(): UseProfileApplyReturn {
   // ---------------------------------------------------------------------------
   const reset = useCallback(() => {
     stopPolling();
+    awaitingStartRef.current = false;
+    idleStartPollsRef.current = 0;
     setApplyState(null);
     setError(null);
   }, [stopPolling]);

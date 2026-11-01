@@ -30,6 +30,8 @@ Nothing in that rebuild touched a CGI script, a systemd unit, the installer, or 
 | Shared page header | `components/cellular/page-header.tsx` |
 | Shared full-body condition | `components/cellular/condition-screen.tsx` |
 | Shared apply footer | `components/cellular/settings/apply-foot.tsx` (`ApplyFoot` on Cellular Settings and Network Priority; `ApplyFootSkeleton` on IMEI, Backup IMEI, APN and MBN, which build their own `CardFoot`) |
+| Refresh action (Cellular Settings foot, APN card foot) | `components/cellular/settings/refresh-button.tsx` (`RefreshButton`) |
+| IMEI Reset action | `components/cellular/settings/imei-settings/reset-button.tsx` (`ResetButton`) |
 | Shared setting row | `components/cellular/settings/setting-row.tsx` |
 | i18n namespace | `cellular` → `core_settings.{apn,network_priority,imei,fplmn}.*` |
 
@@ -165,9 +167,9 @@ It is the only place in the product where a library authors a duration on our be
 
 ## APN Management
 
-Route shell: `components/cellular/settings/apn-management/apn-settings.tsx`. The backend contract (`apn.sh`, the `apn_apply.sh` attach-cycle primitive, the `/etc/qmanager/apn_setting.json` sidecar) is unchanged — see [wan-profile-management.md](wan-profile-management.md).
+Route shell: `components/cellular/settings/apn-management/apn-settings.tsx`. The backend contract (`apn.sh`, the `apn_apply.sh` attach-cycle primitive, the `/etc/qmanager/apn_setting.json` sidecar) is in [wan-profile-management.md](wan-profile-management.md).
 
-> ℹ️ NOTE: **Re-authored 2026-08-31, frontend-only.** No CGI script, poller field, AT command or backend type changed. The headline fix — the page-header status chip — needed **no** new data: it swapped one already-fetched source for another. What follows describes the page as it ships now.
+> ℹ️ NOTE: **Re-laid out 2026-11-01 to RM551E v0.1.34** (`839b2c14`). The separate "What the network granted" band, its comparison pair and the page-header status chip are gone; the granted readout now sits **inside** the APN card, above the fields it can contradict. The route shell is 212 lines (it was 708).
 
 ### Three data sources, deliberately separate
 
@@ -175,82 +177,59 @@ Route shell: `components/cellular/settings/apn-management/apn-settings.tsx`. The
 | ---- | ----- | ------- |
 | `useApnSettings` | one read on mount, re-read around a save | what is **configured** |
 | `useMbnSettings` | its own | which carrier bundle is loaded |
-| `useModemStatus` | the poller (client polls ~2 s; device-side cadence is ~3.7–4 s) | what the network actually **granted** |
+| `useModemStatus` | the poller (client polls ~2 s; device-side cadence is ~3.7–4 s) | what the network actually **granted**, and the IMSI that picks the suggested APNs |
 
-Keeping them separate is the point: collapsing "configured" and "granted" into one source would let a stored value masquerade as a negotiated one, which is the exact class of bug the `AT+CGCONTRDP`-not-`AT+CGDCONT?` rule exists to prevent on the backend. The page's own status chip did it anyway until 2026-08-31 — see below.
+Collapsing "configured" and "granted" into one source would let a stored value masquerade as a negotiated one — the class of bug the `AT+CGCONTRDP`-not-`AT+CGDCONT?` rule exists to prevent.
 
-### The band order is the family's grammar
+### Layout: two write cards as peers
 
-Three full-width bands under the page header. **Live state → what you can change → the commit**, which is the order `/cellular/settings` ships and is the reference implementation for.
+`APN_PAIR.GRID` (`grid-cols-1`, two columns at `@4xl/main`) holds the APN card and the MBN card side by side; `APN_PAIR.CELL` carries the row's stretch through the override `<fieldset>` into the APN `Card`, so both cards share one height.
 
-| Band | Card | Clock | Inside the override `<fieldset>`? |
-| ---- | ---- | ----- | --------------------------------- |
-| A | What the network granted | poller | No |
-| B | APN configuration | settings GET | **Yes** |
-| C | Carrier bundle (MBN) | its own GET | No |
+- **Only the APN card is inside the override fieldset.** The gate fires on the active SIM Profile's `settings.apn.name`; no profile manages carrier bundles, so MBN stays outside it and does not wait on the profile verdict.
+- A failed **re-read** shows a page-level destructive `TonalBanner` with Retry while the card keeps its last snapshot. A failed **first** read is the card's own `loadError` state.
 
-- **Band A leads.** It is the only thing on the surface that can answer "is my connection actually dialling the APN I think it is". It used to render **last**, behind the heaviest card on the page.
-- **Band C left the fieldset** (bug fix). The override gate fires on `profile.settings.apn.name` being non-empty, so a SIM profile owning the APN was disabling the carrier-bundle picker — a control no profile manages and the profile system has nothing to say about. `overrideUndetermined` was dropped from MBN's loading gate at the same time: MBN has no reason to wait on a profile verdict.
-- **Band A was always outside it,** on purpose. A profile owning the APN does not make the network's answer less true, and dimming live truth to 60 % opacity would be the page hiding the one thing still worth reading.
-- **There is no two-column grid.** `PAGE_GRID`'s `1.35fr / 1fr` was inherited from `/cellular/settings`, and its JSDoc justifies the ratio by a right column ("AMBR + modem reports") that no longer exists anywhere. These cards have unrelated clocks, unrelated weights and different gating — [DESIGN.md](../../DESIGN.md) > Layout: *split a page by cadence, not by symmetry*.
+### The APN card
 
-> ℹ️ NOTE: **`PAGE_GRID` is gone as of 2026-08-31.** It survived this change only because `imei-settings.tsx` was still consuming it; the IMEI design-language adoption replaced that call site with `WORKBENCH_SPLIT`, whose justification names the columns it actually has. (It shipped with `items-start`; the 2026-08-31 layout pass replaced that with an explicit `grid-rows-[auto_1fr]` row template — see *The row template, and why `items-start` was not the fix* below.) With its last consumer gone, `PAGE_GRID` was deleted rather than left exported — same disposal as `PAGE_TITLE` / `PAGE_DESCRIPTION` above. `CARD_CELL` stays: it still has real consumers on `/cellular/settings` itself, where the two cards genuinely are peers.
+Top to bottom: a readout, a `ROW_GROUP` of three `SettingRow`s (APN with suggestions, IP protocol, data context), then the `CardFoot`.
 
-A resting **"Re-read from modem"** footer (`readout.reread`) calls `refresh()` + `refreshMbn()`. Before this change `refresh` was wired but reachable **only** from inside the error banner — the affordance existed exactly when the page had already failed. It is hidden while `isLoading || isSaving || isReconciling`, so it cannot contradict the card's own apply footer.
+**The readout** is four pill rows (`READOUT_ROW`): mode (Custom / Carrier default), the APN the network granted (`status.network.apn`, from `+CGCONTRDP` via the poller), the data context, and the granted IP families. The verdict rides the granted-APN row as a glyph plus ink (`APN_VERDICT`), never a chip:
 
-> ℹ️ NOTE: **No "read N seconds ago" stamp, deliberately.** The approved mock drew one beside that footer. This page's writable half is not polled, so the number would count from a fetch the user cannot see. Staleness *is* reported — but as the poller's own `isStale` boolean, not as an elapsed-seconds clock. Do not add the counter back.
+| Verdict | When | Glyph / ink |
+| ------- | ---- | ----------- |
+| `match` | custom APN active, and stored equals granted (case-folded, matching `apn_apply.sh`'s `tr 'A-Z' 'a-z'`) | `check_circle`, `APN_VERDICT.MATCH` |
+| `drift` | custom APN active, granted APN present, the two differ | `warning`, `APN_VERDICT.DRIFT`, plus the `readout.not_live_note` sentence under the list |
+| `unknown` | carrier default, no granted APN, a write or its re-read in flight, or the poller stale | no glyph |
 
-### The page-header status chip verifies against `+CGCONTRDP`
+> ⚠️ WARNING: the verdict is **held** while a write or its re-read is in flight (`holdVerdict={busy}`). An attach cycle legitimately reports the old granted APN mid-apply; accusing it of drift then would be a false alarm.
 
-> ⚠️ WARNING: **Until 2026-08-31 this chip compared configuration against configuration.** `useApnStatusChip` derived its live/not-live verdict from `cids.find((c) => c.cid === activeCid)?.apn`. `cids[]` is not a reading — `apn.sh:407-408` derives it from the `AT+CGDCONT?` loop with no extra AT calls, and `AT+CGDCONT?` merely echoes back what was last requested, **so it matches even when the bearer is stale** ([wan-profile-management.md](wan-profile-management.md) > *Verification reads `AT+CGCONTRDP`, never `AT+CGDCONT?`*). That comparison is self-concealing, it was already the root cause of the profile worker's silent-failure bug on the backend, and the one chip on this page claiming to report "is it live" was running it again — while rendering a green `success` **Active** over the top.
+Under the list, notes reveal through the `REVEAL` 0fr→1fr row: `readout.stale_body` while the poller is stale, `readout.error_body` when it failed with nothing to show. Every unknown value is an em-dash; "Not connected" appears only when the poller reports no address.
 
-It now reads `status.network.apn`, the poller's `+CGCONTRDP`-derived **negotiated** value, from a source that cannot echo the request back. The frontend and the backend now hold the same verification rule.
+**Suggested APNs.** The APN field is `ApnPresetField` (`apn-preset-field.tsx`): a free-text input plus, when the SIM's home network has known internet APNs, a trailing expand button opening them as a `DropdownMenu` the width of the field. The network's own APNs come first; MVNO brands follow under their own heading. **Picking a preset fills the draft APN, and also sets the PDP type when the preset carries one** (`if (preset.pdpType) setPdpType(preset.pdpType)`); Save still commits. With no match the button is absent. Data path in [wan-profile-management.md](wan-profile-management.md#suggested-apns).
 
-**The branches are ordered, and the order is load-bearing:**
+**The `CardFoot`:**
 
-| # | Condition | Variant | Glyph | Key |
-| - | --------- | ------- | ----- | --- |
-| 0 | `active === null` | *no chip rendered* | — | — |
-| 1 | `active === 0` | `muted` | `do_not_disturb_on` | `status.carrier_default` |
-| 2 | `isStale` | `warning` | `schedule` | `readout.stale` |
-| 3 | granted APN empty or absent | `muted` | `help` | `status.not_reported` |
-| 4 | stored `===` granted (case-folded) | `success` | `check_circle` | `status.live` |
-| 5 | `isSaving \|\| isReconciling` | `muted` | `help` | `status.not_reported` |
-| 6 | otherwise | `warning` | `warning` | `status.not_granted` |
+| Slot | Content |
+| ---- | ------- |
+| status | `RefreshButton` (calls `onRetry`, disabled while busy); "Use carrier default" (`tonal-neutral`, only when `active === 1` and the draft is clean, behind a confirm dialog); `core_settings.basic.save_bar.note` while dirty |
+| actions | Discard (ghost), then `SaveButton` "Save APN" |
 
-- **Staleness outranks the verdict** (2 before 4/6): a green "Live on the network" drawn from frozen readings is the exact lie this rewrite exists to stop.
-- **It does not outrank `carrier_default`** (1 before 2): that is a settings-GET fact, and a frozen poller says nothing about whether a custom APN is configured.
-- **The disagree verdict is suppressed mid-write** (5 before 6). An attach cycle legitimately reports the old granted APN while it runs, so the chip stands down to "we cannot say" rather than accusing. The incumbent fell through to `success` here, which is a claim, not a suspension.
-- **Comparison is case-folded**, matching the backend's own `tr 'A-Z' 'a-z'`: a live device negotiated `INTERNET.GLOBE.COM.PH` for a stored `internet`.
-- **Every branch carries its own glyph.** `success-container` and `warning-container` measure 1.03:1 apart and are identical under deuteranopia, so the glyph is the separator, not the fill.
-- An empty string from the poller is collapsed with `||`, not `??` — "we do not know", never "none".
+**Toasts** read the `ApnActionResult` the hook returns (`types/apn-settings.ts`):
 
-### Band A — "What the network granted"
+```ts
+type ApnActionResult =
+  | { outcome: "saved"; persisted: boolean }
+  | { outcome: "reconciling" }
+  | { outcome: "failed"; error: string };
+```
 
-Reads `network.apn`, `network.wan_ipv4` and `network.wan_ipv6` from the poller snapshot. IPv6 goes through `compressIPv6()` from `lib/ipv6.ts`, because the modem reports IPv6 in `+CGCONTRDP` as sixteen dotted **decimal** octets, not colon-hex.
+| Result | Save toast | Deactivate toast |
+| ------ | ---------- | ---------------- |
+| `failed` | `toast.error(toast.save_error, { description: error })` | `toast.error(toast.deactivate_error, …)` |
+| `reconciling` | `toast.success(toast.reconciling)` | same |
+| `saved`, `persisted: false` | `toast.warning(toast.saved_not_persisted)` | `toast.warning(toast.deactivated_not_persisted)` |
+| `saved` | `toast.success(toast.saved)` | `toast.success(toast.deactivated)` |
 
-**The comparison pair.** Two blocks side by side at `@2xl/card` — *You configured* (`apn_setting.json`) and *The network granted* (`+CGCONTRDP`) — each with its own provenance line. The APN is no longer *also* a readout row below; it is one fact stated once, and `readout.serving_apn` was deleted from all five packs.
-
-- **The tint is on the granted side only.** "What you asked for" cannot be right or wrong, so tinting it would spend a functional role on a fact with no verdict attached. Neutral `surface-container` on the left; the right block is `success-container` on agreement and `destructive-container` on disagreement.
-- **A verdict needs both halves.** With either missing the granted block stays neutral and shows no mark — "we could not compare" is a third answer, not a failure.
-- **A glyph and a word, never the fill alone** (`check_circle` + "Matches" / `warning` + "Does not match").
-- **Eyebrow, provenance and mark set no ink.** They sit on three different fills and dim whatever the block already carries. Setting a role ink would produce the cross-pair (one role's ink on another role's container) that this family names as its most common contrast failure — same mechanism as `CHOICE_ROW.CAPTION`.
-
-> ℹ️ NOTE: the chip and the block disagree about tone on purpose. The page-header chip's disagreement is `warning`; the granted block's is `destructive-container`. The chip is a glance-level "check this"; the block is where the user is already reading the two values against each other.
-
-**The remaining rows** (`READOUT_ROW.GRID`, a two-up label-left/value-right grid) are Granted IP, Bearer state, IPv4, and IPv6 spanning both columns.
-
-- **Rows, not tiles.** A `repeat(5, 1fr)` stat-tile grid was built for this data and rejected: two of the five values are a full APN and a full IPv6 (39 chars even after RFC 5952 compression), so at `1fr` of a card column the two values a technician opened the page to read are the two that truncate to noise.
-- **Every unknown value degrades to an em-dash**, never to a plausible default. An empty string from the poller means "we do not know", not "none".
-- **Bearer state is derived**, never asserted: "Attached" appears only when an address was actually granted.
-
-**Frozen is not absent.** The card consumes `isStale` from `useModemStatus` (a 10 s threshold the hook has always exported and this card never received) and renders the **warning half only** — a `warning` `TonalBanner` on the `schedule` glyph, matching `live-state-strip.tsx`. There is no "live" chip: over values that are simply correct it reports nothing. It renders only when there are values to freeze (`isStale && status`); a failed read has none and takes the `destructive` banner instead. Those are different states and must not share a signal.
-
-### `COMPARE` is module-local on purpose — do not hoist it into `shapes.ts`
-
-The comparison pair's geometry lives in a **non-exported** `const COMPARE` inside `apn-settings.tsx`, beside the block it describes and the skeleton that mirrors it. It is single-consumer geometry with a single-consumer rationale; `shapes.ts` is the *family* contract, and moving a one-page shape there would add to a five-route import surface something no other route can use. The rule that actually matters — skeletons import the geometry rather than restating it — is satisfied without exporting anything: `COMPARE.HEIGHT` mirrors `COMPARE.BLOCK`'s resting height in the same object.
-
-> ℹ️ NOTE: `COMPARE.HEIGHT` is `h-[6.125rem] rounded-field!`. The `!` **was** load-bearing and no longer is. `cn()` was once bare `tailwind-merge`, which could not dedupe `rounded-field` against `Skeleton`'s own `rounded-md`, so both reached the class list and Tailwind's alphabetical emission order let the primitive win. `lib/utils.ts:23` now builds `cn()` from `extendTailwindMerge` with this repo's radius names, so the custom radius deduplicates the stock one and wins on its own. The `!` here is harmless but redundant; do not add new ones. Verify this by calling `twMerge` against the installed library, never by reasoning about `cn()`.
+`persisted` is `data.persisted !== false`, so an older `apn.sh` that never sends the field reads as persisted.
 
 ### A save whose response the attach cycle killed is not a failure
 
@@ -268,7 +247,7 @@ Every write on this endpoint runs a full attach cycle — the backend brackets `
 
 - `save` and `deactivate` return `ApnSaveOutcome` (`types/apn-settings.ts`), not `boolean` — a boolean cannot carry the third case.
 - The reconciling branch **patches optimistically exactly as the success path does** and runs the existing `scheduleReconcile()` (a 1500 ms delayed silent re-read), letting the re-read decide.
-- `UseApnSettingsReturn` gained **`isReconciling`**, true for the window between the optimistic patch and the re-read landing. The page consumes it in the status chip (branch 5 above) and to hide the re-read footer.
+- `UseApnSettingsReturn` gained **`isReconciling`**, true for the window between the optimistic patch and the re-read landing. The APN card consumes it to hold the readout verdict.
 - The card toasts `toast.reconciling` ("Verifying the connection came back…") — not a success it has not earned, and not a failure that did not happen.
 
 The save notice (`save_connection_notice`) now names the wired session, because QManager is served **by** the modem it is configuring: *"Saving detaches and re-attaches the modem. Cellular data drops for about four seconds — and if you are connected over the modem's Ethernet port, this page will drop with it and reconnect on its own."* Four seconds is the measured figure. The old copy warned only about "the cellular connection", so a technician on the modem's Ethernet port watched their own page die with no reason to believe the save had landed.
@@ -295,7 +274,7 @@ The frontend cannot tell a measured CID from a fallback, so the UI is worded for
 
 ### The MBN card
 
-`AT+QMBNCFG` bundle selection, on its own GET's clock and **outside** the override fieldset (see the band table above). Rebuilt from two Selects to a **Switch** (automatic selection on/off) plus a promoted-row bundle list (`CHOICE_ROW`).
+`AT+QMBNCFG` bundle selection, on its own GET's clock and **outside** the override fieldset (see the layout above). Rebuilt from two Selects to a **Switch** (automatic selection on/off) plus a promoted-row bundle list (`CHOICE_ROW`).
 
 - **Selection is a promotion, not a radio circle.** The comp drew Material's `radio_button_checked` / `radio_button_unchecked`; neither glyph is in the font subset, and adding them means a Google Fonts round-trip plus a committed binary for an affordance this system already expresses better. The chosen row *is* a `primary-container` block — readable across the card, and it survives grayscale.
 - **The list is a real `role="radiogroup"`** with roving tabindex: exactly one row is tabbable, arrow keys move focus *and* selection with wrapping, Home/End jump to the ends. Some carrier firmware ships twenty-plus bundles, and the previous list made every one of them its own tab stop while the arrow keys did nothing — a screen reader announced a radio group whose members behaved like a button list. `CHOICE_ROW.SCROLL_CAP` bounds the list in `rem` so it scales with the user's text size instead of clipping at 200 % zoom.
@@ -305,7 +284,7 @@ The frontend cannot tell a measured CID from a fallback, so the UI is worded for
 - **The standing reboot warning is deleted.** The card rendered `<TonalBanner tone="warning">` unconditionally — at rest, nothing pending, nothing selected — saying what `pending_note` says in the footer and what `reboot.description` says in the confirm dialog; two of the three were on screen at once. A warning with no off state is wallpaper, and it spends the Functional-Color Promise on a static caption. The fact survives in the two places that carry it when it is actionable, and `mbn.reboot_notice` was deleted from all five packs.
 - The card was **100 % untranslated** and is now fully keyed under `core_settings.apn.mbn.*`.
 
-> ℹ️ NOTE: MBN's `CardFoot` (persistent since 2026-10-06; it was a conditional tonal bar) borrows `core_settings.basic.save_bar.count` / `.discard` **cross-namespace**, so rewording the basic-settings footer copy silently rewords this page. Recorded as drift rather than fixed — and it is why `readout.reread` is a new key rather than a borrow of the identically-worded `core_settings.basic.footer.reread`. A second cross-namespace instance to save five words is not a trade worth making.
+> ℹ️ NOTE: MBN's `CardFoot` (persistent since 2026-10-06; it was a conditional tonal bar) borrows `core_settings.basic.save_bar.count` / `.discard` **cross-namespace**, so rewording the basic-settings footer copy silently rewords this page. Since the 2026-11 port the APN card borrows `core_settings.basic.save_bar.note` / `.discard` the same way. Recorded as drift rather than fixed.
 
 ### Deleted files
 
@@ -381,7 +360,7 @@ The route was the last in the family still outside the finalized language. What 
 | `CARD_TITLE` on all three titles | All three were unsized `CardTitle`, inheriting 16 px — the anti-pattern flagged but left out of scope by `96f32aa`. This closes it for `imei-settings/` |
 | `REVEAL` on the backup-identifier row | The row the toggle *creates* used to blink in. It now animates `grid-template-rows` 0fr→1fr, and is `inert` + `aria-hidden` while closed — it was neither, so a keyboard user could tab into an invisible field |
 | `WORKBENCH_SPLIT` replaces `PAGE_GRID` + `CARD_CELL` | The height lock pinned the workbench card to the **combined** height of the two write cards beside it. Split by symmetry; see the note under *There is no two-column grid* above. Superseded in part on 2026-08-31 — the lock is back by request, but only after the row template made it cheap |
-| `FIELD_CLUSTER`, `FIELD_COUNTER`, `ICON_ACTION`, `READOUT_ICON_ACTION`, `SECTION_LABEL`, `BREAKDOWN` promoted to `shapes.ts` | Seven call-site strings, several written out twice across the two write cards. `BREAKDOWN` had also been a module-local constant in `imei-tools-card.tsx`. `ICON_ACTION` (and `ICON_ACTION_GLYPH`) were deleted again on 2026-10-06 when both IMEI cards' Reset became a text-only ghost action in the `CardFoot`; the `ICON_ACTION` still exported from `components/cellular/custom-profiles/shapes.ts` is that family's own |
+| `FIELD_CLUSTER`, `FIELD_COUNTER`, `ICON_ACTION`, `READOUT_ICON_ACTION`, `SECTION_LABEL`, `BREAKDOWN` promoted to `shapes.ts` | Seven call-site strings, several written out twice across the two write cards. `BREAKDOWN` had also been a module-local constant in `imei-tools-card.tsx`. `ICON_ACTION` (and `ICON_ACTION_GLYPH`) were deleted again on 2026-10-06 when both IMEI cards' Reset moved into the `CardFoot` (the device card's Reset is the `ResetButton` since the 2026-11 port); the `ICON_ACTION` still exported from `components/cellular/custom-profiles/shapes.ts` is that family's own |
 
 > ⚠️ WARNING: **a bare-var duration arbitrary is a silent no-op, not an off-scale duration.** Tailwind v4 compiles the custom property written directly in the brackets with no `var()` wrapper to a declaration whose value is the property *name*. That parses, so nothing warns anywhere — and the browser discards it, so the transition ships as **no transition at all**. Six sites in this family carried it (`shapes.ts` ×5, `imei-settings-card.tsx` ×1) and all now wrap the property in `var()`. Verified by compiling the class with `bunx @tailwindcss/cli` and by grepping `out/_next/static/chunks/*.css` before and after. **The last two sites in the tree were in `components/local-network/ethernet-card.tsx:155,163`, a different route family; they were closed on 2026-08-31 by that page's re-authoring** — see [ethernet.md](ethernet.md) — a mutation-tested assertion in the now-deleted `scripts/test/ethernet-design-language.sh` (removed 2026-09-03) confirmed the form was extinct under `components/local-network/`; there is no harness left to re-run, so re-check with a source grep for a bare-var duration arbitrary if this class of bug is suspected again.
 >
@@ -445,40 +424,40 @@ It used to be a 16 px `warning` glyph in an input addon whose tooltip had to be 
 
 > ⚠️ WARNING: **It shipped as `role="degraded"` and that was wrong twice over.** `degraded` is the warning container plus `ariaRole: "alert"`, and this banner is *permanent* — so the page fired a screen-reader alert about a condition that had not arisen, on every load, forever, and painted a state container as wallpaper. `CARD_FOOTNOTE` in `shapes.ts` already states the principle: a banner **is** its state, and a block with no off state is not a state.
 >
-> The compounding cost was tonal. `deferred-reboot` — the one banner on this page a user must ACT on — is warning-toned too, so it arrived as the second amber block under a permanent first one and read as more of the same. Corrected to `role="override"` on 2026-08-31: the set's neutral page-scoped note (`ariaRole: "note"`, `surface-container`, the one unfilled disc). **Amber on this route now means exactly one thing and means it only when it is true.** Do not put it back on a state role.
+> The compounding cost was tonal. The page's own `deferred-reboot` banner (deleted in the 2026-11 port; the shell's `PendingRebootBanner` replaced it) was warning-toned too, so it arrived as the second amber block under a permanent first one and read as more of the same. Corrected to `role="override"` on 2026-08-31: the set's neutral page-scoped note (`ariaRole: "note"`, `surface-container`, the one unfilled disc). **Amber on this route now means exactly one thing and means it only when it is true.** Do not put it back on a state role.
 
-### The deferred reboot is real now — the sessionStorage contract
+### The 2026-11 RM551E v0.1.34 port (`839b2c14`)
 
-Writing an IMEI lands in NVM immediately but changes nothing the network sees until the modem restarts. The incumbent dialog offered "Reboot Now" / "Reboot Later" and then **dropped the choice**: picking Later recorded nothing, so the user got no reminder, no second chance, and a modem still answering on its old identity with no indication why.
+**The device card is one row now.** The separate "current IMEI" readout row and its copy button are gone. The field is the draft, seeded once from `currentImei` when it first arrives and never overwritten by a later silent re-fetch.
 
-| Key | `qm_imei_reboot_pending` |
-| --- | --- |
-| Store | `sessionStorage` |
-| Value | `"1"`, or absent |
-| Written by | `imei-settings.tsx` only (`markRebootPending`) |
-| Read by | `imei-settings.tsx` only, in a mount effect |
-| Cleared by | `handleReboot`, **before** handing off to `/reboot/` |
+| Element | Detail |
+| ------- | ------ |
+| "Unchanged" mark | While the draft equals the modem's IMEI (`matchesModem = hasReading && !hasChanged`), a 28px success check `Badge` (`role="img"`, `aria-label` = `core_settings.imei.device.status.unchanged`) leads the field, followed by a `HintIcon` (`status.unchanged_tip_label`) carrying the same sentence |
+| Reset | `ResetButton` (`components/cellular/settings/imei-settings/reset-button.tsx`) in the `CardFoot` **status** slot: `tonal-neutral`, `restart_alt` glyph, label `actions.reset_short` revealed on hover or keyboard focus, disabled while saving or when nothing changed |
+| Status line | Beside Reset: `status.empty` or `status.ready`; nothing when the draft matches the modem, because the check mark already says so |
+| Actions | The `SaveButton` "Write IMEI" alone |
 
-Three rules ride on this and are load-bearing:
+> ℹ️ NOTE: **the "unchanged" explanation is a `HintIcon`, not a `Tooltip`, on purpose.** RM551E puts it in a Tooltip `info` variant. That variant was deliberately not ported and `components/ui/tooltip.tsx` is unchanged: a Tooltip never opens on tap, and this page is used on phones. Help that a touch user must be able to read goes in a `HintIcon`.
 
-1. **Read it in an effect, never in a `useState` initialiser.** This route is a static export, so the initialiser also runs where `sessionStorage` does not exist, and a value read during render would hydrate mismatched.
-2. **Clear it before the handoff, not after.** `sessionStorage` survives the reload that lands on `/login/` once the modem is back, so leaving it set would resurrect the banner for a reboot that already happened.
-3. **It is deliberately not a global reboot-state system.** Exactly one surface writes this key and exactly one reads it. Session lifetime is the right lifetime for "you have not restarted yet" — it should die with the tab.
+`ResetButton` and the settings page's `RefreshButton` share one construction: icon-only at rest, the label unfolds by animating `grid-template-columns` from `0fr` to `1fr`. `MotionConfig` cannot see a grid transition, so both read `useMotionReduced()` and drop the transition class (the label still reveals, without easing). The accessible name is always the full label.
 
-While set, the page renders `Banner role="deferred-reboot"` — the one banner role permitted two CTAs (a tonal "Review" that scroll-anchors to the device card, and a destructive "Reboot"). **That role shipped in `components/ui/banner.tsx` with zero call sites until now.**
+**The Tools card's check digit carries the verdict.** The validity `Badge` above the breakdown is gone. The check-digit cell keeps the neutral fill and adds an inset ring — `BREAKDOWN.CELL_VALID` (`ring-2 ring-inset ring-success`) or `BREAKDOWN.CELL_INVALID` (`ring-destructive`) — and prints `check.valid` / `check.invalid` as text on its label line, so colour never carries it alone. `BREAKDOWN.CELL_ACCENT` is deleted.
 
-### `rebootDevice` signature change
+### The deferred reboot uses the app-wide pending-reboot flag
 
-`useImeiSettings().rebootDevice` changed from `() => Promise<boolean>` to `() => void`, and now follows the product-wide handoff already used by `nav-user.tsx`, `mbn-card.tsx`, `ip-passthrough-card.tsx` and `use-software-update.ts`:
+Writing an IMEI lands in NVM immediately but changes nothing the network sees until the modem restarts. The dialog offers "Reboot now" / "Reboot later", and **every way out except "Reboot now" records the owed reboot** — Later and Escape both go through the dialog's `onOpenChange(false)`. A `rebootingNowRef` set by "Reboot now" keeps that close from also being read as a deferral.
 
-```ts
-sessionStorage.setItem("qm_rebooting", "1");
-document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-fetch(CGI_ENDPOINT, { …, keepalive: true }).catch(() => {});
-window.location.href = "/reboot/";
-```
+| Path | What happens |
+| ---- | ------------ |
+| Later (any non-reboot close) | `requestRebootLater("imei")` from `lib/reboot` writes `localStorage["qmanager_pending_reboot"]` = `{ "since": <ms>, "source": "imei" }` and fires `qmanager:pending-reboot-changed`. The shell's `PendingRebootBanner` (`components/reboot/pending-reboot-banner.tsx`, mounted once in `components/app-layout.tsx`) shows on every route until the reboot happens |
+| Reboot now | `clearPendingReboot()`, then `await rebootDevice()` |
+| Reboot request failed | `requestRebootLater("imei")` again, so the banner can offer it, and `toast.error(core_settings.imei.reboot.toast_failed)` |
 
-**A reboot is never something this app can await.** QManager is served *by* the modem it reboots, so the request that starts the reboot kills its own HTTP response; awaiting it can only ever resolve to a network error. The incumbent implementation did exactly that and reported "Reboot failed" on a reboot that was already underway. `keepalive` is what lets the request survive the navigation on the next line, and going to `/reboot/` immediately means the countdown page is already in browser memory when the device disappears.
+The page renders **no reboot banner of its own**. The earlier page-local `sessionStorage["qm_imei_reboot_pending"]` key and the page's `Banner role="deferred-reboot"` with its Review / Reboot actions are deleted; do not restore them beside the shell banner, or the user sees the same instruction twice.
+
+### `rebootDevice`
+
+`useImeiSettings().rebootDevice` is `() => Promise<boolean>`. It POSTs `{ "action": "reboot" }` to `cellular/imei.sh`, which answers through `cgi_reboot_response` (the response is written before the reboot fires). On `success: true` it calls `enterRebootFlow("imei")`, which after `REBOOT_NAV_DELAY_MS` (2000 ms) sets `sessionStorage["qm_rebooting"] = "imei"`, clears the `qm_logged_in` cookie and navigates to `/reboot/`. It returns `false` on a non-OK HTTP status, `success: false` or a network error — which is what lets the page keep the reboot owed.
 
 The page was **entirely untranslated** and is now fully keyed under `core_settings.imei.*`.
 

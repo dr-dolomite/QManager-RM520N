@@ -10,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import CustomProfileFormComponent, {
+import ProfileInputComponent, {
   type WizardTab,
-} from "@/components/cellular/custom-profiles/custom-profile-form";
+} from "@/components/cellular/custom-profiles/profile-input";
 import type { ProfileFormData } from "@/hooks/use-sim-profiles";
 import type {
   CurrentModemSettings,
@@ -22,7 +22,7 @@ import type {
 // =============================================================================
 // ProfileFormDialog — the create/edit wizard, hosted in a dialog
 // =============================================================================
-// The wizard itself (`custom-profile-form.tsx`) is UNTOUCHED. This file only
+// The wizard itself (`profile-input.tsx`) owns the flow. This file only
 // hosts it, so the four-step flow, its validation, its own Cancel/Clear
 // behaviour and its `onSave` contract all still live there.
 //
@@ -68,6 +68,8 @@ interface ProfileFormDialogProps {
   willAutoReapply?: boolean;
   /** Which wizard step to open on. Passed straight through; see the form's own doc. */
   initialTab?: WizardTab;
+  /** "+ Create scenario" in the wizard: the page closes it and opens the scenario dialog. */
+  onCreateScenario?: () => void;
 }
 
 export function ProfileFormDialog({
@@ -79,6 +81,7 @@ export function ProfileFormDialog({
   onSave,
   willAutoReapply = false,
   initialTab,
+  onCreateScenario,
 }: ProfileFormDialogProps) {
   const { t } = useTranslation("cellular");
   const isEditing = Boolean(editingProfile);
@@ -136,7 +139,7 @@ export function ProfileFormDialog({
             `py-6`) and every child, including the `bg-surface-container`
             sections that still need a step above the panel, are untouched. */}
         <div className="max-h-[85dvh] overflow-y-auto overscroll-contain [scrollbar-width:thin] [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:bg-none [&>[data-slot=card]]:shadow-none">
-          <CustomProfileFormComponent
+          <ProfileInputComponent
             key={editingProfile?.id ?? "new"}
             editingProfile={editingProfile}
             currentSettings={currentSettings}
@@ -145,6 +148,7 @@ export function ProfileFormDialog({
             onCancel={handleCancel}
             willAutoReapply={willAutoReapply}
             initialTab={initialTab}
+            onCreateScenario={onCreateScenario}
           />
         </div>
       </DialogContent>

@@ -11,6 +11,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
+import { iccidMismatch } from "./sim-match";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { ConnectionScenario } from "@/types/connection-scenario";
@@ -151,7 +152,7 @@ const HERO_CONDITION_BADGE: Record<
  * machine voice.
  */
 const PDP_LABEL_KEY: Record<string, string> = {
-  IPV4: "custom_profiles.pills.ip_v4",
+  IP: "custom_profiles.pills.ip_v4",
   IPV6: "custom_profiles.pills.ip_v6",
   IPV4V6: "custom_profiles.pills.ip_dual",
 };
@@ -226,13 +227,9 @@ export function ActiveProfileHero({
   const schedule = binding.schedule;
 
   // --- Derived state --------------------------------------------------------
-  // A mismatch needs BOTH sides known. A profile saved without an ICCID, or a
-  // SIM whose ICCID has not been read yet, is not a mismatch — it is an absence
-  // of evidence, and warning on it would train the user to ignore the notice.
-  const isMismatch =
-    Boolean(profile.sim_iccid) &&
-    Boolean(currentIccid) &&
-    profile.sim_iccid !== currentIccid;
+  // Canonical compare (whitespace, trailing BCD F pad); a mismatch needs BOTH
+  // sides known, since an unread or empty ICCID is no evidence of one.
+  const isMismatch = iccidMismatch(profile.sim_iccid, currentIccid);
 
   // THE APPLY STATE IS SCOPED TO *THIS* PROFILE BEFORE ANYTHING READS IT.
   //
@@ -501,20 +498,17 @@ export function ActiveProfileHero({
                   {t("custom_profiles.pills.hl", { value: settings.hl })}
                 </Tag>
               ) : null}
-              {/* An IMEI override changes the identity the NETWORK sees, which
-                  is the single most consequential thing a profile can carry and
-                  the one a user is most likely to have forgotten is set. It is
-                  a `Tag`, not a `Badge`: it says what this profile IS, not
-                  whether it is healthy (the Two-Form Rule). */}
+              {/* An IMEI override changes the identity the network sees: a fact
+                  that changes what the modem does, so a Fact-Is-Info badge. */}
               {settings.imei.trim() !== "" ? (
-                <Tag variant="neutral">
+                <Badge variant="info">
                   <MaterialSymbol
                     name="fingerprint"
                     size={BADGE_GLYPH_SIZE}
                     aria-hidden
                   />
-                  {t("custom_profiles.hero.tiles.imei_override")}
-                </Tag>
+                  {t("custom_profiles.pills.imei_override")}
+                </Badge>
               ) : null}
             </span>
           </span>

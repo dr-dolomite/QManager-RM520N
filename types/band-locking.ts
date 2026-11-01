@@ -55,6 +55,10 @@ export interface FailoverState {
   watcher_running: boolean;
 }
 
+/** Result of a band mutation; `error` is already resolved through `resolveErrorMessage`, so the caller toasts
+ * it as-is. */
+export type BandActionResult = { ok: true } | { ok: false; error: string };
+
 /**
  * Response from GET /cgi-bin/quecmanager/bands/current.sh
  *

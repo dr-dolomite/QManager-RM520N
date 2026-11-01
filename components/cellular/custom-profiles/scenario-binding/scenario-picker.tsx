@@ -30,7 +30,12 @@ interface ScenarioPickerProps {
   disabled?: boolean;
   "aria-label"?: string;
   onChange: (id: string) => void;
+  /** In-page create: the pinned item calls this instead of navigating. */
+  onCreateScenario?: () => void;
 }
+
+// Sentinel value for the in-page "+ Create scenario" item; never committed.
+const CREATE_SCENARIO_VALUE = "__create_scenario__";
 
 export function ScenarioPicker({
   id,
@@ -39,6 +44,7 @@ export function ScenarioPicker({
   loading,
   disabled,
   onChange,
+  onCreateScenario,
   ...rest
 }: ScenarioPickerProps) {
   const { t } = useTranslation("cellular");
@@ -50,7 +56,17 @@ export function ScenarioPicker({
   const known = scenarios.some((s) => s.id === value);
 
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (next === CREATE_SCENARIO_VALUE) {
+          onCreateScenario?.();
+          return;
+        }
+        onChange(next);
+      }}
+      disabled={disabled}
+    >
       <SelectTrigger id={id} aria-label={rest["aria-label"]}>
         <SelectValue />
       </SelectTrigger>
@@ -77,6 +93,12 @@ export function ScenarioPicker({
             because that page now hosts both profiles and scenarios and a bare
             `create` would not say which one it opens. */}
         <SelectSeparator />
+        {onCreateScenario ? (
+          <SelectItem value={CREATE_SCENARIO_VALUE}>
+            <MaterialSymbol name="add" size={16} className="shrink-0" />
+            {t("custom_profiles.form.scenario.create_new")}
+          </SelectItem>
+        ) : (
         <Link
           href="/cellular/custom-profiles?action=create-scenario"
           className="text-on-surface-variant hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-inline py-1.5 pl-2 pr-8 text-sm outline-none transition-colors duration-[var(--duration-quick)] ease-out"
@@ -84,6 +106,7 @@ export function ScenarioPicker({
           <MaterialSymbol name="add" size={16} className="shrink-0" />
           {t("custom_profiles.form.scenario.create_new")}
         </Link>
+        )}
       </SelectContent>
     </Select>
   );

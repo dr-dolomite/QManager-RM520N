@@ -42,7 +42,7 @@ points (boot, SIM switch, watchdog) and are still current.
 | Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts`, `hooks/use-current-settings.ts`, `hooks/use-profile-suggestions.ts` |
 | Frontend types | `types/sim-profile.ts`; `types/connection-scenario.ts` — **the one definition of `DEFAULT_SCENARIOS`** |
 | Frontend page | `app/cellular/custom-profiles/` — **the single route for this feature.** `app/cellular/custom-profiles/connection-scenarios/page.tsx` is a retired route that now client-side redirects here |
-| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, Today strip + ribbon `schedule-ribbon.tsx`, wizard `custom-profile-form.tsx` hosted by `profile-form-dialog.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialogs `apply-progress-dialog.tsx` and `deactivate-progress-dialog.tsx`, geometry/tone contract `shapes.ts`, scenario label resolution `scenario-labels.ts`) |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, Today strip + ribbon `schedule-ribbon.tsx`, wizard `profile-input.tsx` hosted by `profile-form-dialog.tsx`, registry `profile-view.tsx` — which also renders suggestion rows —, other-SIM check `sim-match.ts` (`iccidMismatch`), scenario add/edit dialog `connection-scenarios/scenario-dialog.tsx`, dialogs `apply-progress-dialog.tsx` and `deactivate-progress-dialog.tsx`, geometry/tone contract `shapes.ts`, scenario label resolution `scenario-labels.ts`) |
 | Schedule strip math | `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`, `formatMinute`) |
 | Suggestion data / matcher | `constants/profile-suggestions.ts`, `lib/carrier-match.ts` |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
@@ -697,6 +697,66 @@ already announces on its own.
 > pass it is exactly the boolean the header refuses — see [The hero reads only
 > its own apply](#the-hero-reads-only-its-own-apply).
 
+### The 2026-11 RM551E v0.1.34 port (`afc517fe`)
+
+**Short version: the profile list, the wizard and the scenario dialogs were re-laid out to RM551E v0.1.34, and a profile bound to another SIM now asks before it applies.** Request bodies, the RM520N profile schema (`scenario_id`, the four apply steps, `armed`), the day-and-block schedule editor, `DeactivateOptions` reconciliation, `labelKey` i18n and `ProfileOverrideAlert` are unchanged. RM551E's Verizon / MPDN pieces and its flat two-window schedule model were not ported.
+
+| Retired file | Replaced by |
+| ------------ | ----------- |
+| `custom-profile-view.tsx` (saved-profiles list) | `profile-view.tsx` (`ProfileViewComponent`, the registry) |
+| `custom-profile-form.tsx` (wizard) | `profile-input.tsx` (git rename; same 4-tab wizard) |
+| `connection-scenarios/add-scenario-item.tsx` | the card header's "add" `ExpandButton` in `connection-scenario-card.tsx`, opening `scenario-dialog.tsx` |
+
+#### The registry (`profile-view.tsx`)
+
+One row per saved profile (`ROW`: `rounded-tile bg-surface-container`), active first. Left: name, MNO `Tag`, the scenario line (`view.scenario_scheduled` / `view.scenario_always_on`), the `ScheduleMiniBar` when scheduled, and config pills. Right: the status chip, **one** action (Deactivate on the active row, Activate on the others), and an overflow menu with Edit and Delete. Delete confirms in an `AlertDialog` and toasts the result.
+
+`list.sh` returns summaries only, so full configs prefetch in parallel (`getProfile` per row) behind **one** skeleton for both reads; later prefetches refresh in the background.
+
+| `ProfileStatus` | When | Chip (`STATUS_CHIP`) |
+| --------------- | ---- | -------------------- |
+| `active` | the active profile, bound to the SIM in the modem (or SIM-agnostic) | `success` / `check_circle`, `table.status_badge.active` |
+| `mismatch` | the active profile, bound to a **different** SIM | `warning` / `warning`, `table.status_badge.sim_mismatch`, plus a `sim_card` note under the row |
+| `inactive` | any other profile | `muted` / `do_not_disturb_on`, `table.status_badge.inactive` |
+
+The page's `heroBusy` arrives as `pageBusy` and disables every row's Activate / Deactivate and the active row's Edit. `applyingProfileId` (the profile the in-flight apply belongs to) is what spins that one row's Activate glyph; the page-wide flag disables, it never narrates.
+
+> ℹ️ NOTE: `profileRowTone`, `PROFILE_ROW_ACTIVE_RING` and `PROFILE_ROW_DISC_TONE` in `shapes.ts` have **no consumers** after the port; the registry rows use the module-local `ROW` and the status chip instead of a ring and a tinted disc.
+
+#### Applying a profile bound to another SIM asks first
+
+`apply.sh` never checks the ICCID, so the page does. `iccidMismatch(profileIccid, currentIccid)` in `components/cellular/custom-profiles/sim-match.ts`:
+
+```ts
+// true only when BOTH are known and they differ after canonicalisation
+if (!canonicalizeIccid(profileIccid) || !canonicalizeIccid(currentIccid)) return false;
+return !iccidMatches(profileIccid, currentIccid);
+```
+
+An empty binding is SIM-agnostic and an unread live ICCID is unknown, so neither ever asks. Both sides go through `lib/carrier-match.ts`'s `canonicalizeIccid` (strips the BCD `F` pad), so a padded and an unpadded ICCID of the same SIM are not a mismatch. RM551E's `profile-iccid.ts` is not imported.
+
+On a mismatch, Activate opens an `AlertDialog` (`custom_profiles.view.mismatch_confirm.*`): the settings apply to the SIM in the modem now and turn off at the next restart or SIM change. Confirm runs the normal apply. **Every other activation starts immediately**: the earlier confirm-before-every-activate dialog (`custom_profiles.activate_dialog.*`) is no longer rendered.
+
+When the apply dialog closes (only reachable at a terminal state), the page now toasts the outcome once: `view.toast.activated` / `activated_partial` on `complete` / `partial`, `toast.error` on `failed`.
+
+#### The wizard (`profile-input.tsx`)
+
+Hosted by `profile-form-dialog.tsx`, four tabs in `TAB_ORDER = ["identity", "network", "scenario", "review"]`. The scenario tab keeps RM520N's binding editor: the default-scenario `ScenarioPicker` plus the day-and-block schedule rows (`scenario-binding/schedule-rule-row.tsx`). Details under [The 4-tab create/edit wizard](#the-4-tab-createedit-wizard-profile-inputtsx).
+
+The **duplicate-ICCID guard is canonical** now: it compares with `iccidMatches(p.sim_iccid, form.sim_iccid)`, so a trailing BCD `F` pad cannot slip a second profile onto the same SIM. A duplicate blocks save with `custom_profiles.form.fields.sim_iccid_duplicate` on the identity tab.
+
+**"+ Create scenario" inside the wizard** is a pinned `SelectItem` (sentinel `__create_scenario__`, never committed as a value). It calls `onCreateScenario`, which closes the wizard and opens the scenario dialog on the same page through `scenarioCreateSignal`.
+
+> ⚠️ WARNING: that path closes the wizard **without** a discard prompt, so anything typed into the wizard is lost. Outside the wizard (no `onCreateScenario` handler), the picker still renders the old `Link` to `/cellular/custom-profiles?action=create-scenario`.
+
+#### Connection Scenarios: one dialog, one pulse
+
+- **`ScenarioDialog`** (`connection-scenarios/scenario-dialog.tsx`) is the single add/edit dialog. It edits a `ScenarioDraft` (`name`, `description`, `mode`, `optimization`, `icon`, `lteBands`, `saBands`, `nsaBands`); the card builds the `save.sh` request body from it, so the body is unchanged. The parent remounts it per open through `key`, which seeds the draft from `initial` once.
+- **The running scenario pulses.** In `scenario-item.tsx` the in-force scenario's disc turns `success` and carries two `animate-pulse-ring` halos (`app/globals.css` keyframes `pulse-ring`, on `--duration-ambient`), off under reduced motion, with an `sr-only` state label. The *selected* tile is a neutral step up with an outline ring, so "what I am looking at" never competes with "what is running". Selecting only previews; activation is the explicit commit in the Selected-scenario card.
+- **`?create=1` is an alias.** The retired route's redirect rewrites both `?action=create` and the RM551E `?create=1` into `?action=create-scenario` (`SCENARIO_CREATE_ACTION`).
+
+> ℹ️ NOTE: Band Locking's scenario-gate banner links to `/cellular/custom-profiles/connection-scenarios/`, which is this redirect route; it lands on `/cellular/custom-profiles` one client-side hop later.
+
 ### The retired `connection-scenarios` route
 
 `app/cellular/custom-profiles/connection-scenarios/page.tsx` still exists, but
@@ -720,8 +780,8 @@ untouched.
 
 ### The create/edit wizard now lives in a dialog
 
-`custom-profile-form.tsx` — the 4-step wizard documented below — is
-**unchanged**. What changed is where it is mounted: it moved from a permanently
+`profile-input.tsx` (named `custom-profile-form.tsx` until `afc517fe`) — the 4-step wizard documented below — is
+mounted in a dialog: it moved from a permanently
 occupied left column into `profile-form-dialog.tsx`, so the page's default state
 is "here is what's running and what you've saved" rather than "here is an empty
 form."
@@ -754,38 +814,11 @@ deliberately stays open.
 > never is. The label is always `custom_profiles.form.cancel`, and
 > `custom_profiles.form.clear` was deleted from all five packs.
 
-### The active row is neutral plus a ring, not a green fill
+### The registry row carries its status in a chip
 
-`profileRowTone()` returns a neutral `surface-container` fill for **all three**
-statuses. The active row is distinguished by a **2 px inset primary ring**
-(`PROFILE_ROW_ACTIVE_RING`), not by a fill.
+Since the 2026-11 port the registry row has no ring and no tinted disc: every row is the neutral `ROW` fill, and the status lives in the chip (each state with its own glyph, because `success` and `warning` containers measure ~1.03:1 apart). See [The registry](#the-registry-profile-viewtsx).
 
-The reason is what the row *contains*: a wrapped strip of tags. Step 1 of a tone
-family is tuned to carry `on-surface` ink at full contrast, not to host another
-container inside itself — on a tinted row the tags lost the separation that was
-the only thing distinguishing them from their background. Emphasis therefore
-moved to channels the row's contents don't compete for: the ring, the 40 px
-glyph disc (`PROFILE_ROW_DISC_TONE`), and the status chip.
-
-> ℹ️ NOTE: **This is not a No-Hairline-On-Fill violation.** That rule bans a
-> stroke drawn to prop up a fill too weak to read on its own; here the fill is
-> neutral *by intent* and the ring is the emphasis itself. It is drawn as an
-> inset `box-shadow`, not a `border`, so it occupies no layout box — active and
-> inactive rows stay pixel-identical in size, where a real border would shift
-> every child by 2 px the moment a row activated. The scenario grid marks its
-> in-force tile with the same exported constant, so the two can never disagree
-> on the ring's weight.
-
-> ⚠️ WARNING: **`mismatch` no longer keeps a tonal fill — do not restore one.**
-> An earlier generation painted the mismatched row `--tone-warning-1`, which is
-> a legitimate construction in the ramp's own idiom (the cell scanner still uses
-> it correctly for a stacked condition band) and wrong *here* for two reasons.
-> A mismatch is a property of the profile's **binding**, not of the row's
-> existence, so painting the whole row makes the SIM the loudest object on a page
-> whose subject is the profile. And warning would then be spent twice in the same
-> row — once on the fill, once on the chip that says "SIM changed" in words —
-> where only the chip survives a colourblind read. `mismatch` now shows as a
-> `bg-warning` glyph disc plus a `warning` `Badge`; the body stays neutral.
+> ⚠️ WARNING: **do not give a `mismatch` row a tonal fill.** A mismatch is a property of the profile's binding, not of the row, and a warning fill would spend warning twice in one row (the fill and the chip) where only the chip survives a colour-blind read. The `sim_card` note under the row says it in words.
 
 ### The 24-hour schedule ribbon
 
@@ -862,7 +895,7 @@ and the fire guard note there.
 
 **Edit schedule** (`onEditSchedule` → `handleEditSchedule`) opens the active
 profile in the wizard **on the Scenario step**, not on Identity — see
-[The 4-tab create/edit wizard](#the-4-tab-createedit-wizard-custom-profile-formtsx).
+[The 4-tab create/edit wizard](#the-4-tab-createedit-wizard-profile-inputtsx).
 It is deliberately no longer an alias of `handleEditActive`: the two now differ
 only in the `initialTab` they set, and collapsing them back would silently undo
 the deep link.
@@ -1202,39 +1235,13 @@ Two guards prevent that, and **both** are needed:
    fight the three user-action set-sites: for those the dialog is already open, so
    marking the run adopted is a no-op.
 
-### `pageBusy` disables; `busy` narrates
+### `pageBusy` disables; `applyingProfileId` narrates
 
-The active row's **Deactivate** button had no `disabled` guard at all in any code
-path — the one control on this surface that could be clicked into a modem
-mid-mutation. It is now gated, along with Reapply and Activate, through
-`actionsLocked = busy || pageBusy` (`custom-profile-view.tsx:761`, applied at
-`:913`, `:922`, `:941` — all three now live in the row's overflow menu, which is
-where the single-line row anatomy put them). `pageBusy` is a prop on
-`CustomProfileViewProps` fed from the page's existing `heroBusy` signal
-(`custom-profile.tsx:961`, passed at `:1121`; the hero takes the same signal as
-`busy` at `:1021`).
+`ProfileViewProps.pageBusy` is fed from the page's `heroBusy` signal (the same one the hero takes as `busy`). It disables every row's Activate and Deactivate and the active row's Edit, so no control on the list can be clicked into a modem mid-mutation.
 
-> ⚠️ WARNING: **Do not OR `pageBusy` into `busy` at the source.** This is the
-> non-obvious invariant and the reason two flags exist for what looks like one
-> concept.
+> ⚠️ WARNING: **do not let the page-wide flag narrate.** `applyingProfileId` (`applyState.profile_id` while `status === "applying"`) is what spins *that one row's* Activate glyph. A page-wide flag flowing into the spinner would make every idle row claim it was being applied. The page-wide signal disables; the per-profile one narrates.
 
-The row's own `busy` (`custom-profile-view.tsx:493–495`) is scoped to
-`lastApplyState.profile_id` — it means *this* profile is the one being applied —
-and it does not merely disable, it **narrates**:
-
-- it drives the row's status chip to "Applying" (`:747`), and
-- it swaps Activate's glyph to a spinner and its label to "Activating…"
-  (`:926–935`).
-
-A page-wide flag flowing into those would make every idle row on the surface
-claim it was being applied. So the two signals stay separate by role, recorded in
-the props themselves at `:686` and `:688`: **the page-wide signal disables; it
-does not narrate.**
-
-Before the adoption fix this gap was masked rather than absent — both progress
-dialogs are modal and non-dismissable while a mutation runs, so the list was
-never clickable during one. An adopted apply has no dialog until the effect opens
-it, which is what makes the unguarded button reachable. The two fixes are one fix.
+Both progress dialogs are modal while a mutation runs, so the list is normally not clickable during one. An **adopted** apply (one this page did not start) has no dialog until the page opens it, which is the window `pageBusy` closes.
 
 ### The hero reads only its own apply
 
@@ -1338,7 +1345,7 @@ active profile now re-runs the full apply pipeline.
 
 Re-applying is the only operation that brings both the modem **and** the timer
 back in line, so `custom-profile.tsx` latches the edited id in
-`pendingReapplyId` when the saved profile was the active one, and fires
+`pendingReapplyRef` when the saved profile was the active one, and fires
 `applyProfile` through the existing `profiles/apply.sh` → `apply_status.sh`
 flow, opening the existing `ApplyProgressDialog`.
 
@@ -1356,30 +1363,13 @@ Two properties make this safe and cheap, both verified in the backend:
 **Ordering.** The wizard's `onSave` contract (`profile-form-dialog.tsx:59`,
 `(data) => Promise<string | null>`) is unchanged — a non-null id closes the
 wizard, `null` keeps it open so the user's typing survives. The apply is *not*
-awaited inside `onSave`, so the two modals never overlap. `pendingReapplyId` is
+awaited inside `onSave`, so the two modals never overlap. `pendingReapplyRef` is
 cleared before firing, so a cancelled-then-reopened wizard cannot replay someone
 else's apply.
 
-> ⚠️ WARNING: **The apply used to be fired inline from `handleFormOpenChange`,
-> reading `pendingReapplyId` off its own closure — and that closure was stale.**
-> `handleSave` calls `setPendingReapplyId(editedId)` and
-> `ProfileFormDialog.handleSave` calls `onOpenChange(false)` (i.e.
-> `handleFormOpenChange`) in the same synchronous continuation, before React
-> re-renders. `handleFormOpenChange`'s closure therefore still saw the
-> *previous* render's `pendingReapplyId` (`null`), its `if (!pendingReapplyId)
-> return;` guard exited, and `applyProfile` never fired on that call — the
-> dialog only appeared once something else happened to re-invoke the callback
-> later with a fresher closure, which read as a several-second, inconsistent
-> "nothing happens, then the Applying dialog finally shows up." Fixed by
-> splitting the two concerns: `handleFormOpenChange` now only writes `formOpen`,
-> and a `useEffect` keyed on `[formOpen, pendingReapplyId, applyProfile]` fires
-> the reapply once React has actually **committed** both facts — no closure to
-> go stale, no race, and the dialog now opens immediately once the wizard
-> closes.
+> ⚠️ WARNING: **the latch must be a ref, not state.** `handleSave` latches the id and `ProfileFormDialog.handleSave` calls `onOpenChange(false)` (i.e. `handleFormOpenChange`) in the same synchronous continuation, before React re-renders. A state value read there is the *previous* render's (`null`), so the apply never fired — the bug that once showed as a several-second, inconsistent delay before the Applying dialog. `handleFormOpenChange` now reads `pendingReapplyRef.current`, clears it, opens the dialog and calls `applyProfile` directly. A ref is current at call time.
 
-**No toast was added** to either save or apply. `custom-profile-form.tsx:541–559`
-already toasts the save, and `ApplyProgressDialog` is the apply path's feedback
-channel; a toast on either would double-report the same event.
+**The save toasts once, and the apply toasts once at close.** `profile-input.tsx` toasts the save (`form.toast.create_success` / `update_success`) unless `willAutoReapply` is set, in which case it withholds it so the reapply's dialog reports first. Closing the apply dialog (only reachable at a terminal state) toasts `view.toast.activated` / `activated_partial` or the error, read from the state before anything re-reads it.
 
 While a deactivate round trip or an apply is in flight, the hero's **Edit** and
 **Deactivate** buttons both go dead (`ActiveProfileHero`'s new `busy` prop —
@@ -1404,7 +1394,7 @@ modem mutation.
 > ℹ️ NOTE: **Both follow-ups noted here have since been closed — do not
 > re-open them as known issues.** The per-row Deactivate is no longer asymmetric
 > with the hero's: it takes `actionsLocked` like Activate and Reapply (see
-> [`pageBusy` disables; `busy` narrates](#pagebusy-disables-busy-narrates)). And
+> [`pageBusy` disables; `busy` narrates](#pagebusy-disables-applyingprofileid-narrates)). And
 > `heroLocallyReady` now reads `heroDetailSettled` rather than
 > `activeProfile !== null` (`custom-profile.tsx:413–414`), so a failed first
 > `getProfile` renders `ActiveProfileUnavailable` instead of a permanent
@@ -1423,23 +1413,22 @@ the **apply-progress dialog**, coordinated by `custom-profile.tsx`.
 > preset — RM520N already carried it and it is not special-cased. The dormant
 > `isVerizonActive` flag was removed from `hooks/use-active-profile.ts`.
 
-### The 4-tab create/edit wizard (`custom-profile-form.tsx`)
+### The 4-tab create/edit wizard (`profile-input.tsx`)
 
 The single-page form became a **4-tab wizard** with directional slide
-animation (`motion/react`, reduced-motion aware). It is unchanged by the merge —
-only its host moved, into `profile-form-dialog.tsx` (see [The create/edit wizard
+animation (`motion/react`, reduced-motion aware). It was renamed from `custom-profile-form.tsx` in the 2026-11 port and is hosted by `profile-form-dialog.tsx` (see [The create/edit wizard
 now lives in a dialog](#the-createedit-wizard-now-lives-in-a-dialog)):
 
 | Tab | Purpose |
 |-----|---------|
-| Identity | Profile name, MNO preset, SIM ICCID. **Load-from-SIM** quick-fill pulls the live ICCID/IMEI; a live **duplicate-ICCID guard** warns before you save a profile bound to an already-claimed SIM. |
+| Identity | Profile name, MNO preset, SIM ICCID. **Load-from-SIM** quick-fill pulls the live ICCID/IMEI; a live **duplicate-ICCID guard** blocks saving a profile bound to an already-claimed SIM; it compares canonically (`iccidMatches`), so a BCD `F` pad cannot slip past it. |
 | Network | APN name, CID, PDP type, TTL/HL, optional IMEI override. **"Use my saved APN"** quick-pick fills the APN from the current setting. |
-| Scenario | Scenario binding + optional daily schedule windows (see [scenario picker](#scenario-picker-and-the-create-new-deep-link) below). |
+| Scenario | The default-scenario `ScenarioPicker` plus RM520N's day-and-block schedule rows (`ScheduleRuleRow`); see [scenario picker](#scenario-picker-and-the--create-new-deep-link) below. |
 | Review | Per-section summaries with edit-jump-back — clicking a section returns to its tab. Final Submit lives here. |
 
 **The wizard can be opened on a step other than the first.** `WizardTab` is
-exported from `custom-profile-form.tsx`, and an `initialTab` prop is threaded
-`custom-profile.tsx` → `profile-form-dialog.tsx` → `custom-profile-form.tsx`,
+exported from `profile-input.tsx`, and an `initialTab` prop is threaded
+`custom-profile.tsx` → `profile-form-dialog.tsx` → `profile-input.tsx`,
 defaulting to `"identity"`. Exactly one entry point uses anything else: the Today
 strip's **Edit schedule** (`ScheduleTodayCard`'s `onEditSchedule`) opens on
 `"scenario"`, because the schedule lives on that step and only that step —
@@ -1463,52 +1452,13 @@ button across the step transition; this is the ported fix for an early-submit
 reconciliation bug where a stale click handler could fire a submit while the
 user only meant to advance a tab.
 
-### Saved-profiles card list (`custom-profile-view.tsx`)
+### Saved profiles
 
-The old TanStack **data table was removed** (`custom-profile-table.tsx` is
-deleted) in favor of a **row list**. A row is single-line at wide widths
-(`PROFILE_ROW_SHAPE`), left to right:
-
-| Slot | Contents |
-|------|----------|
-| 40 px glyph disc | Tinted by status via `PROFILE_ROW_DISC_TONE` — the row's one coloured object. |
-| Name + tag strip | The profile name over a **wrapping strip of outline `Tag`s**: APN (or "carrier default"), **IMEI override** when set, MNO, the scenario binding, band tags, and the audit note. |
-| `ScheduleMiniBar` | The 8 px condensed ribbon. An unscheduled profile renders the same box `invisible`, so the trailing cluster lands on one vertical line down the whole list. |
-| Status chip + overflow | `PROFILE_STATUS_BADGE` (each status carrying its own glyph rather than relying on colour alone) beside a 36 px icon-only menu button. |
-
-- The per-row audit note — **"Applied / Partial / Failed at HH:MM"** — is backed
-  by the `custom_profiles.view.audit.{applied,partial,failed}` i18n keys.
-- **Radius is width-dependent**: `rounded-pill` at `@lg/card` and above (a row
-  that acts is a pill), stepping down to `rounded-tile` in a narrow container,
-  where the tags wrap to a second line and a 38 px end-cap on a 110 px-tall box
-  would read as a lozenge rather than a row.
-- **Height is a floor, and the skeleton mirrors by rendering `ROOT` itself** with
-  placeholder children — not by restating a number. A tile pins because its
-  content is bounded; a row's tag strip wraps, so a pin would resolve as a clip.
-
-> ℹ️ NOTE: **Only IMEI override follows the APN down the tag strip.** PDP type,
-> CID, TTL and hop limit are deliberately *not* on the row — a saved profile can
-> be opened to read them, and nine tags per row buries the name. An overridden
-> IMEI is different in kind: it changes the identity the **network** sees, it is
-> invisible everywhere else in the list, and a user who has forgotten one is set
-> will misread every registration failure that follows. All five of those fields
-> *are* shown together on the hero's Identity tile, which is the one place the
-> full config is stated. `imeiOverridden` reads the row's already-prefetched
-> `full.settings`, so it costs no extra request.
->
-> The **pulsing live-dot** is no longer on the active row. `LIVE_DOT` moved to
-> the Today strip's "Schedule armed" readout: a dot per row is one animation loop
-> per row, and the strip is where "armed" is actually asserted. That is the whole
-> ambient-loop budget for this surface — if a future change wants a loop
-> somewhere else here, this one has to go first.
-
-Row settings are hydrated on demand via a `getProfile` prefetch, because the
-`list.sh` summaries deliberately omit the `settings` object (the list endpoint
-stays lightweight; per-row config detail is fetched when a card needs it).
+The list is the registry described under [The registry](#the-registry-profile-viewtsx). The pre-port single-line pill rows (`custom-profile-view.tsx`, with a tag strip and a per-row audit note) are deleted. Row configs are still hydrated by a `getProfile` prefetch, because `list.sh` summaries omit `settings`.
 
 #### The true empty state needs a create button, not just Refresh
 
-`EmptyProfileViewComponent` (`empty-profile.tsx`) replaces the whole card when
+`EmptyProfileComponent` (`empty-profile.tsx`) replaces the whole card when
 `profiles.length === 0 && suggestions.length === 0` — nothing saved **and** no
 suggestion for the inserted SIM. It is the one branch of this card with no other
 create affordance: the populated card's New button lives on the page header
@@ -1519,8 +1469,8 @@ already knows is empty. It now renders a filled create button as well, adopting
 the pre-existing `custom_profiles.empty_state.cta_new` (already written and
 already translated in all five packs, with no call site until now — no sixth
 spelling of "New Profile" was minted). It is wired to the page's **same**
-`handleNewProfile`, threaded as an optional `onNewProfile` through
-`CustomProfileViewProps` → `EmptyProfileViewProps`, so all three create entry
+`handleNewProfile`, threaded as an optional `onAdd` through
+`ProfileViewProps` → `EmptyProfileProps`, so all three create entry
 points open the wizard on `identity` and none can drift.
 
 > ⚠️ WARNING: **The create button is a SIBLING below the `ConditionScreen`, not
@@ -1714,11 +1664,12 @@ New profiles default to `scenario_id = "balanced"`. The user picks any
 built-in or custom scenario from the Select in the Scenario tab; there's no
 "None" option — Balanced is the de-facto no-op value.
 
-The Select uses one sentinel option value:
+The Select ends with one pinned create action:
 
-| Sentinel | Meaning |
-|----------|---------|
-| `__create__` | "+ Create new custom scenario…" — deep-links to `/cellular/custom-profiles?action=create-scenario`, which auto-opens the create-scenario dialog on the merged page. If the profile form is dirty, an AlertDialog prompts the user to discard changes before navigating. |
+| Host | Item | What it does |
+|------|------|--------------|
+| The wizard (an `onCreateScenario` handler is passed) | `SelectItem` with sentinel value `__create_scenario__`, never committed | Calls `onCreateScenario`: the page closes the wizard and opens the scenario dialog in place. **No discard prompt** — the wizard draft is lost |
+| Anywhere else | a `Link` | Navigates to `/cellular/custom-profiles?action=create-scenario`, which opens the scenario dialog on the merged page |
 
 > ℹ️ NOTE: Since the merge there are **two** create deep-links on one page, so
 > the action name has to say *which* thing to create: `?action=create` opens the
@@ -2178,7 +2129,7 @@ live modem at ~0.22 s typical (10 samples, 0.20–0.47 s, taken while the status
 poller was running and competing for the same AT lock)** — so the user can
 already be typing when the response lands. The two arrival paths are therefore
 handled differently, distinguished by an `explicitLoad` state flag in
-`custom-profile-form.tsx`.
+`profile-input.tsx`.
 
 > ℹ️ NOTE: This doc previously claimed the read took **~2–3 s**, which is off by
 > an order of magnitude and is what motivated an unnecessary optimization
@@ -2242,7 +2193,7 @@ below the saved rows under a "Recommended for your SIM" divider. These are
 | Recipe data | `constants/profile-suggestions.ts` |
 | PLMN matcher (pure) | `lib/carrier-match.ts` |
 | Decision + create sequence | `hooks/use-profile-suggestions.ts` |
-| UI | `SuggestionRow` in `components/cellular/custom-profiles/custom-profile-view.tsx` |
+| UI | `SuggestionRow` in `components/cellular/custom-profiles/profile-view.tsx` |
 | i18n | 15 keys under `custom_profiles.suggestions.*` in the `cellular` namespace, all 5 locales |
 
 ### Why suggestions live in the list but not in `profiles[]`
@@ -2284,8 +2235,8 @@ Tinting it would re-create the visual quarantine the in-list design removes.
 
 Two further consequences of moving suggestions inside the card:
 
-- **The empty-state gate is widened.** `custom-profile-view.tsx` returns
-  `EmptyProfileViewComponent` only when `profiles.length === 0` **and**
+- **The empty-state gate is widened.** `profile-view.tsx` returns
+  `EmptyProfileComponent` only when `profiles.length === 0` **and**
   `suggestions.length === 0`. A user with no saved profiles but a matched
   carrier is exactly who a suggestion is for; the full empty-state card would
   otherwise hide the recommendation from its whole audience. When only

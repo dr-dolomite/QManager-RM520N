@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Switch } from "@/components/ui/switch";
+import { SegmentedField } from "@/components/ui/segmented-field";
 import type {
   TowerLockConfig,
   TowerScheduleConfig,
@@ -16,52 +15,23 @@ import type {
 
 import {
   AUTO_TILE,
-  BADGE_GLYPH_SIZE,
   DAY_CHIP,
   FIELD_CONTROL,
   FIELD_LABEL,
   NOTICE,
   NOTICE_TONE,
-  SWITCH_TARGET,
   dayChipFill,
+  discTone,
 } from "./shapes";
 
 // =============================================================================
 // ScheduleTile — apply the tower lock only inside a daily window
 // =============================================================================
-// One of the three tiles in the automation card. It was a peer CARD in a 2-up
-// grid until this change, which is what made it read as disconnected: it sat as
-// the orphaned third cell beside empty space, at the same visual rank as the two
-// lock forms, while actually answering a different question from either of them.
-// It is not a third way to choose a cell — it is one of three answers to "what
-// happens to this lock when nobody is watching".
-//
-// It writes `config.schedule`, which the backend turns into TWO runtime systemd
-// timers (apply + clear) rather than a `systemctl enable` — so a save can
-// legitimately succeed at the config layer and still not arm, which is what
-// `armed: false` reports and what this tile has to say out loud.
-//
-// -----------------------------------------------------------------------------
-// THREE SAVE PATHS, DELIBERATELY DIFFERENT
-// -----------------------------------------------------------------------------
-//   ENABLE TOGGLE   immediate, and REVERTS the switch if the backend refuses.
-//                   The most common refusal is "no lock target configured",
-//                   which is a real precondition rather than an error.
-//   TIME / DAY EDIT 800ms debounce, and ONLY while enabled — editing a window
-//                   on a disabled schedule writes nothing, because there is no
-//                   timer to re-arm.
-//   ARM RESULT      a save that returns `{success: true, armed: false}` warns.
-//                   Not on the OFF path: disarming is what turning it off means.
-//
-// -----------------------------------------------------------------------------
-// THE DAY CHIPS
-// -----------------------------------------------------------------------------
-// The incumbent drew these as `Toggle variant="outline"` whose pressed state was
-// an arbitrary-child selector painting a dot `bg-blue-500` — a raw Tailwind
-// palette value in an OKLCH-only system, the one colour on the page that was
-// byte-identical in light and dark. They are now real `aria-pressed` buttons on
-// the shared `DAY_CHIP` construction, where the FILL carries selection.
+// Enabling saves at once (reverts if refused); time/day edits debounce 800 ms and save only while enabled. A save
+// that could not arm its systemd timers warns. Config sync is value-keyed so a re-read keeps an in-progress edit.
 // =============================================================================
+
+const K = "tower_locking";
 
 export interface ScheduleTileProps {
   config: TowerLockConfig | null;
@@ -72,14 +42,19 @@ export interface ScheduleTileProps {
 
 const DAY_INDICES = [0, 1, 2, 3, 4, 5, 6] as const;
 
-/**
- * A value key for the config-sync comparison.
- *
- * `config` is re-parsed from JSON on every fetch, so `config.schedule` is a NEW
- * object each time even when nothing changed. The incumbent compared object
- * identity, so every poll re-seeded the form and wiped whatever the user was
- * mid-way through typing.
- */
+/** Literal keys: `i18n:check` cannot see an interpolated stem. */
+const DAY_LABEL_KEYS = [
+  `${K}.schedule.day_0`,
+  `${K}.schedule.day_1`,
+  `${K}.schedule.day_2`,
+  `${K}.schedule.day_3`,
+  `${K}.schedule.day_4`,
+  `${K}.schedule.day_5`,
+  `${K}.schedule.day_6`,
+] as const;
+
+const SAVE_DEBOUNCE_MS = 800;
+
 function scheduleKey(s: TowerScheduleConfig | undefined): string {
   if (!s) return "";
   return `${s.enabled}|${s.start_time}|${s.end_time}|${[...s.days].sort().join(",")}`;
@@ -105,7 +80,7 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
     };
   }, []);
 
-  // --- Config sync (render-time adjustment, keyed on VALUE not identity) ------
+  // Adopt the saved schedule whenever its VALUE changes.
   const incomingKey = scheduleKey(config?.schedule);
   const [prevKey, setPrevKey] = useState<string | null>(null);
   if (config?.schedule && incomingKey !== prevKey) {
@@ -116,26 +91,17 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
     setDays(config.schedule.days);
   }
 
-  /** Map an `armed: false` reason onto translated copy. */
-  const armReason = useCallback(
-    (reason?: string): string =>
-      reason === "unit_absent"
-        ? t("tower_locking.schedule.arm_reason_unit_absent")
-        : (reason ?? t("tower_locking.schedule.arm_reason_unknown")),
-    [t],
-  );
-
-  const warnIfUnarmed = useCallback(
-    (result: TowerScheduleSaveResult) => {
-      if (result.success && result.armed === false) {
-        toast.warning(
-          t("tower_locking.schedule.arm_warning", {
-            reason: armReason(result.reason),
-          }),
-        );
-      }
+  // A save that landed but left no live timer warns in place of the success.
+  const unarmedMessage = useCallback(
+    (result: TowerScheduleSaveResult): string | null => {
+      if (result.armed !== false) return null;
+      const reason =
+        result.reason === "unit_absent"
+          ? t(`${K}.schedule.arm_reason_unit_absent`)
+          : t(`${K}.schedule.arm_reason_unknown`);
+      return t(`${K}.schedule.arm_warning`, { reason });
     },
-    [armReason, t],
+    [t],
   );
 
   const debouncedSave = useCallback(
@@ -147,21 +113,25 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
         try {
           const result = await onScheduleChange(schedule);
           if (!mountedRef.current) return;
-          if (!result.success) {
-            toast.error(t("tower_locking.schedule.toast_error"));
-            return;
+          const unarmed = result.ok ? unarmedMessage(result) : null;
+          if (unarmed) {
+            toast.warning(unarmed);
+          } else if (result.ok) {
+            toast.success(t(`${K}.schedule.toast_saved`));
+          } else {
+            toast.error(result.error ?? t(`${K}.errors.schedule_failed`));
           }
-          warnIfUnarmed(result);
         } finally {
           if (mountedRef.current) setIsSaving(false);
         }
-      }, 800);
+      }, SAVE_DEBOUNCE_MS);
     },
-    [onScheduleChange, t, warnIfUnarmed],
+    [onScheduleChange, t, unarmedMessage],
   );
 
-  const handleEnabledChange = async (checked: boolean) => {
-    setEnabled(checked);
+  const handleEnabledChange = async (next: boolean) => {
+    if (next === enabled) return;
+    setEnabled(next);
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -169,26 +139,27 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
     setIsSaving(true);
     try {
       const result = await onScheduleChange({
-        enabled: checked,
+        enabled: next,
         start_time: startTime,
         end_time: endTime,
         days,
       });
       if (!mountedRef.current) return;
-      if (!result.success) {
-        // Revert — the switch must never claim a state the backend refused.
-        setEnabled(!checked);
-        // The incumbent hardcoded "No lock targets configured" for EVERY
-        // failure. That reason is only right when it is actually the reason.
-        toast.warning(
-          result.reason === "no_targets"
-            ? t("tower_locking.schedule.toast_no_targets")
-            : t("tower_locking.schedule.toast_error"),
+      // Turning it off disarms by design, so only the ON path can be unarmed.
+      const unarmed = result.ok && next ? unarmedMessage(result) : null;
+      if (unarmed) {
+        toast.warning(unarmed);
+      } else if (result.ok) {
+        toast.success(
+          next
+            ? t(`${K}.schedule.toast_enabled`)
+            : t(`${K}.schedule.toast_disabled`),
         );
-        return;
+      } else {
+        // The backend refused (no lock target, no days): the pill snaps back.
+        setEnabled(!next);
+        toast.error(result.error ?? t(`${K}.errors.schedule_failed`));
       }
-      // Only warn on the ON path — turning it off disarms by design.
-      if (checked) warnIfUnarmed(result);
     } finally {
       if (mountedRef.current) setIsSaving(false);
     }
@@ -202,7 +173,8 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
       days,
       ...next,
     };
-    if (enabled) debouncedSave(schedule);
+    // A schedule with no days cannot be saved; the notice below says why.
+    if (enabled && schedule.days.length > 0) debouncedSave(schedule);
   };
 
   const handleDayToggle = (dayIndex: number) => {
@@ -213,25 +185,23 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
     commit({ days: nextDays });
   };
 
-  const status = enabled
-    ? ({ variant: "success", glyph: "check_circle" } as const)
-    : ({ variant: "muted", glyph: "do_not_disturb_on" } as const);
-  const statusLabel = enabled
-    ? t("tower_locking.schedule.status_active")
-    : t("tower_locking.schedule.status_inactive");
-
-  /** Enabled with no days selected can never fire. Worth saying. */
   const noDays = enabled && days.length === 0;
+  const scheduleLabel = enabled
+    ? t(`${K}.schedule.status_active`)
+    : t(`${K}.schedule.status_inactive`);
 
   return (
     <div className={`${AUTO_TILE.ROOT} h-full`}>
       <div className={AUTO_TILE.HEAD}>
-        <span className={AUTO_TILE.DISC} aria-hidden="true">
-          <MaterialSymbol name="schedule" size={20} />
+        <span
+          role="img"
+          aria-label={scheduleLabel}
+          title={scheduleLabel}
+          className={`${AUTO_TILE.DISC} ${discTone(enabled ? "success" : "muted")}`}
+        >
+          <MaterialSymbol name="schedule" size={20} aria-hidden="true" />
         </span>
-        <span className={AUTO_TILE.TITLE}>
-          {t("tower_locking.schedule.title")}
-        </span>
+        <span className={AUTO_TILE.TITLE}>{t(`${K}.schedule.title`)}</span>
         {isSaving ? (
           <MaterialSymbol
             name="progress_activity"
@@ -239,26 +209,38 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
             className="text-on-surface-variant motion-safe:animate-spin"
           />
         ) : null}
-        <Badge variant={status.variant}>
-          <MaterialSymbol name={status.glyph} size={BADGE_GLYPH_SIZE} />
-          {statusLabel}
-        </Badge>
-        <Switch
-          id="tower-schedule-enabled"
-          checked={enabled}
-          onCheckedChange={handleEnabledChange}
-          aria-label={t("tower_locking.schedule.enable_label")}
-          {...(noDays
-            ? { "aria-describedby": "tower-schedule-no-days" }
-            : null)}
-          className={`${SWITCH_TARGET} ml-auto`}
-        />
+        <div
+          className="ml-auto"
+          role="group"
+          {...(noDays ? { "aria-describedby": "tower-schedule-no-days" } : null)}
+        >
+          <SegmentedField
+            value={enabled ? "on" : "off"}
+            onValueChange={(v) => void handleEnabledChange(v === "on")}
+            options={[
+              { value: "off", label: t("state.off", { ns: "common" }) },
+              { value: "on", label: t("state.on", { ns: "common" }) },
+            ]}
+            ariaLabel={t(`${K}.schedule.enable_label`)}
+            disabled={isSaving}
+            breakpoint="never"
+            glyph={(className) => (
+              <MaterialSymbol
+                name="check"
+                size={16}
+                className={className}
+                aria-hidden="true"
+              />
+            )}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* Stacks on a phone: a 12-hour time input clips at half of ~290px. */}
+      <div className="grid grid-cols-1 gap-3 @xs/section:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="tower-schedule-start" className={FIELD_LABEL}>
-            {t("tower_locking.schedule.start")}
+            {t(`${K}.schedule.start`)}
           </label>
           <Input
             id="tower-schedule-start"
@@ -274,7 +256,7 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="tower-schedule-end" className={FIELD_LABEL}>
-            {t("tower_locking.schedule.end")}
+            {t(`${K}.schedule.end`)}
           </label>
           <Input
             id="tower-schedule-end"
@@ -291,34 +273,27 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
       </div>
 
       <fieldset className={`${AUTO_TILE.FOOT} flex flex-col gap-1.5`}>
-        <legend className={FIELD_LABEL}>
-          {t("tower_locking.schedule.days")}
+        <legend className={`${FIELD_LABEL} mb-3`}>
+          {t(`${K}.schedule.days`)}
         </legend>
         <div
           className={DAY_CHIP.ROW}
           role="group"
-          aria-label={t("tower_locking.schedule.days_a11y")}
-          /* The "no days selected" notice below is the REASON this group is
-             the thing to fix, and a screen-reader user lands on the group
-             without ever reaching the sentence sitting under it. */
-          {...(noDays
-            ? { "aria-describedby": "tower-schedule-no-days" }
-            : null)}
+          aria-label={t(`${K}.schedule.days_a11y`)}
         >
           {DAY_INDICES.map((index) => {
             const selected = days.includes(index);
-            const label = t(`tower_locking.schedule.day_${index}`);
+            const label = t(DAY_LABEL_KEYS[index]);
             return (
               <button
                 key={index}
                 type="button"
                 aria-pressed={selected}
-                aria-label={t(
+                aria-label={
                   selected
-                    ? "tower_locking.schedule.day_selected"
-                    : "tower_locking.schedule.day_unselected",
-                  { day: label },
-                )}
+                    ? t(`${K}.schedule.day_selected`, { day: label })
+                    : t(`${K}.schedule.day_unselected`, { day: label })
+                }
                 onClick={() => handleDayToggle(index)}
                 className={`${DAY_CHIP.ROOT} ${dayChipFill(selected)}`}
               >
@@ -344,7 +319,7 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
             id="tower-schedule-no-days"
             className="min-w-0 flex-1 leading-relaxed"
           >
-            {t("tower_locking.schedule.no_days")}
+            {t(`${K}.schedule.no_days`)}
           </span>
         </div>
       ) : null}

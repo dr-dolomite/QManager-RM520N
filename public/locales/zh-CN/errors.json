@@ -207,5 +207,13 @@
   "port_in_use": "该端口已被其他服务占用。",
   "token_generation_failed": "无法创建安全令牌。请重试。",
   "poller_not_running": "后台服务未响应，请稍后重试",
-  "reset_failed": "无法重置计数器"
+  "reset_failed": "无法重置计数器",
+  "cops_detach_failed": "调制解调器无法从网络断开，因此未做任何更改。请重试。",
+  "cops_attach_failed": "调制解调器未确认已重新注册到网络。请检查连接；更改可能已经生效。",
+  "apn_mismatch": "网络分配的 APN 与您请求的不一致。请检查 APN 名称后重试。",
+  "apn_busy": "另一项 APN 更改正在进行中。请稍后重试。",
+  "cgact_failed": "无法开启或关闭此连接。请重试。",
+  "invalid_index": "配置槽位无效。请选择 1 到 6 之间的数字。",
+  "qicsgp_failed": "无法保存 APN 登录设置（用户名、密码和认证类型）。请重试。",
+  "internal_error": "QManager 内部出现问题。请重试。"
 }

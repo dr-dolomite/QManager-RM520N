@@ -207,5 +207,13 @@
   "port_in_use": "Port tersebut sudah dipakai layanan lain.",
   "token_generation_failed": "Tidak dapat membuat token yang aman. Coba lagi.",
   "poller_not_running": "Layanan latar belakang tidak merespons, coba lagi sebentar lagi",
-  "reset_failed": "Tidak dapat mengatur ulang penghitung"
+  "reset_failed": "Tidak dapat mengatur ulang penghitung",
+  "cops_detach_failed": "Modem tidak dapat memutuskan diri dari jaringan, sehingga tidak ada yang diubah. Coba lagi.",
+  "cops_attach_failed": "Modem tidak mengonfirmasi bahwa ia telah mendaftar ulang ke jaringan. Periksa koneksi; perubahan mungkin sudah diterapkan.",
+  "apn_mismatch": "Jaringan memberikan APN yang berbeda dari yang Anda minta. Periksa nama APN lalu coba lagi.",
+  "apn_busy": "Perubahan APN lain sedang berlangsung. Coba lagi sebentar lagi.",
+  "cgact_failed": "Tidak dapat menyalakan atau mematikan koneksi ini. Coba lagi.",
+  "invalid_index": "Slot profil tidak valid. Pilih angka dari 1 sampai 6.",
+  "qicsgp_failed": "Tidak dapat menyimpan pengaturan login APN (nama pengguna, kata sandi, dan jenis autentikasi). Coba lagi.",
+  "internal_error": "Terjadi masalah di dalam QManager. Coba lagi."
 }

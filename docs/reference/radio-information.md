@@ -457,7 +457,7 @@ The shipped subset is `app/fonts/MaterialSymbolsRounded-subset.{woff2,json}`, cu
 
 Glyphs used on this page: `cell_tower`, `graphic_eq`, `layers`, `alt_route`, `content_copy`, `check`, `schedule`, `visibility`, `visibility_off`, `help`, `warning`, `info`, `radar`, `chevron_right`, `sim_card`, `do_not_disturb_on`, `progress_activity`, and `signal_cellular_off` (the no-service condition screen, `states.tsx`).
 
-The graded `signal_cellular_{1..4}_bar` ladder is **no longer used on this page** — it went with the per-row quality chip. It stays in the subset and the allowlist because `signal-status-card.tsx`, `antenna-statistics/tech-card.tsx`, `band-locking/live-band-hero.tsx`, `cell-scanner/` and `tower-locking/live-strip.tsx` all still own it; do not prune it from the font on this page's account.
+The graded `signal_cellular_{1..4}_bar` ladder is **no longer used on this page** — it went with the per-row quality chip. It stays in the subset and the allowlist because `signal-status-card.tsx`, `antenna-statistics/tech-card.tsx`, `antenna-alignment/` and `cell-scanner/` still own it (Band Locking and Tower Locking stopped using it in the 2026-11 RM551E port); do not prune it from the font on this page's account.
 
 ## Known gaps
 

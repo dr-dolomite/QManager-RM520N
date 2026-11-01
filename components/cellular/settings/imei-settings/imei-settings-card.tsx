@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -30,13 +29,14 @@ import { FieldError } from "@/components/ui/field";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { copyText } from "@/lib/clipboard";
+import { HintIcon } from "@/components/ui/hint-icon";
 import { validateImei } from "@/lib/imei-utils";
 import { staggerRowItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { ApplyFootSkeleton } from "../apply-foot";
 import SettingRow from "../setting-row";
+import ResetButton from "./reset-button";
 import {
   BADGE_GLYPH_SIZE,
   CARD_PAD,
@@ -46,9 +46,6 @@ import {
   FIELD_COUNTER,
   FIELD_SHELL,
   INLINE_ERROR,
-  READOUT_ICON_ACTION,
-  READOUT_ICON_GLYPH,
-  READOUT_ROW,
   ROW_GROUP,
   SETTING_ROW,
 } from "../shapes";
@@ -56,11 +53,8 @@ import {
 // =============================================================================
 // Device IMEI — the write surface
 // =============================================================================
-// Two rows: what the modem reports now, and what it will report after the next
-// boot. The split is the whole point — an IMEI write lands in NVM immediately
-// and in the network's view of the device only after a restart, and the previous
-// single-field form collapsed those two facts into one input that was sometimes
-// a readout and sometimes a draft.
+// One row: the draft, seeded from the modem. An IMEI write lands in NVM at once but reaches the network only after a
+// restart, so a check badge marks a draft matching the modem and the footer says what a write will do.
 //
 // -----------------------------------------------------------------------------
 // THE LUHN GATE
@@ -87,7 +81,7 @@ export interface IMEISettingsCardProps {
   isLoading: boolean;
   isSaving: boolean;
   onSave: (imei: string) => Promise<boolean>;
-  /** Hand off to /reboot/ now. */
+  /** Fire the reboot and hand off to /reboot/. */
   onRebootNow: () => void;
   /** Record that a reboot is owed, so the page can keep asking. */
   onRebootDeferred: () => void;
@@ -109,6 +103,9 @@ const IMEISettingsCard = ({
   const formId = React.useId();
   const [imei, setImei] = React.useState("");
   const [rebootOpen, setRebootOpen] = React.useState(false);
+  // Set when "Reboot now" closes the dialog, so the close isn't also read as a
+  // deferral. Every other way out (Later, Escape) records the owed reboot.
+  const rebootingNowRef = React.useRef(false);
 
   // Seed the draft from the modem once it is known. Only when the user has not
   // started typing — a silent re-fetch must never overwrite an edit in progress.
@@ -127,6 +124,7 @@ const IMEISettingsCard = ({
   const isComplete = /^\d{15}$/.test(imei);
   const isLuhnValid = validateImei(imei);
   const hasChanged = imei !== reported;
+  const matchesModem = hasReading && !hasChanged;
 
   // Shape first, then checksum: naming "not 15 digits" while the number is still
   // being typed would be noise, so the length message waits for a full field.
@@ -146,15 +144,6 @@ const IMEISettingsCard = ({
     setImei(reported);
   };
 
-  const handleCopy = async () => {
-    if (!hasReading) return;
-    if (await copyText(reported)) {
-      toast.success(t(`${K}.toasts.copied`));
-    } else {
-      toast.error(t(`${K}.toasts.copy_failed`));
-    }
-  };
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!canWrite) return;
@@ -167,12 +156,18 @@ const IMEISettingsCard = ({
 
     markSaved();
     toast.success(t(`${K}.toasts.saved`));
+    rebootingNowRef.current = false;
     setRebootOpen(true);
   };
 
-  const handleRebootLater = () => {
-    setRebootOpen(false);
-    onRebootDeferred();
+  const handleRebootDialogChange = (open: boolean) => {
+    setRebootOpen(open);
+    if (!open && !rebootingNowRef.current) onRebootDeferred();
+  };
+
+  const handleRebootNow = () => {
+    rebootingNowRef.current = true;
+    onRebootNow();
   };
 
   // --- Loading ---------------------------------------------------------------
@@ -192,8 +187,6 @@ const IMEISettingsCard = ({
   const skeleton = (
     <div className={ROW_GROUP.ROOT}>
       <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
-      <div className={ROW_GROUP.DIVIDER} />
-      <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
     </div>
   );
 
@@ -201,53 +194,29 @@ const IMEISettingsCard = ({
     <form id={formId} className="flex flex-col gap-4" onSubmit={handleSubmit}>
       <div className={ROW_GROUP.ROOT}>
         <SettingRow
-          label={t(`${K}.rows.current.label`)}
-          consequence={t(`${K}.rows.current.consequence`)}
-          control={
-            hasReading ? (
-              <span
-                className={cn(
-                  READOUT_ROW.ROOT,
-                  // One tone step up: this pill sits INSIDE the group's own
-                  // `surface-container` fill, so it needs the next step to
-                  // read as a distinct object rather than as flat text.
-                  "gap-2 bg-surface-container-high",
-                )}
-              >
-                <span className={READOUT_ROW.VALUE_MONO}>{reported}</span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  aria-label={t(`${K}.actions.copy`)}
-                  className={READOUT_ICON_ACTION}
-                >
-                  <MaterialSymbol
-                    name="content_copy"
-                    size={READOUT_ICON_GLYPH}
-                  />
-                </button>
-              </span>
-            ) : (
-              // Honest empty state. `muted`, not `destructive`: the poller
-              // simply has not published an IMEI yet, which is a wait, not a
-              // fault.
-              <Badge variant="muted">
-                <MaterialSymbol name="help" size={BADGE_GLYPH_SIZE} />
-                {t(`${K}.rows.current.unavailable`)}
-              </Badge>
-            )
-          }
-        />
-
-        <div className={ROW_GROUP.DIVIDER} />
-
-        <SettingRow
           label={t(`${K}.rows.write.label`)}
           consequence={t(`${K}.rows.write.consequence`)}
           dirty={writeDirty}
           labelId="imei-write-label"
           control={
             <div className={FIELD_CLUSTER}>
+              {/* Only while the draft IS the modem's IMEI. The tip carries the
+                  sentence the footer used to; HintIcon, since a Tooltip never opens on tap. */}
+              {matchesModem ? (
+                <span className="flex flex-none items-center gap-1.5">
+                  <Badge
+                    variant="success"
+                    role="img"
+                    aria-label={t(`${K}.status.unchanged`)}
+                    className="size-7 flex-none bg-success p-0 text-success-foreground"
+                  >
+                    <MaterialSymbol name="check" size={BADGE_GLYPH_SIZE} />
+                  </Badge>
+                  <HintIcon label={t(`${K}.status.unchanged_tip_label`)}>
+                    {t(`${K}.status.unchanged`)}
+                  </HintIcon>
+                </span>
+              ) : null}
               <Input
                 host="container"
                 id="imei-write-input"
@@ -327,47 +296,43 @@ const IMEISettingsCard = ({
           // The status span is its own live region; one announcement per change.
           liveStatus={false}
           status={
-            // Hidden while a field error owns the message, so two sentences never contradict.
-            !shapeError && !luhnError ? (
-              <span id="imei-write-status" aria-live="polite">
-                {isEmpty
-                  ? t(`${K}.status.empty`)
-                  : !hasChanged
-                    ? t(`${K}.status.unchanged`)
-                    : t(`${K}.status.ready`)}
-              </span>
-            ) : null
-          }
-          actions={
             <>
-              <Button
-                type="button"
-                variant="ghost"
+              <ResetButton
+                label={t(`${K}.actions.reset_short`)}
                 onClick={handleReset}
                 disabled={isSaving || !hasChanged}
-                size="action" className="gap-0"
-              >
-                {t(`${K}.actions.reset`)}
-              </Button>
-              <SaveButton
-                type="submit"
-                form={formId}
-                isSaving={isSaving}
-                saved={saved}
-                label={t(`${K}.actions.write`)}
-                disabled={!canWrite}
-                size="action"
               />
+              {/* Hidden while a field error owns the message, so two sentences never contradict. */}
+              {!shapeError && !luhnError ? (
+                <span id="imei-write-status" aria-live="polite">
+                  {isEmpty
+                    ? t(`${K}.status.empty`)
+                    : hasChanged
+                      ? t(`${K}.status.ready`)
+                      : null}
+                </span>
+              ) : null}
             </>
+          }
+          actions={
+            <SaveButton
+              type="submit"
+              form={formId}
+              isSaving={isSaving}
+              saved={saved}
+              label={t(`${K}.actions.write`)}
+              disabled={!canWrite}
+              size="action"
+            />
           }
         />
       )}
 
-      {/* Deferred-reboot dialog. "Later" is a real answer that is RECORDED —
-          it hands the pending state up to the page, which then keeps the
-          `deferred-reboot` banner on screen until the modem actually restarts.
+      {/* Deferred-reboot dialog. "Later" is a real answer that is RECORDED:
+          the page sets the app-wide pending-reboot flag, so the shell's
+          deferred-reboot banner stays on every route until the modem restarts.
           Nothing reboots inline: the app is served by the device it restarts. */}
-      <AlertDialog open={rebootOpen} onOpenChange={setRebootOpen}>
+      <AlertDialog open={rebootOpen} onOpenChange={handleRebootDialogChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -378,10 +343,10 @@ const IMEISettingsCard = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleRebootLater}>
+            <AlertDialogCancel>
               {t("core_settings.imei.reboot.dialog.later")}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={onRebootNow}>
+            <AlertDialogAction onClick={handleRebootNow}>
               {t("core_settings.imei.reboot.dialog.now")}
             </AlertDialogAction>
           </AlertDialogFooter>

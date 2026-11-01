@@ -207,5 +207,13 @@
   "port_in_use": "That port is already used by another service.",
   "token_generation_failed": "Couldn't create a secure token. Try again.",
   "poller_not_running": "The background service did not respond, try again in a moment",
-  "reset_failed": "Could not reset the counter"
+  "reset_failed": "Could not reset the counter",
+  "cops_detach_failed": "The modem couldn't detach from the network, so nothing was changed. Try again.",
+  "cops_attach_failed": "The modem didn't confirm it re-registered with the network. Check the connection; the change may still have applied.",
+  "apn_mismatch": "The network assigned a different APN than the one you requested. Check the APN name and try again.",
+  "apn_busy": "Another APN change is already in progress. Try again in a moment.",
+  "cgact_failed": "Couldn't switch this connection on or off. Try again.",
+  "invalid_index": "Invalid profile slot. Choose a number from 1 to 6.",
+  "qicsgp_failed": "Couldn't save the APN sign-in settings (username, password and authentication type). Try again.",
+  "internal_error": "Something went wrong inside QManager. Try again."
 }

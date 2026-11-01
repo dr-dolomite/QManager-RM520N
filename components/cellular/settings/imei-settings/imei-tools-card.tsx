@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -41,7 +40,6 @@ import { cn } from "@/lib/utils";
 
 import SettingRow from "../setting-row";
 import {
-  BADGE_GLYPH_SIZE,
   BREAKDOWN,
   CARD_BODY_FILL,
   CARD_PAD,
@@ -59,7 +57,6 @@ import {
   SECTION_LABEL,
   SELECT_TRIGGER,
   SETTING_ROW,
-  SETTING_ROW_DIRTY,
 } from "../shapes";
 
 // =============================================================================
@@ -113,6 +110,9 @@ const IMEIToolsCard = () => {
   const isComplete = /^\d{15}$/.test(candidate);
   const isLuhnValid = isComplete && validateImei(candidate);
   const breakdown = isComplete ? parseImeiBreakdown(candidate) : null;
+  const luhnLabel = isLuhnValid
+    ? t(`${K}.check.valid`)
+    : t(`${K}.check.invalid`);
 
   const handleGenerate = () => {
     if (!isValidPrefix) return;
@@ -186,7 +186,10 @@ const IMEIToolsCard = () => {
                 not tab into a field they cannot see. The divider travels INSIDE
                 the clip, so the collapsed group has no dangling hairline. */}
             <div
-              className={cn(REVEAL.ROOT, isCustom ? REVEAL.OPEN : REVEAL.CLOSED)}
+              className={cn(
+                REVEAL.ROOT,
+                isCustom ? REVEAL.OPEN : REVEAL.CLOSED,
+              )}
             >
               <div
                 className={REVEAL.CLIP}
@@ -252,15 +255,6 @@ const IMEIToolsCard = () => {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className={SECTION_LABEL}>{t(`${K}.check.label`)}</span>
-            {isComplete ? (
-              <Badge variant={isLuhnValid ? "success" : "destructive"}>
-                <MaterialSymbol
-                  name={isLuhnValid ? "check_circle" : "cancel"}
-                  size={BADGE_GLYPH_SIZE}
-                />
-                {isLuhnValid ? t(`${K}.check.valid`) : t(`${K}.check.invalid`)}
-              </Badge>
-            ) : null}
           </div>
 
           {/* ONE ROW, ONE BOX. The field and the two things you can do to the
@@ -383,12 +377,33 @@ const IMEIToolsCard = () => {
                       {breakdown.snr}
                     </span>
                   </div>
-                  {/* The accent cell — see `BREAKDOWN.CELL_ACCENT` for why the
-                      check digit is the one that gets promoted. */}
-                  <div className={cn(BREAKDOWN.CELL, BREAKDOWN.CELL_ACCENT)}>
-                    <span className={SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL}>
-                      {t(`${K}.breakdown.check`)}
-                    </span>
+                  {/* The verdict cell — see `BREAKDOWN.CELL_VALID` for why the
+                      check digit is the one that carries it. */}
+                  <div
+                    className={cn(
+                      BREAKDOWN.CELL,
+                      BREAKDOWN.CELL_NEUTRAL,
+                      isLuhnValid
+                        ? BREAKDOWN.CELL_VALID
+                        : BREAKDOWN.CELL_INVALID,
+                    )}
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                      <span className={SETTING_ROW.CONSEQUENCE}>
+                        {t(`${K}.breakdown.check`)}
+                      </span>
+                      <span
+                        className={cn(
+                          SETTING_ROW.CONSEQUENCE,
+                          "font-medium",
+                          isLuhnValid
+                            ? "text-success-on-surface"
+                            : "text-destructive-on-surface",
+                        )}
+                      >
+                        {luhnLabel}
+                      </span>
+                    </div>
                     <span className={READOUT_ROW.VALUE_MONO}>
                       {breakdown.checkDigit}
                     </span>

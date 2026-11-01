@@ -207,5 +207,13 @@
   "port_in_use": "Questa porta è già usata da un altro servizio.",
   "token_generation_failed": "Impossibile creare un token sicuro. Riprova.",
   "poller_not_running": "Il servizio in background non ha risposto, riprova tra poco",
-  "reset_failed": "Impossibile reimpostare il contatore"
+  "reset_failed": "Impossibile reimpostare il contatore",
+  "cops_detach_failed": "Il modem non è riuscito a disconnettersi dalla rete, quindi non è stato modificato nulla. Riprova.",
+  "cops_attach_failed": "Il modem non ha confermato di essersi registrato di nuovo alla rete. Controlla la connessione; la modifica potrebbe comunque essere stata applicata.",
+  "apn_mismatch": "La rete ha assegnato un APN diverso da quello richiesto. Controlla il nome dell'APN e riprova.",
+  "apn_busy": "È già in corso un'altra modifica dell'APN. Riprova tra un momento.",
+  "cgact_failed": "Impossibile attivare o disattivare questa connessione. Riprova.",
+  "invalid_index": "Slot del profilo non valido. Scegli un numero da 1 a 6.",
+  "qicsgp_failed": "Impossibile salvare le impostazioni di accesso dell'APN (nome utente, password e tipo di autenticazione). Riprova.",
+  "internal_error": "Si è verificato un problema interno in QManager. Riprova."
 }

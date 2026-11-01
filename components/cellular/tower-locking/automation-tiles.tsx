@@ -1,20 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+import { HintIcon } from "@/components/ui/hint-icon";
+import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
+import { SegmentedField } from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +27,7 @@ import {
 } from "@/types/tower-locking";
 
 import ScheduleTile from "./schedule-tile";
+import { writeTowerSettings, type UpdateTowerSettings } from "./settings-write";
 import {
   AUTO_GRID,
   AUTO_METER,
@@ -38,110 +35,66 @@ import {
   BADGE_GLYPH_SIZE,
   FAILOVER_BADGE,
   FIELD_CONTROL,
-  HERO_HELP_BUTTON,
+  METER_BARS,
   PERSIST_BADGE,
   SKELETON_SHAPE,
-  SWITCH_TARGET,
+  discTone,
   failoverKey,
+  meterBarColor,
+  meterBarHeight,
+  meterBarLit,
   lockPresence,
   persistPosture,
+  type TowerFailoverKey,
+  type TowerPersistPosture,
 } from "./shapes";
 
 // =============================================================================
-// TowerAutomationTiles — "While nobody is watching"
+// TowerAutomationTiles — what the lock does while nobody is watching
 // =============================================================================
-// THREE ANSWERS TO ONE QUESTION.
-//
-// Persistence, signal failover and the schedule used to be three separate
-// objects: two rows buried at the foot of the old hero's rail, and a whole card
-// of its own sitting in a 2-up grid as the orphaned third cell beside empty
-// space. Nothing said they were related, and the schedule in particular read as
-// a feature parked wherever there happened to be room.
-//
-// They are all the same question — WHAT DOES THIS LOCK DO WHEN NOBODY IS
-// LOOKING? — asked about three different absences: across a reboot, during a
-// signal collapse, and on a clock. Grouping them is what turns "three settings"
-// into one thing a reader can hold.
-//
-// -----------------------------------------------------------------------------
-// THEY SIT SECOND, AND THEY USED TO BE THE PAGE'S LAST CARD
-// -----------------------------------------------------------------------------
-// The earlier order was: see where you are, choose where to point, then decide
-// what happens unattended. That is the FIRST SESSION, and only the first. After
-// one setup the target rarely moves, while everything a returning reader wants is
-// here — does the lock survive a reboot, is the safety net armed, is the window
-// still right. Putting these directly under "Right now", and the three-field
-// forms below them, matches how the page is actually used.
-//
-// This component renders NO CARD SHELL AND NO HEADER. It is the body of
-// `TOWER_SECTION`, a section the page coordinator owns along with its
-// `SECTION_HEAD` title and description — so the two sections on this surface
-// cannot drift apart in header geometry. Nesting a `Card` here would put a card
-// inside a section for no gain.
-//
-// THESE TILES ARE NOT INSIDE THE HERO. They were, for one revision, and
-// `AUTO_GRID` still carried a `@container/hero` query from it. Both sections now
-// declare `@container/section` instead, so the grid responds to whichever one is
-// hosting it without this file having to know which — see `AUTO_GRID`. Nothing
-// here imports a container name, which is the point.
-//
-// -----------------------------------------------------------------------------
-// WHY FAILOVER BELONGS HERE AND NOT ON A LEG CARD
-// -----------------------------------------------------------------------------
-// `qmanager_tower_failover` releases BOTH radios when it fires, and it has only
-// one device-wide RSRP to work from (`.lte.rsrp` falling back to `.nr.rsrp`) —
-// there is no per-leg quality figure anywhere in the pipeline. Rendering it
-// inside the LTE card would claim it protects LTE; it protects the modem.
-//
-// -----------------------------------------------------------------------------
-// TWO CHANNELS PER SETTING, AND THEY CAN DISAGREE
-// -----------------------------------------------------------------------------
-// The persistence tile keeps its CHIP and its SWITCH in the same tile, and that
-// pairing is load-bearing rather than tidy. `AT+QNWLOCK="save_ctrl",v,v` writes
-// ONE value to both radios but reads them back independently, so a modem can
-// report `1,0`. The chip reports what the MODEM says; the switch drives what the
-// CONFIG says. When they disagree, the `split` chip is the only thing on screen
-// that would tell you — which is only true while the two sit together.
-//
-// These three are the only switches on this surface that WRITE ANYTHING TO THE
-// MODEM, and that is deliberate. Each is a setting that saves the instant it
-// moves. The leg cards' "Tower lock" switches were retired because they were not
-// settings: they wrote whatever was sitting unsaved in a form and bounced the
-// link for 3-5 seconds, which is a button's job.
-//
-// The leg cards do each keep one more switch — Simple Mode — and it is not a
-// counter-example: it writes `localStorage` and swaps an input for a picker,
-// touching neither the modem nor the config. So a switch on this page means one
-// of exactly two things, and never "perform a write and hope the form was
-// right".
+// Failover, schedule and keep-after-reboot, each showing the SAVED state (config) and, where the modem has one, the
+// LIVE state. Keep-after-reboot is one modem-wide switch: `save_ctrl,v,v` writes both radios.
 // =============================================================================
+
+const K = "tower_locking";
+
+/** Quiet time after the last slider/keystroke before the threshold is saved. */
+const THRESHOLD_AUTOSAVE_MS = 1500;
+
+const FAILOVER_STATE_LABEL: Record<TowerFailoverKey, string> = {
+  disabled: `${K}.automation.failover_state_disabled`,
+  ready: `${K}.automation.failover_state_ready`,
+  watching: `${K}.automation.failover_state_watching`,
+  released: `${K}.automation.failover_state_released`,
+  stalled: `${K}.automation.failover_state_stalled`,
+  unknown: `${K}.automation.failover_state_unknown`,
+};
+
+const PERSIST_STATE_LABEL: Record<TowerPersistPosture, string> = {
+  on: `${K}.live.persist_state_on`,
+  off: `${K}.live.persist_state_off`,
+  split: `${K}.live.persist_state_split`,
+  unknown: `${K}.live.persist_state_unknown`,
+};
+
+const renderCheckGlyph = (className: string) => (
+  <MaterialSymbol
+    name="check"
+    size={16}
+    className={className}
+    aria-hidden="true"
+  />
+);
 
 export interface TowerAutomationTilesProps {
   config: TowerLockConfig | null;
-  /** The AT read-back. Drives the persistence chip; `null` = never read. */
   modemState: TowerModemState | null;
   failover: TowerFailoverState | null;
-  /** Persist as the CONFIG believes it. The chip reports the MODEM instead. */
-  configPersist: boolean;
-  /**
-   * The configured release threshold, or `null` when NOBODY HAS READ ONE.
-   *
-   * It is nullable on purpose. The coordinator used to substitute a hardcoded
-   * `20` for a missing value, which rendered in this input as a confident
-   * two-digit number — including in the error state, where `status.sh` had
-   * failed all three retries and nothing had been read at all. A reader has no
-   * way to tell a fabricated default from a real setting, and this one gates
-   * whether the modem drops a lock. DESIGN.md's State-Honesty Rule: a missing
-   * reading is an EMPTY field, never a plausible-looking value.
-   */
-  failoverThreshold: number | null;
-  /** RSRP of the leg the modem is registered on — the figure failover gates. */
+  /** RSRP of the leg the modem is registered on; null when unreported. */
   activeRsrp: number | null;
   isLoading: boolean;
-  isSavingFailover: boolean;
-  onTogglePersist: (enabled: boolean) => Promise<boolean>;
-  onToggleFailover: (enabled: boolean) => Promise<boolean>;
-  onThresholdChange: (threshold: number) => Promise<boolean>;
+  isSavingSettings: boolean;
+  onUpdateSettings: UpdateTowerSettings;
   onScheduleChange: (
     schedule: TowerScheduleConfig,
   ) => Promise<TowerScheduleSaveResult>;
@@ -151,127 +104,147 @@ export function TowerAutomationTiles({
   config,
   modemState,
   failover,
-  configPersist,
-  failoverThreshold,
   activeRsrp,
   isLoading,
-  isSavingFailover,
-  onTogglePersist,
-  onToggleFailover,
-  onThresholdChange,
+  isSavingSettings,
+  onUpdateSettings,
   onScheduleChange,
 }: TowerAutomationTilesProps) {
   const { t } = useTranslation("cellular");
-  const { saved, markSaved } = useSaveFlash();
 
-  // --- Failover threshold -----------------------------------------------------
-  // Local string state so a half-typed value is never sent, synced from props by
-  // render-time adjustment rather than an effect.
-  /**
-   * An unread threshold is the EMPTY STRING, and stays empty until the user
-   * types — see the prop's contract. The empty case is not "invalid input", it
-   * is "no reading", so it gets its own branch everywhere below rather than
-   * falling into the 0–100 error copy.
-   */
-  const thresholdText = failoverThreshold === null ? "" : String(failoverThreshold);
-  const [thresholdInput, setThresholdInput] = useState(thresholdText);
-  const [prevThreshold, setPrevThreshold] = useState(failoverThreshold);
-  if (failoverThreshold !== prevThreshold) {
-    setPrevThreshold(failoverThreshold);
-    setThresholdInput(thresholdText);
+  // `null`, never a default: an unread threshold is an empty field.
+  const savedThreshold = config ? config.failover.threshold : null;
+  const savedText = savedThreshold === null ? "" : String(savedThreshold);
+  const [thresholdInput, setThresholdInput] = useState(savedText);
+  const [prevThreshold, setPrevThreshold] = useState(savedThreshold);
+  if (savedThreshold !== prevThreshold) {
+    setPrevThreshold(savedThreshold);
+    // Adopt the saved value only while the draft is untouched: a draft that moved on while the save was in flight is
+    // newer than the echo.
+    const prevText = prevThreshold === null ? "" : String(prevThreshold);
+    if (thresholdInput === prevText) setThresholdInput(savedText);
   }
+
+  const savingRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef = useRef({ config, onUpdateSettings, t });
+  useEffect(() => {
+    latestRef.current = { config, onUpdateSettings, t };
+  });
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    },
+    [],
+  );
 
   const parsedThreshold = Number.parseInt(thresholdInput, 10);
   const thresholdValid =
-    !Number.isNaN(parsedThreshold) &&
+    /^\d{1,3}$/.test(thresholdInput.trim()) &&
     parsedThreshold >= 0 &&
     parsedThreshold <= 100;
-  const thresholdDirty = thresholdInput !== thresholdText;
-  /** Blank is UNREAD, not wrong. Only a typed value can be out of range. */
   const thresholdBlank = thresholdInput.trim() === "";
   const thresholdErrored = !thresholdBlank && !thresholdValid;
-  /**
-   * Blank AND nothing was ever read. A user who clears a real reading to retype
-   * it is also blank, and telling THEM the modem never answered would be a
-   * second fabrication in the opposite direction — so the note is gated on the
-   * PROP, not on the box.
-   */
-  const thresholdUnread = thresholdBlank && failoverThreshold === null;
+  const thresholdUnread = savedThreshold === null;
 
-  const handleThresholdSave = async () => {
-    if (!thresholdValid) return;
-    const ok = await onThresholdChange(parsedThreshold);
-    if (ok) {
-      markSaved();
-      toast.success(t("tower_locking.live.threshold_toast_saved"));
-    } else {
-      toast.error(t("tower_locking.live.threshold_toast_error"));
-    }
+  const handlePersist = async (next: boolean) => {
+    if (!config || next === config.persist) return;
+    await writeTowerSettings(
+      t,
+      onUpdateSettings,
+      { persist: next },
+      next
+        ? t(`${K}.live.persist_toast_enabled`)
+        : t(`${K}.live.persist_toast_disabled`),
+    );
   };
 
-  const handlePersist = async (checked: boolean) => {
-    const ok = await onTogglePersist(checked);
-    if (ok) {
-      toast.success(
-        checked
-          ? t("tower_locking.live.persist_toast_enabled")
-          : t("tower_locking.live.persist_toast_disabled"),
+  const handleFailover = async (next: boolean) => {
+    if (!config || next === config.failover.enabled) return;
+    await writeTowerSettings(
+      t,
+      onUpdateSettings,
+      { failover: { enabled: next } },
+      next
+        ? t(`${K}.toast.failover_enabled`)
+        : t(`${K}.toast.failover_disabled`),
+    );
+  };
+
+  // Commits the draft once the user stops moving the slider or typing; Enter
+  // commits at once. Invalid or unchanged drafts never write.
+  const commitThreshold = async (text: string) => {
+    const { config: cfg, onUpdateSettings: update, t: tr } = latestRef.current;
+    const value = Number.parseInt(text, 10);
+    if (!cfg || !/^\d{1,3}$/.test(text.trim()) || value < 0 || value > 100) {
+      return;
+    }
+    if (value === cfg.failover.threshold) return;
+    // One write at a time; a newer draft waits for the in-flight one to land.
+    if (savingRef.current) {
+      saveTimerRef.current = setTimeout(() => void commitThreshold(text), 250);
+      return;
+    }
+    savingRef.current = true;
+    try {
+      const landed = await writeTowerSettings(
+        tr,
+        update,
+        { failover: { threshold: value } },
+        tr(`${K}.toast.threshold_saved`),
       );
-    } else {
-      toast.error(t("tower_locking.live.persist_toast_error"));
+      // A failed write leaves the control showing a value the modem never took;
+      // put it back unless the user has already moved on.
+      if (!landed) {
+        const restored = String(cfg.failover.threshold);
+        setThresholdInput((cur) => (cur === text ? restored : cur));
+      }
+    } finally {
+      savingRef.current = false;
     }
   };
 
-  const handleFailover = async (checked: boolean) => {
-    const ok = await onToggleFailover(checked);
-    if (ok) {
-      toast.success(
-        checked
-          ? t("tower_locking.live.failover_toast_enabled")
-          : t("tower_locking.live.failover_toast_disabled"),
-      );
-    } else {
-      toast.error(t("tower_locking.live.failover_toast_error"));
-    }
+  const editThreshold = (text: string, immediate = false) => {
+    setThresholdInput(text);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(
+      () => void commitThreshold(text),
+      immediate ? 0 : THRESHOLD_AUTOSAVE_MS,
+    );
   };
 
-  /**
-   * Does a lock exist for failover to guard?
-   *
-   * THIS WAS `(lte_locked ?? false) || (nr_locked ?? false)` — the one consumer
-   * of the three lock booleans with no `read_ok` guard, in a file that got the
-   * guard everywhere else. `status.sh` seeds `lte_locked="false"` before it asks
-   * the modem anything, so a failed `AT+QNWLOCK` read reached `failoverKey` as
-   * a confident "not locked" and the chip answered `standby` — "no lock to
-   * guard" — about a modem that may well be locked.
-   *
-   * A boolean could not hold the fix: on a failed read the seed and the truth
-   * are the same value. `lockPresence` is the tri-state, and `unknown` is a
-   * chip state of its own.
-   */
   const presence = lockPresence(modemState);
-
   const failState = failoverKey(
     failover ?? { enabled: false, activated: false, watcher_running: false },
     presence,
   );
   const failBadge = FAILOVER_BADGE[failState];
-
+  const failLabel = t(FAILOVER_STATE_LABEL[failState]);
   const persistState = persistPosture(modemState);
   const persistBadge = PERSIST_BADGE[persistState];
 
   const qualityPct =
     activeRsrp === null ? null : rsrpToQualityPercent(activeRsrp);
+  const qualityLabel =
+    qualityPct === null
+      ? t(`${K}.automation.quality_unknown`)
+      : t(`${K}.automation.quality_value`, { value: qualityPct });
 
   if (isLoading) {
     return (
       <div className={AUTO_GRID}>
-        {[0, 1, 2].map((i) => (
+        {[0, 1].map((i) => (
           <Skeleton key={i} className={SKELETON_SHAPE.AUTO_TILE} />
         ))}
+        <Skeleton className={`${SKELETON_SHAPE.PERSIST_TILE} ${AUTO_TILE.WIDE}`} />
       </div>
     );
   }
+
+  const controlsDisabled = !config || isSavingSettings;
+  // The threshold stays live during its own autosave: disabling it mid-drag
+  // drops the thumb and snaps it to the last saved value.
+  const thresholdDisabled = !config;
 
   return (
     <motion.div
@@ -280,187 +253,193 @@ export function TowerAutomationTiles({
       animate="visible"
       variants={staggerRows}
     >
-      {/* --- Survive a reboot ---------------------------------------------- */}
+      {/* --- Signal failover (whole modem, both radios) ------------------- */}
       <motion.div variants={staggerRowItem} className={AUTO_TILE.ROOT}>
         <div className={AUTO_TILE.HEAD}>
-          <span className={AUTO_TILE.DISC} aria-hidden="true">
-            <MaterialSymbol name="restart_alt" size={20} />
+          <span
+            role="img"
+            aria-label={failLabel}
+            title={failLabel}
+            className={`${AUTO_TILE.DISC} ${discTone(failBadge.variant)}`}
+          >
+            <MaterialSymbol name="shield" size={20} aria-hidden="true" />
           </span>
           <span className={AUTO_TILE.TITLE}>
-            {t("tower_locking.live.persist_label")}
+            {t(`${K}.automation.failover_label`)}
           </span>
-          <Switch
-            id="tower-persist"
-            checked={configPersist}
-            onCheckedChange={handlePersist}
-            aria-label={t("tower_locking.live.persist_label")}
-            className={`${SWITCH_TARGET} ml-auto`}
-          />
+          <HintIcon label={t(`${K}.automation.failover_help_label`)}>
+            {t(`${K}.automation.failover_help`)}
+          </HintIcon>
+          <div className="ml-auto" role="group">
+            <SegmentedField
+              value={config?.failover.enabled ? "on" : "off"}
+              onValueChange={(v) => void handleFailover(v === "on")}
+              options={[
+                { value: "off", label: t("state.off", { ns: "common" }) },
+                { value: "on", label: t("state.on", { ns: "common" }) },
+              ]}
+              ariaLabel={t(`${K}.automation.failover_label`)}
+              disabled={controlsDisabled}
+              breakpoint="never"
+              glyph={renderCheckGlyph}
+            />
+          </div>
         </div>
 
-        {/* The MODEM's read-back, which is not necessarily what the config file
-            believes. `split` is a real reportable fault. */}
-        <Badge variant={persistBadge.variant} className="self-start">
-          <MaterialSymbol name={persistBadge.glyph} size={BADGE_GLYPH_SIZE} />
-          {t(`tower_locking.live.persist_state_${persistState}`)}
-        </Badge>
-
-        <p className={`${AUTO_TILE.FOOT} ${AUTO_TILE.BODY}`}>
-          {persistState === "split"
-            ? t("tower_locking.live.persist_split_help")
-            : t("tower_locking.live.persist_help")}
-        </p>
-      </motion.div>
-
-      {/* --- Release on bad signal ----------------------------------------- */}
-      <motion.div variants={staggerRowItem} className={AUTO_TILE.ROOT}>
-        <div className={AUTO_TILE.HEAD}>
-          <span className={AUTO_TILE.DISC} aria-hidden="true">
-            <MaterialSymbol name="shield" size={20} />
-          </span>
-          <span className={AUTO_TILE.TITLE}>
-            {t("tower_locking.live.failover_label")}
-          </span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t("tower_locking.live.failover_help_label")}
-                className={HERO_HELP_BUTTON}
-              >
-                <MaterialSymbol name="info" size={18} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-72">
-              <p>{t("tower_locking.live.failover_help")}</p>
-            </TooltipContent>
-          </Tooltip>
-          <Switch
-            id="tower-failover"
-            checked={failover?.enabled ?? false}
-            onCheckedChange={handleFailover}
-            disabled={isSavingFailover}
-            aria-label={t("tower_locking.live.failover_label")}
-            className={`${SWITCH_TARGET} ml-auto`}
-          />
-        </div>
-
-        <Badge variant={failBadge.variant} className="self-start">
-          <MaterialSymbol name={failBadge.glyph} size={BADGE_GLYPH_SIZE} />
-          {t(`tower_locking.live.failover_state_${failState}`)}
-        </Badge>
+        {/* Locking never turns failover on by itself. */}
+        {presence === "present" && failState === "disabled" ? (
+          <p className={AUTO_TILE.BODY}>
+            {t(`${K}.automation.failover_hint`)}
+          </p>
+        ) : null}
 
         <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <InputGroup host="container" className={`${FIELD_CONTROL} w-[6.5rem]`}>
-              <InputGroupInput
+          <label
+            htmlFor="tower-failover-threshold"
+            className={AUTO_TILE.BODY}
+          >
+            {t(`${K}.automation.threshold_label`)}
+          </label>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="relative w-[6.5rem]">
+              <Input
                 id="tower-failover-threshold"
                 inputMode="numeric"
+                autoComplete="off"
+                host="container"
                 value={thresholdInput}
-                onChange={(e) => setThresholdInput(e.target.value)}
+                onChange={(e) => editThreshold(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleThresholdSave();
+                  if (e.key === "Enter") editThreshold(thresholdInput, true);
                 }}
-                /* An empty box is not a mistake the user made — it is the modem
-                   failing to answer — so it carries no destructive ring and no
-                   error copy, only the unread note wired in below. */
+                disabled={thresholdDisabled}
                 aria-invalid={thresholdErrored || undefined}
-                aria-label={t("tower_locking.live.threshold_label")}
                 aria-describedby={
                   thresholdErrored
-                    ? "tower-failover-threshold-error"
+                    ? "tower-failover-threshold-note"
                     : thresholdUnread
-                      ? "tower-failover-threshold-unread"
+                      ? "tower-failover-threshold-note"
                       : undefined
                 }
-                placeholder={t("tower_locking.live.tile_no_value")}
-                className="text-center font-mono tabular-nums"
+                placeholder={t(`${K}.live.tile_no_value`)}
+                className={`${FIELD_CONTROL} pr-8 text-center`}
               />
-              <InputGroupAddon align="inline-end" className="text-on-surface-variant">
-                <MaterialSymbol name="percent" size={16} />
-              </InputGroupAddon>
-            </InputGroup>
-            {thresholdDirty || saved ? (
-              <SaveButton
-                onClick={handleThresholdSave}
-                isSaving={false}
-                saved={saved}
-                label={t("common:actions.update")}
-                /* Was a bare `disabled`: an unexplained grey pill that appeared
-                   the moment the box went dirty and gave no reason. The two ways
-                   to be unsaveable are different problems and now say so. */
-                blockedReason={
-                  thresholdBlank
-                    ? t("tower_locking.blocked.threshold_empty")
-                    : thresholdValid
-                      ? null
-                      : t("tower_locking.live.threshold_invalid")
-                }
-                size="action"
-              />
-            ) : null}
-          </div>
-          <label htmlFor="tower-failover-threshold" className={AUTO_TILE.BODY}>
-            {t("tower_locking.live.threshold_label")}
-          </label>
-        </div>
-
-        {thresholdErrored ? (
-          <p
-            id="tower-failover-threshold-error"
-            role="alert"
-            className="text-destructive-on-surface text-xs"
-          >
-            {t("tower_locking.live.threshold_invalid")}
-          </p>
-        ) : null}
-
-        {/* NOT an error, and deliberately not styled as one: the field is empty
-            because the read failed, which is the modem's problem and not the
-            reader's. Saying so is what stops the blank box reading as a bug. */}
-        {thresholdUnread ? (
-          <p
-            id="tower-failover-threshold-unread"
-            className="text-on-surface-variant text-xs"
-          >
-            {t("tower_locking.live.threshold_unread")}
-          </p>
-        ) : null}
-
-        {/* The threshold and the reading it gates, on ONE track. A "35%" in a
-            box says nothing until you can see the modem is at 93%; the previous
-            layout put them in two rows four apart. */}
-        <div className={`${AUTO_TILE.FOOT} flex flex-col gap-1.5`}>
-          <div className={AUTO_METER.ROOT}>
-            <div className={AUTO_METER.TRACK}>
-              <div
-                className={`${AUTO_METER.FILL} bg-primary`}
-                style={{ transform: `scaleX(${(qualityPct ?? 0) / 100})` }}
-              />
-            </div>
-            {thresholdValid ? (
               <span
                 aria-hidden="true"
-                className={AUTO_METER.MARK}
-                style={{ left: `${parsedThreshold}%` }}
-              />
-            ) : null}
+                className="text-on-surface-variant pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm"
+              >
+                %
+              </span>
+            </div>
+            <Slider
+              aria-label={t(`${K}.automation.threshold_label`)}
+              min={0}
+              max={100}
+              step={1}
+              value={[thresholdValid ? parsedThreshold : 0]}
+              onValueChange={([v]) => editThreshold(String(v))}
+              disabled={thresholdDisabled}
+              className="min-w-32 flex-1"
+            />
           </div>
-          <span className={AUTO_TILE.BODY}>
-            {t("tower_locking.live.quality_label")}
-            {": "}
-            <span className="tabular-nums">
-              {qualityPct === null
-                ? t("tower_locking.live.quality_unknown")
-                : t("tower_locking.live.quality_value", { value: qualityPct })}
-            </span>
-          </span>
+          {thresholdErrored ? (
+            <p
+              id="tower-failover-threshold-note"
+              role="alert"
+              className="text-destructive-on-surface text-xs"
+            >
+              {t(`${K}.automation.threshold_invalid`)}
+            </p>
+          ) : thresholdUnread ? (
+            <p
+              id="tower-failover-threshold-note"
+              className="text-on-surface-variant text-xs"
+            >
+              {t(`${K}.automation.threshold_unread`)}
+            </p>
+          ) : null}
+        </div>
+
+        {/* The live reading on the quality ramp; the notch is the threshold. */}
+        <div className={AUTO_TILE.FOOT}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                role="img"
+                tabIndex={0}
+                aria-label={qualityLabel}
+                className={`${AUTO_METER.ROOT} focus-visible:ring-ring rounded-field outline-none focus-visible:ring-[3px]`}
+              >
+                <div className={AUTO_METER.BARS} aria-hidden="true">
+                  {Array.from({ length: METER_BARS }, (_, i) => (
+                    <span
+                      key={i}
+                      className={AUTO_METER.BAR}
+                      style={{
+                        height: meterBarHeight(i),
+                        backgroundColor: meterBarColor(
+                          i,
+                          meterBarLit(i, qualityPct),
+                        ),
+                      }}
+                    />
+                  ))}
+                </div>
+                {thresholdValid ? (
+                  <span
+                    aria-hidden="true"
+                    className={AUTO_METER.NOTCH}
+                    style={{ left: `${parsedThreshold}%` }}
+                  />
+                ) : null}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>{qualityLabel}</TooltipContent>
+          </Tooltip>
         </div>
       </motion.div>
 
-      {/* --- On a clock ---------------------------------------------------- */}
       <motion.div variants={staggerRowItem} className="h-full">
         <ScheduleTile config={config} onScheduleChange={onScheduleChange} />
+      </motion.div>
+
+      {/* --- Keep after reboot (modem-wide). The switch drives the CONFIG;
+          the chip reports the MODEM, so a split read-back stays visible. --- */}
+      <motion.div
+        variants={staggerRowItem}
+        className={`${AUTO_TILE.ROOT} ${AUTO_TILE.WIDE}`}
+      >
+        <div className={AUTO_TILE.HEAD}>
+          <span className={`${AUTO_TILE.DISC} ${AUTO_TILE.DISC_NEUTRAL}`}>
+            <MaterialSymbol name="restart_alt" size={20} aria-hidden="true" />
+          </span>
+          <span className={AUTO_TILE.TITLE}>
+            {t(`${K}.live.persist_label`)}
+          </span>
+          <Badge variant={persistBadge.variant}>
+            <MaterialSymbol name={persistBadge.glyph} size={BADGE_GLYPH_SIZE} />
+            {t(PERSIST_STATE_LABEL[persistState])}
+          </Badge>
+          <div className="ml-auto" role="group">
+            <SegmentedField
+              value={config?.persist ? "on" : "off"}
+              onValueChange={(v) => void handlePersist(v === "on")}
+              options={[
+                { value: "off", label: t("state.off", { ns: "common" }) },
+                { value: "on", label: t("state.on", { ns: "common" }) },
+              ]}
+              ariaLabel={t(`${K}.live.persist_label`)}
+              disabled={controlsDisabled}
+              breakpoint="never"
+              glyph={renderCheckGlyph}
+            />
+          </div>
+        </div>
+        <p className={AUTO_TILE.BODY}>
+          {persistState === "split"
+            ? t(`${K}.live.persist_split_help`)
+            : t(`${K}.live.persist_help`)}
+        </p>
       </motion.div>
     </motion.div>
   );

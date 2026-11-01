@@ -277,7 +277,9 @@
       "lock_error": "无法应用 {{category}} 频段锁定",
       "unlock_error": "无法恢复 {{category}} 频段",
       "refresh_error": "无法刷新频段配置",
-      "none_selected": "请至少选择一个要锁定的频段"
+      "none_selected": "请至少选择一个要锁定的频段",
+      "locked_success": "{{category_label}} 频段锁定成功",
+      "unlocked_success": "{{category_label}} 频段已解锁"
     },
     "a11y": {
       "applying": "正在应用 {{category}} 频段锁定…",
@@ -286,6 +288,109 @@
       "band_selected": "{{band}}，已选择",
       "band_unselected": "{{band}}，未选择",
       "band_live": "{{band}}，已选择并在调制解调器上生效"
+    },
+    "settings_card": {
+      "band_failover_label": "频段故障转移",
+      "band_failover_tooltip": "如果锁定的频段在约 30 秒内没有信号，调制解调器将恢复使用所有支持的频段。",
+      "band_failover_info_aria": "频段故障转移说明",
+      "status": {
+        "disabled": "已禁用",
+        "ready": "就绪",
+        "fallback": "回退生效中",
+        "monitoring": "检查中"
+      },
+      "toast": {
+        "failover_enabled": "频段故障转移已启用",
+        "failover_disabled": "频段故障转移已禁用"
+      }
+    },
+    "cards": {
+      "lte": {
+        "title": "LTE 频段锁定",
+        "description": "选择要为您的设备锁定的 LTE 频段。"
+      },
+      "nsa_nr5g": {
+        "title": "NSA 频段锁定",
+        "description": "选择要锁定的 5G NSA 频段（通过 LTE 锚点的 5G）。"
+      },
+      "sa_nr5g": {
+        "title": "SA 频段锁定",
+        "description": "选择要锁定的 5G SA 频段（独立 5G）。"
+      }
+    },
+    "card_badges": {
+      "bands_locked": "{{locked}} / {{total}} 个频段",
+      "scenario": "由场景控制",
+      "unrestricted": "全部频段",
+      "unavailable": "无法读取",
+      "unknown": "未报告",
+      "profile": "由配置控制"
+    },
+    "card_empty": "调制解调器未报告此类别的支持频段。",
+    "card_buttons": {
+      "lock_selected": "锁定所选频段",
+      "select_all": "全选",
+      "deselect_all": "全不选",
+      "unlock_all": "全部解锁"
+    },
+    "card_live_region": "正在应用 {{category_label}} 频段锁定…",
+    "card_category_label": {
+      "lte": "LTE",
+      "nsa_nr5g": "NSA",
+      "sa_nr5g": "SA"
+    },
+    "scenario_gate_title": "{{scenario}} 场景正在管理您的频段",
+    "scenario_gate_action": "打开场景",
+    "scenario_gate_note": "切换到“均衡”场景即可手动锁定频段。",
+    "read_error_title": "无法读取频段配置",
+    "refresh_blocked_watcher": "请等待故障转移检查完成",
+    "refreshing": "正在读取频段配置…",
+    "legend": {
+      "selected": "已选择",
+      "live": "当前已锁定"
+    },
+    "errors": {
+      "read_failed": "调制解调器未返回频段配置，请稍后重试。",
+      "no_bands": "请至少选择一个频段进行锁定。",
+      "no_supported": "调制解调器尚未报告其支持的频段。",
+      "lock_failed": "无法应用频段锁定。",
+      "failover_failed": "无法更新频段故障转移。"
+    },
+    "status": {
+      "title": "频段状态",
+      "on_air": "当前在用",
+      "on_air_summary_one": "{{count}} 个载波（{{mhz}} MHz）",
+      "on_air_summary_other": "{{count}} 个载波（{{mhz}} MHz）",
+      "on_air_empty_title": "没有在用的载波",
+      "on_air_empty_body": "调制解调器当前未连接到任何小区。",
+      "tile_aria": "{{tech}} 载波，{{role}}",
+      "tech_lte": "LTE",
+      "tech_nr": "5G NR",
+      "mhz": "{{value}} MHz",
+      "earfcn": "EARFCN {{value}}",
+      "pci": "PCI {{value}}",
+      "dbm": "{{value}} dBm",
+      "rsrp": "RSRP",
+      "no_value": "–",
+      "quality": {
+        "excellent": "信号极好",
+        "good": "信号良好",
+        "fair": "信号一般",
+        "poor": "信号较差",
+        "none": "无读数"
+      },
+      "posture": "锁定状态",
+      "subtitle_locked": "{{total}} 个类别中有 {{count}} 个已锁定",
+      "subtitle_unrestricted": "所有类别均使用全部频段",
+      "subtitle_unknown": "调制解调器尚未报告其频段",
+      "subtitle_unavailable": "无法读取频段配置",
+      "ratio": "{{count}} / {{total}} 个频段",
+      "ratio_unavailable": "无法读取",
+      "rail_locked": "已锁定",
+      "rail_unrestricted": "全部频段",
+      "rail_unknown": "未报告",
+      "rail_unavailable": "未知",
+      "rail_aria": "{{category}}：{{ratio}}（{{status}}）"
     }
   },
   "cell_scanner": {
@@ -619,7 +724,9 @@
         "save_error": "保存 APN 设置失败",
         "deactivated": "已恢复到运营商默认 APN",
         "deactivate_error": "恢复到运营商默认失败",
-        "reconciling": "正在确认连接是否已恢复…"
+        "reconciling": "正在确认连接是否已恢复…",
+        "saved_not_persisted": "APN 已应用，但无法保存，重启后可能失效。",
+        "deactivated_not_persisted": "已恢复到运营商默认 APN，但无法保存此更改。"
       },
       "controls_label": "APN 配置",
       "managed_by_profile_fallback": "活动的自定义 SIM 配置",
@@ -628,7 +735,12 @@
           "apn": {
             "label": "APN *",
             "placeholder": "fast.t-mobile.com",
-            "error_required": "APN 为必填项"
+            "error_required": "APN 为必填项",
+            "presets": {
+              "trigger": "显示推荐的 APN",
+              "group_network": "适用于此 SIM 卡",
+              "group_mvno": "此网络上的其他品牌"
+            }
           },
           "pdp_type": {
             "label": "PDP 类型",
@@ -699,7 +811,13 @@
         "source_negotiated": "与网络协商的结果",
         "stale": "读数已停止更新",
         "stale_body": "调制解调器状态源近期没有更新。上方的值可能已经不再准确。",
-        "reread": "从调制解调器重新读取"
+        "reread": "从调制解调器重新读取",
+        "mode_label": "模式",
+        "custom": "自定义 APN",
+        "context_label": "数据上下文",
+        "not_connected": "未连接",
+        "matches": "与已保存的 APN 一致",
+        "not_live_note": "网络正在使用的 APN 与已保存的不同。"
       },
       "mbn": {
         "title": "运营商配置文件 (MBN)",
@@ -728,6 +846,16 @@
           "now": "立即重启",
           "rebooting": "正在重启…"
         }
+      },
+      "status": {
+        "carrier_default": "运营商默认",
+        "network_using_label": "网络正在使用",
+        "not_live": "未生效"
+      },
+      "errors": {
+        "load_failed": "调制解调器未返回 APN 设置，请稍后重试。",
+        "save_failed": "无法保存 APN。",
+        "deactivate_failed": "无法切换到运营商默认 APN。"
       }
     },
     "basic": {
@@ -821,7 +949,8 @@
       },
       "footer": {
         "reread": "从调制解调器重新读取",
-        "in_sync": "已保存的设置与调制解调器一致。"
+        "in_sync": "已保存的设置与调制解调器一致。",
+        "refresh": "刷新"
       },
       "strip": {
         "label": "实时状态",
@@ -959,7 +1088,8 @@
           "description": "IMEI 已保存，但在重启之前调制解调器仍会出示原来的 IMEI。重启会中断连接约一分钟。",
           "now": "立即重启",
           "later": "稍后重启"
-        }
+        },
+        "toast_failed": "无法启动重启。重启仍处于待处理状态，可以从横幅中重试。"
       },
       "device": {
         "title": "设备 IMEI",
@@ -983,12 +1113,14 @@
         "status": {
           "empty": "没有可写入的内容，输入框为空。",
           "unchanged": "这已经是调制解调器上的 IMEI。",
-          "ready": "可以写入。在重启之前，调制解调器仍保持当前身份。"
+          "ready": "可以写入。在重启之前，调制解调器仍保持当前身份。",
+          "unchanged_tip_label": "关于对勾标记"
         },
         "actions": {
           "write": "写入 IMEI",
           "reset": "恢复为调制解调器上的 IMEI",
-          "copy": "复制当前 IMEI"
+          "copy": "复制当前 IMEI",
+          "reset_short": "重置"
         },
         "toasts": {
           "saved": "IMEI 已写入，将在下次重启后生效。",
@@ -1221,7 +1353,10 @@
         "deactivated": "已停用 {{name}}",
         "deactivate_error": "停用配置文件失败",
         "deleted": "已删除 {{name}}",
-        "delete_error": "删除配置文件失败"
+        "delete_error": "删除配置文件失败",
+        "activated": "{{name}} 已激活",
+        "activated_partial": "{{name}} 已激活，部分步骤已跳过",
+        "activate_error": "无法激活配置。"
       },
       "delete_title": "删除“{{name}}”？",
       "audit": {
@@ -1232,7 +1367,13 @@
       "locks_bands": "锁定频段",
       "row_menu_aria": "{{name}} 的操作",
       "reapply": "重新应用配置文件",
-      "reapply_hint": "重新应用会再次执行全部四个步骤：APN、TTL 与跳数限制、场景和 IMEI。"
+      "reapply_hint": "重新应用会再次执行全部四个步骤：APN、TTL 与跳数限制、场景和 IMEI。",
+      "mismatch_confirm": {
+        "title": "将“{{name}}”应用到此 SIM 卡？",
+        "description": "此配置文件绑定到另一张 SIM 卡。其设置将立即应用到调制解调器中的 SIM 卡，并在下次重启或更换 SIM 卡时关闭。",
+        "confirm": "应用到此 SIM 卡"
+      },
+      "scenario_scheduled": "{{scenario}}，按每日计划"
     },
     "table": {
       "headers": {
@@ -1526,7 +1667,12 @@
       "failed_notice_title": "配置文件未被应用",
       "reapply_notice": "重新应用会从头再执行整个流程——调制解调器无法只重试单个步骤。",
       "reapply_action": "重新应用配置文件",
-      "reboot_notice_deferred": "此配置文件会写入 IMEI，需要重启才能生效。现在不会重启——准备就绪后会显示提示横幅。"
+      "reboot_notice_deferred": "此配置文件会写入 IMEI，需要重启才能生效。现在不会重启——准备就绪后会显示提示横幅。",
+      "step_state_unchanged": "无变化",
+      "errors": {
+        "start_failed": "无法开始应用配置文件。",
+        "not_started": "配置文件应用未启动，请重试。"
+      }
     },
     "empty_state": {
       "refresh": "刷新",
@@ -1545,7 +1691,9 @@
       "cid": "CID {{cid}}",
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
-      "imei_override": "IMEI 覆盖"
+      "imei_override": "IMEI 覆盖",
+      "apn_prefix": "APN ",
+      "other_sim": "其他 SIM 卡"
     },
     "list": {
       "new_button": "新建",
@@ -1560,6 +1708,9 @@
     "card": {
       "label_iccid": "SIM",
       "label_updated": "更新时间"
+    },
+    "registry": {
+      "error_title": "无法加载您的配置"
     }
   },
   "frequency_locking": {
@@ -2034,7 +2185,9 @@
         "creating": "创建中…",
         "save_changes": "保存更改",
         "saving": "保存中…"
-      }
+      },
+      "description": "频段字段留空即由调制解调器自动选择。",
+      "name_required": "请为场景命名。"
     },
     "active_config": {
       "title": "「{{name}}」配置",
@@ -2053,7 +2206,10 @@
         "lte_bands": "LTE 频段",
         "nr_sa_bands": "NR5G-SA 频段",
         "nr_nsa_bands": "NR5G-NSA 频段"
-      }
+      },
+      "edit": "编辑",
+      "show_details": "显示详情",
+      "hide_details": "隐藏详情"
     },
     "tile": {
       "in_force": "生效中",
@@ -2090,7 +2246,20 @@
       "throughput": "高吞吐",
       "custom": "自定义"
     },
-    "bands_auto": "自动"
+    "bands_auto": "自动",
+    "schedule_lock": {
+      "badge": "已计划",
+      "next_change": "下次切换于 {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "频段锁定"
+    },
+    "errors": {
+      "load_failed": "调制解调器未返回您的场景，请稍后重试。",
+      "activate_failed": "无法激活场景。",
+      "save_failed": "无法保存场景。",
+      "delete_failed": "无法删除场景。"
+    }
   },
   "sms": {
     "page": {
@@ -2449,11 +2618,32 @@
       "verdict_unlocked_body": "调制解调器自行选择小区，并可自由重选。",
       "verdict_unknown_title": "尚未读取",
       "verdict_unknown_body": "尚未从调制解调器回读锁定状态。",
-      "target_serving": "驻留中"
+      "target_serving": "驻留中",
+      "band_channel": "{{band}}（{{channel}}）",
+      "target_pair": "{{channel}}，PCI {{pci}}",
+      "tile_add": "将频段 {{band}}、PCI {{pci}} 加入锁定",
+      "tile_lock": "锁定到频段 {{band}}、PCI {{pci}}",
+      "tile_replace": "改为锁定到频段 {{band}}、PCI {{pci}}",
+      "tile_unlock": "将频段 {{band}}、PCI {{pci}} 从锁定中移除"
     },
     "automation": {
       "title": "无人值守时",
-      "description": "锁定在重启后、信号变差时以及定时器触发时的行为。"
+      "description": "锁定在重启后、信号变差时以及定时器触发时的行为。",
+      "failover_help": "信号质量持续低于阈值时释放基站锁定，避免差的小区使连接中断。它会同时释放两种无线电，而不只是信号弱的那一个。",
+      "failover_help_label": "关于信号故障转移",
+      "failover_hint": "已设置锁定，但故障转移已关闭。锁定不会自动开启它。",
+      "failover_label": "信号故障转移",
+      "failover_state_disabled": "已关闭",
+      "failover_state_ready": "就绪",
+      "failover_state_released": "已释放（信号弱）",
+      "failover_state_stalled": "未在守护",
+      "failover_state_unknown": "未报告",
+      "failover_state_watching": "监控中",
+      "quality_unknown": "当前信号质量：未报告",
+      "quality_value": "当前信号质量：{{value}}%",
+      "threshold_invalid": "请输入 0 到 100 之间的值",
+      "threshold_label": "低于此值时释放",
+      "threshold_unread": "无法读取阈值。"
     },
     "legs": {
       "lte": {
@@ -2495,7 +2685,13 @@
       "gate_lte_body": "调制解调器仅使用 LTE，因此没有可固定的 NR 小区。",
       "empty_title": "尚无小区目标",
       "empty_body": "从上方列表中选择一个小区，或手动输入频点和 PCI。",
-      "simple_mode": "从在网载波中选择"
+      "simple_mode": "从在网载波中选择",
+      "input_mode": "输入小区的方式",
+      "mode_pick": "已检测",
+      "mode_type": "手动",
+      "unread_note": "调制解调器未报告锁定状态。",
+      "unused_lte": "带边框的小区已锁定，但调制解调器未使用。",
+      "unused_nr": "已锁定，但调制解调器未使用此小区。"
     },
     "schedule": {
       "title": "锁定计划",
@@ -2522,12 +2718,15 @@
       "arm_warning": "已保存，但计划未启用：{{reason}}",
       "arm_reason_unit_absent": "此设备尚未安装计划服务 — 请更新到最新固件以启用",
       "arm_reason_unknown": "原因未知",
-      "no_days": "请至少选择一天"
+      "no_days": "请至少选择一天",
+      "toast_disabled": "锁定计划已关闭",
+      "toast_enabled": "锁定计划已开启"
     },
     "actions": {
       "lock": "锁定基站",
       "unlock": "解除锁定",
-      "clear_fields": "清空字段"
+      "clear_fields": "清空字段",
+      "refresh": "刷新"
     },
     "dialog": {
       "lock_lte_title": "将 LTE 锁定到此小区？",
@@ -2546,7 +2745,14 @@
       "incomplete": "请填写所有字段后再锁定",
       "no_targets": "请先输入频点和小区 ID",
       "filled": "已从频段 {{band}}、PCI {{pci}} 填充 {{leg}}",
-      "slots_full": "三个 LTE 小区均已设置"
+      "slots_full": "三个 LTE 小区均已设置",
+      "cell_added": "已将小区加入 {{leg}} 锁定",
+      "cell_exists": "该小区已添加",
+      "cell_removed": "已将小区从 {{leg}} 锁定中移除",
+      "failover_disabled": "信号故障转移已关闭",
+      "failover_enabled": "信号故障转移已开启",
+      "refresh_error": "无法刷新锁定状态",
+      "threshold_saved": "故障转移阈值已更新"
     },
     "warning": {
       "service_enable_failed": "锁定当前已生效，但重启后不会保留 — 调制解调器拒绝了保存命令。",
@@ -2570,11 +2776,21 @@
       "lock_gated_nsa": "模块当前处于 5G NSA，5G 侧没有可锁定的独立组网小区。",
       "lock_gated_lte_only": "模块当前没有在用的 5G 载波，因此没有可锁定的对象。",
       "threshold_empty": "请输入 0 到 100 之间的百分比。",
-      "refresh_in_flight": "正在重新读取模块状态，可能需要几秒钟。"
+      "refresh_in_flight": "正在重新读取模块状态，可能需要几秒钟。",
+      "refresh_writing": "正在应用基站更改。"
     },
     "a11y": {
       "applying": "正在应用 {{leg}} 基站锁定…",
       "refreshing": "正在重新读取基站锁定状态…"
+    },
+    "errors": {
+      "in_flight": "另一项基站更改仍在应用中。",
+      "lock_failed": "无法应用基站锁定。",
+      "no_cells": "请先至少输入一个信道和 PCI。",
+      "read_failed": "调制解调器未报告其基站锁定状态。",
+      "schedule_failed": "无法保存锁定计划。",
+      "settings_failed": "无法保存基站设置。",
+      "unlock_failed": "无法移除基站锁定。"
     }
   }
 }

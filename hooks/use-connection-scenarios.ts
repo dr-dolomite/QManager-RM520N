@@ -10,7 +10,9 @@ import {
   createElement,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
   ScenarioListResponse,
   ScenarioActivateResponse,
@@ -51,6 +53,12 @@ import type {
 
 const CGI_BASE = "/cgi-bin/quecmanager/scenarios";
 
+/** Mutation outcomes; `error` is already translated and safe to toast. */
+export type ScenarioActionResult = { ok: true } | { ok: false; error: string };
+export type ScenarioSaveResult =
+  | { ok: true; id: string | null }
+  | { ok: false; error: string };
+
 export interface UseConnectionScenariosReturn {
   /** Currently active scenario ID (defaults to "balanced") */
   activeScenarioId: string;
@@ -65,20 +73,20 @@ export interface UseConnectionScenariosReturn {
   /**
    * Activate a scenario by ID.
    * For custom scenarios, pass the config so mode + bands are sent to backend.
-   * Returns success boolean.
+   * Returns the outcome; a failure carries a translated reason.
    */
-  activateScenario: (id: string, config?: ScenarioConfig) => Promise<boolean>;
+  activateScenario: (id: string, config?: ScenarioConfig) => Promise<ScenarioActionResult>;
   /**
    * Save a custom scenario definition to the backend.
    * Pass an id to update, omit id for create.
-   * Returns the scenario ID on success, null on failure.
+   * Returns the scenario ID on success, or a translated failure reason.
    */
-  saveCustomScenario: (scenario: Omit<StoredScenario, "id"> & { id?: string }) => Promise<string | null>;
+  saveCustomScenario: (scenario: Omit<StoredScenario, "id"> & { id?: string }) => Promise<ScenarioSaveResult>;
   /**
    * Delete a custom scenario by ID.
-   * Returns success boolean.
+   * Returns the outcome; a failure carries a translated reason.
    */
-  deleteCustomScenario: (id: string) => Promise<boolean>;
+  deleteCustomScenario: (id: string) => Promise<ScenarioActionResult>;
   /** Manually refresh all data (scenarios list + active state) */
   refresh: () => void;
 }
@@ -105,6 +113,20 @@ function useConnectionScenariosInternal({
 
   const mountedRef = useRef(true);
 
+  // `t` is read through a ref so the callbacks stay stable across a language
+  // switch (a new `t` identity would otherwise re-run the fetch effect).
+  const { t } = useTranslation("cellular");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+  const tr = useCallback((key: string) => tRef.current(`scenarios.errors.${key}`), []);
+  const resolved = useCallback(
+    (code: string | undefined, detail: string | undefined, key: string) =>
+      resolveErrorMessage(tRef.current, code, detail, tr(key)),
+    [tr],
+  );
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -128,17 +150,16 @@ function useConnectionScenariosInternal({
       setCustomScenarios(data.scenarios || []);
       setActiveScenarioId(data.active_scenario_id || "balanced");
       setError(null);
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to load scenarios",
-      );
+      // Only a failed READ sets `error`: the card swaps to its error screen on it.
+      setError(tr("load_failed"));
     } finally {
       if (mountedRef.current) {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [tr]);
 
   // Initial fetch — suppressed entirely when a provider above us already owns
   // one. This early return is inside the effect, not before the hook.
@@ -151,8 +172,7 @@ function useConnectionScenariosInternal({
   // Activate a scenario
   // ---------------------------------------------------------------------------
   const activateScenario = useCallback(
-    async (id: string, config?: ScenarioConfig): Promise<boolean> => {
-      setError(null);
+    async (id: string, config?: ScenarioConfig): Promise<ScenarioActionResult> => {
       setIsActivating(true);
 
       try {
@@ -178,40 +198,29 @@ function useConnectionScenariosInternal({
         }
 
         const data: ScenarioActivateResponse = await resp.json();
-        if (!mountedRef.current) return false;
-
         if (!data.success) {
-          setError(data.detail || data.error || "Failed to activate scenario");
-          return false;
+          return { ok: false, error: resolved(data.error, data.detail, "activate_failed") };
         }
 
         // Optimistic update — backend confirmed success
-        setActiveScenarioId(id);
-        return true;
-      } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to activate scenario",
-        );
-        return false;
+        if (mountedRef.current) setActiveScenarioId(id);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: tr("activate_failed") };
       } finally {
         if (mountedRef.current) {
           setIsActivating(false);
         }
       }
     },
-    [],
+    [resolved, tr],
   );
 
   // ---------------------------------------------------------------------------
   // Save a custom scenario (create or update)
   // ---------------------------------------------------------------------------
   const saveCustomScenario = useCallback(
-    async (scenario: Omit<StoredScenario, "id"> & { id?: string }): Promise<string | null> => {
-      setError(null);
-
+    async (scenario: Omit<StoredScenario, "id"> & { id?: string }): Promise<ScenarioSaveResult> => {
       try {
         const resp = await authFetch(`${CGI_BASE}/save.sh`, {
           method: "POST",
@@ -224,34 +233,26 @@ function useConnectionScenariosInternal({
         }
 
         const data: ScenarioApiResponse = await resp.json();
-        if (!mountedRef.current) return null;
 
         if (!data.success) {
-          setError(data.detail || data.error || "Failed to save scenario");
-          return null;
+          return { ok: false, error: resolved(data.error, data.detail, "save_failed") };
         }
 
         // Refresh the list from backend to pick up the new/updated scenario
-        await fetchScenarios();
-        return data.id || null;
-      } catch (err) {
-        if (!mountedRef.current) return null;
-        setError(
-          err instanceof Error ? err.message : "Failed to save scenario",
-        );
-        return null;
+        if (mountedRef.current) await fetchScenarios();
+        return { ok: true, id: data.id || scenario.id || null };
+      } catch {
+        return { ok: false, error: tr("save_failed") };
       }
     },
-    [fetchScenarios],
+    [fetchScenarios, resolved, tr],
   );
 
   // ---------------------------------------------------------------------------
   // Delete a custom scenario
   // ---------------------------------------------------------------------------
   const deleteCustomScenario = useCallback(
-    async (id: string): Promise<boolean> => {
-      setError(null);
-
+    async (id: string): Promise<ScenarioActionResult> => {
       try {
         const resp = await authFetch(`${CGI_BASE}/delete.sh`, {
           method: "POST",
@@ -264,25 +265,19 @@ function useConnectionScenariosInternal({
         }
 
         const data: ScenarioApiResponse = await resp.json();
-        if (!mountedRef.current) return false;
 
         if (!data.success) {
-          setError(data.detail || data.error || "Failed to delete scenario");
-          return false;
+          return { ok: false, error: resolved(data.error, data.detail, "delete_failed") };
         }
 
         // Refresh the list from backend
-        await fetchScenarios();
-        return true;
-      } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(
-          err instanceof Error ? err.message : "Failed to delete scenario",
-        );
-        return false;
+        if (mountedRef.current) await fetchScenarios();
+        return { ok: true };
+      } catch {
+        return { ok: false, error: tr("delete_failed") };
       }
     },
-    [fetchScenarios],
+    [fetchScenarios, resolved, tr],
   );
 
   // ---------------------------------------------------------------------------

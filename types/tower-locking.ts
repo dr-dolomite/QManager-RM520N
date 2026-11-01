@@ -111,6 +111,7 @@ export interface TowerStatusResponse {
   config: TowerLockConfig;
   failover_state: TowerFailoverState;
   error?: string;
+  detail?: string;
 }
 
 /** Response from POST /cgi-bin/quecmanager/tower/lock.sh */
@@ -149,6 +150,14 @@ export interface TowerLockResponse {
   detail?: string;
 }
 
+/** One settings write. An absent part keeps its saved value (the hook fills it: `settings.sh` takes persist and
+ * failover in one body); `persist` is modem-wide. */
+export interface TowerSettingsChange {
+  persist?: boolean;
+  /** Only the fields given change; the rest are read when the write is sent. */
+  failover?: { enabled?: boolean; threshold?: number };
+}
+
 /** Response from POST /cgi-bin/quecmanager/tower/settings.sh */
 export interface TowerSettingsResponse {
   success: boolean;
@@ -185,13 +194,27 @@ export interface TowerScheduleResponse {
   detail?: string;
 }
 
+// --- Hook results --------------------------------------------------------------
+
 /**
- * Result surfaced to the schedule card after saving a tower schedule. `armed`
- * carries the on-device timer status so the card can warn honestly. Absent
- * `armed` (older backend that doesn't report it) is treated as "assume armed".
+ * A non-fatal partial success: the write landed but something alongside did not (`persist_command_failed`, or
+ * `service_enable_failed` / `service_disable_failed` when the boot unit could not be toggled).
  */
-export interface TowerScheduleSaveResult {
-  success: boolean;
+export type TowerWarningCode =
+  | "persist_command_failed"
+  | "service_enable_failed"
+  | "service_disable_failed";
+
+/** What every tower mutation resolves to; `error` is already translated through `resolveErrorMessage`. */
+export interface TowerActionResult {
+  ok: boolean;
+  error?: string;
+  warning?: TowerWarningCode;
+}
+
+/** A schedule save. `armed:false` + `reason` (e.g. "unit_absent") means persisted but no live timer; absent
+ * `armed` = assume armed. */
+export interface TowerScheduleSaveResult extends TowerActionResult {
   armed?: boolean;
   reason?: string;
 }

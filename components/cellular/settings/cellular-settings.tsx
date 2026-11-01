@@ -16,6 +16,7 @@ import { STATUS_POLL_SLOW_MS, useModemStatus } from "@/hooks/use-modem-status";
 import CellularSettingsCard from "./cellular-settings-card";
 import LiveStateStrip from "./live-state-strip";
 import ApplyFoot from "./apply-foot";
+import RefreshButton from "./refresh-button";
 import RateCeilingDisclosure from "./rate-ceiling-disclosure";
 import { CARD_CELL, PAGE_ROOT } from "./shapes";
 
@@ -82,10 +83,6 @@ const CellularSettingsComponent = () => {
   const { saved, markSaved } = useSaveFlash();
 
   const failedLabels = (form.lastApply?.failedFields ?? []).map((key) =>
-    t(`${K}.rows.${key}.label`),
-  );
-
-  const pendingLabels = [...form.dirtyFields].map((key) =>
     t(`${K}.rows.${key}.label`),
   );
 
@@ -214,28 +211,19 @@ const CellularSettingsComponent = () => {
                   onDiscard={form.discard}
                   onSave={handleSave}
                   saved={saved}
-                  secondary={
-                    <Button
-                      type="button"
-                      variant="ghost"
+                  leading={
+                    <RefreshButton
                       onClick={form.refresh}
                       disabled={form.isSaving}
-                      size="action"
-                    >
-                      {t(`${K}.footer.reread`)}
-                    </Button>
+                    />
                   }
                   copy={{
-                    count: t(`${K}.save_bar.count`, { count: form.changeCount }),
-                    // Names fields on BOTH cards, so an edit on the SIM card reads here.
-                    detail: pendingLabels.join(", "),
                     note: t(`${K}.save_bar.note`),
                     discard: t(`${K}.save_bar.discard`),
                     save: t(`${K}.save_bar.save`),
                     failed: t(`${K}.save_bar.failed`, {
                       fields: failedLabels.join(", "),
                     }),
-                    idle: t(`${K}.footer.in_sync`),
                     steps: {
                       writing: t(`${K}.apply.writing`),
                       recovering: t(`${K}.apply.recovering`),
