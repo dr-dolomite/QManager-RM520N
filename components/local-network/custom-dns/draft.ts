@@ -1,13 +1,5 @@
-// =============================================================================
-// Custom DNS — the page draft
-// =============================================================================
-// One draft spans the three cards (Resolver, IPv4, IPv6) because the backend
-// takes them in one POST; the Resolver card's foot commits it.
-//
-// While custom DNS is off, `currentUpstream` carries the carrier's servers, so
-// they never seed the draft: an Off baseline is blank, and the address fields
-// never pretend the carrier's resolvers are a custom choice.
-// =============================================================================
+// One draft spans the three cards because the backend takes them in one POST.
+// While off, `currentUpstream` holds the carrier's servers, so an Off baseline is blank.
 
 import type { CustomDnsSettingsResponse } from "@/types/custom-dns";
 

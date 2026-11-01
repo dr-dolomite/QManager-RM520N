@@ -1,12 +1,5 @@
-// =============================================================================
-// dns-providers.ts — Built-in Custom DNS provider presets
-// =============================================================================
-// Each preset carries a dual-stack address pair (two IPv4 + two IPv6). Selecting
-// a provider in the card fills the form fields; "Custom" lets the user type their
-// own. Brand names are intentionally NOT i18n keys — they are proper nouns.
-//
-// Sources are the providers' published anycast resolver addresses.
-// =============================================================================
+// Built-in presets (two IPv4 + two IPv6, published anycast addresses).
+// Brand names are proper nouns, not i18n keys.
 
 export interface DnsProvider {
   /** Stable id used as the Select value and for round-trip matching. */
@@ -55,20 +48,13 @@ export const DNS_PROVIDERS: DnsProvider[] = [
   },
 ];
 
-/**
- * Normalize an IPv6 literal for equality comparison. Lowercases and collapses
- * a trailing "::" so e.g. "2606:1A40::" and "2606:1a40::" match. Deliberately
- * light — it only needs to recognise our own preset values on round-trip.
- */
+/** Light IPv6 normalisation: enough to recognise our own presets on round-trip. */
 function normV6(value: string): string {
   return value.trim().toLowerCase();
 }
 
 /**
- * Given the current four primary/secondary addresses, return the matching
- * provider id, or CUSTOM_PROVIDER_ID when no preset matches exactly. Matching is
- * order-sensitive on the pairs (primary→primary), which is how presets fill.
- * Empty tertiary IPv4 is required for a preset match — presets only define two.
+ * The preset whose pairs match in order (with an empty third IPv4), else CUSTOM_PROVIDER_ID.
  */
 export function matchProvider(
   dns1: string,

@@ -154,7 +154,7 @@ export function useHostlistDraft(hostlist: Hostlist) {
   return {
     draft,
     dirty,
-    /** The CGI refuses an empty list, so an emptied draft cannot be applied. */
+    /** The CGI accepts an empty list, so this is the only guard against applying one. */
     invalid: draft.length === 0,
     saved,
     add,

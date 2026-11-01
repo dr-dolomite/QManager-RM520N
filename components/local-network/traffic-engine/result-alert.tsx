@@ -26,11 +26,7 @@ const GLYPH: Record<ResultTone, LucideIcon> = {
   info: InfoIcon,
 };
 
-/**
- * Single source of truth for the engine's result notices (verify, injection
- * test, install, prerequisites). A solid tonal container with its own glyph per
- * tone, so the Video and Masquerade surfaces can never drift apart.
- */
+/** The one tonal notice (verify, install, prerequisites) every engine surface shares. */
 export function ResultAlert({
   tone,
   children,

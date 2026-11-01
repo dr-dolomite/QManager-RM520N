@@ -123,9 +123,8 @@ interface EngineCardProps {
 }
 
 /**
- * The anchor. Live view: the mode control, Hotspot bypass, uptime, packets and the Package
- * drill row on the left; the packet chart on the right. Package view: the redirect rule, the
- * engine, its source and Remove, so the destructive action never sits beside live stats.
+ * The anchor: live view (mode, bypass, stats, chart) or package view, which keeps
+ * Remove away from the live stats.
  */
 export function EngineCard({
   shownMode,

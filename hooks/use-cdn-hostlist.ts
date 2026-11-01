@@ -4,17 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import type { MutationResult } from "@/types/mutation-result";
 
-// =============================================================================
-// useCdnHostlist — Traffic Engine Video Optimizer hostlist hook
-// =============================================================================
-// Reads the hostlist (?section=hostlist) and writes it whole (save_hostlist) or
-// copies the factory file back (restore_hostlist). tpws hot-reloads the list,
-// so a save takes effect without an engine restart. The caller holds the draft:
-// `saveHostlist` takes the full list and the hook re-reads it from the device.
-//
-// Backend endpoint:
-//   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh
-// =============================================================================
+// Video Optimizer hostlist over network/video_optimizer.sh; tpws hot-reloads a
+// saved list. The caller holds the draft and passes the whole list to save.
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/video_optimizer.sh";
 
@@ -27,7 +18,7 @@ export interface UseCdnHostlistReturn {
   isSaving: boolean;
   isRestoring: boolean;
   error: string | null;
-  /** Writes the whole list; the CGI rejects an empty or over-limit list. */
+  /** Writes the whole list. The CGI accepts an empty list; callers must refuse one. */
   saveHostlist: (domains: string[]) => Promise<MutationResult>;
   restoreDefaults: () => Promise<MutationResult>;
   refresh: (silent?: boolean) => void;

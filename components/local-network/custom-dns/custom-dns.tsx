@@ -29,20 +29,8 @@ import { ResolverCard } from "./resolver-card";
 import { ServersCard } from "./servers-card";
 import { BANNERS, FAMILY_GRID, PAGE_HEAD, PAGE_ROOT } from "./shapes";
 
-// =============================================================================
-// Custom DNS — page shell
-// =============================================================================
-// The shell owns the read and the one draft the three cards edit: Resolver
-// (on/off, provider, carrier fallback; commits from its foot), then IPv4 and
-// IPv6 as peer cards whose fields join the Resolver form via `form=`.
-//
-// The draft is derived, not synced: the shell holds only the user's EDITS over
-// a baseline derived from the read, so a save's re-read re-bases the page.
-//
-// `blockCorrupt` warns and never blocks: the flag has a false-positive path and
-// the only backend repair (`action=clear`) would truncate dnsmasq.conf. See
-// docs/reference/custom-dns.md before adding any recovery action.
-// =============================================================================
+// Holds only the user's edits over a baseline derived from the read; the server
+// cards join the Resolver form via `form=`. See docs/reference/custom-dns.md.
 
 const K = "dns";
 
@@ -134,8 +122,10 @@ const CustomDnsComponent = () => {
           ? `${K}.blocked_too_many`
           : null;
 
+  // While off, addresses and the fallback are held but never sent.
   const isDirty =
     baseline !== null &&
+    (draft.enabled || baseline.enabled) &&
     (draft.enabled !== baseline.enabled ||
       draft.ignoreCarrier !== baseline.ignoreCarrier ||
       !sameList(draft.v4, baseline.v4) ||
@@ -224,7 +214,11 @@ const CustomDnsComponent = () => {
           isDirty={isDirty}
           canApply={canApply}
           blockedKey={blockedKey}
-          saveError={fieldError?.message ?? null}
+          saveError={
+            fieldError === null
+              ? null
+              : t(fieldError.field === "servers" ? `${K}.save_failed_servers` : `${K}.toast_error_apply`)
+          }
           onToggle={handleToggle}
           onIgnoreCarrier={handleIgnoreCarrier}
           onProvider={handleProvider}

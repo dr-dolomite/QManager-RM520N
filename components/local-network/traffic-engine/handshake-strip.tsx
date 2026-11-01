@@ -33,9 +33,8 @@ interface HandshakeStripProps {
 }
 
 /**
- * What the carrier's DPI reads off one handshake under tpws: a one-byte piece, then the
- * hostname cut mid-name, sent out of order, so the name never arrives whole. Both modes use
- * the same split; they differ only in which connections get it.
+ * One tpws handshake as the carrier's DPI sees it: the hostname split and sent out of order.
+ * Both modes use the same split; they differ in which connections get it.
  */
 export function HandshakeStrip({ mode, active, hint }: HandshakeStripProps) {
   const { t } = useTranslation("local-network");

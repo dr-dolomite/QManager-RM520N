@@ -49,12 +49,7 @@ import {
   SKELETON,
 } from "./shapes";
 
-// =============================================================================
-// ResolverCard — whether custom DNS is on, and which resolver
-// =============================================================================
-// The anchor of the page and the owner of its one foot: the IPv4 and IPv6
-// cards below edit the same draft, and this foot applies all of it.
-// =============================================================================
+// The page anchor; its foot applies the draft the IPv4 and IPv6 cards also edit.
 
 const K = "dns";
 
@@ -180,6 +175,7 @@ export function ResolverCard({
 }: ResolverCardProps) {
   const { t } = useTranslation("local-network");
   const providerId = React.useId();
+  const modeKnown = dnsMode !== "" && dnsMode.toUpperCase() !== "UNKNOWN";
 
   const onOffOptions: SegmentedOption<OnOff>[] = [
     { value: "off", label: t("common:state.off") },
@@ -211,8 +207,12 @@ export function ResolverCard({
           ) : (
             <Condition
               glyph={CircleSlashIcon}
-              title={t(`${K}.unavailable_title`, { mode: dnsMode || "?" })}
-              body={t(`${K}.unavailable_desc`)}
+              title={
+                modeKnown
+                  ? t(`${K}.unavailable_title`, { mode: dnsMode })
+                  : t(`${K}.unavailable_title_unknown`)
+              }
+              body={t(modeKnown ? `${K}.unavailable_desc` : `${K}.unavailable_desc_unknown`)}
               action={t(`${K}.action_check_again`)}
               onAction={onRetry}
             />

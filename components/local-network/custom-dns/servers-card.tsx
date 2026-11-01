@@ -28,13 +28,8 @@ import {
   SKELETON,
 } from "./shapes";
 
-// =============================================================================
-// ServersCard — one address family's resolvers, in the order they are tried
-// =============================================================================
-// Two instances, IPv4 and IPv6, as peer cards with no foot: the Resolver card
-// applies everything. Off holds the rows (dimmed text, disabled fields) rather
-// than hiding them, so turning custom DNS on moves nothing on the page.
-// =============================================================================
+// One address family's resolvers, no foot (the Resolver card applies). Off holds
+// the rows disabled rather than hiding them, so turning DNS on moves nothing.
 
 const K = "dns";
 

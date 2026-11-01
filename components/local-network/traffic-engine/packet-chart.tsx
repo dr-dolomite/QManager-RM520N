@@ -65,10 +65,8 @@ interface PacketChartProps {
 }
 
 /**
- * The engine's outbound packet rate over the last minute: uplink ink (the
- * queue only sees traffic leaving through the cellular interface), horizontal
- * gridlines only, and a ceiling that never drops under `CHART_FLOOR` so the
- * wash under the line marks a real level.
+ * New connections the engine redirected per second over the last minute (a nat REDIRECT
+ * counter, not packets). The ceiling never drops under `CHART_FLOOR`.
  */
 export function PacketChart({ history, live }: PacketChartProps) {
   const { t } = useTranslation("local-network");
