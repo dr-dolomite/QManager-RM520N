@@ -26,10 +26,13 @@ import { DANGER } from "./shapes";
 
 export function DangerRow({
   isUninstalling,
+  isBusy,
   uninstall,
   onUninstalled,
 }: {
   isUninstalling: boolean;
+  /** An update holds the install lock; removing the binary under it is refused. */
+  isBusy: boolean;
   uninstall: () => Promise<boolean>;
   onUninstalled: () => void;
 }) {
@@ -56,7 +59,7 @@ export function DangerRow({
           <Button
             type="button"
             variant="destructive"
-            disabled={isUninstalling}
+            disabled={isUninstalling || isBusy}
             size="action"
           >
             {isUninstalling ? (

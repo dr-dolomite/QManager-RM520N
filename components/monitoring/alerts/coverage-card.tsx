@@ -83,7 +83,10 @@ export function AlertsCoverageCard({ state, error, onRetry }: AlertsCoverageCard
     [state],
   );
 
-  const verdict = coverage && !coverageIsEmpty(coverage) ? coverage.verdict : null;
+  const verdict =
+    coverage && !coverageIsEmpty(coverage) && coverage.verdict.kind !== "none"
+      ? coverage.verdict
+      : null;
   const loading = !coverage && !error;
 
   return (

@@ -893,7 +893,6 @@
     "connection": {
       "title": "连接",
       "description": "此调制解调器是否加入 tailnet，以及加入后的行为方式。",
-      "version": "v{{version}}",
       "connect": "连接",
       "connecting": "正在连接…",
       "disconnect": "断开",
@@ -917,7 +916,15 @@
       "sshLocked": "连接 Tailscale 后才能更改此设置。",
       "sshDialogTitle": "开启 Tailscale SSH？",
       "sshDialogDescription": "tailnet 成员将能够根据你的 Tailscale 管理后台 ACL 通过 SSH 连接此调制解调器。请先检查该策略，确保只有你允许的人能访问此设备。",
-      "sshConfirm": "开启 SSH"
+      "sshConfirm": "开启 SSH",
+      "on": "开",
+      "off": "关",
+      "updating": "正在更新…",
+      "updateAvailable": "有可用更新（{{version}}）",
+      "updateDialogTitle": "将 Tailscale 更新到 {{version}}？",
+      "updateDialogDescription": "新版本启动期间，隧道会重新连接几秒钟。",
+      "update": "更新",
+      "updateLogTitle": "更新日志"
     },
     "device": {
       "title": "此设备",
@@ -930,7 +937,8 @@
       "magicDns": "MagicDNS",
       "relay": "DERP 中继",
       "emptyTitle": "尚未加入 tailnet",
-      "emptyDescription": "连接 Tailscale 后，此调制解调器的地址、DNS 名称和中继信息会显示在这里。"
+      "emptyDescription": "连接 Tailscale 后，此调制解调器的地址、DNS 名称和中继信息会显示在这里。",
+      "version": "版本"
     },
     "peers": {
       "title": "网络节点",
@@ -1009,7 +1017,11 @@
       "uninstalled": "Tailscale 已卸载",
       "uninstallFailed": "无法卸载 Tailscale",
       "copied": "命令已复制",
-      "copyFailed": "无法复制命令"
+      "copyFailed": "无法复制命令",
+      "installed": "Tailscale 已安装",
+      "installFailed": "Tailscale 安装未完成",
+      "updated": "Tailscale 已更新到 {{version}}",
+      "updateFailed": "无法更新 Tailscale"
     }
   },
   "watchdog": {

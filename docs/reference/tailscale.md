@@ -20,14 +20,15 @@ Everything runs as a real `tailscaled` daemon on the modem's own Linux. QManager
 | Daemon state dir | `/usrdata/tailscale/` (`--statedir=`) |
 | systemd unit | `tailscaled.service` in `/lib/systemd/system/` (rootfs — needs a `remount,rw`) |
 | Boot enablement | the `multi-user.target.wants/tailscaled.service` **symlink**, never `systemctl is-enabled` |
-| Root helper | `/usr/bin/qmanager_tailscale_mgr` (`install` · `uninstall` · `ensure_units`) |
+| Root helper | `/usr/bin/qmanager_tailscale_mgr` (`install` · `update` · `uninstall` · `ensure_units`) |
 | CGI endpoint | `GET`/`POST` `/cgi-bin/quecmanager/vpn/tailscale.sh` |
 | SSH intent flag | `/etc/qmanager/tailscale_ssh` — `1` or absent. QManager-owned, **not** Tailscale's |
-| Install progress | `/tmp/qmanager_tailscale_install.json` · `.pid` · `.log` |
+| Install / update progress | `/tmp/qmanager_tailscale_install.json` (`op:"update"` for an update) · `.pid` · `.log` |
+| Latest-version cache | `/tmp/qmanager_tailscale_latest` — `<epoch> <version>`, 6 h |
 | Auth URL spill | `/tmp/qmanager_tailscale_auth_url` |
 | `tailscale up` tracking | `/tmp/qmanager_tailscale_up_output` · `_up_pid` |
 | Frontend page | `/monitoring/tailscale` (`components/monitoring/tailscale/`) |
-| i18n | `common.json` → `tailscale.*` (137 keys, all five packs) |
+| i18n | `common.json` → `tailscale.*` (149 keys, all five packs) |
 | Pinned version | `TAILSCALE_VERSION="1.92.5"`, `TAILSCALE_ARCH="arm"` in the helper |
 
 ---
@@ -51,11 +52,13 @@ Everything runs as a real `tailscaled` daemon on the modem's own Linux. QManager
 | Tier | Condition | Payload |
 | --- | --- | --- |
 | 1 | `is_installed()` false | `installed: false` + `install_hint` |
-| 2 | installed, daemon down | `+ daemon_running: false`, `enabled_on_boot`, `ssh_enabled`, `version` |
+| 2 | installed, daemon down | `+ daemon_running: false`, `enabled_on_boot`, `ssh_enabled`, `version`, `latest_version`, `update_available` |
 | 3 | daemon up, `status --json` unparseable | tier 2 fields `+ backend_state: "Unknown"`, `error_detail` |
 | 4 | daemon up, status parsed | `+ backend_state`, `auth_url`, `self`, `tailnet`, `peers[]`, `health[]` |
 
 **Every field after `installed` is optional**, which is why `deriveView()` in `tailscale.tsx` tests them explicitly (`status.daemon_running ?? false`) instead of defaulting a tone in. A `??` that supplies a cheerful default here invents a verdict the device never gave.
+
+While an update holds the install lock the GET answers `{installed: true, busy: "update"}` and nothing else (the daemon restarts under it). The hook layers that over the last good payload; `deriveView()` returns `unknown` only when there is no payload yet.
 
 ### Two detection tricks worth knowing
 
@@ -73,6 +76,12 @@ Everything runs as a real `tailscaled` daemon on the modem's own Linux. QManager
 > ⚠️ `/etc/qmanager` is **www-data-owned and non-sticky**, so nothing in it is root-pinned and a plain `>` there is redirectable via a planted symlink. This file is low-stakes (a boolean the user controls anyway), but do not add a secret or a privileged flag beside it — see [`platform-profile.md`](./platform-profile.md) and [`alerts.md`](./alerts.md) for where those go instead.
 
 ---
+
+## Updating
+
+`check_update` (CGI) fetches `https://pkgs.tailscale.com/stable/?mode=json` as `www-data` with `curl -m 10`, caches the version for 6 hours and answers `latest_version` / `update_available`. Tiers 2-4 of the GET read that cache only and never wait on the network. The comparison is `ts_version_gt` (jq arrays; the device jq has no regex).
+
+`update` runs `qmanager_tailscale_mgr update`, which reuses the install path's `tailscale update` branch, writes `op:"update"` to the status file and restarts `tailscaled` only if it was active. The CGI hands back a `run` id that the helper stamps into every status it writes, so the UI ignores an older install's leftover file and fails after 15 s if the helper never writes one. It tolerates 20 s of failed polls while the daemon restarts. `uninstall` is refused (`install_in_progress`) while an install or update is live. The `update` verb needs no sudoers line: the helper is whitelisted without arguments.
 
 ## Sudoers surface
 
@@ -129,6 +138,8 @@ Six views, three layouts:
 - **`unknown`** — a `destructive` condition block carrying the failure, with a Retry. The peers card is a *separate* read and mounts with its own condition rather than inheriting this one.
 - **everything else** — header + four-tile band + the Connection / This device pair + the full-width peers table + the danger row.
 
+The Boot and SSH settings are On/Off `SegmentedField` pills. The version is a row on This device in every installed view, with the update offer (`update-control.tsx`) beside it while one exists. `last-known.ts` remembers per tab whether Tailscale was installed, so a cold load on a modem without it paints the install skeleton instead of the installed layout.
+
 A stale read (a failed poll on top of good data) is a **non-blocking `NOTICE` above the content**, never a replacement for it.
 
 ### Geometry that is measured, not asserted
@@ -153,6 +164,7 @@ One page cascade (`staggerContainer` / `staggerItem`, 120ms, 10px), row cascades
 - **"Last seen" needs a 1970 guard.** The device has no battery RTC and boots at Jan 1970, so a delta taken before the clock steps renders every offline peer as decades stale. `formatLastSeen` returns the unknown sentinel when `Date.now()` is before 2020 or the delta exceeds a year. Any new relative-time rendering on this platform needs the same guard.
 - **Uninstall unmounts the card that confirms it.** A successful uninstall flips the view to `notInstalled`, which would take the danger row — and its own reboot dialog — down with it. The dialog therefore lives in the **page shell**, not in `danger-card.tsx`.
 - **The reboot handoff is duplicated here.** The connection flow fires `qm_rebooting` + clears `qm_logged_in` + navigates to `/reboot/` inline, rather than going through the shared three-line contract. Dropping any one of those lines silently breaks `cgi_reboot_response`'s ack wait — see [`ip-passthrough.md`](./ip-passthrough.md). Worth extracting; not yet extracted.
+- **A fresh install is the pinned build, so an update is usually on offer right after it.** `tailscale update` then moves to the newest stable.
 - **The version is pinned in the helper, in two places.** `TAILSCALE_VERSION` appears at the top of `qmanager_tailscale_mgr` and again inside the heredoc it writes. Bump both.
 - **`peers[]` is `.Peer` keyed by node ID**, flattened to an array by the CGI's jq. Ordering is therefore whatever jq's `to_entries` gives, not "most recently seen" — the table does not sort, and a large tailnet has no search. Both are known gaps.
 
