@@ -1578,7 +1578,8 @@
       "compare_hint": "A tower lock already pins a channel and a cell. A frequency lock is the looser option: same channel, any cell.",
       "compare_hint_unknown": "The tower lock state could not be read. A frequency lock is refused while a tower lock is active, so nothing here can be applied until that read succeeds.",
       "add_blocked": "Adding is disabled until the tower lock is released.",
-      "add_blocked_unknown": "Adding is disabled until the tower lock state can be read."
+      "add_blocked_unknown": "Adding is disabled until the tower lock state can be read.",
+      "outside_list": "Outlined carriers are on air outside your channel list."
     },
     "verdict": {
       "unlocked_title": "All channels allowed",
@@ -1623,7 +1624,8 @@
       "blocked_body": "Release the tower lock to edit this list.",
       "scs_warning": "A wrong spacing looks like a valid entry, but the modem never uses it. The value is copied from the carrier when you add it from above.",
       "no_pci_note": "A frequency lock never pins the cell. The modem keeps reselecting inside the channels you allow.",
-      "count": "{{used}} of {{max}}"
+      "count": "{{used}} of {{max}}",
+      "unused": "Outlined channels are locked, but the radio is not on them."
     },
     "blocked": {
       "tower_lock_active": "A tower lock is holding this radio. Release it before locking a frequency.",
@@ -1641,7 +1643,8 @@
       "staged": "Staged",
       "in_list": "In list",
       "remove": "Remove entry",
-      "staged_count": "{{count}} of {{max}} entries staged. Nothing is on the modem yet."
+      "staged_count": "{{count}} of {{max}} entries staged. Nothing is on the modem yet.",
+      "on_air": "On air"
     },
     "actions": {
       "use_current": "Use current",
@@ -1706,7 +1709,8 @@
       "unsupported_confirm": "Lock anyway",
       "cancel": "Cancel",
       "confirm_lock": "Lock channels",
-      "confirm_unlock": "Clear lock"
+      "confirm_unlock": "Clear lock",
+      "no_recovery": "Frequency locking has no failover watcher. Unlike band and tower locking, nothing restores service on its own if these channels lose coverage."
     },
     "bands": {
       "possible": "Possible bands:",

@@ -3,9 +3,8 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
@@ -14,14 +13,13 @@ import type { CarrierComponent, ModemStatus } from "@/types/modem-status";
 import type { FreqLockModemState } from "@/types/frequency-locking";
 
 import {
-  BADGE_GLYPH_SIZE,
   CAMPED,
+  NOTICE,
+  NOTICE_TONE,
   CARRIER_NOTE_TILE,
   CARRIER_TILE,
   HERO,
   SKELETON_SHAPE,
-  VERDICT,
-  VERDICT_TONE,
   isChannelAllowed,
   type LockPosture,
 } from "./shapes";
@@ -45,17 +43,21 @@ import {
 //              tower lock applied on the other page can invalidate it without
 //              anything here noticing.
 //
-// That asymmetry is why the head carries an explicit sync time and a refresh
-// control, rather than a "live" badge over the whole strip. Only the right half
-// is live.
+// That asymmetry is why Refresh sits in the page header (it re-reads the lock
+// state) rather than a "live" badge over the strip. Only the carriers are live.
+//
+// The strip is just the carriers: a carrier inside the lock list wears a primary
+// ring and a filled lock, one outside a list the modem is holding an amber ring.
+// The only prose is a notice when something blocks or hides the lock state.
 // =============================================================================
 
 export interface FreqLockHeroProps {
   modemState: FreqLockModemState | null;
   modemData: ModemStatus | null;
   isLoading: boolean;
-  isRefreshing: boolean;
-  lastSyncedAt: number | null;
+  /** The last status read's failure, or null. Shown once, here, rather than
+   *  repeated in both lock cards (Copy & Help: say a message once). */
+  loadError: string | null;
   towerLockActive: boolean;
   /**
    * Whether `towerLockActive` is a READING or the hook's fail-safe default.
@@ -67,7 +69,6 @@ export interface FreqLockHeroProps {
    * facts, and the second must never be printed as the first.
    */
   towerLockStateKnown: boolean;
-  onRefresh: () => void;
   /**
    * Stage a carrier into the matching list. `scs` is non-null only for an NR
    * carrier whose spacing the modem actually reported — see `carrierScs`.
@@ -82,7 +83,7 @@ export interface FreqLockHeroProps {
 /**
  * The page-level posture, which is the union of the two legs.
  *
- * `blocked` outranks everything: while a tower lock is active no write on this
+ * `blocked` outranks every READ state: while a tower lock is active no write on this
  * page can succeed, so leading with "Locked" would describe a state the user
  * cannot currently reach or change.
  */
@@ -90,8 +91,10 @@ function heroPosture(
   modemState: FreqLockModemState | null,
   towerLockActive: boolean,
 ): LockPosture {
-  if (towerLockActive) return "blocked";
+  // A read that never answered is "unknown" first: the tower flags are only the
+  // fail-safe default then, and the verdict must not explain a block it inferred.
   if (!modemState) return "unknown";
+  if (towerLockActive) return "blocked";
   return modemState.lte_locked || modemState.nr_locked ? "locked" : "unlocked";
 }
 
@@ -117,18 +120,6 @@ function carrierScs(
   return carrier.earfcn === servingArfcn ? scs : null;
 }
 
-/** The dot that marks the live half of the strip. Two spans, so the mark stays
- *  put while its copy expands — scaling the dot itself would make the row's
- *  metrics breathe. */
-function LiveDot() {
-  return (
-    <span className="relative inline-flex size-2 shrink-0 items-center justify-center">
-      <span className="bg-success animate-live-ping absolute inline-flex size-2 rounded-pill" />
-      <span className="bg-success relative inline-flex size-2 rounded-pill" />
-    </span>
-  );
-}
-
 /**
  * One carrier the radio is on right now.
  *
@@ -144,11 +135,14 @@ function LiveDot() {
 function CarrierTile({
   carrier,
   allowed,
+  outside,
   canAdd,
   onAdd,
 }: {
   carrier: CarrierComponent;
   allowed: boolean;
+  /** On air, but a lock list is in force and this channel is not in it. */
+  outside: boolean;
   canAdd: boolean;
   onAdd: () => void;
 }) {
@@ -156,7 +150,13 @@ function CarrierTile({
   const isNr = carrier.technology === "NR";
 
   return (
-    <div className={cn(CARRIER_TILE.ROOT, allowed && CARRIER_TILE.MATCH)}>
+    <div
+      className={cn(
+        CARRIER_TILE.ROOT,
+        allowed && CARRIER_TILE.MATCH,
+        outside && CARRIER_TILE.WARN,
+      )}
+    >
       <div className={CARRIER_TILE.HEAD}>
         {/* Identity variant, not a status role: this says WHICH radio the tile
             belongs to, never that it is healthy. */}
@@ -216,16 +216,14 @@ export function FreqLockHero({
   modemState,
   modemData,
   isLoading,
-  isRefreshing,
+  loadError,
   towerLockActive,
   towerLockStateKnown,
-  onRefresh,
   onAddChannel,
 }: FreqLockHeroProps) {
   const { t } = useTranslation("cellular");
 
   const posture = heroPosture(modemState, towerLockActive);
-  const tone = VERDICT_TONE[posture];
 
   /** Blocked, but only because the tower state could not be read. Every copy
    *  branch below has to say that rather than assert a lock we never saw. */
@@ -238,238 +236,148 @@ export function FreqLockHero({
     [modemData?.network?.carrier_components],
   );
 
+  // Read only while the modem also reports the leg locked: the entry arrays can
+  // outlive a release, and a stale list would ring carriers for a lock that is gone.
   const allowedLte = React.useMemo(
-    () => (modemState?.lte_entries ?? []).map((e) => e.earfcn),
-    [modemState?.lte_entries],
+    () =>
+      modemState?.lte_locked ? modemState.lte_entries.map((e) => e.earfcn) : [],
+    [modemState],
   );
   const allowedNr = React.useMemo(
-    () => (modemState?.nr_entries ?? []).map((e) => e.arfcn),
-    [modemState?.nr_entries],
+    () =>
+      modemState?.nr_locked ? modemState.nr_entries.map((e) => e.arfcn) : [],
+    [modemState],
   );
 
-  const verdictTitle =
-    posture === "locked"
-      ? t("frequency_locking.verdict.locked_title")
-      : posture === "blocked"
-        ? blockedByUnknown
-          ? t("frequency_locking.verdict.blocked_unknown_title")
-          : t("frequency_locking.verdict.blocked_title")
-        : posture === "unknown"
-          ? t("frequency_locking.verdict.unknown_title")
-          : t("frequency_locking.verdict.unlocked_title");
+  // Only a state that hides or blocks the lock gets prose. Locked and unlocked
+  // are read off the rings, the dots and the cards below.
+  const notice =
+    posture === "blocked"
+      ? blockedByUnknown
+        ? {
+            tone: NOTICE_TONE.warning,
+            title: t("frequency_locking.verdict.blocked_unknown_title"),
+            body: t("frequency_locking.verdict.blocked_unknown_body"),
+          }
+        : {
+            tone: NOTICE_TONE.neutral,
+            title: t("frequency_locking.verdict.blocked_title"),
+            body: t("frequency_locking.verdict.blocked_body"),
+          }
+      : posture === "unknown"
+        ? {
+            tone: NOTICE_TONE.warning,
+            title: t("frequency_locking.verdict.unknown_title"),
+            body: t("frequency_locking.verdict.unknown_body"),
+          }
+        : null;
 
-  const verdictBody =
-    posture === "locked"
-      ? t("frequency_locking.verdict.locked_body")
-      : posture === "blocked"
-        ? blockedByUnknown
-          ? t("frequency_locking.verdict.blocked_unknown_body")
-          : t("frequency_locking.verdict.blocked_body")
-        : posture === "unknown"
-          ? t("frequency_locking.verdict.unknown_body")
-          : t("frequency_locking.verdict.unlocked_body");
-
-  // Is the carrier the modem is actually on inside the list? Only meaningful
-  // once something is locked — with an empty list every channel is allowed, so
-  // "in the list" would be trivially true and tell the user nothing.
-  const servingInList = React.useMemo(() => {
-    if (posture !== "locked" || carriers.length === 0) return null;
-    const relevant = carriers.filter((c) =>
-      c.technology === "NR" ? allowedNr.length > 0 : allowedLte.length > 0,
-    );
-    if (relevant.length === 0) return null;
-    return relevant.every((c) =>
-      isChannelAllowed(c.earfcn, c.technology === "NR" ? allowedNr : allowedLte),
-    );
-  }, [posture, carriers, allowedLte, allowedNr]);
+  const lockedFor = (c: CarrierComponent) =>
+    c.technology === "NR" ? allowedNr : allowedLte;
+  const isOutside = (c: CarrierComponent) =>
+    lockedFor(c).length > 0 && !isChannelAllowed(c.earfcn, lockedFor(c));
+  const anyOutside = carriers.some(isOutside);
 
   return (
     <Card className={HERO.ROOT}>
       <div className={HERO.BODY}>
         <div className={HERO.HEAD}>
-          <span className={HERO.TITLE}>{t("frequency_locking.live.title")}</span>
-
-          <Button
-            type="button"
-            variant="tonal-neutral"
-            size="icon"
-            className="ms-auto"
-            onClick={onRefresh}
-            disabled={isLoading || isRefreshing}
-            aria-label={t("frequency_locking.a11y.refresh")}
-          >
-            <MaterialSymbol
-              name={isRefreshing ? "progress_activity" : "refresh"}
-              size={16}
-              className={isRefreshing ? "motion-safe:animate-spin" : undefined}
-            />
-          </Button>
+          <CardTitle className={HERO.TITLE}>{t("frequency_locking.live.title")}</CardTitle>
         </div>
 
-        <div className={HERO.SPLIT}>
-          {/* ---- Verdict rail ------------------------------------------- */}
+        {/* The status read failed over a stale reading. The forms below stay
+            usable: a write is a legitimate way out of a failed read, and
+            Refresh sits in the page header. With no reading at all the notice
+            below already says the status did not answer (say a message once). */}
+        {loadError && !isLoading && modemState ? (
+          <div
+            role="alert"
+            className={cn(NOTICE.ROOT, NOTICE_TONE.warning.root)}
+          >
+            <MaterialSymbol
+              name={NOTICE_TONE.warning.glyph}
+              size={16}
+              filled={NOTICE_TONE.warning.filled}
+              className="flex-none"
+            />
+            <span className={NOTICE.TEXT}>
+              <strong className="font-semibold">
+                {t("frequency_locking.error.load_title")}
+              </strong>{" "}
+              {t("frequency_locking.error.load_body")}
+            </span>
+          </div>
+        ) : null}
+
+        {!isLoading && notice ? (
+          <div role="status" className={cn(NOTICE.ROOT, notice.tone.root)}>
+            <MaterialSymbol
+              name={blockedByUnknown ? "visibility_off" : notice.tone.glyph}
+              size={16}
+              filled={blockedByUnknown ? false : notice.tone.filled}
+              className="flex-none"
+            />
+            <span className={NOTICE.TEXT}>
+              <strong className="font-semibold">{notice.title}</strong>{" "}
+              {notice.body}
+            </span>
+          </div>
+        ) : null}
+
+        {/* Gated on the SAME `isLoading` as the lock cards below, even though
+            `carriers` comes from the fast, free poller snapshot and is usually
+            ready well before `modemState` (see THE TWO CLOCKS above). Rendering
+            it the instant it arrives would load the strip in two visible
+            steps. One strip, one load. */}
+        <div className={CAMPED.ROOT}>
           {isLoading ? (
-            <Skeleton className={SKELETON_SHAPE.VERDICT} />
-          ) : (
-            <div className={cn(VERDICT.ROOT, tone.panel)}>
-              <span className={cn(VERDICT.DISC, tone.disc)}>
-                {/* The panel tone stays `blocked`'s - the consequence is the
-                    same - but the MARK does not. `block` says "a tower lock is
-                    holding this"; the unread case has to say "we cannot see",
-                    and two states sharing one slot may never share a glyph. */}
-                <MaterialSymbol
-                  name={blockedByUnknown ? "visibility_off" : tone.glyph}
-                  size={22}
-                  filled={blockedByUnknown ? false : tone.filled}
-                />
-              </span>
-              <span className={VERDICT.TITLE}>{verdictTitle}</span>
-              <span className={VERDICT.BODY}>{verdictBody}</span>
-
-              <div className={VERDICT.FOOT}>
-                {posture === "unlocked" ? (
-                  <Badge variant="muted">
-                    <MaterialSymbol name="check" size={BADGE_GLYPH_SIZE} />
-                    {t("frequency_locking.verdict.tower_lock_off")}
-                  </Badge>
-                ) : null}
-
-                {servingInList !== null ? (
-                  <Badge variant={servingInList ? "muted" : "warning"}>
-                    <MaterialSymbol
-                      name={servingInList ? "check" : "warning"}
-                      size={BADGE_GLYPH_SIZE}
-                      filled={!servingInList}
-                    />
-                    {servingInList
-                      ? t("frequency_locking.verdict.serving_in_list")
-                      : t("frequency_locking.verdict.serving_out_of_list")}
-                  </Badge>
-                ) : null}
-
-                {/* The honest headline of this feature, and the reason it is
-                    stated on the verdict rather than buried in a tooltip:
-                    frequency locking has NO failover watcher. Band locking
-                    self-heals in ~30s and tower locking in ~80s; this one never
-                    does. Only shown while a lock is actually in force, because
-                    that is the only time it can cost anything. */}
-                {posture === "locked" ? (
-                  // `info`, not `warning`: amber on the amber panel washes out in light mode.
-                  // Measured OKLab dE vs the panel: info 17.0 light / 23.3 dark (muted 14.8 / 20.1).
-                  <Badge variant="info">
-                    <MaterialSymbol name="block" size={BADGE_GLYPH_SIZE} />
-                    {t("frequency_locking.verdict.no_recovery")}
-                  </Badge>
-                ) : null}
-              </div>
+            <div className={CAMPED.GRID}>
+              {Array.from({ length: 2 }).map((_, index) => (
+                <Skeleton key={index} className={SKELETON_SHAPE.CARRIER} />
+              ))}
             </div>
-          )}
-
-          {/* ---- Carriers on air ---------------------------------------- */}
-          {/* Gated on the SAME `isLoading` as the verdict rail opposite, even
-              though `carriers` comes from the fast, free poller snapshot and
-              is usually ready well before `modemState` (the slow AT-backed
-              leg — see THE TWO CLOCKS above). Rendering it the instant it
-              arrives made the strip load in two visible steps: real carrier
-              tiles beside a still-skeleton verdict. One strip, one load. */}
-          {isLoading ? (
-            <div className={CAMPED.ROOT}>
-              <div className={CAMPED.HEAD}>
-                <Skeleton className={SKELETON_SHAPE.CAMPED_LABEL} />
-              </div>
+          ) : carriers.length === 0 ? (
+            <div className={CARRIER_NOTE_TILE}>
+              <MaterialSymbol name="signal_disconnected" size={18} />
+              <span className="text-sm font-semibold">
+                {t("frequency_locking.live.camped_empty_title")}
+              </span>
+              <span className="text-xs text-pretty">
+                {t("frequency_locking.live.camped_empty_body")}
+              </span>
+            </div>
+          ) : (
+            <>
               <div className={CAMPED.GRID}>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} className={SKELETON_SHAPE.CARRIER} />
+                {carriers.map((carrier, index) => (
+                  <CarrierTile
+                    key={`${carrier.technology}-${carrier.type}-${carrier.earfcn}-${index}`}
+                    carrier={carrier}
+                    allowed={isChannelAllowed(carrier.earfcn, lockedFor(carrier))}
+                    outside={isOutside(carrier)}
+                    canAdd={!towerLockActive}
+                    onAdd={() => {
+                      if (carrier.earfcn === null) return;
+                      onAddChannel(
+                        carrier.technology,
+                        carrier.earfcn,
+                        carrierScs(carrier, modemData),
+                      );
+                    }}
+                  />
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className={CAMPED.ROOT}>
-              <div className={CAMPED.HEAD}>
-                <LiveDot />
-                <span className={CAMPED.LABEL}>
-                  {t("frequency_locking.live.camped_title")}
-                </span>
-                {carriers.length > 0 ? (
-                  <span className={CAMPED.META}>
-                    {t("frequency_locking.live.camped_meta", {
-                      count: carriers.length,
-                      bandwidth: carriers.reduce(
-                        (sum, c) => sum + (c.bandwidth_mhz || 0),
-                        0,
-                      ),
-                    })}
-                  </span>
-                ) : null}
-              </div>
-
-              {carriers.length === 0 ? (
-                <div className={CARRIER_NOTE_TILE}>
-                  <MaterialSymbol name="signal_disconnected" size={18} />
-                  <span className="text-sm font-semibold">
-                    {t("frequency_locking.live.camped_empty_title")}
-                  </span>
-                  <span className="text-xs text-pretty">
-                    {t("frequency_locking.live.camped_empty_body")}
-                  </span>
-                </div>
-              ) : (
-                <div className={CAMPED.GRID}>
-                  {carriers.map((carrier, index) => (
-                    <CarrierTile
-                      key={`${carrier.technology}-${carrier.type}-${carrier.earfcn}-${index}`}
-                      carrier={carrier}
-                      allowed={isChannelAllowed(
-                        carrier.earfcn,
-                        carrier.technology === "NR" ? allowedNr : allowedLte,
-                      )}
-                      canAdd={!towerLockActive}
-                      onAdd={() => {
-                        if (carrier.earfcn === null) return;
-                        onAddChannel(
-                          carrier.technology,
-                          carrier.earfcn,
-                          carrierScs(carrier, modemData),
-                        );
-                      }}
-                    />
-                  ))}
-
-                  {/* The spare cell explains the page's one genuinely
-                      counter-intuitive rule, in the place where the user is
-                      about to act on it. */}
-                  {carriers.length < 3 ? (
-                    <div className={CARRIER_NOTE_TILE}>
-                      <MaterialSymbol
-                        name={
-                          blockedByUnknown
-                            ? "visibility_off"
-                            : towerLockActive
-                              ? "swap_horiz"
-                              : "graphic_eq"
-                        }
-                        size={18}
-                      />
-                      <span className="text-xs/relaxed text-pretty">
-                        {blockedByUnknown
-                          ? t("frequency_locking.live.compare_hint_unknown")
-                          : towerLockActive
-                            ? t("frequency_locking.live.compare_hint")
-                            : t("frequency_locking.live.add_hint")}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
-              {towerLockActive ? (
-                <span className={CAMPED.NOTE}>
-                  {blockedByUnknown
-                    ? t("frequency_locking.live.add_blocked_unknown")
-                    : t("frequency_locking.live.add_blocked")}
-                </span>
+              {anyOutside ? (
+                <p className="text-warning-on-surface inline-flex items-center gap-1.5 text-xs">
+                  <MaterialSymbol
+                    name="warning"
+                    size={16}
+                    className="flex-none"
+                  />
+                  {t("frequency_locking.live.outside_list")}
+                </p>
               ) : null}
-            </div>
+            </>
           )}
         </div>
       </div>

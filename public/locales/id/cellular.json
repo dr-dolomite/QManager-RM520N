@@ -1578,7 +1578,8 @@
       "compare_hint": "Kunci tower mengikat kanal sekaligus sel. Kunci frekuensi lebih longgar: kanal yang sama, sel mana pun.",
       "compare_hint_unknown": "Status kunci tower tidak dapat dibaca. Kunci frekuensi ditolak selama kunci tower aktif, jadi tidak ada yang bisa diterapkan di sini sampai pembacaan itu berhasil.",
       "add_blocked": "Penambahan dinonaktifkan sampai kunci tower dilepas.",
-      "add_blocked_unknown": "Penambahan dinonaktifkan sampai status kunci tower dapat dibaca."
+      "add_blocked_unknown": "Penambahan dinonaktifkan sampai status kunci tower dapat dibaca.",
+      "outside_list": "Carrier yang diberi bingkai aktif tetapi berada di luar daftar kanal Anda."
     },
     "verdict": {
       "unlocked_title": "Semua kanal diizinkan",
@@ -1623,7 +1624,8 @@
       "blocked_body": "Lepas kunci tower untuk mengedit daftar ini.",
       "scs_warning": "Jarak yang salah tampak seperti entri yang valid, tetapi modem tidak akan pernah memakainya. Nilainya disalin dari carrier saat Anda menambahkannya dari atas.",
       "no_pci_note": "Kunci frekuensi tidak pernah mengikat sel. Modem terus berpindah sel di dalam kanal yang Anda izinkan.",
-      "count": "{{used}} dari {{max}}"
+      "count": "{{used}} dari {{max}}",
+      "unused": "Kanal yang diberi bingkai terkunci, tetapi radio tidak memakainya."
     },
     "blocked": {
       "tower_lock_active": "Kunci tower sedang menahan radio ini. Lepaskan dulu sebelum mengunci frekuensi.",
@@ -1641,7 +1643,8 @@
       "staged": "Disiapkan",
       "in_list": "Di daftar",
       "remove": "Hapus entri",
-      "staged_count": "{{count}} dari {{max}} entri disiapkan. Belum ada yang ditulis ke modem."
+      "staged_count": "{{count}} dari {{max}} entri disiapkan. Belum ada yang ditulis ke modem.",
+      "on_air": "Aktif"
     },
     "actions": {
       "use_current": "Pakai saat ini",
@@ -1706,7 +1709,8 @@
       "unsupported_confirm": "Tetap kunci",
       "cancel": "Batal",
       "confirm_lock": "Kunci kanal",
-      "confirm_unlock": "Hapus kunci"
+      "confirm_unlock": "Hapus kunci",
+      "no_recovery": "Penguncian frekuensi tidak punya pemantau failover. Berbeda dengan penguncian band dan tower, tidak ada apa pun yang memulihkan layanan dengan sendirinya jika kanal ini kehilangan jangkauan."
     },
     "bands": {
       "possible": "Kemungkinan band:",

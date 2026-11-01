@@ -6,13 +6,13 @@ import { useTranslation } from "react-i18next";
 
 import { CellularPageHeader } from "@/components/cellular/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useFrequencyLocking } from "@/hooks/use-frequency-locking";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import type { NrFreqLockEntry } from "@/types/frequency-locking";
 
-import FreqApplyBar from "./apply-bar";
 import FreqLockHero from "./freq-lock-hero";
 import LteFreqCard from "./lte-freq-card";
 import NrFreqCard from "./nr-freq-card";
@@ -28,8 +28,7 @@ import {
 // Frequency Locking — page shell
 // =============================================================================
 // Reads top to bottom as one argument: what the radio is on RIGHT NOW, then the
-// two lists you are allowed to keep, then one bar owning the cost of applying
-// them.
+// two lists you are allowed to keep. Each card owns its own Apply and Clear.
 //
 // THE SHELL OWNS THE DRAFTS. Both cards are controlled. That is not ceremony:
 // the live strip's carrier tiles each carry an Add button that pushes a channel
@@ -46,8 +45,8 @@ import {
 // own reconnect — so one button that fires one or two of them depending on
 // hidden state is precisely the ambiguity the read-back line exists to remove.
 // Per-leg apply also matches Tower Locking next door, which is the page users
-// arrive from. The bar keeps what it is uniquely good at: the reconnect
-// disclaimer, the standing no-failover risk, the modem's read-back, Clear all.
+// arrive from. (A bottom bar once held the reconnect disclaimer, the read-back
+// and Clear all; the cards' own Clear and slot rows made it redundant.)
 // =============================================================================
 
 const LTE_SLOTS = 2;
@@ -60,11 +59,9 @@ export const FrequencyLockingComponent = () => {
     modemState,
     isLoading,
     isRefreshing,
-    lastSyncedAt,
     isLteLocking,
     isNrLocking,
     error,
-    errorCode,
     lockLte,
     unlockLte,
     lockNr,
@@ -157,78 +154,9 @@ export const FrequencyLockingComponent = () => {
     [],
   );
 
-  // ---------------------------------------------------------------------------
-  // Scoping the error to the leg that caused it
-  // ---------------------------------------------------------------------------
-  /**
-   * `useFrequencyLocking` exposes ONE `error` string for both legs, so handing
-   * it to both cards makes a failed NR write paint an identical error notice
-   * under LTE — pointing the user at the leg that was fine.
-   *
-   * Band locking hit this exact bug and its fix is the house pattern
-   * (`docs/reference/band-locking.md:199`): the COORDINATOR remembers which leg
-   * it last wrote and gates the error on that, rather than reshaping the hook's
-   * contract for a display concern. Set BEFORE the call, so it is already
-   * correct by the time a failure lands.
-   */
-  const [lastAttempted, setLastAttempted] = useState<"lte" | "nr" | null>(null);
-
-  /**
-   * Backend error CODES become sentences here, not in the hook.
-   *
-   * `use-frequency-locking` has no i18n namespace, so it reports the code and
-   * this coordinator - which already owns error scoping - resolves it. The one
-   * code with copy of its own is `tower_state_unknown`: `lock.sh` fails closed
-   * when it cannot confirm the tower lock state, and the raw code would reach
-   * the card as an untranslated identifier. Anything else falls through to the
-   * backend's `detail` string unchanged.
-   */
-  const scopedError = useMemo(() => {
-    if (!error) return null;
-    if (errorCode === "tower_state_unknown") {
-      return t("frequency_locking.errors.tower_state_unknown");
-    }
-    return error;
-  }, [error, errorCode, t]);
-
-  const handleLockLte = useCallback(
-    (earfcns: number[]) => {
-      setLastAttempted("lte");
-      return lockLte(earfcns);
-    },
-    [lockLte],
-  );
-  const handleUnlockLte = useCallback(() => {
-    setLastAttempted("lte");
-    return unlockLte();
-  }, [unlockLte]);
-  const handleLockNr = useCallback(
-    (entries: NrFreqLockEntry[]) => {
-      setLastAttempted("nr");
-      return lockNr(entries);
-    },
-    [lockNr],
-  );
-  const handleUnlockNr = useCallback(() => {
-    setLastAttempted("nr");
-    return unlockNr();
-  }, [unlockNr]);
-
-  const handleClearAll = useCallback(async () => {
-    if (modemState?.lte_locked) {
-      setLastAttempted("lte");
-      await unlockLte();
-    }
-    if (modemState?.nr_locked) {
-      setLastAttempted("nr");
-      await unlockNr();
-    }
-  }, [modemState?.lte_locked, modemState?.nr_locked, unlockLte, unlockNr]);
-
   // The strip's gate is the union: the page is blocked when either radio is
   // held by a tower lock, because the verdict it renders is page-level.
   const anyTowerLock = towerLockLteActive || towerLockNrActive;
-  const isBusy = isLteLocking || isNrLocking;
 
   const header = useMemo(
     () => (
@@ -264,6 +192,22 @@ export const FrequencyLockingComponent = () => {
         <CellularPageHeader
           title={header}
           description={t("frequency_locking.page.description")}
+          actions={
+            <Button
+              type="button"
+              variant="tonal-neutral"
+              size="action"
+              onClick={refresh}
+              disabled={isLoading || isRefreshing || isLteLocking || isNrLocking}
+            >
+              <MaterialSymbol
+                name="refresh"
+                size={18}
+                className={isRefreshing ? "motion-safe:animate-spin" : undefined}
+              />
+              {t("frequency_locking.actions.refresh")}
+            </Button>
+          }
         />
       </motion.div>
 
@@ -272,11 +216,9 @@ export const FrequencyLockingComponent = () => {
           modemState={modemState}
           modemData={modemData}
           isLoading={isLoading}
-          isRefreshing={isRefreshing}
-          lastSyncedAt={lastSyncedAt}
+          loadError={error}
           towerLockActive={anyTowerLock}
           towerLockStateKnown={towerLockStateKnown}
-          onRefresh={refresh}
           onAddChannel={handleAddChannel}
         />
       </motion.div>
@@ -290,11 +232,10 @@ export const FrequencyLockingComponent = () => {
             modemData={modemData}
             isLoading={isLoading}
             isLocking={isLteLocking}
-            error={lastAttempted === "lte" ? scopedError : null}
             towerLockActive={towerLockLteActive}
             towerLockReadOk={towerLockLteReadOk}
-            onLock={handleLockLte}
-            onUnlock={handleUnlockLte}
+            onLock={lockLte}
+            onUnlock={unlockLte}
           />
         </motion.div>
 
@@ -306,25 +247,12 @@ export const FrequencyLockingComponent = () => {
             modemData={modemData}
             isLoading={isLoading}
             isLocking={isNrLocking}
-            error={lastAttempted === "nr" ? scopedError : null}
             towerLockActive={towerLockNrActive}
             towerLockReadOk={towerLockNrReadOk}
-            onLock={handleLockNr}
-            onUnlock={handleUnlockNr}
+            onLock={lockNr}
+            onUnlock={unlockNr}
           />
         </motion.div>
-      </motion.div>
-
-      <motion.div variants={staggerItem}>
-        <FreqApplyBar
-          modemState={modemState}
-          modemData={modemData}
-          isLoading={isLoading}
-          isBusy={isBusy}
-          towerLockActive={anyTowerLock}
-          towerLockStateKnown={towerLockStateKnown}
-          onClearAll={handleClearAll}
-        />
       </motion.div>
     </motion.div>
   );

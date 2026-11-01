@@ -25,7 +25,7 @@ The 2026-08 rebuild is **frontend-only**. Both CGI scripts, the poller, every sy
 | Live strip ("Right now") | `components/cellular/frequency-locking/freq-lock-hero.tsx` |
 | LTE leg card | `components/cellular/frequency-locking/lte-freq-card.tsx` |
 | 5G NR leg card | `components/cellular/frequency-locking/nr-freq-card.tsx` |
-| Apply bar (read-back + Clear all) | `components/cellular/frequency-locking/apply-bar.tsx` |
+| Failure sentence for a lock / unlock write | `components/cellular/frequency-locking/lock-result.ts` (`lockFailureMessage`) |
 | Band-match line under a channel | `components/cellular/frequency-locking/band-match-display.tsx` |
 | Data + actions hook | `hooks/use-frequency-locking.ts` |
 | Types (**unchanged** by this work) | `types/frequency-locking.ts` |
@@ -70,8 +70,6 @@ FrequencyLockingComponent                 ← owns both drafts and every hook
 ├── grid (1 col → 2 at @3xl/main)
 │   ├── LteFreqCard         2 fixed slots, Apply LTE / Clear LTE / Clear fields
 │   └── NrFreqCard          dynamic list ≤32, add row, Apply NR / Clear NR / Clear fields
-└── FreqApplyBar            APPLY_BAR      reconnect disclaimer · MODEM READ-BACK ·
-                                             no-recovery note · Clear all
 ```
 
 The order is an argument read top to bottom: **what the radio is on right now**, then **the two lists you are allowed to keep**, then **one bar owning the cost of applying them**.
@@ -90,7 +88,7 @@ Seeding runs **during render** (`frequency-locking.tsx:112`), React's documented
 
 The design comp put a single Apply in the footer bar whose label changed with whichever leg happened to be dirty. LTE and NR are **two independent AT writes**, gated independently, each costing its own reconnect — so one button that fires one *or* two of them depending on hidden state is precisely the ambiguity the read-back line exists to remove. Per-leg apply also matches Tower Locking next door, which is the page users arrive from.
 
-The bar keeps what it is uniquely good at: the reconnect disclaimer, the standing no-failover risk, the modem's read-back, and **Clear all**.
+**The page-level apply bar is retired (2026-11, 551E v0.1.34 parity).** Each card commits from its own `CardFoot`; the no-failover risk is said in the lock confirmation dialogs (`dialog.no_recovery`). `use-frequency-locking` mutators return `{ ok, error, detail }` and the card toasts the reason through `lockFailureMessage`; the hook's `error` is the status read's failure only. Sections below that name the apply bar, `FreqApplyBar` or `handleClearAll` are historical.
 
 ## The two clocks
 
