@@ -893,7 +893,6 @@
     "connection": {
       "title": "連線",
       "description": "此數據機是否加入 tailnet，以及加入後的行為方式。",
-      "version": "v{{version}}",
       "connect": "連線",
       "connecting": "連線中…",
       "disconnect": "中斷連線",
@@ -917,7 +916,15 @@
       "sshLocked": "連線 Tailscale 後才能變更此設定。",
       "sshDialogTitle": "開啟 Tailscale SSH？",
       "sshDialogDescription": "tailnet 成員將能依您 Tailscale 管理後台的 ACL 透過 SSH 連線此數據機。請先檢查該政策，確保只有您允許的人能存取此裝置。",
-      "sshConfirm": "開啟 SSH"
+      "sshConfirm": "開啟 SSH",
+      "on": "開",
+      "off": "關",
+      "updating": "更新中…",
+      "updateAvailable": "有可用更新（{{version}}）",
+      "updateDialogTitle": "將 Tailscale 更新到 {{version}}？",
+      "updateDialogDescription": "新版本啟動期間，隧道會重新連線數秒。",
+      "update": "更新",
+      "updateLogTitle": "更新記錄"
     },
     "device": {
       "title": "此裝置",
@@ -930,7 +937,8 @@
       "magicDns": "MagicDNS",
       "relay": "DERP 中繼",
       "emptyTitle": "尚未加入 tailnet",
-      "emptyDescription": "連線 Tailscale 後，此數據機的位址、DNS 名稱與中繼資訊會顯示在這裡。"
+      "emptyDescription": "連線 Tailscale 後，此數據機的位址、DNS 名稱與中繼資訊會顯示在這裡。",
+      "version": "版本"
     },
     "peers": {
       "title": "網路節點",
@@ -1009,7 +1017,11 @@
       "uninstalled": "Tailscale 已解除安裝",
       "uninstallFailed": "無法解除安裝 Tailscale",
       "copied": "指令已複製",
-      "copyFailed": "無法複製指令"
+      "copyFailed": "無法複製指令",
+      "installed": "Tailscale 已安裝",
+      "installFailed": "Tailscale 安裝未完成",
+      "updated": "Tailscale 已更新到 {{version}}",
+      "updateFailed": "無法更新 Tailscale"
     }
   },
   "watchdog": {

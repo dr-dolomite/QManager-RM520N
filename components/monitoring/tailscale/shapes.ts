@@ -372,6 +372,9 @@ export const SKELETON = {
   METRIC: `${METRIC_HEIGHT} rounded-pill`,
   SWITCH: `${SWITCH_MIN_HEIGHT} rounded-tile`,
   ACTION: `${ACTION_HEIGHT} rounded-pill`,
+  /** The install hero's muted condition block and its manual-command row. */
+  HERO_CONDITION: "h-[15.75rem] rounded-tile",
+  HERO_COMMAND: "h-[4.9375rem] rounded-tile",
   HEAD: `${HEAD_HEIGHT} rounded-inline`,
   /** Table rows are hairline-separated with NO gap between them, so the
    *  placeholder stack takes none either — a gap would make the skeleton

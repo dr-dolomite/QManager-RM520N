@@ -893,7 +893,6 @@
     "connection": {
       "title": "Connection",
       "description": "Whether this modem joins the tailnet, and how it behaves once it does.",
-      "version": "v{{version}}",
       "connect": "Connect",
       "connecting": "Connecting…",
       "disconnect": "Disconnect",
@@ -917,7 +916,15 @@
       "sshLocked": "Connect to Tailscale to change this.",
       "sshDialogTitle": "Turn on Tailscale SSH?",
       "sshDialogDescription": "Tailnet members will be able to SSH into this modem based on your Tailscale admin-panel ACLs. Review that policy first, so only the people you intend can reach the device.",
-      "sshConfirm": "Turn on SSH"
+      "sshConfirm": "Turn on SSH",
+      "on": "On",
+      "off": "Off",
+      "updating": "Updating…",
+      "updateAvailable": "Update available ({{version}})",
+      "updateDialogTitle": "Update Tailscale to {{version}}?",
+      "updateDialogDescription": "The tunnel reconnects for a few seconds while the new version starts.",
+      "update": "Update",
+      "updateLogTitle": "Update Log"
     },
     "device": {
       "title": "This device",
@@ -930,7 +937,8 @@
       "magicDns": "MagicDNS",
       "relay": "DERP relay",
       "emptyTitle": "Not on the tailnet",
-      "emptyDescription": "Connect Tailscale and this modem's address, DNS name and relay appear here."
+      "emptyDescription": "Connect Tailscale and this modem's address, DNS name and relay appear here.",
+      "version": "Version"
     },
     "peers": {
       "title": "Network peers",
@@ -1009,7 +1017,11 @@
       "uninstalled": "Tailscale uninstalled",
       "uninstallFailed": "Could not uninstall Tailscale",
       "copied": "Command copied",
-      "copyFailed": "Could not copy the command"
+      "copyFailed": "Could not copy the command",
+      "installed": "Tailscale installed",
+      "installFailed": "The Tailscale install did not finish",
+      "updated": "Tailscale updated to {{version}}",
+      "updateFailed": "Tailscale could not be updated"
     }
   },
   "watchdog": {

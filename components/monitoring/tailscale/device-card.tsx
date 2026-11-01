@@ -13,11 +13,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TailscaleStatus } from "@/hooks/use-tailscale";
+import type {
+  InstallResult,
+  TailscaleActionResult,
+  TailscaleStatus,
+} from "@/hooks/use-tailscale";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { ConditionBlock } from "./condition-block";
+import { InstallLogViewer } from "./install-log-viewer";
 import {
   CARD_BODY,
   CARD_DESC,
@@ -30,6 +35,7 @@ import {
   SKELETON,
   type TailscaleView,
 } from "./shapes";
+import { UpdateControl } from "./update-control";
 
 // -----------------------------------------------------------------------------
 // This device — the tailnet identity, as pill rows. No hairlines.
@@ -39,9 +45,11 @@ interface IdentityRow {
   key: string;
   label: string;
   value: string;
+  /** Identifiers are mono; a version is a quantity and reads in the UI face. */
+  mono?: boolean;
 }
 
-/** Everything here is an identifier the device emitted, so every value is mono. */
+/** Identifiers the device emitted are mono; the version is the one quantity. */
 function identityRows(
   status: TailscaleStatus,
   t: (key: string) => string,
@@ -92,6 +100,13 @@ function identityRows(
       label: t("tailscale.device.relay"),
       value: self.relay,
     });
+  if (status.version)
+    rows.push({
+      key: "version",
+      label: t("tailscale.device.version"),
+      value: status.version,
+      mono: false,
+    });
 
   return rows;
 }
@@ -99,12 +114,24 @@ function identityRows(
 export function DeviceCard({
   view,
   status,
+  isUpdating,
+  installResult,
+  runUpdate,
 }: {
   view: TailscaleView;
   status: TailscaleStatus;
+  isUpdating: boolean;
+  /** The shared install/update transcript; read here only while an update runs. */
+  installResult: InstallResult;
+  runUpdate: () => Promise<TailscaleActionResult>;
 }) {
   const { t } = useTranslation("common");
   const rows = view === "running" ? identityRows(status, t) : [];
+
+  // The update is offered on the Version row, never louder than the version.
+  const updating = isUpdating || status.busy === "update";
+  const latestVersion = status.latest_version ?? "";
+  const updateAvailable = !!status.update_available && latestVersion !== "";
 
   return (
     <Card className={CARD_SHELL}>
@@ -137,13 +164,37 @@ export function DeviceCard({
                 variants={staggerRowItem}
               >
                 <span className={METRIC.LABEL}>{row.label}</span>
-                <span className={METRIC.VALUE_MONO} title={row.value}>
+                <span
+                  className={cn(
+                    row.mono === false ? METRIC.VALUE : METRIC.VALUE_MONO,
+                    // The update chip must not squeeze the version it follows.
+                    row.key === "version" && "shrink-0",
+                  )}
+                  title={row.value}
+                >
                   {row.value}
                 </span>
+                {row.key === "version" && (updateAvailable || updating) ? (
+                  <UpdateControl
+                    latestVersion={latestVersion}
+                    updating={updating}
+                    disabled={!!status.busy}
+                    runUpdate={runUpdate}
+                  />
+                ) : null}
               </motion.div>
             ))}
           </motion.div>
         )}
+
+        {/* The transcript of a running update; the install log's twin. */}
+        {updating ? (
+          <InstallLogViewer
+            title={t("tailscale.connection.updateLogTitle")}
+            log={installResult.op === "update" ? (installResult.log ?? "") : ""}
+            isRunning
+          />
+        ) : null}
       </CardContent>
     </Card>
   );
