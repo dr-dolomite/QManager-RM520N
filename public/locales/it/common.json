@@ -108,7 +108,9 @@
       "consequence_absent": "Su questo dispositivo non c'è alcuna porta ethernet da configurare.",
       "toast_success": "Velocità collegamento aggiornata",
       "toast_error": "Impossibile impostare la velocità del collegamento",
-      "toast_confirm_error": "Impossibile confermare la nuova velocità. Controlla il collegamento."
+      "toast_confirm_error": "Impossibile confermare la nuova velocità. Controlla il collegamento.",
+      "apply": "Applica",
+      "discard": "Annulla modifiche"
     },
     "lan_config": {
       "card_title": "Indirizzo LAN",
@@ -340,27 +342,27 @@
       "refresh": "Aggiorna"
     },
     "strip": {
-      "label": "Attivo su rmnet",
+      "label": "Attivo ora",
       "chip_custom": "Personalizzati",
       "chip_default": "Valori predefiniti dell'operatore",
       "retry": "Riprova",
       "unavailable_title": "Impossibile leggere TTL o MTU",
-      "unavailable_body": "Nessuno dei due endpoint ha risposto. Sul modem non è stato modificato nulla.",
+      "unavailable_body": "Il modem non ha risposto. Non è stato modificato nulla.",
       "idle_title": "Nessuna sostituzione attiva",
       "idle_body": "Il modem usa TTL e MTU dell'operatore esattamente come sono stati negoziati. Attivane uno qui sotto per cambiarli."
     },
     "tiles": {
       "shared": {
         "caption_pending": "Lettura in corso",
-        "caption_unread": "Questo endpoint non ha risposto"
+        "caption_unread": "Il modem non ha risposto"
       },
       "ttl": {
-        "label": "TTL — IPv4",
+        "label": "TTL (IPv4)",
         "caption_active": "Riscritto su ogni pacchetto",
         "caption_idle": "Non riscritto"
       },
       "hl": {
-        "label": "Limite di hop — IPv6",
+        "label": "Limite di hop (IPv6)",
         "caption_active": "Riscritto su ogni pacchetto",
         "caption_idle": "Non riscritto"
       },
@@ -408,7 +410,7 @@
       },
       "mtu_toggle": {
         "label": "Sostituisci la MTU",
-        "consequence": "Se disattivata, su ogni interfaccia rmnet_data viene ripristinato il valore negoziato con l'operatore."
+        "consequence": "Se disattivata, sull'interfaccia cellulare viene ripristinato il valore negoziato con l'operatore."
       },
       "mtu_value": {
         "label": "Valore MTU",
@@ -430,10 +432,10 @@
       "no_value": "Inserisci un TTL o un limite di hop prima di applicare.",
       "mtu_range": "La MTU deve essere compresa tra {{min}} e {{max}}."
     },
-    "toast_ttl_applied": "Applicati — TTL {{ttl}}, limite di hop {{hl}}.",
+    "toast_ttl_applied": "Applicati (TTL {{ttl}}, limite di hop {{hl}}).",
     "toast_ttl_cleared": "Il modem è tornato al conteggio di hop dell'operatore.",
     "toast_ttl_error": "Impossibile applicare TTL e limite di hop.",
-    "toast_mtu_applied": "MTU impostata a {{mtu}} su ogni interfaccia rmnet_data.",
+    "toast_mtu_applied": "MTU impostata a {{mtu}}.",
     "toast_mtu_cleared": "La MTU è tornata al valore negoziato con l'operatore.",
     "toast_mtu_error": "Impossibile applicare la MTU."
   },

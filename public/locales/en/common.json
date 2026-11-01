@@ -108,7 +108,9 @@
       "consequence_absent": "There is no ethernet port to configure on this device.",
       "toast_success": "Link speed updated",
       "toast_error": "Failed to set link speed",
-      "toast_confirm_error": "Couldn't confirm the new speed. Check the link."
+      "toast_confirm_error": "Couldn't confirm the new speed. Check the link.",
+      "apply": "Apply",
+      "discard": "Discard"
     },
     "lan_config": {
       "card_title": "LAN Address",
@@ -340,27 +342,27 @@
       "refresh": "Refresh"
     },
     "strip": {
-      "label": "In force on rmnet",
+      "label": "In force now",
       "chip_custom": "Custom",
       "chip_default": "Carrier defaults",
       "retry": "Retry",
       "unavailable_title": "Couldn't read TTL or MTU",
-      "unavailable_body": "Neither endpoint answered. Nothing on the modem has been changed.",
+      "unavailable_body": "The modem didn't answer. Nothing on it has been changed.",
       "idle_title": "No overrides in force",
       "idle_body": "The modem is using the carrier's TTL and MTU exactly as negotiated. Turn one on below to change that."
     },
     "tiles": {
       "shared": {
         "caption_pending": "Still reading",
-        "caption_unread": "This endpoint didn't answer"
+        "caption_unread": "The modem didn't answer"
       },
       "ttl": {
-        "label": "TTL — IPv4",
+        "label": "TTL (IPv4)",
         "caption_active": "Rewritten on every packet",
         "caption_idle": "Not rewritten"
       },
       "hl": {
-        "label": "Hop limit — IPv6",
+        "label": "Hop limit (IPv6)",
         "caption_active": "Rewritten on every packet",
         "caption_idle": "Not rewritten"
       },
@@ -408,7 +410,7 @@
       },
       "mtu_toggle": {
         "label": "Override the MTU",
-        "consequence": "Off restores the carrier-negotiated value on every rmnet_data interface."
+        "consequence": "Off restores the carrier-negotiated value on the cellular interface."
       },
       "mtu_value": {
         "label": "MTU value",
@@ -430,10 +432,10 @@
       "no_value": "Enter a TTL or a hop limit before applying.",
       "mtu_range": "MTU must be between {{min}} and {{max}}."
     },
-    "toast_ttl_applied": "Applied — TTL {{ttl}}, hop limit {{hl}}.",
+    "toast_ttl_applied": "Applied (TTL {{ttl}}, hop limit {{hl}}).",
     "toast_ttl_cleared": "The modem is back on the carrier's own hop count.",
     "toast_ttl_error": "Couldn't apply the TTL and hop limit.",
-    "toast_mtu_applied": "MTU set to {{mtu}} on every rmnet_data interface.",
+    "toast_mtu_applied": "MTU set to {{mtu}}.",
     "toast_mtu_cleared": "MTU is back to the carrier-negotiated value.",
     "toast_mtu_error": "Couldn't apply the MTU."
   },

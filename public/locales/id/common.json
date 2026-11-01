@@ -108,7 +108,9 @@
       "consequence_absent": "Tidak ada port ethernet yang dapat dikonfigurasi di perangkat ini.",
       "toast_success": "Kecepatan tautan diperbarui",
       "toast_error": "Gagal mengatur kecepatan tautan",
-      "toast_confirm_error": "Tidak dapat mengonfirmasi kecepatan baru. Periksa tautan."
+      "toast_confirm_error": "Tidak dapat mengonfirmasi kecepatan baru. Periksa tautan.",
+      "apply": "Terapkan",
+      "discard": "Buang"
     },
     "lan_config": {
       "card_title": "Alamat LAN",
@@ -340,27 +342,27 @@
       "refresh": "Segarkan"
     },
     "strip": {
-      "label": "Berlaku di rmnet",
+      "label": "Berlaku sekarang",
       "chip_custom": "Kustom",
       "chip_default": "Bawaan operator",
       "retry": "Coba lagi",
       "unavailable_title": "Tidak dapat membaca TTL atau MTU",
-      "unavailable_body": "Kedua endpoint tidak menjawab. Tidak ada yang diubah pada modem.",
+      "unavailable_body": "Modem tidak menjawab. Tidak ada yang diubah pada modem.",
       "idle_title": "Tidak ada penggantian yang berlaku",
       "idle_body": "Modem memakai TTL dan MTU operator persis seperti hasil negosiasi. Aktifkan salah satu di bawah untuk mengubahnya."
     },
     "tiles": {
       "shared": {
         "caption_pending": "Masih membaca",
-        "caption_unread": "Endpoint ini tidak menjawab"
+        "caption_unread": "Modem tidak menjawab"
       },
       "ttl": {
-        "label": "TTL — IPv4",
+        "label": "TTL (IPv4)",
         "caption_active": "Ditulis ulang pada setiap paket",
         "caption_idle": "Tidak ditulis ulang"
       },
       "hl": {
-        "label": "Batas hop — IPv6",
+        "label": "Batas hop (IPv6)",
         "caption_active": "Ditulis ulang pada setiap paket",
         "caption_idle": "Tidak ditulis ulang"
       },
@@ -408,7 +410,7 @@
       },
       "mtu_toggle": {
         "label": "Ganti nilai MTU",
-        "consequence": "Jika nonaktif, nilai hasil negosiasi operator dipulihkan di setiap antarmuka rmnet_data."
+        "consequence": "Jika nonaktif, nilai hasil negosiasi operator dipulihkan di antarmuka seluler."
       },
       "mtu_value": {
         "label": "Nilai MTU",
@@ -430,10 +432,10 @@
       "no_value": "Isi TTL atau batas hop sebelum menerapkan.",
       "mtu_range": "MTU harus antara {{min}} dan {{max}}."
     },
-    "toast_ttl_applied": "Diterapkan — TTL {{ttl}}, batas hop {{hl}}.",
+    "toast_ttl_applied": "Diterapkan (TTL {{ttl}}, batas hop {{hl}}).",
     "toast_ttl_cleared": "Modem kembali memakai jumlah hop dari operator.",
     "toast_ttl_error": "Tidak dapat menerapkan TTL dan batas hop.",
-    "toast_mtu_applied": "MTU disetel ke {{mtu}} di setiap antarmuka rmnet_data.",
+    "toast_mtu_applied": "MTU disetel ke {{mtu}}.",
     "toast_mtu_cleared": "MTU kembali ke nilai hasil negosiasi operator.",
     "toast_mtu_error": "Tidak dapat menerapkan MTU."
   },

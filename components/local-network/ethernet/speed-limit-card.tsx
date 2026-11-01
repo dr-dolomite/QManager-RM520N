@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2Icon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,6 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CardFoot } from "@/components/ui/card-foot";
+import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import {
   Select,
   SelectContent,
@@ -35,37 +38,10 @@ import {
 // =============================================================================
 // SpeedLimitCard — Band B of /local-network/ethernet
 // =============================================================================
-// The one thing this page can WRITE, in one row of one group, under a band that
-// reports what the link is actually doing. Same grammar `/cellular/settings`
-// landed on: a live band with its own clock above a writable band with its own.
-//
-// -----------------------------------------------------------------------------
-// IT APPLIES ON CHANGE, SO THERE IS NO SAVE BUTTON
-// -----------------------------------------------------------------------------
-// POST -> PHY bounce -> confirm-poll: the trigger shows "Applying…" then the
-// value, and the toast confirms the outcome.
-//
-// -----------------------------------------------------------------------------
-// THE CONSEQUENCE LINE IS REQUIRED, AND IT NAMES THE RISK
-// -----------------------------------------------------------------------------
-// Applying drops the link for about 8 seconds while the PHY renegotiates, and
-// the person reading this is almost certainly ON that link — the app runs on the
-// modem. A settings row that does not say so is a field rather than a decision
-// (Product Principle 6: make the dangerous obvious).
-//
-// It changes with the row's condition rather than staying constant, because a
-// sentence that is true in every state is decoration. While applying it says
-// what is happening now; while the poll is failing or there is no controller it
-// says why the control is held — a control that cannot currently work explains
-// itself instead of sitting there dead (The State-Honesty Rule).
-//
-// -----------------------------------------------------------------------------
-// THE CARD IS A PEER
-// -----------------------------------------------------------------------------
-// `rounded-card` on the whisper shadow, not `rounded-hero` on `shadow-sm`. Hero
-// radius belongs to the one card that anchors a surface; the anchor here is the
-// strip above, and `shadow-sm` is outside the shadow vocabulary entirely. The
-// header is a plain `CardTitle` + `CardDescription` with no icon.
+// The Select edits a draft and `CardFoot` commits it (Card-Foot Apply Rule):
+// applying drops the link the person is on for ~8s, so a stray pick must not cut
+// the session. The consequence line changes with the row's condition and says why
+// the control is held when it cannot work (State-Honesty Rule).
 // =============================================================================
 
 const K = "ethernet";
@@ -96,7 +72,8 @@ export interface SpeedLimitCardProps {
   pollFailed: boolean;
   /** False when the device has no `eth0` at all. There is nothing to configure. */
   interfacePresent: boolean;
-  onSpeedChange: (value: string) => void;
+  /** Resolves true once the new speed is confirmed on the link. */
+  onApply: (value: string) => Promise<boolean>;
 }
 
 export function SpeedLimitCard({
@@ -106,10 +83,15 @@ export function SpeedLimitCard({
   hasStatus,
   pollFailed,
   interfacePresent,
-  onSpeedChange,
+  onApply,
 }: SpeedLimitCardProps) {
   const { t } = useTranslation("common");
 
+  const { saved, markSaved } = useSaveFlash();
+  const [draft, setDraft] = React.useState<string | null>(null);
+
+  const value = draft ?? speedLimit;
+  const isDirty = draft !== null && draft !== speedLimit;
   const held = !interfacePresent || !hasStatus || (pollFailed && !isSaving);
   const consequence = !interfacePresent
     ? t(`${K}.settings.consequence_absent`)
@@ -120,6 +102,15 @@ export function SpeedLimitCard({
         : pollFailed
           ? t(`${K}.settings.consequence_unresponsive`)
           : t(`${K}.settings.consequence`);
+
+  const handleApply = async () => {
+    if (draft === null || !isDirty) return;
+    const ok = await onApply(draft);
+    if (ok) {
+      setDraft(null);
+      markSaved();
+    }
+  };
 
   return (
     <Card className={CARD_SHELL}>
@@ -138,8 +129,8 @@ export function SpeedLimitCard({
             </div>
             <div className={ROW.CONTROL}>
               <Select
-                value={speedLimit}
-                onValueChange={onSpeedChange}
+                value={value}
+                onValueChange={setDraft}
                 disabled={isSaving || held}
               >
                 <SelectTrigger
@@ -193,6 +184,31 @@ export function SpeedLimitCard({
           </div>
         </div>
       </CardContent>
+      <CardFoot
+        className={CARD_PAD}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="action"
+              onClick={() => setDraft(null)}
+              disabled={!isDirty || isSaving}
+            >
+              {t(`${K}.settings.discard`)}
+            </Button>
+            <SaveButton
+              type="button"
+              isSaving={isSaving}
+              saved={saved}
+              disabled={!isDirty || held}
+              label={t(`${K}.settings.apply`)}
+              size="action"
+              onClick={handleApply}
+            />
+          </>
+        }
+      />
     </Card>
   );
 }
