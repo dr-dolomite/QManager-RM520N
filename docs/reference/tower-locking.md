@@ -395,6 +395,8 @@ Two consequences:
 | values equal to the read | no AT write |
 | read fails | **no write**, `persist_command_failed`; the untouched radio is never guessed |
 
+Proven on the RM520N-GL 2026-11-01 (as `www-data`): `persist_lte:true` read back `1,0`, a repeat sent no write, `persist_nr:true` gave `1,1`, legacy `persist:false` gave `0,0`.
+
 The response carries `persist_lte` / `persist_nr` (each radio after the call; `null` when persistence was not asked or could not be read). `config.persist` now means "both radios on"; nothing reads it for display.
 
 `TowerPersistField` renders from `modemState.persist_lte` / `persist_nr`, never the config. When `persist_read_ok === false` or there is no read yet, **neither option is selected** and the control is disabled: an unread value must not render as "Off" (the old `unknown` chip existed for the same reason; see [The `read_ok` contract](#the-read_ok-contract-absent-means-true)). It is also disabled while that card's lock write or any settings write is in flight. The toast names the radio (`tower_locking.toast.persist_enabled` / `persist_disabled`).
