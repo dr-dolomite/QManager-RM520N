@@ -3,7 +3,7 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-QManager's Speed Test measures download, upload and latency by shelling out to the **Ookla Speedtest CLI** — a proprietary binary the installer downloads onto the modem rather than bundling. Four CGI endpoints wrap it (availability, server list, start, status), one React hook drives the whole lifecycle, and two surfaces consume that hook: the **Speed Test row** at the bottom of the dashboard's Connection Quality card, and the **Speed Test dialog** the row opens. The feature exists because "is my connection actually delivering what the carrier promised?" is the single most common question a modem owner has, and the signal metrics elsewhere on the dashboard cannot answer it.
+QManager's Speed Test measures download, upload and latency by shelling out to the **Ookla Speedtest CLI** — a proprietary binary the installer downloads onto the modem rather than bundling. Four CGI endpoints wrap it (availability, server list, start, status), one React hook drives the whole lifecycle, and two surfaces consume that hook: the **Speed Test tile** pinned to the bottom of the dashboard's Device Metrics card, and the **Speed Test dialog** the tile opens. The feature exists because "is my connection actually delivering what the carrier promised?" is the single most common question a modem owner has, and the signal metrics elsewhere on the dashboard cannot answer it.
 
 > ⚠️ WARNING: **A single run costs roughly 400 MB of cellular data** (398 MB measured live on a full run). This is not a bug and it is not tunable — see [Cost & Measurement Reality](#cost--measurement-reality).
 
@@ -20,12 +20,12 @@ QManager's Speed Test measures download, upload and latency by shelling out to t
 | Hook | `hooks/use-speedtest.ts` |
 | Pure state machine | `lib/speedtest-phases.ts` (`resolveStepStates`) |
 | Types | `types/speedtest.ts` |
-| UI | `components/dashboard/connection-quality.tsx` (row), `components/dashboard/speedtest-dialog.tsx` (dialog) |
+| UI | `components/dashboard/device-metrics.tsx` (tile; geometry `SPEEDTEST` in `components/dashboard/shapes.ts`), `components/dashboard/speedtest-dialog.tsx` (dialog) |
 | i18n | `dashboard` namespace, `speedtest.*` subtree, all 5 locales |
 | Poll cadences | 500 ms while running, 10 s idle heartbeat (`watch` mode only) |
 | Data cost | ~400 MB per run |
 
-Related: [dashboard-chart-cards.md](dashboard-chart-cards.md) (the Connection Quality card that hosts the row), [icon-system.md](icon-system.md) (this surface is inside the Material Symbols route scope), [connection-quality.md](connection-quality.md) (the continuous latency telemetry the tile sits beneath).
+Related: [dashboard-chart-cards.md](dashboard-chart-cards.md#the-speed-test-tile) (the Device Metrics card that hosts the tile), [icon-system.md](icon-system.md) (this surface is inside the Material Symbols route scope), [connection-quality.md](connection-quality.md) (the continuous latency telemetry on the card beside it).
 
 ---
 
@@ -170,7 +170,7 @@ Both `speedtest_start.sh`'s wrapper and `speedtest_servers.sh` export `HOME="${H
 
 ### The cached result is lost on reboot
 
-`RESULT_FILE` lives in `/tmp`, which is tmpfs. A reboot wipes it and the dashboard tile silently reverts to its no-result state ("Start a speed test to measure your current network speed."). This is not a bug report — it is expected, and the tile's design deliberately treats "no cached result" as an ordinary state rather than an error.
+`RESULT_FILE` lives in `/tmp`, which is tmpfs. A reboot wipes it and the dashboard tile silently reverts to its no-result state (three `—` figures). This is not a bug report — it is expected, and the tile's design deliberately treats "no cached result" as an ordinary state rather than an error.
 
 ### OTA behaviour
 
@@ -200,7 +200,7 @@ Other properties of the function worth keeping:
 
 | Consumer | Mode | Idle | Running |
 | -------- | ---- | ---- | ------- |
-| Dashboard row (`connection-quality.tsx`) | `watch: true` | 10 s detect heartbeat | 500 ms |
+| Dashboard tile (`device-metrics.tsx`) | `watch: true` | 10 s detect heartbeat | 500 ms |
 | Dialog (`speedtest-dialog.tsx`) | default | no polling at all | 500 ms |
 
 `watch: true` is the entire "a run started somewhere else shows up here" feature. Previously the tile fired a one-shot fetch on mount and another on dialog close, so a run started in another tab — or from another device on the LAN — was invisible until something happened to reopen the dialog. The status endpoint took its `flock` precisely so that two hook instances polling at once is *expected* rather than merely tolerated.
@@ -294,19 +294,19 @@ Everything the rule protects is still paid for. All four states carry a distinct
 
 This matters because `success-container` and `warning-container` measure roughly **1.03:1** apart — the same surface to the eye, and identical under deuteranopia.
 
-### The row keeps one height
+### The tile keeps one height
 
-The Speed Test row is a `PillRow` pinned to the bottom of Connection Quality (`mt-auto`), so it takes the card's spare height. Running, cached and never-run all render inside the same pill, so switching state never moves the card.
+Since 2026-11-01 the Speed Test tile sits at the foot of Device Metrics (`mt-auto`), moved from the bottom of Connection Quality. `SPEEDTEST.TILE` pins it at **68px** (`h-[4.25rem]`) in every state, skeleton included, so switching state never moves the card.
 
-### Row states
+### Tile states
 
 | State | Condition | Renders |
 | ----- | --------- | ------- |
-| Running | `isRunning` | `animate-live-ping` dot with the phase name, live figure + phase-local progress meter |
-| Cached | `cachedResult`, not running | Play button + two direction figure pills (download rose, upload cyan) + a relative "14 min ago" caption |
-| Idle | neither | Play button + an em dash |
+| Running | `isRunning` | `visibility` button + `animate-live-ping` dot with the phase name, live figure + phase-local progress meter |
+| Cached | `cachedResult`, not running | `play_arrow` button + three figures: download (rose glyph), upload (cyan glyph), ping |
+| Idle | neither | `play_arrow` button + the three figures as `—` |
 
-The relative timestamp ticks on its **own** 30 s clock (`useNowSec`), independent of the status poll — in `watch` mode the endpoint returns a byte-identical cached result each time, React bails out of the re-render, and the label would otherwise freeze at whatever it said when the result first arrived. Ages beyond `ABSURD_AGE_SEC` (365 days) or negative ages collapse to "just now", because the modem stamps the result with its own clock and the browser supplies `now` — on a device that has not reached NTP, a naive diff renders "20454 d ago".
+> ℹ️ NOTE: the tile carries **no result age**. The old Connection Quality row showed a relative "14 min ago" on its own 30 s clock, with ages past 365 days or negative collapsing to "just now" (the modem stamps the result with its own clock, so a device that has not reached NTP would otherwise read "20454 d ago"). That code went with the move; the `speedtest.time_*` keys are now unused. If an age comes back, it needs the same two guards.
 
 ---
 
@@ -326,4 +326,4 @@ The one glyph added to the Material Symbols subset is **`cloud_off`** (used by t
 - **Never move `install -d` below the idempotence guard**, and never move `rm -f "$PID_FILE"` off the end of the harvest.
 - **`resp.ok` proves nothing** for `speedtest_servers.sh` — check `data.success`.
 - **A reboot clears the cached result.** Do not treat a missing result as a failure.
-- **The dialog's display numerals (44/52/26 px) sit off DESIGN.md's type ramp**, which tops out at the 30 px Display step. They are deliberate, comp-authoritative and **scoped to this file** — this is the product's only surface whose entire job, for ~40 seconds, is one number changing. Do not propose them as new ramp steps, and do not "correct" the tile's 17 px/11 px figure pair either: that slot is sized to the 34 px action row and changing it breaks the skeleton mirror.
+- **The dialog's display numerals (44/52/26 px) sit off DESIGN.md's type ramp**, which tops out at the 30 px Display step. They are deliberate, comp-authoritative and **scoped to this file** — this is the product's only surface whose entire job, for ~40 seconds, is one number changing. Do not propose them as new ramp steps, The dashboard tile's figures use the shared `FIGURE` recipe (`components/dashboard/shapes.ts`: 11 px label over a 22 px numeral, 16 px below `@sm`) inside the pinned 68 px `SPEEDTEST.TILE`; changing either height breaks the skeleton mirror.

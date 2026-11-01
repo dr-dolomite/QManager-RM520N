@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 // =============================================================================
 // Title and one-line description. The cadence chip and the "Refresh now" pill
 // stay CUT — per-user direction, not a mock correction. "Copy diagnostics" moved
-// into the Active MIMO tile's corner (`copy-diagnostics-button.tsx`), so the
+// into the Spectrum card's corner (`copy-diagnostics-button.tsx`), so the
 // header holds no action and the description runs the full row on desktop.
 //
 // The Live/Stale freshness chip was removed per direct request — it is not

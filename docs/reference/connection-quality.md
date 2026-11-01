@@ -320,6 +320,12 @@ From those, in a single pass, it derives the `connectivity` block written into `
 | `dns_lookup_ms` | Carrier-resolver lookup time in ms (10 ms steps), or `null` when the last lookup failed or the sample is older than 180 s — see [DNS lookup time](#dns-lookup-time--tmpqmanager_dnsjson). Optional in the type |
 | `dns_resolver` | The resolver that lookup was timed against, or `null`. Same freshness gate. Optional in the type |
 | `last_family` | `ipv4` / `ipv6` / `none`, forwarded from the daemon; a real JSON `null` when the ping cache is missing or stale. Read by the Radio Information card and the Probe Targets card |
+| `last_outage_s` | Seconds the last outage that **cleared this boot** lasted, or `null` until one clears. From the alert engine's restore edge — see [alerts.md → Last cleared outage](alerts.md#last-cleared-outage-tmpqmanager_last_outage). Optional in the type |
+| `last_outage_ago_s` | Seconds since it cleared: the poller's cycle-top uptime (`_MONO_TOP`) minus the outage's end uptime, clamped to `>= 0`. Monotonic clock on both sides, never the wall clock. `null` alongside `last_outage_s` |
+| `last_outage_wan_ip` | The WAN address held when it cleared: IPv4, else IPv6, else `null` |
+| `last_outage_wan_changed` | `true` / `false` — whether that address differs from the pre-outage one (IPv4 compared first, IPv6 when an IPv4 side is unknown); `null` when either side is unknown |
+
+> ℹ️ NOTE: the four `last_outage_*` keys are additive (2026-11-01) and set together by `last_outage_fields` in `qmanager_poller`. All four are `null` until an outage clears this boot, and also on a cycle where `_MONO_TOP` is `0` (uptime unreadable). The dashboard Connection Quality card draws its **Last outage** row only when `last_outage_s` is present in the block (`!== undefined`): an older poller omits the keys and the row disappears, while `null` renders "None". The row shows the duration and its age, e.g. `1m 46s (12m ago)`; when `last_outage_wan_ip` is set, the address and the same/new wording sit behind a hint icon.
 
 > ⚠️ **Ratio statistics go null below `MIN_STAT_SAMPLES` (10).** `jitter_ms` and `packet_loss_pct` are ratios over the window, so unlike `min`/`avg`/`max` — point statistics that are honest at one sample — they say nothing until the window is long enough to carry one. The poller emits a real JSON `null` for both below the floor, using the same literal-`null` idiom the latency stats already used at zero valid samples.
 >
@@ -371,7 +377,7 @@ Three rules govern this table, and each is load-bearing:
 
 - **Every state carries a distinct mark.** `success-container` and `warning-container` measure 1.03:1 apart and are the same surface under deuteranopia, so the glyph — not the fill — is what separates these states. The two `warning` states must never share a glyph. `connected`'s pulse is its mark; under reduced motion it degrades to a plain filled disc, still unlike any of the four glyphs.
 - **`disconnected` is `destructive`, not `warning`.** CLAUDE.md's status-chip table names a disconnected link as a destructive state.
-- **No string asserts an outage.** This is an ICMP probe, and on a carrier that filters ICMP an unanswered ping is indistinguishable from a real outage. Hence the label "No Reply" rather than "Offline", and a tooltip saying some carriers block these probes and the connection may still be working. Copy here is written to the limit of what the probe knows — keep it that way.
+- **No string asserts an outage.** This is an ICMP probe, and on a carrier that filters ICMP an unanswered ping is indistinguishable from a real outage. Hence the label "No Reply" rather than "Offline", and a hint saying some carriers block these probes and the connection may still be working. The hint is a `HintIcon` beside the chip in `status-rail.tsx` (a tap-to-pin popover, so it opens on a phone, where a hover tooltip never does), not a tooltip on the chip itself. Copy here is written to the limit of what the probe knows — keep it that way.
 
 Copy lives in `public/locales/*/dashboard.json` under `network.internet_*` and `network.internet_tooltip.*`, in all five packs.
 

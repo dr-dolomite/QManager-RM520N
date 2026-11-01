@@ -197,7 +197,7 @@ function Value({
   }
   return (
     <span
-      className={cn(ROW_VALUE, mono && "font-mono tabular-nums", className)}
+      className={cn(ROW_VALUE, "tabular-nums", mono && "font-mono", className)}
     >
       {value}
     </span>

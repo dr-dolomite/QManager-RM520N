@@ -71,7 +71,7 @@ This file is the **router**. One row per reference doc, and each row lists only 
 
 | Doc | Triggers | Scope |
 | --- | --- | --- |
-| [dashboard-chart-cards.md](dashboard-chart-cards.md) | The Device Metrics, Connection Quality and Signal History cards, `connection-quality.tsx`, `QUALITY` in `components/dashboard/shapes.ts`, `connection_quality.*` keys, the dashboard Speed Test row, `hooks/use-chart-motion.ts`, recharts, the chart draw-in entrance class, `MetricBar`'s `baseTone` / `colorOverride` | Both |
+| [dashboard-chart-cards.md](dashboard-chart-cards.md) | The Device Metrics, Connection Quality and Signal History cards, `connection-quality.tsx`, `QUALITY` in `components/dashboard/shapes.ts`, `connection_quality.*` keys, the dashboard Speed Test tile (`SPEEDTEST`), `hooks/use-chart-motion.ts`, recharts, the chart draw-in entrance class, `MetricBar`'s `baseTone` / `colorOverride` | Both |
 | [dashboard-state-motion.md](dashboard-state-motion.md) | `TickGroup`, `use-value-tick.ts`, `SwapLabel`, the status-chip morph, and `SaveButton` / `SAVE_CHECK_OVERSHOOT` anywhere in the product | Both |
 | [dashboard.md](dashboard.md) | `/dashboard`, `home-component.tsx`, `components/dashboard/shapes.ts`, the bento shell, the page header chip rail, any of the nine widgets | RM520N |
 

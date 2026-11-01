@@ -107,6 +107,12 @@ const PHASE_LABEL_KEY: Partial<Record<SpeedtestPhase, string>> = {
   upload: "speedtest.step_upload",
 };
 
+/** Tile figure: a 4-digit Mbps drops its decimal so three figures fit a phone-width card. */
+function tileSpeed(bytesPerSec: number): string {
+  const s = formatSpeed(bytesPerSec);
+  return Number(s) >= 1000 ? String(Math.round(Number(s))) : s;
+}
+
 function liveReading(
   phase: SpeedtestPhase,
   p: SpeedtestProgressLine | null,
@@ -679,7 +685,7 @@ const DeviceMetricsComponent = ({
                       glyphClass={DIRECTION.DOWN.CLASS}
                       label={t("speedtest.result_download")}
                       value={cachedResult?.download.bandwidth ?? null}
-                      text={cachedResult ? formatSpeed(cachedResult.download.bandwidth) : ""}
+                      text={cachedResult ? tileSpeed(cachedResult.download.bandwidth) : ""}
                       unit={t("speedtest.unit_mbps")}
                     />
                     <SpeedFigure
@@ -687,7 +693,7 @@ const DeviceMetricsComponent = ({
                       glyphClass={DIRECTION.UP.CLASS}
                       label={t("speedtest.result_upload")}
                       value={cachedResult?.upload.bandwidth ?? null}
-                      text={cachedResult ? formatSpeed(cachedResult.upload.bandwidth) : ""}
+                      text={cachedResult ? tileSpeed(cachedResult.upload.bandwidth) : ""}
                       unit={t("speedtest.unit_mbps")}
                     />
                     <SpeedFigure

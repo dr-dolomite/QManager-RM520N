@@ -226,8 +226,9 @@ _ae_last_outage_load() {
     local _d _e _c _w4 _w6 _rest _now
     [ -f "$_AE_LAST_OUTAGE_FILE" ] || return 0
     { read -r _d _e _c _w4 _w6 _rest < "$_AE_LAST_OUTAGE_FILE"; } 2>/dev/null
-    case "$_d" in ''|*[!0-9]*) return 0 ;; esac
-    case "$_e" in ''|*[!0-9]*) return 0 ;; esac
+    # No leading zero (bash reads 09 as octal and aborts the poller) and at most 10 digits.
+    case "$_d" in ''|*[!0-9]*|0?*|???????????*) return 0 ;; esac
+    case "$_e" in ''|*[!0-9]*|0?*|???????????*) return 0 ;; esac
     case "$_c" in true|false|-) ;; *) return 0 ;; esac
     case "$_w4" in -) ;; ''|*[!0-9.]*) return 0 ;; esac
     case "$_w6" in -) ;; ''|*[!0-9a-fA-F:]*) return 0 ;; esac
