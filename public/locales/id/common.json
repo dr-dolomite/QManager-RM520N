@@ -1549,13 +1549,23 @@
       "modem": "Angka-angka ini berasal dari perangkat, dan perangkat tidak menjawab.",
       "addresses": "Alamat dibaca dari permintaan yang sama."
     },
+    "credits": {
+      "title": "Kredit",
+      "description": "QManager memakai beberapa layanan eksternal dan data terbuka. Terima kasih kepada semua pihak di baliknya.",
+      "roles": {
+        "apn": "Preset APN operator",
+        "logos": "Logo merek untuk pengirim SMS dan situs yang dipantau",
+        "icons": "Ikon situs saat logo tidak ditemukan"
+      }
+    },
     "qmanager": {
       "title": "Tentang QManager",
       "note": "Halo! Rus di sini. QManager adalah iterasi terbaru dari QuecManager, dibangun dengan pendekatan yang lebih baru dan lebih andal dibandingkan pendahulunya — sambil tetap menggabungkan pengaturan teknis untuk pengguna tingkat lanjut dengan antarmuka sederhana bagi yang baru memulai. Terima kasih khusus kepada iamromulan, clndwhr, dan Wutang Clan!",
       "copyright": "© {{year}} QManager. Seluruh hak cipta dilindungi.",
       "repository": "Repositori GitHub",
       "release_notes": "Catatan rilis",
-      "support": "Dukung proyek ini"
+      "support": "Dukung proyek ini",
+      "credits": "Kredit"
     }
   },
   "support": {

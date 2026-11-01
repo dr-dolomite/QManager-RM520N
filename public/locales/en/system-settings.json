@@ -173,7 +173,8 @@
       "title": "System Logs",
       "description": "QManager keeps its log in memory on the modem, so it starts empty after every reboot and never wears the flash. Filter it here to see what each component has been doing.",
       "refresh": "Refresh",
-      "clear": "Clear log"
+      "clear": "Clear log",
+      "copy": "Copy"
     },
     "band": {
       "head": "Log health",
@@ -278,7 +279,9 @@
     "toast": {
       "cleared": "System log cleared",
       "clear_failed": "Couldn't clear the system log",
-      "refresh_failed": "Couldn't read the system log"
+      "refresh_failed": "Couldn't read the system log",
+      "copied": "Log copied to the clipboard",
+      "copy_failed": "Couldn't copy the log"
     }
   },
   "languages": {
@@ -801,6 +804,7 @@
       "cancel": "Cancel"
     },
     "rules": {
+      "not_at": "Only AT commands can be sent here. Start the line with AT, for example AT+CSQ.",
       "qscanfreq": "Frequency scans are refused here. They hold the radio off the air for minutes with nothing to show while they run — use the Cell Scanner page, which reports progress and can be stopped.",
       "qscan": "Network scans are refused here. They hold the radio off the air for minutes with nothing to show while they run — use the Cell Scanner page, which reports progress and can be stopped.",
       "resetfactory": "A factory reset is refused here. It clears every setting on the modem at once, including the ones QManager needs to reach it, and nothing on this page can undo it.",

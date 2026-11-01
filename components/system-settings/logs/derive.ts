@@ -188,3 +188,18 @@ export function groupByDay(rows: KeyedEntry[]): DayGroup[] {
   }
   return out;
 }
+
+// -----------------------------------------------------------------------------
+// Clipboard
+// -----------------------------------------------------------------------------
+
+/** The visible window as plain text, newest first to match the transcript. */
+export function visibleLogText(entries: LogEntry[]): string {
+  return [...entries]
+    .reverse()
+    .map(
+      (e) =>
+        `${e.timestamp} [${e.level}] ${e.component}${e.pid ? `(${e.pid})` : ""}: ${e.message}`,
+    )
+    .join("\n");
+}

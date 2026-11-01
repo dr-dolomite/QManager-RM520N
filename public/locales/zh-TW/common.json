@@ -1549,13 +1549,23 @@
       "modem": "這些數值來自裝置，而裝置未回應。",
       "addresses": "位址由同一次請求讀取。"
     },
+    "credits": {
+      "title": "致謝",
+      "description": "QManager 使用了一些外部服務與開放資料，感謝背後的每一位貢獻者。",
+      "roles": {
+        "apn": "電信業者 APN 預設",
+        "logos": "簡訊發送者與監控網站的品牌標誌",
+        "icons": "找不到標誌時使用的網站圖示"
+      }
+    },
     "qmanager": {
       "title": "關於 QManager",
       "note": "你好！我是 Rus。QManager 是 QuecManager 的最新一代，採用比前代更新、更可靠的實作方式——同時仍將進階使用者的技術設定與新手適用的簡化介面結合在一起。特別感謝 iamromulan、clndwhr 與 Wutang Clan！",
       "copyright": "© {{year}} QManager。保留一切權利。",
       "repository": "GitHub 儲存庫",
       "release_notes": "版本資訊",
-      "support": "支持本專案"
+      "support": "支持本專案",
+      "credits": "致謝"
     }
   },
   "support": {

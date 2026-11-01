@@ -173,7 +173,8 @@
       "title": "Log Sistem",
       "description": "QManager menyimpan lognya di memori modem, sehingga log ini kosong lagi setelah setiap reboot dan tidak menggerus flash. Saring di sini untuk melihat aktivitas masing-masing komponen.",
       "refresh": "Segarkan",
-      "clear": "Hapus log"
+      "clear": "Hapus log",
+      "copy": "Salin"
     },
     "band": {
       "head": "Kondisi log",
@@ -278,7 +279,9 @@
     "toast": {
       "cleared": "Log sistem telah dihapus",
       "clear_failed": "Gagal menghapus log sistem",
-      "refresh_failed": "Gagal membaca log sistem"
+      "refresh_failed": "Gagal membaca log sistem",
+      "copied": "Log disalin ke clipboard",
+      "copy_failed": "Tidak dapat menyalin log"
     }
   },
   "languages": {
@@ -801,6 +804,7 @@
       "cancel": "Batal"
     },
     "rules": {
+      "not_at": "Di sini hanya perintah AT yang bisa dikirim. Awali baris dengan AT, misalnya AT+CSQ.",
       "qscanfreq": "Pemindaian frekuensi ditolak di sini. Pemindaian menahan radio tetap mati selama beberapa menit tanpa menampilkan apa pun — gunakan halaman Pemindai Sel, yang melaporkan kemajuan dan bisa dihentikan.",
       "qscan": "Pemindaian jaringan ditolak di sini. Pemindaian menahan radio tetap mati selama beberapa menit tanpa menampilkan apa pun — gunakan halaman Pemindai Sel, yang melaporkan kemajuan dan bisa dihentikan.",
       "resetfactory": "Reset pabrik ditolak di sini. Reset menghapus seluruh pengaturan modem sekaligus, termasuk yang dibutuhkan QManager untuk menjangkaunya, dan tidak ada di halaman ini yang bisa membatalkannya.",

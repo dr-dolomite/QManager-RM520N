@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2Icon, RefreshCcwIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, Loader2Icon, RefreshCcwIcon, Trash2Icon } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useSystemLogs } from "@/hooks/use-system-logs";
+import { copyText } from "@/lib/clipboard";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
+import { filterByLevel, visibleLogText } from "./derive";
 import { StatusBand } from "./status-band";
 import { TranscriptCard } from "./transcript-card";
 import { PAGE_HEAD, PAGE_ROOT, PILL_GLYPH } from "./shapes";
@@ -33,13 +35,26 @@ export function SystemLogs(): React.JSX.Element {
   // A confirmation dialog is a deliberate suspension of the feed, and the tile
   // says so: the poll is torn down for as long as this is open.
   const logs = useSystemLogs({ paused: clearOpen });
-  const { isRefreshing, isClearing, refresh, clear } = logs;
+  const { entries, level, isRefreshing, isClearing, refresh, clear } = logs;
 
   const handleRefresh = async () => {
     const ok = await refresh();
     // The toast belongs to the USER-initiated read only. A failed background
     // poll drives the stale notice instead of interrupting.
     if (!ok) toast.error(t(`${K}.toast.refresh_failed`));
+  };
+
+  // Copies exactly what the transcript shows: the level rail applied, newest
+  // first, one line per entry.
+  const handleCopy = async () => {
+    const visible = filterByLevel(entries, level);
+    if (visible.length === 0) {
+      toast.error(t(`${K}.toast.copy_failed`));
+      return;
+    }
+    const ok = await copyText(visibleLogText(visible));
+    if (ok) toast.success(t(`${K}.toast.copied`, { count: visible.length }));
+    else toast.error(t(`${K}.toast.copy_failed`));
   };
 
   const handleClear = async () => {
@@ -79,6 +94,16 @@ export function SystemLogs(): React.JSX.Element {
                 className={cn(PILL_GLYPH, isRefreshing && "motion-safe:animate-spin")}
               />
               {t(`${K}.page.refresh`)}
+            </Button>
+            <Button
+              type="button"
+              variant="tonal-neutral"
+              onClick={() => void handleCopy()}
+              disabled={entries.length === 0}
+              size="action"
+            >
+              <CopyIcon className={PILL_GLYPH} />
+              {t(`${K}.page.copy`)}
             </Button>
             <Button
               type="button"

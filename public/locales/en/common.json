@@ -1549,13 +1549,23 @@
       "modem": "These figures come from the device, and the device did not answer.",
       "addresses": "Addresses are read from the same request."
     },
+    "credits": {
+      "title": "Credits",
+      "description": "QManager leans on a few outside services and open data. Thank you to everyone behind them.",
+      "roles": {
+        "apn": "Carrier APN presets",
+        "logos": "Brand logos for SMS senders and monitored sites",
+        "icons": "Website icons when no logo is found"
+      }
+    },
     "qmanager": {
       "title": "About QManager",
       "note": "Hey there! Rus here. QManager is the latest iteration of QuecManager, built with a newer and more reliable approach compared to its predecessor — while still combining technical settings for advanced users with a simplified UI for those just getting started. Special thanks to iamromulan, clndwhr, and Wutang Clan!",
       "copyright": "© {{year}} QManager. All rights reserved.",
       "repository": "GitHub repository",
       "release_notes": "Release notes",
-      "support": "Support the project"
+      "support": "Support the project",
+      "credits": "Credits"
     }
   },
   "support": {

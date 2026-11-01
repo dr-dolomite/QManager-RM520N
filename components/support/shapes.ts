@@ -101,7 +101,7 @@ export const COMMUNITY = {
    * quiet zone in both themes, or the code is unscannable in dark mode.
    */
   PLATE: "w-max rounded-tile bg-white p-3",
-  IMAGE: "block size-40",
+  IMAGE: "block size-48",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -121,7 +121,7 @@ export const BAND = {
   DISC_GLYPH: "size-[1.875rem]",
   TEXT: "flex min-w-0 flex-1 flex-col gap-2.5",
   TITLE: "text-lg font-semibold",
-  BODY: "text-on-surface-variant max-w-[70ch] text-sm leading-relaxed text-pretty",
+  BODY: "text-on-surface-variant text-sm leading-relaxed text-pretty",
 } as const;
 
 /** The row the three donation pills sit in. Wraps rather than scrolling. */

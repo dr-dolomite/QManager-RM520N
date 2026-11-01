@@ -173,7 +173,8 @@
       "title": "Log di sistema",
       "description": "QManager conserva il log in memoria sul modem, quindi ricomincia vuoto dopo ogni riavvio e non consuma la flash. Filtralo qui per vedere cosa ha fatto ciascun componente.",
       "refresh": "Aggiorna",
-      "clear": "Cancella log"
+      "clear": "Cancella log",
+      "copy": "Copia"
     },
     "band": {
       "head": "Stato del log",
@@ -278,7 +279,9 @@
     "toast": {
       "cleared": "Log di sistema cancellato",
       "clear_failed": "Impossibile cancellare il log di sistema",
-      "refresh_failed": "Impossibile leggere il log di sistema"
+      "refresh_failed": "Impossibile leggere il log di sistema",
+      "copied": "Log copiato negli appunti",
+      "copy_failed": "Impossibile copiare il log"
     }
   },
   "languages": {
@@ -801,6 +804,7 @@
       "cancel": "Annulla"
     },
     "rules": {
+      "not_at": "Qui si possono inviare solo comandi AT. Inizia la riga con AT, per esempio AT+CSQ.",
       "qscanfreq": "Le scansioni di frequenza sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
       "qscan": "Le scansioni di rete sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
       "resetfactory": "Il ripristino di fabbrica è rifiutato qui. Azzera in un colpo solo ogni impostazione del modem, comprese quelle che servono a QManager per raggiungerlo, e nulla in questa pagina può annullarlo.",

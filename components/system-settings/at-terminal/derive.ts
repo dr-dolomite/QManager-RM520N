@@ -116,7 +116,9 @@ export function entryToText(entry: HistoryEntry): string {
 // Safety rules
 // -----------------------------------------------------------------------------
 
+// `not_at` comes first: the modem never answers a line that does not start with AT.
 const BLOCKED_RULES = [
+  { key: "not_at", pattern: /^(?!AT)/i },
   { key: "qscanfreq", pattern: /\bQSCANFREQ\b/i },
   { key: "qscan", pattern: /\bQSCAN\b/i },
   { key: "resetfactory", pattern: /QCFG\s*=\s*"resetfactory"/i },
