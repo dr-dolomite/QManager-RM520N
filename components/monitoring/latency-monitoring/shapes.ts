@@ -286,7 +286,3 @@ export const CONDITION_TONE = {
 export const NOTICE =
   "rounded-field bg-destructive-container text-on-destructive-container flex items-center gap-2 px-3.5 py-2 text-xs leading-4 font-medium";
 export const NOTICE_GLYPH = "size-3.5 flex-none";
-
-/** A quiet fact above the content: the link is down, so the figures below are expected. */
-export const NOTICE_QUIET =
-  "rounded-field bg-surface-container text-on-surface-variant flex items-center gap-2 px-3.5 py-2 text-xs leading-4 font-medium";

@@ -104,6 +104,7 @@ export interface SpanPart {
 
 /** An outage length as at most two figures: 45 s, 14 min, 2 h 5 min, 1 d 3 h. */
 export function spanParts(sec: number): SpanPart[] {
+  if (!Number.isFinite(sec)) return [];
   const s = Math.max(0, Math.floor(sec));
   if (s < 60) return [{ value: s, unit: "s" }];
   const min = Math.floor(s / 60);
@@ -118,25 +119,7 @@ export function spanParts(sec: number): SpanPart[] {
   return rest ? [{ value: d, unit: "d" }, { value: rest, unit: "h" }] : [{ value: d, unit: "d" }];
 }
 
-/**
- * Newest answered probe in the live ring, timed back from now by its slot.
- * Fresher than the archive, so a short blip never reads as a long outage.
- */
-export function liveLastAnswer(
-  probes: (number | null)[],
-  intervalSec: number,
-  nowSec: number,
-): LastAnswer | null {
-  for (let i = probes.length - 1; i >= 0; i--) {
-    const ms = probes[i];
-    if (ms !== null) {
-      return { atMs: (nowSec - (probes.length - 1 - i) * intervalSec) * 1000, ms };
-    }
-  }
-  return null;
-}
-
-/** Newest answered probe in the archived history, when there is one. */
+/** Newest answered probe in the archive: a real timestamp, unlike the ring's slot count. */
 export function lastAnswer(entries: PingHistoryEntry[]): LastAnswer | null {
   for (let i = entries.length - 1; i >= 0; i--) {
     const lat = entries[i].lat;

@@ -13,6 +13,7 @@ import {
   WifiOffIcon,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -40,7 +41,6 @@ import {
   HEADER_ACTIONS,
   NOTICE,
   NOTICE_GLYPH,
-  NOTICE_QUIET,
   SITES,
   SITE_INK,
   TRANSITION_INK,
@@ -251,9 +251,11 @@ export function SitesCard({ cuts, linkDown }: SitesCardProps) {
     body = (
       <>
         {linkDown ? (
-          <div role="status" className={NOTICE_QUIET}>
-            <WifiOffIcon className={NOTICE_GLYPH} />
-            {t("latencyMonitor.sites.link_down")}
+          <div role="status">
+            <Badge variant="info" className="max-w-full whitespace-normal">
+              <WifiOffIcon className="size-3" />
+              {t("latencyMonitor.sites.link_down")}
+            </Badge>
           </div>
         ) : null}
         <div className={SITES.GRID} aria-busy={checking || undefined}>

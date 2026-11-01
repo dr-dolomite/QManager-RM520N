@@ -40,7 +40,6 @@ import {
   hhmm,
   lastAnswer,
   latencyTone,
-  liveLastAnswer,
   lossTone,
   msParts,
   msText,
@@ -85,9 +84,6 @@ const FAMILY_LABEL_KEY = {
 } as const;
 
 const LIMITS_HREF = "/monitoring/connection-quality/";
-
-/** The outage length's clock; minute-grain after the first minute, so 15 s is plenty. */
-const CLOCK_TICK_MS = 15_000;
 
 /** Height of a probe's bar: RTT against twice the cut, floored so it reads. */
 function barHeight(ms: number, cuts: Cuts): string {
@@ -196,21 +192,12 @@ function ProbeStrip({ slots, cuts, units, intervalSec, ariaLabel }: ProbeStripPr
 interface NowBodyProps {
   connectivity: ConnectivityStatus;
   history: PingHistoryEntry[];
+  snapshotAt: number | null;
+  onOutage: () => void;
 }
 
-/** Wall clock in seconds, ticking so an outage length counts up between polls. */
-function useNowSec(): number {
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), CLOCK_TICK_MS);
-    return () => clearInterval(id);
-  }, []);
-  return now;
-}
-
-function NowBody({ connectivity, history }: NowBodyProps) {
+function NowBody({ connectivity, history, snapshotAt, onOutage }: NowBodyProps) {
   const { t } = useTranslation("dashboard");
-  const nowSec = useNowSec();
   const cuts = resolveCuts(connectivity);
   const units: UnitLabels = {
     ms: t("latencyMonitor.unit_ms"),
@@ -235,10 +222,16 @@ function NowBody({ connectivity, history }: NowBodyProps) {
 
   const rtt = connectivity.latency_ms;
   const parts = rtt === null ? null : msParts(rtt);
-  const last =
-    rtt === null
-      ? (liveLastAnswer(probes, intervalSec, nowSec) ?? lastAnswer(history))
-      : null;
+  // The archive's own timestamp; ring slots are not evenly spaced during an outage.
+  const down = rtt === null;
+  const found = down ? lastAnswer(history) : null;
+  const outageSec = found && snapshotAt !== null ? snapshotAt - found.atMs / 1000 : NaN;
+  const outage = spanParts(outageSec);
+  const last = found && outage.length > 0 ? found : null;
+  // Pull the archive forward when an outage starts, so its newest answer is fresh.
+  useEffect(() => {
+    if (down) onOutage();
+  }, [down, onOutage]);
   // A live reading takes its tone; an outage reads in plain ink, the chip carries the verdict.
   const tone = rtt === null ? "ok" : latencyTone(rtt, cuts);
 
@@ -268,7 +261,7 @@ function NowBody({ connectivity, history }: NowBodyProps) {
       </>
     );
   } else if (last) {
-    figure = spanParts(nowSec - last.atMs / 1000).map((p, i) => (
+    figure = outage.map((p, i) => (
       <Fragment key={p.unit}>
         <span className={cn(i > 0 && NOW.VALUE_PAIR)}>{p.value}</span>
         <small className={NOW.VALUE_UNIT}>{spanUnits[p.unit]}</small>
@@ -400,11 +393,22 @@ function NowBody({ connectivity, history }: NowBodyProps) {
 export interface NowCardProps {
   connectivity: ConnectivityStatus | null;
   history: PingHistoryEntry[];
+  /** Modem clock of the connectivity snapshot; an outage is dated against it. */
+  snapshotAt: number | null;
   unreachable: boolean;
   onRetry: () => void;
+  /** Called when the live reading goes missing, to refresh the archive. */
+  onOutage: () => void;
 }
 
-export function NowCard({ connectivity, history, unreachable, onRetry }: NowCardProps) {
+export function NowCard({
+  connectivity,
+  history,
+  snapshotAt,
+  unreachable,
+  onRetry,
+  onOutage,
+}: NowCardProps) {
   const { t } = useTranslation("dashboard");
   const status = unreachable ? "unknown" : (connectivity?.status ?? "unknown");
   const Glyph = STATUS_GLYPH[status];
@@ -440,7 +444,12 @@ export function NowCard({ connectivity, history, unreachable, onRetry }: NowCard
             actionIcon={RotateCwIcon}
           />
         ) : connectivity ? (
-          <NowBody connectivity={connectivity} history={history} />
+          <NowBody
+            connectivity={connectivity}
+            history={history}
+            snapshotAt={snapshotAt}
+            onOutage={onOutage}
+          />
         ) : (
           <NowSkeleton />
         )}

@@ -87,11 +87,8 @@ export const ACTIVITY = {
   LEGEND_LINE: "mt-3 h-5",
 } as const;
 
-/**
- * Series fill, bottom-up in the stack. Routine is neutral: a count is not a verdict.
- * Problems wear the destructive fill: amber against the neutral misses the
- * normal-vision floor in light, and amber and green collapse under protanopia.
- */
+/** Bottom-up fills. Problems are destructive: amber fails contrast on the neutral
+ *  and collapses with green under protanopia. */
 export const ACTIVITY_SERIES_COLOR = {
   problems: "var(--destructive)",
   routine: "var(--tag-neutral-border)",
