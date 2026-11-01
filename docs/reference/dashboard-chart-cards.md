@@ -24,7 +24,7 @@ not quietly break a card that still compiles.
 | Draw-in animation | `.chart-draw` / `.chart-area` in `app/globals.css`, applied **only** via `useChartDrawIn()` |
 | Chart motion hooks | `hooks/use-chart-motion.ts` — `useChartDrawIn()` (entrance) + `useChartSeriesMotion()` (poll updates) |
 | Series colours | `--chart-nr` (5G NR), `--chart-lte` (4G LTE) |
-| Direction glyphs | Device Metrics' data-usage row and Connection Quality's cached speedtest figures: `text-downlink-on-surface` (down) / `text-uplink-on-surface` (up) — see [color-system.md](color-system.md) |
+| Direction glyphs | Device Metrics' data-usage row and its Speed Test tile's cached figures: `text-downlink-on-surface` (down) / `text-uplink-on-surface` (up) — see [color-system.md](color-system.md) |
 | Mandatory chart props | `{...useChartSeriesMotion()}` and `pathLength={1}` on every animated series |
 | i18n namespace | `dashboard` (`metrics.*`, `connection_quality.*`, `speedtest.*`, `signal_history.*`) |
 | Design canon | `DESIGN.md` > Motion > "Chart draw-in", and > Color > "Data visualization" |
@@ -181,8 +181,7 @@ mock's rhythm.
 
 ## Connection Quality
 
-One card answering "how steady has the link been over the last half hour", with the latest speed
-test on its bottom row. It reads two sources and grades every mark against the cuts the poller
+One card answering "how steady has the link been over the last half hour". It reads two sources and grades every mark against the cuts the poller
 already applies, so the card cannot disagree with the Internet chip or the `high_latency` /
 `high_packet_loss` events beside it.
 
@@ -195,14 +194,17 @@ Top to bottom, every row from `components/dashboard/connection-quality.tsx`:
 | Internet | Current RTT, bar + ms | `connectivity.latency_ms` |
 | DNS lookup | Carrier-resolver lookup time, bar + ms | `connectivity.dns_lookup_ms` — the row is **omitted** when the key is absent, and drawn as an empty track and `—` when it is `null` |
 | Probing | The host being pinged, mono | `connectivity.ping_target` (this backend has no `probe_target`) |
+| Last outage | Duration of the last outage cleared this boot plus its age, e.g. `1m 46s (12m ago)`, or "None"; a `HintIcon` before the value carries the WAN IP and whether it changed | `connectivity.last_outage_s` / `_ago_s` / `_wan_ip` / `_wan_changed` — the row is **omitted** when `last_outage_s` is absent (older poller), and reads "None" when it is `null`. Producer: [alerts.md → Last cleared outage](alerts.md#last-cleared-outage-tmpqmanager_last_outage) |
 | Reachability strip | 28 cells over 30 minutes, oldest first, plus a state label | `useLatencyHistory()` cells; label from `connectivity.status` |
 | Jitter strip | 28 bars over the same buckets, plus "N ms now" | history `jit` per bucket; header from `connectivity.jitter_ms` |
 | Axis | Age of the oldest visible sample … "Now" | the bucketed history |
-| Footer | Typical / Worst / Loss | `avg_latency_ms` / `max_latency_ms` / `packet_loss_pct` (Loss to one decimal) |
-| Speed Test | Running phase, cached result, or `—` | `useSpeedtest({ watch: true })` |
+| Footer | Typical / Worst / Loss, pinned to the card's bottom edge by `mt-auto` | `avg_latency_ms` / `max_latency_ms` / `packet_loss_pct` (Loss to one decimal) |
+
+The Speed Test row that used to close this card moved to Device Metrics on 2026-11-01 (RM551E
+v0.1.34 parity) — see [The Speed Test tile](#the-speed-test-tile).
 
 The status poll arrives as a prop from `home-component.tsx`, whose cadence is
-`connectivity.history_interval_sec × 1000 + 250` ms (`home-component.tsx:41`). The strips come from
+`connectivity.history_interval_sec × 1000 + 250` ms (`POLL_BUFFER_MS`, `home-component.tsx:47`). The strips come from
 `useLatencyHistory()` (`hooks/use-latency-history.ts`), which polls
 `fetch_ping_history.sh` every 30 s, so the strips move at most twice a minute while the rows move every
 poll. Geometry lives in `QUALITY` in `components/dashboard/shapes.ts` and is shared with the
@@ -212,7 +214,7 @@ skeleton: `BUCKETS: 28`, `WINDOW_S: 1800`, `TRACK_H: 26`.
 
 Every latency and loss cut reads `connectivity.thresholds` (`{ latency_ms, loss_pct }`, resolved from
 the Connection Quality preset; see [connection-quality.md](connection-quality.md)). Only when an older
-poller omits the block does the card fall back to `250` ms / `30` % (`connection-quality.tsx:61-62`),
+poller omits the block does the card fall back to `250` ms / `30` % (`connection-quality.tsx:55-56`),
 which are the backend's `tolerant` defaults.
 
 | Mark | Green | Amber | Red |
@@ -224,7 +226,7 @@ which are the backend's `tolerant` defaults.
 > ⚠️ WARNING: Do not reintroduce fixed latency cuts on the rows. The port first kept the101's 60 /
 > 100 ms, so a normal 114 ms cellular RTT drew a red bar beside "Responsive" above an all-green strip.
 > Grading on `thresholds.latency_ms` fixed it; measured on RM520N-GL data, 114 ms and 210 ms render
-> green at 23 % and 42 % of the track. The jitter cuts (15 / 40 ms, `connection-quality.tsx:65-66`)
+> green at 23 % and 42 % of the track. The jitter cuts (15 / 40 ms, `connection-quality.tsx:59-60`)
 > are fixed on purpose: the backend has no jitter threshold.
 
 > ℹ️ NOTE: the bar turns amber **at** the cut (`MetricBar` tests `value >= warnAt`) while a strip cell
@@ -266,25 +268,7 @@ link is up and only the ping is blocked, so red would overstate it.
 |-------|------|---------|
 | Loading | `isLoading` | `QualitySkeleton`, built from the same `QUALITY` constants |
 | Error | `!modemReachable && !connectivity` — no poll has **ever** landed | "Can't reach the modem" `Empty`. A later failed poll keeps the last reading instead |
-| Empty | `connectivity.internet_available === null` (the ping daemon is not reporting) | "Nothing is probing" `Empty` with a link to `/monitoring/connection-quality`; the Speed Test row still renders below it |
-
-### The Speed Test row
-
-The row that sat under Live Latency's chart moved to the bottom of this card (user decision). It is a
-`PillRow` with three branches at one height: running (phase label, live figure, progress bar in the
-`w-14` `LANE`), cached result (age `Tag`, download and upload in direction ink with
-`arrow_circle_down` / `arrow_circle_up`, `connection-quality.tsx:492-513`) and never run (`—`).
-
-- **The card holds the one watching hook**, `useSpeedtest({ watch: true })`
-  (`connection-quality.tsx:398`), so a run started from the dialog or another tab shows here.
-  `SpeedtestDialog`, which the card mounts, keeps its own non-watching `useSpeedtest()`. See
-  [speedtest.md](speedtest.md).
-- **The live figure is not a `TickingValue`.** The run updates every 500 ms and the tick would never
-  finish.
-- **An age past 365 days reads "just now".** That is a clock disagreement (for example a result stamped during the 1970 boot window), not
-  an old test.
-- **The row is wrapped in `mt-auto`**, which pins it to the card's bottom edge and is how this card
-  absorbs the trio row's slack. See [dashboard.md](dashboard.md#the-trio-row-and-why-one-card-could-not-absorb-slack).
+| Empty | `connectivity.internet_available === null` (the ping daemon is not reporting) | "Nothing is probing" `Empty` with a link to `/monitoring/connection-quality` |
 
 ### Known gaps
 
@@ -293,10 +277,40 @@ The row that sat under Live Latency's chart moved to the bottom of this card (us
 
 ## Device Metrics
 
-Seven meter rows on filled `surface-container` pills with 8px tracks, replacing hairline separators.
-`DESIGN.md`'s one conditional rule backs the mock here: seven rows is a glance surface, not a data
-table. The skeleton previously rendered ten rows for a body of seven and now mirrors the loaded
-geometry; missing data renders a spacer so an absent bar cannot collapse a row.
+Four meter rows with 8px tracks (temperature, CPU, memory, storage), two filled `surface-container`
+pills (data used; one cell-distance row carrying the LTE and NR legs, each led by its identity
+`Tag`, with one hint covering both timing-advance caveats), then the pinned Speed Test tile.
+`DESIGN.md`'s one conditional rule backs the mock here: this is a glance surface, not a data table.
+`MetricsSkeleton` mirrors the loaded geometry (four meters, two 40px pills, the tile at
+`SPEEDTEST.TILE_H`); missing data renders a spacer so an absent bar cannot collapse a row.
+
+### The Speed Test tile
+
+Moved here from the foot of Connection Quality on 2026-11-01 (RM551E v0.1.34 parity). It is one
+`SPEEDTEST.TILE` (`components/dashboard/shapes.ts`), **pinned at 68px (`h-[4.25rem]`) in every
+state** — result, running, never-run and skeleton — so a run starting or ending moves nothing.
+
+- **Run control first.** A default-variant `size="icon-lg"` button on the left opens
+  `SpeedtestDialog`: `play_arrow` when idle, `visibility` (label `speedtest.view_running`) while a
+  run is in flight. The glyph and the body
+  crossfade on `DUR.quick` only on a real idle ↔ running change; a card that mounts already running
+  rides the page cascade instead.
+- **Idle / cached body:** three `SpeedFigure`s spread edge to edge — download, upload, ping. Direction
+  ink sits on the glyph only (`DIRECTION.DOWN` / `DIRECTION.UP`); the numeral stays neutral. Never run
+  draws `—` with no unit. Below `@sm` the glyphs hide and the words stay, because three glyph-led
+  labels do not fit a phone-width card.
+- **Running body:** an `animate-live-ping` dot with the phase label, the live figure, and a full-width
+  `MetricBar` with `track="surface-container-high"` and no warn/danger cuts.
+- **The card holds the one watching hook**, `useSpeedtest({ watch: true })` (`device-metrics.tsx:285`),
+  so a run started from the dialog or another tab shows here. `SpeedtestDialog`, which the card
+  mounts, keeps its own non-watching `useSpeedtest()`. See [speedtest.md](speedtest.md).
+- **The live figure is not a `TickingValue`.** The run updates every 500 ms and the tick would never
+  finish. The cached figures are `TickingValue`s and join the card's `TickGroup`.
+- **The tile is wrapped in `mt-auto`**, which pins it to the card's bottom edge. See
+  [dashboard.md](dashboard.md#the-trio-row-and-why-one-card-could-not-absorb-slack).
+
+> ℹ️ NOTE: the tile shows no result age. The old Connection Quality row carried an age `Tag` (with
+> the "older than 365 days reads just now" clock guard); the tile dropped it with the move.
 
 ### `baseTone` vs `colorOverride` on MetricBar
 

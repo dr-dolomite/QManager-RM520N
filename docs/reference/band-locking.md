@@ -676,7 +676,7 @@ It exists rather than a copy-pasted `<h1>` because `text-3xl font-bold mb-2` app
 
 **Scope is deliberately three routes.** Band Locking, Tower Locking and Frequency Locking are one sub-tree a user crosses three times in a single task, so they move together; Tower and Frequency received **header-only** edits. The other unmigrated routes are not swept as a side effect — DESIGN.md's Migration Deltas table is explicit that new work follows the canon without "fixing" unconverted surfaces in passing.
 
-It is deliberately **not** `components/cellular/radio/page-header.tsx`. That component owns Radio Information's freshness chip, its clipboard action and its own namespace lookups; it is a page, not a primitive.
+It is deliberately **not** `components/cellular/radio/page-header.tsx`. That component owns Radio Information's title, description and its own namespace lookups; it is a page, not a primitive.
 
 Band Locking uses its optional `actions` slot for the Refresh pill (`size="action"`, set at the call site because `CellularPageHeader` deliberately does not style its callers' buttons). See [Refreshing the page](#refreshing-the-page).
 

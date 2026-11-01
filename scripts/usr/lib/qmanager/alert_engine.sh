@@ -100,6 +100,22 @@ _ae_boot_unresolved=""  # new boot_id held until the wall clock is sane (classif
 _ae_cfg_pending=0     # 1 while init ran before jq was available (retried in check_alerts)
 _ae_discord_trim_tick=0
 
+# --- Last cleared outage (published as connectivity.last_outage_*) ----------
+# File "<secs> <end_uptime> <changed|-> <wan4|-> <wan6|->" in tmpfs on purpose:
+# a poller respawn reloads it, a reboot clears it with the uptime clock it uses.
+_AE_LAST_OUTAGE_FILE="/tmp/qmanager_last_outage"
+_ae_last_outage_s=""
+_ae_last_outage_end_up=""
+_ae_last_outage_wan4=""
+_ae_last_outage_wan6=""
+_ae_last_outage_wan_changed=""   # "true"/"false", "" when either side is unknown
+_AE_WAN_SEEN_EVERY=30            # seconds between up-time WAN address reads
+_ae_wan_seen4=""
+_ae_wan_seen6=""
+_ae_wan_seen_up=""
+_ae_pre_wan4=""
+_ae_pre_wan6=""
+
 # Discord config mirror (no _read_config equivalent exists in discord_alerts.sh)
 _ae_discord_enabled="false"
 _ae_discord_owner_id=""
@@ -116,6 +132,116 @@ _ae_discord_owner_id=""
 # =============================================================================
 _ae_uptime_secs() {
     awk '{ print int($1) }' /proc/uptime 2>/dev/null
+}
+
+# _ae_wan_read — the bearer's WAN addresses into _AE_WAN4/_AE_WAN6 (kernel only,
+# empty when absent or not address-shaped). The RM520N default route has no
+# `src`, so take its `dev` and read that device's global address instead.
+_ae_wan_read() {
+    local _l _dev
+    _AE_WAN4=""
+    _AE_WAN6=""
+    _l=$(ip -4 route show default 2>/dev/null | head -n 1)
+    case "$_l" in
+        *" dev "*)
+            _dev="${_l##* dev }"; _dev="${_dev%% *}"
+            _l=$(ip -4 -o addr show dev "$_dev" scope global 2>/dev/null | head -n 1)
+            case "$_l" in
+                *" inet "*) _AE_WAN4="${_l##* inet }"; _AE_WAN4="${_AE_WAN4%%[/ ]*}" ;;
+            esac
+            ;;
+    esac
+    case "$_AE_WAN4" in *[!0-9.]*|'') _AE_WAN4="" ;; esac
+    _l=$(ip -6 route show default 2>/dev/null | head -n 1)
+    case "$_l" in
+        *" dev "*)
+            _dev="${_l##* dev }"; _dev="${_dev%% *}"
+            _l=$(ip -6 -o addr show dev "$_dev" scope global 2>/dev/null | head -n 1)
+            case "$_l" in
+                *" inet6 "*) _AE_WAN6="${_l##* inet6 }"; _AE_WAN6="${_AE_WAN6%%[/ ]*}" ;;
+            esac
+            ;;
+    esac
+    case "$_AE_WAN6" in *[!0-9a-fA-F:]*|'') _AE_WAN6="" ;; esac
+    return 0
+}
+
+# _ae_wan_seen_refresh NOW_UP [force] — last-seen addresses while up, at most
+# every _AE_WAN_SEEN_EVERY s; an empty read never overwrites a known address.
+_ae_wan_seen_refresh() {
+    if [ "$2" != "force" ] && [ -n "$_ae_wan_seen_up" ] \
+        && [ $(($1 - _ae_wan_seen_up)) -lt "$_AE_WAN_SEEN_EVERY" ]; then
+        return 0
+    fi
+    _ae_wan_seen_up="$1"
+    _ae_wan_read
+    [ -n "$_AE_WAN4" ] && _ae_wan_seen4="$_AE_WAN4"
+    [ -n "$_AE_WAN6" ] && _ae_wan_seen6="$_AE_WAN6"
+    return 0
+}
+
+# _ae_wan_cmp OLD NEW — prints true/false, nothing when either side is empty.
+_ae_wan_cmp() {
+    [ -n "$1" ] && [ -n "$2" ] || return 0
+    if [ "$1" = "$2" ]; then echo false; else echo true; fi
+}
+
+# _ae_outage_begin — down edge: remember the pre-outage addresses, falling back
+# to the last seen up when the bearer already lost its address.
+_ae_outage_begin() {
+    _ae_wan_read
+    _ae_pre_wan4="${_AE_WAN4:-$_ae_wan_seen4}"
+    _ae_pre_wan6="${_AE_WAN6:-$_ae_wan_seen6}"
+}
+
+# _ae_outage_record SECS NOW_UP — restore edge: publish the cleared outage and
+# persist it (tmp + mv) so a poller respawn in the same boot reloads it.
+_ae_outage_record() {
+    local _tmp="$_AE_LAST_OUTAGE_FILE.tmp.$$"
+    _ae_wan_read
+    _ae_last_outage_s="$1"
+    _ae_last_outage_end_up="$2"
+    _ae_last_outage_wan4="$_AE_WAN4"
+    _ae_last_outage_wan6="$_AE_WAN6"
+    _ae_last_outage_wan_changed=$(_ae_wan_cmp "$_ae_pre_wan4" "$_AE_WAN4")
+    [ -z "$_ae_last_outage_wan_changed" ] && \
+        _ae_last_outage_wan_changed=$(_ae_wan_cmp "$_ae_pre_wan6" "$_AE_WAN6")
+    [ -n "$_AE_WAN4" ] && _ae_wan_seen4="$_AE_WAN4"
+    [ -n "$_AE_WAN6" ] && _ae_wan_seen6="$_AE_WAN6"
+    _ae_wan_seen_up="$2"
+    _ae_pre_wan4=""
+    _ae_pre_wan6=""
+    if printf '%s %s %s %s %s\n' "$1" "$2" "${_ae_last_outage_wan_changed:--}" \
+        "${_AE_WAN4:--}" "${_AE_WAN6:--}" > "$_tmp" 2>/dev/null; then
+        mv -f "$_tmp" "$_AE_LAST_OUTAGE_FILE" 2>/dev/null || rm -f "$_tmp"
+    else
+        rm -f "$_tmp" 2>/dev/null
+    fi
+    return 0
+}
+
+# _ae_last_outage_load — reload after a poller respawn. Every field is
+# validated; garbage, or an end stamp ahead of the current uptime, is ignored.
+_ae_last_outage_load() {
+    local _d _e _c _w4 _w6 _rest _now
+    [ -f "$_AE_LAST_OUTAGE_FILE" ] || return 0
+    { read -r _d _e _c _w4 _w6 _rest < "$_AE_LAST_OUTAGE_FILE"; } 2>/dev/null
+    # No leading zero (bash reads 09 as octal and aborts the poller) and at most 10 digits.
+    case "$_d" in ''|*[!0-9]*|0?*|???????????*) return 0 ;; esac
+    case "$_e" in ''|*[!0-9]*|0?*|???????????*) return 0 ;; esac
+    case "$_c" in true|false|-) ;; *) return 0 ;; esac
+    case "$_w4" in -) ;; ''|*[!0-9.]*) return 0 ;; esac
+    case "$_w6" in -) ;; ''|*[!0-9a-fA-F:]*) return 0 ;; esac
+    [ -z "$_rest" ] || return 0
+    _now=$(_ae_uptime_secs)
+    case "$_now" in ''|*[!0-9]*) return 0 ;; esac
+    [ "$_e" -le "$_now" ] || return 0
+    _ae_last_outage_s="$_d"
+    _ae_last_outage_end_up="$_e"
+    case "$_c" in true|false) _ae_last_outage_wan_changed="$_c" ;; esac
+    [ "$_w4" = "-" ] || _ae_last_outage_wan4="$_w4"
+    [ "$_w6" = "-" ] || _ae_last_outage_wan6="$_w6"
+    return 0
 }
 
 # =============================================================================
@@ -524,6 +650,7 @@ _ae_handle_restore() {
     _ae_maybe_restore sms    "$elapsed"
     _ae_maybe_restore email   "$elapsed"
     _ae_maybe_restore discord "$elapsed"
+    _ae_outage_record "$elapsed" "$now_up"
 
     if [ "$_ae_reboot_pending" = "1" ]; then
         _ae_deliver_reboot
@@ -589,6 +716,7 @@ check_alerts() {
             _ae_down=1
             _ae_down_start="$now_up"
             _ae_lost_sent_sms=0
+            _ae_outage_begin
             _ae_resolve_wait
             qlog_debug "alert_engine: downtime tracking started at uptime=${now_up}s"
         fi
@@ -598,6 +726,11 @@ check_alerts() {
         _ae_down_start=0
         _ae_lost_sent_sms=0
         did_restore=1
+    fi
+
+    # Keep the last-seen WAN address fresh while up (throttled inside).
+    if [ "$_ae_down" != "1" ] && [ "$ev_link_state" = "up" ]; then
+        _ae_wan_seen_refresh "$now_up"
     fi
 
     # While an outage is ongoing, send connection_lost once it passes the configured wait.
@@ -646,6 +779,8 @@ alert_engine_init() {
 
     mkdir -p /etc/qmanager 2>/dev/null
 
+    _ae_last_outage_load
+    _ae_wan_seen_refresh "$(_ae_uptime_secs)" force
     _ae_init_boot_check
     _ae_load_all_config
 

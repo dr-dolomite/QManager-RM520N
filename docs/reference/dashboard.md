@@ -140,7 +140,7 @@ The surface uses three repeating units, and the canon owns all three.
   | Form | Width | Where | Why |
   |------|-------|-------|-----|
   | **Full-width meter** | spans the row | Device Metrics — CPU, memory, storage, temperature | The bar owns its own line beneath the label, so it has the width to spend |
-  | **Inline lane** | `w-14` (56px), `LANE` | The NR / LTE signal rows; Connection Quality's speedtest progress bar | It shares a 40px row with the figure it qualifies. A full-width bar under the last line would read as a coloured bottom border rather than as a gauge |
+  | **Inline lane** | `w-14` (56px), `LANE` | The NR / LTE signal rows | It shares a 40px row with the figure it qualifies. A full-width bar under the last line would read as a coloured bottom border rather than as a gauge |
   | **Compact lane** | `w-11` (44px), `QUALITY.LANE` | Connection Quality's Internet and DNS lookup rows | It sits between a label and a fixed `w-16` value column in a 20px row inside one tile, so both rows share a right edge whatever their digit counts |
 
   > **Why one thickness.** `DESIGN.md` rests the whole quality ramp on length — adjacent
@@ -173,7 +173,9 @@ every card at once. Nine copies of one message would be noise.
 So the contract splits:
 
 1. **The page** carries the condition — `home-component.tsx`'s `Banner role="stale"`,
-   which already exists.
+   which already exists. It is suppressed while `useConnectionStatus().reconnecting` is
+   true: once an outage escalates to "reconnecting", the global banner in the app layout
+   owns it, and the two must never stack.
 2. **Each card** goes honest rather than blank. A measurement with no reading renders an
    **empty track**, an `on-surface-variant` em-dash, a `muted` "No reading" chip and an
    `sr-only` word. An **identifier** — IMEI, ICCID, firmware, band — keeps its last-known
@@ -230,12 +232,15 @@ Device Metrics, Connection Quality and Recent Activity share one grid row and ar
 by `*:data-[slot=card]:h-full`. Equalising a 3-up row is the documented norm — "Equal
 heights are explicit" — but it only works if every card can *use* the height it is given.
 
-- **Device Metrics drives it.** Seven rows: four `MeterRow` plus three `PillRow` (data
-  used, LTE cell distance, NR cell distance). It is the tallest by content.
-- **Connection Quality absorbs.** Its body is a `flex-1` column and the Speed Test row is
-  wrapped in `mt-auto`, so any slack pools as space above that row and the row stays on the
-  card's bottom edge. The skeleton's last bar carries the same `mt-auto`. Before 2026-10-11
-  Live Latency absorbed it through its chart box's `flex-1`.
+- **Device Metrics.** Four `MeterRow`, two `PillRow` (data used; one cell-distance row
+  carrying both legs, each led by its `lte` / `nr` `Tag`), then the Speed Test tile, pinned
+  to the bottom edge by `mt-auto` (`device-metrics.tsx:604`, skeleton `:221`). Since
+  2026-11-01 it can absorb slack too: the space pools above the tile.
+- **Connection Quality.** Its body is a `flex-1` column and its Typical / Worst / Loss
+  footer is wrapped in `mt-auto` (`connection-quality.tsx:643`, skeleton `:323`), so slack
+  pools above the footer. The Speed Test row that used to sit there moved to Device
+  Metrics on 2026-11-01. Before 2026-10-11 Live Latency absorbed it through its chart
+  box's `flex-1`.
 - **Recent Activity could not.** Its list was pinned *and* clipped —
   `maxHeight: LIST_MAX_H` (332px) under `overflow-hidden` — so every pixel past 332
   became dead space at the bottom of that card.
@@ -358,10 +363,11 @@ The route is Material Symbols. Three glyphs on Network Status are recorded excep
 off-grid file. It does **not** import `shapes.ts`: that module is the grid's geometry, and
 a modal sharing one radius token with it is not a reason to couple them.
 
-**The dialog is the detail view, and that is load-bearing.** Step 06 shrank the dashboard's
-speed-test tile to a 40px `PillRow`; the full result — three role tiles, four metric pills,
+**The dialog is the detail view, and that is load-bearing.** The dashboard's speed-test
+tile (Device Metrics, `SPEEDTEST` in `shapes.ts`, pinned at 68px) carries only download,
+upload and ping; the full result — three role tiles, four metric pills,
 the server line, the ISP and both links — lives here. Shrinking this display would retract
-the justification for that row.
+the justification for that small tile.
 
 **The meter's clock is the poll cadence, not a step of the motion scale.** `TrackBar` is
 local rather than `components/ui/progress.tsx` so retiming it cannot retime every other

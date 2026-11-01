@@ -862,13 +862,13 @@ function CompleteBody({
           className="text-primary flex-none"
         />
         <span className="text-on-surface-variant min-w-0 truncate text-xs font-semibold">
-          {result.server.name} · {result.server.location},{" "}
-          {result.server.country}
+          {result.server.name} ({result.server.location},{" "}
+          {result.server.country})
         </span>
         <span className="ml-auto flex-none text-xs font-semibold tabular-nums">
           <span className="sr-only">{t("speedtest.metric_dl_data")}: </span>
           {formatBytes(result.download.bytes)}
-          <span aria-hidden="true"> · </span>
+          <span aria-hidden="true"> / </span>
           <span className="sr-only">{t("speedtest.metric_ul_data")}: </span>
           {formatBytes(result.upload.bytes)}
         </span>

@@ -27,6 +27,7 @@ The Alerts subsystem consolidates the three previously-independent notification 
 | Alert wait (one for all channels) | `alert_after_min` in `/etc/qmanager/quality_thresholds.json`, resolved by `cq_alert_after_min` (`/usr/lib/qmanager/conn_state.sh`); default 5 min. Exposed as top-level `alert_after_min` (1–1440) in the CGI's `GET` and `save_settings` — see [CGI contract](#cgi-contract--cgi-binquecmanagermonitoringalertssh) |
 | Channel logs | `/tmp/qmanager_{sms,email,discord}_log.json` (NDJSON, cap 100 each). SMS and Discord seeded `root:root 0666` by `qmanager_setup`; email is root-only and unseeded — see [tmp-file-ownership.md](tmp-file-ownership.md#the-alert-channel-logs) |
 | Link verdict source | `ev_link_state`, set by `detect_data_connection_events` in `events.sh` |
+| Last cleared outage | `/tmp/qmanager_last_outage` (**tmpfs on purpose**), one line `<secs> <end_uptime> <changed\|-> <wan4\|-> <wan6\|->`; published as `connectivity.last_outage_*` — see [Last cleared outage](#last-cleared-outage-tmpqmanager_last_outage) |
 | Secrets store | `/etc/qmanager-secrets/` (`0700 root:root`) — `discord_bot_token`, `email_app_password`, `msmtprc` (each `0600 root:root`) |
 | Secret helper | `/usr/bin/qmanager_secret_set` (sudoers-gated root helper; value on **stdin**) |
 | Test-email helper | `/usr/bin/qmanager_email_send` (sudoers-gated root helper; one verb, `test`) |
@@ -256,7 +257,7 @@ The `bot_token` / `app_password` JSON-key redaction patterns are still in `_reda
 
 `qmanager_poller` sources `alert_engine.sh` at startup (non-fatal — a broken alert channel must never crash the poller; missing lib stubs out `check_alerts`/`alert_engine_init` to no-ops). It calls:
 
-- **`alert_engine_init`** — once, at poller startup. Resets in-memory state, runs the boot-id reboot check (below), then `_ae_load_all_config` (routing, each channel's config, the wait).
+- **`alert_engine_init`** — once, at poller startup. Resets in-memory state, reloads the [last cleared outage](#last-cleared-outage-tmpqmanager_last_outage) and takes a forced WAN address read, runs the boot-id reboot check (below), then `_ae_load_all_config` (routing, each channel's config, the wait).
 - **`check_alerts`** — once per poll cycle, after the connectivity verdict for that cycle is known.
 
 > ⚠️ WARNING: **Config is not trusted until `jq` exists.** `/usr/bin/jq` is a symlink into `/opt`, which mounts ~30 s into boot (RM520N-GL), and every config read before that silently returns defaults. `_ae_load_all_config` therefore checks `command -v jq` first; without it, it sets `_ae_cfg_pending=1`, logs one `config load deferred` warning, and returns 1. `check_alerts` retries it at the top of every cycle and **skips the whole cycle** while it still fails, so the engine never dispatches against default routing or a default wait. The init log line carries `cfg_pending=` for this reason.
@@ -271,8 +272,9 @@ The poller calls `detect_data_connection_events` immediately before `check_alert
 4. **Read the monotonic clock.** `int($1)` from `/proc/uptime`. If unreadable, skip the cycle.
 5. **Follow the detector:**
    - `""` (stale/unknown) → do nothing; a running outage timer keeps running.
-   - `down` and not already down → start tracking: record `_ae_down_start = now_up`, reset the SMS `connection_lost` latch, re-resolve the wait.
-   - `up` and currently down → recovery: run `_ae_handle_restore`, clear the timer.
+   - `down` and not already down → start tracking: record `_ae_down_start = now_up`, reset the SMS `connection_lost` latch, remember the pre-outage WAN addresses (`_ae_outage_begin`), re-resolve the wait.
+   - `up` and currently down → recovery: run `_ae_handle_restore` (which also records the cleared outage, `_ae_outage_record`), clear the timer.
+   - Not down and `ev_link_state` is `up` → refresh the last-seen WAN addresses (`_ae_wan_seen_refresh`, throttled to one read per 30 s).
 6. **While down:** send `connection_lost` once the outage reaches the wait (once per outage, latched by `_ae_lost_sent_sms`).
 7. **Late reboot delivery:** if a reboot was detected at startup but the device came back already connected (never observed "down" by this engine — e.g. a clean user reboot with a fast reconnect), deliver the reboot alert once, here.
 
@@ -288,6 +290,38 @@ Measured on RM520N-GL `61368cd2` (`/tmp` copies, faked clock, dispatch stubbed):
 
 Durations in message text are formatted from the monotonic elapsed seconds (`_ae_format_duration` → e.g. `"1h 4m 12s"`).
 
+### Last cleared outage (`/tmp/qmanager_last_outage`)
+
+**Short version:** every time an outage clears, the engine remembers how long it lasted, when it ended, and whether the device came back on a different WAN IP. The poller publishes that as `connectivity.last_outage_*` for the dashboard's "Last outage" row (field list: [connection-quality.md → The poller](connection-quality.md#the-poller--turning-probes-into-stats)). It sends nothing and does not affect dispatch.
+
+| Edge | What is recorded | Function |
+|------|------------------|----------|
+| Down (`down` and not already down) | The pre-outage WAN IPv4 and IPv6. Each family falls back to its **last-seen** address when the bearer has already lost it by the time the drop is seen | `_ae_outage_begin` |
+| While up | Last-seen WAN addresses, refreshed **at most every 30 s** (`_AE_WAN_SEEN_EVERY`). An empty read never overwrites a known address. Also forced once at `alert_engine_init` | `_ae_wan_seen_refresh` |
+| Restore (`up` while down) | The outage's seconds (the same `elapsed` the restore alerts use), the end uptime (`now_up`), the WAN IPv4/IPv6 held now, and `changed` | `_ae_outage_record` |
+
+`changed` compares the pre-outage and post-outage IPv4. When either IPv4 side is unknown it compares IPv6 instead, and when that is unknown too it stays unset (`-` on disk, `null` in the JSON). An unknown is never reported as "same".
+
+**The WAN read is kernel-only — no AT command, no `qcmd`.** `_ae_wan_read` takes the first `ip -4 route show default` line, extracts its `dev`, and reads that device's first `ip -4 -o addr show dev <dev> scope global` address; the same again with `-6`. It goes through `dev` because on the RM520N-GL the default route carries **no `src`** (live: `default via 10.113.82.153 dev rmnet_data0`), so the route line itself never names the address. A result that is not address-shaped (digits and dots for IPv4, hex and colons for IPv6) is discarded as empty.
+
+**The file.** One line, written `tmp` + `mv` so a reader never sees half of it:
+
+```text
+<secs> <end_uptime> <changed|-> <wan4|-> <wan6|->
+```
+
+Example (illustrative values: a 46 s outage that ended at uptime 81234, same IPv4, no IPv6):
+
+```text
+46 81234 false 192.0.2.10 -
+```
+
+It is **in tmpfs on purpose**. `end_uptime` is a `/proc/uptime` stamp, which is meaningless after a reboot; `/tmp` clears with the same reboot that resets the clock, so the two can never disagree. A poller respawn within one boot reloads it (`_ae_last_outage_load`), so the row survives a crash-restart. The loader validates every field and ignores the whole file on any failure: a non-numeric `secs` or `end_uptime`, a `changed` other than `true`/`false`/`-`, a non-address WAN field, a sixth field, or an `end_uptime` **ahead of** the current uptime.
+
+> ⚠️ WARNING: this rides on `check_alerts`, so it is **skipped whenever `check_alerts` returns early**: while `/tmp/qmanager_low_power_active` exists, while `jq` is not yet mounted (`_ae_cfg_pending`, the first ~30 s of boot on the RM520N-GL), and on a cycle where `/proc/uptime` is unreadable. An outage that starts and clears inside that window is never recorded; one already in progress when the window ends is timed from the first cycle that runs, with the pre-outage address taken from the last-seen fallback.
+
+> ℹ️ NOTE: device scope. The `dev`-not-`src` route shape was measured on the RM520N-GL. The RG501Q-EU is unverified: a default route there with no ` dev ` token, or a bearer with no `scope global` address, reads as unknown rather than wrong.
+
 ---
 
 ## Guardrails
@@ -298,7 +332,7 @@ Durations in message text are formatted from the monotonic elapsed seconds (`_ae
 - **Freeze during low-power windows.** `/tmp/qmanager_low_power_active` suppresses all dispatch, same as the legacy per-channel timers.
 - **Connectivity signal only.** Never latency or packet loss; a degraded link reaches no channel.
 - **Null-safe.** `ev_link_state=""` (stale/unknown ping data) never starts or ends an outage; it only leaves an existing timer running.
-- **Poller-lifetime state.** The outage timer and latches are in-memory only, not persisted across a poller restart — matching the pre-existing per-channel timers this engine replaced.
+- **Poller-lifetime state.** The outage timer and latches are in-memory only, not persisted across a poller restart — matching the pre-existing per-channel timers this engine replaced. The one exception is the *display-only* [last cleared outage](#last-cleared-outage-tmpqmanager_last_outage), which reloads from tmpfs.
 
 ---
 

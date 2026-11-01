@@ -6,8 +6,9 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { ExpandButton } from "@/components/ui/expand-button";
+import { CopyDiagnosticsButton } from "@/components/cellular/radio/copy-diagnostics-button";
+import { Card, CardTitle } from "@/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -22,12 +23,7 @@ import { SwapLabel } from "@/components/ui/swap-label";
 import { Tag, type TagVariant } from "@/components/ui/tag";
 import { TickingValue } from "@/components/ui/ticking-value";
 import { TickGroup } from "@/components/ui/tick-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { HintIcon } from "@/components/ui/hint-icon";
 import {
   qualityInkClass,
   qualityMeterTone,
@@ -258,6 +254,8 @@ export interface ActiveBandsCardProps {
    * translated in all five locales with zero consumers.
    */
   isStale?: boolean;
+  /** Backs the Copy diagnostics button beside the band-reference toggle. */
+  buildDiagnostics: () => string;
 }
 
 // -----------------------------------------------------------------------------
@@ -404,9 +402,9 @@ function MetricCell({
 /** One label/value line, shared by both rows of `IdentityMetricCell` — the
  *  same top-line geometry `MetricCell` uses, so the column's baselines line
  *  up with its neighbours even though this cell has no meter lane of its
- *  own. Mono per the Machine-Voice Rule: both PCI and EARFCN are identifiers,
- *  not readings. A null value prints `Not reported` rather than vanishing —
- *  the same answer `MetricCell` gives, and the same reason
+ *  own. Rethink Sans with tabular figures per the Machine-Voice Rule: PCI and
+ *  EARFCN are short numeric device labels, not opaque strings. A null value
+ *  prints `Not reported` rather than vanishing — the same answer `MetricCell` gives, and the same reason
  *  `cellular-information-card.tsx` refuses a bare dash: an empty slot reads
  *  as a rendering failure, not as a fact the radio declined to report. */
 function IdentityFieldLine({
@@ -423,9 +421,9 @@ function IdentityFieldLine({
       <span className="text-xs font-semibold text-on-surface-variant">
         {label}
       </span>
-      <span className="truncate font-mono text-[13px] font-semibold tabular-nums text-on-surface">
+      <span className="truncate text-[13px] font-semibold tabular-nums text-on-surface">
         {value === null ? (
-          <span className="font-sans text-on-surface-variant">
+          <span className="text-on-surface-variant">
             {t("radio_info.bands.metric.not_reported_short")}
           </span>
         ) : (
@@ -502,6 +500,7 @@ export function ActiveBandsCard({
   summary,
   isLoading,
   isStale = false,
+  buildDiagnostics,
 }: ActiveBandsCardProps) {
   const { t } = useTranslation("cellular");
 
@@ -537,9 +536,9 @@ export function ActiveBandsCard({
         <div className="flex min-w-0 flex-col gap-1">
           {/* `text-xl` (20px) — the Headline step, which DESIGN.md defines as
               "large card titles". The comp's 22px is not a step on the ramp. */}
-          <h3 className="text-xl leading-tight font-semibold">
+          <CardTitle className="text-xl leading-tight">
             {t("radio_info.bands.title")}
-          </h3>
+          </CardTitle>
           {/* The description slot doubles as the freshness line. `SwapLabel`
               because the two states replace each other in place — the same
               treatment the row chips use — and `warning` ink because a paused
@@ -561,23 +560,33 @@ export function ActiveBandsCard({
           </p>
         </div>
 
-        {carriers.length > 0 ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowReference((open) => !open)}
-            aria-expanded={showReference}
-            className="ml-auto h-[2.375rem] shrink-0 gap-2 px-4 text-[13px] font-semibold"
-          >
-            <MaterialSymbol
-              name={showReference ? "visibility_off" : "visibility"}
-              size={18}
+        {/* Two icon pills that grow to their label on hover/focus. Copy
+            diagnostics stays even with no carriers (it is how a no-signal state
+            gets reported); the reference toggle needs a carrier to explain. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <CopyDiagnosticsButton
+            buildDiagnostics={buildDiagnostics}
+            className="h-[2.375rem] text-[13px]"
+          />
+          {carriers.length > 0 ? (
+            <ExpandButton
+              onClick={() => setShowReference((open) => !open)}
+              aria-expanded={showReference}
+              className="h-[2.375rem] text-[13px]"
+              icon={
+                <MaterialSymbol
+                  name={showReference ? "visibility_off" : "visibility"}
+                  size={18}
+                />
+              }
+              label={
+                showReference
+                  ? t("radio_info.bands.reference.hide")
+                  : t("radio_info.bands.reference.show")
+              }
             />
-            {showReference
-              ? t("radio_info.bands.reference.hide")
-              : t("radio_info.bands.reference.show")}
-          </Button>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       {carriers.length === 0 ? (
@@ -603,273 +612,260 @@ export function ActiveBandsCard({
            check `MAX_RANK` before changing the step or the poll. Values that
            held this poll never enter the ranking at all. */
         <TickGroup>
-          <TooltipProvider>
-            <motion.div
-              className="flex flex-col gap-2"
-              variants={staggerRows}
-              initial="hidden"
-              animate="visible"
-            >
-              {carriers.map((c) => {
-                // The aggregate the chip used to print. It still exists on the
-                // contract and is still worth reporting — it just reports
-                // through the row's accessible name now, not a fourth chip.
-                const qualityWord = t(`radio_info.bands.quality.${c.quality}`);
-                const rowLabel = c.released
-                  ? `${roleLabel(c)} ${bandLabel(c)}, ${t("radio_info.bands.released")}`
-                  : `${roleLabel(c)} ${bandLabel(c)}, ${qualityWord}`;
+          <motion.div
+            className="flex flex-col gap-2"
+            variants={staggerRows}
+            initial="hidden"
+            animate="visible"
+          >
+            {carriers.map((c) => {
+              // The aggregate the chip used to print. It still exists on the
+              // contract and is still worth reporting — it just reports
+              // through the row's accessible name now, not a fourth chip.
+              const qualityWord = t(`radio_info.bands.quality.${c.quality}`);
+              const rowLabel = c.released
+                ? `${roleLabel(c)} ${bandLabel(c)}, ${t("radio_info.bands.released")}`
+                : `${roleLabel(c)} ${bandLabel(c)}, ${qualityWord}`;
 
-                // The two facts that identify WHICH cell this is: PCI and the
-                // ARFCN under its correct label. Bandwidth lives in the band
-                // reference disclosure below with the rest of the carrier's
-                // static spec — it never changes for a given band, so it reads
-                // as reference material alongside band name and duplex, not as
-                // an identity fact a technician reads per handover.
-                //
-                // `arfcnLabelKey` rather than a literal: the contract used to
-                // hand down the display string "ARFCN"/"EARFCN" directly, which
-                // put one hardcoded English word on the same line as a
-                // translated `PCI` label. It is a key now and resolves here.
-                const arfcnLabel = t(
-                  `radio_info.bands.detail.${c.arfcnLabelKey}`,
-                );
+              // The two facts that identify WHICH cell this is: PCI and the
+              // ARFCN under its correct label. Bandwidth lives in the band
+              // reference disclosure below with the rest of the carrier's
+              // static spec — it never changes for a given band, so it reads
+              // as reference material alongside band name and duplex, not as
+              // an identity fact a technician reads per handover.
+              //
+              // `arfcnLabelKey` rather than a literal: the contract used to
+              // hand down the display string "ARFCN"/"EARFCN" directly, which
+              // put one hardcoded English word on the same line as a
+              // translated `PCI` label. It is a key now and resolves here.
+              const arfcnLabel = t(
+                `radio_info.bands.detail.${c.arfcnLabelKey}`,
+              );
 
-                const sinr = c.metrics.find((m) => m.id === "sinr");
-                const showLowSnr =
-                  !c.released &&
-                  sinr !== undefined &&
-                  sinr.value !== null &&
-                  sinr.quality === "poor";
+              const sinr = c.metrics.find((m) => m.id === "sinr");
+              const showLowSnr =
+                !c.released &&
+                sinr !== undefined &&
+                sinr.value !== null &&
+                sinr.quality === "poor";
 
-                return (
-                  /* Keyed on `carrier.key` (the carrierKey), NEVER an index
-                     and NEVER PCI: on the live device both LTE carriers report
-                     PCI 295, so a PCI-keyed list collapses two real carriers
-                     into one row, and an index key loses identity across a
-                     wipe-and-refill. */
-                  <motion.div
-                    key={c.key}
-                    variants={staggerRowItem}
-                    className={ROW_SHELL}
-                    style={{ minHeight: BAND_ROW_HEIGHT }}
-                    // Carries the aggregate the deleted chip used to print, and
-                    // gives an otherwise undifferentiated stack of divs a
-                    // boundary a screen reader can announce between carriers.
-                    role="group"
-                    aria-label={rowLabel}
-                  >
-                    <div className={ROW_LAYOUT}>
-                      <div className={IDENTITY_BLOCK}>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={ROLE_CHIP}>{roleLabel(c)}</span>
+              return (
+                /* Keyed on `carrier.key` (the carrierKey), NEVER an index
+                   and NEVER PCI: on the live device both LTE carriers report
+                   PCI 295, so a PCI-keyed list collapses two real carriers
+                   into one row, and an index key loses identity across a
+                   wipe-and-refill. */
+                <motion.div
+                  key={c.key}
+                  variants={staggerRowItem}
+                  className={ROW_SHELL}
+                  style={{ minHeight: BAND_ROW_HEIGHT }}
+                  // Carries the aggregate the deleted chip used to print, and
+                  // gives an otherwise undifferentiated stack of divs a
+                  // boundary a screen reader can announce between carriers.
+                  role="group"
+                  aria-label={rowLabel}
+                >
+                  <div className={ROW_LAYOUT}>
+                    <div className={IDENTITY_BLOCK}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={ROLE_CHIP}>{roleLabel(c)}</span>
 
-                          <Tag
-                            variant={bandIdentityVariant(c)}
-                            className="shrink-0 px-2.5 py-1 text-sm font-semibold"
-                          >
-                            {bandLabel(c)}
-                          </Tag>
+                        <Tag
+                          variant={bandIdentityVariant(c)}
+                          className="shrink-0 px-2.5 py-1 text-sm font-semibold"
+                        >
+                          {bandLabel(c)}
+                        </Tag>
 
-                          {/* Exception-only. An ACTIVE carrier now carries no
-                              third chip at all — its health reads from the four
-                              metric bars to its right. A RELEASED one keeps its
-                              word, because "greyed but still listed" is a
-                              contract the band tag's neutral tone cannot carry
-                              on its own — and now less than ever, since an
-                              outline tag's released state differs from a live
-                              LTE one by border hue alone. The glyph and the
-                              word are what actually carry it. */}
-                          {c.released ? (
-                            <Badge variant="muted">
-                              <SwapLabel
-                                swapKey="released"
-                                className="gap-1.5"
-                              >
-                                <MaterialSymbol
-                                  name="do_not_disturb_on"
-                                  size={15}
-                                  filled
-                                />
-                                {t("radio_info.bands.released")}
-                              </SwapLabel>
-                            </Badge>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className={METRIC_GRID}>
-                        {/* Identity leads the grid: EARFCN and PCI together,
-                            ahead of the readings, because confirming WHICH
-                            cell this is comes before judging how it is doing.
-                            RSSI removed by direct request — it had no 0-100
-                            scale to plot and read as an afterthought next to
-                            three real bars. */}
-                        <IdentityMetricCell
-                          arfcnLabel={arfcnLabel}
-                          earfcn={c.earfcn}
-                          pciLabel={t("radio_info.bands.detail.pci")}
-                          pci={c.pci}
-                        />
-                        {c.metrics
-                          .filter((m) => m.id !== "rssi")
-                          .map((m, i) => (
-                            <MetricCell
-                              key={m.id}
-                              metric={m}
-                              technology={c.technology}
-                              index={i}
-                            />
-                          ))}
+                        {/* Exception-only. An ACTIVE carrier now carries no
+                            third chip at all — its health reads from the four
+                            metric bars to its right. A RELEASED one keeps its
+                            word, because "greyed but still listed" is a
+                            contract the band tag's neutral tone cannot carry
+                            on its own — and now less than ever, since an
+                            outline tag's released state differs from a live
+                            LTE one by border hue alone. The glyph and the
+                            word are what actually carry it. */}
+                        {c.released ? (
+                          <Badge variant="muted">
+                            <SwapLabel
+                              swapKey="released"
+                              className="gap-1"
+                            >
+                              <MaterialSymbol
+                                name="do_not_disturb_on"
+                                size={12}
+                                filled
+                              />
+                              {t("radio_info.bands.released")}
+                            </SwapLabel>
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
 
-                    {showLowSnr && sinr ? (
-                      /* Threshold-triggered, and it states the READING only.
-                         The comp went on to claim "the scheduler may drop it
-                         under load" — QManager has no visibility into scheduler
-                         behaviour and cannot verify that, so the causal half is
-                         cut. */
-                      <div className="mt-3.5 flex items-start gap-3 rounded-field bg-destructive-container px-4 py-3 text-on-destructive-container">
-                        <MaterialSymbol
-                          name="warning"
-                          size={19}
-                          filled
-                          className="shrink-0"
-                        />
-                        <p className="text-xs leading-relaxed">
-                          {t("radio_info.bands.low_snr", { value: sinr.value })}
-                        </p>
-                      </div>
-                    ) : null}
+                    <div className={METRIC_GRID}>
+                      {/* Identity leads the grid: EARFCN and PCI together,
+                          ahead of the readings, because confirming WHICH
+                          cell this is comes before judging how it is doing.
+                          RSSI removed by direct request — it had no 0-100
+                          scale to plot and read as an afterthought next to
+                          three real bars. */}
+                      <IdentityMetricCell
+                        arfcnLabel={arfcnLabel}
+                        earfcn={c.earfcn}
+                        pciLabel={t("radio_info.bands.detail.pci")}
+                        pci={c.pci}
+                      />
+                      {c.metrics
+                        .filter((m) => m.id !== "rssi")
+                        .map((m, i) => (
+                          <MetricCell
+                            key={m.id}
+                            metric={m}
+                            technology={c.technology}
+                            index={i}
+                          />
+                        ))}
+                    </div>
+                  </div>
 
-                    {c.released && c.releasedForMs !== null ? (
-                      <div className="mt-3.5 flex items-start gap-3 rounded-field bg-surface-container-high px-4 py-3 text-on-surface-variant">
-                        <MaterialSymbol
-                          name="info"
-                          size={19}
-                          className="shrink-0"
-                        />
-                        <p className="text-xs leading-relaxed">
-                          {t("radio_info.bands.released_note", {
-                            seconds: Math.round(c.releasedForMs / 1000),
-                          })}
-                        </p>
-                      </div>
-                    ) : null}
+                  {showLowSnr && sinr ? (
+                    /* Threshold-triggered, and it states the READING only.
+                       The comp went on to claim "the scheduler may drop it
+                       under load" — QManager has no visibility into scheduler
+                       behaviour and cannot verify that, so the causal half is
+                       cut. */
+                    <div className="mt-3.5 flex items-start gap-3 rounded-field bg-destructive-container px-4 py-3 text-on-destructive-container">
+                      <MaterialSymbol
+                        name="warning"
+                        size={19}
+                        filled
+                        className="shrink-0"
+                      />
+                      <p className="text-xs leading-relaxed">
+                        {t("radio_info.bands.low_snr", { value: sinr.value })}
+                      </p>
+                    </div>
+                  ) : null}
 
-                    {/* Band reference. A plain conditional render, NOT a height
-                        animation: the accordion this card replaced was the
-                        product's second Transform-Only exception, and reopening
-                        one for a disclosure that expands every row at once
-                        would spend a canon win to animate five simultaneous
-                        reflows. `bg-surface` is a real token — the comp's
-                        `oklch(1 0 0 / 0.55)` is white-at-alpha over a tinted
-                        container, which the Solid-Container Rule bans. */}
-                    {showReference ? (
-                      <dl className="mt-3.5 m-0 grid grid-cols-2 gap-x-6 gap-y-3 rounded-field bg-surface px-4 py-3.5 @3xl/bands:grid-cols-3 @4xl/bands:grid-cols-5">
+                  {c.released && c.releasedForMs !== null ? (
+                    <div className="mt-3.5 flex items-start gap-3 rounded-field bg-surface-container-high px-4 py-3 text-on-surface-variant">
+                      <MaterialSymbol
+                        name="info"
+                        size={19}
+                        className="shrink-0"
+                      />
+                      <p className="text-xs leading-relaxed">
+                        {t("radio_info.bands.released_note", {
+                          seconds: Math.round(c.releasedForMs / 1000),
+                        })}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {/* Band reference. A plain conditional render, NOT a height
+                      animation: the accordion this card replaced was the
+                      product's second Transform-Only exception, and reopening
+                      one for a disclosure that expands every row at once
+                      would spend a canon win to animate five simultaneous
+                      reflows. `bg-surface` is a real token — the comp's
+                      `oklch(1 0 0 / 0.55)` is white-at-alpha over a tinted
+                      container, which the Solid-Container Rule bans. */}
+                  {showReference ? (
+                    <dl className="mt-3.5 m-0 grid grid-cols-2 gap-x-6 gap-y-3 rounded-field bg-surface px-4 py-3.5 @3xl/bands:grid-cols-3 @4xl/bands:grid-cols-5">
+                      <ReferenceField
+                        label={t("radio_info.bands.detail.band_name")}
+                      >
+                        {c.bandName ?? unknown}
+                      </ReferenceField>
+
+                      <ReferenceField
+                        label={t("radio_info.bands.detail.duplex")}
+                      >
+                        {c.duplex ?? unknown}
+                      </ReferenceField>
+
+                      <ReferenceField
+                        label={t("radio_info.bands.detail.bandwidth")}
+                      >
+                        <span className="truncate tabular-nums">
+                          {mhz(c.bandwidthMhz)}
+                        </span>
+                      </ReferenceField>
+
+                      <ReferenceField
+                        label={t("radio_info.bands.detail.dl_frequency")}
+                      >
+                        <span className="truncate tabular-nums">
+                          {c.dlFrequencyMhz === null
+                            ? unknown
+                            : t("radio_info.bands.units.mhz", {
+                                value: c.dlFrequencyMhz.toFixed(2),
+                              })}
+                        </span>
+                      </ReferenceField>
+
+                      <ReferenceField
+                        label={t("radio_info.bands.detail.ul_frequency")}
+                      >
+                        <span className="truncate tabular-nums">
+                          {c.ulFrequencyMhz === null
+                            ? unknown
+                            : t("radio_info.bands.units.mhz", {
+                                value: c.ulFrequencyMhz.toFixed(2),
+                              })}
+                        </span>
+                      </ReferenceField>
+
+                      {c.technology === "NR" ? (
                         <ReferenceField
-                          label={t("radio_info.bands.detail.band_name")}
+                          label={t("radio_info.bands.detail.scs")}
+                          marker={
+                            // Only the carrier matching the serving NR cell
+                            // has a modem-reported SCS. Every other NR
+                            // carrier's is derived from its band's duplex
+                            // mode, and showing an inference as if it were
+                            // reported would be the page lying quietly. The
+                            // marker is focusable so the explanation is
+                            // reachable by keyboard.
+                            c.scsInferred ? (
+                              <span className="inline-flex shrink-0 items-center gap-0.5 text-on-surface-variant">
+                                {/* `text-xs` — the Label step. The marker
+                                    is subordinated by ink and case, not
+                                    by shrinking off the ramp. */}
+                                <span className="text-xs font-semibold tracking-wide uppercase">
+                                  {t("radio_info.bands.detail.scs_derived")}
+                                </span>
+                                <HintIcon
+                                  label={t(
+                                    "radio_info.bands.detail.scs_derived",
+                                  )}
+                                >
+                                  {t(
+                                    "radio_info.bands.detail.scs_derived_hint",
+                                  )}
+                                </HintIcon>
+                              </span>
+                            ) : undefined
+                          }
                         >
-                          {c.bandName ?? unknown}
-                        </ReferenceField>
-
-                        <ReferenceField
-                          label={t("radio_info.bands.detail.duplex")}
-                        >
-                          {c.duplex ?? unknown}
-                        </ReferenceField>
-
-                        <ReferenceField
-                          label={t("radio_info.bands.detail.bandwidth")}
-                        >
-                          <span className="truncate font-mono tabular-nums">
-                            {mhz(c.bandwidthMhz)}
-                          </span>
-                        </ReferenceField>
-
-                        <ReferenceField
-                          label={t("radio_info.bands.detail.dl_frequency")}
-                        >
-                          <span className="truncate font-mono tabular-nums">
-                            {c.dlFrequencyMhz === null
+                          <span className="truncate tabular-nums">
+                            {c.scsKhz === null
                               ? unknown
-                              : t("radio_info.bands.units.mhz", {
-                                  value: c.dlFrequencyMhz.toFixed(2),
+                              : t("radio_info.bands.units.khz", {
+                                  value: c.scsKhz,
                                 })}
                           </span>
                         </ReferenceField>
-
-                        <ReferenceField
-                          label={t("radio_info.bands.detail.ul_frequency")}
-                        >
-                          <span className="truncate font-mono tabular-nums">
-                            {c.ulFrequencyMhz === null
-                              ? unknown
-                              : t("radio_info.bands.units.mhz", {
-                                  value: c.ulFrequencyMhz.toFixed(2),
-                                })}
-                          </span>
-                        </ReferenceField>
-
-                        {c.technology === "NR" ? (
-                          <ReferenceField
-                            label={t("radio_info.bands.detail.scs")}
-                            marker={
-                              // Only the carrier matching the serving NR cell
-                              // has a modem-reported SCS. Every other NR
-                              // carrier's is derived from its band's duplex
-                              // mode, and showing an inference as if it were
-                              // reported would be the page lying quietly. The
-                              // marker is focusable so the explanation is
-                              // reachable by keyboard.
-                              c.scsInferred ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="inline-flex shrink-0 items-center gap-1 rounded-pill text-on-surface-variant outline-none focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px]"
-                                    >
-                                      {/* `text-xs` — the Label step. The marker
-                                          is subordinated by ink and case, not
-                                          by shrinking off the ramp. */}
-                                      <span className="text-xs font-semibold tracking-wide uppercase">
-                                        {t(
-                                          "radio_info.bands.detail.scs_derived",
-                                        )}
-                                      </span>
-                                      <MaterialSymbol name="help" size={14} />
-                                      <span className="sr-only">
-                                        {t(
-                                          "radio_info.bands.detail.scs_derived_hint",
-                                        )}
-                                      </span>
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-64">
-                                    {t(
-                                      "radio_info.bands.detail.scs_derived_hint",
-                                    )}
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : undefined
-                            }
-                          >
-                            <span className="truncate font-mono tabular-nums">
-                              {c.scsKhz === null
-                                ? unknown
-                                : t("radio_info.bands.units.khz", {
-                                    value: c.scsKhz,
-                                  })}
-                            </span>
-                          </ReferenceField>
-                        ) : null}
-                      </dl>
-                    ) : null}
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          </TooltipProvider>
+                      ) : null}
+                    </dl>
+                  ) : null}
+                </motion.div>
+              );
+            })}
+          </motion.div>
         </TickGroup>
       )}
 

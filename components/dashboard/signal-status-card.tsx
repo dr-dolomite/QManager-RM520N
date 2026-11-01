@@ -100,9 +100,6 @@ export interface SignalStatusRow {
   /** Render the value as an identity-toned pill rather than plain ink. Used for
    *  the band, which is an identifier rather than a measurement. */
   asIdentity?: boolean;
-  /** Plain-ink identifier that isn't pill-worthy (EARFCN, PCI, SCS): keeps
-   *  font-mono without the asIdentity pill treatment band gets. */
-  isIdentifier?: boolean;
 }
 
 interface SignalStatusCardProps {
@@ -328,7 +325,7 @@ export function SignalStatusCard({
                   // definition-list semantics have to survive the form swap.
                   // The transition lives in `tag.tsx`'s longhand now.
                   <Tag asChild variant={identityVariant}>
-                    <dd className="m-0 shrink-0 px-2.5 py-1 font-mono text-xs font-semibold">
+                    <dd className="m-0 shrink-0 px-2.5 py-1 text-xs font-semibold tabular-nums">
                       {row.value}
                     </dd>
                   </Tag>
@@ -342,7 +339,6 @@ export function SignalStatusCard({
                     className={cn(
                       "m-0 flex items-center gap-2.5 transition-colors duration-(--duration-quick) ease-quick",
                       ROW.VALUE,
-                      row.isIdentifier && "font-mono",
                       valueColor,
                     )}
                   >

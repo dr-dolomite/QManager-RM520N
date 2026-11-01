@@ -361,10 +361,8 @@ export const GLYPH = {
 // Voices
 // -----------------------------------------------------------------------------
 
-/** A live measurement: the interface reporting a number. Never `font-mono`. */
+/** A figure: a measurement or short numeric label. Never `font-mono`. */
 export const FIGURE = "tabular-nums";
-/** Machine truth that holds steady until something reconfigures it. */
-export const IDENT = "font-mono text-[13px] tabular-nums";
 
 // -----------------------------------------------------------------------------
 // Tone maps — keyed onto exported types, never onto class strings
