@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AVAILABLE_LANGUAGES } from "@/lib/i18n/available-languages";
 import { staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -21,9 +22,9 @@ import {
   SKELETON,
 } from "./shapes";
 
-// The five bundled languages are always present, so the display card's height
-// is knowable before the GET lands and the placeholder can be exact.
-const LANG_ROWS = [0, 1, 2, 3, 4];
+// The bundled languages are always present, so the display card's height is
+// knowable before the GET lands and the placeholder can be exact.
+const LANG_ROWS = AVAILABLE_LANGUAGES.filter((l) => l.bundled).map((_, i) => i);
 const PACK_ROWS = [0, 1];
 
 export function CardSkeleton(): React.JSX.Element {

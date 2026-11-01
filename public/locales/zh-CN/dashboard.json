@@ -95,14 +95,11 @@
     "reset_error": "提交重置请求失败，请重试。",
     "cell_distance": "基站距离",
     "cell_distance_short": "距离",
-    "lte_cell_distance": "LTE 基站距离",
-    "nr_cell_distance": "NR 基站距离",
     "lte_distance_tooltip": "这只是基于 LTE 时间提前量 {{ta}} 的估算值。",
     "nr_distance_tooltip": "这只是基于 NR 时间提前量 {{ta}} 的估算值。",
     "ta_unavailable": "时间提前量数据不可用。",
     "connection_uptime": "连接运行时长",
-    "device_uptime": "设备运行时长",
-    "more_info_aria": "更多信息"
+    "device_uptime": "设备运行时长"
   },
   "signal_status": {
     "lte_primary_title": "4G 主载波状态",
@@ -268,10 +265,7 @@
   "speedtest": {
     "run_short": "开始测速",
     "view_running": "查看",
-    "section_label": "速度测试",
-    "start_button_aria": "开始速度测试",
     "dialog_idle_description": "测量当前的下载速度、上传速度和延迟。",
-    "result_label": "测试结果：",
     "title": "速度测试",
     "running_badge": "进行中",
     "server_label": "服务器",
@@ -314,10 +308,6 @@
     "failed_during": "在{{step}}阶段失败",
     "close_aria": "关闭",
     "tile_running_label": "进行中",
-    "time_just_now": "刚刚",
-    "time_minutes_ago": "{{count}} 分钟前",
-    "time_hours_ago": "{{count}} 小时前",
-    "time_days_ago": "{{count}} 天前",
     "server_option": "{{name}} — {{location}}，{{country}}"
   },
   "ca": {

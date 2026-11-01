@@ -95,14 +95,11 @@
     "reset_error": "Failed to queue reset. Please try again.",
     "cell_distance": "Cell Distance",
     "cell_distance_short": "Distance",
-    "lte_cell_distance": "LTE Cell Distance",
-    "nr_cell_distance": "NR Cell Distance",
     "lte_distance_tooltip": "This is only an approximation based on the LTE Timing Advance value of {{ta}}.",
     "nr_distance_tooltip": "This is only an approximation based on the NR Timing Advance value of {{ta}}.",
     "ta_unavailable": "Timing Advance value is not available.",
     "connection_uptime": "Connection Uptime",
-    "device_uptime": "Device Uptime",
-    "more_info_aria": "More info"
+    "device_uptime": "Device Uptime"
   },
   "signal_status": {
     "lte_primary_title": "4G Primary Status",
@@ -268,10 +265,7 @@
   "speedtest": {
     "run_short": "Run test",
     "view_running": "View",
-    "section_label": "Speed Test",
-    "start_button_aria": "Start speed test",
     "dialog_idle_description": "Measure your current download speed, upload speed, and latency.",
-    "result_label": "Speedtest result:",
     "title": "Speed Test",
     "running_badge": "Running",
     "server_label": "Server",
@@ -314,10 +308,6 @@
     "failed_during": "Failed during {{step}}",
     "close_aria": "Close",
     "tile_running_label": "Running",
-    "time_just_now": "just now",
-    "time_minutes_ago": "{{count}} min ago",
-    "time_hours_ago": "{{count}} hr ago",
-    "time_days_ago": "{{count}} d ago",
     "server_option": "{{name}} — {{location}}, {{country}}"
   },
   "ca": {

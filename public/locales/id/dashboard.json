@@ -95,14 +95,11 @@
     "reset_error": "Gagal mengantrekan reset. Silakan coba lagi.",
     "cell_distance": "Jarak Sel",
     "cell_distance_short": "Jarak",
-    "lte_cell_distance": "Jarak Sel LTE",
-    "nr_cell_distance": "Jarak Sel NR",
     "lte_distance_tooltip": "Ini hanya perkiraan berdasarkan nilai LTE Timing Advance sebesar {{ta}}.",
     "nr_distance_tooltip": "Ini hanya perkiraan berdasarkan nilai NR Timing Advance sebesar {{ta}}.",
     "ta_unavailable": "Nilai Timing Advance tidak tersedia.",
     "connection_uptime": "Waktu Aktif Koneksi",
-    "device_uptime": "Waktu Aktif Perangkat",
-    "more_info_aria": "Info lebih lanjut"
+    "device_uptime": "Waktu Aktif Perangkat"
   },
   "signal_status": {
     "lte_primary_title": "Status Utama 4G",
@@ -268,10 +265,7 @@
   "speedtest": {
     "run_short": "Mulai tes",
     "view_running": "Lihat",
-    "section_label": "Tes Kecepatan",
-    "start_button_aria": "Mulai tes kecepatan",
     "dialog_idle_description": "Ukur kecepatan unduh, kecepatan unggah, dan latensi Anda saat ini.",
-    "result_label": "Hasil tes kecepatan:",
     "title": "Tes Kecepatan",
     "running_badge": "Berjalan",
     "server_label": "Server",
@@ -314,10 +308,6 @@
     "failed_during": "Gagal saat {{step}}",
     "close_aria": "Tutup",
     "tile_running_label": "Berjalan",
-    "time_just_now": "baru saja",
-    "time_minutes_ago": "{{count}} mnt lalu",
-    "time_hours_ago": "{{count}} jam lalu",
-    "time_days_ago": "{{count}} hr lalu",
     "server_option": "{{name}} — {{location}}, {{country}}"
   },
   "ca": {

@@ -88,7 +88,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!data.success) {
-        setError(resolveErrorMessage(tRef.current, data.error, undefined, "Failed to fetch IMEI settings"));
+        setError(resolveErrorMessage(tRef.current, data.error, undefined, tRef.current("imei_fetch_failed")));
         return;
       }
 
@@ -98,7 +98,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
     } catch (err) {
       if (!mountedRef.current) return;
       setError(
-        err instanceof Error ? err.message : "Failed to fetch IMEI settings"
+        err instanceof Error ? err.message : tRef.current("imei_fetch_failed")
       );
     } finally {
       if (mountedRef.current && !silent) {
@@ -136,7 +136,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         if (!mountedRef.current) return false;
 
         if (!data.success) {
-          setError(resolveErrorMessage(t, data.error, data.detail, "Failed to write IMEI"));
+          setError(resolveErrorMessage(t, data.error, data.detail, t("imei_write_failed")));
           return false;
         }
 
@@ -146,7 +146,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
       } catch (err) {
         if (!mountedRef.current) return false;
         setError(
-          err instanceof Error ? err.message : "Failed to write IMEI"
+          err instanceof Error ? err.message : tRef.current("imei_write_failed")
         );
         return false;
       } finally {
@@ -187,7 +187,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
 
         if (!data.success) {
           setError(
-            resolveErrorMessage(t, data.error, data.detail, "Failed to save backup configuration")
+            resolveErrorMessage(t, data.error, data.detail, t("imei_backup_save_failed"))
           );
           return false;
         }
@@ -200,7 +200,7 @@ export function useImeiSettings(): UseImeiSettingsReturn {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to save backup configuration"
+            : tRef.current("imei_backup_save_failed")
         );
         return false;
       } finally {

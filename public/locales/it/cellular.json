@@ -185,68 +185,6 @@
       "scenario_note": "Passa allo scenario Equilibrato per assumere il controllo manuale.",
       "profile_note": "Lo scenario attivo cambierà alle {{time}}."
     },
-    "live": {
-      "title": "Configurazione attiva",
-      "eyebrow": "Stato del blocco",
-      "rail_subtitle_unknown": "Non ancora segnalato",
-      "rail_subtitle_unavailable": "Configurazione delle bande non leggibile",
-      "rail_subtitle_none": "Nessuna restrizione di banda attiva",
-      "rail_subtitle_all": "Tutte e tre le radio sono limitate",
-      "rail_subtitle_partial": "{{count}} radio su {{total}} limitate",
-      "rail_ratio": "{{count}} bande consentite su {{total}}",
-      "rail_unavailable": "Impossibile leggere le bande di questa radio",
-      "rail_status_locked": "Bloccato",
-      "rail_status_unrestricted": "Senza restrizioni",
-      "rail_status_unknown": "Non segnalato",
-      "rail_status_unavailable": "Non disponibile",
-      "on_air": "In onda adesso",
-      "on_air_summary_one": "{{count}} portante · {{mhz}} MHz",
-      "on_air_summary_other": "{{count}} portanti · {{mhz}} MHz",
-      "on_air_empty_title": "Nessuna portante attiva",
-      "on_air_empty_body": "Il modem non è agganciato a nessuna cella al momento. I blocchi qui sotto si applicheranno comunque non appena si aggancia.",
-      "absent_nr_title": "Nessuna portante 5G",
-      "absent_nr_body": "Il modem è solo su LTE. Nessuna cella NR è in copertura al momento.",
-      "absent_lte_title": "Nessun ancoraggio LTE",
-      "absent_lte_body": "Il modem è in 5G standalone. Nessuna portante LTE è in uso.",
-      "tile_tech_LTE": "LTE",
-      "tile_tech_NR": "5G NR",
-      "tile_earfcn": "EARFCN",
-      "tile_rsrp": "{{value}} dBm",
-      "tile_rsrq": "{{value}} dB",
-      "tile_sinr": "{{value}} dB",
-      "tile_no_value": "—",
-      "failover_label": "Failover delle bande",
-      "failover_help_label": "Informazioni sul failover delle bande",
-      "failover_help": "Se attivo, il modem torna automaticamente alle bande predefinite quando le bande bloccate restano non disponibili per circa 30 secondi.",
-      "failover_state": {
-        "disabled": "Disattivato",
-        "fallback": "Fallback attivo",
-        "monitoring": "Monitoraggio",
-        "ready": "Pronto"
-      },
-      "failover_toast_enabled": "Failover delle bande attivato",
-      "failover_toast_disabled": "Failover delle bande disattivato",
-      "failover_toast_error": "Impossibile aggiornare il failover delle bande"
-    },
-    "categories": {
-      "lte": {
-        "title": "LTE",
-        "description": "Bande che il modem può usare per la connessione 4G."
-      },
-      "nsa_nr5g": {
-        "title": "5G NSA",
-        "description": "Bande 5G usate insieme a un ancoraggio LTE."
-      },
-      "sa_nr5g": {
-        "title": "5G SA",
-        "description": "Bande 5G usate in modalità standalone, senza ancoraggio LTE."
-      }
-    },
-    "short": {
-      "lte": "LTE",
-      "nsa_nr5g": "5G NSA",
-      "sa_nr5g": "5G SA"
-    },
     "card": {
       "status_scenario": "Gestito dallo scenario",
       "status_unrestricted": "Tutte le bande",
@@ -259,10 +197,6 @@
       "legend_live": "Attualmente bloccato",
       "empty_title": "Nessuna banda da bloccare",
       "empty_body": "Il modem non segnala bande supportate in questa categoria."
-    },
-    "states": {
-      "read_error_title": "Impossibile leggere la configurazione delle bande",
-      "read_error_body": "Il modem non ha risposto, quindi questa pagina non può mostrare quali bande sono attualmente bloccate. Riprova tra poco. {{reason}}"
     },
     "actions": {
       "lock_selected": "Blocca le bande selezionate",
@@ -948,8 +882,6 @@
         "verifying": "Verifica di ciò che il modem ha applicato"
       },
       "footer": {
-        "reread": "Rileggi dal modem",
-        "in_sync": "Le impostazioni salvate corrispondono al modem.",
         "refresh": "Aggiorna"
       },
       "strip": {
@@ -1095,11 +1027,6 @@
         "title": "IMEI del dispositivo",
         "description": "Ciò che il modem riporta ora e ciò che riporterà dopo il prossimo avvio.",
         "rows": {
-          "current": {
-            "label": "Attuale",
-            "consequence": "Letto dal modem, non dall'archivio locale.",
-            "unavailable": "Non ancora riportato"
-          },
           "write": {
             "label": "Scrivi nuovo IMEI",
             "consequence": "15 cifre. Ha effetto solo dopo un riavvio.",
@@ -1119,7 +1046,6 @@
         "actions": {
           "write": "Scrivi IMEI",
           "reset": "Ripristina l'IMEI presente sul modem",
-          "copy": "Copia l'IMEI attuale",
           "reset_short": "Ripristina"
         },
         "toasts": {
@@ -1255,28 +1181,20 @@
   "custom_profiles": {
     "suggestions": {
       "badge": "Consigliato",
-      "bands_nsa": "5G NSA {{bands}}",
-      "bands_sa": "5G SA {{bands}}",
-      "bands_nsa_auto": "5G NSA Auto",
-      "bands_sa_auto": "5G SA Auto",
-      "not_saved_yet": "Non ancora salvato",
       "create": "Crea",
       "creating": "Creazione",
       "create_aria": "Crea il profilo {{name}}",
       "rationale_bands": "Il blocco delle bande mantiene il modem sulle principali bande 5G dell'operatore, il che di solito migliora la stabilità. Può però ridurre la copertura dove arrivano solo altre bande. Le bande che il modem non segnala come supportate vengono escluse e disattivando il profilo il blocco viene rimosso.",
-      "rationale_ttl": "TTL e hop limit sono impostati a 64 così il traffico dei dispositivi collegati al modem esce con lo stesso valore di quello del modem stesso. Disattivando il profilo i valori precedenti vengono ripristinati.",
-      "will_bind": "Assocerà: {{scenario}}"
+      "rationale_ttl": "TTL e hop limit sono impostati a 64 così il traffico dei dispositivi collegati al modem esce con lo stesso valore di quello del modem stesso. Disattivando il profilo i valori precedenti vengono ripristinati."
     },
     "page": {
       "title": "Profilo SIM personalizzato",
       "description": "Un profilo porta con sé l'identità: APN, TTL e hop limit e un IMEI opzionale. Associa uno scenario di connessione, che governa la radio. Attivarne uno riconfigura un modem in funzione.",
       "new_profile": "Nuovo profilo",
-      "new_scenario": "Nuovo scenario",
-      "error_load_failed": "Impossibile caricare i profili. Verifica la connessione e riprova."
+      "new_scenario": "Nuovo scenario"
     },
     "hero": {
       "eyebrow": "ATTIVO ORA",
-      "unknown_operator": "Operatore sconosciuto",
       "iccid": "ICCID {{value}}",
       "edit": "Modifica",
       "deactivate": "Disattiva",
@@ -1305,8 +1223,7 @@
       },
       "scenario": {
         "unknown": "Scenario sconosciuto",
-        "next_change": "{{name}} subentra alle {{time}}",
-        "no_next_change": "Nessun altro cambio oggi"
+        "next_change": "{{name}} subentra alle {{time}}"
       },
       "ribbon": {
         "title": "Pianificazione di oggi",
@@ -1343,8 +1260,6 @@
       "subtitle": "Attiva, modifica o rimuovi i profili cellulari su questo dispositivo.",
       "none_saved_yet": "Nessun profilo salvato. Parti da un suggerimento qui sotto oppure creane uno tuo.",
       "activating": "Attivazione",
-      "schedule_live_one": "{{scenario}} ora, {{count}} blocco pianificato",
-      "schedule_live_other": "{{scenario}} ora, {{count}} blocchi pianificati",
       "scenario_always_on": "{{scenario}}, sempre attivo",
       "delete_description": "Questa azione rimuove il profilo dal dispositivo. Qualsiasi pianificazione associata viene cancellata. L'operazione non può essere annullata.",
       "delete_keep": "Mantieni il profilo",
@@ -1359,15 +1274,8 @@
         "activate_error": "Impossibile attivare il profilo."
       },
       "delete_title": "Eliminare “{{name}}”?",
-      "audit": {
-        "applied": "Applicato alle {{time}}",
-        "partial": "Applicazione parziale alle {{time}}",
-        "failed": "Applicazione non riuscita alle {{time}}"
-      },
-      "locks_bands": "Blocca le bande",
       "row_menu_aria": "Azioni per {{name}}",
       "reapply": "Riapplica il profilo",
-      "reapply_hint": "La riapplicazione esegue di nuovo tutti e quattro i passaggi: APN, TTL e hop limit, scenario e IMEI.",
       "mismatch_confirm": {
         "title": "Applicare “{{name}}” a questa SIM?",
         "description": "Questo profilo è associato a un'altra SIM. Le sue impostazioni vengono applicate ora alla SIM nel modem e si disattivano al prossimo riavvio o cambio di SIM.",
@@ -1379,7 +1287,6 @@
       "headers": {
         "profile": "Profilo",
         "status": "Stato",
-        "last_updated": "Ultimo aggiornamento",
         "actions": ""
       },
       "status_badge": {
@@ -1390,7 +1297,6 @@
       "pagination": {
         "total_one": "{{count}} totale profilo",
         "total_other": "{{count}} profili totali",
-        "page_info": "Pagina {{current}} di {{total}}",
         "previous": "Precedente",
         "next": "Avanti"
       },
@@ -1606,11 +1512,6 @@
         "dual": "IPv4 & IPv6"
       }
     },
-    "activate_dialog": {
-      "title": "Attiva profilo",
-      "description": "Applicare \"{{name}}\" al modem? Ciò aggiornerà le impostazioni APN, TTL/HL e IMEI come configurato nel profilo. Le impostazioni non modificate verranno ignorate.",
-      "confirm": "Attiva"
-    },
     "deactivate_dialog": {
       "title": "Disattiva profilo",
       "working_title": "Disattivazione del profilo",
@@ -1667,7 +1568,7 @@
       "failed_notice_title": "Il profilo non è stato applicato",
       "reapply_notice": "La riapplicazione esegue di nuovo l'intera sequenza dall'inizio: il modem non può ritentare un singolo passaggio.",
       "reapply_action": "Riapplica il profilo",
-      "reboot_notice_deferred": "Questo profilo scrive un IMEI, che richiede un riavvio. Ora non viene riavviato nulla: riceverai un banner quando sarà pronto.",
+      "reboot_notice_deferred": "Questo profilo scrive un IMEI, quindi il modem si riavvia per applicarlo. La connessione cade per un momento.",
       "step_state_unchanged": "Invariato",
       "errors": {
         "start_failed": "Impossibile avviare l'applicazione del profilo.",
@@ -1695,18 +1596,7 @@
       "apn_prefix": "APN ",
       "other_sim": "Altra SIM"
     },
-    "list": {
-      "new_button": "Nuovo",
-      "bound_sim": "Associato alla SIM {{iccid}}",
-      "detail_unavailable": "Impossibile caricare le impostazioni di questo profilo.",
-      "only_active_hint": "Il tuo unico profilo è quello attivo. Creane un altro per passare da una configurazione all'altra."
-    },
-    "edit": {
-      "not_found_title": "Profilo non trovato",
-      "not_found_desc": "Questo profilo potrebbe essere stato eliminato. Torna ai profili salvati."
-    },
     "card": {
-      "label_iccid": "SIM",
       "label_updated": "Aggiornato"
     },
     "registry": {
@@ -1947,8 +1837,6 @@
     "tiles": {
       "network": {
         "label": "Tipo di rete",
-        "mark_5g": "5G",
-        "mark_4g": "4G",
         "caption_nsa": "Non-standalone, ancorato su LTE",
         "caption_sa": "Core 5G standalone",
         "caption_lte": "Nessun ramo 5G agganciato",
@@ -2180,8 +2068,6 @@
         "optimization_label": "Etichetta di ottimizzazione",
         "optimization_placeholder": "es. Latenza, Velocità, Personalizzato",
         "icon_label": "Icona",
-        "preview_label": "Anteprima",
-        "preview_name_fallback": "Nome dello scenario",
         "preview_description_fallback": "Configurazione personalizzata"
       },
       "buttons": {
@@ -2203,7 +2089,6 @@
       "activate": "Attiva",
       "edit_aria": "Modifica le impostazioni dello scenario",
       "disabled_tooltip": "L'attivazione dello scenario è gestita dal profilo SIM personalizzato {{profile}}.",
-      "disabled_tooltip_next": " Prossima modifica alle {{time}}.",
       "rows": {
         "network_mode": "Modalità di rete",
         "optimization": "Ottimizzazione",
@@ -2217,22 +2102,14 @@
     },
     "tile": {
       "in_force": "Attivo",
-      "caption_in_force": "Attivo adesso",
       "caption_next": "Prossimo alle {{time}}",
-      "caption_unscheduled": "Non pianificato",
-      "band_count_nr": "{{bands}} NR",
-      "band_count_lte": "{{bands}} LTE",
-      "custom_tag": "Personalizzato",
-      "bands_auto": "Bande automatiche",
-      "delete_aria": "Elimina lo scenario {{name}}",
       "delete_dialog": {
         "title": "Elimina scenario",
         "description": "Sei sicuro di voler eliminare \"{{name}}\"? Questa azione non può essere annullata.",
         "confirm": "Elimina"
       },
       "add": {
-        "title": "Nuovo scenario",
-        "description": "Scegli una modalità e le bande"
+        "title": "Nuovo scenario"
       }
     },
     "redirect": {
@@ -2558,10 +2435,8 @@
     },
     "live": {
       "title": "In questo momento",
-      "camped_on": "Agganciato adesso",
       "camped_empty_title": "Nessuna portante attiva",
       "camped_empty_body": "Il modem non è agganciato a nessuna cella al momento. Il blocco si applica comunque non appena si aggancia.",
-      "note_hint": "Aggiungi copia questa cella nel modulo qui sotto. Un blocco BTS fissa insieme il canale e il suo PCI, quindi il modem resta esattamente su quella cella.",
       "absent_nr_title": "Nessuna portante 5G",
       "absent_lte_title": "Nessun ancoraggio LTE",
       "tile_tech_LTE": "LTE",
@@ -2570,17 +2445,10 @@
       "tile_earfcn": "EARFCN",
       "tile_arfcn": "ARFCN",
       "tile_rsrp": "{{value}} dBm",
-      "tile_rsrq": "{{value}} dB",
-      "tile_sinr": "{{value}} dB",
       "tile_no_value": "—",
-      "tile_use": "Usa cella",
-      "tile_use_a11y": "Usa la banda {{band}}, PCI {{pci}} come destinazione del blocco {{leg}}",
-      "tile_locked_a11y": "La banda {{band}}, PCI {{pci}} è la destinazione del blocco attuale",
       "tile_blocked_nsa": "Il blocco 5G richiede la modalità standalone",
       "tile_blocked_lte_only": "Nessuna connessione 5G da bloccare",
       "tile_blocked_slots_full": "Tutte e tre le celle LTE sono impostate",
-      "tile_band_channel": "{{band}} – {{channel}}",
-      "rail_target_pair": "{{channel}}, PCI {{pci}}",
       "refresh": "Rileggi lo stato del blocco dal modem",
       "persist_label": "Mantieni il blocco dopo il riavvio",
       "persist_help": "Salva il blocco sul modem stesso, così viene ripristinato automaticamente dopo un riavvio.",
@@ -2591,25 +2459,15 @@
       "persist_split_help": "Il modem lo segnala salvato per una radio ma non per l'altra. Disattivalo e riattivalo per riscriverle entrambe.",
       "persist_toast_enabled": "Il blocco sarà mantenuto dopo il riavvio",
       "persist_toast_disabled": "Il blocco non sarà mantenuto dopo il riavvio",
-      "persist_toast_error": "Impossibile aggiornare l'impostazione di riavvio",
       "failover_label": "Failover del segnale",
       "failover_help_label": "Informazioni sul failover del segnale",
       "failover_help": "Rimuove automaticamente il blocco BTS se la qualità del segnale resta sotto la soglia, così una cella scadente non può isolare la connessione. Rilascia entrambe le radio, non solo quella debole.",
       "failover_state_disabled": "Disattivato",
-      "failover_state_standby": "Nessun blocco",
-      "failover_state_armed": "Monitoraggio",
       "failover_state_stalled": "Non in guardia",
       "failover_state_unknown": "Non segnalato",
-      "failover_state_fallback": "Rilasciato — debole",
-      "failover_toast_enabled": "Failover del segnale attivato",
-      "failover_toast_disabled": "Failover del segnale disattivato",
-      "failover_toast_error": "Impossibile aggiornare il failover del segnale",
       "threshold_label": "Rilascia sotto",
       "threshold_invalid": "Inserisci un valore tra 0 e 100",
       "threshold_unread": "Non ancora letto dal modem.",
-      "threshold_toast_saved": "Soglia di failover aggiornata",
-      "threshold_toast_error": "Impossibile aggiornare la soglia",
-      "quality_label": "Qualità del segnale ora",
       "quality_value": "{{value}}%",
       "quality_unknown": "Non segnalato",
       "verdict_on_target_title": "In destinazione",
@@ -2672,17 +2530,10 @@
       "slot": "Cella {{index}}",
       "slot_clear": "Cancella cella {{index}}",
       "scs_guess": "Compilato con il valore predefinito della banda {{band}}. Verificalo con la tua BTS se il blocco non riesce.",
-      "scs_from_serving": "Letto dalla cella a cui il modem è agganciato.",
       "pick_placeholder": "Scegli una portante attiva",
       "slot_in_use": "Nella cella {{index}}"
     },
     "card": {
-      "status_locked": "Bloccato",
-      "status_unlocked": "Sbloccato",
-      "status_unknown": "Non segnalato",
-      "readback_label": "Il modem segnala",
-      "status_gated_nsa": "Richiede modalità SA",
-      "status_gated_lte": "Nessun segnale 5G",
       "gate_nsa_title": "Non disponibile in 5G NSA",
       "gate_nsa_body": "Il blocco standalone richiede il modem in modalità SA. Attualmente usa il 5G ancorato a una cella LTE.",
       "gate_lte_title": "Nessuna connessione 5G",
@@ -2718,7 +2569,6 @@
       "status_inactive": "Inattiva",
       "toast_saved": "Pianificazione aggiornata",
       "toast_error": "Impossibile salvare la pianificazione",
-      "toast_no_targets": "Imposta una destinazione di blocco prima di pianificare",
       "arm_warning": "Salvata, ma la pianificazione non è attiva: {{reason}}",
       "arm_reason_unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo — aggiorna al firmware più recente per abilitarlo",
       "arm_reason_unknown": "motivo sconosciuto",
@@ -2744,10 +2594,7 @@
     "toast": {
       "locked": "Blocco BTS {{leg}} applicato",
       "unlocked": "Blocco BTS {{leg}} rimosso",
-      "lock_error": "Impossibile applicare il blocco BTS {{leg}}",
-      "unlock_error": "Impossibile rimuovere il blocco BTS {{leg}}",
       "incomplete": "Compila tutti i campi prima di bloccare",
-      "no_targets": "Inserisci prima canale e ID cella",
       "filled": "{{leg}} compilato da banda {{band}}, PCI {{pci}}",
       "slots_full": "Tutte e tre le celle LTE sono già impostate",
       "cell_added": "Cella aggiunta al blocco {{leg}}",
@@ -2759,7 +2606,7 @@
       "threshold_saved": "Soglia di failover aggiornata"
     },
     "warning": {
-      "service_enable_failed": "Il blocco è attivo adesso, ma non sopravvivrà a un riavvio: il modem ha rifiutato il comando di salvataggio.",
+      "service_enable_failed": "Il blocco è attivo adesso, ma non è stato possibile impostarlo per l'avvio, quindi non sopravvivrà a un riavvio.",
       "service_disable_failed": "Il blocco è stato rimosso, ma non è stato possibile toglierlo dall'avvio: potrebbe tornare dopo un riavvio.",
       "persist_command_failed": "«Mantieni il blocco dopo il riavvio» non è stato applicato. Il modem ha rifiutato il comando di salvataggio.",
       "dismiss": "Chiudi"
@@ -2768,19 +2615,15 @@
       "title": "Impossibile leggere lo stato del blocco BTS",
       "body": "Il modem non ha risposto dopo tre tentativi. Finché l'operazione non riesce, nulla di quanto segue riflette il reale stato di blocco della radio.",
       "retry": "Riprova",
-      "retrying": "Nuovo tentativo…",
-      "retry_tip": "Richiedi di nuovo al modem lo stato del blocco."
+      "retrying": "Nuovo tentativo…"
     },
     "blocked": {
       "lock_empty_lte": "Inserisci un canale e un PCI, oppure scegli una cella dalle schede qui sopra.",
       "lock_incomplete_lte": "Ogni slot che hai iniziato richiede sia il canale sia il PCI.",
       "lock_empty_nr": "Inserisci canale, PCI, spaziatura e banda, oppure scegli una cella dalle schede qui sopra.",
       "lock_incomplete_nr": "Servono tutti e quattro i campi prima di poter bloccare questa cella.",
-      "lock_unchanged": "La radio è già bloccata esattamente su questi target, quindi non c'è nulla da scrivere.",
       "lock_gated_nsa": "Il modem è in 5G NSA: la parte 5G non ha una cella standalone da bloccare.",
       "lock_gated_lte_only": "Il modem non ha alcuna portante 5G attiva, quindi non c'è nulla su cui bloccarlo.",
-      "threshold_empty": "Inserisci una percentuale tra 0 e 100.",
-      "refresh_in_flight": "Rilettura del modem già in corso. Può richiedere qualche secondo.",
       "refresh_writing": "Una modifica alla torre è in corso di applicazione."
     },
     "a11y": {
