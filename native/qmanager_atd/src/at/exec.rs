@@ -7,6 +7,7 @@ use crate::at::classify;
 use crate::common::lock::LockFile;
 use crate::common::log::Logger;
 use crate::at::output::Code;
+use crate::at::qcmap::Qcmap;
 use crate::common::safefs::{one_line, write_nofollow};
 use std::time::{Duration, Instant};
 
@@ -32,6 +33,7 @@ pub struct Executor<'a, D: Device> {
     pub ch: &'a mut Channel<D>,
     pub lock: &'a LockFile,
     pub log: &'a Logger,
+    pub qcmap: &'a Qcmap,
 }
 
 fn deadline_for(cmd: &str, long: bool) -> Instant {
@@ -236,6 +238,10 @@ impl<D: Device> Executor<'_, D> {
             self.log.warn(&format!("Rejected non-AT command: {}", one_line(cmd)));
             return Outcome::Err(Code::InvalidCommand);
         }
+        // QMAP with QCMAP down can wedge smd11; refused before the lock, no I/O.
+        if classify::is_qmap(cmd) && self.qcmap.refuses(self.log, cmd) {
+            return Outcome::Err(Code::ModemNotReady);
+        }
         let long = classify::is_long(cmd);
 
         // A long command is in progress: short commands fast-reject, exactly
@@ -311,7 +317,7 @@ mod tests {
         let log = Logger::new("test");
         // Opening the channel at all would mean the command reached the modem.
         let mut ch: Channel<UnixStream> = Channel::new(Box::new(|| panic!("command was sent")));
-        let mut ex = Executor { ch: &mut ch, lock: &lock, log: &log };
+        let mut ex = Executor { ch: &mut ch, lock: &lock, log: &log, qcmap: Qcmap::system() };
         let out = ex.run_after("AT+CSQ", LOCK_WAIT_SHORT + Duration::from_millis(1));
         assert!(matches!(out, Outcome::Err(Code::ModemBusy)));
         let _ = std::fs::remove_file(p);
@@ -327,11 +333,43 @@ mod tests {
         let other = LockFile::open(p.to_str().unwrap()).unwrap();
         let log = Logger::new("test");
         let mut ch: Channel<UnixStream> = Channel::new(Box::new(|| panic!("command was sent")));
-        let mut ex = Executor { ch: &mut ch, lock: &other, log: &log };
+        let mut ex = Executor { ch: &mut ch, lock: &other, log: &log, qcmap: Qcmap::system() };
         for cmd in ["--bogus", "hello", "AT\rhello"] {
             let t = Instant::now();
             assert!(matches!(ex.run(cmd), Outcome::Err(Code::InvalidCommand)), "{cmd:?}");
             assert!(t.elapsed() < Duration::from_millis(500), "{cmd:?} waited {:?}", t.elapsed());
+        }
+        let _ = std::fs::remove_file(p);
+    }
+
+    #[test]
+    fn qmap_with_qcmap_down_is_refused_before_the_lock() {
+        let p = std::env::temp_dir().join(format!("qatd-exec-qmap-{}", std::process::id()));
+        std::fs::write(&p, b"").unwrap();
+        let lock = LockFile::open(p.to_str().unwrap()).unwrap();
+        let _held = lock.acquire(Duration::ZERO).unwrap();
+        let other = LockFile::open(p.to_str().unwrap()).unwrap();
+        let log = Logger::new("test");
+        let mut ch: Channel<UnixStream> = Channel::new(Box::new(|| panic!("command was sent")));
+        let (down_dir, down) = crate::at::qcmap::tests::fake("exec-down", &[("1", "systemd")], true);
+        let mut ex = Executor { ch: &mut ch, lock: &other, log: &log, qcmap: &down };
+        for cmd in ["AT+QMAP=\"WWAN\"", "at+csq;+qmap=\"LANIP\""] {
+            let t = Instant::now();
+            assert!(matches!(ex.run(cmd), Outcome::Err(Code::ModemNotReady)), "{cmd}");
+            assert!(t.elapsed() < Duration::from_millis(500), "{cmd} waited {:?}", t.elapsed());
+        }
+        // A non-QMAP command still goes to the (held) lock: busy, not refused.
+        assert!(matches!(ex.run_after("AT+CSQ", LOCK_WAIT_SHORT - Duration::from_millis(50)), Outcome::Err(Code::ModemBusy)));
+        // QCMAP up, or no QCMAP binary: QMAP reaches the lock too.
+        let (up_dir, up) = crate::at::qcmap::tests::fake("exec-up", &[("430", "QCMAP_Connectio")], true);
+        let (off_dir, off) = crate::at::qcmap::tests::fake("exec-off", &[], false);
+        for q in [&up, &off] {
+            let mut ex = Executor { ch: &mut ch, lock: &other, log: &log, qcmap: q };
+            let out = ex.run_after("AT+QMAP=\"WWAN\"", LOCK_WAIT_SHORT - Duration::from_millis(50));
+            assert!(matches!(out, Outcome::Err(Code::ModemBusy)));
+        }
+        for d in [down_dir, up_dir, off_dir] {
+            let _ = std::fs::remove_dir_all(d);
         }
         let _ = std::fs::remove_file(p);
     }

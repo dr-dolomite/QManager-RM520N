@@ -37,6 +37,11 @@ pub fn is_at_command(cmd: &str) -> bool {
     b.len() >= 2 && b[..2].eq_ignore_ascii_case(b"AT") && !b.iter().any(|&c| c < 0x20 || c == 0x7f)
 }
 
+/// `+QMAP` anywhere, any case: compounds such as `AT+CSQ;+qmap="WWAN"` count.
+pub fn is_qmap(cmd: &str) -> bool {
+    cmd.as_bytes().windows(5).any(|w| w.eq_ignore_ascii_case(b"+QMAP"))
+}
+
 /// Parses long_commands.list the way qcmd does: skip blank and '#' lines.
 pub fn parse_long_list(text: &str) -> Vec<String> {
     text.lines()
@@ -98,6 +103,16 @@ mod tests {
     fn control_characters_are_rejected() {
         for c in ["AT\rhello", "AT+CSQ\n", "AT\r\nAT", "AT+CSQ\u{1a}", "AT\t+CSQ", "AT\u{7f}"] {
             assert!(!is_at_command(c), "{c:?}");
+        }
+    }
+
+    #[test]
+    fn qmap_is_found_in_any_case_and_inside_compounds() {
+        for c in ["AT+QMAP=\"WWAN\"", "at+qmap=\"mpdn_rule\"", "AT+CSQ;+QMAP=\"LANIP\"", "AT+QMAPWAC?", "At+QmAp?"] {
+            assert!(is_qmap(c), "{c}");
+        }
+        for c in ["AT", "AT+QMA", "AT+QENG=\"servingcell\"", "AT QMAP", "AT+CSQ;QMAP", "AT+QMBNCFG=\"list\""] {
+            assert!(!is_qmap(c), "{c}");
         }
     }
 

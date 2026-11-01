@@ -6,6 +6,7 @@
 //! (see `mode`), and the daemon refuses to start while another one listens.
 //! `--version` (any name) prints the crate version and protocol number; the
 //! daemon also publishes them in /var/run/qmanager_atd.proto for scripts.
+//! `qmanager_atd --qcmap` prints `qcmap=running|stopped|absent` (the +QMAP guard's view; no AT).
 //!
 //! `qcmd -t <ms>` (or `QCMD_WAIT_MS=<ms>` for that one call): read-only
 //! callers (the poller) cap their wait; see `try_broker_raw`.
@@ -68,6 +69,11 @@ fn main() {
             );
             std::process::exit(2);
         }
+        Mode::Qcmap => {
+            let s = at::qcmap::Qcmap::system().state();
+            let _ = writeln!(std::io::stdout(), "qcmap={}", s.name());
+            std::process::exit(0);
+        }
         Mode::Daemon => std::process::exit(run_daemon()),
         Mode::Client => std::process::exit(run_qcmd(&args)),
     }
@@ -93,6 +99,7 @@ enum Mode {
     Daemon,
     Client,
     Version,
+    Qcmap,
     Usage,
 }
 
@@ -111,6 +118,7 @@ fn mode(base: &str, rest: &[String]) -> Mode {
         return match rest {
             [] => Mode::Daemon,
             [a] if a == "-d" || a == "--daemon" => Mode::Daemon,
+            [a] if a == "--qcmap" => Mode::Qcmap,
             _ => Mode::Usage,
         };
     }
@@ -135,6 +143,8 @@ mod tests {
         assert_eq!(mode("qmanager_atd", &sv(&["-d"])), Mode::Daemon);
         assert_eq!(mode("qmanager_atd", &sv(&["--daemon"])), Mode::Daemon);
         assert_eq!(mode("qmanager_atd", &sv(&["--version"])), Mode::Version);
+        assert_eq!(mode("qmanager_atd", &sv(&["--qcmap"])), Mode::Qcmap);
+        assert_eq!(mode("qcmd", &sv(&["--qcmap"])), Mode::Client);
         for bad in [&["--bogus"][..], &["AT+CSQ"], &["-t", "2500"], &["--version", "x"], &["-d", "-d"]] {
             assert_eq!(mode("qmanager_atd", &sv(bad)), Mode::Usage, "{bad:?}");
         }

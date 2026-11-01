@@ -818,7 +818,7 @@ mod tests {
         let log = Logger::new("test");
         let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
         let op = parse_args(&args).unwrap();
-        let mut ex = Executor { ch, lock: &lock, log: &log };
+        let mut ex = Executor { ch, lock: &lock, log: &log, qcmap: crate::at::qcmap::Qcmap::system() };
         let r = run(&mut ex, &op, Duration::ZERO);
         let _ = std::fs::remove_file(p);
         r
