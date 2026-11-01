@@ -175,5 +175,14 @@
       "label": "Configuration",
       "description": "QManager config files and poller cache freshness"
     }
+  },
+  "diagnostics": {
+    "card_title": "Debug Report",
+    "card_description": "A snapshot of this modem to share when troubleshooting.",
+    "body": "Generates a plain-text snapshot of the modem's current state (radio status, network configuration, and recent logs) and downloads it to your device. No data leaves the modem until you choose to share the file.",
+    "button_capture": "Download Debug Report",
+    "button_capturing": "Capturing…",
+    "toast_success": "Debug report downloaded",
+    "toast_failed": "Couldn't capture diagnostics. Please try again."
   }
 }

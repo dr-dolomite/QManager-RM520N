@@ -175,5 +175,14 @@
       "label": "配置",
       "description": "QManager 配置檔案與輪詢快取新鮮度"
     }
+  },
+  "diagnostics": {
+    "card_title": "偵錯報告",
+    "card_description": "此數據機的快照，便於排查問題時分享。",
+    "body": "產生數據機目前狀態的純文字快照（無線狀態、網路設定與近期日誌）並下載到您的裝置。在您選擇分享該檔案之前，不會有任何資料離開數據機。",
+    "button_capture": "下載偵錯報告",
+    "button_capturing": "正在產生…",
+    "toast_success": "偵錯報告已下載",
+    "toast_failed": "無法產生診斷報告，請重試。"
   }
 }

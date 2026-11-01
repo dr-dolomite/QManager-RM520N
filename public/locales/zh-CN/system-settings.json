@@ -1,10 +1,18 @@
 {
   "known_sims": {
-    "row_label": "已知 SIM 卡",
-    "info_aria": "已知 SIM 卡信息",
-    "tooltip": "QManager 会记住已识别过的 SIM 卡，仅在插入全新 SIM 卡时才提醒您。清除会忘记除当前插入之外的所有 SIM 卡。",
-    "remembered_count_one": "{{count}} 张",
-    "remembered_count_other": "{{count}} 张",
+    "section": "已跟踪的 SIM 卡",
+    "rows": {
+      "count": {
+        "consequence": "QManager 会记住已识别过的 SIM 卡，仅在插入全新 SIM 卡时才提醒您。清除会忘记除当前插入之外的所有 SIM 卡。",
+        "label": "已记住的 SIM 卡"
+      }
+    },
+    "states": {
+      "empty_title": "尚未记录任何 SIM 卡",
+      "empty_description": "QManager 会在 SIM 卡首次插入时记录它。插入一张 SIM 卡即可开始。",
+      "error_title": "无法读取已跟踪的 SIM 卡",
+      "error_description": "设备未响应。没有任何记录被删除，这只是读取失败，数量仍保存在调制解调器上。"
+    },
     "clear_button": "清除",
     "clear_dialog_title": "清除已知 SIM 卡？",
     "clear_dialog_description": "这将忘记 QManager 识别过的所有 SIM 卡，但保留当前插入的这张——因此您正在使用的 SIM 卡不会被标记为新卡。之前用过的 SIM 卡在下次插入时会再次提醒。",
@@ -12,67 +20,12 @@
     "clear_dialog_clearing": "正在清除…",
     "toast_cleared": "已清除已知 SIM 卡",
     "toast_clear_failed": "清除已知 SIM 卡失败",
-    "remembered_unknown": "无法读取已记住的数量"
-  },
-  "sim_registry": {
-    "title": "已跟踪的 SIM 卡",
-    "description": "QManager 记录过的所有 SIM 卡，以及它们是否仍会触发新卡提醒。",
-    "carrier_unknown": "未知运营商",
-    "no_phone_number": "未分配号码",
-    "added_on": "添加于 {{date}}",
-    "added_unknown": "在开始记录之前添加",
-    "badge_active": "使用中",
-    "badge_alerts_on": "提醒已开启",
-    "badge_alerts_off": "提醒已关闭",
-    "show_alert": "开启提醒",
-    "restoring": "正在开启…",
-    "retry": "重试",
-    "stale_notice": "显示的是上次成功读取的数据，设备未响应最近一次刷新。",
-    "empty_title": "尚未记录任何 SIM 卡",
-    "empty_description": "QManager 会在 SIM 卡首次插入时记录它。插入一张 SIM 卡即可开始。",
-    "toast_restored": "已重新开启提醒",
-    "toast_restored_detail": "当插入 {{carrier}} SIM 卡时，QManager 会再次提醒。",
-    "toast_restore_failed": "无法重新开启提醒",
-    "remembered_count_one": "已记住 {{count}} 张 SIM 卡",
-    "remembered_count_other": "已记住 {{count}} 张 SIM 卡",
-    "toast_cleared_partial": "已清除，但列表可能不是最新的",
-    "toast_cleared_partial_detail": "设备已忘记这些 SIM 卡，但未能更新此列表。请重新加载页面查看。",
-    "error_title": "无法读取已跟踪的 SIM 卡",
-    "error_description": "设备未响应。没有任何记录被删除——这只是读取失败，列表仍保存在调制解调器上。"
-  },
-  "ssh": {
-    "card": {
-      "title": "SSH 访问",
-      "description": "通过 SSH 登录本调制解调器的 root 密码。它与您登录 QManager 所用的密码是分开的。",
-      "save": "更新 SSH 密码"
-    },
-    "fields": {
-      "current": {
-        "label": "您的 QManager 密码",
-        "consequence": "用于验证是您本人。这是您登录网页时使用的密码，不是 SSH 密码。"
-      },
-      "new": {
-        "label": "新的 SSH 密码",
-        "consequence": "至少六个字符。立即生效——已建立的 SSH 会话不会中断。"
-      },
-      "confirm": {
-        "label": "确认新密码"
-      }
-    },
-    "toggle": {
-      "show": "显示密码",
-      "hide": "隐藏密码"
-    },
-    "errors": {
-      "too_short": "SSH 密码至少需要 6 个字符。",
-      "mismatch": "两次输入的密码不一致。",
-      "failed": "SSH 密码修改失败。"
-    },
-    "toast_saved": "SSH 密码已更新。"
+    "toast_cleared_partial": "已清除已知 SIM 卡，但未完全清除",
+    "toast_cleared_partial_detail": "设备已忘记这些 SIM 卡，但无法更新其单卡记录。请重新加载页面查看。"
   },
   "page": {
     "title": "系统设置",
-    "description": "本设备如何计时、谁可以访问它，以及它记住了哪些 SIM 卡。",
+    "description": "本设备如何计时、何时重启，以及它记住了哪些 SIM 卡。",
     "refresh": "刷新"
   },
   "band": {
@@ -98,16 +51,16 @@
     "sims": {
       "eyebrow": "已跟踪的 SIM 卡",
       "caption_none": "尚未记录任何内容",
-      "caption_all_alerting": "全部会触发新卡提醒",
-      "caption_muted_one": "{{count}} 张已关闭新卡提醒",
-      "caption_muted_other": "{{count}} 张已关闭新卡提醒"
+      "caption_known": "仅新 SIM 卡会触发提醒",
+      "caption_unread": "无法读取数量"
     },
     "stale": "上次确认的读数"
   },
   "preferences": {
+    "section": "时间与单位",
     "card": {
-      "title": "时间与单位",
-      "description": "本调制解调器如何计时，以及各项读数所使用的单位。",
+      "title": "设备与单位",
+      "description": "本调制解调器如何计时、读数所用的单位，以及它记住的 SIM 卡。",
       "save": "保存偏好设置"
     },
     "rows": {
@@ -142,7 +95,8 @@
     },
     "toast": {
       "saved": "偏好设置已保存",
-      "failed": "无法保存偏好设置"
+      "failed": "无法保存偏好设置",
+      "tz_not_applied": "偏好设置已保存，但时区尚未应用到设备时钟"
     }
   },
   "reboot": {
@@ -166,6 +120,12 @@
         "label": "重复于",
         "consequence": "未选择任何日期时，该计划永远不会触发。",
         "rail": "每周重启日"
+      },
+      "clock": {
+        "label": "调制解调器时间",
+        "consequence": "计划任务所依据的日期和时间，使用“设备与单位”中设置的时区。",
+        "unsynced": "尚未设置",
+        "unsynced_consequence": "调制解调器尚未从网络获取时间，在此之前计划重启不会执行。"
       }
     },
     "days": {
@@ -202,7 +162,9 @@
       "rejected": {
         "no_days": "请至少选择一天，或关闭该计划。",
         "invalid_time": "该时间无效。请使用24小时制的 HH:MM 格式。",
-        "network": "无法连接到设备以保存。请检查网络连接后重试。"
+        "network": "无法连接到设备以保存。请检查网络连接后重试。",
+        "invalid_day": "所选日期中有无效项。请选择周日至周六。",
+        "missing_enabled": "设备未收到开关设置，请重试。"
       }
     }
   },
@@ -577,7 +539,8 @@
       "read_full_notes": "阅读完整发行说明",
       "rebooting": "重启中…",
       "verifying": "校验中…",
-      "retry_download": "重新下载"
+      "retry_download": "重新下载",
+      "reboot_now": "立即重启"
     },
     "band": {
       "head": "更新状态",
@@ -712,7 +675,8 @@
       "failed_check": "QManager 未能读取版本列表。本调制解调器上的版本未被改动，这只是一次读取失败，并非损失。",
       "failed_download": "下载没有完成，因此没有安装任何内容。设备上原有的版本未被改动。",
       "versions": "这里的每个选项都会重启调制解调器，而较旧的版本可能会撤销较新版本引入的设置。",
-      "failed_install": "安装没有完成，因此调制解调器上的文件可能是混杂的。重新安装可让它回到一个确定的版本。"
+      "failed_install": "安装没有完成，因此调制解调器上的文件可能是混杂的。重新安装可让它回到一个确定的版本。",
+      "stalled": "安装程序已两分钟没有进展。若仍无响应，请重启调制解调器以完成或撤销本次安装。"
     },
     "notes": {
       "title": "更新内容",
@@ -789,6 +753,12 @@
       "auto_on": "已启用自动更新",
       "auto_off": "已关闭自动更新",
       "save_failed": "无法保存该偏好设置"
+    },
+    "stall_dialog": {
+      "title": "现在重启调制解调器？",
+      "description": "安装似乎已卡住。重启会中断安装并断开当前会话，调制解调器会自动恢复。",
+      "cancel": "继续等待",
+      "confirm": "立即重启"
     }
   },
   "at_terminal": {
@@ -972,6 +942,59 @@
         "title": "会话已结束",
         "description": "调制解调器上的 shell 已退出，因此这个终端已关闭。没有任何内容丢失——需要时随时开始新会话。"
       }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "密码",
+      "description": "修改您登录 QManager 所用的密码，或 SSH 的 root 密码。每一项都需要先输入其当前密码。"
+    },
+    "tabs": {
+      "aria": "要修改的密码",
+      "web": "网页密码",
+      "ssh": "SSH 密码"
+    },
+    "web": {
+      "label": "当前网页密码",
+      "consequence": "您登录 QManager 所用的密码。",
+      "dialog_title": "修改网页密码",
+      "dialog_description": "修改后您将退出登录。"
+    },
+    "ssh": {
+      "label": "当前 SSH 密码",
+      "consequence": "通过 SSH 登录本调制解调器的 root 密码。",
+      "dialog_title": "修改 SSH 密码",
+      "dialog_description": "立即生效，已建立的 SSH 会话不会中断。",
+      "toast_saved": "SSH 密码已更新。"
+    },
+    "continue": "继续",
+    "toggle": {
+      "show": "显示密码",
+      "hide": "隐藏密码"
+    },
+    "dialog": {
+      "new_label": "新密码",
+      "confirm_label": "确认新密码",
+      "match": "两次密码一致",
+      "mismatch": "两次密码不一致",
+      "cancel": "取消",
+      "save": "保存密码"
+    },
+    "errors": {
+      "too_short": "密码至少需要 {{min}} 个字符。",
+      "weak": "密码至少需要 {{min}} 个字符，且包含大写字母、小写字母和数字。",
+      "verify_failed": "无法验证密码，请重试。",
+      "change_failed": "无法修改密码，请重试。",
+      "invalid_password_one": "密码错误。还剩 {{count}} 次尝试，之后登录将被暂时锁定。",
+      "invalid_password_other": "密码错误。还剩 {{count}} 次尝试，之后登录将被暂时锁定。",
+      "rate_limited_one": "错误尝试次数过多。请在 {{count}} 秒后重试。",
+      "rate_limited_other": "错误尝试次数过多。请在 {{count}} 秒后重试。"
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "设备访问",
+      "description": "用于访问此调制解调器的密码和端口。"
     }
   }
 }

@@ -175,5 +175,14 @@
       "label": "配置",
       "description": "QManager 配置文件与轮询缓存的新鲜度"
     }
+  },
+  "diagnostics": {
+    "card_title": "调试报告",
+    "card_description": "此调制解调器的快照，便于排查问题时分享。",
+    "body": "生成调制解调器当前状态的纯文本快照（无线状态、网络配置和近期日志）并下载到您的设备。在您选择分享该文件之前，不会有任何数据离开调制解调器。",
+    "button_capture": "下载调试报告",
+    "button_capturing": "正在生成…",
+    "toast_success": "调试报告已下载",
+    "toast_failed": "无法生成诊断报告，请重试。"
   }
 }

@@ -1,7 +1,9 @@
 {
   "auth_unavailable": "L'accesso non è disponibile al momento. Riprova tra poco.",
-  "hash_tool_missing": "Impossibile salvare la password perché manca uno strumento di sistema necessario.",
-  "no_password_set": "Nessuna password impostata. Completa prima la configurazione iniziale.",
+  "hash_tool_missing": "Questo modem non può verificare le password SSH: manca openssl.",
+  "no_password_set": "Per root non è ancora impostata una password SSH, quindi non c'è una password attuale da verificare.",
+  "root_hash_unsupported": "La password di root usa un formato di hash che questa verifica non può leggere.",
+  "verify_unavailable": "Impossibile verificare la password root attuale. L'helper delle password potrebbe essere obsoleto; riprova dopo l'aggiornamento.",
   "passwd_failed": "Impossibile cambiare la password del dispositivo. Riprova.",
   "ssh_password_failed": "Impossibile aggiornare la password di accesso remoto. Riprova.",
   "unknown": "Errore sconosciuto",
@@ -215,5 +217,9 @@
   "cgact_failed": "Impossibile attivare o disattivare questa connessione. Riprova.",
   "invalid_index": "Slot del profilo non valido. Scegli un numero da 1 a 6.",
   "qicsgp_failed": "Impossibile salvare le impostazioni di accesso dell'APN (nome utente, password e tipo di autenticazione). Riprova.",
-  "internal_error": "Si è verificato un problema interno in QManager. Riprova."
+  "internal_error": "Si è verificato un problema interno in QManager. Riprova.",
+  "report_tool_missing": "Lo strumento per il report di debug non è installato su questo modem.",
+  "capture_failed": "Impossibile generare il report di debug.",
+  "invalid_version": "Il nome della versione non è valido.",
+  "invalid_rollback": "Non è possibile tornare a questa build."
 }

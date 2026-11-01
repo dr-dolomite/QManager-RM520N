@@ -1,7 +1,9 @@
 {
   "auth_unavailable": "Masuk sedang tidak tersedia. Coba lagi sebentar lagi.",
-  "hash_tool_missing": "Kata sandi tidak dapat disimpan karena ada alat sistem yang diperlukan tidak tersedia.",
-  "no_password_set": "Belum ada kata sandi yang diatur. Selesaikan penyiapan awal terlebih dahulu.",
+  "hash_tool_missing": "Modem ini tidak dapat memeriksa kata sandi SSH: openssl tidak ada.",
+  "no_password_set": "Root belum memiliki kata sandi SSH, sehingga tidak ada kata sandi saat ini yang dapat diperiksa.",
+  "root_hash_unsupported": "Kata sandi root memakai format hash yang tidak dapat dibaca oleh pemeriksaan ini.",
+  "verify_unavailable": "Tidak dapat memeriksa kata sandi root saat ini. Helper kata sandi mungkin sudah usang; coba lagi setelah pembaruan.",
   "passwd_failed": "Tidak dapat mengubah kata sandi perangkat. Coba lagi.",
   "ssh_password_failed": "Tidak dapat memperbarui kata sandi akses jarak jauh. Coba lagi.",
   "unknown": "Kesalahan tidak diketahui",
@@ -215,5 +217,9 @@
   "cgact_failed": "Tidak dapat menyalakan atau mematikan koneksi ini. Coba lagi.",
   "invalid_index": "Slot profil tidak valid. Pilih angka dari 1 sampai 6.",
   "qicsgp_failed": "Tidak dapat menyimpan pengaturan login APN (nama pengguna, kata sandi, dan jenis autentikasi). Coba lagi.",
-  "internal_error": "Terjadi masalah di dalam QManager. Coba lagi."
+  "internal_error": "Terjadi masalah di dalam QManager. Coba lagi.",
+  "report_tool_missing": "Alat laporan debug tidak terpasang di modem ini.",
+  "capture_failed": "Laporan debug tidak dapat dibuat.",
+  "invalid_version": "Nama versi tidak valid.",
+  "invalid_rollback": "Tidak dapat kembali ke build tersebut."
 }

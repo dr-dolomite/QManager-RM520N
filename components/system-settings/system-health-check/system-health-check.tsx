@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import ConditionBlock from "@/components/system-settings/condition-block";
+import DiagnosticsCard from "@/components/system-settings/diagnostics/diagnostics-card";
 import { Tag } from "@/components/ui/tag";
 import { useSystemHealthCheck } from "@/hooks/use-system-health-check";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -131,6 +132,12 @@ export function SystemHealthCheck(): React.JSX.Element {
           />
         </>
       )}
+
+      {/* Needs no check run, so it renders in every state. A fixed sibling after
+          the conditional keeps its tree position, so a state change never remounts it. */}
+      <motion.div variants={staggerItem}>
+        <DiagnosticsCard />
+      </motion.div>
     </motion.div>
   );
 }

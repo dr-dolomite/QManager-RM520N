@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { DownloadIcon, ServerOffIcon } from "lucide-react";
+import { DownloadIcon, RotateCwIcon, ServerOffIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
@@ -57,11 +57,13 @@ export function SoftwareUpdate(): React.JSX.Element {
     isDownloading,
     error,
     errorKind,
+    isInstallStalled,
     lastChecked,
     checkForUpdates,
     downloadUpdate,
     installStaged,
     installVersion,
+    rebootDevice,
     togglePrerelease,
     saveAutoUpdate,
   } = useSoftwareUpdate();
@@ -77,7 +79,13 @@ export function SoftwareUpdate(): React.JSX.Element {
     isUpdating,
     isDownloading,
   });
-  const failure = resolveFailure(updateInfo, error, errorKind, downloadState);
+  const failure = resolveFailure(
+    updateInfo,
+    error,
+    errorKind,
+    downloadState,
+    view === "installing" && isInstallStalled,
+  );
   const packageSize = resolvePackageSize(updateInfo);
   const packageStaged = isPackageStaged(downloadState, updateInfo);
 
@@ -86,6 +94,7 @@ export function SoftwareUpdate(): React.JSX.Element {
   const [selectedVersion, setSelectedVersion] = React.useState("");
   const [versionDialogOpen, setVersionDialogOpen] = React.useState(false);
   const [installDialogOpen, setInstallDialogOpen] = React.useState(false);
+  const [rebootDialogOpen, setRebootDialogOpen] = React.useState(false);
 
   const running = view === "installing" || view === "rebooting";
   const interrupted = installedState(updateInfo) === "interrupted";
@@ -100,6 +109,12 @@ export function SoftwareUpdate(): React.JSX.Element {
     setInstallDialogOpen(false);
     await installStaged();
   }, [installStaged]);
+
+  // The reboot is the navigation hand-off, so success shows no toast.
+  const handleReboot = React.useCallback(() => {
+    setRebootDialogOpen(false);
+    rebootDevice();
+  }, [rebootDevice]);
 
   const resumeInterrupted = React.useCallback(() => {
     if (!pendingVersion) return;
@@ -206,6 +221,7 @@ export function SoftwareUpdate(): React.JSX.Element {
             packageStaged={packageStaged}
             onDownload={() => void handleDownload()}
             onInstall={() => setInstallDialogOpen(true)}
+            onReboot={() => setRebootDialogOpen(true)}
           />
 
           {/* Download and verify leave the page whole; only a run that is
@@ -275,6 +291,30 @@ export function SoftwareUpdate(): React.JSX.Element {
             >
               <DownloadIcon className={PILL_GLYPH} aria-hidden="true" />
               {t(`${K}.versions.dialog.confirm_install`)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* A stalled install is rescued by a manual restart, so it is confirmed. */}
+      <AlertDialog open={rebootDialogOpen} onOpenChange={setRebootDialogOpen}>
+        <AlertDialogContent className={DIALOG_MOTION}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(`${K}.stall_dialog.title`)}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(`${K}.stall_dialog.description`)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className={FOCUS_RING_ON_SURFACE}>
+              {t(`${K}.stall_dialog.cancel`)}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={FOCUS_RING_ON_SURFACE}
+              onClick={handleReboot}
+            >
+              <RotateCwIcon className={PILL_GLYPH} aria-hidden="true" />
+              {t(`${K}.stall_dialog.confirm`)}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

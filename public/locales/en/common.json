@@ -19,7 +19,8 @@
     "reconnect_modem": "Reconnect Modem",
     "change_display_name": "Change Display Name",
     "change_password": "Change Password",
-    "toggle_theme": "Toggle Theme"
+    "toggle_theme": "Toggle Theme",
+    "discard": "Discard"
   },
   "motion": {
     "label": "Animations",

@@ -33,14 +33,14 @@ date) that a bare ICCID line in a flat file can't.
 | **Set** — library | `scripts/usr/lib/qmanager/sim_db.sh` |
 | **Set** — store | `/etc/qmanager/known_iccids` (newline-delimited bare ICCIDs, persistent UBIFS) — **format frozen, see below** |
 | **Set** — legacy file (migrated once, left in place) | `/etc/qmanager/last_iccid` |
-| **Set** — admin CGI / UI | `system/known_sims.sh` / `hooks/use-known-sims.ts`, rendered as the **footer of** `components/system-settings/sim-registry-card.tsx` |
+| **Set** — admin CGI / UI | `system/known_sims.sh` / `hooks/use-known-sims.ts`, rendered as the Tracked SIMs row (`components/system-settings/tracked-sims-group.tsx`) inside the Device & Units card |
 | **Registry** — library | `scripts/usr/lib/qmanager/sim_registry.sh` |
 | **Registry** — store | `/etc/qmanager/sim_registry.json` (root:root 0644, lazy-created) |
 | **Registry** — lock | `/etc/qmanager/sim_registry.lock` |
 | **Registry** — root helper | `scripts/usr/bin/qmanager_sim_registry_apply` → `/usr/bin/qmanager_sim_registry_apply` |
 | **Registry** — CGI | `scripts/www/cgi-bin/quecmanager/system/sim_registry.sh` |
 | **Registry** — hook / types | `hooks/use-sim-registry.ts`, `types/sim-registry.ts` |
-| **Registry** — UI | `components/system-settings/sim-registry-card.tsx` ("Tracked SIMs"), `components/monitoring/watchdog/sim-swap-banner.tsx` |
+| **Registry** — UI | `components/monitoring/watchdog/sim-swap-banner.tsx` only (the per-SIM card was removed 2026-11-01) |
 | Transient detection flag | `/tmp/qmanager_sim_swap_detected` (root:root — still written, no longer the visibility gate) |
 | Consumers | `qmanager_poller` (detect + seed + refresh + derive `sim_swap.detected`), `qmanager_watchcat` (Tier-3 failover/revert), `profile_mgr.sh`, `cellular/settings.sh` |
 
@@ -609,48 +609,43 @@ page-scoped one.
   is **this SIM only**, not a global mute.
 - `optimisticallyHidden` is the only client state: the banner hides immediately
   on a confirmed dismiss (poll cycle is ~2s) and self-clears the moment the
-  device reports `detected:false` — so a later un-dismiss from System Settings
-  re-shows it without a page reload.
+  device reports `detected:false`, so a later un-dismiss re-shows it without a
+  page reload. No UI sends `undismiss` any more (see below); the CGI action
+  still works.
 
-### `components/system-settings/sim-registry-card.tsx` — "Tracked SIMs"
+### `components/system-settings/tracked-sims-group.tsx` — the Tracked SIMs row
 
-Per-SIM row: carrier, MSISDN (or "No number provisioned"), ICCID + "Added
-{date}" / "Added before tracking began", an Active badge on the current SIM,
-and an Alerts on / Alerts off badge. The **"Show Alert"** un-dismiss button
-renders **only on dismissed rows** — silencing an alert belongs to the alert
-itself, so this surface only ever re-enables. Loading / error / empty / data
-states are all handled; a failed refresh with existing data shows a stale
-notice instead of blanking the list.
+Since 2026-11-01 (P6, RM551E v0.1.34 parity) the System Settings index shows
+the **set**, not the registry: one row inside the Device & Units card with the
+count from `system/known_sims.sh` and an inline destructive **Clear**. The
+per-SIM `sim-registry-card.tsx` (carrier, MSISDN, Active and Alerts badges,
+"Show Alert") was deleted to match the RM551E v0.1.34 layout.
 
-**The card also owns Clear** (`CardFooter`: remembered-count + info tooltip on
-the left, destructive Clear on the right). It previously lived in a separate
-`known-sims-row.tsx` mounted inside the *System Settings* card, which was wrong
-on two counts. Cosmetically, a destructive SIM-database action sat on top of
-temperature and distance preferences. Functionally, it was the bug: Clear acts
-on the **set** while this card renders the **registry**, so with the control on
-another card a clear dropped the count 2 → 1 while the list kept showing 2, and
-nothing ever refetched. With one owner, a successful clear necessarily calls
-`refresh()`, so the two halves cannot drift.
+- **`count === null` is a failed read, `0` a genuinely empty set.** The row
+  shows a Retry button for the first and hides Clear for the second. The band's
+  Tracked SIMs tile reads the same `useKnownSims().count` and shows `—` for
+  `null`, never `0`.
+- **Clear still spans both stores.** `known_sims.sh` resets the set and the
+  registry sidecar to the currently inserted SIM (`clear_keep`) and returns
+  `registry_cleared`; a `false` raises a **warning** toast
+  (`known_sims.toast_cleared_partial`) rather than a success.
+- **The row gates Clear on the set's count alone.** A registry with rows over
+  an empty set has no Clear in the UI any more; `POST {"action":"clear"}` to
+  `known_sims.sh` still clears both.
 
-The footer renders when **either** store is non-empty (`knownCount > 0 ||
-sims.length > 0`) — if they ever disagree, the reset is exactly what resolves
-it, so hiding the control on an empty list would strand the user.
-
-Clear reports honestly: `known_sims.sh` returns `registry_cleared`, and a
-`false` (sidecar write failed, or a backend predating the two-store clear)
-raises a **warning** toast naming the stale list rather than a success toast.
-
-Strings: `system-settings` namespace, `sim_registry.*` and the reused
-`known_sims.*` subtrees, all 5 locales.
+Strings: `system-settings` namespace, `known_sims.*` subtree, all 5 locales.
+The `sim_registry.*` subtree was removed with the card.
 
 ### `hooks/use-sim-registry.ts` / `types/sim-registry.ts`
 
-`postSimDismissal(iccid, dismissed)` is exported standalone so the globally
-mounted banner can dismiss without pulling the whole registry on every page;
-`useSimRegistry()` (fetch-on-mount + refetch-after-mutation, no polling — the
-registry only changes on SIM insertion or user action) is what the card uses.
-Mutations flip the row optimistically then reconcile with a refetch, so a
-rejected write can't leave the UI lying.
+Kept for the SIM-swap banner. `postSimDismissal(iccid, dismissed)` is exported
+standalone so the globally mounted banner can dismiss without pulling the whole
+registry on every page. `useSimRegistry()` (fetch-on-mount +
+refetch-after-mutation, optimistic flip then reconcile) has **no consumer**
+since the card was removed, so nothing in the UI sends `undismiss`. A dismissal
+can now be undone only by Clear (which drops every other SIM's record, so those
+alert again on their next insertion; the inserted SIM's record, dismissal
+included, is kept verbatim) or by calling `system/sim_registry.sh` by hand.
 
 ### `app/cellular/custom-profiles/page.tsx`
 
@@ -664,7 +659,9 @@ to the form.
 ### `ModemSubsystemCard` is parked, not deleted
 
 `components/system-settings/system-settings.tsx` has the import and the JSX for
-`ModemSubsystemCard` **commented out** to make room for `SimRegistryCard`.
+`ModemSubsystemCard` **commented out**. It was parked to make room for the
+since-removed `SimRegistryCard`; the index is now two cards (Device & Units,
+Scheduled Reboot).
 `components/system-settings/modem-subsystem-card.tsx` and
 `hooks/use-modem-subsys.ts` remain on disk, untouched, ready to restore.
 

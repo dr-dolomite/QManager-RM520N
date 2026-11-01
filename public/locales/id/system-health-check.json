@@ -175,5 +175,14 @@
       "label": "Konfigurasi",
       "description": "Berkas konfigurasi QManager dan kesegaran cache poller"
     }
+  },
+  "diagnostics": {
+    "card_title": "Laporan Debug",
+    "card_description": "Snapshot modem ini untuk dibagikan saat pemecahan masalah.",
+    "body": "Membuat snapshot teks-biasa dari kondisi modem saat ini (status radio, konfigurasi jaringan, dan log terbaru) lalu mengunduhnya ke perangkat Anda. Tidak ada data yang keluar dari modem sampai Anda memilih untuk membagikan file tersebut.",
+    "button_capture": "Unduh Laporan Debug",
+    "button_capturing": "Mengambil…",
+    "toast_success": "Laporan debug terunduh",
+    "toast_failed": "Tidak dapat mengambil diagnostik. Silakan coba lagi."
   }
 }

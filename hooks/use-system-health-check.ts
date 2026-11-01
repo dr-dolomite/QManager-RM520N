@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
   HealthCheckJob,
   RunResponse,
@@ -12,6 +13,11 @@ import type {
 
 const CGI_BASE = "/cgi-bin/quecmanager/system/health-check";
 const POLL_INTERVAL_MS = 500;
+/**
+ * Right after a POST the status file can still hold the PREVIOUS job. Polls reading
+ * another job id are ignored this many times; after that the file wins.
+ */
+const STALE_READ_BUDGET = 10;
 /** Safari has cancelled downloads whose object URL is revoked in the same task. */
 const REVOKE_DELAY_MS = 1000;
 
@@ -22,6 +28,16 @@ export interface TestOutput {
 }
 
 export type FetchTestOutput = (testId: string) => Promise<TestOutput>;
+
+/** A backend refusal: the envelope's code and detail, kept apart for `resolveErrorMessage`. */
+class HealthCheckError extends Error {
+  constructor(
+    readonly code: string | undefined,
+    readonly detail: string | undefined,
+  ) {
+    super(detail || code || "");
+  }
+}
 
 export interface UseSystemHealthCheckReturn {
   job: HealthCheckJob | null;
@@ -41,6 +57,7 @@ export interface UseSystemHealthCheckReturn {
 
 export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
   const { t } = useTranslation("system-health-check");
+  const { t: tErrors } = useTranslation("errors");
   const [job, setJob] = useState<HealthCheckJob | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
@@ -49,6 +66,9 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
   const [error, setError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aborted = useRef(false);
+  /** The job id this tab just started, until the status file shows it. */
+  const awaitedJobId = useRef<string | null>(null);
+  const staleReads = useRef(0);
 
   /**
    * `t` changes identity on every language switch, and this hook's poll effect
@@ -57,6 +77,16 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
    */
   const tRef = useRef(t);
   tRef.current = t;
+  const tErrorsRef = useRef(tErrors);
+  tErrorsRef.current = tErrors;
+
+  /** The failure reason for a toast, from THIS call's own error. */
+  const describe = useCallback((e: unknown): string => {
+    if (e instanceof HealthCheckError) {
+      return resolveErrorMessage(tErrorsRef.current, e.code, e.detail, tErrorsRef.current("unknown"));
+    }
+    return tErrorsRef.current("unknown");
+  }, []);
 
   const fetchStatus = useCallback(async (): Promise<HealthCheckJob | null> => {
     const res = await authFetch(`${CGI_BASE}/status.sh`);
@@ -70,17 +100,25 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
     try {
       const next = await fetchStatus();
       if (aborted.current) return;
+      const awaited = awaitedJobId.current;
+      if (awaited && next?.job_id !== awaited && staleReads.current < STALE_READ_BUDGET) {
+        staleReads.current += 1;
+        // A fresh object re-arms the poll effect without adopting the old job.
+        setJob((prev) => (prev ? { ...prev } : prev));
+        return;
+      }
+      awaitedJobId.current = null;
       setJob(next);
       setError(null);
     } catch (e) {
       if (aborted.current) return;
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describe(e));
     } finally {
       // Latches false on the first settle. A later poll must never flip it back,
       // or a refresh would redraw the whole surface as skeletons.
       if (!aborted.current) setIsLoading(false);
     }
-  }, [fetchStatus]);
+  }, [fetchStatus, describe]);
 
   // Initial fetch on mount.
   useEffect(() => {
@@ -110,17 +148,17 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
 
   const start = useCallback(async () => {
     setIsStarting(true);
-    setError(null);
     try {
       const res = await authFetch(`${CGI_BASE}/run.sh`, { method: "POST" });
       const data = (await res.json()) as RunResponse;
       if (aborted.current) return;
       if (!data.success || !data.job_id) {
-        throw new Error(data.detail || data.error || "run failed");
+        throw new HealthCheckError(data.error, data.detail);
       }
-      // Seed a synthetic "running" job so UI flips immediately and the
-      // polling effect starts. The backend's real status overwrites this
-      // on the next 500ms tick — no race with status.sh writing late.
+      // Seed a synthetic "running" job so the polling effect starts. A resumed
+      // run is already in the file; a fresh one waits until the file shows its id.
+      awaitedJobId.current = data.resumed ? null : data.job_id;
+      staleReads.current = 0;
       setJob({
         job_id: data.job_id,
         status: "running",
@@ -135,47 +173,47 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
       });
     } catch (e) {
       if (aborted.current) return;
-      const detail = e instanceof Error ? e.message : String(e);
-      setError(detail);
-      toast.error(tRef.current("toast.run_failed"), { description: detail });
+      // Toast only: `error` tells the view the JOB is unreachable; a refused start does not.
+      toast.error(tRef.current("toast.run_failed"), { description: describe(e) });
     } finally {
       if (!aborted.current) setIsStarting(false);
     }
-  }, []);
+  }, [describe]);
 
   const clear = useCallback(async () => {
     setIsClearing(true);
-    setError(null);
     try {
       const res = await authFetch(`${CGI_BASE}/clear.sh`, { method: "POST" });
       const data = await res.json();
       if (aborted.current) return;
       if (!data?.success) {
-        throw new Error(data?.detail || data?.error || "clear failed");
+        throw new HealthCheckError(data?.error, data?.detail);
       }
+      awaitedJobId.current = null;
       setJob(null);
       toast.success(tRef.current("toast.cleared"));
     } catch (e) {
       if (aborted.current) return;
-      const detail = e instanceof Error ? e.message : String(e);
-      setError(detail);
-      toast.error(tRef.current("toast.clear_failed"), { description: detail });
+      toast.error(tRef.current("toast.clear_failed"), { description: describe(e) });
     } finally {
       if (!aborted.current) setIsClearing(false);
     }
-  }, []);
+  }, [describe]);
 
   const fetchTestOutput = useCallback<FetchTestOutput>(
     async (testId: string): Promise<TestOutput> => {
       const res = await authFetch(
         `${CGI_BASE}/status.sh?test_id=${encodeURIComponent(testId)}`,
       );
-      if (!res.ok) throw new Error(`status ${res.status}`);
+      // The panel shows the message as is, so throw an already-localized one.
+      if (!res.ok) throw new Error(describe(new HealthCheckError(undefined, undefined)));
       const data = (await res.json()) as TestOutputResponse;
-      if (!data.success) throw new Error(data.error || "fetch failed");
+      if (!data.success) {
+        throw new Error(describe(new HealthCheckError(data.error, data.detail)));
+      }
       return { output: data.output ?? "", truncated: data.truncated === true };
     },
-    [],
+    [describe],
   );
 
   /**
@@ -196,14 +234,16 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
       );
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || contentType.includes("application/json")) {
-        let code = `status ${res.status}`;
+        let code: string | undefined;
+        let detail: string | undefined;
         try {
           const body = (await res.json()) as { error?: string; detail?: string };
-          code = body.detail || body.error || code;
+          code = body.error;
+          detail = body.detail ?? detail;
         } catch {
           // A non-JSON failure body tells us nothing the status did not.
         }
-        throw new Error(code);
+        throw new HealthCheckError(code, detail);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -217,13 +257,12 @@ export function useSystemHealthCheck(): UseSystemHealthCheckReturn {
         URL.revokeObjectURL(url);
       }, REVOKE_DELAY_MS);
     } catch (e) {
-      const detail = e instanceof Error ? e.message : String(e);
       if (aborted.current) return;
-      toast.error(tRef.current("toast.download_failed"), { description: detail });
+      toast.error(tRef.current("toast.download_failed"), { description: describe(e) });
     } finally {
       if (!aborted.current) setIsDownloading(false);
     }
-  }, [job]);
+  }, [job, describe]);
 
   const isRunning = job?.status === "running";
 

@@ -94,7 +94,9 @@ export function UpdatePreferencesCard({
   const settle = (row: PrefRow, failure: string | null, enabled: boolean) => {
     if (failure !== null) {
       setSaveError({ row, detail: failure || null });
-      toast.error(t("software_update.toast.save_failed"));
+      toast.error(t("software_update.toast.save_failed"), {
+        description: failure || undefined,
+      });
       return;
     }
     setSaveError(null);

@@ -596,7 +596,8 @@ Net effect after the fix: `systemctl --failed` comes back clean on a healthy box
 - Whitelisted in sudoers for `www-data` so the CGI layer can invoke it without a password.
 - Called automatically during onboarding to sync the web UI password to the root account. A failed sync no longer fails silently: first-time setup in `auth/login.sh` returns `ssh_synced:false` and the onboarding password step shows a warning toast (`common:login.ssh_sync_failed`).
 - **No fixed default password.** On a fresh install, `setup_ssh_early` sets root to a random 16-hex password through the shipped copy of this helper and prints it **once** in the install summary. It never goes through `info()`/`warn()`, because `/tmp/qmanager_install.log` is world-readable. (Before this, every fresh install set root to `qmanager`.)
-- Also callable independently from **System Settings > SSH Password** card.
+- Also called from **System Settings → Device Access → SSH Password** (`auth/ssh_password.sh`).
+- **`--verify` mode** compares a stdin password against root's existing hash and changes nothing; `ssh_password.sh` uses it to check the current root password, because `www-data` cannot read `/etc/shadow`. The bare-path sudoers line already allows the argument. The helper carries a `# qm-capability: verify` line that `cgi_auth.sh` greps before sending `--verify` — an older helper would treat the candidate as a new password and set it — and refuses any other argument with `unknown_mode`. See [passwords.md](passwords.md#checking-the-current-root-password).
 
 ---
 

@@ -23,10 +23,23 @@ export interface ScheduleConfig {
   days: number[]; // 0=Sun, 6=Sat
 }
 
+/** The modem's own clock at the moment it answered the GET. */
+export interface DeviceClock {
+  epoch: number; // Unix seconds; 0 when the device could not read its clock
+  local: string; // "YYYY-MM-DDTHH:MM:SS" in the device's own time zone
+}
+
+/** A `DeviceClock` stamped with the browser time it arrived at, so it can tick. */
+export interface DeviceClockReading extends DeviceClock {
+  receivedAt: number; // browser ms (Date.now()) when the GET landed
+}
+
 export interface SystemSettingsResponse {
   success: boolean;
   settings: SystemSettings;
   scheduled_reboot: ScheduleConfig;
+  /** Absent from backends older than the clock row. */
+  device_clock?: DeviceClock;
 }
 
 /**

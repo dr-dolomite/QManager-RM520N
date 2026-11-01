@@ -41,6 +41,7 @@
     "system_health_check": "System Health Check",
     "connection_quality": "Connection Quality",
     "languages": "Languages",
+    "device_access": "Device Access",
     "software_update": "Software Update",
     "terminals": "Terminals",
     "at_terminal": "AT Terminal",

@@ -20,7 +20,6 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ScheduleConfig, SystemSettings } from "@/types/system-settings";
-import type { SimRegistryEntry } from "@/types/sim-registry";
 import { DAY_KEYS } from "./scheduled-operations-card";
 import { formatOffset } from "./derive";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
@@ -168,11 +167,12 @@ function TileSkeleton(): React.JSX.Element {
 export interface StatusBandProps {
   settings: SystemSettings | null;
   scheduledReboot: ScheduleConfig | null;
-  sims: SimRegistryEntry[];
+  /** `null` when the known-SIMs read produced no answer. Never render it as 0. */
+  knownCount: number | null;
   isLoading: boolean;
-  /** The registry has its own GET, and it is slower than settings on first
-      paint — without this the SIM tile shows a confident 0 before it lands. */
-  simsLoading: boolean;
+  /** The known-SIMs set has its own GET, and it can land after settings; without
+      this the SIM tile shows a confident 0 before it does. */
+  knownLoading: boolean;
   /** Non-null when the settings GET failed outright. */
   error: string | null;
 }
@@ -180,9 +180,9 @@ export interface StatusBandProps {
 export function StatusBand({
   settings,
   scheduledReboot,
-  sims,
+  knownCount,
   isLoading,
-  simsLoading,
+  knownLoading,
   error,
 }: StatusBandProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
@@ -272,8 +272,6 @@ export function StatusBand({
                 .join(t(`${K}.reboot.day_separator`)),
             });
 
-  const mutedCount = sims.filter((sim) => sim.dismissed).length;
-
   return (
     <div>
       <div className={BAND.HEAD}>
@@ -318,20 +316,20 @@ export function StatusBand({
               caption={rebootCaption}
             />
 
-            {simsLoading ? (
+            {knownLoading ? (
               <TileSkeleton />
             ) : (
               <Tile
                 glyph={SmartphoneIcon}
-                tone={sims.length > 0 ? "primary" : "neutral"}
+                tone={knownCount !== null && knownCount > 0 ? "primary" : "neutral"}
                 eyebrow={t(`${K}.sims.eyebrow`)}
-                value={String(sims.length)}
+                value={knownCount === null ? VALUE_NONE : String(knownCount)}
                 caption={
-                  sims.length === 0
-                    ? t(`${K}.sims.caption_none`)
-                    : mutedCount === 0
-                      ? t(`${K}.sims.caption_all_alerting`)
-                      : t(`${K}.sims.caption_muted`, { count: mutedCount })
+                  knownCount === null
+                    ? t(`${K}.sims.caption_unread`)
+                    : knownCount === 0
+                      ? t(`${K}.sims.caption_none`)
+                      : t(`${K}.sims.caption_known`)
                 }
               />
             )}

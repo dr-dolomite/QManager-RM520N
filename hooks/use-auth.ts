@@ -6,7 +6,6 @@ const CHECK_ENDPOINT = "/cgi-bin/quecmanager/auth/check.sh";
 const LOGIN_ENDPOINT = "/cgi-bin/quecmanager/auth/login.sh";
 const LOGOUT_ENDPOINT = "/cgi-bin/quecmanager/auth/logout.sh";
 const PASSWORD_ENDPOINT = "/cgi-bin/quecmanager/auth/password.sh";
-const SSH_PASSWORD_ENDPOINT = "/cgi-bin/quecmanager/auth/ssh_password.sh";
 
 // ---------------------------------------------------------------------------
 // Cookie helpers
@@ -260,11 +259,48 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** A failed password call: the backend code, its English detail, and lockout seconds. */
+export interface PasswordCallResult {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  /** Present with `rate_limited`: seconds until the lockout lifts. */
+  retry_after?: number;
+  /** Present with `invalid_password`: wrong guesses left before the lockout. */
+  attempts_remaining?: number;
+}
+
+/**
+ * Check the current web password without changing it (`verify_only`). A wrong
+ * password counts toward the sign-in lockout, so a locked-out caller gets `rate_limited`.
+ */
+export async function verifyPassword(current: string): Promise<PasswordCallResult> {
+  try {
+    const resp = await fetch(PASSWORD_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: current, verify_only: true }),
+    });
+    const data = await resp.json();
+    if (data.success) return { success: true };
+    return {
+      success: false,
+      error: data.error,
+      detail: data.detail,
+      retry_after: typeof data.retry_after === "number" ? data.retry_after : undefined,
+      attempts_remaining:
+        typeof data.attempts_remaining === "number" ? data.attempts_remaining : undefined,
+    };
+  } catch {
+    return { success: false };
+  }
+}
+
 export async function changePassword(
   current: string,
   newPassword: string,
   enforceStrong: boolean = true
-): Promise<{ success: boolean; error?: string; detail?: string }> {
+): Promise<PasswordCallResult> {
   try {
     const resp = await fetch(PASSWORD_ENDPOINT, {
       method: "POST",
@@ -284,42 +320,15 @@ export async function changePassword(
     }
 
     // `error` is the errors.json code, `detail` its English fallback.
-    return { success: false, error: data.error, detail: data.detail };
-  } catch {
-    return { success: false };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SSH password management
-// ---------------------------------------------------------------------------
-
-export async function changeSSHPassword(
-  currentPassword: string,
-  newPassword: string,
-  confirmPassword: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const resp = await fetch(SSH_PASSWORD_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
-      }),
-    });
-    const data = await resp.json();
-
-    if (data.success) {
-      return { success: true };
-    }
-
     return {
       success: false,
-      error: data.detail || data.error || "SSH password change failed",
+      error: data.error,
+      detail: data.detail,
+      retry_after: typeof data.retry_after === "number" ? data.retry_after : undefined,
+      attempts_remaining:
+        typeof data.attempts_remaining === "number" ? data.attempts_remaining : undefined,
     };
   } catch {
-    return { success: false, error: "Connection failed" };
+    return { success: false };
   }
 }

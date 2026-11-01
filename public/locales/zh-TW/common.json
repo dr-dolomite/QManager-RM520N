@@ -19,7 +19,8 @@
     "reconnect_modem": "重新連線調變解調器",
     "change_display_name": "變更顯示名稱",
     "change_password": "變更密碼",
-    "toggle_theme": "切換主題"
+    "toggle_theme": "切換主題",
+    "discard": "捨棄"
   },
   "motion": {
     "label": "動畫",

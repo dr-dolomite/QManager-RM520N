@@ -1,0 +1,192 @@
+#!/bin/sh
+# qmanager_debug_report: writes /tmp/qmanager_debug_<epoch>.txt (0600); its path is the LAST stdout line.
+# Runs as www-data on allowlisted sources, IDs masked, read-only (no qcmd, no secrets, no restarts). Install: /usr/bin/ (755).
+
+PATH=/opt/bin:/opt/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+umask 077
+
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
+    qlog_init()  { :; }
+    qlog_info()  { :; }
+    qlog_warn()  { :; }
+    qlog_error() { :; }
+fi
+qlog_init "debug_report"
+
+TS=$(date +%s)
+OUT="/tmp/qmanager_debug_${TS}.txt"
+TMP="${OUT}.tmp.$$"
+MAX_BYTES=204800        # hard cap on the final artifact
+KEEP_REPORTS=2          # newest N reports survive the prune
+LOG_TAIL=200
+
+trap 'rm -f "$TMP" "${TMP}.trim"' EXIT INT TERM
+
+# Keep TAB, LF and printable ASCII only: safe for jq --rawfile, no escapes.
+sanitize() {
+    tr -cd '\11\12\40-\176'
+}
+
+# Bound each external command so one hung tool cannot stall the CGI.
+if command -v timeout >/dev/null 2>&1; then
+    bounded() { timeout 4 "$@" </dev/null; }
+else
+    bounded() { "$@" </dev/null; }
+fi
+
+# section <title> <command...> — banner, sanitized output, "(no output)" marker.
+section() {
+    _title="$1"
+    shift
+    {
+        printf '\n===== %s =====\n' "$_title"
+        _body=$("$@" 2>&1 | sanitize)
+        if [ -n "$_body" ]; then
+            printf '%s\n' "$_body"
+        else
+            printf '(no output)\n'
+        fi
+    } >> "$TMP"
+}
+
+# section_raw <title> — body from stdin.
+section_raw() {
+    printf '\n===== %s =====\n' "$1" >> "$TMP"
+    _raw=$(sanitize)
+    if [ -n "$_raw" ]; then
+        printf '%s\n' "$_raw" >> "$TMP"
+    else
+        printf '(no output)\n' >> "$TMP"
+    fi
+}
+
+# jq filter: mask subscriber identifiers wherever the key appears; drop the
+# long latency history array.
+MASK_JQ='
+walk(if type == "object" then
+        with_entries(if (.key | ascii_downcase) as $k
+            | ($k == "imei" or $k == "imsi" or $k == "iccid" or $k == "phone_number"
+               or $k == "msisdn" or $k == "imeisv" or $k == "ippt_mac"
+               or $k == "matching_profile_name")
+          then .value = "[masked]" else . end)
+     else . end)
+| if type == "object" then del(.connectivity.latency_history) else . end'
+
+json_section() {
+    [ -f "$2" ] || return 0
+    bounded jq "$MASK_JQ" "$2" 2>/dev/null | section_raw "$1"
+}
+
+units_state() {
+    _units=$(bounded systemctl list-units 'qmanager*' --all --no-legend --plain 2>/dev/null | awk '{ print $1 }')
+    [ -n "$_units" ] || { echo "(systemctl unavailable)"; return; }
+    # shellcheck disable=SC2086
+    bounded systemctl show $_units -p Id -p ActiveState -p SubState -p NRestarts -p Result 2>/dev/null \
+        | awk -F= '
+            $1 == "Id"          { id = $2 }
+            $1 == "ActiveState" { act = $2 }
+            $1 == "SubState"    { sub_ = $2 }
+            $1 == "NRestarts"   { nr = $2 }
+            $1 == "Result"      { res = $2 }
+            /^$/ && id != ""    { printf "%-42s %-9s %-8s restarts=%s result=%s\n", id, act, sub_, (nr == "" ? "-" : nr), res; id = ""; act = ""; sub_ = ""; nr = ""; res = "" }
+            END { if (id != "") printf "%-42s %-9s %-8s restarts=%s result=%s\n", id, act, sub_, (nr == "" ? "-" : nr), res }'
+}
+
+dmesg_state() {
+    if [ "$(cat /proc/sys/kernel/dmesg_restrict 2>/dev/null)" = "1" ] && [ "$(id -u)" != "0" ]; then
+        echo "restricted (kernel.dmesg_restrict=1; not readable as $(id -un))"
+        return
+    fi
+    bounded dmesg 2>/dev/null | tail -n 100
+}
+
+iptables_state() {
+    _ipt=$(bounded iptables -S 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "restricted (iptables needs root; not available as $(id -un))"
+        return
+    fi
+    printf 'filter rules: %s\n' "$(printf '%s\n' "$_ipt" | grep -c '^-A')"
+    for _t in nat mangle; do
+        printf '%s rules: %s\n' "$_t" "$(bounded iptables -t "$_t" -S 2>/dev/null | grep -c '^-A')"
+    done
+}
+
+# Last log lines minus anything that could carry SMS/email/Discord/credential
+# text; long digit runs (IMEI/ICCID/phone) are masked.
+log_tail() {
+    [ -f /tmp/qmanager.log ] || { echo "(no /tmp/qmanager.log)"; return; }
+    tail -n 1000 /tmp/qmanager.log 2>/dev/null \
+        | grep -v -i -E 'sms|email|smtp|discord|password|passwd|token|session|cookie|secret|otp' \
+        | tail -n "$LOG_TAIL" \
+        | sed -E -e 's/([Ii][Cc][Cc][Ii][Dd]|[Ii][Mm][Ss][Ii]|[Ii][Mm][Ee][Ii])([^A-Za-z0-9]*)[0-9][^[:space:]]*/\1\2[masked]/g' \
+                 -e 's/[0-9]{10,}/[num]/g'
+}
+
+: > "$TMP"
+
+{
+    printf '===== QManager Debug Report =====\n'
+    printf 'generated_at: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+    printf 'epoch: %s\n' "$TS"
+    printf 'run_as: %s\n' "$(id -un 2>/dev/null)"
+} >> "$TMP"
+
+# Versions
+section "qmanager_version"   cat /etc/qmanager/VERSION
+section "quectel_project"    cat /etc/quectel-project-version
+section "kernel"             uname -a
+
+# System state
+section "uptime"             uptime
+section "memory"             free
+section "df"                 df -k
+
+# Services (journald is /dev/null on this device: NRestarts is the fault signal)
+units_state | section_raw "systemd_qmanager_units"
+
+# Kernel ring buffer
+dmesg_state | section_raw "dmesg_tail_100"
+
+# Network
+section "ip_addr"            bounded ip -br addr
+section "ip_route"           bounded ip route
+iptables_state | section_raw "iptables_rule_counts"
+
+# QManager application log (filtered)
+log_tail | section_raw "qmanager_log_tail_${LOG_TAIL}"
+
+# Runtime JSON snapshots (identifiers masked)
+json_section "runtime_status.json" /tmp/qmanager_status.json
+json_section "runtime_ping.json"   /tmp/qmanager_ping.json
+json_section "runtime_qmi.json"    /tmp/qmanager_qmi.json
+
+# Size cap: keep head and tail, drop the middle.
+_bytes=$(wc -c < "$TMP" 2>/dev/null)
+case "$_bytes" in ''|*[!0-9]*) _bytes=0 ;; esac
+if [ "$_bytes" -gt "$MAX_BYTES" ]; then
+    _lines=$(wc -l < "$TMP" 2>/dev/null)
+    {
+        head -n 250 "$TMP"
+        printf '\n... [TRIMMED: report exceeded %s bytes; middle omitted] ...\n\n' "$MAX_BYTES"
+        tail -n 250 "$TMP"
+    } > "${TMP}.trim" 2>/dev/null && mv "${TMP}.trim" "$TMP"
+    qlog_warn "debug report ${_bytes}B (${_lines} lines) exceeded cap ${MAX_BYTES}B; trimmed"
+fi
+
+if ! mv "$TMP" "$OUT" 2>/dev/null; then
+    qlog_error "could not write $OUT"
+    exit 1
+fi
+
+# Prune older reports (own name pattern only).
+for _old in $(ls -t /tmp/qmanager_debug_*.txt 2>/dev/null | tail -n +$((KEEP_REPORTS + 1))); do
+    rm -f "$_old" 2>/dev/null
+done
+
+qlog_info "debug report written: $OUT"
+
+# LAST stdout line MUST be the artifact path.
+printf '%s\n' "$OUT"

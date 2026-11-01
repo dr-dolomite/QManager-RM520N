@@ -557,6 +557,31 @@ qm_set_ssh_password() {
     fi
 }
 
+# Check a root (SSH) password via the helper's --verify; 0 on match, else 1 with QM_SSH_VERIFY_ERR
+# set to its error code (or verify_unavailable when it gave no usable answer).
+qm_verify_ssh_password() {
+    QM_SSH_VERIFY_ERR="verify_unavailable"
+    [ -z "$1" ] && return 1
+
+    if [ -z "$_PLATFORM_LOADED" ]; then
+        . /usr/lib/qmanager/platform.sh
+    fi
+
+    # Fail closed: a helper without --verify would treat the candidate as a NEW password and set it.
+    grep -q '^# qm-capability: verify$' /usr/bin/qmanager_set_ssh_password 2>/dev/null || return 1
+
+    _vsp_out=$(printf '%s\n' "$1" | $_SUDO /usr/bin/qmanager_set_ssh_password --verify 2>/dev/null)
+    _vsp_rc=$?
+    [ "$_vsp_rc" -eq 0 ] && return 0
+
+    _vsp_err=$(printf '%s' "$_vsp_out" | jq -r '.error // empty' 2>/dev/null)
+    case "$_vsp_err" in
+        invalid_password|no_password_set|hash_tool_missing|root_hash_unsupported)
+            QM_SSH_VERIFY_ERR="$_vsp_err" ;;
+    esac
+    return 1
+}
+
 # ---------------------------------------------------------------------------
 # Auth enforcement — called by cgi_base.sh on every request
 # ---------------------------------------------------------------------------

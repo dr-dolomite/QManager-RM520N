@@ -3,12 +3,19 @@
 > **Applies to:** RM520N-GL · re-authored onto the design canon 2026-09-05
 > Family: `components/system-settings/**` · namespace `public/locales/*/system-settings.json`
 
-The route's **index only**. All seven sub-routes have now taken the canon pass —
-Logs, Connection Quality, System Health Check, Languages, Software Update, AT
-Terminal and Web Console — and six of those route to their own docs:
+The route's **index only**. The sub-routes route to their own docs:
 [logs.md](logs.md), [connection-quality.md](connection-quality.md),
 [languages.md](languages.md), [software-update.md](software-update.md),
-[at-terminal.md](at-terminal.md) and [web-console.md](web-console.md).
+[at-terminal.md](at-terminal.md), [web-console.md](web-console.md),
+[passwords.md](passwords.md) (Device Access, added 2026-11-01) and
+[debug-report.md](debug-report.md) (the System Health Check page's Debug
+Report card).
+
+Since the 2026-11-01 P6 pass (RM551E v0.1.34 parity) the index is **two
+cards**: **Device & Units** (time zone, units, and the Tracked SIMs row with
+its count and Clear) and **Scheduled Reboot**. The per-SIM registry card and
+the SSH Password card were removed; SSH moved to Device Access. See
+[sim-detection.md](sim-detection.md#componentssystem-settingstracked-sims-grouptsx--the-tracked-sims-row).
 
 ---
 
@@ -48,8 +55,8 @@ byte-for-byte across two files within a day of being written.
 | `CARD_SHELL` | The shadow is `!`-marked because `twMerge` reads an arbitrary shadow value as a colour, so name-sort would otherwise decide against `card.tsx`'s own `shadow-sm`. |
 | `TILE.ROOT` | 104px **pinned**, never `min-h`. A floor cannot be a mirror — the skeleton wears `ROOT` itself so the two cannot drift. |
 | `CARD_GRID` | `*:h-full *:*:data-[slot=card]:h-full` — the second step is what lets the height lock reach **through** each card's motion wrapper. Drop it and the Symmetric-Pair lock dies silently. |
-| `COARSE_TARGET` | A pseudo-element overlay, not a layout box, so a 44px touch target does not move the row's baseline. Applied to the reboot `Switch` (paints 18.4×32) and the password reveal toggles. |
-| `CHIP_ON_TONAL` | `Badge variant="info"` resolves to `bg-primary-container` — byte-identical to `SIM_ROW.ACTIVE` — so a stock chip dissolves into a promoted row. Re-grounded on the row's own ink. Same technique as `CONDITION_TONE.action`. |
+| `COARSE_TARGET` | A pseudo-element overlay, not a layout box, so a 44px touch target does not move the row's baseline. Applied to the password reveal toggles (`password-input.tsx`). The reboot `Switch` it once covered is now a `SegmentedField`. |
+| `CHIP_ON_TONAL` | `Badge variant="info"` resolves to `bg-primary-container`, so a stock chip dissolves into a promoted row. Re-grounded on the row's own ink. Same technique as `CONDITION_TONE.action`. Its only index consumer, the per-SIM row, was removed with the registry card. |
 | `ROW.RAIL_ROOT` | The row that holds the day rail, and the only one that never flips beside its label. An `auto-fit` track list inside `ROW.CONTROL`'s shrink-to-fit box has no width to count columns against and collapses to one. See the rail invariant below. |
 
 **`CARD_BODY`, not `CONDITION_PANEL.CONTENT`.** The box that fills a height-locked
@@ -122,7 +129,7 @@ Three tiles, all reading data the page already fetches. No new endpoint, no poll
 | --- | --- | --- |
 | Device clock | `settings.effective_zone_abbr` + `effective_offset` | unreachable · unread · unreported · drifted · applied |
 | Next reboot | `scheduled_reboot` | unreachable · unread · off · no_day · armed |
-| Tracked SIMs | `sim_registry.sh` rows | count, muted count |
+| Tracked SIMs | `known_sims.sh` count (`useKnownSims().count`) | unread (`—`) · none · known |
 
 Each tile derives **one state union** and reads tone + glyph from a `Record`-typed
 face map. The three independent ternaries this replaced let the value line, the
@@ -134,9 +141,10 @@ disc documented as "configured and running", simultaneously.
 `warning-container` measure 1.03:1 apart and the disc fills are no easier under
 deuteranopia, so the glyph is the only separator a tile has.
 
-**The band takes `simsLoading` separately from `isLoading`.** The registry has its
-own GET and it is slower than settings on first paint; without it the SIM tile shows
-a confident `0` before its own read lands.
+**The band takes `knownLoading` separately from `isLoading`.** The known-SIMs set
+has its own GET and it can land after settings; without it the SIM tile shows a
+confident `0` before its own read lands. `knownCount` is `number | null`, and `null`
+renders `—`, never `0`.
 
 **The offset does not tick.** It is a config readback that holds steady until
 something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule and no
@@ -146,8 +154,9 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
 
 ## Deliberate decisions
 
-- **The 2×2 card grid stays.** The user ruled the layout adequate; this pass is
-  grammar, tokens, motion, state and i18n, not re-composition.
+- **Two cards, not four.** The 2026-09 canon pass kept a 2×2 grid; the 2026-11-01
+  P6 pass re-composed it to RM551E v0.1.34's two cards. Tracked SIMs is a row
+  group inside Device & Units, and Discard sits in that card's `CardFoot`.
 - **Scheduled Reboot keeps its 800ms debounced autosave** and does **not** get an
   explicit `SaveButton`, even though the card beside it has one. It gained a visible
   saved receipt instead. A schedule is low-risk and the debounce is deliberate.
@@ -311,8 +320,10 @@ something reconfigures it, so it takes `font-mono` per the Machine-Voice Rule an
 
 ## i18n
 
-131 leaves per pack across five packs, zero drift. Subtrees: `page`, `band`,
-`preferences`, `reboot`, `ssh`, `sim_registry`, `known_sims`.
+The index owns 109 leaves per pack across five packs (counted in `en`, 2026-11-01).
+Subtrees: `page`, `band`, `preferences`, `reboot`, `known_sims`. The `ssh` and
+`sim_registry` subtrees were removed with their cards; Device Access owns
+`device_access` and `passwords` ([passwords.md](passwords.md)).
 
 - **The packs are CRLF.** A naive `json.load` → `json.dump` round-trip rewrites every
   line ending and produces a five-file diff that is one character per line.

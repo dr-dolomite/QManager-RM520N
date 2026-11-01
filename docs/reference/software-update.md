@@ -41,6 +41,7 @@ alone.
 | Hook + types | `hooks/use-software-update.ts` |
 | CGI endpoint | `GET`/`POST` `/cgi-bin/quecmanager/system/update.sh` — **frozen, not edited** |
 | Poll cadence | `POLL_INTERVAL = 2000` ms (`hooks/use-software-update.ts`) |
+| Install-stall timeout | `INSTALL_STALL_TIMEOUT_MS = 120000` → `isInstallStalled`, `rebootDevice()` — [see below](#a-stalled-install-offers-a-manual-reboot) |
 | Interrupted-install marker | `/etc/qmanager/VERSION.pending` (read by the CGI, never by the client) |
 | Auto-update timer | `scripts/etc/systemd/system/qmanager-auto-update.timer` — `OnCalendar=daily` + `RandomizedDelaySec=3h` |
 | Band clock tick | `CLOCK_TICK_MS = 15_000` (the "Checked N ago" caption only) |
@@ -120,10 +121,13 @@ only two are check failures. So the hook also tracks **which operation failed**:
 export type UpdateErrorKind = "check" | "download" | "install";
 ```
 
-**The hook carries no English prose.** `error` holds the device's own sentence or `null` — every
-`||  "Failed to …"` fallback was removed, because a fallback fires exactly when the backend
-answered with nothing, i.e. on the transport failure that is the most likely case, and
-`i18n:check` cannot see a literal inside a hook. The human sentence is the render site's, keyed
+**The hook carries no English prose.** `fail(kind, detail, code)` resolves the backend's `error`
+code through the `errors` namespace (`resolveErrorMessage`), falling back to the device's own
+`detail`, and stores `null` when both are empty. Every `||  "Failed to …"` fallback was removed,
+because a fallback fires exactly when the backend answered with nothing, i.e. on the transport
+failure that is the most likely case, and `i18n:check` cannot see a literal inside a hook. The
+two save paths resolve the same way. `t` is held in a ref so a language switch does not rebuild
+`fail` and re-run the mount fetch. The human sentence is the render site's, keyed
 off `errorKind` (the anchor card's `notice.failed_check` / `failed_download` / `failed_install`,
 the band's captions, the header's verb) and translated there. That also means `resolveView` tests
 `errorKind !== null` for `unreachable` rather than the text: the device may fail without saying
@@ -139,6 +143,12 @@ an install, because the package is still staged and re-checking would discard it
 The three failure kinds share the `destructive` role, so `FAILURE_CHIP` and `LATEST_FACE` give
 each its **own** glyph — `CloudOffIcon`, `XCircleIcon`, `OctagonAlertIcon` — and use the same
 three in both maps so the band and the card never name one failure two ways.
+
+A fourth kind, `stalled`, is not a failure of an operation: it is an install that stopped
+reporting. `resolveFailure` returns it first when its `installStalled` argument is true, and the
+page passes `view === "installing" && isInstallStalled`, so it only ever surfaces while the view
+is still `installing` and never reaches `check_failed`. `FAILURE_CHIP.stalled` is `warning` with
+`TriangleAlertIcon`.
 
 A component that reaches for `downloadState.status` to choose its own copy is the exact defect
 the union exists to stop, and it will look like it works — both branches render, both are
@@ -257,7 +267,9 @@ falling back to the page-level figure. The latest release's size is not the size
 to say it was.**
 
 `togglePrerelease` and `saveAutoUpdate` return `Promise<string | null>` — `null` on success, the
-device's own words otherwise — and deliberately do **not** call the hook's shared `setError`.
+resolved reason otherwise (an `errors` sentence for a known code, else the device's own words) —
+and deliberately do **not** call the hook's shared `setError`. The preferences card puts that
+reason in the failure toast's description as well as its notice.
 
 > ⚠️ `""` is a real failure: the device declined and said nothing. The card therefore tests
 > `failure !== null`, never truthiness, or a silent rejection reads as a save and even fires the
@@ -339,6 +351,40 @@ certainly means the device is already rebooting, and waiting does not bring it b
 This is out of scope for any frontend change on this surface. See
 [`ip-passthrough.md`](./ip-passthrough.md) for the same three-line contract on the other route
 that reboots.
+
+> ⚠️ WARNING: do not "tidy" these four sites into `enterRebootFlow()` from `lib/reboot`. It waits
+> `REBOOT_NAV_DELAY_MS` (2000 ms) before navigating. The worker's ack window is
+> `REBOOT_ACK_TIMEOUT=20` seconds in `qmanager_update`, starting when it writes `rebooting`; the
+> 2 s poll already lands up to 2 s into it, and the cold-cache `/reboot/` page needs the rest to
+> load and send `reboot_ack`. The inline lines navigate at once.
+
+### A stalled install offers a manual reboot
+
+An install that stops reporting would otherwise spin on "Installing" forever. The hook now
+watches for that:
+
+- **The signature is `status|message|version`** of each status poll (`trackStall`). Any change
+  re-arms a 120 s timer (`INSTALL_STALL_TIMEOUT_MS`) while the status is `installing`; any other
+  status clears it. The timer firing sets `isInstallStalled`.
+- **Both pollers feed it** — `startPolling` and the chained `installVersion` poller.
+  `settleStall()` clears the timer and the signature on `rebooting`, `error`, the network-drop
+  redirect, and at the start of every install action, so a previous run's timer never carries over.
+- **The page shows a warning, not a failure.** The anchor card renders `notice.stalled` with
+  `role="alert"` and a **Reboot now** button. The button opens a confirm dialog
+  (`software_update.stall_dialog.*`), because a restart interrupts whatever the installer is doing.
+- **Confirm calls `rebootDevice()`**, which stops the poller, sets the status to `rebooting` and
+  calls `rebootNow("software_update")`: a fire-and-forget POST to `system/reboot.sh`, then
+  `enterRebootFlow`. The 2 s delay is fine here — no OTA worker is waiting for an ack, because the
+  installer has gone quiet. Success shows no toast; the navigation is the confirmation.
+
+> ℹ️ NOTE: `reboot.sh` has no OTA guard, so this reboot can land mid-install. If the worker had
+> started replacing files, the surviving `VERSION.pending` marker raises the
+> [interrupted-install banner](#1-the-interrupted-install-now-has-a-surface) when the page comes
+> back, and the user reinstalls from there.
+
+**The chained poller now fails a refused `install_staged`.** It used to ignore the POST's answer,
+so a refusal sat on "Installing" until the poll gave up. A `{"success":false}` answer now stops
+the poll, resets the status to `idle` and calls `fail("install", …)`.
 
 ---
 
@@ -492,7 +538,9 @@ Deliberately untouched by this pass, and not to be picked up incidentally:
   sudoers rules, the installer. See
   [`qmanager-independence.md`](./qmanager-independence.md) for the pipeline itself.
 - **The hook's fetch, poll and navigation logic.** The types gained two fields and `derive.ts`
-  gained helpers; behaviour did not change. The 2 s poll cadence stays.
+  gained helpers; behaviour did not change. The 2 s poll cadence stays. (The 2026-11-01 P6 pass
+  later added stall tracking and the chained-install refusal path; see
+  [above](#a-stalled-install-offers-a-manual-reboot).)
 - **The reboot handoff** (above).
 - **`installUpdate`** — exported from the hook, POSTs the legacy one-step `action=install`, and
   has **zero consumers** product-wide. A known, deliberately-deferred cleanup. The CGI's own

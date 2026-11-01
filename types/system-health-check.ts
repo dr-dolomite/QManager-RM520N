@@ -49,6 +49,8 @@ export interface RunResponse {
   success: boolean;
   job_id?: string;
   started_at?: number;
+  /** True when a run was already live and this POST joined it. */
+  resumed?: boolean;
   error?: string;
   detail?: string;
 }
@@ -59,4 +61,5 @@ export interface TestOutputResponse {
   output?: string;
   truncated?: boolean;
   error?: string;
+  detail?: string;
 }
