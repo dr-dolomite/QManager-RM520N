@@ -40,6 +40,8 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **System Settings matches RM551E.** **System Settings** is now two cards: Device & Units (with Tracked SIMs and a Discard button) and Scheduled Reboot, which shows the modem's live clock and a day rail.
 - **Stuck installs are caught.** **Software Update** notices when an install goes quiet for two minutes and offers a confirmed Restart now; failure messages now say why.
 - **Ethernet speed waits for Apply.** On **Local Network → Ethernet**, choosing a link speed no longer applies it at once; press Apply (or Discard) in the card. **Local Network** now opens on Ethernet.
+- **A redesigned Traffic Engine page.** **Local Network → Traffic Engine** now opens on one engine card where you pick Off, Video Optimizer or Full Bypass, with status, uptime and a one-minute chart of new connections; each mode has its own card, and Video Optimizer's hostnames are grouped by service and saved together. (Same tpws backend; nothing to reconfigure.)
+- **A redesigned Custom DNS page.** **Local Network → Custom DNS** now has a Resolver card with one-click provider presets (Cloudflare, Google, Quad9, AdGuard, ControlD) and separate IPv4 and IPv6 server cards, all applied from one button; the card shows which servers are answering right now.
 - **Small extras.** **Logs** has a Copy button, the **AT Terminal** refuses text that isn't an AT command, **About** has a Credits dialog, and the **Support** page is easier to read on a phone.
 
 ## 🐛 Fixes
