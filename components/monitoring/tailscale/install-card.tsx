@@ -51,7 +51,6 @@ import {
 export interface InstallResultShape {
   status: "idle" | "running" | "complete" | "error";
   message?: string;
-  detail?: string;
   log?: string;
 }
 
@@ -112,8 +111,9 @@ export function InstallCard({
     if (installResult.status === "complete") {
       toast.success(t("tailscale.toast.installed"), { id: "tailscale-install" });
     } else if (installResult.status === "error") {
-      toast.error(installResult.message || t("tailscale.toast.installFailed"), {
+      toast.error(t("tailscale.toast.installFailed"), {
         id: "tailscale-install",
+        description: installResult.message || undefined,
       });
     }
   }, [installResult.status, installResult.message, t]);
@@ -150,7 +150,7 @@ export function InstallCard({
           <div role="status" className={cn(NOTICE, NOTICE_TONE.success)}>
             <CheckCircle2Icon className={NOTICE_GLYPH} />
             <span className={NOTICE_BODY}>
-              {installResult.message ?? t("tailscale.install.done")}
+              {t("tailscale.install.done")}
             </span>
           </div>
         ) : null}
@@ -159,10 +159,7 @@ export function InstallCard({
           <div role="alert" className={cn(NOTICE, NOTICE_TONE.destructive)}>
             <TriangleAlertIcon className={NOTICE_GLYPH} />
             <span className={NOTICE_BODY}>
-              {installResult.message ?? t("tailscale.install.failed")}
-              {installResult.detail ? (
-                <span className="mt-0.5 block">{installResult.detail}</span>
-              ) : null}
+              {installResult.message || t("tailscale.install.failed")}
             </span>
           </div>
         ) : null}

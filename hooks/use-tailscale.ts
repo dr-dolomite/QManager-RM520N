@@ -9,20 +9,17 @@ export interface InstallResult {
   success: boolean;
   status: "idle" | "running" | "complete" | "error";
   message?: string;
-  detail?: string;
   log?: string;
   /** Which job the shared install_status file describes. */
   op?: "install" | "update";
 }
 
-/**
- * The outcome of one mutation. `reason` is the backend's own explanation,
- * already resolved through `resolveErrorMessage`; empty when the backend gave
- * none, so the caller supplies its translated fallback.
- */
+/** One mutation's outcome; `reason` is translated, "" when the backend gave none. */
 export interface TailscaleActionResult {
   ok: boolean;
   reason: string;
+  /** The version the device reports after a finished update. */
+  version?: string;
 }
 
 // =============================================================================
@@ -32,10 +29,8 @@ export interface TailscaleActionResult {
 // Provides action methods for connect, disconnect, logout, service, boot toggle,
 // install and update. Adaptive polling: 10s normal, 3s during auth wait.
 //
-// Update: tailscaled restarts under the tunnel, so `runUpdate` tolerates a
-// window of failed progress polls instead of reading them as a failed update.
-// Install and update RETURN their outcome rather than parking the reason in
-// hook state, so a caller toasting after an `await` never reads a stale closure.
+// Install and update return their outcome, so a toast after an `await` never
+// reads stale hook state. `runUpdate` tolerates failed polls while tailscaled restarts.
 //
 // Backend: GET/POST /cgi-bin/quecmanager/vpn/tailscale.sh
 // =============================================================================
@@ -49,6 +44,8 @@ const INSTALL_POLL_MS = 2_000;
 const UPDATE_FAIL_TOLERANCE_MS = 20_000;
 /** Upper bound on one update, download over cellular included. */
 const UPDATE_MAX_MS = 10 * 60_000;
+/** The helper must have written this run's first status by then. */
+const UPDATE_START_MS = 15_000;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -135,6 +132,7 @@ interface InstallStatusResponse extends PostResponse {
   message?: string;
   log?: string;
   op?: "install" | "update";
+  run?: string;
 }
 
 const sleep = (ms: number) =>
@@ -163,6 +161,7 @@ export function useTailscale(): UseTailscaleReturn {
 
   const mountedRef = useRef(true);
   const updatingRef = useRef(false);
+  const latestStatusRef = useRef<TailscaleStatus | null>(null);
   const updateCheckedRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -205,6 +204,7 @@ export function useTailscale(): UseTailscaleReturn {
         return;
       }
 
+      latestStatusRef.current = json;
       setStatus(json);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -453,16 +453,20 @@ export function useTailscale(): UseTailscaleReturn {
     }
   }, []);
 
-  /** Normalise one install_status read; a backend error code beats its prose. */
+  /** One install_status read; a failure is always a translated sentence, never the tool's English. */
   const toInstallResult = useCallback(
     (r: InstallStatusResponse): InstallResult => ({
       success: r.success,
       status: r.status ?? "idle",
       message:
         r.status === "error"
-          ? resolveErrorMessage(t, r.error, r.detail, r.message ?? "")
+          ? resolveErrorMessage(
+              t,
+              r.error || (r.op === "update" ? "update_failed" : "install_failed"),
+              undefined,
+              "",
+            )
           : r.message,
-      detail: r.detail,
       log: r.log,
       op: r.op,
     }),
@@ -502,26 +506,23 @@ export function useTailscale(): UseTailscaleReturn {
         setInstallResult({
           success: false,
           status: "error",
-          message: resolveErrorMessage(t, json.error, json.detail, ""),
+          message: resolveErrorMessage(t, json.error || "install_failed", undefined, ""),
         });
         return;
       }
       installPollRef.current = setInterval(pollInstallStatus, INSTALL_POLL_MS);
-    } catch (err) {
+    } catch {
       if (mountedRef.current) {
         setInstallResult({
           success: false,
           status: "error",
-          message: err instanceof Error ? err.message : "Failed to start installation",
+          message: resolveErrorMessage(t, "install_failed", undefined, ""),
         });
       }
     }
   }, [postAction, pollInstallStatus, stopInstallPolling, t]);
 
-  /**
-   * Ask for the newest version. Merges the answer into `status` instead of
-   * refetching, so the page does not flicker for a background read.
-   */
+  /** Ask for the newest version; merged into `status` so the page does not refetch. */
   const checkUpdate = useCallback(
     async (force = false): Promise<TailscaleActionResult> => {
       try {
@@ -567,12 +568,7 @@ export function useTailscale(): UseTailscaleReturn {
     void checkUpdate();
   }, [shouldCheckUpdate, checkUpdate]);
 
-  /**
-   * Start the update and follow it to the end. tailscaled restarts partway
-   * through, so a run of failed progress reads is tolerated; only a longer
-   * silence is a failure. The loop outlives the component so the toast still
-   * lands if the user navigates away.
-   */
+  /** Follow this update run to the end; the loop outlives the component so the toast still lands. */
   const runUpdate = useCallback(async (): Promise<TailscaleActionResult> => {
     if (updatingRef.current) return { ok: false, reason: "" };
     updatingRef.current = true;
@@ -592,10 +588,16 @@ export function useTailscale(): UseTailscaleReturn {
     };
 
     try {
-      const started = await postAction({ action: "update" });
+      const started = (await postAction({
+        action: "update",
+      })) as PostResponse & { run?: string };
       if (!started.success) {
-        return fail(resolveErrorMessage(t, started.error, started.detail, ""));
+        return fail(
+          resolveErrorMessage(t, started.error || "update_failed", undefined, ""),
+        );
       }
+      const run = started.run;
+      let seen = false;
 
       const startedAt = Date.now();
       let failingSince: number | null = null;
@@ -606,14 +608,19 @@ export function useTailscale(): UseTailscaleReturn {
             action: "install_status",
           })) as InstallStatusResponse;
           failingSince = null;
-          // The status file may still hold an earlier install's result until the
-          // helper rewrites it; only an update result counts in the first seconds.
-          if (json.op !== "update" && Date.now() - startedAt < 10_000) continue;
-          const r = toInstallResult({ ...json, op: json.op ?? "update" });
+          // Only this run's status counts; the file may hold an older install's result.
+          if (json.op !== "update" || (run && json.run !== run)) {
+            if (!seen && Date.now() - startedAt > UPDATE_START_MS) {
+              return fail(resolveErrorMessage(t, "update_failed", undefined, ""));
+            }
+            continue;
+          }
+          seen = true;
+          const r = toInstallResult(json);
           if (mountedRef.current) setInstallResult(r);
           if (r.status === "complete") {
             await fetchStatus(true);
-            return OK;
+            return { ok: true, reason: "", version: latestStatusRef.current?.version };
           }
           if (r.status === "error") {
             await fetchStatus(true);

@@ -1,9 +1,7 @@
 import * as React from "react";
 
-// The page's first paint has no status yet. Which skeleton to show depends on
-// whether Tailscale was installed last time, so the last answer is remembered
-// per tab. It is a hint for a placeholder only: the live read always wins, and
-// a blocked or empty storage just means the default skeleton.
+// The first paint has no status, so whether Tailscale was installed last time
+// picks the skeleton. A hint only: the live read wins, and blocked storage means the default.
 
 const KEY = "qm-tailscale-installed";
 

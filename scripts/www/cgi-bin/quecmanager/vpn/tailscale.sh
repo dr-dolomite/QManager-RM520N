@@ -89,9 +89,8 @@ ts_cmd() {
     $_SUDO "$TAILSCALE_BIN" "$@"
 }
 
-# --- Update check: newest stable build, cached; GET never waits on the network.
-# Cache line is "<epoch> <version>"; a check older than 6 h (or from before a
-# clock step) is due again.
+# --- Update check: newest stable build, cached ("<epoch> <version>", 6 h); GET
+# never waits on the network.
 LATEST_CACHE="/tmp/qmanager_tailscale_latest"
 LATEST_URL="https://pkgs.tailscale.com/stable/?mode=json"
 
@@ -122,12 +121,16 @@ ts_version_gt() {
         >/dev/null 2>&1
 }
 
-# An update holds the install lock; the daemon restarts under it, so GET says so
-# instead of reporting a stopped service.
-ts_update_busy() {
+# True while an install or update holds the lock.
+ts_job_running() {
     [ -f "$INSTALL_PID" ] || return 1
-    _bp=$(tr -d ' \n\r' < "$INSTALL_PID" 2>/dev/null)
-    { [ -n "$_bp" ] && pid_alive "$_bp"; } || return 1
+    _jp=$(tr -d ' \n\r' < "$INSTALL_PID" 2>/dev/null)
+    [ -n "$_jp" ] && pid_alive "$_jp"
+}
+
+# The daemon restarts under an update, so GET reports busy instead of "stopped".
+ts_update_busy() {
+    ts_job_running || return 1
     [ "$(jq -r '.op // empty' "$INSTALL_RESULT" 2>/dev/null)" = "update" ]
 }
 
@@ -418,12 +421,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # background; progress is read through install_status (op "update").
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "update" ]; then
-        if [ -f "$INSTALL_PID" ]; then
-            up_pid=$(tr -d ' \n\r' < "$INSTALL_PID" 2>/dev/null)
-            if [ -n "$up_pid" ] && pid_alive "$up_pid"; then
-                cgi_error "update_in_progress" "An install or update is already running"
-                exit 0
-            fi
+        if ts_job_running; then
+            cgi_error "update_in_progress" "An install or update is already running"
+            exit 0
         fi
         up_installed=$(get_ts_version)
         up_latest=$(ts_latest_read)
@@ -432,8 +432,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             exit 0
         fi
         qlog_info "Starting Tailscale update from $up_installed"
-        ( $_SUDO /usr/bin/qmanager_tailscale_mgr update ) </dev/null >/dev/null 2>&1 &
-        cgi_success
+        # The run id lets the UI ignore an older install's leftover status file.
+        up_run="$(date +%s)$$"
+        ( $_SUDO /usr/bin/qmanager_tailscale_mgr update "$up_run" ) </dev/null >/dev/null 2>&1 &
+        jq -n --arg run "$up_run" '{ success: true, run: $run }'
         exit 0
     fi
 
@@ -702,6 +704,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # action: uninstall — remove tailscale from the device
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "uninstall" ]; then
+        if ts_job_running; then
+            cgi_error "install_in_progress" "An install or update is running"
+            exit 0
+        fi
         qlog_info "Uninstalling Tailscale"
 
         # Stop service if running

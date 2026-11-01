@@ -18,9 +18,8 @@ import {
 import { Button } from "@/components/ui/button";
 import type { TailscaleActionResult } from "@/hooks/use-tailscale";
 
-/** The quiet update offer that sits on the Version row of This device. The
- *  update is confirmed first: the tunnel (and any session riding on it, this
- *  page included) drops for a few seconds while tailscaled restarts. */
+/** The update offer on the Version row; confirmed first, since the tunnel drops
+ *  for a few seconds while tailscaled restarts. */
 export function UpdateControl({
   latestVersion,
   updating,
@@ -39,9 +38,13 @@ export function UpdateControl({
     const target = latestVersion;
     const result = await runUpdate();
     if (result.ok) {
-      toast.success(t("tailscale.toast.updated", { version: target }));
+      toast.success(
+        t("tailscale.toast.updated", { version: result.version || target }),
+      );
     } else {
-      toast.error(result.reason || t("tailscale.toast.updateFailed"));
+      toast.error(t("tailscale.toast.updateFailed"), {
+        description: result.reason || undefined,
+      });
     }
   };
 

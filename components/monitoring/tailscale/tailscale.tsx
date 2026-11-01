@@ -264,6 +264,7 @@ const TailscaleComponent = () => {
           <motion.div variants={staggerItem}>
             <DangerRow
               isUninstalling={isUninstalling}
+              isBusy={isUpdating || !!status.busy}
               uninstall={uninstall}
               onUninstalled={() => setShowReboot(true)}
             />

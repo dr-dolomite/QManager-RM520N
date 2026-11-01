@@ -38,6 +38,11 @@ export interface UseAlertsLogReturn {
 
 export function useAlertsLog(): UseAlertsLogReturn {
   const { t } = useTranslation("errors");
+  // Read through a ref so a language switch does not refetch the log.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [entries, setEntries] = useState<AlertLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +86,7 @@ export function useAlertsLog(): UseAlertsLogReturn {
           setLastFetched(new Date());
         } else {
           const msg = resolveErrorMessage(
-            t,
+            tRef.current,
             data.error,
             undefined,
             "Failed to load alert log",
@@ -103,7 +108,7 @@ export function useAlertsLog(): UseAlertsLogReturn {
         }
       }
     },
-    [t],
+    [],
   );
 
   useEffect(() => {

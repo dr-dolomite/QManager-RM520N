@@ -100,14 +100,6 @@ function identityRows(
       label: t("tailscale.device.relay"),
       value: self.relay,
     });
-  if (status.version)
-    rows.push({
-      key: "version",
-      label: t("tailscale.device.version"),
-      value: status.version,
-      mono: false,
-    });
-
   return rows;
 }
 
@@ -126,7 +118,19 @@ export function DeviceCard({
   runUpdate: () => Promise<TailscaleActionResult>;
 }) {
   const { t } = useTranslation("common");
-  const rows = view === "running" ? identityRows(status, t) : [];
+  const identity = view === "running" ? identityRows(status, t) : [];
+  // The version is shown in every installed view; the identity rows only while connected.
+  const rows: IdentityRow[] = status.version
+    ? [
+        ...identity,
+        {
+          key: "version",
+          label: t("tailscale.device.version"),
+          value: status.version,
+          mono: false,
+        },
+      ]
+    : identity;
 
   // The update is offered on the Version row, never louder than the version.
   const updating = isUpdating || status.busy === "update";
@@ -147,14 +151,15 @@ export function DeviceCard({
       </CardHeader>
 
       <CardContent className={cn(CARD_PAD, CARD_BODY)}>
-        {rows.length === 0 ? (
+        {identity.length === 0 ? (
           <ConditionBlock
             tone="muted"
             icon={UnplugIcon}
             title={t("tailscale.device.emptyTitle")}
             description={t("tailscale.device.emptyDescription")}
           />
-        ) : (
+        ) : null}
+        {rows.length > 0 ? (
           // Nested container: it inherits `visible` and must NOT declare its own.
           <motion.div className={METRIC.STACK} variants={staggerRows}>
             {rows.map((row) => (
@@ -185,7 +190,7 @@ export function DeviceCard({
               </motion.div>
             ))}
           </motion.div>
-        )}
+        ) : null}
 
         {/* The transcript of a running update; the install log's twin. */}
         {updating ? (

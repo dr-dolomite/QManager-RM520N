@@ -81,7 +81,7 @@ While an update holds the install lock the GET answers `{installed: true, busy: 
 
 `check_update` (CGI) fetches `https://pkgs.tailscale.com/stable/?mode=json` as `www-data` with `curl -m 10`, caches the version for 6 hours and answers `latest_version` / `update_available`. Tiers 2-4 of the GET read that cache only and never wait on the network. The comparison is `ts_version_gt` (jq arrays; the device jq has no regex).
 
-`update` runs `qmanager_tailscale_mgr update`, which reuses the install path's `tailscale update` branch, writes `op:"update"` to the status file and restarts `tailscaled` only if it was active. The UI follows it through `install_status` and tolerates 20 s of failed polls while the daemon restarts. The `update` verb needs no sudoers line: the helper is whitelisted without arguments.
+`update` runs `qmanager_tailscale_mgr update`, which reuses the install path's `tailscale update` branch, writes `op:"update"` to the status file and restarts `tailscaled` only if it was active. The CGI hands back a `run` id that the helper stamps into every status it writes, so the UI ignores an older install's leftover file and fails after 15 s if the helper never writes one. It tolerates 20 s of failed polls while the daemon restarts. `uninstall` is refused (`install_in_progress`) while an install or update is live. The `update` verb needs no sudoers line: the helper is whitelisted without arguments.
 
 ## Sudoers surface
 
@@ -138,7 +138,7 @@ Six views, three layouts:
 - **`unknown`** — a `destructive` condition block carrying the failure, with a Retry. The peers card is a *separate* read and mounts with its own condition rather than inheriting this one.
 - **everything else** — header + four-tile band + the Connection / This device pair + the full-width peers table + the danger row.
 
-The Boot and SSH settings are On/Off `SegmentedField` pills. The version is a row on This device, with the update offer (`update-control.tsx`) beside it while one exists. `last-known.ts` remembers per tab whether Tailscale was installed, so a cold load on a modem without it paints the install skeleton instead of the installed layout.
+The Boot and SSH settings are On/Off `SegmentedField` pills. The version is a row on This device in every installed view, with the update offer (`update-control.tsx`) beside it while one exists. `last-known.ts` remembers per tab whether Tailscale was installed, so a cold load on a modem without it paints the install skeleton instead of the installed layout.
 
 A stale read (a failed poll on top of good data) is a **non-blocking `NOTICE` above the content**, never a replacement for it.
 
