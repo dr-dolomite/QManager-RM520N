@@ -88,8 +88,12 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     conn_state_cadence "$CONFIG"
 
     # The stored override (the Watchdog's cadence), or null when the profile's own applies.
-    interval_override=$(jq -r '(try .interval_sec catch null) | if type == "number" and . == floor and . > 0 then tostring else "null" end' "$CONFIG" 2>/dev/null </dev/null) || interval_override=null
-    [ -n "$interval_override" ] || interval_override=null
+    # Same rule as qmanager_ping and conn_state_cadence: digits only (a numeric or "4"-style string), at least 1.
+    interval_override=$(jq -r '(try .interval_sec catch null) | if type == "number" or type == "string" then tostring else "" end' "$CONFIG" 2>/dev/null </dev/null) || interval_override=""
+    case "$interval_override" in
+        ''|*[!0-9]*|0*) interval_override=null ;;
+    esac
+    [ "${#interval_override}" -le 5 ] || interval_override=null
 
     jq -n \
         --arg profile "$profile" \

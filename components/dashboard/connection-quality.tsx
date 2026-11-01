@@ -493,7 +493,7 @@ const ConnectionQualityComponent = ({
             size={16}
             className="shrink-0 text-on-surface-variant"
           />
-          <span className="shrink-0 text-[13px] font-semibold text-on-surface-variant">
+          <span className="shrink-0 grow text-[13px] font-semibold text-on-surface-variant">
             {t("connection_quality.last_outage")}
           </span>
           {outageS === null ? (
