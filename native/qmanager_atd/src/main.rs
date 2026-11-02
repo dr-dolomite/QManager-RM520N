@@ -6,7 +6,7 @@
 //! (see `mode`), and the daemon refuses to start while another one listens.
 //! `--version` (any name) prints the crate version and protocol number; the
 //! daemon also publishes them in /var/run/qmanager_atd.proto for scripts.
-//! `qmanager_atd --qcmap` prints `qcmap=running|stopped|absent` (the +QMAP guard's view; no AT).
+//! `qmanager_atd --qcmap` prints `qcmap=running|stopped|restarted|absent` (the +QMAP guard's view; no AT).
 //!
 //! `qcmd -t <ms>` (or `QCMD_WAIT_MS=<ms>` for that one call): read-only
 //! callers (the poller) cap their wait; see `try_broker_raw`.
