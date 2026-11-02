@@ -4,8 +4,17 @@
 . /usr/lib/qmanager/platform.sh
 . /usr/lib/qmanager/conn_state.sh
 [ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
-. /usr/lib/qmanager/wd_common.sh
-. /usr/lib/qmanager/wd_quality.sh
+# Guarded: a partial install leaves the page working without the P5 keys.
+if [ -f /usr/lib/qmanager/wd_common.sh ]; then
+    . /usr/lib/qmanager/wd_common.sh
+else
+    WD_KEYS=""; wd_key_spec() { return 1; }; wd_key_valid() { return 1; }; wd_key_get() { return 1; }
+fi
+if [ -f /usr/lib/qmanager/wd_quality.sh ]; then
+    . /usr/lib/qmanager/wd_quality.sh
+else
+    q_lat_limit=250; q_loss_limit=30; wd_quality_limits() { :; }
+fi
 # =============================================================================
 # watchdog.sh — CGI Endpoint: Watchdog Settings & Status (GET + POST)
 # =============================================================================

@@ -11,6 +11,7 @@ WD_Q_MIN_SAMPLES=10        # same floor as the poller: below 10 a loss figure is
 WD_Q_LAT_FLOOR_MS=50       # so a 1 ms custom limit cannot trip recovery
 WD_Q_LOSS_FLOOR_PCT=10     # so a 1 % custom limit cannot trip recovery
 WD_Q_HOLDOFF_SECS=900      # pause after a quality recovery that did not help
+WD_Q_SETTLE_SECS=600       # pause after one that did, so a flapping link cannot loop Tier 1/2
 WD_Q_MAX_TIER=2
 
 quality_since=0
@@ -96,6 +97,11 @@ wd_quality_holdoff_left() {
 wd_quality_holdoff_start() {
     quality_holdoff_until=$(( $(wd_mono) + WD_Q_HOLDOFF_SECS ))
     qlog_warn "QUALITY: recovery did not help, pausing quality recovery for ${WD_Q_HOLDOFF_SECS}s"
+}
+
+wd_quality_holdoff_settle() {
+    quality_holdoff_until=$(( $(wd_mono) + WD_Q_SETTLE_SECS ))
+    qlog_info "QUALITY: restored, next quality recovery no sooner than ${WD_Q_SETTLE_SECS}s"
 }
 
 wd_quality_holdoff_clear() {

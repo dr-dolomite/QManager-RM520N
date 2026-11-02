@@ -8,11 +8,13 @@
 _WD_RECHECK_LOADED=1
 
 WD_RECHECK_MAX_FAILURES=3
+WD_RECHECK_LOCK_MAX=300   # longest a lock (the primary's profile apply) may pause a settle
 
 primary_recheck_active="false"
 primary_recheck_failures=0
 recheck_due_at=0          # wd_mono seconds; 0 = not armed
 recheck_return_slot=""
+recheck_locked_since=0    # wd_mono of the first locked pass in this recheck; 0 = none
 
 # Start the interval clock from now.
 wd_recheck_arm() {
@@ -55,6 +57,8 @@ wd_recheck_due() {
 
 # Golden Rule swap to <slot>, verified. rc 0 landed, rc 1 not confirmed.
 wd_recheck_swap() {
+    # wait_for_modem can outlast the normal stale window: publish a long one first.
+    write_state 600
     qcmd 'AT+CFUN=0' >/dev/null 2>&1
     sleep 2
     qcmd "AT+QUIMSLOT=$1" >/dev/null 2>&1
@@ -95,6 +99,7 @@ wd_recheck_start() {
 
     primary_recheck_active="true"
     recovery_reason="recheck"
+    recheck_locked_since=0
     cooldown_stale_retries=0
     cooldown_remaining="$SIM_SETTLE_SECS"
     state="cooldown"
@@ -120,6 +125,24 @@ wd_recheck_finish() {
     cooldown_stale_retries=0
     primary_recheck_active="false"
     qlog_warn "PRIMARY RECHECK: primary slot $original_sim_slot still down, returning to slot $recheck_return_slot"
+    wd_recheck_give_back
+}
+
+# One locked pass during a settle. rc 0 = keep waiting; rc 1 = waited too long, gave the try up.
+wd_recheck_locked_wait() {
+    local _now
+    _now=$(wd_mono)
+    [ "$recheck_locked_since" -gt 0 ] || recheck_locked_since="$_now"
+    [ $((_now - recheck_locked_since)) -lt "$WD_RECHECK_LOCK_MAX" ] && return 0
+    qlog_warn "PRIMARY RECHECK: locked for ${WD_RECHECK_LOCK_MAX}s during the settle, returning to slot $recheck_return_slot"
+    cooldown_stale_retries=0
+    primary_recheck_active="false"
+    wd_recheck_give_back
+    return 1
+}
+
+# Swap back to the backup slot after a failed try; owns the stuck-on-primary and unknown-slot cases.
+wd_recheck_give_back() {
     if wd_recheck_swap "$recheck_return_slot"; then
         wd_recheck_return
         return

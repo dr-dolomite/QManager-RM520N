@@ -176,17 +176,21 @@ A reachable but degraded link starts a recovery **capped at Tier 2** (user decis
 - **Limits** come from Connection Quality's presets (`cq_thresholds_load`, custom included), raised to floors of **50 ms / 10 %** so a 1 ms / 1 % custom limit cannot trip recovery. The watchcat never calls `cq_thresholds_refresh` (that consumes the poller's flag); `quality_thresholds.sh` touches `/tmp/qmanager_watchcat_reload` on a save instead.
 - **Window**: the lines of `/tmp/qmanager_ping_history` (rtt or `null`) taken since the last mark, capped at `clamp(120 / interval_sec, 10, 60)`; fewer than 10 samples is "no signal" (the count neither grows nor resets). Average latency is over answered probes, loss is `null` lines / all lines. The window is marked after boot settle, after every tier, on LOCKED exit and on every pass that reads `reachable=false`.
 - Evaluated only in MONITOR on a fresh reachable read. `quality_consecutive` breaches in a row pass the **start gate**: `none` (Tier 1 and 2 both off) / `holdoff` / `ssr` (recent SSR) / `radio_off` (`AT+CFUN?` 0 or 4; unreadable counts as on) / `go`.
-- **Cooldown verdict** for a quality recovery: reachable **and** under the limits. Too few samples extends the cooldown by `check_interval`, up to 6 times. An exhausted quality ladder pauses quality recovery for **15 min**; a success clears the pause.
+- **Cooldown verdict** for a quality recovery: reachable **and** under the limits. Too few samples extends the cooldown by `check_interval`, up to 6 times. An exhausted quality ladder pauses quality recovery for **15 min**; a success pauses it for **10 min** (`WD_Q_SETTLE_SECS`), so a flapping link cannot loop Tier 1/2 every couple of minutes.
 
 ### Primary recheck — `wd_recheck.sh` (`primary_recheck_enabled`, `primary_recheck_interval`)
 
 While on the backup SIM after a confirmed Tier 3 failover, swap back to the primary every `primary_recheck_interval` minutes and stay if it works. Each try is a real outage, so it is off by default.
 
 - **Gate**: enabled, `tier3_enabled=1`, failover active, idle MONITOR, no pending revert flag, fewer than 3 failed tries. The interval clock starts at the failover confirmation, or at the first pass after a failover resumed at boot.
-- **Try**: Golden Rule swap to the original slot, `verify_quimslot`, apply the primary's profile (`auto_apply_profile … watchdog_failback`) **before** the verdict, then settle `SIM_SETTLE_SECS` (90 s) in COOLDOWN with `recovery_reason=recheck`. While a recheck settles, LOCKED (the profile apply's pid) pauses the countdown instead of dropping it; a user revert during the settle wins.
+- **Try**: Golden Rule swap to the original slot, `verify_quimslot`, apply the primary's profile (`auto_apply_profile … watchdog_failback`) **before** the verdict, then settle `SIM_SETTLE_SECS` (90 s) in COOLDOWN with `recovery_reason=recheck`. Each swap first writes the state file with `stale_after` 600, as `do_recovery` does, because `wait_for_modem` can outlast the normal window and the CGI restarts a watchcat it judges hung. While a recheck settles, LOCKED (the profile apply's pid) pauses the countdown instead of dropping it, for at most **5 min** from the first locked pass (`WD_RECHECK_LOCK_MAX`); past that the try counts as failed and it returns to the backup. A user revert during the settle wins.
 - **Healthy** (fresh `reachable=true`): drop the failover record, learn the ICCID, `svc_start qmanager_tower_failover` (Tier 3 stopped it), back to MONITOR.
 - **Down** (stale 3× counts as down): Golden Rule swap back to the backup, re-save the failover record, re-apply the backup's profile, count a failure, re-arm the clock. If the swap to the primary never landed, it stays on the backup and counts a failure without touching profiles. If the return never lands but the modem is on the primary, it keeps the primary and the normal ladder judges the link from there.
 - **Give up** after 3 failed tries until the next config reload (a Watchdog **or** Quality Thresholds save, since both touch the reload flag) or a boot.
+
+> ℹ️ NOTE: known and accepted — an SSR hold can overshoot `ssr_grace` by up to one `check_interval` (the gate is checked once per pass). A quality recovery that ends in an outage hands over to the normal unreachable ladder, which can reach Tier 3/4 (matches the Tier 1-2 decision: the cap applies to quality, not to an outage).
+
+> ℹ️ NOTE: `watchdog.sh` sources `wd_common.sh` and `wd_quality.sh` behind `[ -f ]` with stubs, so a partial install still serves the page without the P5 keys.
 
 > ℹ️ NOTE: Tier 3 can only be reached from an unreachable ladder (quality stops at Tier 2), so the recheck verdict is reachability alone; RM551E also judged quality there.
 

@@ -85,6 +85,7 @@ else
     quality_breach_counter=0
     wd_quality_mark() { :; }; wd_quality_evaluate() { return 1; }; wd_quality_state() { printf '2'; }
     wd_quality_holdoff_left() { printf '0'; }; wd_quality_holdoff_start() { :; }; wd_quality_holdoff_clear() { :; }
+    wd_quality_holdoff_settle() { :; }
 fi
 if [ -f "$WD_LIB_DIR/wd_recheck.sh" ]; then
     . "$WD_LIB_DIR/wd_recheck.sh"
@@ -92,6 +93,7 @@ else
     primary_recheck_active="false"; primary_recheck_failures=0
     wd_recheck_arm() { :; }; wd_recheck_reset_failures() { :; }; wd_recheck_next_in() { printf 'null'; }
     wd_recheck_due() { return 1; }; wd_recheck_start() { :; }; wd_recheck_finish() { primary_recheck_active="false"; }
+    wd_recheck_locked_wait() { primary_recheck_active="false"; return 1; }
 fi
 
 # --- Known-SIMs set (persists landed ICCID across SIM swaps/reverts so the
@@ -825,7 +827,7 @@ finish_cooldown() {
         qlog_info "COOLDOWN complete: ${recovery_reason:-connectivity} RESTORED after Tier $current_tier"
         if [ "$recovery_reason" = "quality" ]; then
             append_event "watchcat_recovery" "Connection quality restored" "info"
-            wd_quality_holdoff_clear
+            wd_quality_holdoff_settle
             quality_breach_counter=0
         fi
 
@@ -1013,8 +1015,9 @@ main() {
 
         # --- LOCKED state check ---
         if check_locked; then
-            # A recheck settle waits out the primary's profile apply instead of being dropped.
+            # A recheck settle waits out the primary's profile apply (capped) instead of being dropped.
             if [ "$primary_recheck_active" = "true" ]; then
+                wd_recheck_locked_wait || :
                 write_state
                 sleep "$CFG_CHECK_INTERVAL"
                 continue
