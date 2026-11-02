@@ -1,4 +1,4 @@
-//! `qcmd [-j] [-t MS] "AT..."`: the broker first, in-process fallback only if
+//! `qcmd [-j] [-q] [-t MS] "AT..."`: the broker first, in-process fallback only if
 //! the request never reached it.
 
 use super::transport::{try_broker_raw, Broker};
@@ -8,30 +8,33 @@ use crate::at::new_channel;
 use crate::at::classify;
 use crate::at::output::{json_error, json_success, shell_capture, Code};
 use crate::common::lock::{self, LockFile};
-use crate::common::log::Logger;
+use crate::common::log::{Level, Logger};
 use crate::common::proto;
 use std::io::Write;
 use std::time::{Duration, Instant};
 
 pub(crate) fn run_qcmd(args: &[String]) -> i32 {
     let started = Instant::now();
-    // Parse `qcmd [-j] [-t MS] "AT..."`, matching the shell script for `-j`.
-    // `-t` counts only before the command: a later one is an extra argument,
-    // ignored as before.
+    // Parse `qcmd [-j] [-q] [-t MS] "AT..."`, matching the shell script for `-j`.
+    // `-q` and `-t` count only before the command: a later one is an extra
+    // argument, ignored as before.
     let mut json = false;
+    let mut quiet = false;
     let mut cap: Option<Duration> = None;
     let mut rest: Vec<&String> = Vec::new();
     let mut it = args.get(1..).unwrap_or(&[]).iter();
     while let Some(a) = it.next() {
         if a == "-j" && !json {
             json = true;
+        } else if a == "-q" && rest.is_empty() {
+            quiet = true;
         } else if a == "-t" && cap.is_none() && rest.is_empty() {
             match it.next().and_then(|v| parse_cap(v)) {
                 Some(c) => cap = Some(c),
                 None => {
                     let _ = writeln!(
                         std::io::stderr(),
-                        r#"{{"error":"bad_cap","detail":"Usage: qcmd [-j] [-t MS] \"AT+COMMAND\" (MS {}-{})"}}"#,
+                        r#"{{"error":"bad_cap","detail":"Usage: qcmd [-j] [-q] [-t MS] \"AT+COMMAND\" (MS {}-{})"}}"#,
                         CAP_MIN_MS,
                         CAP_MAX_MS
                     );
@@ -47,23 +50,27 @@ pub(crate) fn run_qcmd(args: &[String]) -> i32 {
         _ => {
             let _ = writeln!(
                 std::io::stderr(),
-                r#"{{"error":"no_command","detail":"Usage: qcmd [-j] \"AT+COMMAND\""}}"#
+                r#"{{"error":"no_command","detail":"Usage: qcmd [-j] [-q] [-t MS] \"AT+COMMAND\""}}"#
             );
             return 1;
         }
     };
 
+    // QCMD_QUIET=1: a modem ERROR or empty reply the caller expects logs at
+    // DEBUG. Env for scripts, as QCMD_WAIT_MS: an older binary ignores it.
+    let quiet = quiet || quiet_from_env(std::env::var("QCMD_QUIET").ok().as_deref());
+
     // Not an AT command (a typo, an unknown flag such as `--bogus`): answer at
     // once. Sent on, the modem would stay silent and the broker would hold the
     // lock for the whole deadline while every other caller fails modem_busy.
     if !classify::is_at_command(command) {
-        return emit(json, command, proto::Reply::Err(Code::InvalidCommand));
+        return emit(json, quiet, command, proto::Reply::Err(Code::InvalidCommand));
     }
 
     // Legacy fast-reject: while a long command runs, a short one answers at
     // once instead of queueing behind it in the broker for minutes.
     if !classify::is_long(command) && exec::long_running() {
-        return emit(json, command, proto::Reply::Err(Code::ScanInProgress));
+        return emit(json, quiet, command, proto::Reply::Err(Code::ScanInProgress));
     }
 
     // QCMD_WAIT_MS=<ms> is the same cap for scripts: a binary that predates it
@@ -81,7 +88,7 @@ pub(crate) fn run_qcmd(args: &[String]) -> i32 {
         Broker::Unreachable => run_in_process(command, cap.map(|c| c.saturating_sub(started.elapsed()))),
         Broker::Lost(code) => proto::Reply::Err(code),
     };
-    emit(json, command, reply)
+    emit(json, quiet, command, reply)
 }
 
 /// Bounds of `qcmd -t`, in milliseconds.
@@ -99,6 +106,11 @@ fn parse_cap(v: &str) -> Option<Duration> {
 
 fn cap_from_env(v: Option<&str>) -> Option<Duration> {
     v.and_then(parse_cap)
+}
+
+/// Any non-empty value but `0` turns quiet on.
+fn quiet_from_env(v: Option<&str>) -> bool {
+    matches!(v, Some(s) if !s.is_empty() && s != "0")
 }
 
 fn try_broker(cmd: &str, cap: Option<Duration>) -> Broker {
@@ -131,16 +143,18 @@ fn run_in_process(cmd: &str, left: Option<Duration>) -> proto::Reply {
 
 
 /// RM520N contract (D10): a modem ERROR or empty reply is rc 1 +
-/// `command_failed`, judged as the shell qcmd did; never stdout.
-fn rm520n_reply(command: &str, reply: proto::Reply) -> proto::Reply {
+/// `command_failed`, judged as the shell qcmd did; never stdout. `quiet`
+/// changes only the level of those two log lines.
+fn rm520n_reply(command: &str, reply: proto::Reply, quiet: bool) -> proto::Reply {
+    let level = if quiet { Level::Debug } else { Level::Error };
     match reply {
         proto::Reply::Ok(raw) => {
             let body = shell_capture(&raw);
             if body.contains("ERROR") {
-                Logger::new("qcmd").error(&format!("Command returned ERROR: {command}"));
+                Logger::new("qcmd").log(level, &format!("Command returned ERROR: {command}"));
                 proto::Reply::Err(Code::CommandFailed)
             } else if body.is_empty() {
-                Logger::new("qcmd").error(&format!("Empty response for: {command}"));
+                Logger::new("qcmd").log(level, &format!("Empty response for: {command}"));
                 proto::Reply::Err(Code::CommandFailed)
             } else {
                 proto::Reply::Ok(raw)
@@ -170,12 +184,12 @@ fn rm520n_code(code: Code) -> Code {
 /// print!/println! panic when stdout is closed (EPIPE; Rust ignores SIGPIPE),
 /// and with panic=abort that is a SIGABRT. Like the shell's echo, a write
 /// error is ignored and the exit code still reports the AT result.
-fn emit(json: bool, command: &str, reply: proto::Reply) -> i32 {
+fn emit(json: bool, quiet: bool, command: &str, reply: proto::Reply) -> i32 {
     // An SMS reply to an AT request can only be a protocol mix-up.
     if let proto::Reply::Res(..) = reply {
-        return emit(json, command, proto::Reply::Err(Code::CommandFailed));
+        return emit(json, quiet, command, proto::Reply::Err(Code::CommandFailed));
     }
-    let reply = rm520n_reply(command, reply);
+    let reply = rm520n_reply(command, reply, quiet);
     let mut out = std::io::stdout().lock();
     match reply {
         proto::Reply::Ok(raw) => {
@@ -224,12 +238,16 @@ mod tests {
     fn rm520n_contract_matches_the_shell_qcmd() {
         let ok = |s: &str| proto::Reply::Ok(s.as_bytes().to_vec());
         let failed = |r| matches!(r, proto::Reply::Err(Code::CommandFailed));
-        assert!(failed(rm520n_reply("AT+X", ok("AT+X\r\r\nERROR\r\n"))));
-        assert!(failed(rm520n_reply("AT+CPIN?", ok("AT+CPIN?\r\r\n+CME ERROR: 10\r\n"))));
-        assert!(failed(rm520n_reply("AT", ok("\n\n"))));
-        assert!(matches!(rm520n_reply("AT", ok("AT\r\r\nOK\r\n")), proto::Reply::Ok(_)));
+        assert!(failed(rm520n_reply("AT+X", ok("AT+X\r\r\nERROR\r\n"), false)));
+        assert!(failed(rm520n_reply("AT+CPIN?", ok("AT+CPIN?\r\r\n+CME ERROR: 10\r\n"), false)));
+        assert!(failed(rm520n_reply("AT", ok("\n\n"), false)));
+        assert!(matches!(rm520n_reply("AT", ok("AT\r\r\nOK\r\n"), false), proto::Reply::Ok(_)));
         // Neither OK nor ERROR: passed through for the caller to judge.
-        assert!(matches!(rm520n_reply("AT+Q", ok("AT+Q\r\r\n+Q: 1\r\n")), proto::Reply::Ok(_)));
+        assert!(matches!(rm520n_reply("AT+Q", ok("AT+Q\r\r\n+Q: 1\r\n"), false), proto::Reply::Ok(_)));
+        // Quiet changes the log level only, never the verdict.
+        assert!(failed(rm520n_reply("AT+X", ok("AT+X\r\r\nERROR\r\n"), true)));
+        assert!(failed(rm520n_reply("AT", ok("\n\n"), true)));
+        assert!(matches!(rm520n_reply("AT", ok("AT\r\r\nOK\r\n"), true), proto::Reply::Ok(_)));
         assert_eq!(rm520n_code(Code::ScanInProgress), Code::ModemBusy);
         for c in [Code::ModemNotReady, Code::CommandTimeout, Code::InvalidCommand] {
             assert_eq!(rm520n_code(c), Code::CommandFailed);
@@ -252,6 +270,16 @@ mod tests {
         assert_eq!(cap_from_env(None), None);
         for bad in ["", "x", "0", "2500 ", "1e3"] {
             assert_eq!(cap_from_env(Some(bad)), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn quiet_env_is_on_for_any_value_but_empty_or_zero() {
+        for on in ["1", "yes", "00"] {
+            assert!(quiet_from_env(Some(on)), "{on:?}");
+        }
+        for off in [None, Some(""), Some("0")] {
+            assert!(!quiet_from_env(off), "{off:?}");
         }
     }
 
