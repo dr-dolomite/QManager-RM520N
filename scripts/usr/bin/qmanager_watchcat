@@ -114,6 +114,12 @@ else
     verify_quimslot() { return 0; }
 fi
 
+# --- Wall-clock sanity (_qm_clock_sane) for the Tier-4 reboot count; the
+# fallback in _wd_clock_sane applies the same year >= 2025 rule. -------------
+if [ -f /usr/lib/qmanager/schedule_timer.sh ]; then
+    . /usr/lib/qmanager/schedule_timer.sh
+fi
+
 # --- File Paths --------------------------------------------------------------
 STATE_FILE="/tmp/qmanager_watchcat.json"
 STATE_TMP="/tmp/qmanager_watchcat.json.tmp"
@@ -171,6 +177,7 @@ original_sim_slot="null"
 current_sim_slot="null"
 original_sim_iccid=""
 reboots_this_hour=0
+_rb_next=0                # uptime second at/after which wd_ledger_tick recounts
 cooldown_stale_retries=0
 
 # =============================================================================
@@ -340,17 +347,68 @@ tower_lock_active() {
     return 1
 }
 
-# Count reboots in the last hour from crash.log
+# 0 iff the wall clock is plausible (year >= 2025); prefers schedule_timer.sh.
+_wd_clock_sane() {
+    if command -v _qm_clock_sane >/dev/null 2>&1; then
+        _qm_clock_sane
+        return
+    fi
+    local y
+    y=$(date +%Y)
+    case "$y" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$y" -ge 2025 ]
+}
+
+# Count WATCHDOG (tier4_escalation) reboots in the last hour from crash.log.
+# The log is shared with user/scheduled reboots and skips; those never count.
+# Sane clock: rolling hour. 1970 clock (pre-NITZ/NTP): the window cannot be
+# evaluated, so count the clockless Tier-4 rows written since the last
+# real-dated row of any kind — earlier outages' rows stop counting.
 count_recent_reboots() {
     if [ ! -f "$CRASH_LOG" ]; then
         reboots_this_hour=0
         return
     fi
-    local now cutoff count
-    now=$(date +%s)
-    cutoff=$((now - 3600))
-    count=$(awk -v cutoff="$cutoff" -F'|' '$1 >= cutoff && $2 == "reboot" { n++ } END { print n+0 }' "$CRASH_LOG" 2>/dev/null)
-    reboots_this_hour="${count:-0}"
+    local now sane count
+    now="${1:-$(date +%s)}"
+    case "$now" in
+        ''|*[!0-9]*) now=0 ;;
+    esac
+    if _wd_clock_sane; then
+        sane=1
+    else
+        sane=0
+    fi
+    count=$(awk -v now="$now" -v sane="$sane" -F'|' '
+        $1 !~ /^[0-9]+$/ { next }
+        sane == 0 && $1 + 0 >= 1735689600 { n = 0; next }
+        $2 == "reboot" && $3 == "tier4_escalation" {
+            if (sane == 1) { if ($1 + 0 >= now - 3600) n++ }
+            else n++
+        }
+        END { print n + 0 }' "$CRASH_LOG" 2>/dev/null)
+    case "$count" in
+        ''|*[!0-9]*) count=0 ;;
+    esac
+    reboots_this_hour="$count"
+}
+
+# Recount at most once a minute so the figure decays as rows age out of the
+# hour. Uptime (not wall clock) paces it; same read as wd_mono, minus the subshell.
+wd_ledger_tick() {
+    local up _rest
+    up=""
+    { read -r up _rest < /proc/uptime; } 2>/dev/null
+    up="${up%%.*}"
+    case "$up" in
+        ''|*[!0-9]*) return 0 ;;
+    esac
+    if [ "$up" -ge "$_rb_next" ]; then
+        count_recent_reboots
+        _rb_next=$((up + 60))
+    fi
 }
 
 # Wait for modem to respond to AT commands after recovery action
@@ -995,6 +1053,7 @@ main() {
     while true; do
         # Before any `continue`, so cooldown/locked/stale passes still see a short SSR.
         wd_ssr_sample
+        wd_ledger_tick
 
         # Check for config reload request
         if [ -f "$RELOAD_FLAG" ]; then

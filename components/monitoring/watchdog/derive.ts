@@ -298,8 +298,7 @@ export function deriveBand({
         key: "reboots",
         eyebrowKey: "watchdog.band.reboots",
         value: reboots === null ? null : `${reboots} / ${cap}`,
-        // `count_recent_reboots` runs at daemon start and inside tier 4 only, so
-        // this is a running total since start, never a rolling hour.
+        // Tier-4 reboots in the rolling hour; the daemon recounts once a minute.
         captionKey: settings.tier4_enabled
           ? "watchdog.band.rebootsCaption"
           : "watchdog.band.rebootsOff",

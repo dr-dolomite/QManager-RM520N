@@ -1042,7 +1042,7 @@
       "cooldownCaption": "Rechecking in {{seconds}}s",
       "recoveriesLast": "Step {{tier}}, {{ago}}",
       "recoveriesNone": "None yet",
-      "rebootsCaption": "Since the watchdog started",
+      "rebootsCaption": "In the last hour",
       "rebootsOff": "Reboot step is off",
       "aria": "Watchdog status",
       "cooldownStep": "Step {{tier}} ran. Rechecking in {{seconds}}s."

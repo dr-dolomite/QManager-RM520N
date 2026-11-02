@@ -1042,7 +1042,7 @@
       "cooldownCaption": "{{seconds}} 秒後重新偵測",
       "recoveriesLast": "第 {{tier}} 步，{{ago}}",
       "recoveriesNone": "尚無記錄",
-      "rebootsCaption": "自看門狗啟動起",
+      "rebootsCaption": "過去一小時內",
       "rebootsOff": "重啟步驟已關閉",
       "aria": "看門狗狀態",
       "cooldownStep": "第 {{tier}} 步已執行，{{seconds}} 秒後重新偵測。"

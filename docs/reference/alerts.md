@@ -375,7 +375,7 @@ The `skip` shape was added in 2026-09 for issue #9. It is a diagnostic breadcrum
 > |--------|---------|--------|
 > | `alert_engine.sh` → `_ae_classify_reboot` | Which cause to report | `grep '\|reboot\|' \| tail -n 1` |
 > | `alert_engine.sh` → `_ae_deliver_reboot` | Coalescing count for the trailing hour | `awk '$2 == "reboot"'` |
-> | `qmanager_watchcat` → `count_recent_reboots()` | The watchdog's own hourly reboot budget | `awk '$2 == "reboot"'` |
+> | `qmanager_watchcat` → `count_recent_reboots()` | The watchdog's own hourly reboot budget | `awk '$2 == "reboot" && $3 == "tier4_escalation"'`, numeric epoch, 1970-clock aware |
 >
 > **Anyone adding a third line shape must update all three.** This is not hypothetical — missing the watchdog reader was a live regression during the issue #9 change: the new `skip` lines were counted as reboots by `count_recent_reboots()`, which tripped the hourly cap and silently disabled the watchdog's Tier-4 recovery rung for an hour. The classifier and the coalescer were correct; the third reader, in a different file, was not.
 
