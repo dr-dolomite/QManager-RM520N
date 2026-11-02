@@ -431,6 +431,7 @@
       "unsaved": "Non salvato",
       "save": "Salva le destinazioni",
       "save_failed": "Impossibile salvare le destinazioni delle sonde",
+      "cadence_clear_failed": "Impossibile reimpostare l'intervallo delle sonde",
       "leg": {
         "host_1": "Tratta con nome host 1",
         "host_2": "Tratta con nome host 2",
@@ -448,7 +449,8 @@
         "action": "Ripristina i valori predefiniti"
       },
       "toast": {
-        "saved": "Destinazioni delle sonde salvate"
+        "saved": "Destinazioni delle sonde salvate",
+        "cadence_cleared": "L'intervallo delle sonde segue ora il profilo"
       },
       "validation": {
         "empty": "Inserisci una destinazione.",
@@ -475,7 +477,8 @@
       "interval": {
         "label": "Intervallo delle sonde",
         "value": "Ogni {{seconds}} s",
-        "override": "Ogni {{seconds}} s (Watchdog)"
+        "override": "Ogni {{seconds}} s (Watchdog)",
+        "use_profile": "Usa l'intervallo del profilo"
       },
       "failed": "Salvataggio non riuscito",
       "profile": {

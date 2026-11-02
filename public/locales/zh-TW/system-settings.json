@@ -431,6 +431,7 @@
       "unsaved": "未儲存",
       "save": "儲存探測目標",
       "save_failed": "無法儲存探測目標",
+      "cadence_clear_failed": "無法重設探測間隔",
       "leg": {
         "host_1": "主機名稱目標 1",
         "host_2": "主機名稱目標 2",
@@ -448,7 +449,8 @@
         "action": "還原預設值"
       },
       "toast": {
-        "saved": "探測目標已儲存"
+        "saved": "探測目標已儲存",
+        "cadence_cleared": "探測間隔已改為跟隨靈敏度設定"
       },
       "validation": {
         "empty": "請輸入一個目標。",
@@ -475,7 +477,8 @@
       "interval": {
         "label": "探測間隔",
         "value": "每 {{seconds}} 秒",
-        "override": "每 {{seconds}} 秒（看門狗）"
+        "override": "每 {{seconds}} 秒（看門狗）",
+        "use_profile": "使用靈敏度預設間隔"
       },
       "failed": "儲存失敗",
       "profile": {

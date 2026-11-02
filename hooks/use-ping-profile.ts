@@ -62,6 +62,9 @@ export interface UsePingProfileReturn {
   isSaving: boolean;
   saveError: string | null;
   save: (settings: PingProfileTargets) => Promise<PingProfileResponse>;
+  isClearing: boolean;
+  /** Drops the Watchdog's stored cadence so the profile's own applies. Throws on failure. */
+  clearInterval: () => Promise<void>;
   /** Re-runs the GET non-silently — the Retry affordance for the error state. */
   refresh: () => Promise<void>;
 }
@@ -77,6 +80,7 @@ export function usePingProfile(): UsePingProfileReturn {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
 
   const mountedRef = useRef(true);
 
@@ -173,6 +177,25 @@ export function usePingProfile(): UsePingProfileReturn {
     [fetchProfile],
   );
 
+  const clearInterval = useCallback(async (): Promise<void> => {
+    setIsClearing(true);
+    try {
+      const resp = await authFetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear_interval" }),
+      });
+      const json: PingProfileResponse = await resp.json();
+      if (!json.success) {
+        throw new Error(json.detail ?? json.error ?? "Clear failed");
+      }
+      if (mountedRef.current) setIntervalOverride(null);
+      await fetchProfile(true);
+    } finally {
+      if (mountedRef.current) setIsClearing(false);
+    }
+  }, [fetchProfile]);
+
   return {
     targets,
     intervalOverride,
@@ -181,6 +204,8 @@ export function usePingProfile(): UsePingProfileReturn {
     isSaving,
     saveError,
     save,
+    isClearing,
+    clearInterval,
     refresh,
   };
 }

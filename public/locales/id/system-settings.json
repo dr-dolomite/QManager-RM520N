@@ -431,6 +431,7 @@
       "unsaved": "Belum tersimpan",
       "save": "Simpan Target Probe",
       "save_failed": "Gagal menyimpan target probe",
+      "cadence_clear_failed": "Tidak dapat mengatur ulang interval probe",
       "leg": {
         "host_1": "Jalur nama host 1",
         "host_2": "Jalur nama host 2",
@@ -448,7 +449,8 @@
         "action": "Pulihkan bawaan"
       },
       "toast": {
-        "saved": "Target probe tersimpan"
+        "saved": "Target probe tersimpan",
+        "cadence_cleared": "Interval probe kini mengikuti profil"
       },
       "validation": {
         "empty": "Masukkan sebuah target.",
@@ -475,7 +477,8 @@
       "interval": {
         "label": "Interval probe",
         "value": "Setiap {{seconds}} detik",
-        "override": "Setiap {{seconds}} detik (Watchdog)"
+        "override": "Setiap {{seconds}} detik (Watchdog)",
+        "use_profile": "Gunakan interval profil"
       },
       "failed": "Gagal menyimpan",
       "profile": {
