@@ -60,6 +60,11 @@ detect_active_cid() {
 
     # Compound AT: fetch both CID sources in one call
     raw=$(qcmd 'AT+CGPADDR;+QMAP="WWAN"' 2>/dev/null)
+    # The broker refuses the whole compound while QMAP is unsafe; keep CGPADDR.
+    case "$raw" in
+        *+CGPADDR:*) ;;
+        *) raw=$(qcmd 'AT+CGPADDR' 2>/dev/null) ;;
+    esac
 
     # Step 1: +CGPADDR lines — collect CIDs with real IPv4 addresses
     cgpaddr_cids=""

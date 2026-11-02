@@ -360,6 +360,13 @@ mod tests {
         }
         // A non-QMAP command still goes to the (held) lock: busy, not refused.
         assert!(matches!(ex.run_after("AT+CSQ", LOCK_WAIT_SHORT - Duration::from_millis(50)), Outcome::Err(Code::ModemBusy)));
+        // QCMAP restarted after boot (S5 F2): refused the same way.
+        let (late_dir, late) = crate::at::qcmap::tests::fake_at("exec-late", &[("8099", "QCMAP_Connectio", 221)], true);
+        let mut ex = Executor { ch: &mut ch, lock: &other, log: &log, qcmap: &late };
+        let t = Instant::now();
+        assert!(matches!(ex.run("AT+CGCONTRDP;+QMAP=\"WWAN\""), Outcome::Err(Code::ModemNotReady)));
+        assert!(t.elapsed() < Duration::from_millis(500));
+        let _ = std::fs::remove_dir_all(late_dir);
         // QCMAP up, or no QCMAP binary: QMAP reaches the lock too.
         let (up_dir, up) = crate::at::qcmap::tests::fake("exec-up", &[("430", "QCMAP_Connectio")], true);
         let (off_dir, off) = crate::at::qcmap::tests::fake("exec-off", &[], false);

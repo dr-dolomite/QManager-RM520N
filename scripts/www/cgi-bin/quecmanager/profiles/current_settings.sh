@@ -34,6 +34,11 @@ qlog_info "Querying current modem settings for profile form"
 
 # --- Compound AT: fetch all settings in one call ---
 raw=$(qcmd 'AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN' 2>/dev/null)
+# The broker refuses the whole compound while QMAP is unsafe; re-read without it.
+case "$raw" in
+    *+CGDCONT:*) ;;
+    *) raw=$(qcmd 'AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QSPN' 2>/dev/null) ;;
+esac
 
 # --- 1. APN profiles from +CGDCONT: lines ---
 cgdcont_lines=$(printf '%s\n' "$raw" | grep '+CGDCONT:')

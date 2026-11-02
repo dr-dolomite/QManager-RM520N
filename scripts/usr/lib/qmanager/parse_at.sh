@@ -956,6 +956,32 @@ parse_cgcontrdp() {
 }
 
 # -----------------------------------------------------------------------------
+# cgc_wan_ipv4 <AT+CGCONTRDP reply> — WAN IPv4 when +QMAP="WWAN" is refused.
+# Field 4 of each non-IMS record, IPv4 only: 4 octets, or 8 (address + mask);
+# IPv6 comes dotted (16/32 octets) and is skipped. Prefers the candidate that
+# is on an rmnet interface (the live data call), else the first. Prints "" if none.
+# -----------------------------------------------------------------------------
+cgc_wan_ipv4() {
+    local cands live c
+    cands=$(printf '%s' "$1" | tr '\r' '\n' | grep '^+CGCONTRDP:' | awk -F',' '{
+        apn = $3; gsub(/["[:space:]]/, "", apn)
+        if (tolower(apn) == "ims") next
+        a = $4; gsub(/"/, "", a); sub(/^[[:space:]]+/, "", a)
+        split(a, tok, " "); n = split(tok[1], o, ".")
+        if (n != 4 && n != 8) next
+        for (i = 1; i <= 4; i++) if (o[i] !~ /^[0-9]+$/ || o[i] + 0 > 255) next
+        ip = o[1] "." o[2] "." o[3] "." o[4]
+        if (ip != "0.0.0.0") print ip
+    }')
+    [ -n "$cands" ] || return 0
+    live=$(ip -4 -o addr show 2>/dev/null </dev/null | awk '$2 ~ /^rmnet/ { split($4, a, "/"); print a[1] }')
+    for c in $cands; do
+        case " $(echo $live) " in *" $c "*) echo "$c"; return 0 ;; esac
+    done
+    printf '%s\n' "$cands" | head -1
+}
+
+# -----------------------------------------------------------------------------
 # Parse AT+QMAP="WWAN" — WAN IPv4 and IPv6 addresses
 #
 # Response format:
