@@ -1091,6 +1091,10 @@
       "disabled": {
         "label": "Nonaktif",
         "blurb": "Layanan berjalan, tetapi dimatikan."
+      },
+      "ssr_hold": {
+        "label": "Menahan",
+        "blurb": "Baseband sedang memulai ulang sendiri. Pemulihan menunggu hingga kembali."
       }
     },
     "master": {
@@ -1126,7 +1130,14 @@
         "capLead": "Hingga",
         "capUnit": "per jam"
       },
-      "tierAria": "Aktifkan langkah pemulihan ini: {{name}}"
+      "tierAria": "Aktifkan langkah pemulihan ini: {{name}}",
+      "failback": {
+        "name": "Kembali ke SIM utama",
+        "consequence": "Mencoba ulang SIM utama; koneksi terputus sebentar tiap percobaan.",
+        "lead": "Setiap",
+        "unit": "mnt",
+        "intervalLabel": "Interval cek ulang SIM utama"
+      }
     },
     "detection": {
       "title": "Deteksi",
@@ -1157,6 +1168,17 @@
         "none": "Tidak ada langkah yang aktif, jadi tidak ada yang berjalan.",
         "invalid": "Masukkan nilai deteksi yang valid untuk melihat pratinjau urutan waktu.",
         "stopped": "Langkah 3 tidak punya slot, jadi urutan berhenti di sana."
+      },
+      "ssr": {
+        "label": "Tahan saat baseband restart",
+        "unit": "dtk",
+        "caption": "Biarkan modem selesai memulai ulang sendiri dulu"
+      },
+      "quality": {
+        "label": "Pemicu kualitas",
+        "unit": "cek",
+        "caption": "Lebih dari {{ms}} ms atau kehilangan {{pct}}%",
+        "link": "Ambang batas"
       }
     },
     "activity": {
@@ -1211,7 +1233,10 @@
       "probeInterval": "Harus antara 1 dan 60 detik",
       "cooldown": "Harus antara 10 dan 300 detik",
       "maxReboots": "Harus antara 1 dan 10",
-      "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover"
+      "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover",
+      "ssrGrace": "Harus antara 10 dan 120 detik",
+      "qualityConsecutive": "Harus antara 1 dan 60",
+      "recheckInterval": "Harus antara 5 dan 1440 menit"
     },
     "failover": {
       "title": "Berjalan menggunakan SIM cadangan",

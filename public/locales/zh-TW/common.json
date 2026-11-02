@@ -1091,6 +1091,10 @@
       "disabled": {
         "label": "已停用",
         "blurb": "服務正在執行，但功能已關閉。"
+      },
+      "ssr_hold": {
+        "label": "等待中",
+        "blurb": "基頻正在自行重新啟動，復原作業會等待其恢復。"
       }
     },
     "master": {
@@ -1126,7 +1130,14 @@
         "capLead": "最多",
         "capUnit": "次/小時"
       },
-      "tierAria": "啟用此恢復步驟：{{name}}"
+      "tierAria": "啟用此恢復步驟：{{name}}",
+      "failback": {
+        "name": "切回主要 SIM 卡",
+        "consequence": "定期重試主要 SIM 卡，每次嘗試都會短暫斷線。",
+        "lead": "每",
+        "unit": "分鐘",
+        "intervalLabel": "主要 SIM 卡複查間隔"
+      }
     },
     "detection": {
       "title": "偵測",
@@ -1157,6 +1168,17 @@
         "none": "沒有啟用任何步驟，不會執行任何操作。",
         "invalid": "輸入有效的偵測數值即可預覽時間線。",
         "stopped": "第 3 步沒有插槽，恢復流程將止步於此。"
+      },
+      "ssr": {
+        "label": "基頻重新啟動等待",
+        "unit": "秒",
+        "caption": "先等待模組自行重新啟動完成"
+      },
+      "quality": {
+        "label": "品質觸發",
+        "unit": "次",
+        "caption": "延遲超過 {{ms}} ms 或封包遺失超過 {{pct}}%",
+        "link": "臨界值"
       }
     },
     "activity": {
@@ -1211,7 +1233,10 @@
       "probeInterval": "必須介於 1 到 60 秒之間",
       "cooldown": "必須介於 10 到 300 秒之間",
       "maxReboots": "必須介於 1 到 10 之間",
-      "backupSim": "選擇備用 SIM 卡插槽以啟用故障轉移"
+      "backupSim": "選擇備用 SIM 卡插槽以啟用故障轉移",
+      "ssrGrace": "必須介於 10 到 120 秒之間",
+      "qualityConsecutive": "必須介於 1 到 60 之間",
+      "recheckInterval": "必須介於 5 到 1440 分鐘之間"
     },
     "failover": {
       "title": "目前使用備用 SIM 卡",

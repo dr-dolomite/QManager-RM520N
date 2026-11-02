@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon } from "lucide-react";
+import Link from "next/link";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -22,6 +23,7 @@ import {
   type SegmentedOption,
 } from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { WatchdogQualityLimits } from "@/hooks/use-watchdog-settings";
 import { cn } from "@/lib/utils";
 
 import {
@@ -63,9 +65,16 @@ const NOTE_KEY: Record<TimelineNote, string> = {
 };
 
 type NumKey = "failThreshold" | "cooldown";
+type OnOff = "on" | "off";
 
-/** Detection: three receipt rows, the derived outage timeline, its own commit. */
-export function DetectionCard({ form }: { form: WatchdogForm }) {
+/** Detection: receipt rows, the derived outage timeline, its own commit. */
+export function DetectionCard({
+  form,
+  qualityLimits,
+}: {
+  form: WatchdogForm;
+  qualityLimits: WatchdogQualityLimits | null;
+}) {
   const { t } = useTranslation("common");
   const { draft } = form;
 
@@ -76,6 +85,10 @@ export function DetectionCard({ form }: { form: WatchdogForm }) {
       numeric: true,
     }),
   );
+  const onOff: SegmentedOption<OnOff>[] = [
+    { value: "on", label: t("state.on") },
+    { value: "off", label: t("state.off") },
+  ];
 
   return (
     <Card className={CARD_SHELL}>
@@ -121,6 +134,43 @@ export function DetectionCard({ form }: { form: WatchdogForm }) {
             id={FIELD_ID.cooldown}
             labelKey="watchdog.detection.cooldown.label"
             unitKey="watchdog.detection.cooldown.unit"
+          />
+          <ToggleRow
+            form={form}
+            onOff={onOff}
+            on={draft.quality}
+            onChange={(on) => form.setFields({ quality: on })}
+            field="qualityConsecutive"
+            id={FIELD_ID.qualityConsecutive}
+            labelKey="watchdog.detection.quality.label"
+            unitKey="watchdog.detection.quality.unit"
+            caption={
+              <>
+                {qualityLimits ? (
+                  <span>
+                    {t("watchdog.detection.quality.caption", {
+                      ms: qualityLimits.latency_ms,
+                      pct: qualityLimits.loss_pct,
+                    })}
+                  </span>
+                ) : null}
+                <Link href="/monitoring/connection-quality" className={DETECT.LINK}>
+                  {t("watchdog.detection.quality.link")}
+                  <ChevronRightIcon className="size-3.5" aria-hidden />
+                </Link>
+              </>
+            }
+          />
+          <ToggleRow
+            form={form}
+            onOff={onOff}
+            on={draft.ssrAware}
+            onChange={(on) => form.setFields({ ssrAware: on })}
+            field="ssrGrace"
+            id={FIELD_ID.ssrGrace}
+            labelKey="watchdog.detection.ssr.label"
+            unitKey="watchdog.detection.ssr.unit"
+            caption={t("watchdog.detection.ssr.caption")}
           />
         </div>
 
@@ -180,6 +230,78 @@ function NumberRow({
   );
 }
 
+/** A switch row: key + caption, then the number it arms and its On/Off pill. */
+function ToggleRow({
+  form,
+  onOff,
+  on,
+  onChange,
+  field,
+  id,
+  labelKey,
+  unitKey,
+  caption,
+}: {
+  form: WatchdogForm;
+  onOff: SegmentedOption<OnOff>[];
+  on: boolean;
+  onChange: (on: boolean) => void;
+  field: "qualityConsecutive" | "ssrGrace";
+  id: string;
+  labelKey: string;
+  unitKey: string;
+  caption: React.ReactNode;
+}) {
+  const { t } = useTranslation("common");
+  const error = form.errors[field];
+  const label = t(labelKey);
+  return (
+    <div className={DETECT.ROW}>
+      <div className={DETECT.KEY_STACK}>
+        <span className={DETECT.KEY}>{label}</span>
+        <span className={DETECT.CAPTION}>{caption}</span>
+      </div>
+      <div className={DETECT.CONTROLS}>
+        <InputGroup data-disabled={!on} className={NUM_FIELD.GROUP}>
+          <InputGroupInput
+            id={id}
+            ref={form.registerField(id)}
+            type="text"
+            inputMode="numeric"
+            value={form.draft[field]}
+            onChange={(e) => {
+              const patch: Partial<WatchdogDraft> = {};
+              patch[field] = e.target.value;
+              form.setFields(patch);
+            }}
+            disabled={!on}
+            aria-label={label}
+            aria-invalid={error !== null}
+            aria-describedby={error ? `${id}-error` : undefined}
+            className={NUM_FIELD.INPUT}
+          />
+          <InputGroupAddon align="inline-end" className={NUM_FIELD.UNIT}>
+            {t(unitKey)}
+          </InputGroupAddon>
+        </InputGroup>
+        <SegmentedField
+          value={on ? "on" : "off"}
+          onValueChange={(next) => onChange(next === "on")}
+          options={onOff}
+          ariaLabel={label}
+          breakpoint="never"
+          glyph={renderCheckGlyph}
+        />
+      </div>
+      {error ? (
+        <p id={`${id}-error`} className={DETECT.ERROR}>
+          {t(error)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** When each armed step runs into an outage, from both cards' drafts. */
 function Timeline({ draft }: { draft: WatchdogDraft }) {
   const { t } = useTranslation("common");
@@ -224,7 +346,7 @@ function Timeline({ draft }: { draft: WatchdogDraft }) {
   );
 }
 
-/** Mirrors the loaded card: three receipt rows, the timeline, the foot. */
+/** Mirrors the loaded card: five receipt rows, the timeline, the foot. */
 export function DetectionCardSkeleton() {
   return (
     <Card className={CARD_SHELL} aria-hidden>
@@ -234,7 +356,7 @@ export function DetectionCardSkeleton() {
       </CardHeader>
       <CardContent className={cn(CARD_PAD, DETECT.BODY)}>
         <div className={DETECT.ROWS}>
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className={DETECT.ROW}>
               <Skeleton className={cn(SKELETON.LINE, "h-3.5 w-28")} />
               <Skeleton className={cn(SKELETON.FIELD, "w-36")} />

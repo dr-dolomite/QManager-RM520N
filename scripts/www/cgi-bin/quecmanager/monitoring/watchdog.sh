@@ -4,6 +4,17 @@
 . /usr/lib/qmanager/platform.sh
 . /usr/lib/qmanager/conn_state.sh
 [ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
+# Guarded: a partial install leaves the page working without the P5 keys.
+if [ -f /usr/lib/qmanager/wd_common.sh ]; then
+    . /usr/lib/qmanager/wd_common.sh
+else
+    WD_KEYS=""; wd_key_spec() { return 1; }; wd_key_valid() { return 1; }; wd_key_get() { return 1; }
+fi
+if [ -f /usr/lib/qmanager/wd_quality.sh ]; then
+    . /usr/lib/qmanager/wd_quality.sh
+else
+    q_lat_limit=250; q_loss_limit=30; wd_quality_limits() { :; }
+fi
 # =============================================================================
 # watchdog.sh — CGI Endpoint: Watchdog Settings & Status (GET + POST)
 # =============================================================================
@@ -72,6 +83,21 @@ watchcat_state_stale() {
     [ "$mono" -gt 0 ] && [ "$limit" -gt 0 ] && [ $((up - mono)) -gt "$limit" ]
 }
 
+# wd_keys_json: the wd_common.sh keys as one JSON object (a 0-1 range is a boolean).
+wd_keys_json() {
+    local k v out sep
+    out=""; sep=""
+    for k in $WD_KEYS; do
+        v=$(wd_key_get "$k")
+        case "$(wd_key_spec "$k")" in
+            *" 0 1") [ "$v" = "1" ] && v=true || v=false ;;
+        esac
+        out="${out}${sep}\"${k}\":${v}"
+        sep=","
+    done
+    printf '{%s}' "$out"
+}
+
 # reject_field: emit a structured validation error and exit. Used only
 # during PASS 1 (validation) — never after any qm_config_set write.
 reject_field() {
@@ -136,6 +162,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # Check if watchcat was auto-disabled
     auto_disabled="false"
     [ -f "$DISABLED_FLAG" ] && auto_disabled="true"
+    wd_settings=$(wd_keys_json)
+    # The limits the quality trigger really uses: Connection Quality's presets raised to the floors.
+    wd_quality_limits
 
     jq -n \
         --argjson enabled "$enabled" \
@@ -154,9 +183,11 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson sim_swap "$sim_swap_json" \
         --argjson auto_disabled "$auto_disabled" \
         --argjson recent_reboots "$recent_reboots_json" \
+        --argjson wd_settings "$wd_settings" \
+        --argjson q_lat "$q_lat_limit" --argjson q_loss "$q_loss_limit" \
         '{
             success: true,
-            settings: {
+            settings: ({
                 enabled: ($enabled == 1),
                 fail_threshold: $fail_threshold,
                 probe_interval: $probe_interval,
@@ -168,12 +199,13 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 tier4_enabled: ($tier4 == 1),
                 backup_sim_slot: (if $backup_sim == "" then null else ($backup_sim | tonumber) end),
                 max_reboots_per_hour: $max_reboots
-            },
+            } + $wd_settings),
             status: $status,
             sim_failover: $sim_failover,
             sim_swap: $sim_swap,
             auto_disabled: $auto_disabled,
-            recent_reboots: $recent_reboots
+            recent_reboots: $recent_reboots,
+            quality_limits: {latency_ms: $q_lat, loss_pct: $q_loss}
         }'
     exit 0
 fi
@@ -250,6 +282,20 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             validate_int "$f_max_reboots" 1 10 || reject_field "max_reboots_per_hour" "must be an integer between 1 and 10"
         fi
 
+        # wd_common.sh keys: booleans take true/false, the rest their table range.
+        wd_writes=""
+        for _k in $WD_KEYS; do
+            _v=$(printf '%s' "$POST_DATA" | jq -r --arg k "$_k" '.[$k] | if . == null then empty else tostring end')
+            [ -n "$_v" ] || continue
+            set -- $(wd_key_spec "$_k")
+            if [ "$2" = "0" ] && [ "$3" = "1" ]; then
+                case "$_v" in true) _v=1 ;; false) _v=0 ;; *) reject_field "$_k" "must be true or false" ;; esac
+            else
+                wd_key_valid "$_k" "$_v" || reject_field "$_k" "must be an integer between $2 and $3"
+            fi
+            wd_writes="$wd_writes $_k=$_v"
+        done
+
         # ---------------------------------------------------------------
         # PASS 2 — apply. Only reached if every field above validated cleanly.
         # ---------------------------------------------------------------
@@ -291,6 +337,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
 
         [ -n "$f_max_reboots" ] && qm_config_set watchcat max_reboots_per_hour "$f_max_reboots"
+
+        for _kv in $wd_writes; do
+            qm_config_set watchcat "${_kv%%=*}" "${_kv#*=}"
+        done
 
         if [ -n "$f_probe_interval" ]; then
             _pp='{}'
