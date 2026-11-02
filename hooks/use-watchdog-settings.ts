@@ -29,6 +29,10 @@ export interface WatchdogSettings {
   quality_enabled?: boolean;
   /** Consecutive over-limit checks before that recovery starts. */
   quality_consecutive?: number;
+  /** While on the backup SIM, periodically try the primary again. */
+  primary_recheck_enabled?: boolean;
+  /** Minutes between those tries. */
+  primary_recheck_interval?: number;
 }
 
 /** The limits the quality trigger uses: Connection Quality's, raised to the watchdog's floors. */
@@ -131,6 +135,8 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         ssr_grace: json.settings?.ssr_grace ?? 45,
         quality_enabled: json.settings?.quality_enabled ?? false,
         quality_consecutive: json.settings?.quality_consecutive ?? 5,
+        primary_recheck_enabled: json.settings?.primary_recheck_enabled ?? false,
+        primary_recheck_interval: json.settings?.primary_recheck_interval ?? 30,
       });
       const ql = json.quality_limits;
       setQualityLimits(

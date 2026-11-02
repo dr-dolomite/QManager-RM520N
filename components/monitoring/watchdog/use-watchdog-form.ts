@@ -29,6 +29,7 @@ export const FIELD_ID = {
   failThreshold: "watchdog-fail-threshold",
   cooldown: "watchdog-cooldown",
   backupSim: "watchdog-backup-slot",
+  recheckInterval: "watchdog-recheck-interval",
   maxReboots: "watchdog-max-reboots",
   qualityConsecutive: "watchdog-quality-consecutive",
   ssrGrace: "watchdog-ssr-grace",
@@ -36,7 +37,7 @@ export const FIELD_ID = {
 
 /** Reading order per card, which is also the order a blocked save walks them in. */
 const SCOPE_FIELDS = {
-  ladder: ["backupSim", "maxReboots"],
+  ladder: ["backupSim", "recheckInterval", "maxReboots"],
   detection: ["probeInterval", "failThreshold", "cooldown", "qualityConsecutive", "ssrGrace"],
 } as const satisfies Record<WatchdogScope, readonly (keyof WatchdogFormErrors)[]>;
 
@@ -46,6 +47,7 @@ export const FIELD_LABEL_KEY: Record<keyof WatchdogFormErrors, string> = {
   failThreshold: "watchdog.detection.threshold.label",
   cooldown: "watchdog.detection.cooldown.label",
   backupSim: "watchdog.ladder.tier3.slotLabel",
+  recheckInterval: "watchdog.ladder.failback.intervalLabel",
   maxReboots: "watchdog.ladder.tier4.capLabel",
   qualityConsecutive: "watchdog.detection.quality.label",
   ssrGrace: "watchdog.detection.ssr.label",
@@ -57,6 +59,7 @@ export interface WatchdogFormErrors {
   cooldown: string | null;
   maxReboots: string | null;
   backupSim: string | null;
+  recheckInterval: string | null;
   qualityConsecutive: string | null;
   ssrGrace: string | null;
 }
@@ -69,6 +72,8 @@ export interface WatchdogDraft {
   tier3: boolean;
   tier4: boolean;
   backupSlot: string;
+  recheck: boolean;
+  recheckInterval: string;
   maxReboots: string;
   probeInterval: string;
   failThreshold: string;
@@ -80,7 +85,17 @@ export interface WatchdogDraft {
 }
 
 const SCOPE_KEYS = {
-  ladder: ["enabled", "tier1", "tier2", "tier3", "tier4", "backupSlot", "maxReboots"],
+  ladder: [
+    "enabled",
+    "tier1",
+    "tier2",
+    "tier3",
+    "tier4",
+    "backupSlot",
+    "recheck",
+    "recheckInterval",
+    "maxReboots",
+  ],
   detection: [
     "probeInterval",
     "failThreshold",
@@ -130,6 +145,8 @@ const savedDraft = (s: WatchdogSettings): WatchdogDraft => ({
   tier3: s.tier3_enabled,
   tier4: s.tier4_enabled,
   backupSlot: s.backup_sim_slot != null ? String(s.backup_sim_slot) : "",
+  recheck: s.primary_recheck_enabled ?? false,
+  recheckInterval: String(s.primary_recheck_interval ?? 30),
   maxReboots: String(s.max_reboots_per_hour),
   probeInterval: String(s.probe_interval),
   failThreshold: String(s.fail_threshold),
@@ -139,6 +156,9 @@ const savedDraft = (s: WatchdogSettings): WatchdogDraft => ({
   ssrAware: s.ssr_aware ?? true,
   ssrGrace: String(s.ssr_grace ?? 45),
 });
+
+/** The recheck interval is editable only while its row is live. */
+const recheckLive = (d: WatchdogDraft) => d.enabled && d.tier3 && d.recheck;
 
 const toPayload = (d: WatchdogDraft): WatchdogSavePayload => ({
   action: "save_settings",
@@ -152,6 +172,8 @@ const toPayload = (d: WatchdogDraft): WatchdogSavePayload => ({
   tier4_enabled: d.tier4,
   backup_sim_slot: d.backupSlot ? parseInt(d.backupSlot, 10) : null,
   max_reboots_per_hour: parseInt(d.maxReboots || "3", 10),
+  primary_recheck_enabled: d.recheck,
+  primary_recheck_interval: recheckLive(d) ? parseInt(d.recheckInterval, 10) : undefined,
   quality_enabled: d.quality,
   quality_consecutive: d.quality ? parseInt(d.qualityConsecutive, 10) : undefined,
   ssr_aware: d.ssrAware,
@@ -211,6 +233,12 @@ export function useWatchdogForm({
       // An unset slot leaves the ladder unable to fail over, so it blocks.
       backupSim:
         draft.tier3 && !draft.backupSlot ? "watchdog.errors.backupSim" : null,
+      recheckInterval:
+        recheckLive(draft) &&
+        draft.recheckInterval &&
+        !isIntInRange(draft.recheckInterval, 5, 1440)
+          ? "watchdog.errors.recheckInterval"
+          : null,
       qualityConsecutive:
         draft.quality &&
         draft.qualityConsecutive &&
@@ -231,6 +259,7 @@ export function useWatchdogForm({
     failThreshold: draft.failThreshold.trim() === "",
     cooldown: draft.cooldown.trim() === "",
     maxReboots: draft.tier4 && draft.maxReboots.trim() === "",
+    recheckInterval: recheckLive(draft) && draft.recheckInterval.trim() === "",
     qualityConsecutive: draft.quality && draft.qualityConsecutive.trim() === "",
     ssrGrace: draft.ssrAware && draft.ssrGrace.trim() === "",
   };

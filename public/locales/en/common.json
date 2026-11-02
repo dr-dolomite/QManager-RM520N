@@ -1130,7 +1130,14 @@
         "capLead": "Up to",
         "capUnit": "per hour"
       },
-      "tierAria": "Arm this recovery step: {{name}}"
+      "tierAria": "Arm this recovery step: {{name}}",
+      "failback": {
+        "name": "Switch back to the primary SIM",
+        "consequence": "Retries the primary; the link drops briefly each try.",
+        "lead": "Every",
+        "unit": "min",
+        "intervalLabel": "Primary SIM recheck interval"
+      }
     },
     "detection": {
       "title": "Detection",
@@ -1228,7 +1235,8 @@
       "maxReboots": "Must be between 1 and 10",
       "backupSim": "Choose a backup SIM slot to enable failover",
       "ssrGrace": "Must be between 10 and 120 seconds",
-      "qualityConsecutive": "Must be between 1 and 60"
+      "qualityConsecutive": "Must be between 1 and 60",
+      "recheckInterval": "Must be between 5 and 1440 minutes"
     },
     "failover": {
       "title": "Running on the backup SIM",

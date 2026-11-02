@@ -86,6 +86,13 @@ else
     wd_quality_mark() { :; }; wd_quality_evaluate() { return 1; }; wd_quality_state() { printf '2'; }
     wd_quality_holdoff_left() { printf '0'; }; wd_quality_holdoff_start() { :; }; wd_quality_holdoff_clear() { :; }
 fi
+if [ -f "$WD_LIB_DIR/wd_recheck.sh" ]; then
+    . "$WD_LIB_DIR/wd_recheck.sh"
+else
+    primary_recheck_active="false"; primary_recheck_failures=0
+    wd_recheck_arm() { :; }; wd_recheck_reset_failures() { :; }; wd_recheck_next_in() { printf 'null'; }
+    wd_recheck_due() { return 1; }; wd_recheck_start() { :; }; wd_recheck_finish() { primary_recheck_active="false"; }
+fi
 
 # --- Known-SIMs set (persists landed ICCID across SIM swaps/reverts so the
 # poller's boot-time swap detector treats it as expected, not a physical
@@ -141,6 +148,8 @@ CFG_SSR_AWARE=0
 CFG_SSR_GRACE=45
 CFG_QUALITY_ENABLED=0
 CFG_QUALITY_CONSECUTIVE=5
+CFG_PRIMARY_RECHECK_ENABLED=0
+CFG_PRIMARY_RECHECK_INTERVAL=30
 BOOT_SETTLE=30
 MODEM_WAIT_TIMEOUT=60
 SIM_SETTLE_SECS=90
@@ -148,7 +157,7 @@ SIM_SETTLE_SECS=90
 # --- State Variables ---------------------------------------------------------
 state="monitor"
 prev_state=""
-recovery_reason=""   # unreachable | quality: what started the running ladder
+recovery_reason=""   # unreachable | quality | recheck: what started the running ladder or settle
 failure_counter=0
 current_tier=0
 last_recovery_time="null"
@@ -203,6 +212,8 @@ read_config() {
     val=$(wd_key_get ssr_grace); CFG_SSR_GRACE="${val:-45}"
     val=$(wd_key_get quality_enabled); CFG_QUALITY_ENABLED="${val:-0}"
     val=$(wd_key_get quality_consecutive); CFG_QUALITY_CONSECUTIVE="${val:-5}"
+    val=$(wd_key_get primary_recheck_enabled); CFG_PRIMARY_RECHECK_ENABLED="${val:-0}"
+    val=$(wd_key_get primary_recheck_interval); CFG_PRIMARY_RECHECK_INTERVAL="${val:-30}"
     # Connection Quality limits; quality_thresholds.sh pokes our reload flag on a save.
     command -v cq_thresholds_load >/dev/null 2>&1 && cq_thresholds_load
 
@@ -210,6 +221,7 @@ read_config() {
     qlog_info "  Tiers: T1=${CFG_TIER1_ENABLED} T2=${CFG_TIER2_ENABLED} T3=${CFG_TIER3_ENABLED} T4=${CFG_TIER4_ENABLED} backup_sim=${CFG_BACKUP_SIM_SLOT:-none}"
     qlog_info "  SSR grace: aware=${CFG_SSR_AWARE} grace=${CFG_SSR_GRACE}s"
     qlog_info "  Quality: enabled=${CFG_QUALITY_ENABLED} consecutive=${CFG_QUALITY_CONSECUTIVE} limits=${CQ_LAT_MS:-?}ms/${CQ_LOSS_PCT:-?}%"
+    qlog_info "  Primary recheck: enabled=${CFG_PRIMARY_RECHECK_ENABLED} interval=${CFG_PRIMARY_RECHECK_INTERVAL}min"
 }
 
 # =============================================================================
@@ -236,6 +248,8 @@ write_state() {
     reason=""
     case "$state" in recovery|cooldown) reason="$recovery_reason" ;; esac
     q_hold=$(wd_quality_holdoff_left)
+    local rc_next
+    rc_next=$(wd_recheck_next_in)
 
     jq -n -c \
         --argjson ts "$ts" \
@@ -259,6 +273,9 @@ write_state() {
         --arg reason "$reason" \
         --argjson q_breaches "${quality_breach_counter:-0}" \
         --argjson q_hold "${q_hold:-0}" \
+        --arg rc_active "$primary_recheck_active" \
+        --argjson rc_failures "${primary_recheck_failures:-0}" \
+        --argjson rc_next "${rc_next:-null}" \
         '{
             timestamp: $ts, enabled: ($enabled == 1),
             state: $state, current_tier: $tier,
@@ -275,6 +292,8 @@ write_state() {
             last_ssr_ago: $ssr_ago,
             recovery_reason: (if $reason == "" then null else $reason end),
             quality_breach_count: $q_breaches, quality_holdoff_remaining: $q_hold,
+            primary_recheck_active: ($rc_active == "true"),
+            primary_recheck_failures: $rc_failures, next_recheck_in: $rc_next,
             mono: $mono, stale_after: $stale_after
         }' > "$STATE_TMP"
 
@@ -750,6 +769,11 @@ finish_cooldown() {
     # Decided ONCE below; a stale read never reaches the reachable test.
     local _cooldown_success="false"
 
+    if [ "$primary_recheck_active" = "true" ]; then
+        wd_recheck_finish
+        return
+    fi
+
     if ! conn_state_read; then
         # (a) Stale/missing ping data: retry up to 3 times with the recovery flag held;
         # the PID write re-stamps its mtime for profile_apply's staleness ceiling.
@@ -824,6 +848,9 @@ finish_cooldown() {
                 > "${SIM_FAILOVER_FILE}.tmp" && mv "${SIM_FAILOVER_FILE}.tmp" "$SIM_FAILOVER_FILE"
 
             qlog_info "SIM failover state saved: slot $original_sim_slot → $current_sim_slot"
+            # The primary recheck interval runs from the confirmed failover.
+            wd_recheck_reset_failures
+            wd_recheck_arm
             append_event "sim_failover" "SIM failover confirmed on slot $current_sim_slot" "info"
 
             # Persist the landed ICCID so the poller's boot-time swap
@@ -880,6 +907,7 @@ check_revert_request() {
         rm -f "$RECOVERY_FLAG" "$SIM_FAILOVER_FILE"
 
         sim_failover_active="false"
+        primary_recheck_active="false"
         state="monitor"
         current_tier=0
         failure_counter=0
@@ -971,6 +999,7 @@ main() {
             rm -f "$RELOAD_FLAG"
             qlog_info "Config reload requested"
             read_config
+            wd_recheck_reset_failures
             if [ "$CFG_ENABLED" != "1" ]; then
                 qlog_info "Watchcat disabled via config reload, exiting"
                 state="disabled"
@@ -984,6 +1013,12 @@ main() {
 
         # --- LOCKED state check ---
         if check_locked; then
+            # A recheck settle waits out the primary's profile apply instead of being dropped.
+            if [ "$primary_recheck_active" = "true" ]; then
+                write_state
+                sleep "$CFG_CHECK_INTERVAL"
+                continue
+            fi
             if [ "$state" != "locked" ]; then
                 qlog_info "Entering LOCKED state (maintenance)"
                 state="locked"
@@ -1098,6 +1133,11 @@ main() {
                 current_tier=0
                 ;;
         esac
+
+        # Primary SIM recheck: only from an idle monitor pass; a recovery this pass wins.
+        if wd_recheck_due; then
+            wd_recheck_start
+        fi
 
         write_state
         sleep "$CFG_CHECK_INTERVAL"

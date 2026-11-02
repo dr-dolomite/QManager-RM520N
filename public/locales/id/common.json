@@ -1130,7 +1130,14 @@
         "capLead": "Hingga",
         "capUnit": "per jam"
       },
-      "tierAria": "Aktifkan langkah pemulihan ini: {{name}}"
+      "tierAria": "Aktifkan langkah pemulihan ini: {{name}}",
+      "failback": {
+        "name": "Kembali ke SIM utama",
+        "consequence": "Mencoba ulang SIM utama; koneksi terputus sebentar tiap percobaan.",
+        "lead": "Setiap",
+        "unit": "mnt",
+        "intervalLabel": "Interval cek ulang SIM utama"
+      }
     },
     "detection": {
       "title": "Deteksi",
@@ -1228,7 +1235,8 @@
       "maxReboots": "Harus antara 1 dan 10",
       "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover",
       "ssrGrace": "Harus antara 10 dan 120 detik",
-      "qualityConsecutive": "Harus antara 1 dan 60"
+      "qualityConsecutive": "Harus antara 1 dan 60",
+      "recheckInterval": "Harus antara 5 dan 1440 menit"
     },
     "failover": {
       "title": "Berjalan menggunakan SIM cadangan",

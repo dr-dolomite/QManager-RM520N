@@ -1130,7 +1130,14 @@
         "capLead": "最多",
         "capUnit": "次/小时"
       },
-      "tierAria": "启用此恢复步骤：{{name}}"
+      "tierAria": "启用此恢复步骤：{{name}}",
+      "failback": {
+        "name": "切回主 SIM 卡",
+        "consequence": "定期重试主卡，每次尝试都会短暂断网。",
+        "lead": "每",
+        "unit": "分钟",
+        "intervalLabel": "主 SIM 卡复查间隔"
+      }
     },
     "detection": {
       "title": "检测",
@@ -1228,7 +1235,8 @@
       "maxReboots": "必须介于 1 到 10 之间",
       "backupSim": "选择备用 SIM 卡插槽以启用故障转移",
       "ssrGrace": "必须在 10 到 120 秒之间",
-      "qualityConsecutive": "必须在 1 到 60 之间"
+      "qualityConsecutive": "必须在 1 到 60 之间",
+      "recheckInterval": "必须在 5 到 1440 分钟之间"
     },
     "failover": {
       "title": "正在使用备用 SIM 卡",

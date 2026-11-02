@@ -12,11 +12,13 @@ wd_key_spec() {
         ssr_grace)                printf '45 10 120' ;;
         quality_enabled)          printf '0 0 1' ;;
         quality_consecutive)      printf '5 1 60' ;;
+        primary_recheck_enabled)  printf '0 0 1' ;;
+        primary_recheck_interval) printf '30 5 1440' ;;
         *) return 1 ;;
     esac
 }
 
-WD_KEYS="ssr_aware ssr_grace quality_enabled quality_consecutive"
+WD_KEYS="ssr_aware ssr_grace quality_enabled quality_consecutive primary_recheck_enabled primary_recheck_interval"
 
 # wd_key_valid <key> <value>: rc 0 when value is an integer inside the key's range.
 wd_key_valid() {

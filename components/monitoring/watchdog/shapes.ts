@@ -161,6 +161,8 @@ export const RUNG = {
     "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)] motion-reduce:transition-none",
   DISC: "col-start-1 row-start-1 mt-0.5 grid size-8 flex-none place-items-center rounded-pill text-[0.8125rem] font-semibold tabular-nums @[30rem]/card:mt-0",
   DISC_REST: "bg-surface-container-high text-on-surface-variant",
+  /** Step 3's companion row keeps the disc column empty. */
+  SUB_DISC: "col-start-1 row-start-1 size-8",
   DISC_RUNNING: "bg-primary text-primary-foreground",
   /** Tried and climbed past: it did not restore the link, so neutral, not a verdict. */
   DISC_DONE: "bg-surface-container-high text-on-surface",
