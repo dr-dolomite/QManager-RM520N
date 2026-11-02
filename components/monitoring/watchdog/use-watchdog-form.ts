@@ -30,12 +30,13 @@ export const FIELD_ID = {
   cooldown: "watchdog-cooldown",
   backupSim: "watchdog-backup-slot",
   maxReboots: "watchdog-max-reboots",
+  ssrGrace: "watchdog-ssr-grace",
 } as const;
 
 /** Reading order per card, which is also the order a blocked save walks them in. */
 const SCOPE_FIELDS = {
   ladder: ["backupSim", "maxReboots"],
-  detection: ["probeInterval", "failThreshold", "cooldown"],
+  detection: ["probeInterval", "failThreshold", "cooldown", "ssrGrace"],
 } as const satisfies Record<WatchdogScope, readonly (keyof WatchdogFormErrors)[]>;
 
 /** A blocked save names the FIELD by its visible label. */
@@ -45,6 +46,7 @@ export const FIELD_LABEL_KEY: Record<keyof WatchdogFormErrors, string> = {
   cooldown: "watchdog.detection.cooldown.label",
   backupSim: "watchdog.ladder.tier3.slotLabel",
   maxReboots: "watchdog.ladder.tier4.capLabel",
+  ssrGrace: "watchdog.detection.ssr.label",
 };
 
 export interface WatchdogFormErrors {
@@ -53,6 +55,7 @@ export interface WatchdogFormErrors {
   cooldown: string | null;
   maxReboots: string | null;
   backupSim: string | null;
+  ssrGrace: string | null;
 }
 
 /** Every field the two cards edit. Numbers stay strings while typed. */
@@ -67,11 +70,13 @@ export interface WatchdogDraft {
   probeInterval: string;
   failThreshold: string;
   cooldown: string;
+  ssrAware: boolean;
+  ssrGrace: string;
 }
 
 const SCOPE_KEYS = {
   ladder: ["enabled", "tier1", "tier2", "tier3", "tier4", "backupSlot", "maxReboots"],
-  detection: ["probeInterval", "failThreshold", "cooldown"],
+  detection: ["probeInterval", "failThreshold", "cooldown", "ssrAware", "ssrGrace"],
 } as const satisfies Record<WatchdogScope, readonly (keyof WatchdogDraft)[]>;
 
 export interface ScopeState {
@@ -116,6 +121,8 @@ const savedDraft = (s: WatchdogSettings): WatchdogDraft => ({
   probeInterval: String(s.probe_interval),
   failThreshold: String(s.fail_threshold),
   cooldown: String(s.cooldown),
+  ssrAware: s.ssr_aware ?? true,
+  ssrGrace: String(s.ssr_grace ?? 45),
 });
 
 const toPayload = (d: WatchdogDraft): WatchdogSavePayload => ({
@@ -130,6 +137,9 @@ const toPayload = (d: WatchdogDraft): WatchdogSavePayload => ({
   tier4_enabled: d.tier4,
   backup_sim_slot: d.backupSlot ? parseInt(d.backupSlot, 10) : null,
   max_reboots_per_hour: parseInt(d.maxReboots || "3", 10),
+  ssr_aware: d.ssrAware,
+  // Off leaves the stored grace alone, so an unvalidated field is never sent.
+  ssr_grace: d.ssrAware ? parseInt(d.ssrGrace, 10) : undefined,
 });
 
 const omit = (
@@ -184,6 +194,10 @@ export function useWatchdogForm({
       // An unset slot leaves the ladder unable to fail over, so it blocks.
       backupSim:
         draft.tier3 && !draft.backupSlot ? "watchdog.errors.backupSim" : null,
+      ssrGrace:
+        draft.ssrAware && draft.ssrGrace && !isIntInRange(draft.ssrGrace, 10, 120)
+          ? "watchdog.errors.ssrGrace"
+          : null,
     }),
     [draft],
   );
@@ -194,6 +208,7 @@ export function useWatchdogForm({
     failThreshold: draft.failThreshold.trim() === "",
     cooldown: draft.cooldown.trim() === "",
     maxReboots: draft.tier4 && draft.maxReboots.trim() === "",
+    ssrGrace: draft.ssrAware && draft.ssrGrace.trim() === "",
   };
 
   const blockedFor = (scope: WatchdogScope) =>

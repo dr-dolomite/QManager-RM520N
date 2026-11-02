@@ -1091,6 +1091,10 @@
       "disabled": {
         "label": "Nonaktif",
         "blurb": "Layanan berjalan, tetapi dimatikan."
+      },
+      "ssr_hold": {
+        "label": "Menahan",
+        "blurb": "Baseband sedang memulai ulang sendiri. Pemulihan menunggu hingga kembali."
       }
     },
     "master": {
@@ -1157,6 +1161,11 @@
         "none": "Tidak ada langkah yang aktif, jadi tidak ada yang berjalan.",
         "invalid": "Masukkan nilai deteksi yang valid untuk melihat pratinjau urutan waktu.",
         "stopped": "Langkah 3 tidak punya slot, jadi urutan berhenti di sana."
+      },
+      "ssr": {
+        "label": "Tahan saat baseband restart",
+        "unit": "dtk",
+        "caption": "Biarkan modem selesai memulai ulang sendiri dulu"
       }
     },
     "activity": {
@@ -1211,7 +1220,8 @@
       "probeInterval": "Harus antara 1 dan 60 detik",
       "cooldown": "Harus antara 10 dan 300 detik",
       "maxReboots": "Harus antara 1 dan 10",
-      "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover"
+      "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover",
+      "ssrGrace": "Harus antara 10 dan 120 detik"
     },
     "failover": {
       "title": "Berjalan menggunakan SIM cadangan",

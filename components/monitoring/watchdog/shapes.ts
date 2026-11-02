@@ -212,6 +212,12 @@ export const DETECT = {
   ROWS: "flex flex-col gap-1.5",
   ROW: "flex min-h-[2.625rem] flex-wrap items-center justify-between gap-x-4 gap-y-2",
   KEY: "text-sm font-medium",
+  /** A key with a one-line caption under it (the switch rows). */
+  KEY_STACK: "flex min-w-0 flex-[1_1_12rem] flex-col gap-0.5",
+  CAPTION:
+    "text-on-surface-variant flex flex-wrap items-center gap-x-2 text-[0.78125rem] text-pretty tabular-nums",
+  LINK: "text-primary-on-surface inline-flex items-center gap-0.5 font-medium underline-offset-4 hover:underline",
+  CONTROLS: "ml-auto flex flex-wrap items-center justify-end gap-2.5",
   ERROR: "text-destructive-on-surface -mt-1 basis-full text-right text-xs leading-[1.5]",
   /** Six numeric segments fit a 30rem card only at the tighter padding. */
   PROBE_PILL: "[&_[data-slot=toggle-group-item]]:px-2.5",

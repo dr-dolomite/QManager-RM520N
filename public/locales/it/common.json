@@ -1091,6 +1091,10 @@
       "disabled": {
         "label": "Disattivato",
         "blurb": "Il servizio è in esecuzione ma disattivato."
+      },
+      "ssr_hold": {
+        "label": "In attesa",
+        "blurb": "Il baseband si sta riavviando da solo. Il ripristino attende che torni."
       }
     },
     "master": {
@@ -1157,6 +1161,11 @@
         "none": "Nessun passaggio è attivo, quindi non viene eseguito nulla.",
         "invalid": "Inserisci valori di rilevamento validi per vedere la sequenza.",
         "stopped": "Il passaggio 3 non ha uno slot, quindi la sequenza si ferma lì."
+      },
+      "ssr": {
+        "label": "Attesa riavvio baseband",
+        "unit": "s",
+        "caption": "Lascia terminare prima un riavvio automatico del modem"
       }
     },
     "activity": {
@@ -1211,7 +1220,8 @@
       "probeInterval": "Deve essere compreso tra 1 e 60 secondi",
       "cooldown": "Deve essere compreso tra 10 e 300 secondi",
       "maxReboots": "Deve essere compreso tra 1 e 10",
-      "backupSim": "Scegli uno slot SIM di backup per abilitare il failover"
+      "backupSim": "Scegli uno slot SIM di backup per abilitare il failover",
+      "ssrGrace": "Deve essere tra 10 e 120 secondi"
     },
     "failover": {
       "title": "In esecuzione sulla SIM di backup",

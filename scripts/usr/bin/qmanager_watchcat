@@ -64,6 +64,22 @@ else
     conn_state_is_up() { return 1; }
 fi
 
+# --- Watchdog libs (key defaults, SSR grace). A missing lib leaves its feature off.
+WD_LIB_DIR="${WD_LIB_DIR:-/usr/lib/qmanager}"
+if [ -f "$WD_LIB_DIR/wd_common.sh" ]; then
+    . "$WD_LIB_DIR/wd_common.sh"
+else
+    wd_key_get() { :; }
+    wd_mono() { printf '0'; }
+fi
+if [ -f "$WD_LIB_DIR/wd_ssr.sh" ]; then
+    . "$WD_LIB_DIR/wd_ssr.sh"
+else
+    ssr_hold="false"; last_ssr_detected="null"
+    wd_ssr_init() { :; }; wd_ssr_sample() { :; }; wd_ssr_hold_gate() { return 1; }
+    wd_ssr_hold_left() { printf '0'; }; wd_ssr_hold_clear() { :; }
+fi
+
 # --- Known-SIMs set (persists landed ICCID across SIM swaps/reverts so the
 # poller's boot-time swap detector treats it as expected, not a physical
 # swap). Degrades to a silent no-op if the lib is absent. ------------------
@@ -114,6 +130,8 @@ CFG_TIER3_ENABLED=0
 CFG_TIER4_ENABLED=1
 CFG_BACKUP_SIM_SLOT=""
 CFG_MAX_REBOOTS_PER_HOUR=3
+CFG_SSR_AWARE=0
+CFG_SSR_GRACE=45
 BOOT_SETTLE=30
 MODEM_WAIT_TIMEOUT=60
 SIM_SETTLE_SECS=90
@@ -170,8 +188,13 @@ read_config() {
     val=$(qm_config_get watchcat max_reboots_per_hour "")
     [ -n "$val" ] && CFG_MAX_REBOOTS_PER_HOUR="$val"
 
+    # New keys: defaults and ranges live in wd_common.sh (shared with the CGI).
+    val=$(wd_key_get ssr_aware); CFG_SSR_AWARE="${val:-0}"
+    val=$(wd_key_get ssr_grace); CFG_SSR_GRACE="${val:-45}"
+
     qlog_info "Config loaded: interval=${CFG_CHECK_INTERVAL}s fail_threshold=${CFG_FAIL_THRESHOLD} (x probe interval) cooldown=${CFG_COOLDOWN}s"
     qlog_info "  Tiers: T1=${CFG_TIER1_ENABLED} T2=${CFG_TIER2_ENABLED} T3=${CFG_TIER3_ENABLED} T4=${CFG_TIER4_ENABLED} backup_sim=${CFG_BACKUP_SIM_SLOT:-none}"
+    qlog_info "  SSR grace: aware=${CFG_SSR_AWARE} grace=${CFG_SSR_GRACE}s"
 }
 
 # =============================================================================
@@ -190,6 +213,10 @@ write_state() {
     iv="$CFG_CHECK_INTERVAL"
     case "$iv" in ''|*[!0-9]*) iv=10 ;; esac
     stale="${1:-$((3 * iv + 60))}"
+    local ssr_ago ssr_left
+    ssr_ago="null"
+    case "$last_ssr_detected" in ''|null|*[!0-9]*) ;; *) [ "$mono" -ge "$last_ssr_detected" ] && ssr_ago=$((mono - last_ssr_detected)) ;; esac
+    ssr_left=$(wd_ssr_hold_left)
 
     jq -n -c \
         --argjson ts "$ts" \
@@ -207,6 +234,9 @@ write_state() {
         --argjson sf_orig "${original_sim_slot:-null}" \
         --argjson sf_curr "${current_sim_slot:-null}" \
         --argjson reboots "$reboots_this_hour" \
+        --arg ssr_hold "$ssr_hold" \
+        --argjson ssr_left "${ssr_left:-0}" \
+        --argjson ssr_ago "$ssr_ago" \
         '{
             timestamp: $ts, enabled: ($enabled == 1),
             state: $state, current_tier: $tier,
@@ -219,6 +249,8 @@ write_state() {
             original_sim_slot: $sf_orig,
             current_sim_slot: $sf_curr,
             reboots_this_hour: $reboots,
+            ssr_hold: ($ssr_hold == "true"), ssr_hold_remaining: $ssr_left,
+            last_ssr_ago: $ssr_ago,
             mono: $mono, stale_after: $stale_after
         }' > "$STATE_TMP"
 
@@ -841,6 +873,7 @@ main() {
     command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
     count_recent_reboots
     qlog_info "Reboots in last hour: $reboots_this_hour"
+    wd_ssr_init
 
     # Check for stale SIM failover state from before reboot, verifying the
     # live slot matches what the file records. If the modem is on a
@@ -875,6 +908,9 @@ main() {
 
     # --- Main monitoring loop ---
     while true; do
+        # Before any `continue`, so cooldown/locked/stale passes still see a short SSR.
+        wd_ssr_sample
+
         # Check for config reload request
         if [ -f "$RELOAD_FLAG" ]; then
             rm -f "$RELOAD_FLAG"
@@ -901,6 +937,7 @@ main() {
                 # through finish_cooldown), which would otherwise strand a
                 # nonzero retry count for the next cooldown episode.
                 cooldown_stale_retries=0
+                wd_ssr_hold_clear
             fi
             write_state
             sleep "$CFG_CHECK_INTERVAL"
@@ -951,19 +988,22 @@ main() {
                 fi
                 ;;
 
-            suspect)
+            suspect|ssr_hold)
                 if [ "$CQ_REACHABLE" = "true" ] && [ "$CQ_STREAK_FAIL" -eq 0 ]; then
                     # Naturally recovered
-                    qlog_info "SUSPECT → MONITOR: connectivity restored naturally"
+                    qlog_info "${state} → MONITOR: connectivity restored naturally"
                     state="monitor"
                     failure_counter=0
                     cooldown_stale_retries=0
+                    wd_ssr_hold_clear
                 else
                     qlog_debug "SUSPECT: reachable=$CQ_REACHABLE down ${CQ_FAIL_ELAPSED_SEC}s/${down_wait}s"
 
                     # Breach = producer verdict is down AND its monotonic
                     # fail_elapsed_sec reached fail_threshold x interval_sec.
-                    if conn_state_down_for "$down_wait"; then
+                    if conn_state_down_for "$down_wait" && wd_ssr_hold_gate; then
+                        state="ssr_hold"
+                    elif conn_state_down_for "$down_wait"; then
                         qlog_warn "SUSPECT → RECOVERY: down ${CQ_FAIL_ELAPSED_SEC}s >= ${down_wait}s (${CFG_FAIL_THRESHOLD} x ${CQ_INTERVAL_SEC}s)"
                         state="recovery"
 
@@ -992,4 +1032,5 @@ main() {
     done
 }
 
-main "$@"
+# WATCHCAT_NO_MAIN=1 loads the functions only (dry runs); never source this on a device without it.
+[ -n "${WATCHCAT_NO_MAIN:-}" ] || main "$@"

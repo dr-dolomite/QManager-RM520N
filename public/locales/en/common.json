@@ -1091,6 +1091,10 @@
       "disabled": {
         "label": "Disabled",
         "blurb": "The service is running but switched off."
+      },
+      "ssr_hold": {
+        "label": "Holding",
+        "blurb": "The baseband is restarting on its own. Recovery waits for it to come back."
       }
     },
     "master": {
@@ -1157,6 +1161,11 @@
         "none": "No steps are armed, so nothing runs.",
         "invalid": "Enter valid detection values to preview the timeline.",
         "stopped": "Step 3 has no slot, so the ladder stops there."
+      },
+      "ssr": {
+        "label": "Baseband restart hold",
+        "unit": "s",
+        "caption": "Lets a modem self-restart finish first"
       }
     },
     "activity": {
@@ -1211,7 +1220,8 @@
       "probeInterval": "Must be between 1 and 60 seconds",
       "cooldown": "Must be between 10 and 300 seconds",
       "maxReboots": "Must be between 1 and 10",
-      "backupSim": "Choose a backup SIM slot to enable failover"
+      "backupSim": "Choose a backup SIM slot to enable failover",
+      "ssrGrace": "Must be between 10 and 120 seconds"
     },
     "failover": {
       "title": "Running on the backup SIM",

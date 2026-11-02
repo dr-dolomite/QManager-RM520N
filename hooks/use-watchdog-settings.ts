@@ -21,6 +21,10 @@ export interface WatchdogSettings {
   tier4_enabled: boolean;
   backup_sim_slot: number | null;
   max_reboots_per_hour: number;
+  /** Hold the ladder while the baseband restarts itself (absent on older backends). */
+  ssr_aware?: boolean;
+  /** Longest hold, seconds. */
+  ssr_grace?: number;
 }
 
 export type WatchdogSavePayload = Omit<WatchdogSettings, "check_interval"> & {
@@ -110,6 +114,8 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         ...json.settings,
         fail_threshold: json.settings?.fail_threshold ?? 5,
         probe_interval: json.settings?.probe_interval ?? 5,
+        ssr_aware: json.settings?.ssr_aware ?? true,
+        ssr_grace: json.settings?.ssr_grace ?? 45,
       });
       setAutoDisabled(json.auto_disabled === true);
       // Absent on older backends: no history, not an error.

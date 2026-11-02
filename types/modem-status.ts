@@ -671,6 +671,8 @@ export type WatchcatState =
   | "suspect"
   | "recovery"
   | "cooldown"
+  /** Recovery held while the baseband restarts itself (SSR grace). */
+  | "ssr_hold"
   | "locked"
   | "disabled";
 
@@ -688,6 +690,12 @@ export interface WatchcatStatus {
   age_sec?: number | null;
   /** The watchdog's own staleness limit (s); null when unknown */
   stale_after?: number | null;
+  /** The ladder is held for a baseband restart (watchdog.sh status only, not the poller). */
+  ssr_hold?: boolean;
+  /** Seconds of SSR grace left while holding. */
+  ssr_hold_remaining?: number;
+  /** Seconds since the last baseband restart sign; null when none this run. */
+  last_ssr_ago?: number | null;
 }
 
 export interface SimFailoverStatus {
