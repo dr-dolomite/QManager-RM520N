@@ -187,7 +187,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson q_lat "$q_lat_limit" --argjson q_loss "$q_loss_limit" \
         '{
             success: true,
-            settings: {
+            settings: ({
                 enabled: ($enabled == 1),
                 fail_threshold: $fail_threshold,
                 probe_interval: $probe_interval,
@@ -199,7 +199,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 tier4_enabled: ($tier4 == 1),
                 backup_sim_slot: (if $backup_sim == "" then null else ($backup_sim | tonumber) end),
                 max_reboots_per_hour: $max_reboots
-            } + $wd_settings,
+            } + $wd_settings),
             status: $status,
             sim_failover: $sim_failover,
             sim_swap: $sim_swap,
