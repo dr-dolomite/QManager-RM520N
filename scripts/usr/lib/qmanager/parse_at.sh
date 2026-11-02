@@ -904,7 +904,7 @@ parse_qsinr() {
 # normalization below converts every CR to LF up front so each record sits
 # on its own line regardless of what the modem emits.
 #
-# Populates: t2_apn, t2_primary_dns, t2_secondary_dns
+# Populates: t2_apn, t2_primary_dns, t2_secondary_dns, t2_cgc_ipv4
 # -----------------------------------------------------------------------------
 parse_cgcontrdp() {
     local raw="$1"
@@ -912,6 +912,7 @@ parse_cgcontrdp() {
     t2_apn=""
     t2_primary_dns=""
     t2_secondary_dns=""
+    t2_cgc_ipv4=""
 
     # Normalize line endings: convert all CR to LF so each +CGCONTRDP
     # record lives on its own line (handles CRLF, bare CR, and mixed).
@@ -953,6 +954,15 @@ parse_cgcontrdp() {
 
     # Field 7: Secondary DNS (quoted)
     t2_secondary_dns=$(printf '%s' "$csv" | cut -d',' -f7 | tr -d '"' | tr -d ' ')
+
+    # Field 4: local address, the WAN IPv4 when +QMAP is refused. Only 4 octets
+    # (address) or 8 (address + mask) count; IPv6 is dotted 16- or 32-octet.
+    t2_cgc_ipv4=$(printf '%s' "$csv" | cut -d',' -f4 | tr -d '"' | awk '{
+        n = split($1, o, ".")
+        if (n != 4 && n != 8) exit
+        for (i = 1; i <= 4; i++) if (o[i] !~ /^[0-9]+$/ || o[i] + 0 > 255) exit
+        print o[1] "." o[2] "." o[3] "." o[4]
+    }')
 }
 
 # -----------------------------------------------------------------------------

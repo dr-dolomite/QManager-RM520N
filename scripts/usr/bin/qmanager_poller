@@ -1534,12 +1534,13 @@ poll_tier2() {
         if printf '%s\n' "$result" | grep -q '+CGCONTRDP:'; then
             parse_cgcontrdp "$result"
         else
-            t2_apn="" ; t2_primary_dns="" ; t2_secondary_dns=""
+            t2_apn="" ; t2_primary_dns="" ; t2_secondary_dns="" ; t2_cgc_ipv4=""
         fi
         if printf '%s\n' "$result" | grep -q '+QMAP:'; then
             parse_wan_ip "$result"
         else
-            t2_wan_ipv4="" ; t2_wan_ipv6=""
+            # QMAP refused (QCMAP down or restarted): IPv4 from CGCONTRDP.
+            t2_wan_ipv4="$t2_cgc_ipv4" ; t2_wan_ipv6=""
         fi
     else
         t2_apn="" ; t2_primary_dns="" ; t2_secondary_dns=""
