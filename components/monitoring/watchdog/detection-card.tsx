@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon } from "lucide-react";
+import Link from "next/link";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -22,6 +23,7 @@ import {
   type SegmentedOption,
 } from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { WatchdogQualityLimits } from "@/hooks/use-watchdog-settings";
 import { cn } from "@/lib/utils";
 
 import {
@@ -66,7 +68,13 @@ type NumKey = "failThreshold" | "cooldown";
 type OnOff = "on" | "off";
 
 /** Detection: receipt rows, the derived outage timeline, its own commit. */
-export function DetectionCard({ form }: { form: WatchdogForm }) {
+export function DetectionCard({
+  form,
+  qualityLimits,
+}: {
+  form: WatchdogForm;
+  qualityLimits: WatchdogQualityLimits | null;
+}) {
   const { t } = useTranslation("common");
   const { draft } = form;
 
@@ -126,6 +134,32 @@ export function DetectionCard({ form }: { form: WatchdogForm }) {
             id={FIELD_ID.cooldown}
             labelKey="watchdog.detection.cooldown.label"
             unitKey="watchdog.detection.cooldown.unit"
+          />
+          <ToggleRow
+            form={form}
+            onOff={onOff}
+            on={draft.quality}
+            onChange={(on) => form.setFields({ quality: on })}
+            field="qualityConsecutive"
+            id={FIELD_ID.qualityConsecutive}
+            labelKey="watchdog.detection.quality.label"
+            unitKey="watchdog.detection.quality.unit"
+            caption={
+              <>
+                {qualityLimits ? (
+                  <span>
+                    {t("watchdog.detection.quality.caption", {
+                      ms: qualityLimits.latency_ms,
+                      pct: qualityLimits.loss_pct,
+                    })}
+                  </span>
+                ) : null}
+                <Link href="/monitoring/connection-quality" className={DETECT.LINK}>
+                  {t("watchdog.detection.quality.link")}
+                  <ChevronRightIcon className="size-3.5" aria-hidden />
+                </Link>
+              </>
+            }
           />
           <ToggleRow
             form={form}
@@ -212,7 +246,7 @@ function ToggleRow({
   onOff: SegmentedOption<OnOff>[];
   on: boolean;
   onChange: (on: boolean) => void;
-  field: "ssrGrace";
+  field: "qualityConsecutive" | "ssrGrace";
   id: string;
   labelKey: string;
   unitKey: string;
@@ -312,7 +346,7 @@ function Timeline({ draft }: { draft: WatchdogDraft }) {
   );
 }
 
-/** Mirrors the loaded card: four receipt rows, the timeline, the foot. */
+/** Mirrors the loaded card: five receipt rows, the timeline, the foot. */
 export function DetectionCardSkeleton() {
   return (
     <Card className={CARD_SHELL} aria-hidden>
@@ -322,7 +356,7 @@ export function DetectionCardSkeleton() {
       </CardHeader>
       <CardContent className={cn(CARD_PAD, DETECT.BODY)}>
         <div className={DETECT.ROWS}>
-          {[0, 1, 2, 3].map((i) => (
+          {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className={DETECT.ROW}>
               <Skeleton className={cn(SKELETON.LINE, "h-3.5 w-28")} />
               <Skeleton className={cn(SKELETON.FIELD, "w-36")} />

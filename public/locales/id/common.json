@@ -1166,6 +1166,12 @@
         "label": "Tahan saat baseband restart",
         "unit": "dtk",
         "caption": "Biarkan modem selesai memulai ulang sendiri dulu"
+      },
+      "quality": {
+        "label": "Pemicu kualitas",
+        "unit": "cek",
+        "caption": "Lebih dari {{ms}} ms atau kehilangan {{pct}}%",
+        "link": "Ambang batas"
       }
     },
     "activity": {
@@ -1221,7 +1227,8 @@
       "cooldown": "Harus antara 10 dan 300 detik",
       "maxReboots": "Harus antara 1 dan 10",
       "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover",
-      "ssrGrace": "Harus antara 10 dan 120 detik"
+      "ssrGrace": "Harus antara 10 dan 120 detik",
+      "qualityConsecutive": "Harus antara 1 dan 60"
     },
     "failover": {
       "title": "Berjalan menggunakan SIM cadangan",

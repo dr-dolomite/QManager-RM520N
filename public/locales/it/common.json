@@ -1166,6 +1166,12 @@
         "label": "Attesa riavvio baseband",
         "unit": "s",
         "caption": "Lascia terminare prima un riavvio automatico del modem"
+      },
+      "quality": {
+        "label": "Attivazione per qualità",
+        "unit": "controlli",
+        "caption": "Oltre {{ms}} ms o {{pct}}% di perdita",
+        "link": "Soglie"
       }
     },
     "activity": {
@@ -1221,7 +1227,8 @@
       "cooldown": "Deve essere compreso tra 10 e 300 secondi",
       "maxReboots": "Deve essere compreso tra 1 e 10",
       "backupSim": "Scegli uno slot SIM di backup per abilitare il failover",
-      "ssrGrace": "Deve essere tra 10 e 120 secondi"
+      "ssrGrace": "Deve essere tra 10 e 120 secondi",
+      "qualityConsecutive": "Deve essere tra 1 e 60"
     },
     "failover": {
       "title": "In esecuzione sulla SIM di backup",

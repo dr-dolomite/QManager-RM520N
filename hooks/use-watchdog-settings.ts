@@ -25,6 +25,16 @@ export interface WatchdogSettings {
   ssr_aware?: boolean;
   /** Longest hold, seconds. */
   ssr_grace?: number;
+  /** Start a Tier 1-2 recovery when the link stays over the quality limits. */
+  quality_enabled?: boolean;
+  /** Consecutive over-limit checks before that recovery starts. */
+  quality_consecutive?: number;
+}
+
+/** The limits the quality trigger uses: Connection Quality's, raised to the watchdog's floors. */
+export interface WatchdogQualityLimits {
+  latency_ms: number;
+  loss_pct: number;
 }
 
 export type WatchdogSavePayload = Omit<WatchdogSettings, "check_interval"> & {
@@ -60,6 +70,8 @@ export interface UseWatchdogSettingsReturn {
   autoDisabled: boolean;
   /** Epoch seconds of the watchdog's own Tier-4 reboots, newest first. */
   recentReboots: number[];
+  /** Null on an older backend that does not report them. */
+  qualityLimits: WatchdogQualityLimits | null;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
@@ -74,6 +86,7 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   const [settings, setSettings] = useState<WatchdogSettings | null>(null);
   const [autoDisabled, setAutoDisabled] = useState(false);
   const [recentReboots, setRecentReboots] = useState<number[]>([]);
+  const [qualityLimits, setQualityLimits] = useState<WatchdogQualityLimits | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +129,15 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         probe_interval: json.settings?.probe_interval ?? 5,
         ssr_aware: json.settings?.ssr_aware ?? true,
         ssr_grace: json.settings?.ssr_grace ?? 45,
+        quality_enabled: json.settings?.quality_enabled ?? false,
+        quality_consecutive: json.settings?.quality_consecutive ?? 5,
       });
+      const ql = json.quality_limits;
+      setQualityLimits(
+        ql && Number.isFinite(ql.latency_ms) && Number.isFinite(ql.loss_pct)
+          ? { latency_ms: ql.latency_ms, loss_pct: ql.loss_pct }
+          : null,
+      );
       setAutoDisabled(json.auto_disabled === true);
       // Absent on older backends: no history, not an error.
       setRecentReboots(
@@ -230,6 +251,7 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
     settings,
     autoDisabled,
     recentReboots,
+    qualityLimits,
     isLoading,
     isSaving,
     error,

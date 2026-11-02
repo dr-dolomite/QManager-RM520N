@@ -5,6 +5,7 @@
 . /usr/lib/qmanager/conn_state.sh
 [ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
 . /usr/lib/qmanager/wd_common.sh
+. /usr/lib/qmanager/wd_quality.sh
 # =============================================================================
 # watchdog.sh — CGI Endpoint: Watchdog Settings & Status (GET + POST)
 # =============================================================================
@@ -153,6 +154,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     auto_disabled="false"
     [ -f "$DISABLED_FLAG" ] && auto_disabled="true"
     wd_settings=$(wd_keys_json)
+    # The limits the quality trigger really uses: Connection Quality's presets raised to the floors.
+    wd_quality_limits
 
     jq -n \
         --argjson enabled "$enabled" \
@@ -172,6 +175,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson auto_disabled "$auto_disabled" \
         --argjson recent_reboots "$recent_reboots_json" \
         --argjson wd_settings "$wd_settings" \
+        --argjson q_lat "$q_lat_limit" --argjson q_loss "$q_loss_limit" \
         '{
             success: true,
             settings: {
@@ -191,7 +195,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             sim_failover: $sim_failover,
             sim_swap: $sim_swap,
             auto_disabled: $auto_disabled,
-            recent_reboots: $recent_reboots
+            recent_reboots: $recent_reboots,
+            quality_limits: {latency_ms: $q_lat, loss_pct: $q_loss}
         }'
     exit 0
 fi

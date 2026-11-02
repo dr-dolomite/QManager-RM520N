@@ -1166,6 +1166,12 @@
         "label": "基带重启等待",
         "unit": "秒",
         "caption": "先等待模块自行重启完成"
+      },
+      "quality": {
+        "label": "质量触发",
+        "unit": "次",
+        "caption": "延迟超过 {{ms}} ms 或丢包超过 {{pct}}%",
+        "link": "阈值"
       }
     },
     "activity": {
@@ -1221,7 +1227,8 @@
       "cooldown": "必须介于 10 到 300 秒之间",
       "maxReboots": "必须介于 1 到 10 之间",
       "backupSim": "选择备用 SIM 卡插槽以启用故障转移",
-      "ssrGrace": "必须在 10 到 120 秒之间"
+      "ssrGrace": "必须在 10 到 120 秒之间",
+      "qualityConsecutive": "必须在 1 到 60 之间"
     },
     "failover": {
       "title": "正在使用备用 SIM 卡",

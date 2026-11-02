@@ -1166,6 +1166,12 @@
         "label": "基頻重新啟動等待",
         "unit": "秒",
         "caption": "先等待模組自行重新啟動完成"
+      },
+      "quality": {
+        "label": "品質觸發",
+        "unit": "次",
+        "caption": "延遲超過 {{ms}} ms 或封包遺失超過 {{pct}}%",
+        "link": "臨界值"
       }
     },
     "activity": {
@@ -1221,7 +1227,8 @@
       "cooldown": "必須介於 10 到 300 秒之間",
       "maxReboots": "必須介於 1 到 10 之間",
       "backupSim": "選擇備用 SIM 卡插槽以啟用故障轉移",
-      "ssrGrace": "必須介於 10 到 120 秒之間"
+      "ssrGrace": "必須介於 10 到 120 秒之間",
+      "qualityConsecutive": "必須介於 1 到 60 之間"
     },
     "failover": {
       "title": "目前使用備用 SIM 卡",

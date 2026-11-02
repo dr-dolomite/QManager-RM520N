@@ -1166,6 +1166,12 @@
         "label": "Baseband restart hold",
         "unit": "s",
         "caption": "Lets a modem self-restart finish first"
+      },
+      "quality": {
+        "label": "Quality trigger",
+        "unit": "checks",
+        "caption": "Over {{ms}} ms or {{pct}}% loss",
+        "link": "Thresholds"
       }
     },
     "activity": {
@@ -1221,7 +1227,8 @@
       "cooldown": "Must be between 10 and 300 seconds",
       "maxReboots": "Must be between 1 and 10",
       "backupSim": "Choose a backup SIM slot to enable failover",
-      "ssrGrace": "Must be between 10 and 120 seconds"
+      "ssrGrace": "Must be between 10 and 120 seconds",
+      "qualityConsecutive": "Must be between 1 and 60"
     },
     "failover": {
       "title": "Running on the backup SIM",

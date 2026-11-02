@@ -696,6 +696,12 @@ export interface WatchcatStatus {
   ssr_hold_remaining?: number;
   /** Seconds since the last baseband restart sign; null when none this run. */
   last_ssr_ago?: number | null;
+  /** What started the running ladder; null outside recovery and cooldown. */
+  recovery_reason?: "unreachable" | "quality" | null;
+  /** Over-limit quality checks in a row so far. */
+  quality_breach_count?: number;
+  /** Seconds left in the pause after a quality recovery that did not help. */
+  quality_holdoff_remaining?: number;
 }
 
 export interface SimFailoverStatus {
