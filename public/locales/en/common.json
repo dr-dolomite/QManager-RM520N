@@ -547,7 +547,7 @@
       "paused": "Paused"
     },
     "now": {
-      "title": "Right now",
+      "title": "Right Now",
       "description": "What is still standing, and what keeps repeating.",
       "ongoing_one": "{{count}} problem ongoing",
       "ongoing_other": "{{count}} problems ongoing",
@@ -583,7 +583,7 @@
       "hours_other": "{{count}} hours"
     },
     "log": {
-      "title": "Event log",
+      "title": "Event Log",
       "description_loading": "Loading events.",
       "description_unreadable": "No counts to show while the log cannot be read.",
       "description": "Repeats are grouped; open one to see each event.",
@@ -893,7 +893,6 @@
     "connection": {
       "title": "Connection",
       "description": "Whether this modem joins the tailnet, and how it behaves once it does.",
-      "version": "v{{version}}",
       "connect": "Connect",
       "connecting": "Connecting…",
       "disconnect": "Disconnect",
@@ -917,7 +916,15 @@
       "sshLocked": "Connect to Tailscale to change this.",
       "sshDialogTitle": "Turn on Tailscale SSH?",
       "sshDialogDescription": "Tailnet members will be able to SSH into this modem based on your Tailscale admin-panel ACLs. Review that policy first, so only the people you intend can reach the device.",
-      "sshConfirm": "Turn on SSH"
+      "sshConfirm": "Turn on SSH",
+      "on": "On",
+      "off": "Off",
+      "updating": "Updating…",
+      "updateAvailable": "Update available ({{version}})",
+      "updateDialogTitle": "Update Tailscale to {{version}}?",
+      "updateDialogDescription": "The tunnel reconnects for a few seconds while the new version starts.",
+      "update": "Update",
+      "updateLogTitle": "Update Log"
     },
     "device": {
       "title": "This device",
@@ -930,7 +937,8 @@
       "magicDns": "MagicDNS",
       "relay": "DERP relay",
       "emptyTitle": "Not on the tailnet",
-      "emptyDescription": "Connect Tailscale and this modem's address, DNS name and relay appear here."
+      "emptyDescription": "Connect Tailscale and this modem's address, DNS name and relay appear here.",
+      "version": "Version"
     },
     "peers": {
       "title": "Network peers",
@@ -1009,7 +1017,11 @@
       "uninstalled": "Tailscale uninstalled",
       "uninstallFailed": "Could not uninstall Tailscale",
       "copied": "Command copied",
-      "copyFailed": "Could not copy the command"
+      "copyFailed": "Could not copy the command",
+      "installed": "Tailscale installed",
+      "installFailed": "The Tailscale install did not finish",
+      "updated": "Tailscale updated to {{version}}",
+      "updateFailed": "Tailscale could not be updated"
     }
   },
   "watchdog": {
@@ -1090,6 +1102,7 @@
       "aria": "Recovery ladder",
       "status": {
         "blocked": "Needs a slot",
+        "done": "Tried",
         "running": "Running now"
       },
       "tier1": {
@@ -1149,6 +1162,7 @@
     "activity": {
       "title": "Recovery activity",
       "description": "What the watchdog has done, newest first.",
+      "tier4Reboot": "The watchdog restarted the modem",
       "type": {
         "recovery": "Recovery",
         "failover": "SIM failover"

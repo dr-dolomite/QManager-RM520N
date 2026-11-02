@@ -16,6 +16,8 @@ const UNREACHABLE_AGE_SEC = 60;
 export interface UseLatencyMonitoringReturn {
   /** Live connectivity payload, or null before the first snapshot. */
   connectivity: ConnectivityStatus | null;
+  /** Modem clock (epoch s) of the snapshot behind `connectivity`; null before the first one. */
+  snapshotAt: number | null;
   statusLoading: boolean;
   /** The status read failed, or the last snapshot is over a minute old. */
   unreachable: boolean;
@@ -39,6 +41,7 @@ export function useLatencyMonitoring(): UseLatencyMonitoringReturn {
 
   return {
     connectivity: status.data?.connectivity ?? null,
+    snapshotAt,
     statusLoading: status.isLoading,
     unreachable: status.error !== null || tooOld,
     refreshStatus: status.refresh,

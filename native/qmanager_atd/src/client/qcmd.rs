@@ -2,6 +2,7 @@
 //! the request never reached it.
 
 use super::transport::{try_broker_raw, Broker};
+use crate::at::qcmap::Qcmap;
 use crate::at::exec::{self, Executor, Outcome};
 use crate::at::new_channel;
 use crate::at::classify;
@@ -122,7 +123,7 @@ fn run_in_process(cmd: &str, left: Option<Duration>) -> proto::Reply {
     };
     let waited = left.map_or(Duration::ZERO, |l| exec::LOCK_WAIT_SHORT.saturating_sub(l));
     let mut ch = new_channel();
-    match (Executor { ch: &mut ch, lock: &lock, log: &log }).run_after(cmd, waited) {
+    match (Executor { ch: &mut ch, lock: &lock, log: &log, qcmap: Qcmap::system() }).run_after(cmd, waited) {
         Outcome::Ok(raw) => proto::Reply::Ok(raw),
         Outcome::Err(code) => proto::Reply::Err(code),
     }

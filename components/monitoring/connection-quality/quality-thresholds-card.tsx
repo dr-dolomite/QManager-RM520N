@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CardFoot } from "@/components/ui/card-foot";
+import { Input } from "@/components/ui/input";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { SegmentedField, type SegmentedOption } from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,6 +43,9 @@ import {
   CARD_SHELL,
   CARD_TITLE,
   CONDITION,
+  CUSTOM_DEBOUNCE,
+  CUSTOM_FIELD,
+  CUSTOM_RANGE,
   DELTA,
   EYEBROW,
   FAILED,
@@ -65,6 +69,7 @@ const PRESET_KEY: Record<QualityPreset, string> = {
   standard: "standard",
   tolerant: "tolerant",
   "very-tolerant": "very_tolerant",
+  custom: "custom",
 };
 
 /** One decimal under a whole percent step, none on a whole one. */
@@ -72,22 +77,60 @@ function formatPct(pct: number): string {
   return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
 }
 
+/** The custom field's text as an in-range whole number, or null. */
+function parseCustom(metric: Metric, raw: string): number | null {
+  if (!/^[0-9]+$/.test(raw.trim())) return null;
+  const n = Number(raw.trim());
+  const { min, max } = CUSTOM_RANGE[metric];
+  return n >= min && n <= max ? n : null;
+}
+
+/** The saved custom number for a metric, or null when none is stored. */
+function savedCustom(metric: Metric, saved: QualityThresholdsSettings): number | null {
+  const v = metric === "latency" ? saved.latency.custom_ms : saved.loss.custom_pct;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** The limit a draft resolves to, as the shell resolves it. */
+function resolveLimit(
+  metric: Metric,
+  preset: QualityPreset,
+  custom: number | null,
+): { limit: number | null; debounce: number } {
+  if (preset === "custom") return { limit: custom, debounce: CUSTOM_DEBOUNCE };
+  return PRESET_LIMIT[metric][preset];
+}
+
 // -----------------------------------------------------------------------------
-// One metric: eyebrow + preset pill, then "Flags after" and "Right now"
+// One metric: eyebrow + preset pill, the custom limit, "Flags after", "Right now"
 // -----------------------------------------------------------------------------
 
 interface MetricBlockProps {
   metric: Metric;
   draft: QualityPreset;
   onSelect: (preset: QualityPreset) => void;
+  customText: string;
+  onCustomChange: (text: string) => void;
+  customInvalid: boolean;
   /** The poller's reading, or `null` for "not measured". Never a zero. */
   live: number | null;
 }
 
-function MetricBlock({ metric, draft, onSelect, live }: MetricBlockProps): React.JSX.Element {
+function MetricBlock({
+  metric,
+  draft,
+  onSelect,
+  customText,
+  onCustomChange,
+  customInvalid,
+  live,
+}: MetricBlockProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
-  const { limit, debounce } = PRESET_LIMIT[metric][draft];
+  const { limit, debounce } = resolveLimit(metric, draft, parseCustom(metric, customText));
   const title = t(`${K}.${metric}.title`);
+  const fieldId = React.useId();
+  const errorId = `${fieldId}-error`;
+  const { min, max } = CUSTOM_RANGE[metric];
 
   const options: SegmentedOption<QualityPreset>[] = QUALITY_PRESETS.map((preset) => ({
     value: preset,
@@ -95,14 +138,18 @@ function MetricBlock({ metric, draft, onSelect, live }: MetricBlockProps): React
   }));
 
   const flags =
-    metric === "latency"
-      ? t(`${K}.flags.latency`, { count: debounce, ms: limit })
-      : t(`${K}.flags.loss`, { count: debounce, pct: limit });
+    limit === null ? (
+      <span className={ROW.QUIET}>{t(`${K}.flags.pending`)}</span>
+    ) : metric === "latency" ? (
+      t(`${K}.flags.latency`, { count: debounce, ms: limit })
+    ) : (
+      t(`${K}.flags.loss`, { count: debounce, pct: limit })
+    );
 
   // Latency Monitor's own rules: latency amber over the cut, red past twice it;
   // loss only marks at or over the cut, in red.
   let tone: Tone = "ok";
-  if (live !== null) {
+  if (live !== null && limit !== null) {
     const cuts = { latencyMs: limit, lossPct: limit };
     tone =
       metric === "latency"
@@ -125,7 +172,7 @@ function MetricBlock({ metric, draft, onSelect, live }: MetricBlockProps): React
         {metric === "latency"
           ? t(`${K}.now.latency`, { ms: Math.round(live) })
           : t(`${K}.now.loss`, { pct: formatPct(live) })}
-        {tone === "ok" ? null : (
+        {tone === "ok" || limit === null ? null : (
           <>
             <TriangleAlertIcon aria-hidden="true" className={cn(ROW.ALERT, ALERT_INK[tone])} />
             <span className="sr-only">
@@ -153,6 +200,33 @@ function MetricBlock({ metric, draft, onSelect, live }: MetricBlockProps): React
         />
       </div>
       <dl className={ROW_STACK}>
+        {draft === "custom" ? (
+          <div className="flex flex-col gap-1">
+            <div className={ROW.ROOT}>
+              <dt className={ROW.KEY}>
+                <label htmlFor={fieldId}>{t(`${K}.row.limit`)}</label>
+              </dt>
+              <dd className={CUSTOM_FIELD.WRAP}>
+                <Input
+                  id={fieldId}
+                  className={CUSTOM_FIELD.INPUT}
+                  value={customText}
+                  onChange={(event) => onCustomChange(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  aria-invalid={customInvalid}
+                  aria-describedby={customInvalid ? errorId : undefined}
+                />
+                <span className={CUSTOM_FIELD.UNIT}>{t(`${K}.unit.${metric}`)}</span>
+              </dd>
+            </div>
+            {customInvalid ? (
+              <span id={errorId} role="alert" className="text-destructive-on-surface px-4 text-xs leading-relaxed">
+                {t(`${K}.validation.range`, { min, max })}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className={ROW.ROOT}>
           <dt className={ROW.KEY}>{t(`${K}.row.flags`)}</dt>
           <dd className={ROW.VALUE}>{flags}</dd>
@@ -170,6 +244,14 @@ function MetricBlock({ metric, draft, onSelect, live }: MetricBlockProps): React
 // The loaded form
 // -----------------------------------------------------------------------------
 
+/** Only what the user CHANGED; the saved value shows through the rest. */
+interface Draft {
+  latency?: QualityPreset;
+  loss?: QualityPreset;
+  latencyText?: string;
+  lossText?: string;
+}
+
 interface ThresholdsFormProps {
   quality: UseQualityThresholdsReturn;
   thresholds: QualityThresholdsSettings;
@@ -181,30 +263,55 @@ function ThresholdsForm({ quality, thresholds }: ThresholdsFormProps): React.JSX
   const { data: status } = useModemStatus();
 
   // The draft holds only what the user CHANGED; the saved value shows through.
-  const [draft, setDraft] = useState<Partial<QualityThresholdsSettings>>({});
+  const [draft, setDraft] = useState<Draft>({});
   const [failed, setFailed] = useState(false);
 
-  const latency = draft.latency?.preset ?? thresholds.latency.preset;
-  const loss = draft.loss?.preset ?? thresholds.loss.preset;
+  const latency = draft.latency ?? thresholds.latency.preset;
+  const loss = draft.loss ?? thresholds.loss.preset;
+  const savedLatencyCustom = savedCustom("latency", thresholds);
+  const savedLossCustom = savedCustom("loss", thresholds);
+  // A custom field opens on the saved number, else on the tolerant cut as a start.
+  const latencyText =
+    draft.latencyText ?? String(savedLatencyCustom ?? PRESET_LIMIT.latency.tolerant.limit);
+  const lossText = draft.lossText ?? String(savedLossCustom ?? PRESET_LIMIT.loss.tolerant.limit);
+
+  const latencyCustom = parseCustom("latency", latencyText);
+  const lossCustom = parseCustom("loss", lossText);
+  const latencyInvalid = latency === "custom" && latencyCustom === null;
+  const lossInvalid = loss === "custom" && lossCustom === null;
 
   const dirty =
-    latency !== thresholds.latency.preset || loss !== thresholds.loss.preset;
+    latency !== thresholds.latency.preset ||
+    loss !== thresholds.loss.preset ||
+    (latency === "custom" && latencyCustom !== savedLatencyCustom) ||
+    (loss === "custom" && lossCustom !== savedLossCustom);
   // Built-in defaults are not on the device yet, so saving them is a real write.
-  const canSave = (dirty || quality.isDefault) && !quality.isSaving;
+  const canSave =
+    (dirty || quality.isDefault) && !quality.isSaving && !latencyInvalid && !lossInvalid;
 
   // NEVER `??` a 0 in: a null loss is under the poller's sample floor.
   const liveLatency = status?.connectivity?.latency_ms ?? null;
   const liveLoss = status?.connectivity?.packet_loss_pct ?? null;
 
   const select = (metric: Metric) => (preset: QualityPreset) => {
-    setDraft((prev) => ({ ...prev, [metric]: { preset } }));
+    setDraft((prev) => ({ ...prev, [metric]: preset }));
+    setFailed(false);
+  };
+  const editCustom = (metric: Metric) => (text: string) => {
+    setDraft((prev) => ({ ...prev, [`${metric}Text`]: text }));
     setFailed(false);
   };
 
   const handleSave = async () => {
     if (!canSave) return;
+    const next: QualityThresholdsSettings = {
+      latency:
+        latency === "custom" ? { preset: latency, custom_ms: latencyCustom } : { preset: latency },
+      loss: loss === "custom" ? { preset: loss, custom_pct: lossCustom } : { preset: loss },
+    };
     try {
-      await quality.save({ latency: { preset: latency }, loss: { preset: loss } });
+      await quality.save(next);
+      setDraft({});
       setFailed(false);
       markSaved();
       toast.success(t(`${K}.toast.saved`));
@@ -216,8 +323,24 @@ function ThresholdsForm({ quality, thresholds }: ThresholdsFormProps): React.JSX
 
   return (
     <>
-      <MetricBlock metric="latency" draft={latency} onSelect={select("latency")} live={liveLatency} />
-      <MetricBlock metric="loss" draft={loss} onSelect={select("loss")} live={liveLoss} />
+      <MetricBlock
+        metric="latency"
+        draft={latency}
+        onSelect={select("latency")}
+        customText={latencyText}
+        onCustomChange={editCustom("latency")}
+        customInvalid={latencyInvalid}
+        live={liveLatency}
+      />
+      <MetricBlock
+        metric="loss"
+        draft={loss}
+        onSelect={select("loss")}
+        customText={lossText}
+        onCustomChange={editCustom("loss")}
+        customInvalid={lossInvalid}
+        live={liveLoss}
+      />
 
       <CardFoot
         status={

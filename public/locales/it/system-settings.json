@@ -431,6 +431,7 @@
       "unsaved": "Non salvato",
       "save": "Salva le destinazioni",
       "save_failed": "Impossibile salvare le destinazioni delle sonde",
+      "cadence_clear_failed": "Impossibile reimpostare l'intervallo delle sonde",
       "leg": {
         "host_1": "Tratta con nome host 1",
         "host_2": "Tratta con nome host 2",
@@ -448,7 +449,8 @@
         "action": "Ripristina i valori predefiniti"
       },
       "toast": {
-        "saved": "Destinazioni delle sonde salvate"
+        "saved": "Destinazioni delle sonde salvate",
+        "cadence_cleared": "L'intervallo delle sonde segue ora il profilo"
       },
       "validation": {
         "empty": "Inserisci una destinazione.",
@@ -467,15 +469,24 @@
       },
       "group": {
         "hostnames": "Nomi host",
-        "fallback": "Riserva IPv4"
+        "fallback": "Riserva IPv4",
+        "sensitivity": "Sensibilità"
       },
       "fallback_hint": "Non serve il DNS, quindi un guasto del resolver non viene scambiato per un'interruzione.",
       "fallback_hint_label": "Informazioni sulla riserva IPv4",
       "interval": {
         "label": "Intervallo delle sonde",
-        "value": "Ogni {{seconds}} s"
+        "value": "Ogni {{seconds}} s",
+        "override": "Ogni {{seconds}} s (Watchdog)",
+        "use_profile": "Usa l'intervallo del profilo"
       },
-      "failed": "Salvataggio non riuscito"
+      "failed": "Salvataggio non riuscito",
+      "profile": {
+        "sensitive": "Sensibile",
+        "regular": "Normale",
+        "relaxed": "Rilassato",
+        "quiet": "Silenzioso"
+      }
     },
     "thresholds": {
       "title": "Soglie di qualità",
@@ -489,7 +500,8 @@
       "preset": {
         "standard": "Standard",
         "tolerant": "Tollerante",
-        "very_tolerant": "Molto tollerante"
+        "very_tolerant": "Molto tollerante",
+        "custom": "Personalizzato"
       },
       "unsaved": "Non salvato",
       "save": "Salva le soglie",
@@ -504,13 +516,15 @@
       },
       "row": {
         "flags": "Segnala dopo",
-        "now": "Adesso"
+        "now": "Adesso",
+        "limit": "Limite"
       },
       "flags": {
         "latency_one": "{{count}} campione oltre {{ms}} ms",
         "latency_other": "{{count}} campioni oltre {{ms}} ms",
         "loss_one": "{{count}} campione al {{pct}}% o più",
-        "loss_other": "{{count}} campioni al {{pct}}% o più"
+        "loss_other": "{{count}} campioni al {{pct}}% o più",
+        "pending": "Inserisci un limite"
       },
       "now": {
         "latency": "{{ms}} ms",
@@ -521,7 +535,14 @@
         "over_loss": "Oltre il limite del {{pct}}%"
       },
       "default_chip": "Valori predefiniti",
-      "failed": "Salvataggio non riuscito"
+      "failed": "Salvataggio non riuscito",
+      "unit": {
+        "latency": "ms",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "Inserisci un numero intero da {{min}} a {{max}}."
+      }
     }
   },
   "software_update": {

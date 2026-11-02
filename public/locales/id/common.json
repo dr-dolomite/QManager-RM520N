@@ -893,7 +893,6 @@
     "connection": {
       "title": "Koneksi",
       "description": "Apakah modem ini bergabung ke tailnet, dan bagaimana perilakunya setelah itu.",
-      "version": "v{{version}}",
       "connect": "Hubungkan",
       "connecting": "Menghubungkan…",
       "disconnect": "Putuskan",
@@ -917,7 +916,15 @@
       "sshLocked": "Hubungkan ke Tailscale untuk mengubah ini.",
       "sshDialogTitle": "Aktifkan Tailscale SSH?",
       "sshDialogDescription": "Anggota tailnet akan bisa membuka SSH ke modem ini berdasarkan ACL panel admin Tailscale Anda. Tinjau dulu kebijakan itu, agar hanya orang yang Anda maksud yang bisa menjangkau perangkat ini.",
-      "sshConfirm": "Aktifkan SSH"
+      "sshConfirm": "Aktifkan SSH",
+      "on": "Aktif",
+      "off": "Mati",
+      "updating": "Memperbarui…",
+      "updateAvailable": "Pembaruan tersedia ({{version}})",
+      "updateDialogTitle": "Perbarui Tailscale ke {{version}}?",
+      "updateDialogDescription": "Tunnel tersambung ulang selama beberapa detik saat versi baru dimulai.",
+      "update": "Perbarui",
+      "updateLogTitle": "Log pembaruan"
     },
     "device": {
       "title": "Perangkat ini",
@@ -930,7 +937,8 @@
       "magicDns": "MagicDNS",
       "relay": "Relay DERP",
       "emptyTitle": "Belum di tailnet",
-      "emptyDescription": "Hubungkan Tailscale dan alamat, nama DNS, serta relay modem ini akan muncul di sini."
+      "emptyDescription": "Hubungkan Tailscale dan alamat, nama DNS, serta relay modem ini akan muncul di sini.",
+      "version": "Versi"
     },
     "peers": {
       "title": "Peer jaringan",
@@ -1009,7 +1017,11 @@
       "uninstalled": "Tailscale dihapus",
       "uninstallFailed": "Tidak dapat menghapus Tailscale",
       "copied": "Perintah disalin",
-      "copyFailed": "Tidak dapat menyalin perintah"
+      "copyFailed": "Tidak dapat menyalin perintah",
+      "installed": "Tailscale terinstal",
+      "installFailed": "Instalasi Tailscale tidak selesai",
+      "updated": "Tailscale diperbarui ke {{version}}",
+      "updateFailed": "Tailscale tidak dapat diperbarui"
     }
   },
   "watchdog": {
@@ -1090,6 +1102,7 @@
       "aria": "Urutan pemulihan",
       "status": {
         "blocked": "Perlu slot",
+        "done": "Sudah dicoba",
         "running": "Sedang berjalan"
       },
       "tier1": {
@@ -1149,6 +1162,7 @@
     "activity": {
       "title": "Aktivitas pemulihan",
       "description": "Tindakan yang telah dilakukan watchdog, terbaru dulu.",
+      "tier4Reboot": "Watchdog me-restart modem",
       "type": {
         "recovery": "Pemulihan",
         "failover": "Failover SIM"

@@ -8,13 +8,13 @@ import { authFetch } from "@/lib/auth-fetch";
 // =============================================================================
 // Backend: GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh
 //
-// GET returns { success: true, settings: { target_host_1, target_host_2,
-// target_ip_1, target_ip_2, ... } }. The endpoint may still echo a `profile`
-// label — we ignore it. Probe timing (cadence + failure threshold) is owned by
-// the Connection Watchdog, so this hook is targets-only.
+// GET returns { success: true, settings: { profile, interval_override,
+// target_host_1, target_host_2, target_ip_1, target_ip_2, ... } }. The profile
+// picks the debounce windows; `interval_override` is the cadence the Connection
+// Watchdog owns, and it shadows the profile's own cadence.
 //
-// POST { action: "save_settings", <the four slots> } writes the file and pokes
-// /tmp/qmanager_ping_reload; the daemon reloads its chain on the next cycle.
+// POST { action: "save_settings", profile, <the four slots> } writes the file and
+// pokes /tmp/qmanager_ping_reload; the daemon reloads on the next cycle.
 //
 // --- Why four slots, in this order -------------------------------------------
 // The daemon walks the chain in a fixed order and SHORT-CIRCUITS on the first
@@ -31,7 +31,11 @@ import { authFetch } from "@/lib/auth-fetch";
 
 const ENDPOINT = "/cgi-bin/quecmanager/settings/ping_profile.sh";
 
+export const PING_PROFILES = ["sensitive", "regular", "relaxed", "quiet"] as const;
+export type PingProfile = (typeof PING_PROFILES)[number];
+
 export interface PingProfileTargets {
+  profile: PingProfile;
   target_host_1: string;
   target_host_2: string;
   target_ip_1: string;
@@ -40,7 +44,10 @@ export interface PingProfileTargets {
 
 interface PingProfileResponse {
   success: boolean;
-  settings?: Partial<PingProfileTargets> & { profile?: string };
+  settings?: Partial<Omit<PingProfileTargets, "profile">> & {
+    profile?: string;
+    interval_override?: number | null;
+  };
   error?: string;
   detail?: string;
 }
@@ -48,11 +55,16 @@ interface PingProfileResponse {
 export interface UsePingProfileReturn {
   /** The four saved slots, or undefined until the first GET resolves. */
   targets: PingProfileTargets | undefined;
+  /** The Watchdog's stored cadence in seconds, or null when the profile's own applies. */
+  intervalOverride: number | null;
   isLoading: boolean;
   error: string | null;
   isSaving: boolean;
   saveError: string | null;
   save: (settings: PingProfileTargets) => Promise<PingProfileResponse>;
+  isClearing: boolean;
+  /** Drops the Watchdog's stored cadence so the profile's own applies. Throws on failure. */
+  clearInterval: () => Promise<void>;
   /** Re-runs the GET non-silently — the Retry affordance for the error state. */
   refresh: () => Promise<void>;
 }
@@ -63,10 +75,12 @@ export function usePingProfile(): UsePingProfileReturn {
   const [targets, setTargets] = useState<PingProfileTargets | undefined>(
     undefined,
   );
+  const [intervalOverride, setIntervalOverride] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
 
   const mountedRef = useRef(true);
 
@@ -97,7 +111,11 @@ export function usePingProfile(): UsePingProfileReturn {
       // an empty string renders as an empty field the user must fill, which is
       // the honest reading of a slot the backend could not supply.
       const s = json.settings;
+      setIntervalOverride(
+        typeof s.interval_override === "number" ? s.interval_override : null,
+      );
       setTargets({
+        profile: PING_PROFILES.find((p) => p === s.profile) ?? "relaxed",
         target_host_1: s.target_host_1 ?? "",
         target_host_2: s.target_host_2 ?? "",
         target_ip_1: s.target_ip_1 ?? "",
@@ -129,6 +147,7 @@ export function usePingProfile(): UsePingProfileReturn {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "save_settings",
+            profile: settings.profile,
             target_host_1: settings.target_host_1,
             target_host_2: settings.target_host_2,
             target_ip_1: settings.target_ip_1,
@@ -158,13 +177,35 @@ export function usePingProfile(): UsePingProfileReturn {
     [fetchProfile],
   );
 
+  const clearInterval = useCallback(async (): Promise<void> => {
+    setIsClearing(true);
+    try {
+      const resp = await authFetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear_interval" }),
+      });
+      const json: PingProfileResponse = await resp.json();
+      if (!json.success) {
+        throw new Error(json.detail ?? json.error ?? "Clear failed");
+      }
+      if (mountedRef.current) setIntervalOverride(null);
+      await fetchProfile(true);
+    } finally {
+      if (mountedRef.current) setIsClearing(false);
+    }
+  }, [fetchProfile]);
+
   return {
     targets,
+    intervalOverride,
     isLoading,
     error,
     isSaving,
     saveError,
     save,
+    isClearing,
+    clearInterval,
     refresh,
   };
 }

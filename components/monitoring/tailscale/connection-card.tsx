@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  CheckIcon,
   ExternalLinkIcon,
   Loader2Icon,
   LogInIcon,
@@ -30,8 +31,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { Tag } from "@/components/ui/tag";
+import { SEGMENTED, SegmentedField } from "@/components/ui/segmented-field";
 import {
   Tooltip,
   TooltipContent,
@@ -45,12 +45,10 @@ import {
   CARD_BODY,
   CARD_DESC,
   CARD_HEAD,
-  CARD_HEAD_ACTIONS,
   CARD_HEAD_TEXT,
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
-  HEAD_TAG,
   LIVE_DOT,
   NOTICE,
   NOTICE_BODY,
@@ -75,6 +73,7 @@ export interface ConnectionCardProps {
   isDisconnecting: boolean;
   isTogglingService: boolean;
   isTogglingSsh: boolean;
+  isUpdating: boolean;
   connect: () => Promise<boolean>;
   disconnect: () => Promise<boolean>;
   logout: () => Promise<boolean>;
@@ -84,9 +83,14 @@ export interface ConnectionCardProps {
   setSshEnabled: (enabled: boolean) => Promise<boolean>;
 }
 
-/** A setting's tonal tile: rest is a surface container, on is a primary one. */
+/** The lucide check that SegmentedField reserves on every segment. */
+const renderCheckGlyph = (className: string) => (
+  <CheckIcon size={SEGMENTED.GLYPH} className={className} aria-hidden="true" />
+);
+
+/** A setting's tonal tile: rest is a surface container, on is a primary one.
+ *  The control is an On/Off pill group, never a bare switch. */
 function SettingRow({
-  id,
   title,
   description,
   note,
@@ -95,16 +99,16 @@ function SettingRow({
   onCheckedChange,
   control,
 }: {
-  id: string;
   title: string;
   description: string;
   note?: string;
   checked: boolean;
   disabled?: boolean;
   onCheckedChange: (value: boolean) => void;
-  /** Replaces the switch when it needs a hoverable wrapper for a tooltip. */
+  /** Replaces the pill when it needs a hoverable wrapper for a tooltip. */
   control?: React.ReactNode;
 }) {
+  const { t } = useTranslation("common");
   return (
     <div
       className={cn(
@@ -114,19 +118,22 @@ function SettingRow({
       )}
     >
       <div className={SWITCH_ROW.TEXT}>
-        <label htmlFor={id} className={cn(SWITCH_ROW.TITLE, "block")}>
-          {title}
-        </label>
+        <p className={SWITCH_ROW.TITLE}>{title}</p>
         <p className={SWITCH_ROW.DESC}>{description}</p>
         {note ? <p className={SWITCH_ROW.NOTE}>{note}</p> : null}
       </div>
       {control ?? (
-        <Switch
-          id={id}
-          checked={checked}
+        <SegmentedField
+          value={checked ? "on" : "off"}
+          onValueChange={(next) => onCheckedChange(next === "on")}
+          ariaLabel={title}
           disabled={disabled}
-          onCheckedChange={onCheckedChange}
-          className={SWITCH_ROW.CONTROL}
+          breakpoint="never"
+          glyph={renderCheckGlyph}
+          options={[
+            { value: "off", label: t("tailscale.connection.off") },
+            { value: "on", label: t("tailscale.connection.on") },
+          ]}
         />
       )}
     </div>
@@ -140,6 +147,7 @@ export function ConnectionCard({
   isDisconnecting,
   isTogglingService,
   isTogglingSsh,
+  isUpdating,
   connect,
   disconnect,
   logout,
@@ -151,7 +159,8 @@ export function ConnectionCard({
   const { t } = useTranslation("common");
   const [showSshDialog, setShowSshDialog] = React.useState(false);
 
-  const version = status.version;
+  // An update swaps the binary under the running tunnel, so every action waits.
+  const updating = isUpdating || status.busy === "update";
   const daemonRunning = status.daemon_running ?? false;
   const backendState = status.backend_state ?? "";
   const bootEnabled = status.enabled_on_boot ?? false;
@@ -217,7 +226,7 @@ export function ConnectionCard({
         <Button
           type="button"
           variant="destructive"
-          disabled={isDisconnecting}
+          disabled={isDisconnecting || updating}
           size="action"
         >
           {t("tailscale.connection.logout")}
@@ -261,7 +270,7 @@ export function ConnectionCard({
       <Button
         type="button"
         size="action"
-        disabled={isTogglingService}
+        disabled={isTogglingService || updating}
         onClick={() =>
           run(
             startService,
@@ -283,7 +292,7 @@ export function ConnectionCard({
           <Button
             type="button"
             size="action"
-            disabled={isConnecting}
+            disabled={isConnecting || updating}
             onClick={() =>
               run(
                 connect,
@@ -303,7 +312,7 @@ export function ConnectionCard({
           variant="ghost"
           size="action"
           className={PILL_REST}
-          disabled={isTogglingService}
+          disabled={isTogglingService || updating}
           onClick={() =>
             run(
               stopService,
@@ -327,7 +336,7 @@ export function ConnectionCard({
           variant="ghost"
           size="action"
           className={PILL_REST}
-          disabled={isDisconnecting}
+          disabled={isDisconnecting || updating}
           onClick={() =>
             run(
               disconnect,
@@ -350,7 +359,7 @@ export function ConnectionCard({
         <Button
           type="button"
           size="action"
-          disabled={isConnecting}
+          disabled={isConnecting || updating}
           onClick={() =>
             run(
               connect,
@@ -380,13 +389,6 @@ export function ConnectionCard({
             {t("tailscale.connection.description")}
           </CardDescription>
         </div>
-        {version ? (
-          <div className={CARD_HEAD_ACTIONS}>
-            <Tag variant="neutral" className={HEAD_TAG}>
-              {t("tailscale.connection.version", { version })}
-            </Tag>
-          </div>
-        ) : null}
       </CardHeader>
 
       {/* No card-level `aria-live`: the health notice and the auth condition
@@ -423,15 +425,14 @@ export function ConnectionCard({
         ) : null}
 
         <SettingRow
-          id="tailscale-boot"
           title={t("tailscale.connection.bootTitle")}
           description={t("tailscale.connection.bootDescription")}
           checked={bootEnabled}
           onCheckedChange={handleBoot}
+          disabled={updating}
         />
 
         <SettingRow
-          id="tailscale-ssh"
           title={t("tailscale.connection.sshTitle")}
           description={t("tailscale.connection.sshDescription")}
           note={sshPending ? t("tailscale.connection.sshPending") : undefined}
@@ -441,7 +442,7 @@ export function ConnectionCard({
             sshLocked && !isTogglingSsh ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* The Switch is disabled, so the tooltip needs its own
+                  {/* The pill is disabled, so the tooltip needs its own
                       target — a real tab stop, so it carries a name and a ring. */}
                   <span
                     tabIndex={0}
@@ -450,11 +451,17 @@ export function ConnectionCard({
                     aria-label={t("tailscale.connection.sshTitle")}
                     className={SWITCH_ROW.CONTROL_WRAP}
                   >
-                    <Switch
-                      id="tailscale-ssh"
-                      checked={sshEnabled}
-                      onCheckedChange={handleSsh}
+                    <SegmentedField
+                      value={sshEnabled ? "on" : "off"}
+                      onValueChange={() => {}}
+                      ariaLabel={t("tailscale.connection.sshTitle")}
                       disabled
+                      breakpoint="never"
+                      glyph={renderCheckGlyph}
+                      options={[
+                        { value: "off", label: t("tailscale.connection.off") },
+                        { value: "on", label: t("tailscale.connection.on") },
+                      ]}
                     />
                   </span>
                 </TooltipTrigger>
@@ -464,7 +471,7 @@ export function ConnectionCard({
               </Tooltip>
             ) : undefined
           }
-          disabled={isTogglingSsh}
+          disabled={isTogglingSsh || updating}
         />
 
         <div className={RAIL}>{rail}</div>

@@ -1414,16 +1414,21 @@ poll_serving_cell() {
 # Three AT commands (~200ms each = ~600ms total modem lock per cycle).
 # Writes latest values to state vars AND appends to NDJSON history file.
 
+# True when this cycle's serving-cell read found an attached radio; the
+# per-antenna, TA and MIMO reads all return ERROR while it is detached.
+radio_attached() {
+    [ "$lte_state" = "connected" ] || [ "$nr_state" = "connected" ]
+}
+
 poll_per_antenna_signal() {
     # Compound AT: fetch all per-antenna signal data in one call
-    local result
-    result=$(qcmd 'AT+QRSRP;+QRSRQ;+QSINR' 2>/dev/null)
+    local result=""
+    radio_attached && result=$(qcmd 'AT+QRSRP;+QRSRQ;+QSINR' 2>/dev/null)
 
-    if [ -n "$result" ]; then
-        parse_qrsrp "$result"
-        parse_qrsrq "$result"
-        parse_qsinr "$result"
-    fi
+    # An empty result parses to null arrays, so a failed read is not shown as the last reading.
+    parse_qrsrp "$result"
+    parse_qrsrq "$result"
+    parse_qsinr "$result"
 
     # Append to signal history
     append_signal_history
@@ -1550,14 +1555,16 @@ poll_tier2() {
     if [ "$network_type" = "5G-SA" ]; then
         nr_cmd="${nr_cmd}"';+QNWCFG="nr5g_mimo_layers"'
     fi
-    result=$(qcmd "$nr_cmd" 2>/dev/null)
+    # Groups 2 and 3 are skipped while no radio is attached (network_type is stale then).
+    result=""
+    radio_attached && result=$(qcmd "$nr_cmd" 2>/dev/null)
     if [ -n "$result" ]; then
         parse_time_advance "$result"
         parse_mimo "" "$result"
     else
         nr_ta=""
     fi
-    sleep "$SIP_DELAY"
+    radio_attached && sleep "$SIP_DELAY"
 
     # --- Group 3: LTE timing + MIMO ---
     # lte_mimo_layers is valid in LTE and NSA (crashes/errors in SA)
@@ -1565,7 +1572,8 @@ poll_tier2() {
     if [ "$network_type" = "LTE" ] || [ "$network_type" = "5G-NSA" ]; then
         lte_cmd="${lte_cmd}"';+QNWCFG="lte_mimo_layers"'
     fi
-    result=$(qcmd "$lte_cmd" 2>/dev/null)
+    result=""
+    radio_attached && result=$(qcmd "$lte_cmd" 2>/dev/null)
     if [ -n "$result" ]; then
         parse_time_advance "$result"
         parse_mimo "$result" ""

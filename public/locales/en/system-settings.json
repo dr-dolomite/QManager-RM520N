@@ -431,6 +431,7 @@
       "unsaved": "Unsaved",
       "save": "Save Probe Targets",
       "save_failed": "Couldn't save the probe targets",
+      "cadence_clear_failed": "Couldn't reset the probe interval",
       "leg": {
         "host_1": "Hostname leg 1",
         "host_2": "Hostname leg 2",
@@ -448,7 +449,8 @@
         "action": "Restore defaults"
       },
       "toast": {
-        "saved": "Probe targets saved"
+        "saved": "Probe targets saved",
+        "cadence_cleared": "Probe interval now follows the profile"
       },
       "validation": {
         "empty": "Enter a target.",
@@ -467,15 +469,24 @@
       },
       "group": {
         "hostnames": "Hostnames",
-        "fallback": "IPv4 fallback"
+        "fallback": "IPv4 fallback",
+        "sensitivity": "Sensitivity"
       },
       "fallback_hint": "No DNS needed, so a resolver fault is not read as an outage.",
       "fallback_hint_label": "About IPv4 fallback",
       "interval": {
         "label": "Probe interval",
-        "value": "Every {{seconds}} s"
+        "value": "Every {{seconds}} s",
+        "override": "Every {{seconds}} s (Watchdog)",
+        "use_profile": "Use profile cadence"
       },
-      "failed": "Couldn't save"
+      "failed": "Couldn't save",
+      "profile": {
+        "sensitive": "Sensitive",
+        "regular": "Regular",
+        "relaxed": "Relaxed",
+        "quiet": "Quiet"
+      }
     },
     "thresholds": {
       "title": "Quality Thresholds",
@@ -489,7 +500,8 @@
       "preset": {
         "standard": "Standard",
         "tolerant": "Tolerant",
-        "very_tolerant": "Very tolerant"
+        "very_tolerant": "Very tolerant",
+        "custom": "Custom"
       },
       "unsaved": "Unsaved",
       "save": "Save Thresholds",
@@ -504,13 +516,15 @@
       },
       "row": {
         "flags": "Flags after",
-        "now": "Right now"
+        "now": "Right now",
+        "limit": "Limit"
       },
       "flags": {
         "latency_one": "{{count}} sample over {{ms}} ms",
         "latency_other": "{{count}} samples over {{ms}} ms",
         "loss_one": "{{count}} sample at {{pct}}% or more",
-        "loss_other": "{{count}} samples at {{pct}}% or more"
+        "loss_other": "{{count}} samples at {{pct}}% or more",
+        "pending": "Enter a limit"
       },
       "now": {
         "latency": "{{ms}} ms",
@@ -521,7 +535,14 @@
         "over_loss": "Over the {{pct}}% limit"
       },
       "default_chip": "Built-in defaults",
-      "failed": "Couldn't save"
+      "failed": "Couldn't save",
+      "unit": {
+        "latency": "ms",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "Enter a whole number from {{min}} to {{max}}."
+      }
     }
   },
   "software_update": {

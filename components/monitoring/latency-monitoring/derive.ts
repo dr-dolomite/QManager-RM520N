@@ -95,7 +95,31 @@ export interface LastAnswer {
   ms: number;
 }
 
-/** Newest answered probe in the archived history, when there is one. */
+export type SpanUnit = "s" | "min" | "h" | "d";
+
+export interface SpanPart {
+  value: number;
+  unit: SpanUnit;
+}
+
+/** An outage length as at most two figures: 45 s, 14 min, 2 h 5 min, 1 d 3 h. */
+export function spanParts(sec: number): SpanPart[] {
+  if (!Number.isFinite(sec)) return [];
+  const s = Math.max(0, Math.floor(sec));
+  if (s < 60) return [{ value: s, unit: "s" }];
+  const min = Math.floor(s / 60);
+  if (min < 60) return [{ value: min, unit: "min" }];
+  const h = Math.floor(min / 60);
+  if (h < 24) {
+    const rest = min % 60;
+    return rest ? [{ value: h, unit: "h" }, { value: rest, unit: "min" }] : [{ value: h, unit: "h" }];
+  }
+  const d = Math.floor(h / 24);
+  const rest = h % 24;
+  return rest ? [{ value: d, unit: "d" }, { value: rest, unit: "h" }] : [{ value: d, unit: "d" }];
+}
+
+/** Newest answered probe in the archive: a real timestamp, unlike the ring's slot count. */
 export function lastAnswer(entries: PingHistoryEntry[]): LastAnswer | null {
   for (let i = entries.length - 1; i >= 0; i--) {
     const lat = entries[i].lat;

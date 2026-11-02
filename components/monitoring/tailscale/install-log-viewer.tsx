@@ -9,10 +9,17 @@ import { LOG_PANEL } from "./shapes";
 interface InstallLogViewerProps {
   log: string;
   isRunning: boolean;
+  /** Overrides the default "Install log" heading (an update has its own). */
+  title?: string;
 }
 
-export function InstallLogViewer({ log, isRunning }: InstallLogViewerProps) {
+export function InstallLogViewer({
+  log,
+  isRunning,
+  title,
+}: InstallLogViewerProps) {
   const { t } = useTranslation("common");
+  const heading = title ?? t("tailscale.install.logTitle");
   const preRef = useRef<HTMLPreElement>(null);
 
   // The transcript is read from the bottom while it grows.
@@ -26,7 +33,7 @@ export function InstallLogViewer({ log, isRunning }: InstallLogViewerProps) {
   return (
     <div className={LOG_PANEL.ROOT}>
       <div className={LOG_PANEL.HEAD}>
-        <span className={LOG_PANEL.TITLE}>{t("tailscale.install.logTitle")}</span>
+        <span className={LOG_PANEL.TITLE}>{heading}</span>
         {isRunning ? (
           <Loader2Icon
             className={`${LOG_PANEL.GLYPH} motion-safe:animate-spin`}
@@ -40,7 +47,7 @@ export function InstallLogViewer({ log, isRunning }: InstallLogViewerProps) {
         ref={preRef}
         tabIndex={0}
         role="region"
-        aria-label={t("tailscale.install.logTitle")}
+        aria-label={heading}
         aria-live="polite"
         aria-relevant="additions"
         className={LOG_PANEL.BODY}

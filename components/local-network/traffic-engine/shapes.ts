@@ -152,8 +152,6 @@ export const LIVE = {
   LEGEND: "text-on-surface-variant inline-flex items-center gap-[0.4375rem] text-xs font-medium",
   LEGEND_DOT: "size-2 flex-none rounded-pill bg-foreground",
   NUMERAL: "flex items-baseline gap-1.5 tabular-nums",
-  ARROW:
-    "text-foreground size-5 self-center transition-opacity duration-[var(--duration-standard)] ease-standard",
   /** 40px line box: the skeleton reads the same height. */
   RATE: "text-[2.5rem] leading-10 font-semibold tracking-[-0.02em] transition-[color] duration-[var(--duration-standard)] ease-standard",
   RATE_ON: "text-foreground",

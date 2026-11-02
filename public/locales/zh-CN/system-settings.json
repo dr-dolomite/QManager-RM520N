@@ -431,6 +431,7 @@
       "unsaved": "未保存",
       "save": "保存探测目标",
       "save_failed": "无法保存探测目标",
+      "cadence_clear_failed": "无法重置探测间隔",
       "leg": {
         "host_1": "主机名目标 1",
         "host_2": "主机名目标 2",
@@ -448,7 +449,8 @@
         "action": "恢复默认值"
       },
       "toast": {
-        "saved": "探测目标已保存"
+        "saved": "探测目标已保存",
+        "cadence_cleared": "探测间隔已改为跟随灵敏度设置"
       },
       "validation": {
         "empty": "请输入一个目标。",
@@ -467,15 +469,24 @@
       },
       "group": {
         "hostnames": "主机名",
-        "fallback": "IPv4 备用"
+        "fallback": "IPv4 备用",
+        "sensitivity": "灵敏度"
       },
       "fallback_hint": "无需 DNS，因此解析器故障不会被误判为断网。",
       "fallback_hint_label": "关于 IPv4 备用",
       "interval": {
         "label": "探测间隔",
-        "value": "每 {{seconds}} 秒"
+        "value": "每 {{seconds}} 秒",
+        "override": "每 {{seconds}} 秒（看门狗）",
+        "use_profile": "使用灵敏度默认间隔"
       },
-      "failed": "保存失败"
+      "failed": "保存失败",
+      "profile": {
+        "sensitive": "灵敏",
+        "regular": "常规",
+        "relaxed": "宽松",
+        "quiet": "安静"
+      }
     },
     "thresholds": {
       "title": "质量阈值",
@@ -489,7 +500,8 @@
       "preset": {
         "standard": "标准",
         "tolerant": "宽松",
-        "very_tolerant": "非常宽松"
+        "very_tolerant": "非常宽松",
+        "custom": "自定义"
       },
       "unsaved": "未保存",
       "save": "保存阈值",
@@ -504,13 +516,15 @@
       },
       "row": {
         "flags": "触发条件",
-        "now": "当前"
+        "now": "当前",
+        "limit": "阈值"
       },
       "flags": {
         "latency_one": "{{count}} 个样本超过 {{ms}} 毫秒",
         "latency_other": "{{count}} 个样本超过 {{ms}} 毫秒",
         "loss_one": "{{count}} 个样本达到 {{pct}}% 或以上",
-        "loss_other": "{{count}} 个样本达到 {{pct}}% 或以上"
+        "loss_other": "{{count}} 个样本达到 {{pct}}% 或以上",
+        "pending": "请输入阈值"
       },
       "now": {
         "latency": "{{ms}} 毫秒",
@@ -521,7 +535,14 @@
         "over_loss": "超出 {{pct}}% 阈值"
       },
       "default_chip": "内置默认值",
-      "failed": "保存失败"
+      "failed": "保存失败",
+      "unit": {
+        "latency": "毫秒",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "请输入 {{min}} 到 {{max}} 之间的整数。"
+      }
     }
   },
   "software_update": {

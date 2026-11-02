@@ -426,8 +426,8 @@ export function HostnamesView({ hostlist, draft }: HostnamesViewProps) {
               saved={draft.saved}
               disabled={!draft.dirty || draft.invalid || hostlist.isRestoring}
               onClick={() => void draft.save()}
-              label={t("actions.save", { ns: "common" })}
-              savingLabel={t("traffic_engine.saving")}
+              label={t("actions.apply", { ns: "common" })}
+              savingLabel={t("traffic_engine.applying")}
             />
           </>
         }

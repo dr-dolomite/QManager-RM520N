@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ArrowUpIcon,
   CheckCircle2Icon,
   CheckIcon,
   Loader2,
@@ -316,10 +315,6 @@ export function EngineCard({
                   {t("traffic_engine.live_legend")}
                 </span>
                 <span className={LIVE.NUMERAL}>
-                  <ArrowUpIcon
-                    className={cn(LIVE.ARROW, running ? "opacity-100" : "opacity-0")}
-                    aria-hidden="true"
-                  />
                   <span className={cn(LIVE.RATE, running ? LIVE.RATE_ON : LIVE.RATE_OFF)}>{rate}</span>
                   <span className={LIVE.UNIT}>{t("traffic_engine.hero_rate_unit")}</span>
                 </span>

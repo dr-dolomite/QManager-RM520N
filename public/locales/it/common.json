@@ -893,7 +893,6 @@
     "connection": {
       "title": "Connessione",
       "description": "Se questo modem si unisce alla tailnet, e come si comporta una volta fatto.",
-      "version": "v{{version}}",
       "connect": "Connetti",
       "connecting": "Connessione…",
       "disconnect": "Disconnetti",
@@ -917,7 +916,15 @@
       "sshLocked": "Connettiti a Tailscale per cambiare questa impostazione.",
       "sshDialogTitle": "Attivare Tailscale SSH?",
       "sshDialogDescription": "I membri della tailnet potranno collegarsi via SSH a questo modem in base alle ACL del tuo pannello admin Tailscale. Controlla prima quella policy, così solo le persone che intendi possono raggiungere il dispositivo.",
-      "sshConfirm": "Attiva SSH"
+      "sshConfirm": "Attiva SSH",
+      "on": "Attivo",
+      "off": "Spento",
+      "updating": "Aggiornamento…",
+      "updateAvailable": "Aggiornamento disponibile ({{version}})",
+      "updateDialogTitle": "Aggiornare Tailscale alla versione {{version}}?",
+      "updateDialogDescription": "Il tunnel si riconnette per qualche secondo mentre si avvia la nuova versione.",
+      "update": "Aggiorna",
+      "updateLogTitle": "Registro dell'aggiornamento"
     },
     "device": {
       "title": "Questo dispositivo",
@@ -930,7 +937,8 @@
       "magicDns": "MagicDNS",
       "relay": "Relay DERP",
       "emptyTitle": "Non sulla tailnet",
-      "emptyDescription": "Connetti Tailscale e qui compariranno l'indirizzo, il nome DNS e il relay di questo modem."
+      "emptyDescription": "Connetti Tailscale e qui compariranno l'indirizzo, il nome DNS e il relay di questo modem.",
+      "version": "Versione"
     },
     "peers": {
       "title": "Peer di rete",
@@ -1009,7 +1017,11 @@
       "uninstalled": "Tailscale disinstallato",
       "uninstallFailed": "Impossibile disinstallare Tailscale",
       "copied": "Comando copiato",
-      "copyFailed": "Impossibile copiare il comando"
+      "copyFailed": "Impossibile copiare il comando",
+      "installed": "Tailscale installato",
+      "installFailed": "L'installazione di Tailscale non è stata completata",
+      "updated": "Tailscale aggiornato alla versione {{version}}",
+      "updateFailed": "Impossibile aggiornare Tailscale"
     }
   },
   "watchdog": {
@@ -1090,6 +1102,7 @@
       "aria": "Sequenza di ripristino",
       "status": {
         "blocked": "Serve uno slot",
+        "done": "Provato",
         "running": "In esecuzione"
       },
       "tier1": {
@@ -1149,6 +1162,7 @@
     "activity": {
       "title": "Attività di ripristino",
       "description": "Le azioni svolte dal watchdog, dalla più recente.",
+      "tier4Reboot": "Il watchdog ha riavviato il modem",
       "type": {
         "recovery": "Ripristino",
         "failover": "Failover SIM"

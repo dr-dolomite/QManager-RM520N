@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
 import {
   Card,
@@ -27,7 +27,9 @@ import { useEventsCopy, useEventsPlural, useSpanText } from "./copy";
 import { bucketEvents, describeWindow } from "./derive";
 import {
   ACTIVITY,
+  ACTIVITY_BAR,
   ACTIVITY_SERIES_COLOR,
+  ACTIVITY_STACK,
   CARD_DESC,
   CARD_DESC_LINE,
   CARD_FILL,
@@ -81,14 +83,22 @@ export function ActivityCard({
 
   const chartData = React.useMemo(
     () =>
-      buckets.columns.map((column) => ({
-        endSec: column.endSec,
-        startSec: column.startSec,
-        total: column.total,
-        problems: column.counts.error + column.counts.warning,
-        recoveries: column.counts.success,
-        routine: column.counts.routine,
-      })),
+      buckets.columns.map((column) => {
+        const counts = {
+          problems: column.counts.error + column.counts.warning,
+          routine: column.counts.routine,
+          recoveries: column.counts.success,
+        };
+        // The data end is whichever segment is drawn last in this column.
+        const top = [...ACTIVITY_STACK].reverse().find((k) => counts[k] > 0);
+        return {
+          endSec: column.endSec,
+          startSec: column.startSec,
+          total: column.total,
+          top,
+          ...counts,
+        };
+      }),
     [buckets],
   );
 
@@ -182,26 +192,29 @@ export function ActivityCard({
                   }
                 />
                 <ChartLegend content={<ChartLegendContent />} />
-                <Bar
-                  dataKey="problems"
-                  stackId="events"
-                  fill="var(--color-problems)"
-                  radius={[0, 0, 4, 4]}
-                  {...seriesMotion}
-                />
-                <Bar
-                  dataKey="recoveries"
-                  stackId="events"
-                  fill="var(--color-recoveries)"
-                  {...seriesMotion}
-                />
-                <Bar
-                  dataKey="routine"
-                  stackId="events"
-                  fill="var(--color-routine)"
-                  radius={[4, 4, 0, 0]}
-                  {...seriesMotion}
-                />
+                {ACTIVITY_STACK.map((key) => (
+                  <Bar
+                    key={key}
+                    dataKey={key}
+                    stackId="events"
+                    fill={`var(--color-${key})`}
+                    stroke="var(--card)"
+                    strokeWidth={ACTIVITY_BAR.GAP}
+                    {...seriesMotion}
+                  >
+                    {chartData.map((row) => (
+                      <Cell
+                        key={row.endSec}
+                        // Rounded at the data end only; the baseline stays square.
+                        radius={
+                          (row.top === key
+                            ? [ACTIVITY_BAR.RADIUS, ACTIVITY_BAR.RADIUS, 0, 0]
+                            : 0) as unknown as number
+                        }
+                      />
+                    ))}
+                  </Bar>
+                ))}
               </BarChart>
             </ChartContainer>
           </div>

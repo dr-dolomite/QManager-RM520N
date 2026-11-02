@@ -907,7 +907,7 @@ _spawn_band_failover_if_needed() {
     if [ -f "$FAILOVER_PID_FILE" ]; then
         local _bf_old_pid
         _bf_old_pid=$(cat "$FAILOVER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
-        if pid_alive "$_bf_old_pid"; then
+        if pid_is "$_bf_old_pid" qmanager_band_failover; then
             kill "$_bf_old_pid" 2>/dev/null
             qlog_debug "Killed previous failover watcher (PID=$_bf_old_pid)"
         fi

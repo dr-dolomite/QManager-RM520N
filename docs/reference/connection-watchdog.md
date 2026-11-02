@@ -186,6 +186,8 @@ The cadence belongs to Connection Quality: `interval_sec` in `/etc/qmanager/ping
 - **POST** `probe_interval` is validated (1–60) and written to `ping_profile.json` `.interval_sec` **only when it differs** from the current effective value, with `/tmp/qmanager_ping_reload` touched. The page sends `probe_interval` with every per-card save, so this check is what keeps a Ladder-card save from rewriting the cadence.
 - The write is an atomic key-merge that sets `.interval_sec` alone, guarded by `jq -e 'type == "object"'` (fallback `{}`) and a `[ -s tmp ]` promote check. It is best-effort: a failure logs and the save still succeeds.
 
+The saved cadence is never removed by this page: Connection Quality's Probe Targets card has a **Use profile cadence** button that clears it ([connection-quality.md](connection-quality.md#config-and-live-reload)), after which the Detection card shows the profile's cadence again.
+
 `[watchcat].probe_interval` is never written or read by the CGI or the daemon. The installer's `migrate_watchcat_fail_threshold` and the `config.sh` seed still create it with value 5; it is inert. `propagate_probe_interval()` is gone.
 
 > ⚠️ WARNING — `jq -e .` is the **wrong** predicate for the object guard: `-e` tests output truthiness, so it passes `5`/`"str"`/`[1,2]` (unmergeable) and rejects `null`/`false` (parseable). `settings/ping_profile.sh` carries the identical guard — rationale and rc matrix in [connection-quality.md → Corrupt-config guard](connection-quality.md#corrupt-config-guard). Change one writer's guard and you must change both.
@@ -310,7 +312,7 @@ out of the worker's 120 s staleness ceiling during a long cooldown.
 
 ### `GET` — settings + live status
 
-Returns the saved config plus a snapshot of daemon/failover/swap state:
+Returns the saved config plus a snapshot of daemon/failover/swap state, and `recent_reboots` (up to 5 epoch ints, newest first, read from `crash.log` rows `<epoch>|reboot|tier4_escalation` only; scheduled/user reboots and 1970 epochs are excluded). The Recovery Activity card draws one row per entry the event ring no longer holds:
 
 ```json
 {
@@ -345,7 +347,7 @@ Returns the saved config plus a snapshot of daemon/failover/swap state:
    { "success": false, "error": "invalid_field", "field": "cooldown", "reason": "must be an integer between 10 and 300" }
    ```
 
-2. **Pass 2 (apply):** only reached when every field validated. First runs the defensive `migrate_fail_threshold()` (in case this device hasn't been touched by the installer migration yet), then writes each key via `qm_config_set`, touches the reload flag, and toggles the service — enable+restart when `enabled=1` (also clearing `auto_disabled`), or stop+disable when `enabled=0`. A `probe_interval` that differs from the current cadence is written to `ping_profile.json.interval_sec` (see below).
+2. **Pass 2 (apply):** only reached when every field validated. First runs the defensive `migrate_fail_threshold()` (in case this device hasn't been touched by the installer migration yet), then writes each key via `qm_config_set`, touches the reload flag, and toggles the service — enable and, when `enabled=1`, start only if down or hung (also clearing `auto_disabled`; a live daemon reloads from the flag, a restart would drop its recovery state; hung = state file `mono` older than `stale_after` by uptime, `watchcat_state_stale`), or stop+disable when `enabled=0`. A `probe_interval` that differs from the current cadence is written to `ping_profile.json.interval_sec` (see below).
 
    ```json
    { "success": true }
@@ -391,7 +393,7 @@ RecoveryActivityCard   full width: the newest 5 rows + an "All events" link to /
 `derive.ts` resolves one total, ordered union: `auto_disabled` → `off` → `unknown` → the live `watchcat.state` → `starting` → `not_running`. A standing config fact outranks a live reading, and not knowing outranks guessing. `auto_disabled` is carried by the status card alone (`bad` disc, its own glyph and blurb); there is no separate banner.
 
 - **`starting` / `not_running`** guard against a dead service sitting behind "Starting" forever. The grace window is **60s** (`GRACE_MS`), anchored on the poll's own `receivedAtMs` and re-anchored when the saved master switch flips. It is 60 and not 30 because the poller refreshes the watchcat block on its Tier-1.5 branch (`TIER1_5_EVERY=5`) at a ~3.7-4.0s cycle — so that block is ~20s stale by construction, and a save additionally backgrounds the unit restart.
-- ⚠️ **`not_running` means "has not reported since boot", not "died".** What the page detects is the poller's absent-file path, which resets the block (`enabled=false, state="disabled"`, counters 0). Since T6.1 the poller also publishes `watchcat.age_sec` and `watchcat.stale_after` (uptime-based heartbeat, `adaptive-polling.md`); `derive.ts` does not read them yet, so `age_sec > stale_after` is the stronger "died" signal still to wire.
+- ⚠️ **`not_running` means "has not reported since boot", not "died".** What the page detects is the poller's absent-file path, which resets the block (`enabled=false, state="disabled"`, counters 0). Since T6.1 the poller also publishes `watchcat.age_sec` and `watchcat.stale_after` (uptime-based heartbeat, `adaptive-polling.md`); `derive.ts` `isWatchcatLive` reads them: `age_sec > stale_after` on an enabled block is `not_running` with no grace, and `use-watchdog-indicator.ts` drops its "acting" pill the same way. Absent fields count as live.
 - **`unknown` does not key on `isStale` alone.** `useModemStatus` computes staleness by subtracting the modem's clock from the browser's, and this platform has no battery RTC — without a registered SIM the modem sits at Jan 1970 forever, which would pin the page at `unknown` permanently. The modem clock is admitted as evidence only past a plausibility floor (`CLOCK_PLAUSIBLE_AFTER`); an unreachable read is the clock-independent signal underneath it.
 - **`locked` is a maintenance hold** (`check_locked()` — the lock file, a trusted `/run/qmanager_at/long_running`, or a live profile-apply pid). The reboot limit is `auto_disabled`. Older copy had the two swapped.
 

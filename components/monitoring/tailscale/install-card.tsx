@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ import {
   NOTICE_TONE,
   PILL_REST,
   RAIL,
+  SKELETON,
 } from "./shapes";
 
 // -----------------------------------------------------------------------------
@@ -49,7 +51,6 @@ import {
 export interface InstallResultShape {
   status: "idle" | "running" | "complete" | "error";
   message?: string;
-  detail?: string;
   log?: string;
 }
 
@@ -99,6 +100,23 @@ export function InstallCard({
   const { t } = useTranslation("common");
   const running = installResult.status === "running";
   const command = installHint || "sudo qmanager_tailscale_mgr install";
+
+  // One toast per finished install, fired when a run we watched ends. A result
+  // that was already terminal on mount never toasts.
+  const prevStatus = React.useRef(installResult.status);
+  React.useEffect(() => {
+    const prev = prevStatus.current;
+    prevStatus.current = installResult.status;
+    if (prev !== "running") return;
+    if (installResult.status === "complete") {
+      toast.success(t("tailscale.toast.installed"), { id: "tailscale-install" });
+    } else if (installResult.status === "error") {
+      toast.error(t("tailscale.toast.installFailed"), {
+        id: "tailscale-install",
+        description: installResult.message || undefined,
+      });
+    }
+  }, [installResult.status, installResult.message, t]);
   const showLog =
     running ||
     ((installResult.status === "complete" ||
@@ -132,7 +150,7 @@ export function InstallCard({
           <div role="status" className={cn(NOTICE, NOTICE_TONE.success)}>
             <CheckCircle2Icon className={NOTICE_GLYPH} />
             <span className={NOTICE_BODY}>
-              {installResult.message ?? t("tailscale.install.done")}
+              {t("tailscale.install.done")}
             </span>
           </div>
         ) : null}
@@ -141,10 +159,7 @@ export function InstallCard({
           <div role="alert" className={cn(NOTICE, NOTICE_TONE.destructive)}>
             <TriangleAlertIcon className={NOTICE_GLYPH} />
             <span className={NOTICE_BODY}>
-              {installResult.message ?? t("tailscale.install.failed")}
-              {installResult.detail ? (
-                <span className="mt-0.5 block">{installResult.detail}</span>
-              ) : null}
+              {installResult.message || t("tailscale.install.failed")}
             </span>
           </div>
         ) : null}
@@ -185,6 +200,33 @@ export function InstallCard({
         ) : null}
 
         <CommandRow command={command} />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Mirrors the hero from the same constants: real header copy, then the
+ *  condition, the action and the command row at their pinned heights. */
+export function InstallCardSkeleton() {
+  const { t } = useTranslation("common");
+  return (
+    <Card className={HERO_SHELL}>
+      <CardHeader className={cn(HERO_PAD, CARD_HEAD)}>
+        <div className={CARD_HEAD_TEXT}>
+          <CardTitle className={CARD_TITLE}>
+            {t("tailscale.install.title")}
+          </CardTitle>
+          <CardDescription className={CARD_DESC}>
+            {t("tailscale.install.description")}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className={cn(HERO_PAD, CARD_BODY)} aria-hidden>
+        <Skeleton className={SKELETON.HERO_CONDITION} />
+        <div className={cn(RAIL, "justify-center")}>
+          <Skeleton className={cn(SKELETON.ACTION, "w-40")} />
+        </div>
+        <Skeleton className={SKELETON.HERO_COMMAND} />
       </CardContent>
     </Card>
   );

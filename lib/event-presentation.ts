@@ -494,7 +494,7 @@ export function eventKey(e: NetworkEvent): string {
 /** A trailing parenthetical carrying only identifiers, e.g. "(n78, PCI 135)".
  *  Anything with prose in it ("(2 carriers)", "(CFUN=4)") must not match. */
 const TRAILING_IDS =
-  /\s*\(((?:PCI|EARFCN|ARFCN)\s+\d+(?:\s*->\s*\d+)?|was\s+[A-Za-z]?\d{1,3}|[Bn]\d{1,3}(?:\s*[,+]\s*[Bn]\d{1,3})*)(?:,\s*(?:(?:PCI|EARFCN|ARFCN)\s+\d+(?:\s*->\s*\d+)?|[Bn]\d{1,3}))*\)$/;
+  /\s*\(((?:PCI|EARFCN|ARFCN)\s+\d+(?:\s*->\s*\d+)?|was\s+[A-Za-z]?\d{1,3}|[BNn]\d{1,3}(?:\s*[,+]\s*[BNn]\d{1,3})*)(?:,\s*(?:(?:PCI|EARFCN|ARFCN)\s+\d+(?:\s*->\s*\d+)?|[BNn]\d{1,3}))*\)$/;
 
 export interface SplitEventMessage {
   /** The message with its identifier tail removed. Never empty. */

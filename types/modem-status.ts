@@ -556,20 +556,25 @@ export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality
   );
 }
 
-/** User-selectable preset for high_latency / high_packet_loss event thresholds. */
-export type QualityPreset = "standard" | "tolerant" | "very-tolerant";
+/** The three fixed presets for high_latency / high_packet_loss event thresholds. */
+export type QualityNamedPreset = "standard" | "tolerant" | "very-tolerant";
+
+/** User-selectable preset: a named one, or `custom` with the user's own number. */
+export type QualityPreset = QualityNamedPreset | "custom";
 
 /** Display-order list of quality presets. */
 export const QUALITY_PRESETS: readonly QualityPreset[] = [
   "standard",
   "tolerant",
   "very-tolerant",
+  "custom",
 ] as const;
 
-/** Persisted shape of /etc/qmanager/quality_thresholds.json (also the GET response settings field). */
+/** Persisted shape of /etc/qmanager/quality_thresholds.json (also the GET response settings field).
+    `custom_ms` / `custom_pct` are the stored custom numbers; they are read only while the preset is `custom`. */
 export interface QualityThresholdsSettings {
-  latency: { preset: QualityPreset };
-  loss: { preset: QualityPreset };
+  latency: { preset: QualityPreset; custom_ms?: number | null };
+  loss: { preset: QualityPreset; custom_pct?: number | null };
 }
 
 /** The poller's derived connectivity verdict, computed in qmanager_poller from the

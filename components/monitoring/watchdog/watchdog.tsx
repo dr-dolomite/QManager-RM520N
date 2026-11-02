@@ -128,7 +128,10 @@ const WatchdogComponent = () => {
             </motion.div>
           </div>
           <motion.div variants={staggerItem}>
-            <RecoveryActivityCard activities={activities} />
+            <RecoveryActivityCard
+              activities={activities}
+              recentReboots={hook.recentReboots}
+            />
           </motion.div>
         </>
       ) : (
@@ -142,7 +145,10 @@ const WatchdogComponent = () => {
             />
           </motion.div>
           <motion.div variants={staggerItem}>
-            <RecoveryActivityCard activities={activities} />
+            <RecoveryActivityCard
+              activities={activities}
+              recentReboots={hook.recentReboots}
+            />
           </motion.div>
         </>
       )}
@@ -221,7 +227,11 @@ function WatchdogSurface({
           <LadderCard
             form={form}
             runningTier={
-              phase === "unknown" || phase === "off"
+              phase === "unknown" ||
+              phase === "off" ||
+              phase === "starting" ||
+              phase === "not_running" ||
+              phase === "auto_disabled"
                 ? 0
                 : (watchcat?.current_tier ?? 0)
             }
@@ -233,7 +243,10 @@ function WatchdogSurface({
       </div>
 
       <motion.div variants={staggerItem}>
-        <RecoveryActivityCard activities={activities} />
+        <RecoveryActivityCard
+          activities={activities}
+          recentReboots={hook.recentReboots}
+        />
       </motion.div>
     </>
   );

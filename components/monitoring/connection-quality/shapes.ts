@@ -1,5 +1,5 @@
-import type { PingProfileTargets } from "@/hooks/use-ping-profile";
-import type { QualityPreset } from "@/types/modem-status";
+import type { PingProfile, PingProfileTargets } from "@/hooks/use-ping-profile";
+import type { QualityNamedPreset } from "@/types/modem-status";
 
 // Connection Quality: this family's geometry, imported by the loaded views AND
 // their skeletons. Restated here, never imported across families.
@@ -83,6 +83,14 @@ export type SlotKey = (typeof SLOT_ORDER)[number];
 /** The two hostname legs come first, so the RESOLVER picks the family. */
 export const HOSTNAME_LEGS = 2;
 
+/** Each profile's own cadence in seconds, mirrored from `conn_state_cadence` so a draft previews it. */
+export const PROFILE_INTERVAL_SEC: Record<PingProfile, number> = {
+  sensitive: 1,
+  regular: 2,
+  relaxed: 5,
+  quiet: 10,
+};
+
 /** One leg: a 28px number disc beside its 42px field, the error under the field. */
 export const LEG = {
   ROOT: "flex flex-col gap-1",
@@ -114,6 +122,13 @@ export const ROW = {
   ALERT: "size-3.5 flex-none",
 } as const;
 
+/** The custom limit field inside a pill row: a compact numeric input plus its unit. */
+export const CUSTOM_FIELD = {
+  WRAP: "flex items-center gap-1.5",
+  INPUT: "h-8 w-24 rounded-pill bg-card px-3 text-right text-[0.8125rem] font-semibold tabular-nums",
+  UNIT: "text-on-surface-variant font-medium",
+} as const;
+
 /** The over-limit glyph's ink, by Latency Monitor's own tone. */
 export const ALERT_INK = {
   warn: "text-warning-on-surface",
@@ -127,6 +142,7 @@ export const ALERT_INK = {
 /**
  * The preset table from `cq_preset_latency` / `cq_preset_loss` in
  * `scripts/usr/lib/qmanager/conn_state.sh`: latency flags above the cut, loss AT it.
+ * `custom` is not here: it takes the user's number with `CUSTOM_DEBOUNCE`.
  */
 export const PRESET_LIMIT = {
   latency: {
@@ -141,8 +157,20 @@ export const PRESET_LIMIT = {
   },
 } satisfies Record<
   "latency" | "loss",
-  Record<QualityPreset, { limit: number; debounce: number }>
+  Record<QualityNamedPreset, { limit: number; debounce: number }>
 >;
+
+/** Polls a custom limit must hold for, as `cq_preset_latency custom` sets it. */
+export const CUSTOM_DEBOUNCE = 3;
+
+/**
+ * The CGI's accepted custom range. Loss starts at 1: the shell compares loss with
+ * `-ge`, so a 0 % cut would flag a link with no loss at all.
+ */
+export const CUSTOM_RANGE = {
+  latency: { min: 1, max: 10000 },
+  loss: { min: 1, max: 100 },
+} as const;
 
 /** Eyebrow left, the preset pill right; below 32rem the Select wraps to its own line. */
 export const METRIC_HEAD =

@@ -22,7 +22,8 @@ import { ConditionBlock } from "./condition-block";
 import { ConnectionCard, ConnectionCardSkeleton } from "./connection-card";
 import { DangerRow, RebootDialog } from "./danger-card";
 import { DeviceCard, DeviceCardSkeleton } from "./device-card";
-import { InstallCard } from "./install-card";
+import { InstallCard, InstallCardSkeleton } from "./install-card";
+import { rememberTailscaleInstalled, useLastKnownInstalled } from "./last-known";
 import { PeersCard } from "./peers-card";
 import {
   COLS,
@@ -59,6 +60,9 @@ import {
 function deriveView(status: TailscaleStatus | null): TailscaleView {
   if (!status) return "unknown";
   if (!status.installed) return "notInstalled";
+  // An update holds the lock and the CGI sent only that fact, so there is no
+  // daemon reading to derive a verdict from.
+  if (status.busy && status.daemon_running === undefined) return "unknown";
   if (!(status.daemon_running ?? false)) return "serviceStopped";
   const backend = status.backend_state ?? "";
   if (backend === "NeedsLogin" || backend === "NeedsMachineAuth")
@@ -79,10 +83,18 @@ const TailscaleComponent = () => {
     refresh,
     uninstall,
     isUninstalling,
+    isUpdating,
   } = hook;
 
   const [showReboot, setShowReboot] = React.useState(false);
   const view = deriveView(status);
+  const lastKnownInstalled = useLastKnownInstalled();
+
+  // Only a real read is worth remembering; a busy lock still says "installed".
+  const installedNow = status?.installed;
+  React.useEffect(() => {
+    if (installedNow !== undefined) rememberTailscaleInstalled(installedNow);
+  }, [installedNow]);
 
   const reload = React.useCallback(() => {
     // `refresh` is the hook's fetch; a click event must never reach its argument.
@@ -178,6 +190,14 @@ const TailscaleComponent = () => {
         />
       </motion.div>
     );
+  } else if (!status && isLoading && lastKnownInstalled === false) {
+    // A modem that had nothing installed last time would otherwise paint the
+    // whole installed layout and collapse it into one card.
+    body = (
+      <motion.div variants={staggerItem}>
+        <InstallCardSkeleton />
+      </motion.div>
+    );
   } else if (!status && !isLoading) {
     // Nothing readable came back at all. The peers card is a separate concern
     // and mounts with its own condition rather than sharing this one.
@@ -213,6 +233,7 @@ const TailscaleComponent = () => {
               isDisconnecting={hook.isDisconnecting}
               isTogglingService={hook.isTogglingService}
               isTogglingSsh={hook.isTogglingSsh}
+              isUpdating={isUpdating}
               connect={hook.connect}
               disconnect={hook.disconnect}
               logout={hook.logout}
@@ -225,7 +246,13 @@ const TailscaleComponent = () => {
             <ConnectionCardSkeleton />
           )}
           {status ? (
-            <DeviceCard view={view} status={status} />
+            <DeviceCard
+              view={view}
+              status={status}
+              isUpdating={isUpdating}
+              installResult={installResult}
+              runUpdate={hook.runUpdate}
+            />
           ) : (
             <DeviceCardSkeleton />
           )}
@@ -237,6 +264,7 @@ const TailscaleComponent = () => {
           <motion.div variants={staggerItem}>
             <DangerRow
               isUninstalling={isUninstalling}
+              isBusy={isUpdating || !!status.busy}
               uninstall={uninstall}
               onUninstalled={() => setShowReboot(true)}
             />
@@ -282,8 +310,9 @@ const TailscaleComponent = () => {
       </motion.div>
 
       {/* A failed poll with a payload still in hand is a notice above the
-          content, never a replacement for it. */}
-      {error && status ? (
+          content, never a replacement for it. While an update restarts the
+          daemon the poll is expected to fail, and that is not news. */}
+      {error && status && !isUpdating && !status.busy ? (
         <motion.div variants={staggerItem}>
           <div role="alert" className={cn(NOTICE, NOTICE_TONE.destructive)}>
             <TriangleAlertIcon className={NOTICE_GLYPH} />

@@ -6,6 +6,7 @@
 #
 # Usage:
 #   qmanager_tailscale_mgr install        Download + install Tailscale ARM binary
+#   qmanager_tailscale_mgr update [run]   `tailscale update` on an installed copy
 #   qmanager_tailscale_mgr uninstall      Remove binaries, units, state
 #   qmanager_tailscale_mgr ensure_units   Stage systemd units (called by installer)
 #
@@ -35,6 +36,7 @@ SYSTEMD_DIR="/lib/systemd/system"
 WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
 
 INSTALL_RESULT="/tmp/qmanager_tailscale_install.json"
+UPDATE_RUN_FILE="/tmp/qmanager_tailscale_update_run"
 INSTALL_PID="/tmp/qmanager_tailscale_install.pid"
 LOG_FILE="/tmp/qmanager_tailscale_install.log"
 
@@ -57,11 +59,17 @@ pid_is_alive() {
 # do_install — stage inner script, launch via temp systemd oneshot, return
 # =============================================================================
 do_install() {
+    # Update runs carry an id the UI waits for; digits only, else none.
+    run_id="$1"
+    case "$run_id" in ''|*[!0-9]*) run_id="" ;; esac
+    run_field=""
+    [ -n "$run_id" ] && run_field=',"run":"'"$run_id"'"'
+
     # --- Concurrency guard ---
     if [ -f "$INSTALL_PID" ]; then
         existing=$(cat "$INSTALL_PID" 2>/dev/null | tr -d ' \n\r')
         if pid_is_alive "$existing"; then
-            write_status '{"success":false,"status":"error","message":"Installation already in progress"}'
+            write_status '{"success":false,"status":"error","error":"install_in_progress","message":"Installation already in progress"}'
             echo "ERROR: installation already in progress (PID $existing)" >&2
             return 1
         fi
@@ -74,7 +82,12 @@ do_install() {
     # Write initial status. The wrapper owns the PID file until the inner
     # script takes over (see MainPID polling below).
     echo $$ > "$INSTALL_PID"
-    write_status '{"success":true,"status":"running","message":"Starting Tailscale install..."}'
+    printf '%s' "$run_id" > "$UPDATE_RUN_FILE"
+    if [ -f "$TAILSCALE_DIR/tailscale" ]; then
+        write_status '{"success":true,"status":"running","op":"update"'"$run_field"',"message":"Starting Tailscale update..."}'
+    else
+        write_status '{"success":true,"status":"running","message":"Starting Tailscale install..."}'
+    fi
 
     # Clean up stale temp install artifacts from prior runs.
     rm -f "$TEMP_SERVICE_FILE" "$INNER_SCRIPT"
@@ -107,6 +120,9 @@ QM_BUNDLED_DEFAULTS="/usr/lib/qmanager/tailscaled.defaults"
 STATUS_FILE="/tmp/qmanager_tailscale_install.json"
 INSTALL_PID="/tmp/qmanager_tailscale_install.pid"
 LOG_FILE="/tmp/qmanager_tailscale_install.log"
+UPDATE_RUN_FILE="/tmp/qmanager_tailscale_update_run"
+RUN_FIELD=""
+[ -s "$UPDATE_RUN_FILE" ] && RUN_FIELD=',"run":"'"$(cat "$UPDATE_RUN_FILE")"'"'
 
 # Redirect own output to log file — more portable than systemd StandardOutput=append:
 exec >> "$LOG_FILE" 2>&1
@@ -142,7 +158,7 @@ remount_rw
 # -----------------------------------------------------------------------------
 if [ -f "$TAILSCALE_DIR/tailscale" ]; then
     echo "Tailscale already installed — running update..."
-    write_status '{"success":true,"status":"running","message":"Updating Tailscale..."}'
+    write_status '{"success":true,"status":"running","op":"update"'"$RUN_FIELD"',"message":"Updating Tailscale..."}'
 
     mkdir -p /usrdata/root/bin
     ln -sf "$TAILSCALE_DIR/tailscale" /usrdata/root/bin/tailscale
@@ -151,9 +167,16 @@ if [ -f "$TAILSCALE_DIR/tailscale" ]; then
     mkdir -p /tmp/cache
     ln -sf /tmp/cache ~/.cache
 
-    echo y | "$TAILSCALE_DIR/tailscale" update
+    if ! echo y | "$TAILSCALE_DIR/tailscale" update; then
+        write_status '{"success":false,"status":"error","op":"update"'"$RUN_FIELD"',"error":"update_failed","message":"Tailscale update failed"}'
+        echo "=== ERROR: tailscale update failed ==="
+        exit 1
+    fi
 
-    write_status '{"success":true,"status":"complete","message":"Tailscale updated"}'
+    # Pick up the new binary; a service the user stopped stays stopped.
+    systemctl is-active --quiet tailscaled && systemctl restart tailscaled
+
+    write_status '{"success":true,"status":"complete","op":"update"'"$RUN_FIELD"',"message":"Tailscale updated"}'
     echo "=== update complete ==="
     exit 0
 fi
@@ -188,7 +211,7 @@ fi
 actual_sha=$(sha256sum "$TAILSCALE_TARBALL" 2>/dev/null | awk '{ print $1 }')
 if [ -z "$actual_sha" ] || [ "$actual_sha" != "$TAILSCALE_SHA256" ]; then
     rm -f "$TAILSCALE_TARBALL"
-    write_status '{"success":false,"status":"error","message":"Tailscale download failed verification","detail":"SHA-256 mismatch or sha256sum missing"}'
+    write_status '{"success":false,"status":"error","error":"checksum_mismatch","message":"Tailscale download failed verification","detail":"SHA-256 mismatch or sha256sum missing"}'
     exit 1
 fi
 
@@ -425,10 +448,17 @@ do_ensure_units() {
 # =============================================================================
 case "${1:-}" in
     install)      do_install ;;
+    update)
+        if [ ! -f "$TAILSCALE_DIR/tailscale" ]; then
+            echo "ERROR: Tailscale is not installed" >&2
+            exit 1
+        fi
+        do_install "${2:-}"
+        ;;
     uninstall)    do_uninstall ;;
     ensure_units) do_ensure_units ;;
     *)
-        echo "Usage: qmanager_tailscale_mgr {install|uninstall|ensure_units}" >&2
+        echo "Usage: qmanager_tailscale_mgr {install|update|uninstall|ensure_units}" >&2
         exit 1
         ;;
 esac
