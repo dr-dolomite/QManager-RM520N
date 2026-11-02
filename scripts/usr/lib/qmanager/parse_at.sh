@@ -904,7 +904,7 @@ parse_qsinr() {
 # normalization below converts every CR to LF up front so each record sits
 # on its own line regardless of what the modem emits.
 #
-# Populates: t2_apn, t2_primary_dns, t2_secondary_dns, t2_cgc_ipv4
+# Populates: t2_apn, t2_primary_dns, t2_secondary_dns
 # -----------------------------------------------------------------------------
 parse_cgcontrdp() {
     local raw="$1"
@@ -912,7 +912,6 @@ parse_cgcontrdp() {
     t2_apn=""
     t2_primary_dns=""
     t2_secondary_dns=""
-    t2_cgc_ipv4=""
 
     # Normalize line endings: convert all CR to LF so each +CGCONTRDP
     # record lives on its own line (handles CRLF, bare CR, and mixed).
@@ -954,15 +953,32 @@ parse_cgcontrdp() {
 
     # Field 7: Secondary DNS (quoted)
     t2_secondary_dns=$(printf '%s' "$csv" | cut -d',' -f7 | tr -d '"' | tr -d ' ')
+}
 
-    # Field 4: local address, the WAN IPv4 when +QMAP is refused. Only 4 octets
-    # (address) or 8 (address + mask) count; IPv6 is dotted 16- or 32-octet.
-    t2_cgc_ipv4=$(printf '%s' "$csv" | cut -d',' -f4 | tr -d '"' | awk '{
-        n = split($1, o, ".")
-        if (n != 4 && n != 8) exit
-        for (i = 1; i <= 4; i++) if (o[i] !~ /^[0-9]+$/ || o[i] + 0 > 255) exit
-        print o[1] "." o[2] "." o[3] "." o[4]
+# -----------------------------------------------------------------------------
+# cgc_wan_ipv4 <AT+CGCONTRDP reply> — WAN IPv4 when +QMAP="WWAN" is refused.
+# Field 4 of each non-IMS record, IPv4 only: 4 octets, or 8 (address + mask);
+# IPv6 comes dotted (16/32 octets) and is skipped. Prefers the candidate that
+# is on an rmnet interface (the live data call), else the first. Prints "" if none.
+# -----------------------------------------------------------------------------
+cgc_wan_ipv4() {
+    local cands live c
+    cands=$(printf '%s' "$1" | tr '\r' '\n' | grep '^+CGCONTRDP:' | awk -F',' '{
+        apn = $3; gsub(/["[:space:]]/, "", apn)
+        if (tolower(apn) == "ims") next
+        a = $4; gsub(/"/, "", a); sub(/^[[:space:]]+/, "", a)
+        split(a, tok, " "); n = split(tok[1], o, ".")
+        if (n != 4 && n != 8) next
+        for (i = 1; i <= 4; i++) if (o[i] !~ /^[0-9]+$/ || o[i] + 0 > 255) next
+        ip = o[1] "." o[2] "." o[3] "." o[4]
+        if (ip != "0.0.0.0") print ip
     }')
+    [ -n "$cands" ] || return 0
+    live=$(ip -4 -o addr show 2>/dev/null </dev/null | awk '$2 ~ /^rmnet/ { split($4, a, "/"); print a[1] }')
+    for c in $cands; do
+        case " $(echo $live) " in *" $c "*) echo "$c"; return 0 ;; esac
+    done
+    printf '%s\n' "$cands" | head -1
 }
 
 # -----------------------------------------------------------------------------
