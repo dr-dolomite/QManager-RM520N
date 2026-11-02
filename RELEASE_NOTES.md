@@ -14,7 +14,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **Device Access page.** **System Settings → Device Access** holds a Passwords card with Web and SSH tabs; each asks for its current password first, and the SSH tab now checks the real root password. (Wrong guesses share the sign-in lockout and show the attempts left.)
 - **Debug Report.** **System Settings → System Health Check** has a one-click download of a plain-text snapshot to share when troubleshooting. (IMEI, IMSI, ICCID and phone numbers are masked.)
 
-- **Custom quality limits and probe sensitivity.** **Monitoring → Connection Quality** now has a **Custom** option for the latency and packet-loss limits, and the Probe Targets card has a Sensitive / Regular / Relaxed / Quiet selector; a probe interval you set on the Watchdog page is kept when you switch profiles. (Stored as new keys beside the presets; existing settings are unchanged.)
+- **Custom quality limits and probe sensitivity.** **Monitoring → Connection Quality** now has a **Custom** option for the latency and packet-loss limits, and the Probe Targets card has a Sensitive / Regular / Relaxed / Quiet selector; a probe interval you set on the Watchdog page is kept when you switch profiles, and **Use profile cadence** hands it back to the profile. (Stored as new keys beside the presets; existing settings are unchanged.)
 - **Update Tailscale from its page.** **Monitoring → Tailscale** shows the installed version with an **Update** button when a newer stable release is out; Uninstall is held while an update runs. (Checks pkgs.tailscale.com, cached for 6 hours.)
 
 ## 🛠️ Improvements
