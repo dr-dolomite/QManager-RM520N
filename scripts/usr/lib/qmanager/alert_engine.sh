@@ -576,9 +576,9 @@ _ae_deliver_reboot() {
         cause="unplanned"
     fi
 
-    # Coalescer: mirrors qmanager_watchcat's own trailing-hour crash count
-    # (same CRASH_LOG, same awk technique) so a flapping device doesn't send
-    # one message per reboot.
+    # Coalescer: every reboot row in the trailing hour (unlike watchcat's
+    # Tier-4-only budget) so a flapping device doesn't send one message per
+    # reboot. Only reached once the clock is sane (_ae_record_reboot).
     now=$(date +%s)
     cutoff=$((now - 3600))
     count=$(awk -v cutoff="$cutoff" -F'|' \
