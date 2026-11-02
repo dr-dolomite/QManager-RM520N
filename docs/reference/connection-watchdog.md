@@ -158,6 +158,40 @@ If Tier 3 is enabled but misconfigured — **no backup slot**, or **backup slot 
 
 ---
 
+## SSR grace, quality trigger and primary recheck
+
+Three opt-in behaviours (ported from RM551E, adapted), each in its own lib under `scripts/usr/lib/qmanager/`. The watchcat sources each from `WD_LIB_DIR` behind `[ -f ]` and stubs it when missing, so a missing lib turns its feature off. All timing uses `wd_mono` (`/proc/uptime`), never the wall clock (the device boots at 1970).
+
+### SSR grace — `wd_ssr.sh` (`ssr_aware`, `ssr_grace`)
+
+An SSR (subsystem restart) is the baseband restarting itself; the link drops for tens of seconds and comes back without help. Source: `/sys/devices/platform/4080000.qcom,mss/subsys0/{state,crash_count}` (the pair the poller reads; override `WD_SSR_SYSFS`).
+
+- Baseline `crash_count` at daemon start (it resets per boot); `wd_ssr_sample` runs at the top of **every** loop pass, including the cooldown / locked / stale `continue` paths, so a short SSR is not missed. An unreadable or missing `state` counts as ONLINE.
+- When SUSPECT reaches the down threshold and an SSR is under way or was seen within `ssr_grace + fail_threshold × interval_sec + 2 × check_interval`, the state becomes **`ssr_hold`** instead of RECOVERY. The hold lasts up to `ssr_grace` seconds from its start; a clean read returns to MONITOR, a grace that runs out releases the ladder.
+
+### Quality trigger — `wd_quality.sh` (`quality_enabled`, `quality_consecutive`)
+
+A reachable but degraded link starts a recovery **capped at Tier 2** (user decision: never a SIM swap or a reboot for a slow link).
+
+- **Limits** come from Connection Quality's presets (`cq_thresholds_load`, custom included), raised to floors of **50 ms / 10 %** so a 1 ms / 1 % custom limit cannot trip recovery. The watchcat never calls `cq_thresholds_refresh` (that consumes the poller's flag); `quality_thresholds.sh` touches `/tmp/qmanager_watchcat_reload` on a save instead.
+- **Window**: the lines of `/tmp/qmanager_ping_history` (rtt or `null`) taken since the last mark, capped at `clamp(120 / interval_sec, 10, 60)`; fewer than 10 samples is "no signal" (the count neither grows nor resets). Average latency is over answered probes, loss is `null` lines / all lines. The window is marked after boot settle, after every tier, on LOCKED exit and on every pass that reads `reachable=false`.
+- Evaluated only in MONITOR on a fresh reachable read. `quality_consecutive` breaches in a row pass the **start gate**: `none` (Tier 1 and 2 both off) / `holdoff` / `ssr` (recent SSR) / `radio_off` (`AT+CFUN?` 0 or 4; unreadable counts as on) / `go`.
+- **Cooldown verdict** for a quality recovery: reachable **and** under the limits. Too few samples extends the cooldown by `check_interval`, up to 6 times. An exhausted quality ladder pauses quality recovery for **15 min**; a success clears the pause.
+
+### Primary recheck — `wd_recheck.sh` (`primary_recheck_enabled`, `primary_recheck_interval`)
+
+While on the backup SIM after a confirmed Tier 3 failover, swap back to the primary every `primary_recheck_interval` minutes and stay if it works. Each try is a real outage, so it is off by default.
+
+- **Gate**: enabled, `tier3_enabled=1`, failover active, idle MONITOR, no pending revert flag, fewer than 3 failed tries. The interval clock starts at the failover confirmation, or at the first pass after a failover resumed at boot.
+- **Try**: Golden Rule swap to the original slot, `verify_quimslot`, apply the primary's profile (`auto_apply_profile … watchdog_failback`) **before** the verdict, then settle `SIM_SETTLE_SECS` (90 s) in COOLDOWN with `recovery_reason=recheck`. While a recheck settles, LOCKED (the profile apply's pid) pauses the countdown instead of dropping it; a user revert during the settle wins.
+- **Healthy** (fresh `reachable=true`): drop the failover record, learn the ICCID, `svc_start qmanager_tower_failover` (Tier 3 stopped it), back to MONITOR.
+- **Down** (stale 3× counts as down): Golden Rule swap back to the backup, re-save the failover record, re-apply the backup's profile, count a failure, re-arm the clock. If the swap to the primary never landed, it stays on the backup and counts a failure without touching profiles. If the return never lands but the modem is on the primary, it keeps the primary and the normal ladder judges the link from there.
+- **Give up** after 3 failed tries until the next config reload (a Watchdog **or** Quality Thresholds save, since both touch the reload flag) or a boot.
+
+> ℹ️ NOTE: Tier 3 can only be reached from an unreachable ladder (quality stops at Tier 2), so the recheck verdict is reachability alone; RM551E also judged quality there.
+
+---
+
 ## Configuration
 
 Config lives in `/etc/qmanager/qmanager.conf` under `[watchcat]`, read/written via `qm_config_get`/`qm_config_set`. The daemon reloads it live when the CGI touches `/tmp/qmanager_watchcat_reload`.
@@ -174,8 +208,18 @@ Config lives in `/etc/qmanager/qmanager.conf` under `[watchcat]`, read/written v
 | `tier4_enabled` | bool | — | on | Enable Tier 4 (reboot). |
 | `backup_sim_slot` | `1` \| `2` \| `null` | `1`/`2`/null | null | SIM slot to fail over to. Required when Tier 3 is on. |
 | `max_reboots_per_hour` | int | 1–10 | 3 | Tier-4 token-bucket cap. Auto-disable trips when hit. |
+| `ssr_aware` | bool | 0–1 | on | Hold the ladder while the baseband restarts itself. |
+| `ssr_grace` | int (s) | 10–120 | 45 | Longest SSR hold. |
+| `quality_enabled` | bool | 0–1 | off | Quality trigger (Tier 1-2 recovery for a degraded link). |
+| `quality_consecutive` | int | 1–60 | 5 | Breaches in a row before the quality recovery starts. |
+| `primary_recheck_enabled` | bool | 0–1 | off | Primary SIM recheck while on the backup SIM. |
+| `primary_recheck_interval` | int (min) | 5–1440 | 30 | Minutes between rechecks. |
 
-> ℹ️ NOTE: The failure-count key is now `fail_threshold` (the retired `max_failures` is migrated away — see *Migrations* below). There are still **no** `quality_*`, `ssr_*`, or `primary_recheck_*` keys on the RM520N-GL; quality-trigger, SSR-aware-hold, and auto-failback are not implemented here.
+> ℹ️ NOTE: The failure-count key is now `fail_threshold` (the retired `max_failures` is migrated away — see *Migrations* below).
+
+**The six P5 keys have one defaults table**: `wd_key_spec` in `scripts/usr/lib/qmanager/wd_common.sh` prints `default min max` (a 0–1 range is a boolean) and `WD_KEYS` lists them. The watchcat reads them with `wd_key_get` (stored value if valid, else the default) and the CGI handles `WD_KEYS` generically (GET merges `wd_keys_json` into `settings`; POST validates every key in pass 1 and writes in pass 2), so a key added to the table is exposed end to end. `qm_config_init` never rewrites a non-empty conf, so these reader defaults are what an OTA'd device gets. The `CFG_*` fallbacks in the watchcat are feature-off values, not a second table.
+
+> ⚠️ Pre-existing, not changed: the watchcat reads `enabled` with default `1`, the CGI GET with default `0`.
 
 <a id="split-ownership-of-the-probe-cadence"></a>
 ### The probe cadence is not a watchdog setting
@@ -281,10 +325,21 @@ out of the worker's 120 s staleness ceiling during a long cooldown.
   "original_sim_slot": null,
   "current_sim_slot": null,
   "reboots_this_hour": 0,
+  "ssr_hold": false,
+  "ssr_hold_remaining": 0,
+  "last_ssr_ago": null,
+  "recovery_reason": null,
+  "quality_breach_count": 0,
+  "quality_holdoff_remaining": 0,
+  "primary_recheck_active": false,
+  "primary_recheck_failures": 0,
+  "next_recheck_in": null,
   "mono": 90179,
   "stale_after": 90
 }
 ```
+
+`recovery_reason` (`unreachable` | `quality` | `recheck`) is set only in `recovery` / `cooldown`. `next_recheck_in` is seconds to the next primary recheck, `null` when none is pending. `state` can also be `ssr_hold`.
 
 `mono` is uptime seconds at the write; `stale_after` is `3 × check_interval + 60`, or `600` written just before a recovery tier runs (a Tier 3 swap can block for minutes).
 
@@ -328,14 +383,23 @@ Returns the saved config plus a snapshot of daemon/failover/swap state, and `rec
     "tier3_enabled": false,
     "tier4_enabled": true,
     "backup_sim_slot": null,
-    "max_reboots_per_hour": 3
+    "max_reboots_per_hour": 3,
+    "ssr_aware": true,
+    "ssr_grace": 45,
+    "quality_enabled": false,
+    "quality_consecutive": 5,
+    "primary_recheck_enabled": false,
+    "primary_recheck_interval": 30
   },
   "status": { /* contents of /tmp/qmanager_watchcat.json, or {} if absent */ },
   "sim_failover": { /* contents of the failover record, or {"active":false} */ },
   "sim_swap": { /* SIM-swap detection, or {"detected":false} */ },
-  "auto_disabled": false
+  "auto_disabled": false,
+  "quality_limits": { "latency_ms": 250, "loss_pct": 30 }
 }
 ```
+
+`quality_limits` is what the quality trigger really uses: the Connection Quality presets raised to the floors.
 
 ### `POST` — dispatched on `action`
 
@@ -357,7 +421,7 @@ Returns the saved config plus a snapshot of daemon/failover/swap state, and `rec
 
 > ℹ️ NOTE — `migrate_fail_threshold()` also runs on **GET**, so a device that reads its settings before ever saving still gets `max_failures` transparently renamed to `fail_threshold`.
 
-**Field ranges** (Pass 1): `fail_threshold` 1–20, `probe_interval` 1–60, `check_interval` 5–60, `cooldown` 10–300, `max_reboots_per_hour` 1–10, `backup_sim_slot` `1`/`2`/`null`.
+**Field ranges** (Pass 1): `fail_threshold` 1–20, `probe_interval` 1–60, `check_interval` 5–60, `cooldown` 10–300, `max_reboots_per_hour` 1–10, `backup_sim_slot` `1`/`2`/`null`, and the `WD_KEYS` ranges in the Configuration table (booleans must be `true`/`false`; an absent key is left alone).
 
 **`probe_interval` is a mirror of Connection Quality's `interval_sec`.** GET reports the effective cadence; POST writes `.interval_sec` only when the value changed, and stores nothing under `[watchcat]`. Full rules: [The probe cadence is not a watchdog setting](#split-ownership-of-the-probe-cadence).
 
@@ -415,11 +479,14 @@ RecoveryActivityCard   full width: the newest 5 rows + an "All events" link to /
 - **Master enable** is an On/Off `SegmentedField` in the header's `CardAction`. While it is off, every rung's control is disabled and the names go quiet.
 - **Each rung** is a number disc, the name, one consequence line (`TIER_CONSEQUENCE_KEY`) and its control. Tiers 1, 2 and 4 take an On/Off pill. **Tier 3 is one "Slot 1 / Slot 2 / Off" pill**: choosing a slot arms tier 3 and sets `backup_sim_slot`; Off clears `tier3_enabled` but keeps the slot, so re-arming restores it. A tier 3 armed with no slot selects no segment and shows a `warning` chip. **Tier 4 carries an inline reboot-cap field** that is never unmounted (disabled when tier 4 or the master is off), so the rung's height does not change.
 - **No AT-command tags and no effect sentences** (No Debug-Build Copy). The AT sequences live in the tier table at the top of this doc.
+- **Primary recheck** is a companion row under Tier 3 with an empty disc column (`RUNG.SUB_DISC`): an interval field (minutes) and an On/Off pill, both disabled while the master or Tier 3 is off. The interval is validated and sent only while the row is live.
 - **The running tier** is a `primary-container` row (Highlight-by-Container) with a "Running now" **marker**, not a chip: `info` resolves to `primary-container`, which on a promoted row is the same surface twice. `runningTier` is forced to 0 under `unknown` and `off`, the same gate the status card applies.
 
 ### Detection
 
-`detection-card.tsx` — three receipt rows (key left, control right), then the outage timeline.
+`detection-card.tsx` — five receipt rows (key left, control right), then the outage timeline.
+
+- **Quality trigger** and **Baseband restart hold** are switch rows (`ToggleRow`): key + caption, then the number they arm (checks / seconds) and an On/Off pill. The quality caption shows the GET's `quality_limits` and links to `/monitoring/connection-quality`.
 
 - **Probe every** is a `SegmentedField` over `PROBE_INTERVAL_OPTIONS` (1, 2, 5, 10, 15, 30 s) that becomes a `Select` below a 32rem card (`breakpoint="lg"`). **Failure threshold** and **Cooldown** are numeric `InputGroup` fields with the unit inside.
 - **Outage timeline** — `deriveTimeline` is a pure function of **both cards' drafts**, so a ladder edit moves it before anything is saved:
@@ -452,8 +519,8 @@ Detection pairs with the **Ladder**, not with Activity. The Ladder's height is f
 
 | Scope | Card | Draft keys it commits |
 |-------|------|-----------------------|
-| `ladder` | Recovery ladder | `enabled`, `tier1`–`tier4`, `backupSlot`, `maxReboots` |
-| `detection` | Detection | `probeInterval`, `failThreshold`, `cooldown` |
+| `ladder` | Recovery ladder | `enabled`, `tier1`–`tier4`, `backupSlot`, `recheck`, `recheckInterval`, `maxReboots` |
+| `detection` | Detection | `probeInterval`, `failThreshold`, `cooldown`, `quality`, `qualityConsecutive`, `ssrAware`, `ssrGrace` |
 
 - **The CGI save is one atomic POST of every key**, so a card's save (`submitScope` in `use-watchdog-form.ts`) sends **its own draft over the other card's saved values**. On success only that card's edits are cleared; the other card's unsaved edits survive and stay dirty.
 - **One save at a time.** `busy` disables both Saves while either one is in flight.
