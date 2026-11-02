@@ -7,7 +7,7 @@
 # POST: Saves any of latency.preset, loss.preset (standard/tolerant/very-tolerant/custom),
 #       latency.custom_ms (1-10000), loss.custom_pct (1-100), alert_after_min (1-1440 min)
 #       by MERGING into /etc/qmanager/quality_thresholds.json (unknown keys
-#       survive) and pokes the poller reload flag at /tmp/qmanager_events_reload.
+#       survive) and pokes the poller (/tmp/qmanager_events_reload) and watchdog reload flags.
 #
 # The preset table and the wait resolver live in conn_state.sh (single source
 # of truth) — this CGI writes only preset names and the wait.
@@ -190,6 +190,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if ! touch "$RELOAD_FLAG" 2>/dev/null; then
         qlog_warn "Failed to touch reload flag at $RELOAD_FLAG (poller may not reload until restart)"
     fi
+    # The poller consumes its own flag; the watchdog's quality trigger needs its own poke.
+    touch /tmp/qmanager_watchcat_reload 2>/dev/null || qlog_warn "Failed to touch the watchdog reload flag"
 
     cgi_success
     exit 0

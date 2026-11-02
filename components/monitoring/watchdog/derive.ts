@@ -10,6 +10,7 @@ import {
   LoaderIcon,
   LockIcon,
   MinusCircleIcon,
+  PauseCircleIcon,
   PowerOffIcon,
   RefreshCwIcon,
   TriangleAlertIcon,
@@ -59,7 +60,7 @@ export const TIER_CONSEQUENCE_KEY: Record<TierIndex, string> = {
 // -----------------------------------------------------------------------------
 
 /**
- * What the surface knows about the watchdog, in one closed set. The six live
+ * What the surface knows about the watchdog, in one closed set. The seven live
  * members are the daemon's own states; the five synthetic ones cover the cases
  * the daemon cannot report about itself.
  */
@@ -145,11 +146,12 @@ export const PHASE_DISC = {
   suspect: "alert",
   recovery: "info",
   cooldown: "info",
+  ssr_hold: "info",
   locked: "neutral",
   disabled: "neutral",
 } satisfies Record<WatchdogPhase, DiscTone>;
 
-/** Eleven phases, eleven distinct glyphs — the containers are 1.03:1 apart. */
+/** Twelve phases, twelve distinct glyphs — the containers are 1.03:1 apart. */
 export const PHASE_GLYPH = {
   off: PowerOffIcon,
   unknown: HelpCircleIcon,
@@ -160,6 +162,7 @@ export const PHASE_GLYPH = {
   suspect: TriangleAlertIcon,
   recovery: RefreshCwIcon,
   cooldown: ClockIcon,
+  ssr_hold: PauseCircleIcon,
   locked: LockIcon,
   disabled: MinusCircleIcon,
 } satisfies Record<WatchdogPhase, LucideIcon>;
@@ -174,6 +177,7 @@ export const PHASE_LABEL_KEY: Record<WatchdogPhase, string> = {
   suspect: "watchdog.phase.suspect.label",
   recovery: "watchdog.phase.recovery.label",
   cooldown: "watchdog.phase.cooldown.label",
+  ssr_hold: "watchdog.phase.ssr_hold.label",
   locked: "watchdog.phase.locked.label",
   disabled: "watchdog.phase.disabled.label",
 };
@@ -188,6 +192,7 @@ export const PHASE_BLURB_KEY: Record<WatchdogPhase, string> = {
   suspect: "watchdog.phase.suspect.blurb",
   recovery: "watchdog.phase.recovery.blurb",
   cooldown: "watchdog.phase.cooldown.blurb",
+  ssr_hold: "watchdog.phase.ssr_hold.blurb",
   locked: "watchdog.phase.locked.blurb",
   disabled: "watchdog.phase.disabled.blurb",
 };

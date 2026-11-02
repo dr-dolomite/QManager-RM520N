@@ -97,16 +97,18 @@ export function LadderCard({ form, runningTier }: LadderCardProps) {
       <CardContent className={CARD_PAD}>
         <ol className={RUNG.STACK} aria-label={t("watchdog.ladder.aria")}>
           {TIERS.map((tier) => (
-            <Rung
-              key={tier}
-              tier={tier}
-              form={form}
-              onOff={onOff}
-              // Live truth first: a rung the daemon is executing IS running.
-              running={runningTier === tier}
-              // The ladder has climbed past this rung in the current outage.
-              passed={runningTier > tier}
-            />
+            <React.Fragment key={tier}>
+              <Rung
+                tier={tier}
+                form={form}
+                onOff={onOff}
+                // Live truth first: a rung the daemon is executing IS running.
+                running={runningTier === tier}
+                // The ladder has climbed past this rung in the current outage.
+                passed={runningTier > tier}
+              />
+              {tier === 3 ? <FailbackRow form={form} onOff={onOff} /> : null}
+            </React.Fragment>
           ))}
         </ol>
       </CardContent>
@@ -272,7 +274,72 @@ function Rung({
   );
 }
 
-/** Mirrors the loaded card: header with its pill, four rungs, then the foot. */
+/** Step 3's companion: a periodic swap back to the primary SIM, so no disc of its own. */
+function FailbackRow({
+  form,
+  onOff,
+}: {
+  form: WatchdogForm;
+  onOff: SegmentedOption<OnOff>[];
+}) {
+  const { t } = useTranslation("common");
+  const { draft } = form;
+  const inactive = !draft.enabled || !draft.tier3;
+  const fieldOff = inactive || !draft.recheck;
+  const error = form.errors.recheckInterval;
+  const name = t("watchdog.ladder.failback.name");
+
+  return (
+    <li className={cn(RUNG.ROOT, RUNG.REST)}>
+      <span aria-hidden className={RUNG.SUB_DISC} />
+      <div className={RUNG.TEXT}>
+        <span className={cn(RUNG.NAME, inactive && RUNG.NAME_INACTIVE)}>
+          <span className="min-w-0">{name}</span>
+        </span>
+        <span className={RUNG.COST}>{t("watchdog.ladder.failback.consequence")}</span>
+      </div>
+      <div className={RUNG.CONTROLS_WIDE}>
+        <label className={RUNG.CAP}>
+          <span className={RUNG.CAP_LEAD}>{t("watchdog.ladder.failback.lead")}</span>
+          <InputGroup data-disabled={fieldOff} className={NUM_FIELD.GROUP}>
+            <InputGroupInput
+              id={FIELD_ID.recheckInterval}
+              ref={form.registerField(FIELD_ID.recheckInterval)}
+              type="text"
+              inputMode="numeric"
+              value={draft.recheckInterval}
+              onChange={(e) => form.setFields({ recheckInterval: e.target.value })}
+              disabled={fieldOff}
+              aria-label={t("watchdog.ladder.failback.intervalLabel")}
+              aria-invalid={error !== null}
+              aria-describedby={error ? `${FIELD_ID.recheckInterval}-error` : undefined}
+              className={NUM_FIELD.INPUT}
+            />
+            <InputGroupAddon align="inline-end" className={NUM_FIELD.UNIT}>
+              {t("watchdog.ladder.failback.unit")}
+            </InputGroupAddon>
+          </InputGroup>
+        </label>
+        <SegmentedField
+          value={draft.recheck ? "on" : "off"}
+          onValueChange={(next) => form.setFields({ recheck: next === "on" })}
+          options={onOff}
+          ariaLabel={t("watchdog.ladder.tierAria", { name })}
+          disabled={inactive}
+          breakpoint="never"
+          glyph={renderCheckGlyph}
+        />
+      </div>
+      {error ? (
+        <p id={`${FIELD_ID.recheckInterval}-error`} className={RUNG.ERROR}>
+          {t(error)}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
+/** Mirrors the loaded card: header with its pill, four rungs plus step 3's companion, then the foot. */
 export function LadderCardSkeleton() {
   return (
     <Card className={CARD_SHELL} aria-hidden>
@@ -286,15 +353,24 @@ export function LadderCardSkeleton() {
       <CardContent className={CARD_PAD}>
         <div className={RUNG.STACK}>
           {/* The loaded rung's grid, so the phone's second control row is mirrored too. */}
-          {TIERS.map((tier) => (
+          {/* 0 is step 3's companion row. */}
+          {([1, 2, 3, 0, 4] as const).map((tier) => (
             <div key={tier} className={RUNG.ROOT}>
-              <Skeleton className={RUNG.DISC} />
+              {tier === 0 ? (
+                <span className={RUNG.SUB_DISC} />
+              ) : (
+                <Skeleton className={RUNG.DISC} />
+              )}
               <div className={RUNG.TEXT}>
                 <Skeleton className={SKELETON.RUNG_NAME} />
                 <Skeleton className={SKELETON.RUNG_COST} />
               </div>
-              <div className={tier === 4 ? RUNG.CONTROLS_WIDE : RUNG.CONTROLS}>
-                {tier === 4 ? <Skeleton className={cn(SKELETON.FIELD, "w-20")} /> : null}
+              <div
+                className={tier === 4 || tier === 0 ? RUNG.CONTROLS_WIDE : RUNG.CONTROLS}
+              >
+                {tier === 4 || tier === 0 ? (
+                  <Skeleton className={cn(SKELETON.FIELD, "w-20")} />
+                ) : null}
                 <Skeleton className={cn(SKELETON.PILL, tier === 3 ? "w-44" : "w-28")} />
               </div>
             </div>

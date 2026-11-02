@@ -1091,6 +1091,10 @@
       "disabled": {
         "label": "已禁用",
         "blurb": "服务正在运行，但功能已关闭。"
+      },
+      "ssr_hold": {
+        "label": "等待中",
+        "blurb": "基带正在自行重启，恢复操作会等待其恢复。"
       }
     },
     "master": {
@@ -1126,7 +1130,14 @@
         "capLead": "最多",
         "capUnit": "次/小时"
       },
-      "tierAria": "启用此恢复步骤：{{name}}"
+      "tierAria": "启用此恢复步骤：{{name}}",
+      "failback": {
+        "name": "切回主 SIM 卡",
+        "consequence": "定期重试主卡，每次尝试都会短暂断网。",
+        "lead": "每",
+        "unit": "分钟",
+        "intervalLabel": "主 SIM 卡复查间隔"
+      }
     },
     "detection": {
       "title": "检测",
@@ -1157,6 +1168,17 @@
         "none": "没有启用任何步骤，不会执行任何操作。",
         "invalid": "输入有效的检测数值即可预览时间线。",
         "stopped": "第 3 步没有插槽，恢复流程将止步于此。"
+      },
+      "ssr": {
+        "label": "基带重启等待",
+        "unit": "秒",
+        "caption": "先等待模块自行重启完成"
+      },
+      "quality": {
+        "label": "质量触发",
+        "unit": "次",
+        "caption": "延迟超过 {{ms}} ms 或丢包超过 {{pct}}%",
+        "link": "阈值"
       }
     },
     "activity": {
@@ -1211,7 +1233,10 @@
       "probeInterval": "必须介于 1 到 60 秒之间",
       "cooldown": "必须介于 10 到 300 秒之间",
       "maxReboots": "必须介于 1 到 10 之间",
-      "backupSim": "选择备用 SIM 卡插槽以启用故障转移"
+      "backupSim": "选择备用 SIM 卡插槽以启用故障转移",
+      "ssrGrace": "必须在 10 到 120 秒之间",
+      "qualityConsecutive": "必须在 1 到 60 之间",
+      "recheckInterval": "必须在 5 到 1440 分钟之间"
     },
     "failover": {
       "title": "正在使用备用 SIM 卡",

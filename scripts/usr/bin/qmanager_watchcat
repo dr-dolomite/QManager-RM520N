@@ -64,6 +64,38 @@ else
     conn_state_is_up() { return 1; }
 fi
 
+# --- Watchdog libs (key defaults, SSR grace). A missing lib leaves its feature off.
+WD_LIB_DIR="${WD_LIB_DIR:-/usr/lib/qmanager}"
+if [ -f "$WD_LIB_DIR/wd_common.sh" ]; then
+    . "$WD_LIB_DIR/wd_common.sh"
+else
+    wd_key_get() { :; }
+    wd_mono() { printf '0'; }
+fi
+if [ -f "$WD_LIB_DIR/wd_ssr.sh" ]; then
+    . "$WD_LIB_DIR/wd_ssr.sh"
+else
+    ssr_hold="false"; last_ssr_detected="null"
+    wd_ssr_init() { :; }; wd_ssr_sample() { :; }; wd_ssr_hold_gate() { return 1; }
+    wd_ssr_hold_left() { printf '0'; }; wd_ssr_hold_clear() { :; }
+fi
+if [ -f "$WD_LIB_DIR/wd_quality.sh" ]; then
+    . "$WD_LIB_DIR/wd_quality.sh"
+else
+    quality_breach_counter=0
+    wd_quality_mark() { :; }; wd_quality_evaluate() { return 1; }; wd_quality_state() { printf '2'; }
+    wd_quality_holdoff_left() { printf '0'; }; wd_quality_holdoff_start() { :; }; wd_quality_holdoff_clear() { :; }
+    wd_quality_holdoff_settle() { :; }
+fi
+if [ -f "$WD_LIB_DIR/wd_recheck.sh" ]; then
+    . "$WD_LIB_DIR/wd_recheck.sh"
+else
+    primary_recheck_active="false"; primary_recheck_failures=0
+    wd_recheck_arm() { :; }; wd_recheck_reset_failures() { :; }; wd_recheck_next_in() { printf 'null'; }
+    wd_recheck_due() { return 1; }; wd_recheck_start() { :; }; wd_recheck_finish() { primary_recheck_active="false"; }
+    wd_recheck_locked_wait() { primary_recheck_active="false"; return 1; }
+fi
+
 # --- Known-SIMs set (persists landed ICCID across SIM swaps/reverts so the
 # poller's boot-time swap detector treats it as expected, not a physical
 # swap). Degrades to a silent no-op if the lib is absent. ------------------
@@ -114,6 +146,12 @@ CFG_TIER3_ENABLED=0
 CFG_TIER4_ENABLED=1
 CFG_BACKUP_SIM_SLOT=""
 CFG_MAX_REBOOTS_PER_HOUR=3
+CFG_SSR_AWARE=0
+CFG_SSR_GRACE=45
+CFG_QUALITY_ENABLED=0
+CFG_QUALITY_CONSECUTIVE=5
+CFG_PRIMARY_RECHECK_ENABLED=0
+CFG_PRIMARY_RECHECK_INTERVAL=30
 BOOT_SETTLE=30
 MODEM_WAIT_TIMEOUT=60
 SIM_SETTLE_SECS=90
@@ -121,6 +159,7 @@ SIM_SETTLE_SECS=90
 # --- State Variables ---------------------------------------------------------
 state="monitor"
 prev_state=""
+recovery_reason=""   # unreachable | quality | recheck: what started the running ladder or settle
 failure_counter=0
 current_tier=0
 last_recovery_time="null"
@@ -170,8 +209,21 @@ read_config() {
     val=$(qm_config_get watchcat max_reboots_per_hour "")
     [ -n "$val" ] && CFG_MAX_REBOOTS_PER_HOUR="$val"
 
+    # New keys: defaults and ranges live in wd_common.sh (shared with the CGI).
+    val=$(wd_key_get ssr_aware); CFG_SSR_AWARE="${val:-0}"
+    val=$(wd_key_get ssr_grace); CFG_SSR_GRACE="${val:-45}"
+    val=$(wd_key_get quality_enabled); CFG_QUALITY_ENABLED="${val:-0}"
+    val=$(wd_key_get quality_consecutive); CFG_QUALITY_CONSECUTIVE="${val:-5}"
+    val=$(wd_key_get primary_recheck_enabled); CFG_PRIMARY_RECHECK_ENABLED="${val:-0}"
+    val=$(wd_key_get primary_recheck_interval); CFG_PRIMARY_RECHECK_INTERVAL="${val:-30}"
+    # Connection Quality limits; quality_thresholds.sh pokes our reload flag on a save.
+    command -v cq_thresholds_load >/dev/null 2>&1 && cq_thresholds_load
+
     qlog_info "Config loaded: interval=${CFG_CHECK_INTERVAL}s fail_threshold=${CFG_FAIL_THRESHOLD} (x probe interval) cooldown=${CFG_COOLDOWN}s"
     qlog_info "  Tiers: T1=${CFG_TIER1_ENABLED} T2=${CFG_TIER2_ENABLED} T3=${CFG_TIER3_ENABLED} T4=${CFG_TIER4_ENABLED} backup_sim=${CFG_BACKUP_SIM_SLOT:-none}"
+    qlog_info "  SSR grace: aware=${CFG_SSR_AWARE} grace=${CFG_SSR_GRACE}s"
+    qlog_info "  Quality: enabled=${CFG_QUALITY_ENABLED} consecutive=${CFG_QUALITY_CONSECUTIVE} limits=${CQ_LAT_MS:-?}ms/${CQ_LOSS_PCT:-?}%"
+    qlog_info "  Primary recheck: enabled=${CFG_PRIMARY_RECHECK_ENABLED} interval=${CFG_PRIMARY_RECHECK_INTERVAL}min"
 }
 
 # =============================================================================
@@ -190,6 +242,16 @@ write_state() {
     iv="$CFG_CHECK_INTERVAL"
     case "$iv" in ''|*[!0-9]*) iv=10 ;; esac
     stale="${1:-$((3 * iv + 60))}"
+    local ssr_ago ssr_left
+    ssr_ago="null"
+    case "$last_ssr_detected" in ''|null|*[!0-9]*) ;; *) [ "$mono" -ge "$last_ssr_detected" ] && ssr_ago=$((mono - last_ssr_detected)) ;; esac
+    ssr_left=$(wd_ssr_hold_left)
+    local reason q_hold
+    reason=""
+    case "$state" in recovery|cooldown) reason="$recovery_reason" ;; esac
+    q_hold=$(wd_quality_holdoff_left)
+    local rc_next
+    rc_next=$(wd_recheck_next_in)
 
     jq -n -c \
         --argjson ts "$ts" \
@@ -207,6 +269,15 @@ write_state() {
         --argjson sf_orig "${original_sim_slot:-null}" \
         --argjson sf_curr "${current_sim_slot:-null}" \
         --argjson reboots "$reboots_this_hour" \
+        --arg ssr_hold "$ssr_hold" \
+        --argjson ssr_left "${ssr_left:-0}" \
+        --argjson ssr_ago "$ssr_ago" \
+        --arg reason "$reason" \
+        --argjson q_breaches "${quality_breach_counter:-0}" \
+        --argjson q_hold "${q_hold:-0}" \
+        --arg rc_active "$primary_recheck_active" \
+        --argjson rc_failures "${primary_recheck_failures:-0}" \
+        --argjson rc_next "${rc_next:-null}" \
         '{
             timestamp: $ts, enabled: ($enabled == 1),
             state: $state, current_tier: $tier,
@@ -219,6 +290,12 @@ write_state() {
             original_sim_slot: $sf_orig,
             current_sim_slot: $sf_curr,
             reboots_this_hour: $reboots,
+            ssr_hold: ($ssr_hold == "true"), ssr_hold_remaining: $ssr_left,
+            last_ssr_ago: $ssr_ago,
+            recovery_reason: (if $reason == "" then null else $reason end),
+            quality_breach_count: $q_breaches, quality_holdoff_remaining: $q_hold,
+            primary_recheck_active: ($rc_active == "true"),
+            primary_recheck_failures: $rc_failures, next_recheck_in: $rc_next,
             mono: $mono, stale_after: $stale_after
         }' > "$STATE_TMP"
 
@@ -606,8 +683,11 @@ execute_tier4() {
 find_next_tier() {
     local start="$1"
     local t="$start"
+    local max=4
+    # A quality recovery stops at Tier 2: never a SIM swap or a reboot for a slow link.
+    [ "$recovery_reason" = "quality" ] && max=2
 
-    while [ "$t" -le 4 ]; do
+    while [ "$t" -le "$max" ]; do
         case "$t" in
             1) [ "$CFG_TIER1_ENABLED" = "1" ] && { current_tier="$t"; return 0; } ;;
             2) [ "$CFG_TIER2_ENABLED" = "1" ] && { current_tier="$t"; return 0; } ;;
@@ -653,6 +733,7 @@ do_recovery() {
             do_recovery  # recurse with next tier
         else
             qlog_error "No more enabled tiers — all recovery options exhausted"
+            [ "$recovery_reason" = "quality" ] && wd_quality_holdoff_start
             rm -f "$RECOVERY_FLAG"
             state="monitor"
             current_tier=0
@@ -660,6 +741,9 @@ do_recovery() {
         fi
         return
     fi
+
+    # The quality verdict after this tier sees only samples taken after it.
+    wd_quality_mark
 
     # Recovery action executed — enter cooldown
     local ts
@@ -687,6 +771,11 @@ finish_cooldown() {
     # Decided ONCE below; a stale read never reaches the reachable test.
     local _cooldown_success="false"
 
+    if [ "$primary_recheck_active" = "true" ]; then
+        wd_recheck_finish
+        return
+    fi
+
     if ! conn_state_read; then
         # (a) Stale/missing ping data: retry up to 3 times with the recovery flag held;
         # the PID write re-stamps its mtime for profile_apply's staleness ceiling.
@@ -707,6 +796,23 @@ finish_cooldown() {
         fi
         state="monitor"; current_tier=0; failure_counter=0
         return
+    elif [ "$recovery_reason" = "quality" ] && conn_state_is_up; then
+        # (q) Quality recovery: reachable is not enough, the link must be back under the limits.
+        case "$(wd_quality_state)" in
+            0) cooldown_stale_retries=0; _cooldown_success="true" ;;
+            1) cooldown_stale_retries=0 ;;
+            *)
+                # Too few samples since the tier yet (slow probe cadence): wait up to 6 passes.
+                if [ "$cooldown_stale_retries" -lt 6 ]; then
+                    cooldown_stale_retries=$((cooldown_stale_retries + 1))
+                    qlog_info "COOLDOWN(quality): not enough samples yet, retry $cooldown_stale_retries/6"
+                    cooldown_remaining="$CFG_CHECK_INTERVAL"
+                    printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
+                    return
+                fi
+                cooldown_stale_retries=0
+                ;;
+        esac
     elif conn_state_is_up; then
         # (b) Fresh read, reachable=true: success, whatever during_recovery says.
         cooldown_stale_retries=0
@@ -718,7 +824,12 @@ finish_cooldown() {
     rm -f "$RECOVERY_FLAG"
 
     if [ "$_cooldown_success" = "true" ]; then
-        qlog_info "COOLDOWN complete: connectivity RESTORED after Tier $current_tier"
+        qlog_info "COOLDOWN complete: ${recovery_reason:-connectivity} RESTORED after Tier $current_tier"
+        if [ "$recovery_reason" = "quality" ]; then
+            append_event "watchcat_recovery" "Connection quality restored" "info"
+            wd_quality_holdoff_settle
+            quality_breach_counter=0
+        fi
 
         # If this was Tier 3 SIM failover, finalize the failover state
         if [ "$current_tier" -eq 3 ] && [ "$current_sim_slot" != "$original_sim_slot" ] && [ "$original_sim_slot" != "null" ]; then
@@ -739,6 +850,9 @@ finish_cooldown() {
                 > "${SIM_FAILOVER_FILE}.tmp" && mv "${SIM_FAILOVER_FILE}.tmp" "$SIM_FAILOVER_FILE"
 
             qlog_info "SIM failover state saved: slot $original_sim_slot → $current_sim_slot"
+            # The primary recheck interval runs from the confirmed failover.
+            wd_recheck_reset_failures
+            wd_recheck_arm
             append_event "sim_failover" "SIM failover confirmed on slot $current_sim_slot" "info"
 
             # Persist the landed ICCID so the poller's boot-time swap
@@ -757,7 +871,7 @@ finish_cooldown() {
         current_tier=0
         failure_counter=0
     else
-        qlog_warn "COOLDOWN complete: connectivity NOT restored after Tier $current_tier"
+        qlog_warn "COOLDOWN complete: ${recovery_reason:-connectivity} NOT restored after Tier $current_tier"
 
         # If Tier 3 failed to restore connectivity, fall back
         if [ "$current_tier" -eq 3 ] && [ "$current_sim_slot" != "$original_sim_slot" ] && [ "$original_sim_slot" != "null" ]; then
@@ -771,6 +885,7 @@ finish_cooldown() {
             do_recovery
         else
             qlog_error "All recovery tiers exhausted — returning to monitor"
+            [ "$recovery_reason" = "quality" ] && wd_quality_holdoff_start
             state="monitor"
             current_tier=0
             failure_counter=0
@@ -794,6 +909,7 @@ check_revert_request() {
         rm -f "$RECOVERY_FLAG" "$SIM_FAILOVER_FILE"
 
         sim_failover_active="false"
+        primary_recheck_active="false"
         state="monitor"
         current_tier=0
         failure_counter=0
@@ -841,6 +957,7 @@ main() {
     command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
     count_recent_reboots
     qlog_info "Reboots in last hour: $reboots_this_hour"
+    wd_ssr_init
 
     # Check for stale SIM failover state from before reboot, verifying the
     # live slot matches what the file records. If the modem is on a
@@ -872,14 +989,19 @@ main() {
     qlog_info "Boot settle: waiting ${BOOT_SETTLE}s"
     write_state
     sleep "$BOOT_SETTLE"
+    wd_quality_mark
 
     # --- Main monitoring loop ---
     while true; do
+        # Before any `continue`, so cooldown/locked/stale passes still see a short SSR.
+        wd_ssr_sample
+
         # Check for config reload request
         if [ -f "$RELOAD_FLAG" ]; then
             rm -f "$RELOAD_FLAG"
             qlog_info "Config reload requested"
             read_config
+            wd_recheck_reset_failures
             if [ "$CFG_ENABLED" != "1" ]; then
                 qlog_info "Watchcat disabled via config reload, exiting"
                 state="disabled"
@@ -893,6 +1015,13 @@ main() {
 
         # --- LOCKED state check ---
         if check_locked; then
+            # A recheck settle waits out the primary's profile apply (capped) instead of being dropped.
+            if [ "$primary_recheck_active" = "true" ]; then
+                wd_recheck_locked_wait || :
+                write_state
+                sleep "$CFG_CHECK_INTERVAL"
+                continue
+            fi
             if [ "$state" != "locked" ]; then
                 qlog_info "Entering LOCKED state (maintenance)"
                 state="locked"
@@ -901,6 +1030,8 @@ main() {
                 # through finish_cooldown), which would otherwise strand a
                 # nonzero retry count for the next cooldown episode.
                 cooldown_stale_retries=0
+                quality_breach_counter=0
+                wd_ssr_hold_clear
             fi
             write_state
             sleep "$CFG_CHECK_INTERVAL"
@@ -913,6 +1044,7 @@ main() {
             state="monitor"
             failure_counter=0
             cooldown_stale_retries=0
+            wd_quality_mark
         fi
 
         # --- COOLDOWN state ---
@@ -940,6 +1072,11 @@ main() {
         failure_counter="$CQ_STREAK_FAIL"
         # Down wait = fail_threshold x the cache's interval_sec (Connection Quality owns it).
         down_wait=$((CFG_FAIL_THRESHOLD * CQ_INTERVAL_SEC))
+        # An outage restarts the quality window, so the next verdict sees post-outage samples only.
+        if [ "$CQ_REACHABLE" = "false" ]; then
+            wd_quality_mark
+            quality_breach_counter=0
+        fi
 
         # --- State machine ---
         case "$state" in
@@ -948,24 +1085,37 @@ main() {
                     prev_state="$state"
                     state="suspect"
                     qlog_info "MONITOR → SUSPECT: streak_fail=$CQ_STREAK_FAIL (down wait=${down_wait}s)"
+                elif wd_quality_evaluate; then
+                    recovery_reason="quality"
+                    state="recovery"
+                    current_tier=0
+                    if find_next_tier 1; then
+                        do_recovery
+                    else
+                        state="monitor"
+                    fi
                 fi
                 ;;
 
-            suspect)
+            suspect|ssr_hold)
                 if [ "$CQ_REACHABLE" = "true" ] && [ "$CQ_STREAK_FAIL" -eq 0 ]; then
                     # Naturally recovered
-                    qlog_info "SUSPECT → MONITOR: connectivity restored naturally"
+                    qlog_info "${state} → MONITOR: connectivity restored naturally"
                     state="monitor"
                     failure_counter=0
                     cooldown_stale_retries=0
+                    wd_ssr_hold_clear
                 else
                     qlog_debug "SUSPECT: reachable=$CQ_REACHABLE down ${CQ_FAIL_ELAPSED_SEC}s/${down_wait}s"
 
                     # Breach = producer verdict is down AND its monotonic
                     # fail_elapsed_sec reached fail_threshold x interval_sec.
-                    if conn_state_down_for "$down_wait"; then
+                    if conn_state_down_for "$down_wait" && wd_ssr_hold_gate; then
+                        state="ssr_hold"
+                    elif conn_state_down_for "$down_wait"; then
                         qlog_warn "SUSPECT → RECOVERY: down ${CQ_FAIL_ELAPSED_SEC}s >= ${down_wait}s (${CFG_FAIL_THRESHOLD} x ${CQ_INTERVAL_SEC}s)"
                         state="recovery"
+                        recovery_reason="unreachable"
 
                         # Find first enabled tier
                         if [ "$current_tier" -eq 0 ]; then
@@ -987,9 +1137,15 @@ main() {
                 ;;
         esac
 
+        # Primary SIM recheck: only from an idle monitor pass; a recovery this pass wins.
+        if wd_recheck_due; then
+            wd_recheck_start
+        fi
+
         write_state
         sleep "$CFG_CHECK_INTERVAL"
     done
 }
 
-main "$@"
+# WATCHCAT_NO_MAIN=1 loads the functions only (dry runs); never source this on a device without it.
+[ -n "${WATCHCAT_NO_MAIN:-}" ] || main "$@"

@@ -671,6 +671,8 @@ export type WatchcatState =
   | "suspect"
   | "recovery"
   | "cooldown"
+  /** Recovery held while the baseband restarts itself (SSR grace). */
+  | "ssr_hold"
   | "locked"
   | "disabled";
 
@@ -688,6 +690,24 @@ export interface WatchcatStatus {
   age_sec?: number | null;
   /** The watchdog's own staleness limit (s); null when unknown */
   stale_after?: number | null;
+  /** The ladder is held for a baseband restart (watchdog.sh status only, not the poller). */
+  ssr_hold?: boolean;
+  /** Seconds of SSR grace left while holding. */
+  ssr_hold_remaining?: number;
+  /** Seconds since the last baseband restart sign; null when none this run. */
+  last_ssr_ago?: number | null;
+  /** What started the running ladder; null outside recovery and cooldown. */
+  recovery_reason?: "unreachable" | "quality" | "recheck" | null;
+  /** Over-limit quality checks in a row so far. */
+  quality_breach_count?: number;
+  /** Seconds left in the pause after a quality recovery that did not help. */
+  quality_holdoff_remaining?: number;
+  /** A primary SIM recheck is settling on the primary now. */
+  primary_recheck_active?: boolean;
+  /** Failed rechecks since the last save or boot; the watchdog stops at 3. */
+  primary_recheck_failures?: number;
+  /** Seconds to the next recheck; null when none is pending. */
+  next_recheck_in?: number | null;
 }
 
 export interface SimFailoverStatus {

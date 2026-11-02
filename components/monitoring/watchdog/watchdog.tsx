@@ -238,7 +238,7 @@ function WatchdogSurface({
           />
         </motion.div>
         <motion.div variants={staggerItem} className={PAIR_CELL}>
-          <DetectionCard form={form} />
+          <DetectionCard form={form} qualityLimits={hook.qualityLimits} />
         </motion.div>
       </div>
 
