@@ -431,6 +431,7 @@
       "unsaved": "Unsaved",
       "save": "Save Probe Targets",
       "save_failed": "Couldn't save the probe targets",
+      "cadence_clear_failed": "Couldn't reset the probe interval",
       "leg": {
         "host_1": "Hostname leg 1",
         "host_2": "Hostname leg 2",
@@ -448,7 +449,8 @@
         "action": "Restore defaults"
       },
       "toast": {
-        "saved": "Probe targets saved"
+        "saved": "Probe targets saved",
+        "cadence_cleared": "Probe interval now follows the profile"
       },
       "validation": {
         "empty": "Enter a target.",
@@ -475,7 +477,8 @@
       "interval": {
         "label": "Probe interval",
         "value": "Every {{seconds}} s",
-        "override": "Every {{seconds}} s (Watchdog)"
+        "override": "Every {{seconds}} s (Watchdog)",
+        "use_profile": "Use profile cadence"
       },
       "failed": "Couldn't save",
       "profile": {

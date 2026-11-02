@@ -238,6 +238,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
+    # clear_interval: drop the stored interval_sec (the Watchdog's cadence) so the profile's own applies.
+    if [ "$ACTION" = "clear_interval" ]; then
+        if [ -f "$CONFIG" ]; then
+            if ! jq -e 'type == "object"' "$CONFIG" >/dev/null 2>&1 \
+                || ! jq 'del(.interval_sec)' "$CONFIG" > "${CONFIG}.tmp" 2>/dev/null \
+                || [ ! -s "${CONFIG}.tmp" ] \
+                || ! mv "${CONFIG}.tmp" "$CONFIG"; then
+                rm -f "${CONFIG}.tmp"
+                cgi_error "write_failed" "Failed to clear the stored interval"
+                exit 0
+            fi
+        fi
+        qlog_info "Stored interval_sec cleared; the profile's cadence applies"
+        touch "$RELOAD_FLAG" 2>/dev/null || qlog_warn "Failed to touch reload flag at $RELOAD_FLAG"
+        conn_state_cadence "$CONFIG"
+        jq -n --argjson interval_sec "$CQ_CFG_INTERVAL_SEC" '{success: true, interval_sec: $interval_sec}'
+        exit 0
+    fi
+
     if [ "$ACTION" != "save_settings" ]; then
         cgi_error "unknown_action" "Unknown action: $ACTION"
         exit 0

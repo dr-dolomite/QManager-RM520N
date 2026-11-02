@@ -186,6 +186,8 @@ The cadence belongs to Connection Quality: `interval_sec` in `/etc/qmanager/ping
 - **POST** `probe_interval` is validated (1–60) and written to `ping_profile.json` `.interval_sec` **only when it differs** from the current effective value, with `/tmp/qmanager_ping_reload` touched. The page sends `probe_interval` with every per-card save, so this check is what keeps a Ladder-card save from rewriting the cadence.
 - The write is an atomic key-merge that sets `.interval_sec` alone, guarded by `jq -e 'type == "object"'` (fallback `{}`) and a `[ -s tmp ]` promote check. It is best-effort: a failure logs and the save still succeeds.
 
+The saved cadence is never removed by this page: Connection Quality's Probe Targets card has a **Use profile cadence** button that clears it ([connection-quality.md](connection-quality.md#config-and-live-reload)), after which the Detection card shows the profile's cadence again.
+
 `[watchcat].probe_interval` is never written or read by the CGI or the daemon. The installer's `migrate_watchcat_fail_threshold` and the `config.sh` seed still create it with value 5; it is inert. `propagate_probe_interval()` is gone.
 
 > ⚠️ WARNING — `jq -e .` is the **wrong** predicate for the object guard: `-e` tests output truthiness, so it passes `5`/`"str"`/`[1,2]` (unmergeable) and rejects `null`/`false` (parseable). `settings/ping_profile.sh` carries the identical guard — rationale and rc matrix in [connection-quality.md → Corrupt-config guard](connection-quality.md#corrupt-config-guard). Change one writer's guard and you must change both.

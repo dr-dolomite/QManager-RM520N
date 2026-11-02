@@ -334,7 +334,7 @@ function ProbeChain({
   liveInterval,
 }: ProbeChainProps): React.JSX.Element {
   const { t } = useTranslation("system-settings");
-  const { isSaving, save, intervalOverride } = profile;
+  const { isSaving, save, intervalOverride, isClearing, clearInterval } = profile;
   const { saved, markSaved } = useSaveFlash();
 
   // Edits are HELD and overlaid on the server values, never synced by an effect.
@@ -360,6 +360,15 @@ function ProbeChain({
     setEdits((prev) => ({ ...prev, [slot]: value }));
     setErrors((prev) => ({ ...prev, [slot]: validateSlot(slot, value) }));
     setFailed(false);
+  };
+
+  const handleClearInterval = async () => {
+    try {
+      await clearInterval();
+      toast.success(t(`${K}.toast.cadence_cleared`));
+    } catch {
+      toast.error(t(`${K}.cadence_clear_failed`));
+    }
   };
 
   const setProfile = (next: PingProfile) => {
@@ -490,7 +499,7 @@ function ProbeChain({
             glyph={renderCheckGlyph}
           />
         </div>
-        <div className={ROW.ROOT}>
+        <div className={cn(ROW.ROOT, "gap-3")}>
           <span className={ROW.KEY}>{t(`${K}.interval.label`)}</span>
           <span className={ROW.VALUE}>
             <Link href={WATCHDOG_HREF} className={cn(ROW.LINK, FOCUS_RING)}>
@@ -501,6 +510,20 @@ function ProbeChain({
             </Link>
           </span>
         </div>
+        {intervalOverride !== null ? (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="tonal-neutral"
+              size="action"
+              disabled={isClearing || isSaving}
+              onClick={() => void handleClearInterval()}
+            >
+              <RotateCcwIcon className={PILL_GLYPH} aria-hidden="true" />
+              {t(`${K}.interval.use_profile`)}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className={GROUP}>
