@@ -63,3 +63,4 @@
 
 - [lighttpd DOES export HTTP_AUTHORIZATION; curl STRIPS it across the http->https 301](cgi_env_authorization_and_no_path.md) -- a bearer-token CGI needs no lighttpd change, but `curl -L http://...` arrives unauthenticated while a custom `X-...` header survives; CGI also gets NO PATH at all, so cgi_base.sh's PATH ends in an empty (CWD) element
 - [One pinger, three latency histories](connectivity_single_prober_three_histories.md) — qmanager_ping is the sole ICMP source; watchcat only reads; poller NDJSON history ticks ~16 s, not 10 s
+- [RM520N QMI service catalog](rm520n_qmi_service_catalog.md) — qrtr-lookup census: LOC/PDC/DSD/SAR/VOICE present, IMSA/IMSS ABSENT; no qmicli; no A/B; time daemon = QMI TIME + NTP

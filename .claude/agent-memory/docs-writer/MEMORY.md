@@ -17,3 +17,6 @@
 - [Worktree Bash guard refuses computed args and compound git](reference_worktree_bash_guard_refuses_variables.md) — spell paths literally with `--`, use Edit, run each git call alone
 - [An OTA re-runs qmanager_setup, so /tmp seeds land without a reboot](reference_ota_reruns_qmanager_setup_seeds.md) — `--no-reboot` keeps DO_START=1; only `--no-start` skips the setup restart
 - [Python heredoc reads UTF-8 as cp1252 here; docs are CRLF](reference_python_heredoc_mangles_utf8_on_windows.md) — run splice scripts from a file with `-X utf8`; normalise and restore CRLF
+- [Wiki modem screenshots catalog and live assets](reference_wiki_screenshots_catalog.md) — 24 verified desktop, card crop, and mobile assets from RM551E (192.168.224.1) and RM520N (192.168.225.1) indexed in `qmanager-wiki/public/screenshots/`
+- [Pending-reboot banner has no setter on RM520N (P0a, 2026-10-31)](project_pending_reboot_banner_has_no_setter.md) — nothing calls `requestRebootLater`; never claim users see it
+- [A splice's end marker must be searched from the start index](reference_splice_end_marker_must_search_from_start.md) — a repeated phrase duplicated 140 lines silently; `uniq -d` the headings after

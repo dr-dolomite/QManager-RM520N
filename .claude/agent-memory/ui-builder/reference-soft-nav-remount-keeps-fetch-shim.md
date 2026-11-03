@@ -47,3 +47,5 @@ returning `new Promise(() => {})` leaves `isLoading` true forever, and a page he
 is a reload, which drops the shim. Measured 2026-09-05 on `/system-settings/`. Use
 `await new Promise(r => setTimeout(r, 8000))` instead: long enough to measure the skeleton, and it
 resolves on its own, so ONE click yields both halves of a loading→loaded delta in a single run.
+
+**Update 2026-11-01 (W1c):** it DOES remount real `/cellular/settings/*` routes. Hopping settings -> apn-management -> imei -> network-priority -> apn-management re-ran each page's mount fetch through the console shim, so loading (never-resolving mode) and first-read error states were reachable with no fixture. The shim must still handle `URL` inputs ([[reference-fetch-shim-must-handle-url-objects]]).
