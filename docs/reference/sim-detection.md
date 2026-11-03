@@ -75,7 +75,7 @@ date) that a bare ICCID line in a flat file can't.
 | `sim_db_clear_keep <iccid>` | Resets the set to contain **only** the given ICCID — the "clear known SIMs" action. |
 | `sim_db_count` | Number of known ICCIDs, always a bare integer (0 if file absent). |
 | `sim_db_normalize <raw>` | Strips space/CR/LF only — no trailing-newline. Used for **storage** (byte-parity, see below). |
-| `iccid_canonicalize <raw>` | `sim_db_normalize` **plus** strips a single trailing BCD pad `F`/`f`. Used for **comparison** only — see next section. |
+| `iccid_canonicalize <raw>` | `sim_db_normalize` **plus** strips every trailing BCD pad `F`/`f` (one `F`, or `FF`). Used for **comparison** only — see next section. |
 
 A SIM is "new" iff its ICCID (after normalization) is **not** a member of
 `known_iccids`. On detection, the ICCID is added immediately so the banner
@@ -342,7 +342,7 @@ privileged boundary validates its own input rather than trusting the caller:
 | Action | Strict 3-value enum: `dismiss` \| `undismiss` \| `clear_keep`. |
 | ICCID present | Required for `dismiss`/`undismiss`. **`clear_keep` alone accepts an empty ICCID** — clearing with no SIM inserted legitimately empties the whole registry, mirroring `sim_db_clear_keep`'s truncate-on-empty. |
 | ICCID charset | Digits only, plus `F`/`f`. Anything else → `invalid_charset`. |
-| ICCID shape | `F`/`f` may appear **only** as the single trailing pad nibble; strip one trailing `F` and the remainder must be all-digit (rejects e.g. `12F34`). |
+| ICCID shape | `F`/`f` may appear **only** as trailing pad nibbles (one `F`, or `FF`); strip every trailing `F` and the remainder must be all-digit (rejects e.g. `12F34`, `12F34F`). |
 | ICCID length | 18–22 characters. |
 
 ⚠️ The charset/shape/length gates are gated on `[ -n "$iccid" ]`, **not** on the

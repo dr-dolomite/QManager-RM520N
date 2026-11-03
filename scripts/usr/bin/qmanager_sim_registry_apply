@@ -67,21 +67,25 @@ if [ -n "$iccid" ]; then
     # Charset gate: only digits and F/f are allowed anywhere.
     case "$iccid" in
         *[!0-9Ff]*)
-            printf '{"success":false,"error":"invalid_charset","detail":"ICCID must be digits, with an optional trailing F"}\n'
+            printf '{"success":false,"error":"invalid_charset","detail":"ICCID must be digits, with optional trailing F padding"}\n'
             exit 1
             ;;
     esac
 
-    # Shape gate: F/f, if present, must appear ONLY as the single trailing char.
-    # Strip one trailing F/f (if present) and require the remainder be all-digit
-    # — this rejects an embedded F anywhere but the last position (e.g. "12F34").
+    # Shape gate: F/f, if present, must appear ONLY as trailing pad (one F, or
+    # FF as some modems report, e.g. "...742FF"). Strip every trailing F/f and
+    # require the remainder be all-digit — this rejects an embedded F anywhere
+    # but the tail (e.g. "12F34", "12F34F").
     _stripped="$iccid"
-    case "$_stripped" in
-        *[Ff]) _stripped=${_stripped%?} ;;
-    esac
+    while :; do
+        case "$_stripped" in
+            *[Ff]) _stripped=${_stripped%?} ;;
+            *) break ;;
+        esac
+    done
     case "$_stripped" in
         ''|*[!0-9]*)
-            printf '{"success":false,"error":"invalid_charset","detail":"F/f is only allowed as a single trailing pad nibble"}\n'
+            printf '{"success":false,"error":"invalid_charset","detail":"F/f is only allowed as trailing pad nibbles"}\n'
             exit 1
             ;;
     esac
