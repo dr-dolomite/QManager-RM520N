@@ -39,11 +39,19 @@ iptables  -t mangle -I POSTROUTING -o rmnet+ -j TTL --ttl-set <ttl>
 ip6tables -t mangle -I POSTROUTING -o rmnet+ -j HL  --hl-set  <hl>
 ```
 
-`rmnet+` is a wildcard: the cellular WAN does not live on a fixed `rmnet_dataN`. `ttl_state_apply` **drains before it inserts**, in a bounded 32-pass loop per family — `iptables -D` removes one matching rule per invocation, so a single delete would leave duplicates from a past racy apply or a boot-plus-CGI double-apply, and a duplicate lies to the next `read_live`.
+When HL is non-zero, three more rules are inserted **above** the HL rule, one per ICMPv6 type 133 (RS), 135 (NS) and 136 (NA):
+
+```sh
+ip6tables -t mangle -I POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type <133|135|136> -j ACCEPT
+```
+
+RFC 4861 requires Hop Limit 255 on Neighbor Discovery, and the carrier drops an RS that leaves with HL 64, so SLAAC and default-gateway discovery fail in IPv6 passthrough. `ACCEPT` leaves those packets untouched rather than setting 255, so a forwarded ND packet (HL already decremented) is never stamped with a forged 255. Order matters: HL is inserted first and the exemptions after, so they land on top. Types 134 and 137 are router-to-host and never leave the modem toward the carrier. MLD reports (HL 1) are still rewritten; no carrier is known to care. Not yet verified on-device (GitHub issue 15).
+
+`rmnet+` is a wildcard: the cellular WAN does not live on a fixed `rmnet_dataN`. `ttl_state_apply` **drains before it inserts**, in a bounded 32-pass loop per family (plus a bounded `-D` loop per ND exemption) — `iptables -D` removes one matching rule per invocation, so a single delete would leave duplicates from a past racy apply or a boot-plus-CGI double-apply, and a duplicate lies to the next `read_live`.
 
 A value of `0` is "remove the rule", not "set TTL to zero" — the insert is skipped entirely.
 
-> ⚠️ WARNING: **From the CGI, these calls go through an allow-list.** As `www-data`, `run_iptables` / `run_ip6tables` forward their argv to the root helper `/usr/bin/qmanager_fw_apply`, which accepts only the exact TTL/HL shapes above (plus the `-vnL POSTROUTING` read), with `-w 5 -t mangle` in front and a value of 1–255. Change the rule shape in `ttl_state.sh` — another interface, another chain, an extra match — and update `qmanager_fw_apply` with it, or the CGI's apply is refused (`refused: shape`, exit 2). Root callers run iptables directly and do not see the difference.
+> ⚠️ WARNING: **From the CGI, these calls go through an allow-list.** As `www-data`, `run_iptables` / `run_ip6tables` forward their argv to the root helper `/usr/bin/qmanager_fw_apply`, which accepts only the exact TTL/HL and ND-exemption shapes above (plus the `-vnL POSTROUTING` read), with `-w 5 -t mangle` in front and a value of 1–255. Change the rule shape in `ttl_state.sh` — another interface, another chain, an extra match — and update `qmanager_fw_apply` with it, or the CGI's apply is refused (`refused: shape`, exit 2). Root callers run iptables directly and do not see the difference.
 
 ### `resolve_wan_interface()` — why the MTU read is not `rmnet_data0`
 
