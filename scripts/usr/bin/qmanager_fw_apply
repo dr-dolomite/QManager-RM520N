@@ -15,7 +15,8 @@
 #   v4 mangle  -D|-I POSTROUTING -o rmnet+ -j TTL --ttl-set N
 #   v6 mangle  -vnL POSTROUTING
 #   v6 mangle  -D|-I POSTROUTING -o rmnet+ -j HL --hl-set N
-#   v6 mangle  -D|-I POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type 133|135|136 -j ACCEPT
+#   v6 mangle  -D|-I POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type T -j ACCEPT
+#              (T = ND 133-137 or MLD 130|131|132|143)
 #   v4 mangle  -D POSTROUTING -p udp --dport 443 -j DSCP --set-dscp 0x2e
 #   v4 nat     -S PREROUTING | -L PREROUTING -n -v -x
 #   v4 nat     -D|-I PREROUTING <engine match | legacy match> -j REDIRECT --to-ports 989
@@ -80,9 +81,10 @@ _num() {
 for _last in "$@"; do :; done
 shape="${rest% *}"
 
-# ND exemption rules: the argv is built from constants, never caller text.
+# ND/MLD exemption rules (list kept in sync with ttl_state.sh): the argv is
+# built from constants, never caller text.
 if [ "$FAM:$table" = "6:mangle" ]; then
-    for _t in 133 135 136; do
+    for _t in 130 131 132 133 134 135 136 137 143; do
         case "$rest" in
             "-D POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type $_t -j ACCEPT")
                 exec "$BIN" -w 5 -t mangle -D POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type "$_t" -j ACCEPT ;;

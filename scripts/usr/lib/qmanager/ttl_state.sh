@@ -35,8 +35,10 @@ _TTL_STATE_LOADED=1
 TTL_STATE_FILE="/etc/qmanager/ttl_state"
 TTL_STATE_DIR="/etc/qmanager"
 
-# Outgoing ICMPv6 ND types (RS, NS, NA): RFC 4861 needs HL 255, so HL is not rewritten.
-_TTL_ND_TYPES="133 135 136"
+# ICMPv6 types whose Hop Limit is fixed by RFC, so HL never rewrites them:
+# ND 133-137 need 255 (RFC 4861), MLD 130-132 and 143 need 1 (RFC 2710/3810).
+# Kept in sync with qmanager_fw_apply's allow-list.
+_TTL_ND_TYPES="130 131 132 133 134 135 136 137 143"
 
 # =============================================================================
 # _ttl_is_int — validate that $1 is a non-negative integer 0-255
@@ -159,7 +161,7 @@ ttl_state_write_persisted() {
 # =============================================================================
 # Reads live state, deletes any existing TTL/HL POSTROUTING rules on rmnet+,
 # then inserts new rules if the values are non-zero. A non-zero HL also adds
-# ACCEPT rules above it for outgoing ND, so those keep their Hop Limit.
+# ACCEPT rules above it for outgoing ND and MLD, so those keep their Hop Limit.
 # Returns 0 on success (failures from -D are silenced; -I failures propagate).
 ttl_state_apply() {
     local ttl="$1" hl="$2"
@@ -205,7 +207,7 @@ ttl_state_apply() {
         i=$((i + 1))
     done
 
-    # Drop the ND exemption rules too; they are re-inserted below when HL > 0.
+    # Drop the ND/MLD exemption rules too; they are re-inserted below when HL > 0.
     local t
     for t in $_TTL_ND_TYPES; do
         i=0
@@ -224,7 +226,7 @@ ttl_state_apply() {
     if [ "$hl" -gt 0 ]; then
         run_ip6tables -w 5 -t mangle -I POSTROUTING \
             -o rmnet+ -j HL --hl-set "$hl" || return 1
-        # Inserted after the HL rule so they sit above it and ND keeps its own HL.
+        # Inserted after the HL rule so they sit above it and ND/MLD keep their own HL.
         for t in $_TTL_ND_TYPES; do
             run_ip6tables -w 5 -t mangle -I POSTROUTING \
                 -o rmnet+ -p ipv6-icmp --icmpv6-type "$t" -j ACCEPT || return 1
