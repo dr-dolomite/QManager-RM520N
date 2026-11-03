@@ -1164,5 +1164,49 @@
       "close": "Close",
       "stop": "Stop"
     }
+  },
+  "adaptive_polling": {
+    "page_title": "Adaptive Polling",
+    "page_description": "Query the modem less often while no one has QManager open.",
+    "card_title": "Adaptive Polling",
+    "card_description": "Status refreshes at full rate while a page is open, then slows down.",
+    "tier": {
+      "active": "Full rate",
+      "idle": "Idle (slowed)",
+      "deep": "Deep idle (minimal)"
+    },
+    "tier_aria": "Polling now: {{tier}}",
+    "enabled": {
+      "label": "Slow down when idle",
+      "on": "Polling slows after the grace period below.",
+      "off": "Status refreshes at full rate all the time.",
+      "hint_label": "What keeps running",
+      "hint": "Alerts and the connection watchdog keep working at every rate. Only status refreshes slow down."
+    },
+    "fields": {
+      "active_grace": {
+        "label": "Grace period",
+        "consequence": "Full rate continues this long after the last page closes ({{min}} to {{max}} s)."
+      },
+      "idle_interval": {
+        "label": "Idle interval",
+        "consequence": "Time between refreshes while idle ({{min}} to {{max}} s)."
+      },
+      "idle_threshold": {
+        "label": "Deep idle after",
+        "consequence": "Idle time before refreshes slow further ({{min}} to {{max}} s)."
+      },
+      "deep_idle_interval": {
+        "label": "Deep idle interval",
+        "consequence": "Time between refreshes in deep idle ({{min}} to {{max}} s)."
+      }
+    },
+    "unit_seconds": "s",
+    "error_title": "Couldn't load adaptive polling",
+    "error_description": "The settings didn't load. Try again in a moment.",
+    "save_failed_status": "Not saved",
+    "default_status": "Default timings",
+    "toast_saved": "Adaptive polling saved.",
+    "toast_failed": "Couldn't save adaptive polling."
   }
 }

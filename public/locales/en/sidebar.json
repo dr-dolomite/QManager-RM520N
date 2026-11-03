@@ -43,6 +43,7 @@
     "connection_quality": "Connection Quality",
     "languages": "Languages",
     "device_access": "Device Access",
+    "adaptive_polling": "Adaptive Polling",
     "software_update": "Software Update",
     "terminals": "Terminals",
     "at_terminal": "AT Terminal",

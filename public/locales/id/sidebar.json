@@ -43,6 +43,7 @@
     "connection_quality": "Kualitas Koneksi",
     "languages": "Bahasa",
     "device_access": "Akses Perangkat",
+    "adaptive_polling": "Polling Adaptif",
     "software_update": "Pembaruan Perangkat Lunak",
     "terminals": "Terminal",
     "at_terminal": "AT Terminal",

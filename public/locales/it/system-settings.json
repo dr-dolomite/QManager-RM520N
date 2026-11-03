@@ -1164,5 +1164,49 @@
       "close": "Chiudi",
       "stop": "Interrompi"
     }
+  },
+  "adaptive_polling": {
+    "page_title": "Polling adattivo",
+    "page_description": "Interroga il modem meno spesso quando nessuno ha QManager aperto.",
+    "card_title": "Polling adattivo",
+    "card_description": "Lo stato si aggiorna a piena velocità mentre una pagina è aperta, poi rallenta.",
+    "tier": {
+      "active": "Piena velocità",
+      "idle": "Inattivo (rallentato)",
+      "deep": "Inattività profonda (minimo)"
+    },
+    "tier_aria": "Polling attuale: {{tier}}",
+    "enabled": {
+      "label": "Rallenta quando inattivo",
+      "on": "Il polling rallenta dopo il periodo di tolleranza indicato sotto.",
+      "off": "Lo stato si aggiorna sempre a piena velocità.",
+      "hint_label": "Cosa continua a funzionare",
+      "hint": "Gli avvisi e il watchdog di connessione continuano a funzionare a ogni velocità. Rallenta solo l'aggiornamento dello stato."
+    },
+    "fields": {
+      "active_grace": {
+        "label": "Periodo di tolleranza",
+        "consequence": "La piena velocità continua per questo tempo dopo la chiusura dell'ultima pagina ({{min}} - {{max}} s)."
+      },
+      "idle_interval": {
+        "label": "Intervallo di inattività",
+        "consequence": "Tempo tra gli aggiornamenti in inattività ({{min}} - {{max}} s)."
+      },
+      "idle_threshold": {
+        "label": "Inattività profonda dopo",
+        "consequence": "Tempo di inattività prima che gli aggiornamenti rallentino ulteriormente ({{min}} - {{max}} s)."
+      },
+      "deep_idle_interval": {
+        "label": "Intervallo di inattività profonda",
+        "consequence": "Tempo tra gli aggiornamenti in inattività profonda ({{min}} - {{max}} s)."
+      }
+    },
+    "unit_seconds": "s",
+    "error_title": "Impossibile caricare il polling adattivo",
+    "error_description": "Le impostazioni non sono state caricate. Riprova tra un attimo.",
+    "save_failed_status": "Non salvato",
+    "default_status": "Tempi predefiniti",
+    "toast_saved": "Polling adattivo salvato.",
+    "toast_failed": "Impossibile salvare il polling adattivo."
   }
 }

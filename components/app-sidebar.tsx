@@ -149,6 +149,7 @@ const navSystem: NavItem[] = [
     items: [
       { t_key: "languages", url: "/system-settings/languages" },
       { t_key: "device_access", url: "/system-settings/device-access" },
+      { t_key: "adaptive_polling", url: "/system-settings/adaptive-polling" },
       {
         t_key: "system_health_check",
         url: "/system-settings/system-health-check",

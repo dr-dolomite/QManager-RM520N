@@ -1164,5 +1164,49 @@
       "close": "关闭",
       "stop": "停止"
     }
+  },
+  "adaptive_polling": {
+    "page_title": "自适应轮询",
+    "page_description": "无人打开 QManager 时，减少查询调制解调器的频率。",
+    "card_title": "自适应轮询",
+    "card_description": "页面打开时状态按全速刷新，之后逐步放慢。",
+    "tier": {
+      "active": "全速",
+      "idle": "空闲（降速）",
+      "deep": "深度空闲（最低）"
+    },
+    "tier_aria": "当前轮询：{{tier}}",
+    "enabled": {
+      "label": "空闲时降速",
+      "on": "宽限期过后轮询降速。",
+      "off": "状态始终按全速刷新。",
+      "hint_label": "哪些功能保持运行",
+      "hint": "提醒和连接看门狗在任何速率下都正常工作，仅状态刷新会放慢。"
+    },
+    "fields": {
+      "active_grace": {
+        "label": "宽限期",
+        "consequence": "最后一个页面关闭后，仍按全速运行这么久（{{min}} 至 {{max}} 秒）。"
+      },
+      "idle_interval": {
+        "label": "空闲间隔",
+        "consequence": "空闲时两次刷新的间隔（{{min}} 至 {{max}} 秒）。"
+      },
+      "idle_threshold": {
+        "label": "进入深度空闲前",
+        "consequence": "刷新进一步放慢前的空闲时间（{{min}} 至 {{max}} 秒）。"
+      },
+      "deep_idle_interval": {
+        "label": "深度空闲间隔",
+        "consequence": "深度空闲时两次刷新的间隔（{{min}} 至 {{max}} 秒）。"
+      }
+    },
+    "unit_seconds": "秒",
+    "error_title": "无法加载自适应轮询",
+    "error_description": "设置未能加载，请稍后重试。",
+    "save_failed_status": "未保存",
+    "default_status": "默认时间",
+    "toast_saved": "自适应轮询已保存。",
+    "toast_failed": "无法保存自适应轮询。"
   }
 }
