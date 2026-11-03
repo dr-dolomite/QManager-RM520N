@@ -39,8 +39,8 @@ import type {
 // -----------------------------------------------------------------------------
 // Unread is a client-side overlay
 // -----------------------------------------------------------------------------
-// The modem marks every message read on each listing, so it can never report
-// unread. `useSmsReadState` keeps a per-browser read set; this hook stamps
+// The backend never reports unread, so `useSmsReadState` keeps a per-browser
+// read set; this hook stamps
 // `unread = 1` on inbound messages whose fingerprint is not in it and rolls the
 // count up onto the threads. "Mark as read" and "Mark as unread" are therefore
 // local and never POST.
@@ -60,6 +60,14 @@ export interface SmsActionResult {
   /** Send failure only: total parts, and how many went out before it failed. */
   parts?: number;
   sentParts?: number;
+  /** Send only: the number the backend filed the message under (normalized). */
+  addr?: string;
+}
+
+/** A queued send's outcome: the result, and the thread the message landed in. */
+export interface SmsSendOutcome {
+  result: SmsActionResult;
+  addr: string;
 }
 
 const OK: SmsActionResult = { ok: true };
@@ -123,6 +131,8 @@ interface RawInbox {
   threads: SmsThread[];
   storage: SmsStorage;
   smsc: SmscConfig | null;
+  /** A store could not be read, so the list is missing its messages. */
+  incomplete: boolean;
 }
 
 export interface UseSmsReturn {
@@ -144,11 +154,14 @@ export interface UseSmsReturn {
   sendSms: (phone: string, message: string) => Promise<SmsActionResult>;
   /**
    * Optimistically queue an outbound message to a RAW stored address and start
-   * sending. Returns the client id, which is also the retry handle.
+   * sending. `done` resolves when the send settles; null when the entry is gone.
    */
-  queueSend: (addr: string, text: string) => string;
+  queueSend: (
+    addr: string,
+    text: string,
+  ) => { clientId: string; done: Promise<SmsSendOutcome | null> };
   /** Retry a failed queued send, reusing its client id. */
-  retrySend: (clientId: string) => void;
+  retrySend: (clientId: string) => Promise<SmsSendOutcome | null>;
   /** Drop a queued send from the optimistic list. */
   dismissSend: (clientId: string) => void;
   /** Delete one message (received from the modem, or a sent record). */
@@ -159,7 +172,7 @@ export interface UseSmsReturn {
   deleteAllSms: () => Promise<SmsActionResult>;
   /**
    * Fetch a thread's full history, oldest first, and mark its received
-   * messages read. Never call this on a poll.
+   * messages read.
    */
   fetchThread: (addr: string) => Promise<SmsMessage[]>;
   /** Update the provider number (SMSC). */
@@ -245,7 +258,7 @@ export function useSms(): UseSmsReturn {
     () => (raw ? raw.messages.filter(isInboundMessage) : []),
     [raw],
   );
-  const readState = useSmsReadState(inbound);
+  const readState = useSmsReadState(inbound, !raw?.incomplete);
   const { isRead, markManyRead, markUnread } = readState;
 
   const data = useMemo<SmsData | null>(() => {
@@ -277,10 +290,13 @@ export function useSms(): UseSmsReturn {
   // The mark-read callbacks must stay referentially stable (the surface fetches
   // a thread from an effect keyed on `fetchThread`), yet they need the CURRENT
   // list. A ref, refreshed after every commit, bridges the two.
-  const latestRef = useRef({ inbound, markManyRead, markUnread });
+  const listed = raw?.messages;
+  const latestRef = useRef({ inbound, listed, markManyRead, markUnread });
   useEffect(() => {
-    latestRef.current = { inbound, markManyRead, markUnread };
+    latestRef.current = { inbound, listed, markManyRead, markUnread };
   });
+  /** Settles when the inbox GET in flight lands; thread opens wait on it. */
+  const inFlightDoneRef = useRef<Promise<void>>(Promise.resolve());
 
   // ---------------------------------------------------------------------------
   // The optimistic queue's single writer
@@ -324,11 +340,12 @@ export function useSms(): UseSmsReturn {
               detail: json.detail,
               parts: json.parts,
               sentParts: json.sent_parts,
+              addr: json.addr,
             },
             json,
           };
         }
-        return { result: OK, json };
+        return { result: json.addr ? { ok: true, addr: json.addr } : OK, json };
       } catch {
         return { result: { ok: false }, json: null };
       }
@@ -340,9 +357,7 @@ export function useSms(): UseSmsReturn {
   // Fetch inbox overview (threads, flat messages, storage, smsc)
   // ---------------------------------------------------------------------------
   // `silent` suppresses the loading skeleton; `quiet` additionally suppresses
-  // the error state while we still hold good data. A background poll is both:
-  // one failed tick on a modem that is briefly busy must not replace a
-  // populated conversation with a full-panel error screen.
+  // the error state, so a post-mutation re-read never blanks a populated list.
   const fetchInbox = useCallback(
     async function runFetch(silent = false, quiet = false): Promise<boolean> {
       if (inFlightRef.current) {
@@ -351,6 +366,10 @@ export function useSms(): UseSmsReturn {
         return false;
       }
       inFlightRef.current = true;
+      let release = () => {};
+      inFlightDoneRef.current = new Promise<void>((r) => {
+        release = r;
+      });
       setIsFetching(true);
       if (!silent) setIsLoading(true);
       if (!quiet) setError(null);
@@ -380,11 +399,16 @@ export function useSms(): UseSmsReturn {
           return false;
         }
 
+        const listedNow = coerceCollection<SmsMessage>(json.messages, "messages");
+        // Visible to a waiting fetchThread before React commits.
+        latestRef.current = { ...latestRef.current, listed: listedNow };
         setRaw({
-          messages: coerceCollection<SmsMessage>(json.messages, "messages"),
+          messages: listedNow,
           threads: coerceCollection<SmsThread>(json.threads, "threads"),
           storage: json.storage || { used: 0, total: 0 },
           smsc: json.smsc ?? null,
+          incomplete:
+            !!json.storage_errors && Object.keys(json.storage_errors).length > 0,
         });
         setLastSyncedAt(Date.now());
         if (quiet) setError(null);
@@ -417,6 +441,7 @@ export function useSms(): UseSmsReturn {
       } finally {
         // Released unconditionally, or a remounted page could never fetch.
         inFlightRef.current = false;
+        release();
         if (mountedRef.current) {
           setIsFetching(false);
           if (!silent) setIsLoading(false);
@@ -437,34 +462,50 @@ export function useSms(): UseSmsReturn {
   }, [fetchInbox]);
 
   // ---------------------------------------------------------------------------
-  // Thread detail: once per deliberate open, never polled
+  // Thread detail: once per deliberate open
   // ---------------------------------------------------------------------------
   const fetchThread = useCallback(
     async (addr: string): Promise<SmsMessage[]> => {
+      // One read at a time: wait for a list GET in flight, then answer from the
+      // list when it already holds this thread (it carries every message).
+      await inFlightDoneRef.current;
+      const fromList = (latestRef.current.listed ?? []).filter(
+        (m) => keyOf(m) === addr,
+      );
+      if (fromList.length > 0) {
+        latestRef.current.markManyRead(fromList.filter(isInboundMessage));
+        return [...fromList].sort((x, y) => (x.time ?? 0) - (y.time ?? 0));
+      }
+
+      // A deep link the list does not hold: read it, holding the same guard.
+      if (inFlightRef.current) await inFlightDoneRef.current;
+      inFlightRef.current = true;
+      let release = () => {};
+      inFlightDoneRef.current = new Promise<void>((r) => {
+        release = r;
+      });
       try {
-        // `addr` is the RAW stored address; a display name here fetches an
-        // empty thread.
+        // `addr` is the RAW stored address; a display name fetches nothing.
         const resp = await authFetch(
           `${CGI_ENDPOINT}?addr=${encodeURIComponent(addr)}`,
         );
         if (!resp.ok) return [];
-
         const json: SmsThreadDetailResponse = await resp.json();
         if (!json.success || !Array.isArray(json.messages)) return [];
-
-        // Opening a thread reads it: everything received in it, whether it is
-        // already in the list or only in this response.
-        const { inbound: listed, markManyRead: markMany } = latestRef.current;
-        markMany([
-          ...listed.filter((m) => keyOf(m) === addr),
-          ...json.messages.filter(isInboundMessage),
-        ]);
+        latestRef.current.markManyRead(json.messages.filter(isInboundMessage));
         return json.messages;
       } catch {
         return [];
+      } finally {
+        inFlightRef.current = false;
+        release();
+        if (queuedRef.current && mountedRef.current) {
+          queuedRef.current = false;
+          void fetchInbox(true, true);
+        }
       }
     },
-    [],
+    [fetchInbox],
   );
 
   // ---------------------------------------------------------------------------
@@ -503,9 +544,9 @@ export function useSms(): UseSmsReturn {
   // the first list read that starts after it was acknowledged (see
   // `fetchInbox`), so the real message replaces it.
   const runSend = useCallback(
-    async (clientId: string) => {
+    async (clientId: string): Promise<SmsSendOutcome | null> => {
       const entry = pendingRef.current.find((p) => p.clientId === clientId);
-      if (!entry) return;
+      if (!entry) return null;
 
       patchPending(clientId, {
         state: "sending",
@@ -522,7 +563,7 @@ export function useSms(): UseSmsReturn {
         phone: entry.addr,
         message: entry.text,
       });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return null;
 
       if (!result.ok) {
         patchPending(clientId, {
@@ -532,17 +573,21 @@ export function useSms(): UseSmsReturn {
           sentParts: result.sentParts,
           parts: result.parts,
         });
-        return;
+        return { result, addr: entry.addr };
       }
 
-      patchPending(clientId, { state: "sent", settledAt: Date.now() });
+      // The backend files the record under the normalized number; the bubble
+      // moves with it so it lands in the thread the list will show.
+      const addr = result.addr || entry.addr;
+      patchPending(clientId, { state: "sent", settledAt: Date.now(), addr });
       void fetchInbox(true, true);
+      return { result, addr };
     },
     [fetchInbox, patchPending, post],
   );
 
   const queueSend = useCallback(
-    (addr: string, text: string): string => {
+    (addr: string, text: string) => {
       const clientId = nextClientId();
       const entry: PendingSmsSend = {
         clientId,
@@ -553,17 +598,16 @@ export function useSms(): UseSmsReturn {
       };
       // Commit synchronously so `runSend` can find the entry on the same tick.
       commitPending([...pendingRef.current, entry]);
-      void runSend(clientId);
-      return clientId;
+      return { clientId, done: runSend(clientId) };
     },
     [commitPending, runSend],
   );
 
   const retrySend = useCallback(
-    (clientId: string) => {
+    (clientId: string): Promise<SmsSendOutcome | null> => {
       const entry = pendingRef.current.find((p) => p.clientId === clientId);
-      if (!entry || entry.state === "sending") return;
-      void runSend(clientId);
+      if (!entry || entry.state === "sending") return Promise.resolve(null);
+      return runSend(clientId);
     },
     [runSend],
   );

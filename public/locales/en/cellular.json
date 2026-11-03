@@ -2325,7 +2325,8 @@
         "placeholder": "Text message",
         "remaining_one": "{{count}} character left",
         "remaining_other": "{{count}} characters left",
-        "send": "Send message"
+        "send": "Send message",
+        "no_reply": "This sender is a name, not a number, so it can't be replied to."
       },
       "identity": {
         "matched": "Matched"

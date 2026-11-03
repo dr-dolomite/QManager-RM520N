@@ -2325,7 +2325,8 @@
         "placeholder": "簡訊",
         "remaining_one": "還可輸入 {{count}} 個字元",
         "remaining_other": "還可輸入 {{count}} 個字元",
-        "send": "傳送訊息"
+        "send": "傳送訊息",
+        "no_reply": "該寄件者是名稱而非號碼，因此無法回覆。"
       },
       "identity": {
         "matched": "已匹配"

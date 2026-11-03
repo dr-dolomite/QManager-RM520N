@@ -29,6 +29,7 @@ import {
   formatClock,
   formatDay,
   isOutbound,
+  isDialableSender,
   isServerFailed,
   smsDayKey,
   smsEpochMs,
@@ -412,7 +413,15 @@ export function SmsConversation({
         />
       )}
 
-      <SmsComposer destinationLabel={identity.title} onSend={onSend} />
+      {/* A sender ID like GLOBE cannot be addressed; Forward stays available. */}
+      {isDialableSender(view.addr) ? (
+        <SmsComposer destinationLabel={identity.title} onSend={onSend} />
+      ) : (
+        <p className="bg-surface text-on-surface-variant flex flex-none items-center gap-2 px-5 pt-3.5 pb-4 text-xs">
+          <MaterialSymbol name="info" size={15} className="flex-none" />
+          {t("sms.center.composer.no_reply")}
+        </p>
+      )}
     </div>
   );
 }
@@ -423,7 +432,7 @@ export function SmsConversation({
 // Owns the scroll position and the entrance rule.
 //
 // **Only a newly-arrived bubble animates.** The history that is already there
-// when a thread opens is drawn flat; a bubble that appears afterwards (a poll
+// when a thread opens is drawn flat; a bubble that appears afterwards (a refresh
 // bringing a new message in, or an optimistic send going out) is the only
 // thing that rises. That is what `AnimatePresence initial={false}` means, and
 // it is why the whole conversation is FLATTENED into one array of directly

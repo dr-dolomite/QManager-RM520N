@@ -29,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { smsErrorMessage, useSms } from "@/hooks/use-sms";
+import { smsErrorMessage, useSms, type SmsSendOutcome } from "@/hooks/use-sms";
 import {
   DUR,
   EASE_EMPHASIZED,
@@ -144,7 +144,8 @@ export default function SmsCenterComponent() {
 
   // ---- the open thread ----------------------------------------------------
   const threadParam = searchParams.get("thread");
-  const openAddr = threadParam ? decodeURIComponent(threadParam) : null;
+  // `get()` already decodes; decoding again throws on a sender like "50%OFF".
+  const openAddr = threadParam || null;
   const listView = openAddr
     ? (allViews.find((v) => v.addr === openAddr) ?? null)
     : null;
@@ -183,8 +184,7 @@ export default function SmsCenterComponent() {
     return null;
   }, [listView, openAddr, detail, pendingSends]);
 
-  // Thread detail is fetched exactly ONCE per deliberate open, never on the
-  // poll. Fetching it also reads the thread.
+  // Thread detail is fetched once per deliberate open; fetching it reads it.
   React.useEffect(() => {
     if (!openAddr) {
       setDetailState({ addr: null, messages: [] });
@@ -200,9 +200,7 @@ export default function SmsCenterComponent() {
     };
   }, [openAddr, fetchThread]);
 
-  // Live arrivals reach an open thread through the polled FLAT list, which is
-  // why the detail pane never needs its own timer. The two are unioned and
-  // de-duplicated on (time, body, direction).
+  // The list and the detail are unioned, de-duplicated on (time, direction, body).
   const threadMessages = React.useMemo(() => {
     if (!openView) return detail;
     const sig = (m: SmsMessage) =>
@@ -219,15 +217,8 @@ export default function SmsCenterComponent() {
     return merged.sort((a, b) => smsEpochMs(a) - smsEpochMs(b));
   }, [openView, detail]);
 
-  // Opening a thread reads it (`fetchThread`, above). What still needs handling
-  // is a NEW received message arriving in a thread that is already open: the
-  // poll unions it into `openView.messages`, but nothing tells the read set
-  // about it, so without this the thread would sit unread while the user is
-  // looking right at it. Debounced and gated on the received count actually
-  // growing, so it fires once per burst of arrivals rather than once per poll
-  // tick, and never on the initial open or right after "Mark as unread" (that
-  // action closes the thread, so `openView` becomes null and the baseline
-  // resets before this could fire).
+  // A message that arrives in the open thread on a refresh is read too.
+  // Debounced, and gated on the received count growing past the open baseline.
   const readSyncRef = React.useRef<{ addr: string | null; inboundCount: number }>(
     { addr: null, inboundCount: 0 },
   );
@@ -367,23 +358,60 @@ export default function SmsCenterComponent() {
     React.useState<SmsMessage | null>(null);
   const [isDeletingMessage, setIsDeletingMessage] = React.useState(false);
 
+  // One toast per settled send; the bubble keeps its own status line too.
+  const toastSend = React.useCallback(
+    (outcome: SmsSendOutcome | null) => {
+      if (!outcome) return;
+      if (outcome.result.ok) toast.success(t("sms.compose.toast.success"));
+      else toast.error(smsErrorMessage(t, outcome.result, t("sms.errors.send")));
+    },
+    [t],
+  );
+
   const handleSend = React.useCallback(
     (text: string) => {
       if (!openAddr) return;
       // THE KEY again: the reply destination is the raw stored address.
-      queueSend(openAddr, text);
+      void queueSend(openAddr, text).done.then(toastSend);
     },
-    [openAddr, queueSend],
+    [openAddr, queueSend, toastSend],
   );
+
+  const handleRetrySend = React.useCallback(
+    (clientId: string) => {
+      void retrySend(clientId).then(toastSend);
+    },
+    [retrySend, toastSend],
+  );
+
+  // Read in the send's settle callback, after the closure that queued it.
+  const openAddrRef = React.useRef(openAddr);
+  React.useEffect(() => {
+    openAddrRef.current = openAddr;
+  }, [openAddr]);
 
   // ---- per-message context menu actions ------------------------------------
   const handleForwardSubmit = React.useCallback(
     (dest: string, text: string) => {
-      queueSend(dest, text);
+      const { done } = queueSend(dest, text);
       setForwardTarget(null);
       if (dest !== openAddr) openThread(dest);
+      void done.then((outcome) => {
+        toastSend(outcome);
+        // The backend files it under the normalized number: follow it there.
+        if (
+          outcome?.result.ok &&
+          outcome.addr !== dest &&
+          openAddrRef.current === dest
+        ) {
+          router.replace(
+            `/cellular/sms/?thread=${encodeURIComponent(outcome.addr)}`,
+            { scroll: false },
+          );
+        }
+      });
     },
-    [queueSend, openThread, openAddr],
+    [queueSend, openThread, openAddr, toastSend, router],
   );
 
   const handleMarkMessageUnread = React.useCallback(
@@ -418,8 +446,7 @@ export default function SmsCenterComponent() {
     const deleted = deleteMessageTarget;
     setDeleteMessageTarget(null);
     if (result.ok) {
-      // The open thread unions the polled list with `detail`, which is fetched
-      // once per open; drop the message here too or the union keeps it.
+      // The open thread unions the list with `detail`; drop it from both.
       setDetailState((prev) => ({
         ...prev,
         messages: prev.messages.filter((m) =>
@@ -605,7 +632,7 @@ export default function SmsCenterComponent() {
                 isLoadingThread={isLoadingThread}
                 onBack={closeThread}
                 onSend={handleSend}
-                onRetrySend={retrySend}
+                onRetrySend={handleRetrySend}
                 onDismissSend={dismissSend}
                 onRequestDeleteThread={() => setDeleteTarget(openView.addr)}
                 onMarkRead={() => handleMarkThreadRead(openView.addr)}

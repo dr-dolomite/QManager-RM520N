@@ -47,8 +47,7 @@ import { cn } from "@/lib/utils";
 // =============================================================================
 // BrandMark — one registrable domain, drawn as its brand
 // =============================================================================
-// Shared by the Sites surface (`latency-monitoring/site-mark.tsx`) and the SMS
-// sender discs (`cellular/sms/sms-identity-disc.tsx`). Ladder, in order:
+// Used by the SMS sender discs (`cellular/sms/sms-identity-disc.tsx`). Ladder:
 //   1. A mapped `react-icons/si` glyph in its brand colour.
 //   2. A fetched logo from `lib/logo-store.ts`: Hunter's logo, else the Google
 //      s2 favicon, checked once by the BROWSER (never the device) and kept in

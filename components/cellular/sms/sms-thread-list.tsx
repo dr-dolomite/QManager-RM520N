@@ -217,7 +217,7 @@ export function SmsThreadList({
           <ul className={cn("flex flex-col px-2.5 pb-3", THREAD_LIST_GAP)}>
             {/* Default AnimatePresence (initial: true) so the list cascades on
                 first paint. Keys are the raw address and therefore stable, so a
-                poll re-render mounts nothing and nothing re-cascades. */}
+                refresh re-render mounts nothing and nothing re-cascades. */}
             <AnimatePresence>
               {threads.map((view, index) => (
                 <motion.li

@@ -2325,7 +2325,8 @@
         "placeholder": "Messaggio di testo",
         "remaining_one": "{{count}} carattere rimanente",
         "remaining_other": "{{count}} caratteri rimanenti",
-        "send": "Invia messaggio"
+        "send": "Invia messaggio",
+        "no_reply": "Questo mittente è un nome, non un numero, quindi non è possibile rispondere."
       },
       "identity": {
         "matched": "Associato"

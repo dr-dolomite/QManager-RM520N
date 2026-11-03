@@ -90,11 +90,7 @@ export interface SmsMessage extends SmsSenderIdentityFields {
   type?: number;
   /** Result code: 1 = success, 0 = failed */
   result?: number;
-  /**
-   * Truthy = unread. Never sent by the backend: the modem marks every message
-   * read on each listing, so the hook overlays this from the browser's own
-   * read set (`hooks/use-sms-read-state.ts`).
-   */
+  /** Truthy = unread. Never sent by the backend; overlaid from the browser read set. */
   unread?: number;
   /** Which memory this message lives in. */
   storage: SmsStorageName;
@@ -158,6 +154,8 @@ export interface SmsInboxResponse {
   /** Null when the provider number could not be read this time. */
   smsc?: SmscConfig | null;
   unread_total?: number;
+  /** Stores whose read failed this time, keyed "ME" | "SM". */
+  storage_errors?: Partial<Record<"ME" | "SM", string>>;
   error?: string;
   detail?: string;
 }
@@ -177,6 +175,8 @@ export interface SmsThreadDetailResponse {
 /** Generic POST response */
 export interface SmsActionResponse {
   success: boolean;
+  /** Send: the number the backend filed the message under (normalized). */
+  addr?: string;
   code?: string;
   error?: string;
   detail?: string;

@@ -272,3 +272,10 @@ export function isOutbound(msg: SmsMessage): boolean {
 export function isServerFailed(msg: SmsMessage): boolean {
   return isOutbound(msg) && msg.status === "failed";
 }
+
+/** Digits with an optional leading `+`, spaces and dashes, at least 3 digits. */
+export function isDialableSender(addr: string): boolean {
+  const trimmed = addr.trim();
+  if (!/^\+?[\d\s-]+$/.test(trimmed)) return false;
+  return trimmed.replace(/\D/g, "").length >= 3;
+}

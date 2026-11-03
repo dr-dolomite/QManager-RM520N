@@ -2325,7 +2325,8 @@
         "placeholder": "短信",
         "remaining_one": "还可输入 {{count}} 个字符",
         "remaining_other": "还可输入 {{count}} 个字符",
-        "send": "发送消息"
+        "send": "发送消息",
+        "no_reply": "该发件人是名称而非号码，因此无法回复。"
       },
       "identity": {
         "matched": "已匹配"

@@ -2325,7 +2325,8 @@
         "placeholder": "Pesan teks",
         "remaining_one": "Sisa {{count}} karakter",
         "remaining_other": "Sisa {{count}} karakter",
-        "send": "Kirim pesan"
+        "send": "Kirim pesan",
+        "no_reply": "Pengirim ini berupa nama, bukan nomor, jadi tidak bisa dibalas."
       },
       "identity": {
         "matched": "Cocok"
