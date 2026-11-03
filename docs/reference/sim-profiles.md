@@ -248,7 +248,10 @@ merely echoes back whatever was last requested. One bracket-less write made
 `AT+CGDCONT?` match, so a retry reported `skipped` while the bearer was still
 stale. Only `AT+CGCONTRDP=<cid>` — the *negotiated* view, what the network
 actually granted — can verify that an APN apply took. Any future change to this
-step must keep verifying against `CGCONTRDP`, never `CGDCONT?`.
+step must keep verifying against `CGCONTRDP`, never `CGDCONT?`. The one
+exception is the no-bearer case (S11): when `CGCONTRDP` has no record at all, a
+`CGDCONT?` match only skips a pointless re-attach; it never reports an apply as
+verified.
 
 That rule fixes **which command to ask**, and it is unconditional. It does not,
 however, license trusting the reply's *shape*: `+CGCONTRDP` field quoting

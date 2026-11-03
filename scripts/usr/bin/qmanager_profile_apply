@@ -758,7 +758,7 @@ apply_apn() {
     # below still reports the profile's ORIGINAL-case p_apn_name.
     local rdp current_negotiated cgd
     # A failed read is an unknown state: never run the COPS=2/0 cycle on it.
-    # A bare OK (rc 0, no +CGCONTRDP line) is a known no-bearer state and proceeds.
+    # A bare OK (rc 0, no +CGCONTRDP line) is a known no-bearer state: see the CGDCONT? check below.
     if ! rdp=$(run_at "AT+CGCONTRDP=${p_apn_cid}"); then
         qlog_warn "APN step skipped: AT+CGCONTRDP=${p_apn_cid} read failed"
         mark_step_skipped "apn" "Could not read the current APN (CID ${p_apn_cid}); not changed"
@@ -782,9 +782,10 @@ apply_apn() {
         return
     fi
 
-    # No bearer yet but the context already holds this APN: the next attach uses it,
-    # so a COPS=2/0 cycle would only restart registration. A failed read falls through.
-    if [ -z "$current_negotiated" ] && cgd=$(run_at "AT+CGDCONT?"); then
+    # No bearer (no record at all) but the context already holds this APN: the next attach
+    # uses it, so COPS=2/0 would only restart registration. A failed read falls through.
+    if printf '%s\n' "$rdp" | awk '/^\+CGCONTRDP:/ { f = 1 } END { exit f }' && \
+       cgd=$(run_at "AT+CGDCONT?"); then
         local configured
         configured=$(printf '%s\n' "$cgd" | tr -d '\r' | awk -F'"' -v cid="$p_apn_cid" '
             /^\+CGDCONT:/ { c = $1; sub(/^\+CGDCONT:[ \t]*/, "", c); sub(/[ \t]*,.*$/, "", c)
