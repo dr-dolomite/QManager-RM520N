@@ -1209,5 +1209,25 @@
     "default_status": "Waktu default",
     "toast_saved": "Polling adaptif disimpan.",
     "toast_failed": "Tidak dapat menyimpan polling adaptif."
+  },
+  "web_port": {
+    "card_title": "Port Web",
+    "card_description": "Port yang didengarkan antarmuka ini.",
+    "http_label": "Port HTTP",
+    "http_consequence": "HTTP biasa hanya dialihkan ke port HTTPS.",
+    "https_label": "Port HTTPS",
+    "https_consequence": "Port terenkripsi tempat antarmuka ini disajikan.",
+    "pending": "Akan terbuka di {{origin}} setelah diterapkan.",
+    "moving": "Pindah ke {{origin}}… Jika browser meminta, terima sertifikat untuk port baru.",
+    "invalid": "Gunakan bilangan bulat dari 1 sampai 65535.",
+    "same": "HTTP dan HTTPS harus memakai port yang berbeda.",
+    "confirm_title": "Ubah port web?",
+    "confirm_description": "QManager dimulai ulang di port baru dan halaman ini pindah ke {{origin}}. Jika port baru gagal dimulai, port lama kembali dengan sendirinya.",
+    "confirm_action": "Ubah port",
+    "toast_failed": "Tidak dapat mengubah port web.",
+    "toast_unchanged": "Port web disimpan.",
+    "toast_unreachable": "Port baru tidak merespons, jadi QManager tetap di port lama.",
+    "error_title": "Tidak dapat membaca port web",
+    "error_description": "Port tidak termuat. Coba lagi sebentar lagi."
   }
 }

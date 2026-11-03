@@ -4,14 +4,14 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import PasswordCard from "@/components/system-settings/password-card";
+import WebPortCard from "@/components/system-settings/web-port/web-port-card";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { CARD_CELL, CARD_GRID, PAGE_HEAD, PAGE_ROOT } from "../shapes";
 
 const K = "device_access.page";
 
-// Two columns on desktop, one on a phone. Passwords takes the left cell; the
-// right one is held for the Web Port card a later phase adds.
+// Two columns on desktop, one on a phone: Passwords, then Web Port.
 const DeviceAccessSettings = () => {
   const { t } = useTranslation("system-settings");
   return (
@@ -35,6 +35,9 @@ const DeviceAccessSettings = () => {
       <motion.div className={CARD_GRID} variants={staggerContainer}>
         <motion.div variants={staggerItem} className={CARD_CELL}>
           <PasswordCard />
+        </motion.div>
+        <motion.div variants={staggerItem} className={CARD_CELL}>
+          <WebPortCard />
         </motion.div>
       </motion.div>
     </motion.div>

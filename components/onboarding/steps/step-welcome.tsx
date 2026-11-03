@@ -43,6 +43,7 @@ export function StepWelcome() {
         <StepPreviewItem label={t("welcome.step_preview_network_mode")} />
         <StepPreviewItem label={t("welcome.step_preview_apn_sim")} />
         <StepPreviewItem label={t("welcome.step_preview_band_preferences")} />
+        <StepPreviewItem label={t("welcome.step_preview_web_port")} />
       </motion.ul>
     </div>
   );

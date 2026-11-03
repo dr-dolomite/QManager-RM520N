@@ -210,6 +210,8 @@
   "invalid_port": "Ports must be whole numbers from 1 to 65535.",
   "ports_equal": "HTTP and HTTPS need different ports.",
   "port_in_use": "That port is already used by another service.",
+  "port_reserved": "That port is reserved for another service.",
+  "busy": "An update or restore is running. Try again when it finishes.",
   "token_generation_failed": "Couldn't create a secure token. Try again.",
   "poller_not_running": "The background service did not respond, try again in a moment",
   "reset_failed": "Could not reset the counter",

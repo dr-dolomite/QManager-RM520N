@@ -210,6 +210,8 @@
   "invalid_port": "Le porte devono essere numeri interi da 1 a 65535.",
   "ports_equal": "HTTP e HTTPS richiedono porte diverse.",
   "port_in_use": "Questa porta è già usata da un altro servizio.",
+  "port_reserved": "Questa porta è riservata a un altro servizio.",
+  "busy": "È in corso un aggiornamento o un ripristino. Riprova quando termina.",
   "token_generation_failed": "Impossibile creare un token sicuro. Riprova.",
   "poller_not_running": "Il servizio in background non ha risposto, riprova tra poco",
   "reset_failed": "Impossibile reimpostare il contatore",

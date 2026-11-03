@@ -1209,5 +1209,25 @@
     "default_status": "預設時間",
     "toast_saved": "自適應輪詢已儲存。",
     "toast_failed": "無法儲存自適應輪詢。"
+  },
+  "web_port": {
+    "card_title": "網頁連接埠",
+    "card_description": "本介面監聽的連接埠。",
+    "http_label": "HTTP 連接埠",
+    "http_consequence": "明文 HTTP 只會轉址到 HTTPS 連接埠。",
+    "https_label": "HTTPS 連接埠",
+    "https_consequence": "本介面使用的加密連接埠。",
+    "pending": "套用後將在 {{origin}} 開啟。",
+    "moving": "正在切換到 {{origin}}… 若瀏覽器提示，請接受新連接埠的憑證。",
+    "invalid": "請輸入 1 到 65535 之間的整數。",
+    "same": "HTTP 與 HTTPS 需要使用不同的連接埠。",
+    "confirm_title": "變更網頁連接埠？",
+    "confirm_description": "QManager 將在新連接埠上重新啟動，本頁面會跳轉到 {{origin}}。若新連接埠無法啟動，將自動恢復舊連接埠。",
+    "confirm_action": "變更連接埠",
+    "toast_failed": "無法變更網頁連接埠。",
+    "toast_unchanged": "網頁連接埠已儲存。",
+    "toast_unreachable": "新連接埠沒有回應，QManager 仍使用舊連接埠。",
+    "error_title": "無法讀取網頁連接埠",
+    "error_description": "連接埠未能載入，請稍後重試。"
   }
 }

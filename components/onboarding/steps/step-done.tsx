@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useTranslation, Trans } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { followMove } from "@/lib/web-port";
 import { INNER_TILE, STEP_DESCRIPTION, STEP_HEADING } from "../shapes";
 import { useMotionReduced } from "@/components/motion-preference";
 
@@ -39,8 +42,9 @@ function confettiColors(): string[] {
   }
 }
 
-export function StepDone() {
+export function StepDone({ movedOrigin = null }: { movedOrigin?: string | null }) {
   const { t } = useTranslation("onboarding");
+  const [opening, setOpening] = useState(false);
   const prefersReducedMotion = useMotionReduced();
 
   const [show, setShow] = useState(prefersReducedMotion);
@@ -103,6 +107,18 @@ export function StepDone() {
     dashboardBtnRef.current?.focus();
   }, []);
 
+  // After a port move the dashboard opens on the new origin once it answers.
+  const goToDashboard = async () => {
+    if (!movedOrigin) {
+      window.location.href = "/dashboard/";
+      return;
+    }
+    setOpening(true);
+    if (await followMove(movedOrigin, "/dashboard/", { graceMs: 0 })) return;
+    toast.error(t("web_port.toast_unreachable"));
+    window.location.href = "/dashboard/";
+  };
+
   return (
     <div className="flex flex-col items-center gap-6 py-2 text-center">
       {/* Completion glyph: a filled success disc on the emphasized clock */}
@@ -137,13 +153,13 @@ export function StepDone() {
 
       <Button
         ref={dashboardBtnRef}
-        onClick={() => {
-          window.location.href = "/dashboard/";
-        }}
+        onClick={() => void goToDashboard()}
+        disabled={opening}
         className="w-full gap-2"
         size="action"
       >
-        {t("done.button_dashboard")}
+        {opening && <Spinner className="size-4" />}
+        {opening ? t("web_port.opening") : t("done.button_dashboard")}
       </Button>
     </div>
   );

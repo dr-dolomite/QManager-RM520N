@@ -1209,5 +1209,25 @@
     "default_status": "Default timings",
     "toast_saved": "Adaptive polling saved.",
     "toast_failed": "Couldn't save adaptive polling."
+  },
+  "web_port": {
+    "card_title": "Web Port",
+    "card_description": "The ports this interface listens on.",
+    "http_label": "HTTP port",
+    "http_consequence": "Plain HTTP only redirects to the HTTPS port.",
+    "https_label": "HTTPS port",
+    "https_consequence": "The encrypted port this interface is served on.",
+    "pending": "Opens at {{origin}} after you apply.",
+    "moving": "Moving to {{origin}}… If your browser asks, accept the certificate for the new port.",
+    "invalid": "Use a whole number from 1 to 65535.",
+    "same": "HTTP and HTTPS need different ports.",
+    "confirm_title": "Change the web port?",
+    "confirm_description": "QManager restarts on the new port and this page moves to {{origin}}. If the new port can't start, the old one comes back on its own.",
+    "confirm_action": "Change port",
+    "toast_failed": "Couldn't change the web port.",
+    "toast_unchanged": "Web port saved.",
+    "toast_unreachable": "The new port didn't answer, so QManager stayed on the old one.",
+    "error_title": "Couldn't read the web port",
+    "error_description": "The ports didn't load. Try again in a moment."
   }
 }
