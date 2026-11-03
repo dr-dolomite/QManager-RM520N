@@ -1,7 +1,7 @@
 # Web Port — custom lighttpd HTTP / HTTPS ports
 
-> **Applies to:** RM520N-GL (SDX65) · added 2026-11-03 (P7c) · lib, render, helper and CGI parse paths verified in a /tmp sandbox on hardware; the live port move is not yet verified
-> **RG501Q-EU (SDX55):** same sandbox results; the live move is unverified
+> **Applies to:** RM520N-GL (SDX65) · added 2026-11-03 (P7c) · verified on hardware 2026-11-03: CGI move 80/443 → 8088/8443 applied in ~4 s, apply killed at 0.3 s and 2.5 s left every listening port DROPped on `rmnet+`, a held 8443 rolled back on its own in 14 s, CGI reset to 80/443
+> **RG501Q-EU (SDX55):** lib, render and CGI parse paths verified in a /tmp sandbox; the live move is unverified
 
 The **Web Port** card on `/system-settings/device-access` (and optional onboarding step 6) moves the ports lighttpd serves QManager on. Default 80 / 443. Plain HTTP only ever redirects to HTTPS, so the HTTPS port is the one a user opens. Ported from RM551E v0.1.34 (UI and contracts); RM551E's uhttpd/UCI backend was not ported.
 
