@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
+import type { TailscaleActionResult } from "@/hooks/use-tailscale";
+
 import { DANGER } from "./shapes";
 
 // -----------------------------------------------------------------------------
@@ -33,18 +35,20 @@ export function DangerRow({
   isUninstalling: boolean;
   /** An update holds the install lock; removing the binary under it is refused. */
   isBusy: boolean;
-  uninstall: () => Promise<boolean>;
+  uninstall: () => Promise<TailscaleActionResult>;
   onUninstalled: () => void;
 }) {
   const { t } = useTranslation("common");
 
   const handleUninstall = async () => {
-    const ok = await uninstall();
-    if (ok) {
+    const result = await uninstall();
+    if (result.ok) {
       toast.success(t("tailscale.toast.uninstalled"));
       onUninstalled();
     } else {
-      toast.error(t("tailscale.toast.uninstallFailed"));
+      toast.error(t("tailscale.toast.uninstallFailed"), {
+        description: result.reason || undefined,
+      });
     }
   };
 

@@ -7,7 +7,7 @@
 # Usage:
 #   qmanager_tailscale_mgr install        Download + install Tailscale ARM binary
 #   qmanager_tailscale_mgr update [run]   `tailscale update` on an installed copy
-#   qmanager_tailscale_mgr uninstall      Remove binaries, units, state
+#   qmanager_tailscale_mgr uninstall [run] Remove binaries, units, state
 #   qmanager_tailscale_mgr ensure_units   Stage systemd units (called by installer)
 #
 # Install flow (rgmii-toolkit-aligned, validated 2026-04-10):
@@ -450,6 +450,21 @@ EOF
 # do_uninstall — stop daemon, remove binaries, units, symlinks, temp files
 # =============================================================================
 do_uninstall() {
+    # The UI follows this run id to the terminal status; digits only, else none.
+    run_id="$1"
+    case "$run_id" in ''|*[!0-9]*) run_id="" ;; esac
+    run_field=""
+    [ -n "$run_id" ] && run_field=',"run":"'"$run_id"'"'
+
+    # Hold the install lock so an install cannot start mid-removal.
+    existing=$(cat "$INSTALL_PID" 2>/dev/null | tr -d ' \n\r')
+    if pid_is_alive "$existing"; then
+        write_status '{"success":false,"status":"error","op":"uninstall"'"$run_field"',"error":"install_in_progress","message":"An install or update is running"}'
+        return 1
+    fi
+    echo $$ > "$INSTALL_PID"
+    write_status '{"success":true,"status":"running","op":"uninstall"'"$run_field"',"message":"Removing Tailscale..."}'
+
     mount -o remount,rw / 2>/dev/null || true
 
     # Stop daemon if running.
@@ -480,8 +495,7 @@ do_uninstall() {
     rm -f /tmp/qmanager_tailscale_auth_url \
           /tmp/qmanager_tailscale_up_output \
           /tmp/qmanager_tailscale_up_pid \
-          "$INSTALL_RESULT" \
-          "$INSTALL_PID" \
+          "$UPDATE_RUN_FILE" \
           "$LOG_FILE" \
           "$INNER_SCRIPT"
 
@@ -503,10 +517,13 @@ do_uninstall() {
     [ -L "$WANTS_DIR/tailscaled.service" ] && left="$left wants"
     { [ -L /usr/bin/tailscale ] || [ -L /usrdata/root/bin/tailscale ]; } && left="$left cli"
     if [ -n "$left" ]; then
-        write_status '{"success":false,"status":"error","op":"uninstall","error":"uninstall_incomplete","message":"Tailscale could not be fully removed","detail":"left:'"$left"'"}'
+        write_status '{"success":false,"status":"error","op":"uninstall"'"$run_field"',"error":"uninstall_incomplete","message":"Tailscale could not be fully removed","detail":"left:'"$left"'"}'
+        rm -f "$INSTALL_PID"
         echo "ERROR: uninstall incomplete, left:$left" >&2
         return 1
     fi
+    write_status '{"success":true,"status":"complete","op":"uninstall"'"$run_field"',"message":"Tailscale removed"}'
+    rm -f "$INSTALL_PID"
     return 0
 }
 
@@ -548,7 +565,7 @@ case "${1:-}" in
         fi
         do_install "${2:-}"
         ;;
-    uninstall)    do_uninstall; exit $? ;;
+    uninstall)    do_uninstall "${2:-}"; exit $? ;;
     ensure_units) do_ensure_units ;;
     *)
         echo "Usage: qmanager_tailscale_mgr {install|update|uninstall|ensure_units}" >&2

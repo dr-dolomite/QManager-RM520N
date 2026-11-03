@@ -690,14 +690,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             sleep 1
         fi
 
-        # Send response before background uninstall (avoids killing HTTP connection)
-        cgi_success
-
-        # Uninstall in background AFTER response; the helper reloads the
-        # firewall itself to drop tailscale0
-        (
-            $_SUDO /usr/bin/qmanager_tailscale_mgr uninstall
-        ) </dev/null >/dev/null 2>&1 &
+        # Backgrounded so the firewall reload cannot cut this response; the UI
+        # follows the run id through install_status (op "uninstall").
+        un_run="$(date +%s)$$"
+        ( $_SUDO /usr/bin/qmanager_tailscale_mgr uninstall "$un_run" ) </dev/null >/dev/null 2>&1 &
+        jq -n --arg run "$un_run" '{ success: true, run: $run }'
 
         qlog_info "Tailscale uninstall started"
         exit 0
