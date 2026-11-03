@@ -246,6 +246,7 @@
   "collect_failed": "The modem couldn't read its settings.",
   "sections_conflict": "Those sections can't be restored together.",
   "persist_failed": "The modem couldn't save the restore request.",
+  "ttl_persist_failed": "The modem couldn't save the values, so they will reset on reboot.",
   "profile_apply_in_progress": "A SIM profile is being applied. Try again when it finishes.",
   "status_lost": "Lost contact with the modem during the restore. Check your settings once it's back.",
   "hostname_apply_failed": "The device name was saved, but it couldn't be applied to the system. Try again.",

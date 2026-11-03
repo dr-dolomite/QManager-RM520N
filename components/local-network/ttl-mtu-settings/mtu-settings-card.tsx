@@ -42,6 +42,7 @@ import {
   ROW_GROUP,
   VALUE_NONE,
 } from "./shapes";
+import { failureReason } from "./failure-reason";
 
 // =============================================================================
 // MtuSettingsCard — the second of Band B's two peer write cards
@@ -95,12 +96,6 @@ const MTU_MAX = 9000;
  * the call site, so it stays statically resolvable.
  */
 const ERR_MTU_RANGE = `${K}.errors.mtu_range`;
-
-/** The result's reason as a toast description, dropped when it only restates the title. */
-function failureReason(title: string, reason: string | null): string | undefined {
-  const bare = (s: string) => s.trim().replace(/[.。]$/, "");
-  return reason && bare(reason) !== bare(title) ? reason : undefined;
-}
 
 /** What this card is allowed to know about the MTU endpoint. */
 export interface MtuCardValue {
