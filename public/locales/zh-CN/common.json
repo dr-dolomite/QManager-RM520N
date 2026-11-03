@@ -438,7 +438,9 @@
     "toast_ttl_error": "无法应用 TTL 和跳数限制。",
     "toast_mtu_applied": "已将 MTU 设为 {{mtu}}。",
     "toast_mtu_cleared": "MTU 已恢复为默认值 1500。",
-    "toast_mtu_error": "无法应用 MTU。"
+    "toast_mtu_error": "无法应用 MTU。",
+    "toast_mtu_disable_error": "无法关闭自定义 MTU。",
+    "mtu_load_error": "无法读取 MTU 设置。"
   },
   "ipPassthrough": {
     "page": {

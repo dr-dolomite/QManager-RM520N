@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type { MutationResult } from "@/types/mutation-result";
 
 // =============================================================================
@@ -15,6 +17,7 @@ import type { MutationResult } from "@/types/mutation-result";
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/mtu.sh";
+const K = "ttlMtu";
 
 export interface MtuSettingsData {
   /** Whether custom MTU is currently active */
@@ -41,6 +44,12 @@ export interface UseMtuSettingsReturn {
 }
 
 export function useMtuSettings(): UseMtuSettingsReturn {
+  const { t } = useTranslation("common");
+  // Read through a ref so a language switch does not rebuild the callbacks and re-run the mount fetch.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [data, setData] = useState<MtuSettingsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -72,7 +81,8 @@ export function useMtuSettings(): UseMtuSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!json.success) {
-        setError(json.error || "Failed to fetch MTU settings");
+        const tr = tRef.current;
+        setError(resolveErrorMessage(tr, json.error, json.detail, tr(`${K}.mtu_load_error`)));
         return;
       }
 
@@ -80,11 +90,9 @@ export function useMtuSettings(): UseMtuSettingsReturn {
         isEnabled: json.is_enabled,
         currentValue: json.current_value,
       });
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch MTU settings",
-      );
+      setError(tRef.current(`${K}.mtu_load_error`));
     } finally {
       if (mountedRef.current && !silent) {
         setIsLoading(false);
@@ -120,7 +128,8 @@ export function useMtuSettings(): UseMtuSettingsReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          const message = json.detail || json.error || "Failed to apply MTU";
+          const tr = tRef.current;
+          const message = resolveErrorMessage(tr, json.error, json.detail, tr(`${K}.toast_mtu_error`));
           setError(message);
           return { ok: false, error: message };
         }
@@ -128,9 +137,9 @@ export function useMtuSettings(): UseMtuSettingsReturn {
         // Silent re-fetch to update local state
         await fetchMtu(true);
         return { ok: true, error: null };
-      } catch (err) {
+      } catch {
         if (!mountedRef.current) return { ok: false, error: null };
-        const message = err instanceof Error ? err.message : "Failed to apply MTU";
+        const message = tRef.current(`${K}.toast_mtu_error`);
         setError(message);
         return { ok: false, error: message };
       } finally {
@@ -164,7 +173,8 @@ export function useMtuSettings(): UseMtuSettingsReturn {
       if (!mountedRef.current) return { ok: false, error: null };
 
       if (!json.success) {
-        const message = json.detail || json.error || "Failed to disable MTU";
+        const tr = tRef.current;
+        const message = resolveErrorMessage(tr, json.error, json.detail, tr(`${K}.toast_mtu_disable_error`));
         setError(message);
         return { ok: false, error: message };
       }
@@ -172,9 +182,9 @@ export function useMtuSettings(): UseMtuSettingsReturn {
       // Silent re-fetch to update local state
       await fetchMtu(true);
       return { ok: true, error: null };
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return { ok: false, error: null };
-      const message = err instanceof Error ? err.message : "Failed to disable MTU";
+      const message = tRef.current(`${K}.toast_mtu_disable_error`);
       setError(message);
       return { ok: false, error: message };
     } finally {
