@@ -37,7 +37,7 @@ When no browser is polling, `qmanager_poller` stops asking the modem every cycle
 - **Reload.** The CGI writes the five keys with `qm_config_set`, then touches `/tmp/qmanager_poller_reload` as www-data. The poller tests it each cycle (builtin `[ -f ]`), removes it and re-reads: the new values apply within one cycle. The poller never creates the flag (a root-owned copy would lock www-data out, as with the heartbeat). It also re-reads at start. Scan cycles skip the check; the flag waits.
 - **jq missing.** `/usr/bin/jq` dangles until `/opt` mounts (~30 s into boot). jq rc 126/127 keeps defaults and retries every 60 s of uptime. Any other failure (absent file, bad JSON, absent section) is final until the next reload.
 - The section key and shape are a contract: Config Backup (P7b) reads `qmanager.conf .poller`.
-- Measured on RM520N-GL 61368cd2: with no page open, Idle AT cycles 15 s apart by default and 28–31 s apart after saving `idle_interval=30`; the poller logged the new values 2 s after the POST.
+- Measured on RM520N-GL 61368cd2: with no page open, Idle AT cycles 15 s apart by default and 28–31 s apart after saving `idle_interval=30`; the poller logged the new values 2 s after the POST. With `enabled=false` and no heartbeat for ~3 h the tier stayed `active` (28 AT cycles in 70 s); one simulated page polling every 10 s with `active_grace=20` held `active` for all 558 one-second samples over 10 min.
 
 ## Invariants
 
