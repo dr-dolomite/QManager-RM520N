@@ -15,7 +15,7 @@ Config Backup saves QManager's settings into one encrypted `.qmbackup` file and 
 | Registry | `/usr/lib/qmanager/config_backup_sections.sh` (`CFG_BACKUP_APPLY_ORDER`, `CFG_BACKUP_MUTEX`, rc codes, helpers) |
 | Section files | `/usr/lib/qmanager/config_backup_{radio,connection,system,monitoring,polling}.sh` — one `collect_<key>` / `apply_<key>` pair per section |
 | Worker | `/usr/bin/qmanager_config_restore <job_id>` (www-data, refuses root) |
-| Runtime files | `/tmp/qmanager_config_restore.{pid,lock,json,cancel,reboot_required,section.json}`, `/tmp/qmanager_config_restore_input.json` |
+| Runtime files | `/tmp/qmanager_config_restore.{pid,lock,spawn.lock,json,cancel,reboot_required,section.json}`, `/tmp/qmanager_config_restore_input.json` |
 | Constants | `CFG_BACKUP_PLATFORM="rm520n"`, `CFG_BACKUP_FORMAT_VERSION="1.0"`, `CFG_BACKUP_FORMAT_MAJOR=1` |
 | File name | `qmanager-<model>-<YYYYMMDD-HHMMSS>.qmbackup` (UTC, `envelopeFilename`) |
 
@@ -175,9 +175,13 @@ Never collected, so never restored:
 
 - **MTU cannot apply as www-data.** `conn_mtu_set` writes `/etc/firewall.user.mtu` and runs `ip link set`; as www-data both can fail, and the section then reports `failed` "MTU could not be applied". The same limit applies to `network/mtu.sh`.
 - **Hostname never reaches `/etc/hostname`.** `sys_set_hostname` (used by `system/settings.sh` and the `system` applier) writes `qmanager.conf`, then tries `/proc/sys/kernel/hostname` and `/etc/hostname` with a `mount -o remount,rw /`. As www-data the remount and the kernel write fail, so `/etc/hostname` changes only if www-data can already write it.
-- **`bands/lock.sh` does not validate against supported bands.** The restore applier does (`rv_bands_supported`); the CGI save does not.
-- **`tower/lock.sh` does not digit-check the NR-SA fields.** It checks presence only; the restore applier requires non-negative integers.
-- **A double POST can race.** The 409 check and the worker spawn in `apply.sh` are not atomic; a second POST in that window overwrites the input file and gets a job id that never runs (the tab then shows `status_lost`). The Restore button disables after the first click.
-- **`qm_config_set` has no lock and one shared temp file** (`/etc/qmanager/qmanager.conf.tmp`). Two writers close together can lose an update; one hardware self-restore lost the `.poller` section once (not reproduced in two reruns). A restore makes overlapping writers more likely.
-- **`tower/lock.sh` unlock fails when nothing is locked.** The modem returns ERROR for `AT+QNWLOCK="common/4g",0` with no lock, so the CGI reports `modem_error`. The applier reads the lock state first and skips the unlock.
-- **Scenario ids are second-resolution.** Two `scenarios/save.sh` calls in the same second get the same `custom-<epoch>` id; the second overwrites the first.
+## Shared-path guarantees (P7 follow-ups, 2026-11-03)
+
+The restore reuses the same CGIs and libraries as the UI saves, so these hold for both:
+
+- **`qm_config_*` writers are serialised.** `qm_config_set`, `qm_config_delete`, `qm_config_delete_section` and `qm_config_init` take an exclusive `flock` on `/etc/qmanager/qmanager.conf.lock` (created 0666, opened read-only, so a root- or www-data-created lock works for both) and publish a per-call `mktemp` file in `/etc/qmanager` with `mv`. The published mode is 0644. A killed writer can leave a `qmanager.conf.XXXXXX` file behind; nothing reads it. Measured on both devices: 40 parallel writers all land (the old shared temp kept 3 of 40).
+- **`apply.sh` check, write and spawn are atomic.** A non-blocking `flock` on `/tmp/qmanager_config_restore.spawn.lock` is held from before the live-pid check until the CGI exits; the worker is started with that fd closed. A second near-simultaneous POST gets 409 `restore_in_progress` (empty `detail` if the first job has no pid yet) and never touches the first job's input file.
+- **Scenario ids are unique.** `scenarios/save.sh` creates `custom-<epoch>` and appends `-<n>` while that file exists, under `flock` on `/tmp/qmanager_scenario_save.lock`, which also keeps the 20-scenario limit exact. The ids still match `rv_scenario_id` and every `custom-*` consumer.
+- **Tower unlock with nothing locked succeeds.** `_tower_do_unlock` reads the lock state first and skips the AT write when it is `unlocked` (the modem ERRORs on `AT+QNWLOCK="common/4g",0` / `"common/5g",0` with no lock), then still clears the config flag and stops the failover watcher and service. An unreadable state still attempts the write. Applies to `tower/lock.sh` and the applier alike.
+- **`tower/lock.sh` NR-SA lock** rejects a `pci`, `arfcn` or `band` that is not digits-only (`invalid_pci`, `invalid_arfcn`, `invalid_band`; `rv_tower_nr_fields`) before any AT write. `invalid_arfcn` and `invalid_band` have no `errors.json` entry yet, so the UI shows the device's `detail` text.
+- **`bands/lock.sh`** rejects bands outside `.device.supported_*_bands` with `invalid_bands` (`rv_bands_supported`; an empty or missing list passes), as the applier does.
