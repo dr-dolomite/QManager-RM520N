@@ -84,7 +84,7 @@ get_stats() {
 }
 
 # One awk pass over the sources: filtered tail of entries, component list and stats,
-# printed in jq's pretty-print format so the body matches the old jq pipeline byte for byte.
+# printed in jq's pretty-print format; body = old jq pipeline's except cases listed in logs.md.
 render_logs() {
     local sources="$1"
     local size_kb=0 line_count=0 rotated=0
@@ -105,10 +105,27 @@ render_logs() {
         -v filter_component="$PARAM_COMPONENT" \
         -v filter_search="$PARAM_SEARCH" \
         -v size_kb="$size_kb" -v line_count="$line_count" -v rotated="$rotated" '
-    function esc(s,    out, i, n, c) {
-        if (!index(s, "\\") && !index(s, "\"") && s !~ CTL) return s
-        out = ""; n = length(s)
-        for (i = 1; i <= n; i++) { c = substr(s, i, 1); if (c in E) c = E[c]; out = out c }
+    function esc(s,    out, i, n, c, b, len, bad, cp, j, ch) {
+        if (!index(s, "\\") && !index(s, "\"") && s !~ CTL && s !~ HI) return s
+        out = ""; n = length(s); i = 1
+        while (i <= n) {
+            c = substr(s, i, 1); b = O[c]
+            if (b < 128) { if (c in E) c = E[c]; out = out c; i++; continue }
+            # Invalid UTF-8 -> one U+FFFD per bad sequence, as jq 1.7 jvp_utf8_next decides it.
+            len = 1; bad = 1
+            if (b >= 194 && b <= 244) {
+                bad = 0
+                if (b < 224) { len = 2; cp = b - 192 } else if (b < 240) { len = 3; cp = b - 224 } else { len = 4; cp = b - 240 }
+                for (j = 1; j < len; j++) {
+                    ch = O[substr(s, i + j, 1)]
+                    if (ch < 128 || ch > 191) { bad = 1; len = j; break }
+                    cp = cp * 64 + ch - 128
+                }
+                if (!bad && (cp < FIRST[len] || (cp >= 55296 && cp <= 57343) || cp > 1114111)) bad = 1
+            }
+            if (bad) c = FFFD; else c = substr(s, i, len)
+            out = out c; i += len
+        }
         return out
     }
     BEGIN {
@@ -130,6 +147,10 @@ render_logs() {
         E[sprintf("%c", 12)] = "\\f"; E[sprintf("%c", 13)] = "\\r"
         E[sprintf("%c", 127)] = "\\u007f"; E["\\"] = "\\\\"; E["\""] = "\\\""
         CTL = "[" sprintf("%c", 1) "-" sprintf("%c", 31) sprintf("%c", 127) "]"
+        HI = "[" sprintf("%c", 128) "-" sprintf("%c", 255) "]"
+        for (i = 1; i < 256; i++) O[sprintf("%c", i)] = i
+        FIRST[2] = 128; FIRST[3] = 2048; FIRST[4] = 65536
+        FFFD = sprintf("%c%c%c", 239, 191, 189)
     }
     # Same matches as: grep -h -o "\[[^:]*:" | sed "s/\[//;s/:$//" | sort -u
     index($0, "[") {
