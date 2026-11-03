@@ -53,8 +53,8 @@ payload at face value.
 ```
 qlog_info "..."          -> [TS] LEVEL [component:PID] Message   (qlog.sh, appends)
 _qlog_rotate()           -> mv to .1/.2 at >= QLOG_MAX_SIZE_KB   (chmod 666 re-asserted)
-logs.sh  parse_logs()    -> single awk pass -> NDJSON            (oldest first)
-logs.sh                  -> jq -s wrap -> {entries, total, stats, available_components}
+logs.sh  render_logs()   -> one awk pass -> the whole JSON body   (entries oldest first)
+                            {entries, total, stats, available_components}, jq-style pretty print
 useSystemLogs()          -> unfiltered-by-level window, 10s poll
 filterByLevel()          -> exact-level filter, CLIENT side
 [...].reverse()          -> newest first
@@ -80,7 +80,9 @@ one of the four is dropped by the awk pass. That is why `LogLevel` is a **closed
 ## The backend contract (frozen)
 
 `scripts/www/cgi-bin/quecmanager/system/logs.sh` was **not edited** by the re-authoring. Treat
-the shapes below as fixed; the client bends around them.
+the shapes below as fixed; the client bends around them. The 2026-11-03 cost cut (see
+[Cost per poll](#cost-per-poll)) rewrote the GET internals but kept the body byte-identical,
+quirks included.
 
 ### GET parameters
 
@@ -159,6 +161,9 @@ non-empty window has `N` lines but only `N - 1` newline characters:
 entries=$(parse_logs ...)               # trailing newline stripped here
 entry_count=$(printf '%s' "$entries" | wc -l)   # counts newlines -> N - 1
 ```
+
+That was the old pipeline; `render_logs()` now prints `count - start` directly so the number
+stays the same.
 
 **`total === entries.length - 1` for any non-empty window** (and `0` when empty). It is kept in
 the payload and typed in `LogsResponse`, with a doc comment saying so, purely so nobody
@@ -434,7 +439,8 @@ introduced or fixed by the re-authoring; they are the shape the client has to li
 
 ### `available_components` is polluted with timestamp fragments
 
-`get_components()` extracts names with:
+The old `get_components()` extracted names with the pipeline below. `render_logs()` keeps the
+same matches on purpose (an awk `match()` loop on the same regex, then a byte-order sort):
 
 ```sh
 grep -h -o '\[[^:]*:' $sources | sed 's/\[//;s/:$//' | sort -u
@@ -476,10 +482,48 @@ not what the placeholder copy implies.
 
 ### Minor residue
 
-- `parse_logs`'s awk carries a three-argument `match(rest, /.../, _)` whose result is never
-  read; the level actually comes from the `split()` on the next line. Vestigial.
 - The `{"action":"status"}` POST branch has no client. It predates `stats` being folded into
   the GET response.
+
+### Cost per poll
+
+The page polls every 10 s while visible, and every GET re-reads the whole source set, so the
+cost grows with the log. Until 2026-11-03 the GET ran about six pipelines (`get_param` ×5,
+`cat | awk`, `grep | sed | sort | jq`, `jq -n`, `jq -s`). `render_logs()` is now one awk pass
+that keeps a ring buffer of the newest `lines` entries and prints the body itself, escaping
+strings the way jq does (`\\ \" \b \t \n \f \r`, other C0 bytes and DEL as `\u00xx`). Query
+params go through the builtin `qs_param`.
+
+| RM520N-GL, direct www-data run, CPU per GET | before | after |
+|---|---:|---:|
+| 26 KB log | 228 ms | 80 ms |
+| 256 KB log (rotation cap) | 495 ms | 294 ms |
+| forks | ≈ 56 | ≈ 6 |
+
+At 10 s that is 2.3 → 0.8 points of the core today and 5.0 → 2.9 at the cap. What is left is
+awk's per-line work (≈ 0.09 ms a line).
+
+Invalid UTF-8 becomes U+FFFD exactly as jq 1.7 did it (one per bad sequence), so a stray byte
+cannot make the body invalid JSON. Two jq quirks are copied on purpose: a sequence cut off by the
+end of a field becomes one U+FFFD that takes the rest of the field, ASCII included; and in
+`available_components` jq decoded each `name\n` line alone, so a cut-off sequence there also takes
+the newline and joins that name to the next one. The body is byte-identical to the old script on
+200 cases (live, 256 KB, crafted, two invalid-UTF-8, empty, missing and rotated logs × 25 queries)
+on the RM520N-GL (150 of them also on the RG501Q-EU, run before the U+FFFD step was added), and on a
+blind verifier's own 1 632-case matrix except for the following, where the old output was broken:
+- A line with a raw control byte, such as CR from a CRLF line. The old `jq -s` refused it and
+  the body came back **empty**; now the byte is escaped and the body is valid.
+- A `"` in the component or pid, or an invalid `\x` escape there: old body empty, now valid.
+- A backslash escape in the component or pid (only reachable from a non-qlog line that starts
+  with `[`). The old awk printed those two fields raw into JSON, so jq *decoded* them:
+  `[aAb:1]` came back as component `aAb`. Now the text is sent as written, which matches
+  `available_components`.
+- A rotated file with no trailing newline. The old `cat` joined it onto the next file's first
+  line; awk now reads each file separately.
+- A NUL byte anywhere in a file. The old `grep -o` called it binary and printed nothing, so
+  `available_components` was `[]`; now the components are listed.
+- A component-list line over about 4 094 bytes. The old `jq -R` read in 4 095-byte chunks, so a
+  valid multi-byte character split across a chunk edge became several U+FFFD; now it is kept.
 
 ---
 
