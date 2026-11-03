@@ -248,5 +248,5 @@
   "status_lost": "恢复期间与调制解调器失去联系。恢复连接后请检查您的设置。",
   "hostname_apply_failed": "设备名称已保存，但无法应用到系统。请重试。",
   "hostname_save_failed": "无法保存设备名称。请重试。",
-  "invalid_hostname": "设备名称必须为 1 至 64 个可打印字符。"
+  "invalid_hostname": "设备名称必须为 1 至 64 个字符。"
 }

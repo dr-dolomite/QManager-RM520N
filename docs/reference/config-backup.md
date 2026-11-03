@@ -105,7 +105,7 @@ State file `/tmp/qmanager_config_restore.json`:
 | `adaptive_polling` | `qmanager.conf .poller` | `ap_save` + `/tmp/qmanager_poller_reload`; `is_default: true` deletes `.poller` | no | on |
 | `system` | `qmanager.conf .settings` / `.update`, `/etc/qmanager/tailscale_ssh` | Units, hostname, timezone (`sys_set_timezone`), scheduled reboot timer, update prefs, Tailscale SSH | no | on |
 
-**`system` hostname.** `settings.hostname` in `qmanager.conf` is a display name (1-64 printable characters, spaces allowed). `sys_set_hostname` also derives an RFC 1123 label from it (spaces and `_` become `-`, other characters outside `[A-Za-z0-9-]` are dropped, edge hyphens stripped, 63 max) and passes that to the root helper `qmanager_hostname_apply`, which writes `/etc/hostname` and the live kernel name. No usable label means the system name is left alone. rc 1 is a config write failure (retried); rc 2 is "saved, system apply failed" (`failed`, no retry).
+**`system` hostname.** `settings.hostname` in `qmanager.conf` is a display name (1-64 characters, spaces and non-ASCII allowed, no control characters). `sys_set_hostname` also derives an RFC 1123 label from it (spaces and `_` become `-`, other characters outside `[A-Za-z0-9-]` are dropped, edge hyphens stripped, 63 max) and passes that to the root helper `qmanager_hostname_apply`, which writes `/etc/hostname` and the live kernel name. No usable label means the system name is left alone. rc 1 is a config write failure (retried); rc 2 is "saved, system apply failed" (`failed`, no retry).
 
 **Apply order** (`CFG_BACKUP_APPLY_ORDER`):
 

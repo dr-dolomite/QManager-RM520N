@@ -152,7 +152,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         hn_err=""
         if [ -n "$val" ]; then
             if ! qm_valid_hostname_label "$val"; then
-                cgi_error "invalid_hostname" "The device name must be 1 to 64 printable characters"
+                cgi_error "invalid_hostname" "The device name must be 1 to 64 characters"
                 exit 0
             fi
             sys_set_hostname "$val"

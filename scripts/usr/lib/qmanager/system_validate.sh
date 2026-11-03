@@ -192,9 +192,10 @@ qm_valid_zonename() {
     return 0
 }
 
-# qm_valid_hostname_label <name> — display name: 1-64 printable characters, no control bytes.
+# qm_valid_hostname_label <name> — display name: 1-64 characters (UTF-8 allowed), no control bytes.
+# Characters = bytes minus UTF-8 continuation bytes; [:print:] would reject all non-ASCII.
 qm_valid_hostname_label() {
-    [ -n "$1" ] && [ "${#1}" -le 64 ] || return 1
-    case "$1" in *[![:print:]]*) return 1 ;; esac
-    return 0
+    [ -n "$1" ] || return 1
+    case "$1" in *[[:cntrl:]]*) return 1 ;; esac
+    [ "$(printf '%s' "$1" | LC_ALL=C tr -d '\200-\277' | wc -c)" -le 64 ]
 }

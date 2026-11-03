@@ -248,5 +248,5 @@
   "status_lost": "還原期間與數據機失去聯繫。恢復連線後請檢查您的設定。",
   "hostname_apply_failed": "裝置名稱已儲存，但無法套用到系統。請重試。",
   "hostname_save_failed": "無法儲存裝置名稱。請重試。",
-  "invalid_hostname": "裝置名稱必須為 1 至 64 個可列印字元。"
+  "invalid_hostname": "裝置名稱必須為 1 至 64 個字元。"
 }
