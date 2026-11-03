@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { CircleAlertIcon, Loader2Icon } from "lucide-react";
@@ -121,6 +121,9 @@ const WebPortCard = () => {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
+  // Stops a follow in flight when the card unmounts, so it cannot navigate or refresh later.
+  const followAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => followAbortRef.current?.abort(), []);
 
   if (isLoading && state === null) return <WebPortSkeleton />;
 
@@ -180,8 +183,11 @@ const WebPortCard = () => {
       result.httpPort ?? httpPort,
       result.httpsPort ?? httpsPort,
     );
-    const outcome = await followMove(origin, LANDING_PATH);
-    if (outcome.kind === "navigated") return;
+    followAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    followAbortRef.current = ctrl;
+    const outcome = await followMove(origin, LANDING_PATH, { signal: ctrl.signal });
+    if (outcome.kind === "navigated" || outcome.kind === "aborted") return;
     setPhase("idle");
     if (outcome.kind === "timeout") {
       toast.error(t(`${K}.toast_timeout`));
