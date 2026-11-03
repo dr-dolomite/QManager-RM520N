@@ -232,11 +232,19 @@ write_status '{"success":true,"status":"running"'"$FX"',"message":"Installing Ta
 
 cd /usrdata || { write_status '{"success":false,"status":"error"'"$FX"',"message":"Cannot cd /usrdata"}'; exit 1; }
 
-# Old tarball/extract residue only; nothing installed is touched until the new
-# download has passed verification.
-rm -rf /usrdata/tailscale_*_"$TAILSCALE_ARCH"*
+free_now() { df -k /usrdata 2>/dev/null | awk 'END { print $4 }'; }
+echo "Free space at start: $(free_now) KB"
 
-free_kb=$(df -k /usrdata 2>/dev/null | awk 'END { print $4 }')
+# Only an incoherent install reaches here (a coherent one takes the update
+# branch), so its binaries are already unusable. Free them and all residue
+# first; tailscaled.state is kept so a repair does not log the node out.
+echo "Cleaning leftovers..."
+systemctl stop tailscaled 2>/dev/null || true
+rm -f "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscaled"
+rm -rf "$TAILSCALE_SYSD_DIR" /usrdata/tailscale_*_"$TAILSCALE_ARCH"*
+sync
+free_kb=$(free_now)
+echo "Free space after cleanup: ${free_kb} KB"
 case "$free_kb" in ''|*[!0-9]*) free_kb=0 ;; esac
 if [ "$free_kb" -lt 40000 ]; then
     write_status '{"success":false,"status":"error"'"$FX"',"error":"no_space","message":"Not enough free storage to install Tailscale","detail":"free up space on the modem and retry"}'
@@ -259,25 +267,24 @@ if [ -z "$actual_sha" ] || [ "$actual_sha" != "$TAILSCALE_SHA256" ]; then
     exit 1
 fi
 
-# Verified. Only now remove the old (incoherent) binaries and staging; the
-# tailscaled.state in the data dir is kept so a repair does not log the node out.
-echo "Cleaning leftovers..."
-systemctl stop tailscaled 2>/dev/null || true
-rm -f "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscaled"
-rm -rf "$TAILSCALE_SYSD_DIR"
+echo "Free space after download: $(free_now) KB"
 
 echo "Creating directories..."
 mkdir -p "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
 # www-data (CGI) needs traverse+read on these to detect the binary later.
 chmod 755 "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
 
+# Extract only the two binaries; the tarball goes as soon as it is unpacked.
 echo "Extracting..."
-if ! tar -xzf "$TAILSCALE_TARBALL"; then
+if ! tar -xzf "$TAILSCALE_TARBALL" \
+        "$TAILSCALE_EXTRACT_DIR/tailscale" "$TAILSCALE_EXTRACT_DIR/tailscaled"; then
     rm -rf "$TAILSCALE_TARBALL" "$TAILSCALE_EXTRACT_DIR"
     write_status '{"success":false,"status":"error"'"$FX"',"error":"extract_failed","message":"Could not unpack Tailscale","detail":"archive unreadable or storage full"}'
+    echo "=== ERROR: extract failed, free: $(free_now) KB ==="
     exit 1
 fi
 rm -f "$TAILSCALE_TARBALL"
+echo "Free space after extract: $(free_now) KB"
 
 if [ ! -d "$TAILSCALE_EXTRACT_DIR" ]; then
     write_status '{"success":false,"status":"error"'"$FX"',"message":"Extraction failed — no extract dir"}'
