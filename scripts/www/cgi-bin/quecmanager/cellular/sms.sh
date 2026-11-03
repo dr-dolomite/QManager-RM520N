@@ -512,7 +512,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             _sms_read_raw || exit 0
             reply=$(_sms_model_input null | jq -s --argjson off "$off" --arg addr "$ADDR" \
                 "$SMS_JQ_MODEL"'
-                | [$all[] | select(.addr == $addr)] | reverse
+                | [$all[] | select(.addr == $addr or .addr == ($addr | ltrimstr("+")))] | reverse
                 | {success: true, addr: $addr, count: length, messages: ., has_more: false}' 2>/dev/null)
             _sms_reply "$reply"
             exit 0
@@ -595,6 +595,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
 
         PHONE=$(normalize_phone "$RAW_PHONE")
+        # An alphanumeric sender cannot be replied to; refuse before qsms so no failed record is logged.
+        case "$PHONE" in
+            ''|*[!0-9]*)
+                jq -n --arg addr "$PHONE" '{success: false, error: "send_failed", detail: "That phone number is not valid.", addr: $addr, parts: 0, sent_parts: 0, concat_ref: null, refs: null, ambiguous: false}'
+                exit 0
+                ;;
+        esac
         qlog_info "Sending SMS to $PHONE (raw: $RAW_PHONE)"
 
         result=$("$QSMS" send "$PHONE" "$MESSAGE" 2>/dev/null)
@@ -603,7 +610,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             sms_sent_append "$PHONE" "$MESSAGE" success \
                 || qlog_warn "SMS send: sent, but could not log the message"
             qlog_info "SMS sent successfully to $PHONE"
-            cgi_success
+            # addr = the normalized number the record is filed under, so the UI opens that thread.
+            jq -n --arg addr "$PHONE" '{success: true, addr: $addr}'
         else
             sms_sent_append "$PHONE" "$MESSAGE" failed \
                 || qlog_warn "SMS send: could not log the failed message"
@@ -617,8 +625,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # concat_ref / refs / ambiguous pass through from qsms as-is (null when absent, false kept).
             extra=$(printf '%s' "$result" | jq -c '{concat_ref: .concat_ref, refs: .refs, ambiguous: .ambiguous}' 2>/dev/null)
             [ -z "$extra" ] && extra='{"concat_ref":null,"refs":null,"ambiguous":null}'
-            jq -n --arg detail "$detail" --argjson parts "$parts" --argjson sent "$sent_parts" --argjson extra "$extra" \
-                '{"success":false,"error":"send_failed","detail":$detail,"parts":$parts,"sent_parts":$sent} + $extra'
+            jq -n --arg detail "$detail" --arg addr "$PHONE" --argjson parts "$parts" --argjson sent "$sent_parts" --argjson extra "$extra" \
+                '{"success":false,"error":"send_failed","detail":$detail,"addr":$addr,"parts":$parts,"sent_parts":$sent} + $extra'
         fi
         exit 0
     fi
