@@ -1,13 +1,4 @@
-// =============================================================================
-// lan-devices.ts — Connected LAN Device List Types
-// =============================================================================
-// TypeScript interfaces for the read-only connected-devices endpoint that backs
-// the IP Passthrough MAC picker (and any future "pick a LAN device" surface).
-//
-// Backend contract:
-//   GET /cgi-bin/quecmanager/network/lan_devices.sh
-//   → { "success": true, "devices": [ { "mac", "ip", "hostname" } ] }
-// =============================================================================
+// GET /cgi-bin/quecmanager/network/lan_devices.sh → { success, devices: [{ mac, ip, hostname }] }
 
 /** A single device seen on the modem's LAN (DHCP lease merged with ip neigh/ARP). */
 export interface LanDevice {

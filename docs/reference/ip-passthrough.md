@@ -135,7 +135,7 @@ The MAC is one of the few genuine `font-mono` cases under the Machine-Voice Rule
 | Group | Row | Control |
 | ----- | --- | ------- |
 | Passthrough | Mode | `SegmentedField`: Router / Ethernet / USB |
-| Passthrough | Target device | `SegmentedField` (`breakpoint="lg"`): Automatic / From LAN / By MAC. From LAN mounts the device picker (a `Select` over `useLanDevices`, GET `network/lan_devices.sh`, scanned on mount, with a rescan button; scanning, empty and failed states offer Rescan/Retry and Enter manually); the pick is written into the same MAC draft as a typed one. By MAC reveals the MAC input. Held (key dimmed, control disabled, "Pick a mode first.") while the draft mode is `disabled` |
+| Passthrough | Target device | `SegmentedField` (`breakpoint="lg"`): Automatic / From LAN / By MAC. From LAN shows the device picker (a `Select` over `useLanDevices`, GET `network/lan_devices.sh`, rescanned on every switch to From LAN, with a rescan button). Scanning shows a status line only; empty offers Rescan and Enter manually, failed offers Retry and Enter manually. The pick is written into the same MAC draft as a typed one, and Apply is blocked unless that MAC is in the latest successful scan. By MAC reveals the MAC input. Held (key dimmed, control disabled, "Pick a mode first.") while the draft mode is `disabled` |
 | Network | NAT | `SegmentedField`: With NAT / Without NAT, `HintIcon` |
 | Network | USB connection | `SegmentedField` (RMNET / ECM / MBIM / RNDIS) from a 32rem card; a `Select` on its own line below it (`breakpoint="lg"`) |
 | Network | DNS proxy | `SegmentedField`: Off / On, `HintIcon` |
@@ -170,7 +170,7 @@ enterRebootFlow("ip_passthrough");
 
 The card no longer writes the handoff itself (RM551E v0.1.34 parity). `enterRebootFlow` (`lib/reboot/index.ts`) waits `REBOOT_NAV_DELAY_MS` (2000 ms), then performs the three steps below; all three are required, and here is why each one exists.
 
-`cgi_base.sh:215-233` (`cgi_reboot_response`, `scripts/usr/lib/qmanager/`) returns `{"success":true}` **immediately** and then, in a backgrounded subshell, polls for `/tmp/qmanager_reboot_ack` before actually rebooting — up to `QM_REBOOT_ACK_TIMEOUT` (default 20 s), then a `QM_REBOOT_POST_ACK_DELAY` (default 1 s) grace, then `reboot`. The `/reboot/` page writes that marker on mount (via `update.sh action=reboot_ack`).
+`cgi_base.sh:209-229` (`cgi_reboot_response`, `scripts/usr/lib/qmanager/`) returns `{"success":true}` **immediately** and then, in a backgrounded subshell, polls for `/tmp/qmanager_reboot_ack` before actually rebooting — up to `QM_REBOOT_ACK_TIMEOUT` (default 20 s), then a `QM_REBOOT_POST_ACK_DELAY` (default 1 s) grace, then `reboot`. The `/reboot/` page writes that marker on mount (via `update.sh action=reboot_ack`).
 
 The reason the CGI does not just reboot is that QManager runs on the modem it is rebooting: killing the box mid-response would kill lighttpd mid-serve and the browser would get a dead socket instead of a page.
 

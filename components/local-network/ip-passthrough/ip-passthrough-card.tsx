@@ -48,7 +48,10 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMotionReduced } from "@/components/motion-preference";
-import { useLanDevices } from "@/hooks/use-lan-devices";
+import {
+  useLanDevices,
+  type UseLanDevicesReturn,
+} from "@/hooks/use-lan-devices";
 import { DUR, EASE_STANDARD } from "@/lib/motion";
 import { enterRebootFlow } from "@/lib/reboot";
 import { cn } from "@/lib/utils";
@@ -189,18 +192,19 @@ function SettingsSkeleton() {
 /** The live connected-device list behind "From LAN". */
 function DevicePicker({
   value,
+  lan,
   onPick,
   onManual,
   disabled,
 }: {
   value: string;
+  lan: UseLanDevicesReturn;
   onPick: (mac: string) => void;
   onManual: () => void;
   disabled: boolean;
 }) {
   const { t } = useTranslation("common");
-  // Mounted only while "From LAN" is picked, so the LAN is scanned on demand.
-  const { devices, isLoading, error, refresh } = useLanDevices(true);
+  const { devices, isLoading, error, refresh } = lan;
   const selected = devices.find((d) => d.mac.toUpperCase() === value);
 
   if (isLoading) {
@@ -362,6 +366,13 @@ export function IPPassthroughCard({
     setEdits((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Idle until the user picks "From LAN"; every switch to it rescans.
+  const lan = useLanDevices(false);
+  const handleSourceChange = (v: MacSource) => {
+    setField("macSource", v);
+    if (v === "device") lan.refresh();
+  };
+
   const modeDirty = state !== null && state.draft.mode !== state.baseline.mode;
   const targetDirty =
     state !== null && resolveMac(state.draft) !== resolveMac(state.baseline);
@@ -382,11 +393,16 @@ export function IPPassthroughCard({
   const macManual = macRequired && macSource === "manual";
   const macPicking = macRequired && macSource === "device";
   // A device pick and a typed MAC both land in `macInput`; both must be whole.
+  // From LAN applies only a MAC the latest successful scan lists, so a hidden MAC never ships.
+  const macListed =
+    !lan.isLoading &&
+    lan.error === null &&
+    lan.devices.some((d) => d.mac.toUpperCase() === state?.draft.macInput);
   const macValid =
     state === null ||
     !macRequired ||
     macSource === "automatic" ||
-    MAC_PATTERN.test(state.draft.macInput);
+    (macPicking ? macListed : MAC_PATTERN.test(state.draft.macInput));
 
   const blockedReason =
     state === null
@@ -535,7 +551,7 @@ export function IPPassthroughCard({
                 >
                   <SegmentedField
                     value={state.draft.macSource}
-                    onValueChange={(v) => setField("macSource", v)}
+                    onValueChange={handleSourceChange}
                     options={targetOptions}
                     ariaLabel={t(`${K}.rows.target.label`)}
                     disabled={held || !macRequired}
@@ -551,6 +567,7 @@ export function IPPassthroughCard({
                     >
                       <DevicePicker
                         value={state.draft.macInput}
+                        lan={lan}
                         onPick={(mac) => setField("macInput", mac)}
                         onManual={() => setField("macSource", "manual")}
                         disabled={held}

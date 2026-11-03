@@ -4,16 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import type { LanDevice, LanDevicesResponse } from "@/types/lan-devices";
 
-// =============================================================================
-// useLanDevices — Connected LAN Device List
-// =============================================================================
-// Reads the modem's connected LAN devices (DHCP leases merged with ip neigh /
-// ARP) so a UI can offer a "pick a device" affordance instead of hand-typing a
-// MAC. Read-only; safe to refresh on demand. Backs the IP Passthrough MAC picker.
-//
-// Backend endpoint:
-//   GET /cgi-bin/quecmanager/network/lan_devices.sh
-// =============================================================================
+// Connected LAN devices (DHCP leases merged with ip neigh) for the IP Passthrough MAC picker.
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/lan_devices.sh";
 
@@ -28,11 +19,7 @@ export interface UseLanDevicesReturn {
   refresh: () => void;
 }
 
-/**
- * @param enabled - When false, the hook stays idle and performs no fetch.
- *   The IP Passthrough card only needs devices while passthrough is active, so
- *   it gates the scan on mode !== "disabled".
- */
+/** @param enabled - When false the hook stays idle until `refresh()` is called. */
 export function useLanDevices(enabled = true): UseLanDevicesReturn {
   const [devices, setDevices] = useState<LanDevice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,8 +66,7 @@ export function useLanDevices(enabled = true): UseLanDevicesReturn {
     }
   }, []);
 
-  // Fetch once when first enabled; thereafter refresh is manual. Gating on
-  // `enabled` avoids scanning the LAN while passthrough is disabled.
+  // Fetch once when first enabled; thereafter refresh is manual.
   useEffect(() => {
     if (enabled && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
