@@ -246,6 +246,7 @@
   "collect_failed": "Modem tidak dapat membaca pengaturannya.",
   "sections_conflict": "Bagian-bagian itu tidak dapat dipulihkan bersamaan.",
   "persist_failed": "Modem tidak dapat menyimpan permintaan pemulihan.",
+  "ttl_persist_failed": "Modem tidak dapat menyimpan nilai, sehingga akan kembali semula saat reboot.",
   "profile_apply_in_progress": "Profil SIM sedang diterapkan. Coba lagi setelah selesai.",
   "status_lost": "Kontak dengan modem terputus selama pemulihan. Periksa pengaturan Anda setelah modem kembali.",
   "hostname_apply_failed": "Nama perangkat disimpan, tetapi tidak dapat diterapkan ke sistem. Coba lagi.",

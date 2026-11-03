@@ -440,7 +440,8 @@
     "toast_mtu_cleared": "MTU 已恢复为默认值 1500。",
     "toast_mtu_error": "无法应用 MTU。",
     "toast_mtu_disable_error": "无法关闭自定义 MTU。",
-    "mtu_load_error": "无法读取 MTU 设置。"
+    "mtu_load_error": "无法读取 MTU 设置。",
+    "ttl_load_error": "无法读取 TTL 设置。"
   },
   "ipPassthrough": {
     "page": {

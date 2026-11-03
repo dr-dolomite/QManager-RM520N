@@ -246,6 +246,7 @@
   "collect_failed": "调制解调器无法读取其设置。",
   "sections_conflict": "这些部分不能同时恢复。",
   "persist_failed": "调制解调器无法保存恢复请求。",
+  "ttl_persist_failed": "调制解调器无法保存这些值，重启后将恢复。",
   "profile_apply_in_progress": "正在应用 SIM 配置文件。请在完成后重试。",
   "status_lost": "恢复期间与调制解调器失去联系。恢复连接后请检查您的设置。",
   "hostname_apply_failed": "设备名称已保存，但无法应用到系统。请重试。",

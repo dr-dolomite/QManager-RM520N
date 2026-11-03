@@ -440,7 +440,8 @@
     "toast_mtu_cleared": "La MTU è tornata al valore predefinito di 1500.",
     "toast_mtu_error": "Impossibile applicare la MTU.",
     "toast_mtu_disable_error": "Impossibile disattivare la MTU personalizzata.",
-    "mtu_load_error": "Impossibile leggere le impostazioni MTU."
+    "mtu_load_error": "Impossibile leggere le impostazioni MTU.",
+    "ttl_load_error": "Impossibile leggere le impostazioni TTL."
   },
   "ipPassthrough": {
     "page": {

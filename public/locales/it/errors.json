@@ -246,6 +246,7 @@
   "collect_failed": "Il modem non è riuscito a leggere le sue impostazioni.",
   "sections_conflict": "Queste sezioni non possono essere ripristinate insieme.",
   "persist_failed": "Il modem non è riuscito a salvare la richiesta di ripristino.",
+  "ttl_persist_failed": "Il modem non è riuscito a salvare i valori, quindi verranno ripristinati al riavvio.",
   "profile_apply_in_progress": "È in corso l'applicazione di un profilo SIM. Riprova al termine.",
   "status_lost": "Contatto con il modem perso durante il ripristino. Controlla le impostazioni quando torna disponibile.",
   "hostname_apply_failed": "Il nome del dispositivo è stato salvato, ma non è stato possibile applicarlo al sistema. Riprova.",

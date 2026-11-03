@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type { MutationResult } from "@/types/mutation-result";
 
 // =============================================================================
@@ -15,6 +17,11 @@ import type { MutationResult } from "@/types/mutation-result";
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/ttl.sh";
+const K = "ttlMtu";
+
+// ttl.sh's persist_failed means "live but not saved"; the shared errors key is worded for config restore.
+const ttlCode = (code: unknown) =>
+  code === "persist_failed" ? "ttl_persist_failed" : typeof code === "string" ? code : null;
 
 export interface TtlSettingsData {
   /** Whether custom TTL/HL is currently active */
@@ -43,6 +50,12 @@ export interface UseTtlSettingsReturn {
 }
 
 export function useTtlSettings(): UseTtlSettingsReturn {
+  const { t } = useTranslation("common");
+  // Read through a ref so a language switch does not rebuild the callbacks and re-run the mount fetch.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [data, setData] = useState<TtlSettingsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -74,7 +87,8 @@ export function useTtlSettings(): UseTtlSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!json.success) {
-        setError(json.error || "Failed to fetch TTL settings");
+        const tr = tRef.current;
+        setError(resolveErrorMessage(tr, ttlCode(json.error), json.detail, tr(`${K}.ttl_load_error`)));
         return;
       }
 
@@ -84,11 +98,9 @@ export function useTtlSettings(): UseTtlSettingsReturn {
         hl: json.hl,
         autostart: json.autostart,
       });
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch TTL settings",
-      );
+      setError(tRef.current(`${K}.ttl_load_error`));
     } finally {
       if (mountedRef.current && !silent) {
         setIsLoading(false);
@@ -124,7 +136,8 @@ export function useTtlSettings(): UseTtlSettingsReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          const message = json.detail || json.error || "Failed to apply TTL/HL";
+          const tr = tRef.current;
+          const message = resolveErrorMessage(tr, ttlCode(json.error), json.detail, tr(`${K}.toast_ttl_error`));
           setError(message);
           return { ok: false, error: message };
         }
@@ -132,9 +145,9 @@ export function useTtlSettings(): UseTtlSettingsReturn {
         // Silent re-fetch to update local state
         await fetchTtl(true);
         return { ok: true, error: null };
-      } catch (err) {
+      } catch {
         if (!mountedRef.current) return { ok: false, error: null };
-        const message = err instanceof Error ? err.message : "Failed to apply TTL/HL";
+        const message = tRef.current(`${K}.toast_ttl_error`);
         setError(message);
         return { ok: false, error: message };
       } finally {

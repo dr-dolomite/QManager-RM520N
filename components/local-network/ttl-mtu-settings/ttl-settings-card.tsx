@@ -43,6 +43,7 @@ import {
   ROW_GROUP,
   VALUE_NONE,
 } from "./shapes";
+import { failureReason } from "./failure-reason";
 
 // =============================================================================
 // TtlSettingsCard — the first of Band B's two peer write cards
@@ -296,7 +297,8 @@ export function TtlSettingsCard({
 
       const result = await onApply(nextTtl, nextHl);
       if (!result.ok) {
-        toast.error(result.error ?? t(`${K}.toast_ttl_error`));
+        const title = t(`${K}.toast_ttl_error`);
+        toast.error(title, { description: failureReason(title, result.error) });
         return;
       }
 
