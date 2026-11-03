@@ -489,6 +489,10 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$TAILSCALE_DIR"
     info "Removed $TAILSCALE_DIR (binaries + state)"
 
+    # Interrupted-download residue
+    rm -rf /usrdata/tailscale_*_arm*
+    rm -f "$SYSTEMD_DIR/qmanager_tailscale_install.service"
+
     # Two symlinks the installer creates for CLI accessibility
     rm -f /usrdata/root/bin/tailscale
     rm -f "$BIN_DIR/tailscale"
