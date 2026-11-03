@@ -174,17 +174,17 @@ _wp_readback() {
 }
 
 # _wp_render_pair <http> <https> -> write $WP_CONF.new, read it back, -tt it, mv.
-# 0 = conf replaced, 10 = conf already had these ports, 1 = failure.
+# 0 = conf replaced, 10 = conf already had these ports, 1 = failure. Both 0 and 10 passed -tt.
 _wp_render_pair() {
     _wrp_new="$WP_CONF.new"
     rm -f "$_wrp_new"
     _wp_render_to "$1" "$2" "$_wrp_new" || { rm -f "$_wrp_new"; return 1; }
     _wp_readback "$1" "$2" "$_wrp_new" || { rm -f "$_wrp_new"; return 1; }
+    "$WP_LIGHTTPD" -tt -f "$_wrp_new" >/dev/null 2>&1 || { rm -f "$_wrp_new"; return 1; }
     if cmp -s "$_wrp_new" "$WP_CONF"; then
         rm -f "$_wrp_new"
         return 10
     fi
-    "$WP_LIGHTTPD" -tt -f "$_wrp_new" >/dev/null 2>&1 || { rm -f "$_wrp_new"; return 1; }
     chmod 644 "$_wrp_new" && chown root:root "$_wrp_new" && mv -f "$_wrp_new" "$WP_CONF" \
         || { rm -f "$_wrp_new"; return 1; }
     sync
