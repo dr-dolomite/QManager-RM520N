@@ -211,7 +211,7 @@ Order is load-bearing — see the rationale notes inline.
 
 ### Fail-closed guards (R6 T-A)
 
-- **APN read failure skips the step.** If `AT+CGCONTRDP=<cid>` fails (qcmd error, timeout or `ERROR`), the step is marked `skipped` and logged; the `COPS=2/0` cycle never runs on an unknown state. The reply is then checked after `run_at` has dropped the echoed command line and `OK`: anything left other than blank lines and complete `+CGCONTRDP:` records (3+ fields) is garbage or a partial reply, also skipped. A bare `OK` with no `+CGCONTRDP:` line is a known no-bearer state ([wan-profile-management.md](wan-profile-management.md), `AT+CGCONTRDP` note) and still proceeds, because that is the wrong-APN case the step exists to fix.
+- **APN read failure skips the step.** If `AT+CGCONTRDP=<cid>` fails (qcmd error, timeout or `ERROR`), the step is marked `skipped` and logged; the `COPS=2/0` cycle never runs on an unknown state. The reply is then checked after `run_at` has dropped the echoed command line and `OK`: anything left other than blank lines and complete `+CGCONTRDP:` records (3+ fields) is garbage or a partial reply, also skipped. A bare `OK` with no `+CGCONTRDP:` line is a known no-bearer state ([wan-profile-management.md](wan-profile-management.md), `AT+CGCONTRDP` note). The step then reads `AT+CGDCONT?`: if that CID already holds the profile's APN (case-folded), it is marked `skipped` ("APN configured, waiting for bearer"), because the modem's next attach uses that value and a `COPS=2/0` cycle would only restart registration and drop `eth0` for ~4 s. Seen on the RG501Q-EU at boot with weak signal (S11, 2026-11-03). If `CGDCONT` holds a different APN, or the read fails, the step proceeds to the attach cycle, because that is the wrong-APN case the step exists to fix. The "self-concealing `CGDCONT`" concern only applies when a bearer exists, and then `CGCONTRDP` is not bare.
 - **IMEI read must parse.** An `AT+CGSN` reply with no 15-digit IMEI fails the step, the same as a qcmd failure, instead of reading as "different" and writing.
 - **IMEI attempt marker.** Before `AT+EGMR` + `AT+CFUN=1,1` the worker creates an empty directory `/etc/qmanager/profile_imei_attempt.<target IMEI>.<boot_id>`. A directory, not a file: `/etc/qmanager` is www-data-owned, and `mkdir`/`rmdir` never follow a planted symlink when the worker runs as root, while either user can remove it. If a marker for the same target exists from an earlier boot and the IMEI still differs, the step fails without retrying, so a non-sticking IMEI cannot loop restarts. All markers are removed before each new attempt, when `AT+EGMR` fails (no restart happened), and once the IMEI matches, so at most one exists; a give-up marker stays until the IMEI matches or another IMEI is applied. No readable `boot_id` or a failed `mkdir` also fails the step.
 - **Boot auto-apply runs once per boot.** `qmanager_poller` (root) writes `<boot_id> <ICCID>` to `/run/qmanager_profile_boot_applied` (root-only tmpfs) when it calls `auto_apply_profile` at start, and skips the call on a later start with the same boot and SIM (poller respawn, OTA restart). An empty ICCID at start writes nothing, so a respawn can still apply. The SIM-change path is not gated.
@@ -248,9 +248,15 @@ merely echoes back whatever was last requested. One bracket-less write made
 `AT+CGDCONT?` match, so a retry reported `skipped` while the bearer was still
 stale. Only `AT+CGCONTRDP=<cid>` — the *negotiated* view, what the network
 actually granted — can verify that an APN apply took. Any future change to this
-step must keep verifying against `CGCONTRDP`, never `CGDCONT?`.
+step must keep verifying against `CGCONTRDP`, never `CGDCONT?`. The one
+exception is the no-bearer case (S11): when `CGCONTRDP` has no record at all, a
+`CGDCONT?` match only skips a pointless re-attach; it never reports an apply as
+verified. Known limit: that skip does not compare the PDP type, so a profile
+that changes only the PDP type is not written on a no-bearer apply (the
+bearer-present skip has the same gap).
 
-That rule fixes **which command to ask**, and it is unconditional. It does not,
+That rule fixes **which command to ask** to verify an apply, and that
+verification rule is unconditional. It does not,
 however, license trusting the reply's *shape*: `+CGCONTRDP` field quoting
 differs by firmware — SDX65 quotes every string field, SDX55 emits them all bare
 — so any parser for it must split on the **comma** and strip quotes per field
