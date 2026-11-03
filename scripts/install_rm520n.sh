@@ -2035,6 +2035,14 @@ install_backend() {
         install_file "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" "$LIGHTTPD_CONF" 644 \
             || die "Failed to install lighttpd.conf"
         info "lighttpd config installed"
+        # The shipped conf is 80/443; carry a saved custom port into it. Fail-soft: never die after stop_services.
+        local _wp_out=""
+        if [ -x "$BIN_DIR/qmanager_web_port" ] \
+           && _wp_out=$("$BIN_DIR/qmanager_web_port" render 2>/dev/null); then
+            info "Web port: ${_wp_out:-unknown}"
+        else
+            warn "Could not render the web port into lighttpd.conf; lighttpd renders it at its next start"
+        fi
     fi
 
     # --- TLS certificates ---
@@ -4637,6 +4645,12 @@ print_summary() {
         lan_rest=$(qm_lan_read 2>/dev/null) && lan_ip=${lan_rest%% *}
     fi
     case "$lan_ip" in ""|*[!0-9.]*) lan_ip="192.168.225.1" ;; esac
+    # The saved HTTPS port, omitted when it is the default 443.
+    local web_host="$lan_ip"
+    if [ -f "$LIB_DIR/web_port.sh" ] && . "$LIB_DIR/web_port.sh" 2>/dev/null; then
+        wp_read_file
+        [ "$WP_HTTPS" = "443" ] || web_host="$lan_ip:$WP_HTTPS"
+    fi
 
     printf "\n"
     printf "  ══════════════════════════════════════════\n"
@@ -4654,8 +4668,8 @@ print_summary() {
     printf "  ${DIM}Log:       ${NC}%s\n" "$LOG_FILE"
 
     printf "\n"
-    printf "  Open in browser:  ${BOLD}https://%s${NC}\n" "$lan_ip"
-    printf "  Web console:      ${BOLD}https://%s/console${NC}\n" "$lan_ip"
+    printf "  Open in browser:  ${BOLD}https://%s${NC}\n" "$web_host"
+    printf "  Web console:      ${BOLD}https://%s/console${NC}\n" "$web_host"
     if grep -q "^Project Name:[[:space:]]*RG501Q" /etc/quectel-project-version 2>/dev/null; then
         printf "  ${DIM}Model:            RG501Q-EU — community-supported model${NC}\n"
     fi

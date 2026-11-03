@@ -570,7 +570,7 @@ server.registerTool(
   "modem_cgi",
   {
     description:
-      "Call a QManager CGI endpoint on-device via curl to https://127.0.0.1/cgi-bin/quecmanager/<endpoint> through lighttpd, so the CGI runs as www-data " +
+      "Call a QManager CGI endpoint on-device via curl to https://127.0.0.1[:port]/cgi-bin/quecmanager/<endpoint> (port from /usrdata/qmanager/web_port) through lighttpd, so the CGI runs as www-data " +
       "(plain http 301s to https). Authenticates with a throwaway session minted on-device and removed afterwards. Returns {status, body} (body parsed as JSON when possible).",
     inputSchema: {
       endpoint: z.string().min(1).describe("e.g. 'at_cmd/fetch_data.sh' or 'system/settings.sh?x=1'"),
@@ -587,13 +587,15 @@ server.registerTool(
     const tok = randomBytes(32).toString("hex");
     const sess = `/tmp/qmanager_sessions/${tok}`;
     const t = Math.min(timeout_s ?? DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S);
+    // The HTTPS port comes from the web port file (missing = 443).
+    const port = `p=$(sed -n 's/^https=\\([0-9]*\\)$/\\1/p' /usrdata/qmanager/web_port 2>/dev/null); p=\${p:-443}`;
     const curl =
       `curl -sk -m ${t} -X ${m} -H 'Cookie: qm_session=${tok}' ` +
       (payload !== undefined ? `-H 'Content-Type: application/json' --data-binary @- ` : "") +
-      `-w '\\n__HTTP_STATUS__%{http_code}' "https://127.0.0.1/cgi-bin/quecmanager/"${sq(ep)}`;
+      `-w '\\n__HTTP_STATUS__%{http_code}' "https://127.0.0.1:$p/cgi-bin/quecmanager/"${sq(ep)}`;
     // A root-created sessions dir would lock www-data out of its own sessions.
     const dir = `[ -d /tmp/qmanager_sessions ] || { mkdir -p /tmp/qmanager_sessions && chown www-data /tmp/qmanager_sessions; }`;
-    const cmd = `${dir}; date +%s > ${sess}; ${curl}; rc=$?; rm -f ${sess}; exit $rc`;
+    const cmd = `${dir}; ${port}; date +%s > ${sess}; ${curl}; rc=$?; rm -f ${sess}; exit $rc`;
     try {
       const r = await run(cmd, t + 5, payload, extra.signal);
       const idx = r.stdout.lastIndexOf("\n__HTTP_STATUS__");

@@ -433,8 +433,13 @@ step "Removing CGI, frontend, lighttpd config, and TLS certs"
 rm -rf "$WWW_ROOT"
 info "Removed frontend and CGI endpoints ($WWW_ROOT)"
 
-rm -f "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak"
+rm -f "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak" "${LIGHTTPD_CONF}.new"
 info "Removed lighttpd config"
+
+# The web port file belongs to this conf; the stock lighttpd that comes back uses its own port.
+rm -f "$QMANAGER_ROOT/web_port" "$QMANAGER_ROOT"/.web_port.*
+rm -rf /run/qmanager_web_port
+info "Removed web port setting"
 
 rm -rf "$CERT_DIR"
 info "Removed TLS certs ($CERT_DIR)"
@@ -571,6 +576,7 @@ step "Removing runtime state and temporary files"
 # underscore, so `qmanager_*` does not match it.
 rm -f  /tmp/qmanager_*   2>/dev/null || true
 rm -f  /tmp/qmanager.log* 2>/dev/null || true
+rm -f  /tmp/.qmanager_web_port_result.* 2>/dev/null || true
 rm -f  /run/qmanager_profile_boot_applied 2>/dev/null || true
 rm -rf "$SESSION_DIR"
 rm -rf /tmp/qmanager_console_tokens

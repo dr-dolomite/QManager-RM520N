@@ -134,6 +134,10 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_ethernet_apply
 # validates RFC1918, prefix, OTA guard and edits mobileap_cfg.xml itself. No reboot.
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_lan_apply
 
+# Web port (System Settings -> Device Access). Bare path; only show/set/reset work under
+# sudo: the helper validates the ports and refuses render/apply when SUDO_UID is set.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_web_port
+
 # Timezone apply (copies resolved TZif over /etc/localtime)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_timezone_apply
 

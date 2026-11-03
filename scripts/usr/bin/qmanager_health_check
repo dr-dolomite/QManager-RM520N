@@ -17,6 +17,15 @@ PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
 
 set -u
 
+# Web ports from the port file; 80/443 when the lib predates this check (OTA'd independently).
+WEB_HTTP=80
+WEB_HTTPS=443
+if [ -f /usr/lib/qmanager/web_port.sh ] && . /usr/lib/qmanager/web_port.sh 2>/dev/null; then
+    wp_read_file
+    WEB_HTTP=$WP_HTTP
+    WEB_HTTPS=$WP_HTTPS
+fi
+
 # --- Portable `timeout` (BusyBox 1.29 vs 1.31 CLI straddle) -----------------
 # This is a LOCAL COPY of qm_timeout() from scripts/usr/lib/qmanager/platform.sh
 # — do not let the two drift; see that file for the full BusyBox-version
@@ -287,7 +296,7 @@ _test_catalog_pending() {
         {id:"net.dns",            category:"network", label:"DNS resolves install.speedtest.net", status:"pending", duration_ms:0, detail:""},
         {id:"net.ping",           category:"network", label:"IPv4 reachability (1.1.1.1)",        status:"pending", duration_ms:0, detail:""},
         {id:"net.rmnet",          category:"network", label:"rmnet+ has IP",                      status:"pending", duration_ms:0, detail:""},
-        {id:"net.lighttpd_listen",category:"network", label:"lighttpd listening on 80/443",       status:"pending", duration_ms:0, detail:""},
+        {id:"net.lighttpd_listen",category:"network", label:"lighttpd listening on web ports",   status:"pending", duration_ms:0, detail:""},
         {id:"net.firewall_rules", category:"network", label:"iptables INPUT rules loaded",        status:"pending", duration_ms:0, detail:""},
 
         {id:"cfg.qmanager_dir",   category:"configuration", label:"/etc/qmanager exists",          status:"pending", duration_ms:0, detail:""},
@@ -718,13 +727,15 @@ t_net_rmnet() {
 t_net_lighttpd_listen() {
     local out; out=$(ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null)
     echo "$out" >> "$OUTPUT_FILE"
-    local ok=0
-    echo "$out" | grep -qE '[:.](80)\b'  && ok=$((ok+1))
-    echo "$out" | grep -qE '[:.](443)\b' && ok=$((ok+1))
+    local ok=0 p
+    for p in "$WEB_HTTP" "$WEB_HTTPS"; do
+        echo "$out" | awk -v p="$p" '$1 ~ /^tcp/ { n = split($4, a, ":"); if (a[n] == p) f = 1 } END { exit !f }' \
+            && ok=$((ok+1))
+    done
     case "$ok" in
-        2) echo "pass|listening on 80 and 443" ;;
-        1) echo "warn|listening on only one of 80/443" ;;
-        *) echo "fail|not listening on 80 or 443" ;;
+        2) echo "pass|listening on $WEB_HTTP and $WEB_HTTPS" ;;
+        1) echo "warn|listening on only one of $WEB_HTTP/$WEB_HTTPS" ;;
+        *) echo "fail|not listening on $WEB_HTTP or $WEB_HTTPS" ;;
     esac
 }
 t_net_firewall_rules() {
@@ -1091,7 +1102,7 @@ _run_test svc.atd             services     "qmanager-atd.service (broker)"      
 _run_test net.dns             network      "DNS resolves install.speedtest.net"    t_net_dns
 _run_test net.ping            network      "IPv4 reachability (1.1.1.1)"           t_net_ping
 _run_test net.rmnet           network      "rmnet+ has IP"                         t_net_rmnet
-_run_test net.lighttpd_listen network      "lighttpd listening on 80/443"          t_net_lighttpd_listen
+_run_test net.lighttpd_listen network      "lighttpd listening on $WEB_HTTP/$WEB_HTTPS" t_net_lighttpd_listen
 _run_test net.firewall_rules  network      "iptables INPUT rules loaded"           t_net_firewall_rules
 _run_test data_used.divergence_low network "data_used divergence count low"        t_net_data_used_divergence
 

@@ -425,7 +425,10 @@ function finish(snap) {
     // known, the address is a live link — this is the one thing on the
     // whole screen the user actually needs to act on next.
     if (HOST) {
-      setLinkedDetail($("#result-detail"), t("run.done.detail", { ip: HOST }), `http://${HOST}`);
+      // The saved HTTPS port (Device Access); lighttpd serves the UI over HTTPS only.
+      const port = snap.https_port && snap.https_port !== 443 ? `:${snap.https_port}` : "";
+      const url = `https://${HOST}${port}`;
+      setLinkedDetail($("#result-detail"), t("run.done.detail", { url }), url);
     } else {
       $("#result-detail").textContent = t("run.done.detail.unknown_ip");
     }

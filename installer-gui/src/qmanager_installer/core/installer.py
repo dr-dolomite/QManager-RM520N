@@ -51,6 +51,8 @@ class InstallOutcome:
     exit_code: int
     rebooted: bool
     log_path: Path | None = None
+    # The saved QManager HTTPS port (System Settings > Device Access); 443 when unset or unreadable.
+    https_port: int = 443
 
 
 class InstallError(RuntimeError):
@@ -183,6 +185,8 @@ class InstallRunner:
         # is what unchecking "Reboot when finished" does anyway.
         cancelled_late = self._cancel_event is not None and self._cancel_event.is_set()
 
+        https_port = self._read_https_port() if self._script == "install_rm520n.sh" else 443
+
         # 5. reboot, separately. A dead transport here is the expected outcome
         # (a rebooting device is supposed to stop answering) — but a Result
         # that comes back with a non-zero exit code is a REAL failure (e.g. a
@@ -208,4 +212,17 @@ class InstallRunner:
             exit_code=0,
             rebooted=rebooted,
             log_path=self._log.path if self._log else None,
+            https_port=https_port,
         )
+
+    def _read_https_port(self) -> int:
+        """Best effort: the port file is missing on the default 80/443."""
+        cmd = r"sed -n 's/^https=\([0-9]*\)$/\1/p' /usrdata/qmanager/web_port 2>/dev/null"
+        try:
+            result = self._t.exec(cmd, timeout=15)
+        except TransportError:
+            return 443
+        text = result.stdout.strip()
+        if result.ok and text.isdigit() and 1 <= int(text) <= 65535:
+            return int(text)
+        return 443
