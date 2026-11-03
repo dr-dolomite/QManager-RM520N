@@ -5,3 +5,4 @@
 - [RM520N netfilter owners](reference_rm520n_netfilter_owners.md) — QCMAP -I INPUT, no flush; dropbear uses Entware libcrypt
 - [Watchcat + tailscale port traps](reference_rm520n_watchcat_tailscale_port_traps.md) - no mono/holdoff/quality verdict; up --reset wipes prefs
 - [lighttpd redirect vars + INPUT policy](reference_rm520n_lighttpd_redirect_vars_and_input_policy.md) - no ${url.host}; INPUT ACCEPT v4/v6; KillMode cgroup; hostname no-op
+- [Parity census: primitive call sites](reference_parity_census_primitive_callsites.md) - 551E-only wiring hides in cards, not routes
