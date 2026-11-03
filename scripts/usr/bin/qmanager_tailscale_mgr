@@ -257,10 +257,11 @@ fi
 # so the download streams through sha256sum straight into tar and no tarball is
 # written. The staging dir is only used after the checksum matches.
 echo "Downloading and unpacking $TAILSCALE_TARBALL (streamed)..."
-SHA_FIFO="/tmp/qmanager_tailscale_sha.fifo"
-SHA_OUT="/tmp/qmanager_tailscale_sha.out"
-rm -f "$SHA_FIFO" "$SHA_OUT"
-mkfifo "$SHA_FIFO"
+# Private 0700 dir: a fixed /tmp path would let another local user plant a symlink.
+SHA_DIR=$(mktemp -d /tmp/qmanager_ts.XXXXXX) && chmod 700 "$SHA_DIR" \
+    && SHA_FIFO="$SHA_DIR/sha.fifo" && SHA_OUT="$SHA_DIR/sha.out" \
+    && mkfifo -m 600 "$SHA_FIFO" \
+    || { rm -rf "$SHA_DIR"; write_status '{"success":false,"status":"error"'"$FX"',"error":"temp_failed","message":"Could not prepare the Tailscale install","detail":"temp directory unavailable"}'; exit 1; }
 ( sha256sum < "$SHA_FIFO" | awk '{ print $1 }' > "$SHA_OUT" ) &
 sha_pid=$!
 curl -fS --connect-timeout 20 --speed-limit 5000 --speed-time 60 -m 1000 -o - "$TAILSCALE_URL" | tee "$SHA_FIFO" \
@@ -268,7 +269,7 @@ curl -fS --connect-timeout 20 --speed-limit 5000 --speed-time 60 -m 1000 -o - "$
 rcs=("${PIPESTATUS[@]}")
 wait "$sha_pid"
 actual_sha=$(cat "$SHA_OUT" 2>/dev/null)
-rm -f "$SHA_FIFO" "$SHA_OUT"
+rm -rf "$SHA_DIR"
 echo "Free space after unpack: $(free_now) KB"
 
 if [ "${rcs[0]}" -ne 0 ]; then
