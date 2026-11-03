@@ -252,7 +252,7 @@ The `delete` POST requires a `storage` field (`"ME"` or `"SM"`, defaulting to `"
 
 `sms.sh` normalizes outbound numbers (`send` action) in `normalize_phone()`:
 
-1. Strip a single leading `+` (`qsms send` takes the number without it).
+1. Drop spaces, dashes, dots and brackets, then a single leading `+` (`qsms send` takes the number without it).
 2. If the number starts with `0` (local format), read the SIM's MCC via `qcmd 'AT+CIMI'` (first 3 digits of the IMSI), map it to the ITU-T country calling code via an in-script `mcc_to_calling_code()` lookup table, and replace the leading `0`. An unknown MCC or unreadable IMSI logs a warning and sends the number as-is.
 
 This lets a user type a local number (e.g. `0917…`) and have it dialed internationally based on the inserted SIM's country.

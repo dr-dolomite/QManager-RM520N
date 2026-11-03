@@ -143,6 +143,9 @@ export default function SmsCenterComponent() {
   }, [allViews, search, filter, sortNewestFirst]);
 
   // ---- the open thread ----------------------------------------------------
+  // A send moves to the normalized number (no "+") a moment before the URL follows it.
+  const isSameAddr = (a: string, open: string | null) =>
+    open !== null && (a === open || a === open.replace(/^\+/, ""));
   const threadParam = searchParams.get("thread");
   // `get()` already decodes; decoding again throws on a sender like "50%OFF".
   const openAddr = threadParam || null;
@@ -165,7 +168,12 @@ export default function SmsCenterComponent() {
       openAddr && detailState.addr === openAddr ? detailState.messages : [],
     [openAddr, detailState],
   );
-  const isLoadingThread = openAddr !== null && detailState.addr !== openAddr;
+  // Skeleton only when there is nothing to show: a list row or a pending send renders at once.
+  const isLoadingThread =
+    openAddr !== null &&
+    detailState.addr !== openAddr &&
+    !listView &&
+    !pendingSends.some((p) => isSameAddr(p.addr, openAddr));
 
   // The list may have no row for this address (a deep link to something that
   // is no longer stored). Identity is then read off the detail's own first
@@ -178,7 +186,7 @@ export default function SmsCenterComponent() {
     // list row and no history yet, but there IS a pending optimistic send for
     // it, and that send needs somewhere to render. An empty-messages view is a
     // real destination, not the "this thread is gone" state below.
-    if (pendingSends.some((p) => p.addr === openAddr)) {
+    if (pendingSends.some((p) => isSameAddr(p.addr, openAddr))) {
       return threadViewFromMessages(openAddr, []);
     }
     return null;
@@ -247,7 +255,7 @@ export default function SmsCenterComponent() {
   }, [openView, markThreadRead]);
 
   const threadPending = React.useMemo(
-    () => pendingSends.filter((p) => p.addr === openAddr),
+    () => pendingSends.filter((p) => isSameAddr(p.addr, openAddr)),
     [pendingSends, openAddr],
   );
 

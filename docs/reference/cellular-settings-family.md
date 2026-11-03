@@ -43,7 +43,7 @@ Nothing in that rebuild touched a CGI script, a systemd unit, the installer, or 
 | `RANK_PILL`, `RAT_RANK_TONE` | Network Priority's rank numeral |
 | `CHOICE_ROW` | APN Management's MBN bundle list |
 | ~~`FIELD_INPUT`~~ | **Deleted** 2026-10-06. `FIELD_SHELL` now rides the `Input` primitive and needs no input half of its own |
-| `FIELD_SHELL` | IMEI Settings (both cards), APN Management. Its `FIELD_SHELL_ON_FILL` twin was **deleted** with the row promotion on 2026-08-30 — the identically-named export still in `components/cellular/sms/shapes.ts` belongs to the SMS family and is unrelated |
+| `FIELD_SHELL` | IMEI Settings (both cards), APN Management. Its `FIELD_SHELL_ON_FILL` twin was **deleted** with the row promotion on 2026-08-30 |
 | `INLINE_ERROR` | Inline validation copy on a plain card |
 | `SECTION_DIVIDER` | A rule *between sections inside* a card |
 | `READOUT_ROW.GRID` | APN Management's "What the network granted" strip |
@@ -106,7 +106,6 @@ Free-text fields on this family are the `Input` primitive carrying `FIELD_SHELL`
 
 `FIELD_SHELL` restates the type size as `md:text-[0.84375rem]`. `Input` ships `md:text-sm`, and `tailwind-merge` de-duplicates per modifier, so an unprefixed size cannot displace it: without the `md:` restatement the field renders 14px above a 768px viewport while every sibling renders 13.5px.
 
-> ℹ️ NOTE: an identically-named `FIELD_SHELL_ON_FILL` exists in `components/cellular/sms/shapes.ts`. That is the SMS family's own module; this family's twin was deleted with the row promotion on 2026-08-30.
 
 `font-mono` on these fields is not a costume — every consumer holds an identifier the device emits verbatim (an IMEI, a TAC, an APN), and the letter-spacing is what makes fifteen undifferentiated digits scannable. The **placeholder** deliberately drops back to `font-sans`: a placeholder is human-authored instruction, not machine output, and mono'd prompt text reads as though the field were already filled.
 
