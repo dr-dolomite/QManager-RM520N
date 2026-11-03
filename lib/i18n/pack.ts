@@ -111,11 +111,8 @@ export function cldrCategories(langCode: string): Set<PluralCategory> {
 const _oneIsWiderCache = new Map<string, boolean>();
 
 /**
- * Whether the language's CLDR `one` category covers numbers other than 1 —
- * e.g. ru/uk/be (21, 31, 101…) or fr (0). English writes some `_one` values
- * as words ("1 domain imported", "The one cell…"), which is exact there
- * because `one` means only 1. In these languages the same `_one` string is
- * also shown for 21 or 0, so the translation needs `{{count}}` to stay true.
+ * Whether CLDR `one` covers numbers other than 1 (ru/uk/be: 21, 31…; fr: 0),
+ * so a `_one` translation needs `{{count}}` where English writes "1 domain".
  */
 export function oneCategoryIsWider(langCode: string): boolean {
   const cached = _oneIsWiderCache.get(langCode);
@@ -442,9 +439,7 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
 
       // Placeholder integrity — a missing/invented {{var}} renders broken text.
       const phDiff = multisetDiff(placeholders(enVal), placeholders(val));
-      // i18next always passes `count` to a plural key, so an added {{count}} in
-      // `_one` is safe — and required where `one` is wider than 1 (see
-      // oneCategoryIsWider): English "1 domain" would read "1" at 21 in ru.
+      // i18next always passes `count` to plural keys, so an added {{count}} in `_one` is safe.
       if (
         phDiff.missing.length === 0 &&
         phDiff.extra.length > 0 &&
@@ -507,11 +502,8 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
         // fail) — a genuinely useful form we didn't anticipate shouldn't block.
         const enCats = baseBases.get(p.base)!;
         if (enCats.has(p.category) || allowedPlural.has(p.category)) {
-          // A real translated plural form (e.g. ru `_few`/`_many`). Not added to
-          // translatedKeys: totalKeys counts English keys only, so counting it
-          // pushed completeness past 100% (and into a built pack's _pack.json).
-          // Its placeholders are checked against English `_other`, the form
-          // it stands in for, so a typo here is caught like anywhere else.
+          // Extra form (ru `_few`/`_many`): not counted, since totalKeys is English-only.
+          // Its placeholders are checked against English `_other`, the form it stands in for.
           const enOther = baseKeys.get(`${p.base}_other`);
           const val = targetKeys.get(k) ?? "";
           if (enOther !== undefined && val.trim() !== "") {
