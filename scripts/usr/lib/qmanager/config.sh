@@ -9,9 +9,8 @@ _CONFIG_LOADED=1
 QM_CONFIG="/etc/qmanager/qmanager.conf"
 QM_CONFIG_LOCK="/etc/qmanager/qmanager.conf.lock"
 
-# _qm_config_mutate <jq args...>: jq over $QM_CONFIG under an exclusive flock,
-# published via a per-call temp + mv. The lock is created 0666 and opened
-# read-only, so a root- or www-data-created lock works for both.
+# _qm_config_mutate <jq args...>: locked jq edit, published via a per-call temp + mv.
+# The lock file is 0666 and opened read-only, so root and www-data can both use it.
 _qm_config_mutate() {
     [ -e "$QM_CONFIG_LOCK" ] || (umask 000; : >> "$QM_CONFIG_LOCK") 2>/dev/null
     (
