@@ -1,0 +1,15 @@
+# /lib/systemd/system/qmanager-firewall-watch.service
+[Unit]
+Description=QManager IPv6 Forward Firewall Watch
+After=qmanager-firewall.service
+PartOf=qmanager-firewall.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qmanager_firewall watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

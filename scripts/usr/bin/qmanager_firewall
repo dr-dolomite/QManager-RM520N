@@ -7,7 +7,12 @@
 # atomic and cannot leak rules across upgrades. Replaces SimpleAdmin's
 # simplefirewall as a QManager-managed service.
 #
-# Usage: qmanager_firewall {start|stop|restart|reload}
+# IPv6 forwarding (QMANAGER_FWD6, hooked into FORWARD for traffic in on rmnet+):
+#   LAN clients get public IPv6 with no NAT, so only replies and ICMPv6 errors
+#   and echo reach them. QCMAP flushes FORWARD when IPv6 comes up; `watch`
+#   (qmanager-firewall-watch.service) puts the hook back.
+#
+# Usage: qmanager_firewall {start|stop|restart|reload|watch}
 #
 # Web UI (80, 443 + custom web ports): allowed on lo, bridge0, eth0, tailscale0 (if installed);
 #   dropped everywhere else (IPv4). Dropped on rmnet+ (IPv6 — lighttpd binds
@@ -25,7 +30,8 @@
 # INPUT rules when the data call comes up at boot, and iptables 1.6 without -w
 # fails at once on a held lock.
 #
-# Service: qmanager-firewall.service (Type=oneshot, RemainAfterExit=yes)
+# Service: qmanager-firewall.service (Type=oneshot, RemainAfterExit=yes);
+#   `watch` runs as qmanager-firewall-watch.service.
 
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -44,8 +50,25 @@ fi
 
 CHAIN="QMANAGER_FW"
 STAGE="QMANAGER_FW_NEW"
+FWD_CHAIN="QMANAGER_FWD6"
+FWD_STAGE="QMANAGER_FWD6_NEW"
+# Built-in chain and match that swap_in/unhook_chain hook into; set by use_*.
+HOOK="INPUT"
+HOOK_ARGS=""
 W="-w 5"
 ATTEMPTS=3
+# /run, not /tmp: www-data could pre-create a /tmp lock and block root.
+LOCK="/run/qmanager_firewall.lock"
+WATCH_INTERVAL=3
+WATCH_SLOW_TICKS=20
+
+use_input() {
+    HOOK="INPUT"; HOOK_ARGS=""; CHAIN="QMANAGER_FW"; STAGE="QMANAGER_FW_NEW"
+}
+
+use_forward() {
+    HOOK="FORWARD"; HOOK_ARGS="-i $WAN_IFACE"; CHAIN="$FWD_CHAIN"; STAGE="$FWD_STAGE"
+}
 
 have_ip6() {
     command -v ip6tables >/dev/null 2>&1
@@ -58,9 +81,18 @@ log() {
 
 # $1 = iptables | ip6tables, $2 = chain
 unhook_chain() {
-    while "$1" $W -C INPUT -j "$2" 2>/dev/null; do
-        "$1" $W -D INPUT -j "$2" 2>/dev/null || break
+    while "$1" $W -C "$HOOK" $HOOK_ARGS -j "$2" 2>/dev/null; do
+        "$1" $W -D "$HOOK" $HOOK_ARGS -j "$2" 2>/dev/null || break
     done
+}
+
+# $1 = iptables | ip6tables, $2 = chain
+is_hooked() {
+    "$1" $W -C "$HOOK" $HOOK_ARGS -j "$2" 2>/dev/null
+}
+
+hook_chain() {
+    "$1" $W -I "$HOOK" 1 $HOOK_ARGS -j "$2"
 }
 
 drop_chain() {
@@ -112,8 +144,19 @@ fill_v6() {
     done
 }
 
+# Hooked with -i rmnet+. RETURN, not ACCEPT, so QCMAP's own rules still run.
+# DROP is last, so every prefix of a partial build is permissive, never a lock-out.
+fill_fwd6() {
+    ip6tables $W -A "$1" -m state --state ESTABLISHED,RELATED -j RETURN || return 1
+    # Unreachable, packet too big, time exceeded, parameter problem, echo.
+    for icmp_type in 1 2 3 4 128 129; do
+        ip6tables $W -A "$1" -p ipv6-icmp -m icmp6 --icmpv6-type "$icmp_type" -j RETURN || return 1
+    done
+    ip6tables $W -A "$1" -j DROP || return 1
+}
+
 # $1 = iptables | ip6tables, $2 = fill function. Build in STAGE, hook it at
-# INPUT 1, then retire the old chain and rename STAGE into its place. A STAGE
+# $HOOK 1, then retire the old chain and rename STAGE into its place. A STAGE
 # left hooked by an interrupted run is unhooked first, or -X/-N would fail.
 # A failed build keeps a hooked old chain and drops STAGE; with none hooked the
 # partial STAGE stays hooked (safe prefix). A partial is never renamed.
@@ -121,13 +164,12 @@ swap_in() {
     unhook_chain "$1" "$STAGE"
     drop_chain "$1" "$STAGE"
     "$1" $W -N "$STAGE" || return 1
-    if ! "$2" "$STAGE" || ! "$1" $W -I INPUT 1 -j "$STAGE"; then
-        if "$1" $W -C INPUT -j "$CHAIN" 2>/dev/null; then
+    if ! "$2" "$STAGE" || ! hook_chain "$1" "$STAGE"; then
+        if is_hooked "$1" "$CHAIN"; then
             unhook_chain "$1" "$STAGE"
             drop_chain "$1" "$STAGE"
         else
-            "$1" $W -C INPUT -j "$STAGE" 2>/dev/null ||
-                "$1" $W -I INPUT 1 -j "$STAGE"
+            is_hooked "$1" "$STAGE" || hook_chain "$1" "$STAGE"
         fi
         return 1
     fi
@@ -152,16 +194,16 @@ swap_in_retry() {
         if [ "$src" -eq 2 ] || [ "$n" -ge "$ATTEMPTS" ]; then
             what="rule build"
             [ "$src" -eq 2 ] && what="rename to $CHAIN"
-            if "$1" $W -C INPUT -j "$STAGE" 2>/dev/null; then
-                log "$1: $what failed after $n attempts; $STAGE left hooked"
-            elif "$1" $W -C INPUT -j "$CHAIN" 2>/dev/null; then
-                log "$1: $what failed after $n attempts; previous $CHAIN kept"
+            if is_hooked "$1" "$STAGE"; then
+                log "$1 $HOOK: $what failed after $n attempts; $STAGE left hooked"
+            elif is_hooked "$1" "$CHAIN"; then
+                log "$1 $HOOK: $what failed after $n attempts; previous $CHAIN kept"
             else
-                log "$1: $what failed after $n attempts; no $CHAIN rules active"
+                log "$1 $HOOK: $what failed after $n attempts; no $CHAIN rules active"
             fi
             return 1
         fi
-        log "$1: rule build failed (attempt $n of $ATTEMPTS), retrying"
+        log "$1 $HOOK: rule build failed (attempt $n of $ATTEMPTS), retrying"
         n=$((n + 1))
         sleep 2
     done
@@ -170,30 +212,98 @@ swap_in_retry() {
 do_start() {
     rc=0
     cleanup_legacy_input_rules
+    use_input
     swap_in_retry iptables fill_v4 || rc=1
     if have_ip6; then
         swap_in_retry ip6tables fill_v6 || rc=1
+        use_forward
+        swap_in_retry ip6tables fill_fwd6 || rc=1
+        use_input
     fi
     return "$rc"
 }
 
+# $1 = iptables | ip6tables
+remove_chains() {
+    unhook_chain "$1" "$CHAIN"
+    unhook_chain "$1" "$STAGE"
+    drop_chain "$1" "$CHAIN"
+    drop_chain "$1" "$STAGE"
+}
+
 do_stop() {
-    for t in iptables ip6tables; do
-        [ "$t" = ip6tables ] && ! have_ip6 && continue
-        unhook_chain "$t" "$CHAIN"
-        unhook_chain "$t" "$STAGE"
-        drop_chain "$t" "$CHAIN"
-        drop_chain "$t" "$STAGE"
-    done
+    use_input
+    remove_chains iptables
+    if have_ip6; then
+        remove_chains ip6tables
+        use_forward
+        remove_chains ip6tables
+        use_input
+    fi
     cleanup_legacy_input_rules
 }
 
+# Re-hook only a chain that start built; a stopped firewall stays stopped.
+rehook_fwd6() {
+    use_forward
+    ip6tables $W -S "$CHAIN" >/dev/null 2>&1 || return 0
+    is_hooked ip6tables "$CHAIN" && return 0
+    is_hooked ip6tables "$STAGE" && return 0
+    hook_chain ip6tables "$CHAIN" && log "ip6tables: re-hooked $CHAIN into FORWARD"
+}
+
+# Lock-free view of what QCMAP changes when it rebuilds FORWARD. awk, not a
+# `while read` loop: BusyBox 1.29 ash hangs reading /proc/net/if_inet6.
+net_sig() {
+    fwd=""
+    read -r fwd < /proc/sys/net/ipv6/conf/all/forwarding
+    SIG="$fwd $(awk '$6 ~ /^rmnet/ { print $1 "/" $3 }' /proc/net/if_inet6 </dev/null)"
+}
+
+# QCMAP's iptables calls omit -w and fail on a held xtables lock, so the lock is
+# taken only for a few ticks after a change, then once every WATCH_SLOW_TICKS.
+do_watch() {
+    have_ip6 || return 0
+    last=""
+    due=0
+    idle=0
+    while :; do
+        sleep "$WATCH_INTERVAL"
+        net_sig
+        if [ "$SIG" != "$last" ]; then
+            last="$SIG"
+            due=3
+            idle=0
+            continue
+        fi
+        idle=$((idle + 1))
+        if [ "$due" -gt 0 ] || [ "$idle" -ge "$WATCH_SLOW_TICKS" ]; then
+            [ "$due" -gt 0 ] && due=$((due - 1))
+            idle=0
+            locked rehook_fwd6
+        fi
+    done
+}
+
+# Serialises start/stop with the watch re-hook; runs unlocked without flock.
+locked() {
+    if ! command -v flock >/dev/null 2>&1 || [ ! -d "${LOCK%/*}" ]; then
+        "$@"
+        return
+    fi
+    (
+        flock -w 30 9 || log "lock wait timed out; running unlocked"
+        "$@"
+    ) 9>"$LOCK"
+}
+
 case "${1:-}" in
-    start|reload) do_start ;;
-    stop)         do_stop ;;
-    restart)      do_stop; do_start ;;
+    start|reload) locked do_start ;;
+    stop)         locked do_stop ;;
+    restart)      locked do_stop; locked do_start ;;
+    watch)        do_watch ;;
     *)
-        echo "Usage: qmanager_firewall {start|stop|restart|reload}" >&2
+        echo "Usage: qmanager_firewall {start|stop|restart|reload|watch}" >&2
         exit 1
         ;;
 esac

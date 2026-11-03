@@ -539,6 +539,16 @@ if command -v iptables >/dev/null 2>&1; then
             "$_ipt" -X "$_chain" 2>/dev/null || true
         done
     done
+    if command -v ip6tables >/dev/null 2>&1; then
+        for _chain in QMANAGER_FWD6 QMANAGER_FWD6_NEW; do
+            while ip6tables -C FORWARD -i rmnet+ -j "$_chain" 2>/dev/null; do
+                ip6tables -D FORWARD -i rmnet+ -j "$_chain" 2>/dev/null || break
+            done
+            ip6tables -F "$_chain" 2>/dev/null || true
+            ip6tables -X "$_chain" 2>/dev/null || true
+        done
+    fi
+    rm -f /run/qmanager_firewall.lock
 
     # Legacy layout: drain INPUT-direct rules from pre-chain installs
     for port in 80 443; do

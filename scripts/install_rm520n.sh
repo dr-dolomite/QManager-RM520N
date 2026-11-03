@@ -4023,6 +4023,7 @@ start_services() {
     # Firewall before lighttpd. reload-or-restart, not start: the unit is kept
     # running across OTA, so `start` would be a no-op and skip the new rules.
     systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
+    systemctl start qmanager-firewall-watch 2>/dev/null || warn "Could not start qmanager-firewall-watch"
 
     # qmanager_update reboots after us, so defer; the cgroup arm covers an older updater running
     # inside lighttpd. The conf is tested after the services start (end of this function).
@@ -4123,7 +4124,7 @@ start_services() {
 
     # Verify critical services
     local svc_errors=0
-    local verify_svcs="qmanager-firewall lighttpd qmanager-setup qmanager-ping qmanager-poller"
+    local verify_svcs="qmanager-firewall qmanager-firewall-watch lighttpd qmanager-setup qmanager-ping qmanager-poller"
     if [ "$atd_on" = "1" ]; then
         verify_svcs="$verify_svcs qmanager-atd"
     fi

@@ -931,7 +931,7 @@ _collect_system_info() {
 _collect_services() {
     local dir="$1"
     mkdir -p "$dir"
-    local units="qmanager-firewall.service qmanager-poller.service qmanager-console.service qmanager-setup.service lighttpd.service tailscaled.service qmanager-tailscale-watchdog.service qmanager-atd.service"
+    local units="qmanager-firewall.service qmanager-firewall-watch.service qmanager-poller.service qmanager-console.service qmanager-setup.service lighttpd.service tailscaled.service qmanager-tailscale-watchdog.service qmanager-atd.service"
     for u in $units; do
         {
             echo "# systemctl status $u"
