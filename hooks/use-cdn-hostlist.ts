@@ -88,9 +88,10 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          const msg = json.detail || json.error || fallback;
-          setError(msg);
-          return { ok: false, error: msg };
+          // Return the backend's code and detail as sent; local fallbacks stay in `error` state.
+          const reason = json.detail || json.error || null;
+          setError(reason ?? fallback);
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         await fetchHostlist(true);
         return { ok: true, error: null };
@@ -98,7 +99,7 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
         if (!mountedRef.current) return { ok: false, error: null };
         const msg = err instanceof Error ? err.message : fallback;
         setError(msg);
-        return { ok: false, error: msg };
+        return { ok: false, error: null };
       } finally {
         if (mountedRef.current) setBusy(false);
       }

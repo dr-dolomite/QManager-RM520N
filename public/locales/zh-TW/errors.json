@@ -251,5 +251,10 @@
   "status_lost": "還原期間與數據機失去聯繫。恢復連線後請檢查您的設定。",
   "hostname_apply_failed": "裝置名稱已儲存，但無法套用到系統。請重試。",
   "hostname_save_failed": "無法儲存裝置名稱。請重試。",
-  "invalid_hostname": "裝置名稱必須為 1 至 64 個字元。"
+  "invalid_hostname": "裝置名稱必須為 1 至 64 個字元。",
+  "binary_not_installed": "流量引擎尚未安裝。請先安裝，然後再試一次。",
+  "engine_start_failed": "設定已儲存，但引擎未能啟動。",
+  "invalid_sni_domain": "該網域名稱無效。",
+  "sudo_unavailable": "裝置拒絕了此變更所需的權限。",
+  "invalid_hostlist": "主機名稱清單為空或包含無效名稱。"
 }

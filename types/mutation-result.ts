@@ -3,4 +3,6 @@ export interface MutationResult {
   ok: boolean;
   /** Failure reason; null on success or when the component unmounted mid-call. */
   error: string | null;
+  /** The backend's free-text detail, when `error` carries its code. */
+  detail?: string | null;
 }

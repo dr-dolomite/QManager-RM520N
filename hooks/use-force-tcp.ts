@@ -100,9 +100,10 @@ export function useForceTcp(): UseForceTcpReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          const msg = json.detail || json.error || "Failed to save QUIC Force-TCP";
-          setError(msg);
-          return { ok: false, error: msg };
+          // Return the backend's code and detail as sent; local fallbacks stay in `error` state.
+          const reason = json.detail || json.error || null;
+          setError(reason ?? "Failed to save QUIC Force-TCP");
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         await fetchStatus(true);
         return { ok: true, error: null };
@@ -110,7 +111,7 @@ export function useForceTcp(): UseForceTcpReturn {
         if (!mountedRef.current) return { ok: false, error: null };
         const msg = err instanceof Error ? err.message : "Failed to save QUIC Force-TCP";
         setError(msg);
-        return { ok: false, error: msg };
+        return { ok: false, error: null };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }

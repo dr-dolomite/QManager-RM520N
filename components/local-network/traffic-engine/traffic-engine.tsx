@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { toast } from "sonner";
+import { failureReason } from "./failure-reason";
 import { RefreshCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { useMotionReduced } from "@/components/motion-preference";
 import { Banner, bannerActionVariants } from "@/components/ui/banner";
@@ -243,7 +244,9 @@ export default function TrafficEngine() {
         toast.success(t(successKey));
       } else {
         setPending(null);
-        toast.error(t("traffic_engine.toast_mode_error"));
+        toast.error(t("traffic_engine.toast_mode_error"), {
+          description: failureReason(t, result),
+        });
       }
       // Both, even on failure: the backend mutex may have changed the other section.
       refreshEngine(true);
@@ -280,7 +283,11 @@ export default function TrafficEngine() {
   const install = useCallback(async () => {
     const result = await vo.installBinary();
     if (result.ok) toast.success(t("traffic_engine.toast_install_success"));
-    else toast.error(t("traffic_engine.toast_install_error"));
+    else {
+      toast.error(t("traffic_engine.toast_install_error"), {
+        description: failureReason(t, result),
+      });
+    }
     refreshEngine(true);
     hostlist.refresh(true);
   }, [vo, t, refreshEngine, hostlist]);
@@ -289,7 +296,9 @@ export default function TrafficEngine() {
     const result = await vo.uninstallBinary();
     if (result.ok) toast.success(t("traffic_engine.advanced_toast_success"));
     else {
-      toast.error(t("traffic_engine.advanced_toast_error"));
+      toast.error(t("traffic_engine.advanced_toast_error"), {
+        description: failureReason(t, result),
+      });
     }
     refreshEngine(true);
   }, [vo, t, refreshEngine]);

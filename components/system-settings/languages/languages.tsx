@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { useLanguagePacks } from "@/hooks/use-language-packs";
 import { AVAILABLE_LANGUAGES } from "@/lib/i18n/available-languages";
 import { buildCatalogView } from "@/lib/i18n/language-pack-manifest";
-import { installErrorKey } from "@/lib/i18n/resolve-error";
+import { installErrorKey, resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import { switchLanguage } from "@/lib/i18n/runtime-pack";
 import { staggerContainer } from "@/lib/motion";
 
@@ -65,6 +65,20 @@ export function Languages(): React.JSX.Element {
     [rows, packs],
   );
 
+  // A failure's reason in locale text; device words only ever appear quoted as machine voice.
+  const failureReason = React.useCallback(
+    (code?: string | null, message?: string | null): string | undefined => {
+      const key = installErrorKey(code);
+      if (key) return t(key);
+      const detail = message?.trim();
+      if (code?.trim()) {
+        return resolveErrorMessage(t, code, detail, t("unknown", { ns: "errors" }));
+      }
+      return detail ? t("unknown_with_detail", { ns: "errors", detail }) : undefined;
+    },
+    [t],
+  );
+
   const handleSelect = React.useCallback(
     (code: string) => {
       if (code === activeCode || switchingCode) return;
@@ -107,9 +121,8 @@ export function Languages(): React.JSX.Element {
       if (isActive) await switchLanguage(i18n, "en");
       const res = await remove(code);
       if (!res.ok) {
-        const key = installErrorKey(res.error);
         toast.error(t(`${K}.toast.remove_failed`, { language: nameFor(code) }), {
-          description: key ? t(key) : res.error || undefined,
+          description: failureReason(res.error, res.error),
         });
         return;
       }
@@ -119,7 +132,7 @@ export function Languages(): React.JSX.Element {
           : t(`${K}.toast.removed`, { language: nameFor(code) }),
       );
     },
-    [i18n, remove, nameFor, t],
+    [i18n, remove, nameFor, failureReason, t],
   );
 
   // Surface the install's terminal state once, on the transition into it. On
@@ -144,14 +157,13 @@ export function Languages(): React.JSX.Element {
         id: "language-install-cancelled",
       });
     } else if (install.state === "failed") {
-      const key = installErrorKey(install.error_code);
       toast.error(
         install.code
           ? t(`${K}.toast.install_failed`, { language: nameFor(install.code) })
           : t(`${K}.toast.install_failed_generic`),
         {
           id: "language-install-failed",
-          description: key ? t(key) : install.message || undefined,
+          description: failureReason(install.error_code, install.message),
         },
       );
     }
@@ -161,6 +173,7 @@ export function Languages(): React.JSX.Element {
     install.message,
     install.error_code,
     nameFor,
+    failureReason,
     handleSelect,
     t,
   ]);

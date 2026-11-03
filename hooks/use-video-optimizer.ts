@@ -136,9 +136,10 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          const msg = json.detail || json.error || "Failed to save engine settings";
-          setError(msg);
-          return { ok: false, error: msg };
+          // Return the backend's code and detail as sent; local fallbacks stay in `error` state.
+          const reason = json.detail || json.error || null;
+          setError(reason ?? "Failed to save engine settings");
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         await fetchStatus(true);
         return { ok: true, error: null };
@@ -146,7 +147,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         if (!mountedRef.current) return { ok: false, error: null };
         const msg = err instanceof Error ? err.message : "Failed to save engine settings";
         setError(msg);
-        return { ok: false, error: msg };
+        return { ok: false, error: null };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }
@@ -190,11 +191,12 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (json.success === false) {
-          const msg = json.detail || json.error || copy.spawnFailed;
+          const reason = json.detail || json.error || null;
+          const msg = reason ?? copy.spawnFailed;
           setError(msg);
           setInstallMessage(msg);
           setInstallPhase("error");
-          return { ok: false, error: msg };
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         if (json.status === "already") {
           if (isInstall) {
@@ -244,7 +246,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
               setError(msg);
               setInstallMessage(msg);
               await fetchStatus(true);
-              return { ok: false, error: msg };
+              return { ok: false, error: null };
             }
             continue;
           }
@@ -255,9 +257,9 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
           if (st.status === "complete" || st.status === "error") {
             let failMsg: string | null = null;
             if (st.status === "error") {
-              failMsg = st.detail || st.message || copy.failed;
-              setError(failMsg);
-              setInstallMessage(failMsg);
+              failMsg = st.detail || st.message || null;
+              setError(failMsg ?? copy.failed);
+              setInstallMessage(failMsg ?? copy.failed);
             }
             await fetchStatus(true);
             if (!isInstall && st.status === "complete") {
@@ -268,20 +270,23 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
               setInstallPhase("idle");
               setInstallMessage(null);
             }
-            return st.status === "complete" ? { ok: true, error: null } : { ok: false, error: failMsg };
+            // The worker writes free text, never a code.
+            return st.status === "complete"
+              ? { ok: true, error: null }
+              : { ok: false, error: null, detail: failMsg };
           }
         }
         setInstallPhase("error");
         setError(copy.timeout);
         setInstallMessage(copy.timeout);
-        return { ok: false, error: copy.timeout };
+        return { ok: false, error: null };
       } catch (err) {
         if (!mountedRef.current) return { ok: false, error: null };
         const msg = err instanceof Error ? err.message : copy.spawnFailed;
         setError(msg);
         setInstallPhase("error");
         setInstallMessage(msg);
-        return { ok: false, error: msg };
+        return { ok: false, error: null };
       } finally {
         opBusyRef.current = false;
         if (mountedRef.current) {

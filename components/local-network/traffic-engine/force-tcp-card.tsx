@@ -2,6 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { failureReason } from "./failure-reason";
 import { CheckIcon, RefreshCcwIcon } from "lucide-react";
 
 import { Banner, bannerActionVariants } from "@/components/ui/banner";
@@ -44,7 +45,9 @@ export function ForceTcpCard() {
         t(next ? "traffic_engine.force_tcp_toast_enabled" : "traffic_engine.force_tcp_toast_disabled"),
       );
     } else {
-      toast.error(t("traffic_engine.force_tcp_toast_error"));
+      toast.error(t("traffic_engine.force_tcp_toast_error"), {
+        description: failureReason(t, result),
+      });
     }
   };
 
