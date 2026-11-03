@@ -383,17 +383,17 @@ export const TALLY_GLYPH = {
 
 /**
  * Static per-category cardinality, counted from `qmanager_health_check`'s
- * catalog — a fixed jq literal that seeds all 43 tests before the first runs.
+ * catalog — a fixed jq literal that seeds all 46 tests before the first runs.
  */
 export const CATEGORY_TEST_COUNT: Record<TestCategory, number> = {
   binaries: 10,
-  permissions: 5,
+  permissions: 6,
   at_transport: 6,
   sms: 3,
   sudoers: 1,
-  services: 6,
+  services: 7,
   network: 6,
-  configuration: 6,
+  configuration: 7,
 };
 
 /** The catalog's size, derived from the map above so the two cannot drift. */

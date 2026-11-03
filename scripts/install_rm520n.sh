@@ -768,6 +768,43 @@ harden_world_writable_modes() {
     return 0
 }
 
+# --- Link Entware's account files to /etc ------------------------------------
+
+# Entware's dropbear reads /opt/etc/shadow; the bootstrap skips any file absent
+# at that moment, so re-link on every install and OTA. Must never return non-zero.
+ensure_entware_account_links() {
+    local _f _cur
+
+    # Only the bind-mounted /usrdata/opt; never write into a rootfs /opt.
+    if ! awk '$5 == "/opt" { f = 1 } END { exit !f }' /proc/self/mountinfo 2>/dev/null \
+        || [ ! -d /opt/etc ]; then
+        info "/opt not mounted — Entware account links left unchanged"
+        return 0
+    fi
+
+    for _f in passwd group shells shadow gshadow; do
+        [ -e "/etc/$_f" ] || continue
+        if [ -L "/opt/etc/$_f" ]; then
+            _cur=$(readlink "/opt/etc/$_f" 2>/dev/null) || _cur=""
+            [ "$_cur" = "/etc/$_f" ] && continue
+            # -n: replace a link to a directory instead of writing inside it.
+            if ln -sfn "/etc/$_f" "/opt/etc/$_f" 2>/dev/null; then
+                warn "Replaced /opt/etc/$_f (pointed to '$_cur') with a link to /etc/$_f"
+            else
+                warn "Could not relink /opt/etc/$_f"
+            fi
+        elif [ -e "/opt/etc/$_f" ]; then
+            warn "/opt/etc/$_f is not a link to /etc/$_f — left as is"
+        elif ln -s "/etc/$_f" "/opt/etc/$_f" 2>/dev/null; then
+            info "Linked /opt/etc/$_f to /etc/$_f"
+        else
+            warn "Could not link /opt/etc/$_f"
+        fi
+    done
+
+    return 0
+}
+
 # --- F11: gate opt.mount on /usrdata actually being mounted -------------------
 
 # opt.mount binds /usrdata/opt -> /opt, but /usrdata is mounted by the vendor
@@ -4796,6 +4833,9 @@ main() {
     # fresh install, and before setup_ssh_early so /opt's ordering is settled
     # before anything reasons about the SSH unit.
     ensure_usrdata_wait_unit
+
+    # Unconditional so OTA repairs a missing /opt/etc/shadow; before SSH setup.
+    ensure_entware_account_links
 
     # SSH bootstrap runs after install_dependencies so Entware + bundled
     # dropbear .ipk are available, and before stop_services so it never has
