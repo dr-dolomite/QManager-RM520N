@@ -866,7 +866,7 @@ qm_opkg_update() {
         return 0
     fi
     _log_raw "opkg update failed: $(printf '%s' "$_out" | tr -d '\r' | tr '\n' ' ' | cut -c1-600)"
-    OPKG_UPDATE_ERR=$(printf '%s\n' "$_out" | tr -d '\r' | grep -E 'Failed|returned|Cannot|rror' | head -n1 | sed 's/^[ *]*//' | cut -c1-200) || true
+    OPKG_UPDATE_ERR=$(printf '%s\n' "$_out" | tr -d '\r' | grep -E 'Failed|returned|Cannot' | head -n1 | sed 's/^[ *]*//' | cut -c1-200) || true
     [ -n "$OPKG_UPDATE_ERR" ] || OPKG_UPDATE_ERR="no error text"
     return 1
 }
