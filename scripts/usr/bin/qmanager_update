@@ -60,15 +60,18 @@ fi
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG_FILE"; }
 
-# Atomic write — prevents readers from seeing partial JSON during the write
+# Atomic write — prevents readers from seeing partial JSON during the write.
+# $5 is an `errors` catalog code the UI translates; the message stays English for the log.
 write_status() {
-    local status="$1" msg="$2" version="$3" size="$4"
+    local status="$1" msg="$2" version="$3" size="$4" code="${5:-}"
     jq -n \
         --arg status "$status" \
         --arg message "$msg" \
         --arg version "$version" \
         --arg size "$size" \
-        '{status: $status, message: $message, version: $version, size: $size}' \
+        --arg error "$code" \
+        '{status: $status, message: $message, version: $version, size: $size,
+          error: (if $error == "" then null else $error end)}' \
         > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
 }
 
@@ -256,8 +259,8 @@ require_checksum() {
     verify_checksum "$1" "$2"
     case $? in
         0) return 0 ;;
-        2) rm -f "$1"; die "SHA-256 mismatch — download may be corrupt or tampered" ;;
-        *) rm -f "$1"; die "SHA-256 could not be verified — refusing to install an unverified update" ;;
+        2) rm -f "$1"; die "SHA-256 mismatch — download may be corrupt or tampered" ota_sha256_mismatch ;;
+        *) rm -f "$1"; die "SHA-256 could not be verified — refusing to install an unverified update" ota_sha256_unverified ;;
     esac
 }
 
@@ -271,7 +274,7 @@ run_install_with_progress() {
 
     # Covers the auto-update timer too: the install stops lighttpd and would kill the restore worker.
     if pid_is "$(cat /tmp/qmanager_config_restore.pid 2>/dev/null)" qmanager_config_restore; then
-        die "A configuration restore is running. Try again when it finishes."
+        die "A configuration restore is running. Try again when it finishes." ota_restore_running
     fi
 
     : > "$INSTALL_LOG"
@@ -327,7 +330,7 @@ post_install_check() {
     local expected="$1" actual=""
 
     if [ -f "$PENDING_FILE" ]; then
-        die "Install appears to have crashed mid-flight (VERSION.pending exists). Check $LOG_FILE."
+        die "Install appears to have crashed mid-flight (VERSION.pending exists)" ota_install_crashed
     fi
 
     if [ -f "$VERSION_FILE" ]; then
@@ -335,7 +338,7 @@ post_install_check() {
     fi
 
     if [ -z "$actual" ]; then
-        die "Install completed but VERSION not stamped (expected $expected, got <missing>). Check $LOG_FILE."
+        die "Install completed but VERSION not stamped (expected $expected, got <missing>)" ota_version_mismatch
     fi
 
     if [ "$actual" = "$expected" ]; then
@@ -347,7 +350,7 @@ post_install_check() {
     actual_core="${actual#v}"; actual_core="${actual_core%%-*}"
 
     if [ "$expected_core" != "$actual_core" ]; then
-        die "Install completed but VERSION mismatch (expected $expected, got $actual). Check $LOG_FILE."
+        die "Install completed but VERSION mismatch (expected $expected, got $actual)" ota_version_mismatch
     fi
 
     log "WARNING: VERSION differs only by a 'v' prefix / pre-release suffix (expected '$expected', got '$actual') — numeric core '$actual_core' matches, treating install as success."
@@ -383,7 +386,7 @@ wait_for_reboot_ack() {
 
 die() {
     log "ERROR: $1"
-    write_status "error" "$1" "${VERSION:-}" ""
+    write_status "error" "$1" "${VERSION:-}" "" "${2:-}"
     cleanup
     exit 1
 }
@@ -442,9 +445,9 @@ if [ "$MODE" = "install" ]; then
     # changes anything: every path now fails closed on an unverified checksum.
 
     if ! validate_url "$URL"; then
-        die "Invalid download URL"
+        die "Invalid download URL" ota_invalid_url
     fi
-    ensure_stage_dir || die "Could not create a private staging directory"
+    ensure_stage_dir || die "Could not create a private staging directory" ota_stage_failed
 
     # 1. Download
     write_status "downloading" "Downloading update..." "$VERSION" "$SIZE"
@@ -452,7 +455,7 @@ if [ "$MODE" = "install" ]; then
     download_path="$STAGE_DIR/download.tar.gz"
 
     if ! http_download "$URL" "$download_path"; then
-        die "Download failed. Check your internet connection."
+        die "Download failed. Check your internet connection." ota_download_failed
     fi
     log "Download complete"
 
@@ -460,7 +463,7 @@ if [ "$MODE" = "install" ]; then
     write_status "verifying" "Verifying archive..." "$VERSION" ""
     if ! verify_archive "$download_path"; then
         rm -f "$download_path"
-        die "Downloaded file is corrupt or missing install_rm520n.sh."
+        die "Downloaded file is corrupt or missing install_rm520n.sh." ota_archive_corrupt
     fi
     log "Archive verified"
 
@@ -476,9 +479,9 @@ if [ "$MODE" = "install" ]; then
     log "Saved previous version ($current_ver) for rollback"
 
     # 4. Extract and run installer with step-streaming progress
-    tar xzf "$download_path" -C "$STAGE_DIR" || die "Extraction failed"
+    tar xzf "$download_path" -C "$STAGE_DIR" || die "Extraction failed" ota_extract_failed
     rm -f "$download_path"
-    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found"
+    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found" ota_extract_failed
 
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
@@ -486,7 +489,7 @@ if [ "$MODE" = "install" ]; then
 
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then
-        die "Installation failed. Check $LOG_FILE for details."
+        die "Installation failed" ota_install_failed
     fi
     log "Install complete"
 
@@ -518,9 +521,9 @@ if [ "$MODE" = "download" ]; then
 
     # The URL must be the release for exactly this version tag.
     if ! is_safe_tag "$VERSION" || [ "$URL" != "${RELEASE_PREFIX}${VERSION}/qmanager.tar.gz" ]; then
-        die "Invalid download URL"
+        die "Invalid download URL" ota_invalid_url
     fi
-    reset_stage_dir || die "Could not create a private staging directory"
+    reset_stage_dir || die "Could not create a private staging directory" ota_stage_failed
     # Pre-v0.1.19 staging paths; a leftover must never look like a staged update.
     rm -f /tmp/qmanager_staged.tar.gz /tmp/qmanager_staged_version
 
@@ -529,14 +532,14 @@ if [ "$MODE" = "download" ]; then
     log "Downloading $URL"
 
     if ! http_download "$URL" "$STAGED_TARBALL"; then
-        die "Download failed. Check your internet connection."
+        die "Download failed. Check your internet connection." ota_download_failed
     fi
     log "Download complete"
 
     # 2. Verify archive integrity
     if ! verify_archive "$STAGED_TARBALL"; then
         rm -f "$STAGED_TARBALL"
-        die "Downloaded file is corrupt or missing install_rm520n.sh."
+        die "Downloaded file is corrupt or missing install_rm520n.sh." ota_archive_corrupt
     fi
     log "Archive integrity verified"
 
@@ -565,17 +568,17 @@ fi
 if [ "$MODE" = "install_staged" ]; then
     # Only trust files the download step left in the root-only stage dir,
     # and re-check the hash it recorded.
-    stage_dir_ok || die "No staged download found. Download first."
-    staged_file_ok "$STAGED_TARBALL" || die "No staged tarball found. Download first."
-    staged_file_ok "$STAGED_VERSION" || die "No staged version marker found."
-    staged_file_ok "$STAGED_SHA" || die "No staged checksum found. Download again."
+    stage_dir_ok || die "No staged download found. Download first." ota_no_staged
+    staged_file_ok "$STAGED_TARBALL" || die "No staged tarball found. Download first." ota_no_staged
+    staged_file_ok "$STAGED_VERSION" || die "No staged version marker found." ota_no_staged
+    staged_file_ok "$STAGED_SHA" || die "No staged checksum found. Download again." ota_no_staged
 
     VERSION=$(cat "$STAGED_VERSION" 2>/dev/null)
-    is_safe_tag "$VERSION" || die "Staged version marker is invalid. Download again."
+    is_safe_tag "$VERSION" || die "Staged version marker is invalid. Download again." ota_no_staged
     staged_sha=$(cat "$STAGED_SHA" 2>/dev/null)
     actual_sha=$(sha256sum "$STAGED_TARBALL" 2>/dev/null | awk '{ print $1 }')
     if ! is_sha256 "$staged_sha" || [ "$actual_sha" != "$staged_sha" ]; then
-        die "Staged download changed since it was verified. Download again."
+        die "Staged download changed since it was verified. Download again." ota_staged_changed
     fi
     log "Installing staged version: $VERSION ($actual_sha)"
 
@@ -587,9 +590,9 @@ if [ "$MODE" = "install_staged" ]; then
     log "Saved previous version ($current_ver)"
 
     # 2. Extract and run installer with step-streaming progress
-    tar xzf "$STAGED_TARBALL" -C "$STAGE_DIR" || die "Extraction failed"
+    tar xzf "$STAGED_TARBALL" -C "$STAGE_DIR" || die "Extraction failed" ota_extract_failed
     rm -f "$STAGED_TARBALL" "$STAGED_VERSION" "$STAGED_SHA"
-    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found"
+    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found" ota_extract_failed
 
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
@@ -597,7 +600,7 @@ if [ "$MODE" = "install_staged" ]; then
 
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then
-        die "Installation failed. Check $LOG_FILE for details."
+        die "Installation failed" ota_install_failed
     fi
     log "Install complete"
 
@@ -667,9 +670,9 @@ if [ "$MODE" = "rollback" ]; then
 
     # Rollback only downloads from official releases
     if ! validate_url "$URL"; then
-        die "Invalid rollback URL"
+        die "Invalid rollback URL" ota_invalid_url
     fi
-    ensure_stage_dir || die "Could not create a private staging directory"
+    ensure_stage_dir || die "Could not create a private staging directory" ota_stage_failed
 
     # 1. Download rollback archive
     write_status "downloading" "Downloading previous version..." "$VERSION" ""
@@ -677,14 +680,14 @@ if [ "$MODE" = "rollback" ]; then
     download_path="$STAGE_DIR/download.tar.gz"
 
     if ! http_download "$URL" "$download_path"; then
-        die "Rollback download failed. Check your internet connection."
+        die "Rollback download failed. Check your internet connection." ota_download_failed
     fi
     log "Rollback download complete"
 
     # 2. Verify archive integrity
     if ! verify_archive "$download_path"; then
         rm -f "$download_path"
-        die "Rollback archive is corrupt or missing install_rm520n.sh."
+        die "Rollback archive is corrupt or missing install_rm520n.sh." ota_archive_corrupt
     fi
     log "Rollback archive verified"
 
@@ -700,9 +703,9 @@ if [ "$MODE" = "rollback" ]; then
     log "Saved current version ($current_ver) before rollback"
 
     # 4. Extract and run installer with step-streaming progress
-    tar xzf "$download_path" -C "$STAGE_DIR" || die "Extraction failed"
+    tar xzf "$download_path" -C "$STAGE_DIR" || die "Extraction failed" ota_extract_failed
     rm -f "$download_path"
-    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found"
+    cd "$INSTALL_SRC" || die "Extraction failed — $INSTALL_SRC not found" ota_extract_failed
 
     # Scrub any pre-timer-migration dead cron markers before handing off to
     # the installer (which re-arms the current timers from config either way).
@@ -712,7 +715,7 @@ if [ "$MODE" = "rollback" ]; then
 
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then
-        die "Rollback installation failed. Check $LOG_FILE"
+        die "Rollback installation failed" ota_rollback_failed
     fi
     log "Rollback install complete"
 

@@ -35,6 +35,8 @@ export interface DownloadState {
   version: string;
   message?: string;
   size?: string;
+  /** An `errors` catalog code on failure; `message` is the worker's English log line. */
+  error?: string | null;
 }
 
 export interface UpdateInfo {
@@ -51,6 +53,7 @@ export interface UpdateInfo {
   auto_update_enabled: boolean;
   auto_update_time: string;
   check_error: string | null;
+  check_error_code?: string | null;
   /** A `VERSION.pending` marker survived a reboot — the tree may be mixed. */
   previous_install_failed: boolean;
   pending_version: string | null;
@@ -61,6 +64,7 @@ export interface UpdateStatus {
   message?: string;
   version?: string;
   size?: string;
+  error?: string | null;
 }
 
 /** Which operation produced `error`. Seven call sites write one shared string. */
@@ -190,7 +194,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           setIsDownloading(false);
-          fail("download", json.message);
+          fail("download", json.message, json.error);
         }
       } catch {
         // Silently retry on next interval
@@ -217,10 +221,15 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
         return;
       }
 
-      setUpdateInfo(json as UpdateInfo);
+      const info = json as UpdateInfo;
+      setUpdateInfo({
+        ...info,
+        check_error: info.check_error
+          ? resolveErrorMessage(tRef.current, info.check_error_code, info.check_error, "")
+          : null,
+      });
 
       // Sync download state from backend
-      const info = json as UpdateInfo;
       if (info.download_state) {
         setDownloadState(info.download_state);
         if (info.download_state.status === "downloading" || info.download_state.status === "verifying") {
@@ -301,7 +310,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           setIsUpdating(false);
-          fail("install", json.message);
+          fail("install", json.message, json.error);
         }
       } catch {
         // Fetch failed — device is likely rebooting already. Navigate
@@ -455,7 +464,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           setIsUpdating(false);
-          fail("install", json.message);
+          fail("install", json.message, json.error);
         }
       } catch {
         // Network blink — if we've already posted install_staged, the device is

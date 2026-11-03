@@ -105,10 +105,13 @@ export function resolveFailure(
   if (errorKind) {
     const fromDownload =
       errorKind === "download" ? downloadState?.message?.trim() : undefined;
-    return { kind: errorKind, message: fromDownload || error?.trim() || "" };
+    // `error` is already resolved through the `errors` catalog; the raw message is the fallback.
+    return { kind: errorKind, message: error?.trim() || fromDownload || "" };
   }
   if (downloadState?.status === "error") {
-    return { kind: "download", message: downloadState.message?.trim() ?? "" };
+    // A coded failure's raw message is the English log line; the notice title says enough.
+    const message = downloadState.error ? "" : downloadState.message?.trim() ?? "";
+    return { kind: "download", message };
   }
   const message = info?.check_error?.trim() || "";
   return message ? { kind: "check", message } : null;

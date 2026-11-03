@@ -256,5 +256,21 @@
   "engine_start_failed": "Pengaturan tersimpan, tetapi mesin tidak berjalan.",
   "invalid_sni_domain": "Nama domain itu tidak valid.",
   "sudo_unavailable": "Perangkat menolak izin yang dibutuhkan perubahan ini.",
-  "invalid_hostlist": "Daftar nama host kosong atau berisi nama yang tidak valid."
+  "invalid_hostlist": "Daftar nama host kosong atau berisi nama yang tidak valid.",
+  "ota_sha256_mismatch": "Unduhan gagal dalam pemeriksaan integritas, jadi telah dihapus. Unduh lagi.",
+  "ota_sha256_unverified": "Unduhan tidak dapat diperiksa terhadap checksum rilis, jadi tidak dipasang.",
+  "ota_restore_running": "Pemulihan konfigurasi sedang berjalan. Coba lagi setelah selesai.",
+  "ota_install_crashed": "Penginstal berhenti di tengah jalan.",
+  "ota_version_mismatch": "Penginstal selesai, tetapi modem tidak melaporkan versi yang diharapkan.",
+  "ota_invalid_url": "Alamat pembaruan bukan rilis resmi.",
+  "ota_stage_failed": "Tidak dapat menyiapkan ruang di modem untuk pembaruan.",
+  "ota_download_failed": "Unduhan gagal. Periksa koneksi internet dan SIM.",
+  "ota_archive_corrupt": "File yang diunduh rusak atau tidak lengkap. Unduh lagi.",
+  "ota_extract_failed": "File yang diunduh tidak dapat diekstrak.",
+  "ota_install_failed": "Penginstal melaporkan kesalahan.",
+  "ota_rollback_failed": "Gagal memulihkan versi sebelumnya.",
+  "ota_no_staged": "Tidak ada pembaruan yang diunduh. Unduh lagi.",
+  "ota_staged_changed": "Pembaruan yang diunduh berubah setelah diperiksa. Unduh lagi.",
+  "ota_check_failed": "Tidak dapat menghubungi server rilis. Periksa koneksi internet.",
+  "ota_rate_limited": "Server rilis membatasi permintaan. Coba lagi nanti."
 }

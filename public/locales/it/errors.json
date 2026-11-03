@@ -256,5 +256,21 @@
   "engine_start_failed": "L'impostazione è stata salvata, ma il motore non si è avviato.",
   "invalid_sni_domain": "Quel nome di dominio non è valido.",
   "sudo_unavailable": "Il dispositivo ha negato il permesso richiesto da questa modifica.",
-  "invalid_hostlist": "L'elenco dei nomi host è vuoto o contiene un nome non valido."
+  "invalid_hostlist": "L'elenco dei nomi host è vuoto o contiene un nome non valido.",
+  "ota_sha256_mismatch": "Il download non ha superato il controllo di integrità ed è stato eliminato. Scaricalo di nuovo.",
+  "ota_sha256_unverified": "Non è stato possibile verificare il download con il checksum della release, quindi non è stato installato.",
+  "ota_restore_running": "È in corso un ripristino della configurazione. Riprova quando è terminato.",
+  "ota_install_crashed": "Il programma di installazione si è interrotto a metà.",
+  "ota_version_mismatch": "L'installazione è terminata, ma il modem non riporta la versione prevista.",
+  "ota_invalid_url": "L'indirizzo dell'aggiornamento non è una release ufficiale.",
+  "ota_stage_failed": "Impossibile preparare spazio sul modem per l'aggiornamento.",
+  "ota_download_failed": "Download non riuscito. Controlla la connessione internet e la SIM.",
+  "ota_archive_corrupt": "Il file scaricato è danneggiato o incompleto. Scaricalo di nuovo.",
+  "ota_extract_failed": "Impossibile estrarre il file scaricato.",
+  "ota_install_failed": "Il programma di installazione ha segnalato un errore.",
+  "ota_rollback_failed": "Ripristino della versione precedente non riuscito.",
+  "ota_no_staged": "Nessun aggiornamento scaricato trovato. Scaricalo di nuovo.",
+  "ota_staged_changed": "L'aggiornamento scaricato è cambiato dopo la verifica. Scaricalo di nuovo.",
+  "ota_check_failed": "Impossibile raggiungere il server delle release. Controlla la connessione internet.",
+  "ota_rate_limited": "Il server delle release sta limitando le richieste. Riprova più tardi."
 }

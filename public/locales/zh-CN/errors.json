@@ -256,5 +256,21 @@
   "engine_start_failed": "设置已保存，但引擎未能启动。",
   "invalid_sni_domain": "该域名无效。",
   "sudo_unavailable": "设备拒绝了此更改所需的权限。",
-  "invalid_hostlist": "主机名列表为空或包含无效名称。"
+  "invalid_hostlist": "主机名列表为空或包含无效名称。",
+  "ota_sha256_mismatch": "下载文件未通过完整性校验，已被删除。请重新下载。",
+  "ota_sha256_unverified": "无法用发布校验和验证下载文件，因此未安装。",
+  "ota_restore_running": "正在恢复配置。请在完成后重试。",
+  "ota_install_crashed": "安装程序中途停止。",
+  "ota_version_mismatch": "安装已完成，但调制解调器未报告预期的版本。",
+  "ota_invalid_url": "更新地址不是官方发布版本。",
+  "ota_stage_failed": "无法在调制解调器上为更新准备空间。",
+  "ota_download_failed": "下载失败。请检查网络连接和 SIM 卡。",
+  "ota_archive_corrupt": "下载的文件已损坏或不完整。请重新下载。",
+  "ota_extract_failed": "无法解压下载的文件。",
+  "ota_install_failed": "安装程序报告了错误。",
+  "ota_rollback_failed": "恢复上一版本失败。",
+  "ota_no_staged": "未找到已下载的更新。请重新下载。",
+  "ota_staged_changed": "已下载的更新在校验后发生了变化。请重新下载。",
+  "ota_check_failed": "无法连接发布服务器。请检查网络连接。",
+  "ota_rate_limited": "发布服务器正在限制请求。请稍后重试。"
 }

@@ -147,7 +147,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 auto_update_time: $auto_time,
                 previous_install_failed: $pif,
                 pending_version: (if $pv == "" then null else $pv end),
-                check_error: "Unable to check for updates. Check your internet connection."
+                check_error: "Unable to check for updates. Check your internet connection.",
+                check_error_code: "ota_check_failed"
             }'
         exit 0
     fi
@@ -184,7 +185,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 auto_update_time: $auto_time,
                 previous_install_failed: $pif,
                 pending_version: (if $pv == "" then null else $pv end),
-                check_error: $err
+                check_error: $err,
+                check_error_code: "ota_rate_limited"
             }'
         exit 0
     fi
@@ -290,7 +292,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             auto_update_time: $auto_time,
             previous_install_failed: $pif,
             pending_version: (if $pv == "" then null else $pv end),
-            check_error: null
+            check_error: null,
+            check_error_code: null
         }'
     exit 0
 fi

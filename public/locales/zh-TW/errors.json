@@ -256,5 +256,21 @@
   "engine_start_failed": "設定已儲存，但引擎未能啟動。",
   "invalid_sni_domain": "該網域名稱無效。",
   "sudo_unavailable": "裝置拒絕了此變更所需的權限。",
-  "invalid_hostlist": "主機名稱清單為空或包含無效名稱。"
+  "invalid_hostlist": "主機名稱清單為空或包含無效名稱。",
+  "ota_sha256_mismatch": "下載檔案未通過完整性檢查，已被刪除。請重新下載。",
+  "ota_sha256_unverified": "無法以發佈檢查碼驗證下載檔案，因此未安裝。",
+  "ota_restore_running": "正在還原設定。請在完成後重試。",
+  "ota_install_crashed": "安裝程式中途停止。",
+  "ota_version_mismatch": "安裝已完成，但數據機未回報預期的版本。",
+  "ota_invalid_url": "更新位址不是官方發佈版本。",
+  "ota_stage_failed": "無法在數據機上為更新準備空間。",
+  "ota_download_failed": "下載失敗。請檢查網路連線和 SIM 卡。",
+  "ota_archive_corrupt": "下載的檔案已損毀或不完整。請重新下載。",
+  "ota_extract_failed": "無法解壓縮下載的檔案。",
+  "ota_install_failed": "安裝程式回報了錯誤。",
+  "ota_rollback_failed": "還原上一版本失敗。",
+  "ota_no_staged": "找不到已下載的更新。請重新下載。",
+  "ota_staged_changed": "已下載的更新在檢查後發生變更。請重新下載。",
+  "ota_check_failed": "無法連線至發佈伺服器。請檢查網路連線。",
+  "ota_rate_limited": "發佈伺服器正在限制要求。請稍後再試。"
 }

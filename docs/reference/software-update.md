@@ -133,6 +133,14 @@ the band's captions, the header's verb) and translated there. That also means `r
 `errorKind !== null` for `unreachable` rather than the text: the device may fail without saying
 why, and the absence of a sentence is not the absence of a failure.
 
+**The worker and the check send codes too (2026-11-04).** `qmanager_update`'s `die "<log line>"
+<code>` writes an `ota_*` code into the status file's `error` field, and the GET payload carries
+`check_error_code` (`ota_check_failed` / `ota_rate_limited`) beside `check_error`. `message` and
+`check_error` stay English and go to the log only: they once included the log file's path, which
+the page printed. The hook resolves `check_error` on fetch, so `resolveFailure` reads a translated
+sentence. A worker from an older release sends no code and falls back to its English `message`.
+Every new `die` needs a code and an `errors.ota_*` key in all five catalogs.
+
 Every `setError` goes through one `fail(kind, message)` helper, and `resolveFailure()` is the
 **one** derived place that turns that into `{ kind, message }` or `null`. Three slots then read
 `failure.kind` rather than the view — the anchor card (title, description, chip and notice, all

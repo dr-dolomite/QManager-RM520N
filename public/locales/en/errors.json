@@ -256,5 +256,21 @@
   "engine_start_failed": "The setting was saved, but the engine didn't start.",
   "invalid_sni_domain": "That domain name isn't valid.",
   "sudo_unavailable": "The device refused the permission this change needs.",
-  "invalid_hostlist": "The hostname list is empty or has a name that isn't valid."
+  "invalid_hostlist": "The hostname list is empty or has a name that isn't valid.",
+  "ota_sha256_mismatch": "The download failed its integrity check, so it was deleted. Download it again.",
+  "ota_sha256_unverified": "The download could not be checked against the release checksum, so it was not installed.",
+  "ota_restore_running": "A configuration restore is running. Try again when it finishes.",
+  "ota_install_crashed": "The installer stopped partway through.",
+  "ota_version_mismatch": "The installer finished, but the modem did not report the expected version.",
+  "ota_invalid_url": "The update address is not an official release.",
+  "ota_stage_failed": "Could not prepare space on the modem for the update.",
+  "ota_download_failed": "The download failed. Check the internet connection and the SIM.",
+  "ota_archive_corrupt": "The downloaded file is damaged or incomplete. Download it again.",
+  "ota_extract_failed": "The downloaded file could not be unpacked.",
+  "ota_install_failed": "The installer reported an error.",
+  "ota_rollback_failed": "Restoring the previous version failed.",
+  "ota_no_staged": "No downloaded update was found. Download it again.",
+  "ota_staged_changed": "The downloaded update changed after it was checked. Download it again.",
+  "ota_check_failed": "Could not reach the release server. Check the internet connection.",
+  "ota_rate_limited": "The release server is limiting requests. Try again later."
 }
