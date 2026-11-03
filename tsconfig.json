@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "at terminal from RM551E", "scripts-dev"]
+  "exclude": ["node_modules", "at terminal from RM551E", "scripts-dev", "tools"]
 }
