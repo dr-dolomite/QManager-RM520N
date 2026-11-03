@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
-import type { MutationResult } from "@/types/mutation-result";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
   SmsForwardingData,
   SmsForwardingSavePayload,
-  SmsForwardingResponse,
-  SmsForwardingActionResponse,
 } from "@/types/sms-forwarding";
 
 // =============================================================================
@@ -17,42 +16,43 @@ import type {
 // provides save / test / clear-failures actions.
 //
 // The daemon is the only server-side inbox reader: when it abandons a message
-// after repeated failed sends it appends to a failure list that this hook
-// surfaces so the UI can raise a persistent alert even when the user wasn't on
-// the page. That's why we poll: a background failure should appear without a
-// manual refresh.
+// after 3 failed sends it appends to a failure list that this hook surfaces so
+// the UI can raise a persistent alert even when the user wasn't on the page.
 //
 // Backend: GET/POST /cgi-bin/quecmanager/cellular/sms_forwarding.sh
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/cellular/sms_forwarding.sh";
-// Quiet background poll for the failure state while mounted.
+// Poll the failure state while mounted so a background failure surfaces without
+// a manual refresh. Quiet interval — the daemon itself polls every 15s.
 const FAILURE_POLL_MS = 20000;
+const K = "sms.forwarding.errors";
+
+/** A mutation's outcome; `error` is already resolved for display. */
+export type SmsForwardingResult = { ok: true } | { ok: false; error: string };
 
 export interface UseSmsForwardingReturn {
-  /** Current forwarding data (null before first fetch) */
   data: SmsForwardingData | null;
-  /** True while the initial fetch is in progress */
   isLoading: boolean;
-  /** True while a save is in progress */
   isSaving: boolean;
-  /** True while a test send is in progress */
   isSendingTest: boolean;
-  /** True while clearing the failure list */
   isClearing: boolean;
-  /** Error message if any operation failed */
+  /** Why the last foreground READ failed (translated). Mutations return theirs. */
   error: string | null;
-  /** Persist enable + target. Returns true on success. */
-  saveSettings: (payload: SmsForwardingSavePayload) => Promise<MutationResult>;
-  /** Send a test forward to the SAVED target (body is ignored server-side). */
-  sendTest: () => Promise<MutationResult>;
-  /** Acknowledge / clear the persistent failure list. */
-  clearFailures: () => Promise<MutationResult>;
-  /** Re-fetch. Pass true for a silent (no-skeleton, no-clobber) refresh. */
-  refresh: (silent?: boolean) => void;
+  saveSettings: (payload: SmsForwardingSavePayload) => Promise<SmsForwardingResult>;
+  sendTest: () => Promise<SmsForwardingResult>;
+  clearFailures: () => Promise<SmsForwardingResult>;
+  refresh: () => void;
 }
 
+// ─── Hook ──────────────────────────────────────────────────────────────────
+
 export function useSmsForwarding(): UseSmsForwardingReturn {
+  const { t } = useTranslation("cellular");
+  // Read through a ref: `t` in the callbacks' deps would rebuild them on a
+  // language switch and re-arm the poll.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [data, setData] = useState<SmsForwardingData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -72,58 +72,59 @@ export function useSmsForwarding(): UseSmsForwardingReturn {
   // ---------------------------------------------------------------------------
   // Fetch settings + failure state
   // ---------------------------------------------------------------------------
-  const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    if (!silent) setError(null);
+  const fetchData = useCallback(
+    async (silent = false) => {
+      if (!silent) setIsLoading(true);
+      if (!silent) setError(null);
 
-    try {
-      const resp = await authFetch(CGI_ENDPOINT);
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
-
-      const json: SmsForwardingResponse = await resp.json();
-      if (!mountedRef.current) return;
-
-      if (!json.success) {
-        // A working view shouldn't be clobbered by a background poll failure.
-        if (!silent) {
-          setError(
-            json.detail || json.error || "Failed to fetch forwarding settings",
-          );
+      try {
+        const resp = await authFetch(CGI_ENDPOINT);
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         }
-        return;
-      }
 
-      setData({
-        settings: {
-          enabled: !!json.settings?.enabled,
-          target_phone: json.settings?.target_phone ?? "",
-        },
-        failures: Array.isArray(json.failures) ? json.failures : [],
-        failure_count:
-          typeof json.failure_count === "number"
-            ? json.failure_count
-            : Array.isArray(json.failures)
-              ? json.failures.length
-              : 0,
-      });
-    } catch (err) {
-      if (!mountedRef.current) return;
-      // Silent (poll) failures shouldn't clobber a working view with an error.
-      if (!silent) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to fetch forwarding settings",
-        );
+        const json = await resp.json();
+        if (!mountedRef.current) return;
+
+        if (!json.success) {
+          setError(
+            resolveErrorMessage(
+              tRef.current,
+              json.error,
+              json.detail,
+              tRef.current(`${K}.load_failed`),
+            ),
+          );
+          return;
+        }
+
+        setData({
+          settings: {
+            enabled: !!json.settings?.enabled,
+            target_phone: json.settings?.target_phone ?? "",
+          },
+          failures: Array.isArray(json.failures) ? json.failures : [],
+          failure_count:
+            typeof json.failure_count === "number"
+              ? json.failure_count
+              : Array.isArray(json.failures)
+                ? json.failures.length
+                : 0,
+        });
+      } catch {
+        if (!mountedRef.current) return;
+        // Silent (poll) failures shouldn't clobber a working view with an error.
+        if (!silent) {
+          setError(tRef.current(`${K}.load_failed`));
+        }
+      } finally {
+        if (mountedRef.current && !silent) {
+          setIsLoading(false);
+        }
       }
-    } finally {
-      if (mountedRef.current && !silent) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Fetch on mount
   useEffect(() => {
@@ -142,41 +143,31 @@ export function useSmsForwarding(): UseSmsForwardingReturn {
   // Save settings
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    async (payload: SmsForwardingSavePayload): Promise<MutationResult> => {
-      setError(null);
+    async (payload: SmsForwardingSavePayload): Promise<SmsForwardingResult> => {
       setIsSaving(true);
-
       try {
         const resp = await authFetch(CGI_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "save_settings", ...payload }),
         });
-
         if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+          throw new Error(`HTTP ${resp.status}`);
         }
-
-        const json: SmsForwardingActionResponse = await resp.json();
-        if (!mountedRef.current) return { ok: false, error: null };
-
+        const json = await resp.json();
         if (!json.success) {
-          const message = json.detail || json.error || "Failed to save settings";
-          setError(message);
-          return { ok: false, error: message };
+          return {
+            ok: false,
+            error: resolveErrorMessage(
+              tRef.current, json.error, json.detail, tRef.current(`${K}.save_failed`)),
+          };
         }
-
-        await fetchData(true);
-        return { ok: true, error: null };
-      } catch (err) {
-        if (!mountedRef.current) return { ok: false, error: null };
-        const message = err instanceof Error ? err.message : "Failed to save settings";
-        setError(message);
-        return { ok: false, error: message };
+        if (mountedRef.current) await fetchData(true);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: tRef.current(`${K}.save_failed`) };
       } finally {
-        if (mountedRef.current) {
-          setIsSaving(false);
-        }
+        if (mountedRef.current) setIsSaving(false);
       }
     },
     [fetchData],
@@ -185,82 +176,69 @@ export function useSmsForwarding(): UseSmsForwardingReturn {
   // ---------------------------------------------------------------------------
   // Send a test forward to the configured target
   // ---------------------------------------------------------------------------
-  const sendTest = useCallback(async (): Promise<MutationResult> => {
-    setError(null);
-    setIsSendingTest(true);
-
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send_test" }),
-      });
-
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+  const sendTest = useCallback(
+    async (): Promise<SmsForwardingResult> => {
+      setIsSendingTest(true);
+      try {
+        const resp = await authFetch(CGI_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "send_test" }),
+        });
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        const json = await resp.json();
+        if (!json.success) {
+          return {
+            ok: false,
+            error: resolveErrorMessage(
+              tRef.current, json.error, json.detail, tRef.current(`${K}.test_failed`)),
+          };
+        }
+        return { ok: true };
+      } catch {
+        return { ok: false, error: tRef.current(`${K}.test_failed`) };
+      } finally {
+        if (mountedRef.current) setIsSendingTest(false);
       }
-
-      const json: SmsForwardingActionResponse = await resp.json();
-      if (!mountedRef.current) return { ok: false, error: null };
-
-      if (!json.success) {
-        const message = json.detail || json.error || "Failed to send test message";
-        setError(message);
-        return { ok: false, error: message };
-      }
-      return { ok: true, error: null };
-    } catch (err) {
-      if (!mountedRef.current) return { ok: false, error: null };
-      const message = err instanceof Error ? err.message : "Failed to send test message";
-      setError(message);
-      return { ok: false, error: message };
-    } finally {
-      if (mountedRef.current) {
-        setIsSendingTest(false);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   // ---------------------------------------------------------------------------
   // Clear (acknowledge) the failure state
   // ---------------------------------------------------------------------------
-  const clearFailures = useCallback(async (): Promise<MutationResult> => {
-    setError(null);
-    setIsClearing(true);
-
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "clear_failures" }),
-      });
-
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+  const clearFailures = useCallback(
+    async (): Promise<SmsForwardingResult> => {
+      setIsClearing(true);
+      try {
+        const resp = await authFetch(CGI_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clear_failures" }),
+        });
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        const json = await resp.json();
+        if (!json.success) {
+          return {
+            ok: false,
+            error: resolveErrorMessage(
+              tRef.current, json.error, json.detail, tRef.current(`${K}.clear_failed`)),
+          };
+        }
+        if (mountedRef.current) await fetchData(true);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: tRef.current(`${K}.clear_failed`) };
+      } finally {
+        if (mountedRef.current) setIsClearing(false);
       }
-
-      const json: SmsForwardingActionResponse = await resp.json();
-      if (!mountedRef.current) return { ok: false, error: null };
-
-      if (!json.success) {
-        const message = json.detail || json.error || "Failed to clear alerts";
-        setError(message);
-        return { ok: false, error: message };
-      }
-
-      await fetchData(true);
-      return { ok: true, error: null };
-    } catch (err) {
-      if (!mountedRef.current) return { ok: false, error: null };
-      const message = err instanceof Error ? err.message : "Failed to clear alerts";
-      setError(message);
-      return { ok: false, error: message };
-    } finally {
-      if (mountedRef.current) {
-        setIsClearing(false);
-      }
-    }
-  }, [fetchData]);
+    },
+    [fetchData],
+  );
 
   return {
     data,

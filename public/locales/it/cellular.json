@@ -2145,153 +2145,24 @@
   "sms": {
     "page": {
       "title": "Centro SMS",
-      "description": "Visualizza, gestisci e invia messaggi SMS dal tuo modem.",
-      "forwarding": "Inoltro"
+      "description": "Visualizza, gestisci e invia messaggi SMS dal tuo modem."
     },
     "inbox": {
-      "title": "Posta in arrivo",
-      "description": "Visualizza e gestisci i tuoi messaggi SMS",
-      "storage_suffix": " — Messaggi {{used}}/{{total}} memorizzati",
-      "tabs": {
-        "all": "Tutti",
-        "unread": "Non letti",
-        "read": "Letti"
-      },
-      "unread_aria": "Messaggio non letto",
-      "table": {
-        "headers": {
-          "from": "Da",
-          "message": "Messaggio",
-          "date": "Data"
-        },
-        "actions": {
-          "open_menu": "Apri il menu",
-          "view": "Visualizza",
-          "delete": "Elimina"
-        },
-        "empty_row": "Nessun messaggio trovato.",
-        "empty_unread": "Nessun messaggio non letto.",
-        "empty_read": "Nessun messaggio letto.",
-        "select_all_aria": "Seleziona tutto",
-        "select_row_aria": "Seleziona riga",
-        "sim_badge": "SIM",
-        "empty_search": "Nessun messaggio corrisponde alla ricerca.",
-        "unread_sr": "Non letto"
-      },
-      "empty_state": {
-        "title": "Nessun messaggio ancora",
-        "description": "I messaggi ricevuti appariranno qui. Invia un messaggio per iniziare."
-      },
       "buttons": {
-        "refresh_aria": "Aggiorna la posta in arrivo",
-        "delete_selected": "Elimina ({{count}})",
-        "delete_selected_aria": "Elimina {{count}} selezionato",
-        "delete_all": "Elimina tutto",
-        "delete_all_aria": "Elimina tutti i messaggi",
-        "new_message": "Nuovo messaggio",
-        "mark_all_read": "Segna tutti come letti",
-        "mark_all_read_aria": "Segna tutti i messaggi come letti",
-        "prev": "Prec",
-        "next": "Avanti",
-        "first_page": "Vai alla prima pagina",
-        "prev_page": "Vai alla pagina precedente",
-        "next_page": "Vai alla pagina successiva",
-        "last_page": "Vai all’ultima pagina",
-        "delete_selected_short": "Elimina selezionati"
-      },
-      "pagination": {
-        "total_one": "messaggio {{count}}",
-        "total_other": "{{count}} messaggi",
-        "page_info": "{{current}} / {{total}}",
-        "rows_per_page": "Righe per pagina",
-        "page_label": "Pagina {{current}} di {{total}}",
-        "selected_info": "{{selected}} di {{total}} selezionati"
-      },
-      "error": {
-        "title": "Impossibile caricare i messaggi",
-        "description_prefix": "Impossibile caricare i messaggi",
-        "body_stale": "Probabilmente un altro consumatore AT sta tenendo il lock del modem; di solito si libera entro un ciclo. I messaggi qui sotto sono l'ultima lettura riuscita e non sono più in tempo reale.",
-        "body_empty": "Non è ancora stato letto nulla dal modem."
-      },
-      "view_dialog": {
-        "title": "Messaggio da {{sender}}",
-        "timestamp_aria": "{{timestamp}}",
-        "slot": "{{storage}} slot {{slots}}",
-        "slots": "{{storage}} slot {{slots}}",
-        "copy": "Copia testo",
-        "copied": "Copiato",
-        "copy_error": "Impossibile copiare — il browser ha bloccato l'accesso agli appunti su questa connessione.",
-        "reply": "Rispondi",
-        "no_reply_hint": "Questo mittente è un ID alfanumerico anziché un numero, quindi non è possibile rispondere.",
-        "close": "Chiudi"
+        "delete_all": "Elimina tutto"
       },
       "delete_single_confirm": {
-        "title": "Elimina messaggio",
-        "description": "Sei sicuro di voler eliminare questo messaggio da {{sender}}? Questa azione non può essere annullata.",
-        "confirm": "Elimina",
         "deleting": "Eliminazione…"
       },
       "delete_all_confirm": {
-        "title": "Eliminare tutti i {{count}} messaggi?",
-        "description": "Questo rimuove {{me}} dalla memoria del modem e {{sm}} dalla SIM. I messaggi eliminati non possono essere recuperati e il modem non viene riavviato.",
+        "title": "Elimina tutti i messaggi",
+        "description": "Tutti i messaggi e le conversazioni archiviati verranno eliminati definitivamente. Questa azione non può essere annullata.",
         "confirm": "Elimina tutto",
         "cancel": "Mantieni i messaggi",
-        "deleting": "Eliminazione di tutto…",
-        "progress_title": "Eliminazione di tutti i messaggi",
-        "progress_note": "Una eliminazione per memoria, serializzate dietro il lock AT condiviso."
-      },
-      "delete_selected_confirm": {
-        "title": "Elimina i messaggi selezionati",
-        "description_one": "Sei sicuro di voler eliminare il messaggio selezionato {{count}}? Questa azione non può essere annullata.",
-        "description_other": "Sei sicuro di voler eliminare i {{count}} messaggi selezionati? Questa azione non può essere annullata.",
-        "confirm": "Elimina ({{count}})",
-        "deleting": "Eliminazione…",
-        "progress_title_one": "Eliminazione di {{count}} messaggio",
-        "progress_title_other": "Eliminazione di {{count}} messaggi"
+        "deleting": "Eliminazione di tutto…"
       },
       "toast": {
-        "delete_success": "Messaggio eliminato",
-        "delete_error": "Impossibile eliminare il messaggio",
-        "delete_all_success": "Tutti i messaggi cancellati",
-        "delete_all_error": "Impossibile eliminare i messaggi",
-        "delete_selected_success_one": "{{count}} messaggio eliminato",
-        "delete_selected_success_other": "{{count}} messaggi eliminati",
-        "delete_selected_error": "Impossibile eliminare i messaggi selezionati",
-        "mark_all_read_success": "Tutti i messaggi sono stati segnati come letti",
-        "delete_memory_error": "Impossibile svuotare {{memory}}"
-      },
-      "search": {
-        "placeholder": "Cerca messaggi…",
-        "aria": "Cerca messaggi"
-      },
-      "sort": {
-        "label": "Ordina",
-        "newest": "Prima i più recenti",
-        "oldest": "Prima i meno recenti",
-        "aria": "Ordine"
-      },
-      "description_loading": "Lettura dei messaggi da entrambe le memorie.",
-      "description_split": "Messaggi letti da entrambe le memorie. {{me}}/{{meTotal}} nella memoria del modem, {{sm}}/{{smTotal}} sulla SIM.",
-      "description_combined": "Messaggi letti da entrambe le memorie. {{used}} slot usati in totale.",
-      "description_unknown": "L'uso degli slot resta sconosciuto fino alla prossima lettura riuscita.",
-      "stale_chip": "Non aggiornato, {{time}}",
-      "selection": {
-        "label": "selezionati",
-        "clear_aria": "Cancella selezione"
-      },
-      "memory": {
-        "me": "Memoria del modem",
-        "sm": "Memoria SIM"
-      },
-      "delete_progress": {
-        "pending": "{{memory}} in coda",
-        "running": "Svuotamento di {{memory}}",
-        "done": "{{memory}} svuotata",
-        "failed": "{{memory}} non riuscita",
-        "count_pending_one": "{{count}} da rimuovere",
-        "count_pending_other": "{{count}} da rimuovere",
-        "count_done_one": "{{count}} rimosso",
-        "count_done_other": "{{count}} rimossi"
+        "delete_all_success": "Tutti i messaggi cancellati"
       }
     },
     "compose": {
@@ -2301,21 +2172,16 @@
         "phone_label": "Numero di telefono",
         "phone_placeholder": "+1234567890",
         "message_label": "Messaggio",
-        "message_placeholder": "Scrivi il tuo messaggio...",
-        "char_counter": "{{count}}/{{max}}"
+        "message_placeholder": "Scrivi il tuo messaggio..."
       },
-      "unicode_indicator": "(Unicode)",
-      "limit_warning": "Più lungo di un SMS, verrà inviato in {{parts}} parti.",
       "buttons": {
         "send": "Invia",
         "sending": "Invio…"
       },
       "toast": {
         "success": "SMS inviato con successo",
-        "error": "Impossibile inviare SMS",
         "partial": "Inviate solo {{sent}} parti su {{parts}}; un nuovo invio le ripete."
       },
-      "sending_note": "Invio del messaggio",
       "encoding_hint": "Un carattere fuori dall'alfabeto GSM fa passare il messaggio a UCS-2 e limita una singola parte a 70 caratteri.",
       "encoding": {
         "gsm7": "GSM 7 bit",
@@ -2324,108 +2190,258 @@
     },
     "forwarding": {
       "page": {
-        "title": "Inoltro SMS",
+        "title": "Inoltro",
         "description": "Inoltra ogni messaggio in arrivo a un altro numero e verifica se l'inoltro arriva davvero a destinazione."
       },
-      "card": {
-        "relay": {
-          "title": "Relay di inoltro",
-          "description": "Attiva il relay e scegli dove vanno i messaggi."
-        },
-        "health": {
-          "title": "Stato delle consegne",
-          "description": "Stato del relay in tempo reale, anteprima del destinatario ed eventuali invii falliti."
-        }
-      },
-      "fields": {
-        "enabled_label": "Abilita l'inoltro",
-        "target_label": "Inoltra a",
-        "target_placeholder": "+15551234567",
-        "target_hint": "Includi il prefisso internazionale. Ogni messaggio che arriva su questo modem viene inoltrato a questo numero.",
-        "target_invalid": "Inserisci un numero di telefono valido, prefisso internazionale incluso — ad esempio +15551234567."
-      },
-      "buttons": {
-        "save": "Salva inoltro",
-        "send_test": "Invia test",
-        "sending": "Invio…",
-        "clear_failures": "Cancella i falliti",
-        "clearing": "Cancellazione…"
-      },
       "health": {
-        "forwarding_to": "Inoltro verso",
-        "active": {
-          "label": "Inoltro attivo"
-        },
-        "issue": {
-          "label": "Problemi di consegna"
-        },
-        "unconfigured": {
-          "label": "Nessuna destinazione impostata",
-          "description": "L'inoltro è attivo, ma non c'è ancora una destinazione. Aggiungi un numero per iniziare a inoltrare."
-        },
-        "off": {
-          "label": "Inoltro disattivato",
-          "description": "I messaggi in arrivo restano nella posta in arrivo del modem e non vengono inoltrati da nessuna parte."
-        }
+        "toast_test_success": "Messaggio di test inviato al tuo numero di inoltro.",
+        "toast_clear_success": "Cancellato.",
+        "card_title": "Consegna e stato",
+        "card_description": "Se i messaggi in arrivo raggiungono il tuo numero.",
+        "state_active": "Attivo · funzionante",
+        "state_issue": "Consegna con problemi",
+        "state_unconfigured": "Nessuna destinazione impostata",
+        "state_off": "Inoltro disattivato",
+        "destination_label": "Invio a",
+        "destination_none": "Attiva l'inoltro e salva un numero per iniziare a reinviare i messaggi.",
+        "state_unconfigured_description": "L'inoltro è attivo, ma non c'è ancora una destinazione. Aggiungi un numero per iniziare.",
+        "preview_label": "Il destinatario vede",
+        "preview_hint_label": "Informazioni su questa anteprima",
+        "preview_hint": "Il numero nella riga Da è un mittente di esempio. Il numero salvato riceve questo messaggio, non lo invia.",
+        "preview_from": "Da {{sender}}:",
+        "preview_sample_body": "Ciao, confermiamo per le 15?",
+        "failures_title_one": "Impossibile inoltrare {{count}} messaggio",
+        "failures_title_other": "Impossibile inoltrare {{count}} messaggi",
+        "failures_description": "L'inoltro è ancora attivo per i nuovi messaggi. Questi sono stati scartati dopo 3 tentativi falliti:",
+        "failures_unknown_sender": "Mittente sconosciuto",
+        "clear_button": "Cancella avvisi",
+        "failures_empty": "Nessun problema di consegna.",
+        "test_hint": "Invia un test al numero salvato.",
+        "test_disabled_hint": "Attiva l'inoltro e salva un numero per inviare un test.",
+        "test_sending": "Invio…",
+        "test_button": "Invia test"
       },
-      "preview": {
-        "eyebrow": "Il destinatario vede",
-        "from": "Da {{sender}}:",
-        "sample_body": "Il tuo codice di verifica è 123456.",
-        "note": "Il numero nella riga Da è un esempio di mittente in arrivo. Il numero che hai salvato è quello che riceve questo messaggio, non quello che lo invia."
+      "sms": {
+        "loading_label": "Caricamento impostazioni di inoltro",
+        "error_load": "Impossibile caricare le impostazioni di inoltro",
+        "validation_phone": "Inserisci un numero di telefono valido (es. +393331234567).",
+        "toast_save_success": "Impostazioni di inoltro salvate.",
+        "card_title": "Inoltro SMS",
+        "card_description": "Reinvia automaticamente ogni messaggio in arrivo a un numero a tua scelta.",
+        "enable_label": "Inoltra i messaggi in arrivo",
+        "target_label": "Inoltra a",
+        "target_hint_label": "Informazioni sui messaggi inoltrati",
+        "target_description": "Ogni nuovo messaggio viene reinviato qui come \"Da <sender>: <message>\".",
+        "target_placeholder": "+393331234567"
       },
-      "test": {
-        "hint_ready": "Invia un messaggio di prova al numero salvato, così verifica il percorso di inoltro realmente in funzione.",
-        "hint_blocked": "Attiva prima l'inoltro e salva un numero di destinazione — il test usa sempre le impostazioni salvate, mai le modifiche non salvate."
-      },
-      "failures": {
-        "title_one": "{{value}} consegna fallita",
-        "title_other": "{{value}} consegne fallite",
-        "description": "Il relay ha riprovato tre volte per ciascuno di questi e poi ha rinunciato, quindi il messaggio è rimasto in posta in arrivo. L'inoltro è comunque ancora attivo.",
-        "unknown_sender": "Mittente sconosciuto"
-      },
-      "empty": {
-        "failures": {
-          "title": "Nessuna consegna fallita",
-          "description": "Finora ogni messaggio raccolto dal relay ha raggiunto la sua destinazione."
-        }
-      },
-      "states": {
-        "loading_sr": "Caricamento delle impostazioni di inoltro SMS",
-        "retry": "Riprova",
-        "error": {
-          "title": "Impossibile caricare le impostazioni di inoltro",
-          "description": "Il modem non ha risposto, quindi le impostazioni attuali del relay sono sconosciute."
-        }
-      },
-      "toast": {
-        "save_success": "Impostazioni di inoltro salvate",
-        "save_error": "Impossibile salvare le impostazioni di inoltro",
-        "test_success": "Messaggio di prova inviato al numero salvato",
-        "test_error": "Impossibile inviare il messaggio di prova",
-        "clear_success": "Consegne fallite cancellate",
-        "clear_error": "Impossibile cancellare le consegne fallite"
+      "errors": {
+        "load_failed": "Il modem non ha restituito le impostazioni di inoltro. Riprova tra poco.",
+        "save_failed": "Impossibile salvare le impostazioni di inoltro.",
+        "test_failed": "Impossibile inviare il messaggio di prova.",
+        "clear_failed": "Impossibile cancellare gli avvisi."
       }
     },
-    "tiles": {
-      "loading_sr": "Caricamento del riepilogo della posta in arrivo",
-      "capacity_unknown": "Non riportato",
-      "unread": {
-        "label": "Non letti",
-        "of": "su {{total}}",
-        "caption_newest": "Più recente {{timestamp}}",
-        "caption_none": "Nessun messaggio ricevuto"
+    "center": {
+      "toast": {
+        "message_marked_unread": "Segnato come non letto",
+        "mark_unread_failed": "Impossibile segnare il messaggio come non letto",
+        "thread_marked_read": "Segnata come letta",
+        "message_deleted": "Messaggio eliminato",
+        "message_delete_failed": "Impossibile eliminare il messaggio",
+        "thread_deleted": "Conversazione eliminata",
+        "thread_delete_failed": "Impossibile eliminare la conversazione",
+        "address_copied": "Indirizzo del mittente copiato",
+        "copy_failed": "Impossibile copiare. Il browser ha bloccato l'accesso agli appunti su questa connessione.",
+        "message_copied": "Messaggio copiato"
       },
-      "me": {
-        "label": "Memoria del Modem"
+      "header": {
+        "synced": "Sincronizzato {{seconds}}s fa",
+        "refresh_failed": "Aggiornamento non riuscito"
       },
-      "sm": {
-        "label": "Memoria SIM"
+      "actions": {
+        "refresh": "Aggiorna",
+        "more": "Altre opzioni",
+        "back": "Torna a tutti i messaggi",
+        "copy_address": "Copia indirizzo mittente",
+        "thread_options": "Opzioni conversazione",
+        "mark_read": "Segna tutti come letti",
+        "delete_thread": "Elimina conversazione",
+        "copy_text": "Copia testo",
+        "forward": "Inoltra…",
+        "mark_unread": "Segna come non letto",
+        "details": "Dettagli…",
+        "delete_message": "Elimina",
+        "compose": "Nuovo messaggio"
       },
-      "combined": {
+      "states": {
+        "missing": {
+          "title": "Questa conversazione non esiste più",
+          "description": "Non è più archiviata. Potrebbe essere stata eliminata dopo la creazione di questo link.",
+          "action": "Torna a tutti i messaggi"
+        },
+        "no_selection": {
+          "title": "Scegli una conversazione",
+          "description": "Scegli una conversazione a sinistra oppure inizia un nuovo messaggio."
+        },
+        "loading_thread_sr": "Caricamento conversazione",
+        "thread_empty": {
+          "title": "Ancora niente qui",
+          "description": "Questa conversazione non ha messaggi archiviati. Invia un messaggio per iniziarla."
+        },
+        "loading_sr": "Caricamento conversazioni",
+        "error": {
+          "title": "Impossibile caricare i messaggi",
+          "description": "I messaggi archiviati sono al sicuro. Riprova tra un momento.",
+          "retry": "Riprova"
+        },
+        "no_matches": {
+          "title": "Nessun risultato",
+          "description": "Nessuna conversazione corrisponde alla ricerca. Prova con un nome, un numero o una parola del messaggio."
+        },
+        "no_unread": {
+          "title": "Nessun messaggio non letto",
+          "description": "Tutti i messaggi archiviati sono stati aperti in questo browser."
+        },
+        "empty": {
+          "title": "Nessun messaggio",
+          "description": "I messaggi che ricevi appariranno qui.",
+          "action": "Scrivi un messaggio"
+        }
+      },
+      "delete_thread": {
+        "title": "Eliminare questa conversazione?",
+        "description": "Tutti i messaggi archiviati per {{contact}} verranno rimossi. Questa azione non può essere annullata.",
+        "confirm": "Elimina conversazione"
+      },
+      "delete_message": {
+        "title": "Eliminare questo messaggio?",
+        "description": "Verrà rimosso definitivamente e non potrà essere ripristinato.",
+        "confirm": "Elimina messaggio"
+      },
+      "composer": {
+        "segments_one": "{{count}} SMS",
+        "segments_other": "{{count}} SMS",
+        "aria": "Rispondi a {{contact}}",
+        "placeholder": "Messaggio di testo",
+        "remaining_one": "{{count}} carattere rimanente",
+        "remaining_other": "{{count}} caratteri rimanenti",
+        "send": "Invia messaggio",
+        "no_reply": "Questo mittente è un nome, non un numero, quindi non è possibile rispondere."
+      },
+      "identity": {
+        "matched": "Associato"
+      },
+      "time": {
+        "today": "Oggi",
+        "yesterday": "Ieri"
+      },
+      "send": {
+        "sending": "Invio in corso…",
+        "failed": "Invio non riuscito",
+        "retry": "Riprova",
+        "discard": "Scarta",
+        "sent_at": "Inviato {{time}}"
+      },
+      "phishing": {
+        "with_logo": "Contiene un link. I nomi dei mittenti possono essere falsificati, quindi {{name}} potrebbe non aver inviato questo messaggio.",
+        "generic": "Contiene un link. Aprilo solo se aspettavi questo messaggio."
+      },
+      "code": {
+        "copied": "Copiato",
+        "copy": "Copia codice"
+      },
+      "forward": {
+        "prefix": "Da {{addr}}:",
+        "title": "Inoltra messaggio",
+        "description": "Invia un nuovo SMS da questo modem. L'originale resta dov'è.",
+        "to_label": "A",
+        "alpha_disabled": "I nomi dei mittenti non possono ricevere SMS",
+        "include_sender": "Includi il mittente originale",
+        "include_sender_hint": "Aggiunge in alto una riga \"Da {{addr}}:\"",
+        "submit": "Inoltra"
+      },
+      "details": {
+        "kind": {
+          "msisdn": "Numero di telefono",
+          "shortcode": "Numero breve",
+          "alphanumeric": "Nome mittente"
+        },
+        "title": "Dettagli del messaggio",
+        "description": "Tutto ciò che QManager sa su questo messaggio.",
+        "to": "A",
+        "from": "Da",
+        "sender_type": "Tipo di mittente",
+        "sent_at": "Inviato",
+        "received_at": "Ricevuto",
+        "length": "Lunghezza",
+        "length_value_one": "{{count}} carattere",
+        "length_value_other": "{{count}} caratteri",
+        "close": "Chiudi"
+      },
+      "storage": {
+        "unknown": "Non riportato",
         "label": "Archiviazione messaggi",
-        "caption": "Slot usati su entrambe le memorie"
+        "modem": "Memoria del Modem",
+        "sim": "Memoria SIM",
+        "combined_caption": "Slot usati su entrambe le memorie"
+      },
+      "search": {
+        "aria": "Cerca messaggi",
+        "placeholder": "Cerca messaggi"
+      },
+      "filters": {
+        "all": "Tutti",
+        "unread": "Non letti"
+      },
+      "sort": {
+        "to_oldest": "Prima i più vecchi",
+        "to_newest": "Prima i più recenti"
+      },
+      "preview": {
+        "you": "Tu:"
+      },
+      "a11y": {
+        "unread_count_one": "{{count}} messaggio non letto",
+        "unread_count_other": "{{count}} messaggi non letti"
       }
+    },
+    "errors": {
+      "delete_all": "Impossibile eliminare i messaggi",
+      "send": "Impossibile inviare SMS",
+      "fetch": "Impossibile caricare i messaggi"
+    },
+    "settings": {
+      "title": "Impostazioni SMS",
+      "description": "Scegli come questo modem invia e archivia gli SMS.",
+      "smsc": {
+        "toast_saved": "Numero del gestore salvato.",
+        "save_failed": "Impossibile salvare il numero del gestore.",
+        "title": "Numero del gestore",
+        "hint_label": "Informazioni sul numero del gestore",
+        "hint": "Chiamato anche centro servizi SMS (SMSC). Lo imposta il tuo operatore: modificalo solo se i messaggi non vengono più inviati.",
+        "description": "Il numero dell'operatore che instrada i messaggi in uscita.",
+        "placeholder": "es. +639180000101",
+        "invalid": "Inserisci da 3 a 20 cifre, con un + iniziale facoltativo.",
+        "unreadable": "Impossibile leggere il numero attuale. Puoi comunque impostarne uno."
+      }
+    },
+    "storage": {
+      "full": "Piena",
+      "nearly_full": "Quasi piena",
+      "card_title": "Memoria dei messaggi",
+      "card_description": "Dove vengono salvati i nuovi messaggi. Quelli esistenti restano dove sono.",
+      "load_failed": "Impossibile leggere la memoria dei messaggi.",
+      "toast_saved": "Memoria dei messaggi salvata.",
+      "field_label": "Salva i nuovi messaggi in",
+      "hint_label": "Informazioni sulla memoria dei messaggi",
+      "hint": "Il modem contiene più messaggi. I messaggi sulla SIM la seguono su un altro dispositivo.",
+      "option_modem": "Modem",
+      "option_sim": "SIM",
+      "row_modem": "Modem",
+      "row_sim": "SIM",
+      "used_of_total": "{{used}} di {{total}}",
+      "unavailable": "Non disponibile",
+      "save_failed": "Impossibile salvare la memoria dei messaggi."
     }
   },
   "tower_locking": {

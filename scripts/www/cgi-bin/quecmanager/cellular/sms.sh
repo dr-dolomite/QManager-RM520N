@@ -1,22 +1,49 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
-# sms.sh — SMS Center CGI (RM520N-GL): GET lists ME + SM merged with storage status;
-# POST sends, deletes (storage-aware) or deletes all. SMS goes through `qsms` (QMI WMS, no AT lock).
+# sms.sh — SMS Center CGI (RM520N-GL): conversations, sent log, SMSC, storage-aware delete.
+# SMS goes through `qsms` (QMI WMS, no AT lock); the SMSC and the CPMS heal go through `qcmd`.
 #
-# POST body: { "action": "send"|"delete"|"delete_all", ... }
-#   send:       { "phone":"...", "message":"..." }
-#   delete:     { "indexes":[...], "storage":"ME"|"SM" }
-#   delete_all: {}
+# GET                 {success, messages[], threads[], storage:{used,total,me,sm}, smsc:{addr,status,time}|null,
+#                      unread_total:0, storage_errors?}
+# GET ?addr=<a>       {success, addr, count, messages[] (oldest-first), has_more:false}
+# GET ?action=smsc    {success, smsc} | modem_busy | smsc_read_failed
+#
+# POST body: { "action": ..., ... }
+#   send       { phone, message }                    also logged as sent (or failed)
+#   delete     { indexes:[...], storage:"ME"|"SM" }
+#   delete     { storage:"SENT", identities:["S<seq>:<time>", ...] }
+#   delete     { addr, index:"ALL" }                 every modem message from addr + the sent records to addr
+#   delete_all {}                                    ME + SM + the sent log
+#   set_smsc   { addr }                              AT+CSCA write, read back
 
 qlog_init "cgi_sms"
 cgi_headers
 cgi_handle_options
 
 QSMS="/usr/bin/qsms"
+QCMD="/usr/bin/qcmd"
+PREF_FILE="/etc/qmanager/sms_storage"
 
-# CPMS mem3 is the modem's WMS route for new messages, so keep it on ME (255 slots).
+if [ -f /usr/lib/qmanager/sms_sent.sh ]; then
+    . /usr/lib/qmanager/sms_sent.sh
+else
+    sms_sent_read() { printf '[]\n'; }
+    sms_sent_append() { return 1; }
+    sms_sent_delete_identities() { return 1; }
+    sms_sent_delete_addr() { return 1; }
+    sms_sent_clear() { return 0; }
+fi
+
+# Saved incoming-storage choice: "SM" only when the file says so, else "ME".
+sms_pref() {
+    _sp=$({ tr -d ' \r\n' < "$PREF_FILE" | tr 'a-z' 'A-Z'; } 2>/dev/null)
+    [ "$_sp" = "SM" ] && printf 'SM' || printf 'ME'
+}
+
+# CPMS mem3 is the modem's WMS route for new messages: re-assert the saved choice (default ME).
 heal_routing() {
-    qcmd 'AT+CPMS="ME","ME","ME"' >/dev/null 2>&1
+    _hr=$(sms_pref)
+    "$QCMD" "AT+CPMS=\"$_hr\",\"$_hr\",\"$_hr\"" >/dev/null 2>&1
 }
 
 # Plain-language text from a qsms failure envelope: .detail, else a fixed sentence per code.
@@ -30,6 +57,185 @@ qsms_detail() {
         )' 2>/dev/null)
     # Empty or non-JSON output (qsms missing or crashed) leaves jq silent.
     printf '%s' "${d:-The modem did not answer.}"
+}
+
+_sms_busy_reply() {
+    jq -n '{"success":false,"error":"modem_busy","detail":"Could not acquire AT lock"}'
+}
+
+# --- Query string ------------------------------------------------------------
+# _sms_qs <name> — raw (still encoded) value of a query parameter, "" if absent.
+_sms_qs() {
+    _qs="&$QUERY_STRING"
+    case "$_qs" in
+        *"&$1="*)
+            _qv="${_qs#*&"$1"=}"
+            printf '%s' "${_qv%%&*}"
+            ;;
+    esac
+}
+
+# _sms_urldecode <s> — form-urlencoded decode ("+" is a space, %XX a byte; %00 dropped,
+# a malformed escape stays literal). BusyBox awk's %c emits the raw byte, so UTF-8 survives.
+_sms_urldecode() {
+    _SMS_UD="$1" awk 'BEGIN {
+        s = ENVIRON["_SMS_UD"]; hex = "0123456789abcdef"; n = length(s)
+        for (i = 1; i <= n; i++) {
+            c = substr(s, i, 1)
+            if (c == "+") { printf " "; continue }
+            if (c == "%" && i + 2 <= n) {
+                a = index(hex, tolower(substr(s, i + 1, 1)))
+                b = index(hex, tolower(substr(s, i + 2, 1)))
+                if (a && b) {
+                    v = (a - 1) * 16 + (b - 1)
+                    if (v > 0) printf "%c", v
+                    i += 2
+                    continue
+                }
+            }
+            printf "%s", c
+        }
+    }'
+}
+
+# Device UTC offset in seconds east of UTC (qsms timestamps are device-local, no zone).
+_sms_utc_offset() {
+    _off=$(date +%z 2>/dev/null | awk '{
+        s = substr($0, 1, 1); h = substr($0, 2, 2) + 0; m = substr($0, 4, 2) + 0
+        o = h * 3600 + m * 60; if (s == "-") o = -o; print o }')
+    case "$_off" in
+        ''|-|*[!0-9-]*) _off=0 ;;
+    esac
+    printf '%s' "$_off"
+}
+
+# --- SMSC ----------------------------------------------------------------------
+# _sms_smsc_read — sets SMSC_ADDR. rc 0 ok, 1 read failed, 2 modem busy.
+_sms_smsc_read() {
+    SMSC_ADDR=""
+    _sc_out=$("$QCMD" 'AT+CSCA?' 2>&1)
+    _sc_rc=$?
+    if [ "$_sc_rc" -ne 0 ]; then
+        case "$_sc_out" in
+            *modem_busy*|*scan_in_progress*) return 2 ;;
+        esac
+        return 1
+    fi
+    _sc_line=$(printf '%s\n' "$_sc_out" | tr -d '\r' | grep '^+CSCA:' | head -n1)
+    [ -n "$_sc_line" ] || return 1
+    SMSC_ADDR=$(printf '%s' "$_sc_line" | sed -n 's/^+CSCA: *"\([^"]*\)".*/\1/p')
+    [ -n "$SMSC_ADDR" ] || return 1
+    return 0
+}
+
+_sms_smsc_json() {
+    jq -cn --arg addr "$1" '{addr: $addr, status: "", time: ""}'
+}
+
+# --- Message model -------------------------------------------------------------
+# jq program over a slurped stream: .[0] raw qsms messages, .[1] the sent log, .[2] the
+# smsc object or null. Defines $all (merged, newest-first); $off = device UTC offset.
+# Multi-part groups key on storage+sender+reference+total; a reused reference starts a new
+# message when parts are >24 h apart or a part repeats with other text.
+SMS_JQ_MODEL='
+def tsort: .[6:8] + .[0:2] + .[3:5] + .[8:];
+def pep: try (strptime("%m/%d/%y %H:%M:%S") | mktime) catch 0;
+def epoch: (try (("20" + .[6:8] + "-" + .[0:2] + "-" + .[3:5] + "T" + .[9:17] + "Z")
+             | fromdateiso8601) catch null) as $e | if $e == null then 0 else $e - $off end;
+def clusters: reduce .[] as $m ([];
+    if length > 0 and ($m.ep - .[-1][-1].ep) <= 86400
+       and ([.[-1][] | select(.part == $m.part and .content != $m.content)] | length) == 0
+    then .[-1] += [$m] else . + [[$m]] end);
+def kind:
+  (explode) as $c
+  | if any($c[]; (. >= 65 and . <= 90) or (. >= 97 and . <= 122) or . >= 128)
+    then "alphanumeric"
+    else (ltrimstr("+") | explode) as $d
+      | if ($d | length) > 0 and ($d | length) <= 6 and all($d[]; . >= 48 and . <= 57)
+        then "shortcode" else "msisdn" end
+    end;
+def who: ((.addr // "") | kind) as $k
+  | . + {display_name: .addr, addr_kind: $k,
+         display_source: (if $k == "alphanumeric" then "network" else "raw" end)};
+
+(.[0]) as $raw | (.[1]) as $sent |
+(
+  ([$raw[] | select(has("reference") | not) |
+     {indexes: [.index], sender, content, timestamp, storage}]
+  ) +
+  ([$raw[] | select(has("reference")) | . + {ep: (.timestamp | pep)}] |
+     group_by(.storage + "|" + .sender + "|" + (.reference | tostring) + "|" + ((.total // 0) | tostring)) |
+     [.[] | sort_by(.ep) | clusters[]
+      | sort_by(.part) | {
+         indexes: [.[].index],
+         sender: .[0].sender,
+         content: ([unique_by(.part)[].content] | join("")),
+         timestamp: .[0].timestamp,
+         storage: .[0].storage
+     }])
+  | map((.timestamp | epoch) as $t
+        | . + {addr: (.sender // ""), index: .indexes[0], time: $t,
+               direction: "inbound", type: 1, status: "success", result: 1,
+               identity: (.storage + (.indexes[0] | tostring) + ":" + ($t | tostring))}
+        | who)
+) as $inbound |
+($sent | map(select(.addr != null and .seq != null) |
+    ((.time // 0) | tonumber? // 0) as $t
+    | (if .status == "failed" then "failed" else "success" end) as $st
+    | {indexes: [], index: null, sender: .addr, addr: .addr,
+       content: (.content // ""), storage: "SENT",
+       timestamp: (($t + $off) | strftime("%m/%d/%y %H:%M:%S")),
+       time: $t, seq: .seq,
+       direction: "outbound", type: 0, status: $st,
+       result: (if $st == "success" then 1 else 0 end),
+       identity: ("S" + (.seq | tostring) + ":" + ($t | tostring))}
+    | who)
+) as $outbound |
+(($inbound + $outbound) | sort_by(.time, (.timestamp | tsort)) | reverse) as $all
+'
+
+# _sms_model_input <smsc_json|null> — the model input stream for jq -s; raw qsms messages are in $raw_msgs.
+_sms_model_input() {
+    printf '%s\n' "$raw_msgs"
+    sms_sent_read
+    printf '%s\n' "$1"
+}
+
+# _sms_read_raw — fill raw_msgs / list_errs from `qsms list all`. On failure prints the error reply, rc 1.
+_sms_read_raw() {
+    list_json=$("$QSMS" list all 2>/dev/null)
+    if [ "$(printf '%s' "$list_json" | jq -r '.success' 2>/dev/null)" != "true" ]; then
+        detail=$(qsms_detail "$list_json")
+        qlog_error "SMS list failed: $detail"
+        jq -n --arg detail "$detail" '{"success":false,"error":"sms_unavailable","detail":$detail}'
+        return 1
+    fi
+    list_errs=$(printf '%s' "$list_json" | jq -c 'if (.storage_errors | type) == "object" then .storage_errors else {} end' 2>/dev/null)
+    [ -n "$list_errs" ] || list_errs="{}"
+    [ "$list_errs" = "{}" ] || qlog_warn "SMS list storage errors: $list_errs"
+    raw_msgs=$(printf '%s' "$list_json" | jq -c 'if (.msg | type) == "array" then .msg else [] end' 2>/dev/null)
+    [ -n "$raw_msgs" ] || raw_msgs="[]"
+    return 0
+}
+
+# _sms_reply <json> — print a built reply, or an error envelope if the model produced nothing.
+_sms_reply() {
+    if [ -n "$1" ]; then
+        printf '%s\n' "$1"
+    else
+        qlog_error "SMS model build failed"
+        cgi_error "command_failed" "Could not build the message list"
+    fi
+}
+
+# _sms_delete_slots <ME|SM> <i,j,..> <count> — one qsms delete; sets DEL_FAILED to the slots not deleted.
+_sms_delete_slots() {
+    _dr=$("$QSMS" delete "$1" "$2" 2>/dev/null)
+    _dn=$(printf '%s' "$_dr" | jq -r 'if (.deleted | type) == "array" then (.deleted | length) else 0 end' 2>/dev/null)
+    case "$_dn" in ''|*[!0-9]*) _dn=0 ;; esac
+    DEL_FAILED=$(($3 - _dn))
+    [ "$DEL_FAILED" -lt 0 ] && DEL_FAILED=0
+    return 0
 }
 
 # --- MCC to country calling code lookup --------------------------------------
@@ -250,8 +456,8 @@ mcc_to_calling_code() {
 normalize_phone() {
     _phone="$1"
 
-    # Strip + prefix
-    _phone=$(printf '%s' "$_phone" | sed 's/^+//')
+    # Strip + prefix and the spaces, dashes, dots and brackets people type
+    _phone=$(printf '%s' "$_phone" | tr -d ' ().-' | sed 's/^+//')
 
     # If starts with 0, replace with country calling code from SIM's MCC
     case "$_phone" in
@@ -275,77 +481,94 @@ normalize_phone() {
     printf '%s' "$_phone"
 }
 
+
 # =============================================================================
-# GET — Fetch inbox messages + storage status (ME + SM merged)
+# GET
 # =============================================================================
 if [ "$REQUEST_METHOD" = "GET" ]; then
-    qlog_info "Fetching SMS inbox and status (ME + SM)"
-    heal_routing
+    REQ_ACTION=$(_sms_qs action)
 
-    list_json=$("$QSMS" list all 2>/dev/null)
-    if [ "$(printf '%s' "$list_json" | jq -r '.success' 2>/dev/null)" != "true" ]; then
-        detail=$(qsms_detail "$list_json")
-        qlog_error "SMS list failed: $detail"
-        jq -n --arg detail "$detail" '{"success":false,"error":"sms_unavailable","detail":$detail}'
+    # --- ?action=smsc ----------------------------------------------------------
+    if [ "$REQ_ACTION" = "smsc" ]; then
+        _sms_smsc_read
+        case $? in
+            0) jq -n --argjson smsc "$(_sms_smsc_json "$SMSC_ADDR")" '{success: true, smsc: $smsc}' ;;
+            2) _sms_busy_reply ;;
+            *) cgi_error "smsc_read_failed" "Could not read the SMS centre number" ;;
+        esac
         exit 0
     fi
 
-    # Merge multi-part messages per storage + sender + reference + total; singles carry no "reference".
-    # A reused reference starts a new message when parts are >24 h apart or a part repeats with other text.
-    # Sort key reorders "MM/DD/YY HH:MM:SS" into YYMMDD so month/year boundaries order correctly.
-    messages=$(printf '%s' "$list_json" | jq '
-        def ep: try (strptime("%m/%d/%y %H:%M:%S") | mktime) catch 0;
-        def clusters: reduce .[] as $m ([];
-            if length > 0 and ($m.ep - .[-1][-1].ep) <= 86400
-               and ([.[-1][] | select(.part == $m.part and .content != $m.content)] | length) == 0
-            then .[-1] += [$m] else . + [[$m]] end);
-        .msg as $all |
-        [$all[] | select(has("reference") | not) |
-            {indexes: [.index], sender, content, timestamp, storage}
-        ] as $singles |
-        ([$all[] | select(has("reference")) | . + {ep: (.timestamp | ep)}] |
-            group_by(.storage + "|" + .sender + "|" + (.reference | tostring) + "|" + (.total | tostring)) |
-            map(sort_by(.ep) | clusters[]) |
-            [.[] | sort_by(.part) | {
-                indexes: [.[].index],
-                sender: .[0].sender,
-                content: ([unique_by(.part)[].content] | join("")),
-                timestamp: .[0].timestamp,
-                storage: .[0].storage
-            }]
-        ) as $merged |
-        ($singles + $merged)
-        | sort_by(.timestamp[6:8] + .timestamp[0:2] + .timestamp[3:5] + .timestamp[8:])
-        | reverse
-    ' 2>/dev/null)
-    [ -z "$messages" ] && messages="[]"
-    printf '%s' "$messages" | jq empty 2>/dev/null || messages="[]"
+    off=$(_sms_utc_offset)
 
-    # A storage that fails to answer counts as 0/0, as before.
+    # --- ?addr=<addr> — one thread, oldest-first --------------------------------
+    case "&$QUERY_STRING" in
+        *"&addr="*)
+            ADDR=$(_sms_urldecode "$(_sms_qs addr)")
+            if [ -z "$ADDR" ]; then
+                cgi_error "missing_addr" "addr is required"
+                exit 0
+            fi
+            _sms_read_raw || exit 0
+            reply=$(_sms_model_input null | jq -s --argjson off "$off" --arg addr "$ADDR" \
+                "$SMS_JQ_MODEL"'
+                | [$all[] | select(.addr == $addr or .addr == ($addr | ltrimstr("+")))] | reverse
+                | {success: true, addr: $addr, count: length, messages: ., has_more: false}' 2>/dev/null)
+            _sms_reply "$reply"
+            exit 0
+            ;;
+    esac
+
+    # --- Inbox -------------------------------------------------------------------
+    qlog_info "Fetching SMS inbox and status (ME + SM + sent)"
+    heal_routing
+    _sms_read_raw || exit 0
+
+    # A storage that fails to answer counts as 0/0.
     status_json=$("$QSMS" status all 2>/dev/null)
     printf '%s' "$status_json" | jq empty 2>/dev/null || status_json='{}'
 
-    jq -n \
-        --argjson messages "$messages" \
-        --argjson st "$status_json" \
-        '($st.storages // []) as $s |
-        (($s | map(select(.storage == "ME")) | .[0]) // {used: 0, total: 0}) as $me |
-        (($s | map(select(.storage == "SM")) | .[0]) // {used: 0, total: 0}) as $sm |
-        {
+    # SMSC is decoration: a busy or failed read is smsc:null, never an error.
+    smsc_json=null
+    if _sms_smsc_read; then
+        smsc_json=$(_sms_smsc_json "$SMSC_ADDR")
+    fi
+
+    reply=$(_sms_model_input "$smsc_json" | jq -s --argjson off "$off" \
+        --argjson st "$status_json" --argjson errs "$list_errs" \
+        "$SMS_JQ_MODEL"'
+        | (.[2]) as $smsc
+        | ($st.storages // []) as $s
+        | (($s | map(select(.storage == "ME")) | .[0]) // {used: 0, total: 0}) as $me
+        | (($s | map(select(.storage == "SM")) | .[0]) // {used: 0, total: 0}) as $sm
+        | {
             success: true,
-            messages: $messages,
+            messages: $all,
+            threads: ($all | group_by(.addr) | map(max_by(.time) as $l | {
+                addr: $l.addr, sender: $l.addr,
+                display_name: $l.display_name, display_source: $l.display_source,
+                addr_kind: $l.addr_kind,
+                latestMessage: $l.content, content: $l.content,
+                timestamp: $l.timestamp, timestampSec: $l.time,
+                unreadCount: 0, latestIndex: ($l.index // 0),
+                direction: $l.direction, type: $l.type, status: $l.status
+              }) | sort_by(.timestampSec) | reverse),
             storage: {
                 used: ($me.used + $sm.used),
                 total: ($me.total + $sm.total),
                 me: {used: $me.used, total: $me.total},
                 sm: {used: $sm.used, total: $sm.total}
-            }
-        }'
+            },
+            smsc: $smsc,
+            unread_total: 0
+          }
+        + (if ($errs | length) > 0 then {storage_errors: $errs} else {} end)' 2>/dev/null)
+    _sms_reply "$reply"
     exit 0
 fi
 
 # =============================================================================
-# POST — Send / Delete / Delete All
+# POST
 # =============================================================================
 if [ "$REQUEST_METHOD" = "POST" ]; then
     cgi_read_post
@@ -372,13 +595,26 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
 
         PHONE=$(normalize_phone "$RAW_PHONE")
+        # An alphanumeric sender cannot be replied to; refuse before qsms so no failed record is logged.
+        case "$PHONE" in
+            ''|*[!0-9]*)
+                jq -n --arg addr "$PHONE" '{success: false, error: "send_failed", detail: "That phone number is not valid.", addr: $addr, parts: 0, sent_parts: 0, concat_ref: null, refs: null, ambiguous: false}'
+                exit 0
+                ;;
+        esac
         qlog_info "Sending SMS to $PHONE (raw: $RAW_PHONE)"
 
         result=$("$QSMS" send "$PHONE" "$MESSAGE" 2>/dev/null)
         if [ "$(printf '%s' "$result" | jq -r '.success' 2>/dev/null)" = "true" ]; then
+            # Logged under the normalized number: inbound senders carry no "+", so the bubble threads with them.
+            sms_sent_append "$PHONE" "$MESSAGE" success \
+                || qlog_warn "SMS send: sent, but could not log the message"
             qlog_info "SMS sent successfully to $PHONE"
-            cgi_success
+            # addr = the normalized number the record is filed under, so the UI opens that thread.
+            jq -n --arg addr "$PHONE" '{success: true, addr: $addr}'
         else
+            sms_sent_append "$PHONE" "$MESSAGE" failed \
+                || qlog_warn "SMS send: could not log the failed message"
             detail=$(qsms_detail "$result")
             qlog_error "SMS send failed to $PHONE: $detail"
             # parts / sent_parts let the UI warn that a resend repeats the parts already delivered.
@@ -389,15 +625,87 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # concat_ref / refs / ambiguous pass through from qsms as-is (null when absent, false kept).
             extra=$(printf '%s' "$result" | jq -c '{concat_ref: .concat_ref, refs: .refs, ambiguous: .ambiguous}' 2>/dev/null)
             [ -z "$extra" ] && extra='{"concat_ref":null,"refs":null,"ambiguous":null}'
-            jq -n --arg detail "$detail" --argjson parts "$parts" --argjson sent "$sent_parts" --argjson extra "$extra" \
-                '{"success":false,"error":"send_failed","detail":$detail,"parts":$parts,"sent_parts":$sent} + $extra'
+            jq -n --arg detail "$detail" --arg addr "$PHONE" --argjson parts "$parts" --argjson sent "$sent_parts" --argjson extra "$extra" \
+                '{"success":false,"error":"send_failed","detail":$detail,"addr":$addr,"parts":$parts,"sent_parts":$sent} + $extra'
         fi
         exit 0
     fi
 
     # --- action: delete --------------------------------------------------------
-    # Deletes every slot of one (possibly merged) message in one storage.
     if [ "$ACTION" = "delete" ]; then
+        STORAGE=$(printf '%s' "$POST_DATA" | jq -r '.storage // "ME"' 2>/dev/null)
+        DEL_ADDR=$(printf '%s' "$POST_DATA" | jq -r 'if .addr == null then empty else (.addr | tostring) end' 2>/dev/null)
+        DEL_INDEX=$(printf '%s' "$POST_DATA" | jq -r 'if .index == null then empty else (.index | tostring) end' 2>/dev/null)
+
+        # --- sent-log records ---------------------------------------------------
+        if [ "$STORAGE" = "SENT" ]; then
+            IDS=$(printf '%s' "$POST_DATA" | jq -c 'if (.identities | type) == "array" and (.identities | length) > 0 and all(.identities[]; type == "string") then .identities else empty end' 2>/dev/null)
+            if [ -z "$IDS" ]; then
+                cgi_error "missing_identities" "identities array is required"
+                exit 0
+            fi
+            if sms_sent_delete_identities "$IDS"; then
+                qlog_info "Deleted sent SMS records: $IDS"
+                cgi_success
+            else
+                qlog_error "Could not update the sent SMS log"
+                cgi_error "partial_failure" "sent messages could not be deleted"
+            fi
+            exit 0
+        fi
+
+        # --- a whole conversation -----------------------------------------------
+        if [ -n "$DEL_ADDR" ] && [ "$DEL_INDEX" = "ALL" ]; then
+            qlog_info "Deleting SMS conversation with $DEL_ADDR"
+            list_json=$("$QSMS" list all 2>/dev/null)
+            if [ "$(printf '%s' "$list_json" | jq -r '.success' 2>/dev/null)" != "true" ]; then
+                cgi_error "partial_failure" "$(qsms_detail "$list_json")"
+                exit 0
+            fi
+
+            fail_count=0
+            # One "<ST> <count> i,j,.." line per storage holding this sender.
+            groups=$(printf '%s' "$list_json" | jq -r --arg addr "$DEL_ADDR" '
+                [.msg[]? | select(.sender == $addr)] | group_by(.storage)
+                | .[] | "\(.[0].storage) \(length) \([.[].index | tostring] | join(","))"' 2>/dev/null)
+            # Newline-only splitting, no globbing.
+            _sms_ifs="$IFS"
+            IFS='
+'
+            set -f
+            for g in $groups; do
+                st="${g%% *}"
+                rest="${g#* }"
+                cnt="${rest%% *}"
+                idxs="${rest#* }"
+                case "$st" in ME|SM) ;; *) fail_count=$((fail_count + 1)); continue ;; esac
+                case "$cnt" in ''|*[!0-9]*) fail_count=$((fail_count + 1)); continue ;; esac
+                case "$idxs" in ''|*[!0-9,]*) fail_count=$((fail_count + cnt)); continue ;; esac
+                _sms_delete_slots "$st" "$idxs" "$cnt"
+                if [ "$DEL_FAILED" -gt 0 ]; then
+                    qlog_warn "SMS delete $DEL_ADDR from $st: $DEL_FAILED of $cnt failed"
+                    fail_count=$((fail_count + DEL_FAILED))
+                fi
+            done
+            set +f
+            IFS="$_sms_ifs"
+
+            if ! sms_sent_delete_addr "$DEL_ADDR"; then
+                qlog_error "Could not drop sent SMS records for $DEL_ADDR"
+                fail_count=$((fail_count + 1))
+            fi
+
+            if [ "$fail_count" -gt 0 ]; then
+                cgi_error "partial_failure" "$fail_count message(s) failed to delete"
+                exit 0
+            fi
+            qlog_info "SMS conversation with $DEL_ADDR deleted"
+            cgi_success
+            exit 0
+        fi
+
+        # --- modem slots by index -----------------------------------------------
+        # Deletes every slot of one (possibly merged) message in one storage.
         INDEXES_JSON=$(printf '%s' "$POST_DATA" | jq -c '.indexes // empty' 2>/dev/null)
 
         if [ -z "$INDEXES_JSON" ] || [ "$INDEXES_JSON" = "null" ]; then
@@ -405,7 +713,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             exit 0
         fi
 
-        STORAGE=$(printf '%s' "$POST_DATA" | jq -r '.storage // "ME"' 2>/dev/null)
         case "$STORAGE" in
             ME|SM) : ;;
             *) STORAGE="ME" ;;
@@ -442,29 +749,79 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     # --- action: delete_all ---------------------------------------------------
     if [ "$ACTION" = "delete_all" ]; then
-        qlog_info "Deleting all SMS messages (ME + SM)"
+        qlog_info "Deleting all SMS messages (ME + SM + sent log)"
 
         me_result=$("$QSMS" delete ME all 2>/dev/null)
         sm_result=$("$QSMS" delete SM all 2>/dev/null)
         me_ok=$(printf '%s' "$me_result" | jq -r '.success' 2>/dev/null)
         sm_ok=$(printf '%s' "$sm_result" | jq -r '.success' 2>/dev/null)
+        sent_detail="ok"
+        sms_sent_clear || sent_detail="could not clear the sent log"
 
-        if [ "$me_ok" != "true" ] || [ "$sm_ok" != "true" ]; then
+        if [ "$me_ok" != "true" ] || [ "$sm_ok" != "true" ] || [ "$sent_detail" != "ok" ]; then
             me_detail=$(printf '%s' "$me_result" | jq -r 'if .success then "ok" else (.detail // "\(.remaining // "?") left") end' 2>/dev/null)
             sm_detail=$(printf '%s' "$sm_result" | jq -r 'if .success then "ok" else (.detail // "\(.remaining // "?") left") end' 2>/dev/null)
-            qlog_error "SMS delete all failed: ME='$me_detail' SM='$sm_detail'"
-            jq -n --arg me "${me_detail:-no reply}" --arg sm "${sm_detail:-no reply}" \
-                '{"success":false,"error":"delete_all_failed","detail":("ME: " + $me + " | SM: " + $sm)}'
+            qlog_error "SMS delete all failed: ME='$me_detail' SM='$sm_detail' SENT='$sent_detail'"
+            jq -n --arg me "${me_detail:-no reply}" --arg sm "${sm_detail:-no reply}" --arg sent "$sent_detail" \
+                '{"success":false,"error":"delete_all_failed","detail":("ME: " + $me + " | SM: " + $sm + " | SENT: " + $sent)}'
             exit 0
         fi
 
-        qlog_info "All SMS messages deleted (ME + SM)"
+        qlog_info "All SMS messages deleted (ME + SM + sent log)"
         cgi_success
         exit 0
     fi
 
-    # --- Unknown action ------------------------------------------------------
-    cgi_error "invalid_action" "action must be send, delete, or delete_all"
+    # --- action: set_smsc ----------------------------------------------------
+    if [ "$ACTION" = "set_smsc" ]; then
+        NEW_SMSC=$(printf '%s' "$POST_DATA" | jq -r 'if .addr == null then empty else (.addr | tostring) end' 2>/dev/null)
+        # Optional leading +, then 3..20 digits, nothing else.
+        digits="${NEW_SMSC#+}"
+        case "$digits" in
+            ''|*[!0-9]*) digits="" ;;
+        esac
+        if [ -z "$digits" ] || [ "${#digits}" -lt 3 ] || [ "${#digits}" -gt 20 ]; then
+            cgi_error "invalid_smsc" "SMS centre number must be 3 to 20 digits, optionally starting with +"
+            exit 0
+        fi
+        toa=129
+        case "$NEW_SMSC" in +*) toa=145 ;; esac
+
+        qlog_info "Setting SMSC to $NEW_SMSC (toa $toa)"
+        out=$("$QCMD" "AT+CSCA=\"$NEW_SMSC\",$toa" 2>&1)
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            case "$out" in
+                *modem_busy*|*scan_in_progress*)
+                    _sms_busy_reply
+                    exit 0
+                    ;;
+            esac
+            qlog_error "SMSC write failed (rc=$rc)"
+            cgi_error "smsc_write_failed" "The modem did not accept the SMS centre number"
+            exit 0
+        fi
+        if ! printf '%s\n' "$out" | tr -d '\r' | grep -q '^OK'; then
+            qlog_error "SMSC write rejected: $(printf '%s' "$out" | tr -d '\r' | tr '\n' ' ')"
+            cgi_error "smsc_write_failed" "The modem did not accept the SMS centre number"
+            exit 0
+        fi
+
+        _sms_smsc_read
+        case $? in
+            0) ;;
+            2) _sms_busy_reply; exit 0 ;;
+            *)
+                cgi_error "smsc_write_failed" "The SMS centre number could not be read back"
+                exit 0
+                ;;
+        esac
+        jq -n --argjson smsc "$(_sms_smsc_json "$SMSC_ADDR")" '{success: true, smsc: $smsc}'
+        exit 0
+    fi
+
+    # --- Unknown action (mark_read / mark_unread are client-side) --------------
+    cgi_error "invalid_action" "action must be send, delete, delete_all or set_smsc"
     exit 0
 fi
 

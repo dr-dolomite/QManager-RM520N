@@ -5,18 +5,19 @@
 # Ported from the RM551E sibling project's qmanager_sms_storage daemon
 # (procd init.d), translated to a systemd oneshot for RM520N-GL.
 #
-# Purpose: guarantee incoming SMS are routed to ME (modem) storage even if
-# the SMS Center page is never opened. Mirrors the self-heal step already
-# performed by sms.sh's GET handler (see cgi-bin/quecmanager/cellular/sms.sh)
-# so a bare CPMS state after boot never leaves incoming messages stranded in
-# SM (SIM, ~40 slots) while the UI/CGI reads assume ME (modem, 255 slots).
+# Purpose: route incoming SMS to the user's chosen storage even if the SMS
+# Center page is never opened. The choice is /etc/qmanager/sms_storage ("ME" or
+# "SM"; missing = ME, the 255-slot modem store), written by
+# cellular/sms_storage.sh. The inbox GET (sms.sh) re-applies it on every load.
 #
 # Flow:
 #   1. Poll `qcmd AT` until the modem answers (up to ~60s). qcmd takes the
 #      shared AT lock per call, so a slow-booting modem never starves other
 #      AT consumers.
-#   2. Once ready, issue AT+CPMS="ME","ME","ME" through qcmd. The CPMS mem3
-#      route is also the QMI WMS routing setting that `qsms` relies on.
+#   2. Once ready, issue AT+CPMS="X","X","X" through qcmd (X = the choice). The
+#      CPMS mem3 route is also the QMI WMS routing setting that `qsms` relies on.
+#      If SM is chosen but the SIM store is unusable (no SIM), ME is used for
+#      this boot without changing the saved choice.
 #   3. Log the result and exit. 0 on success, 1 on failure/timeout. No
 #      respawn — this is a oneshot, not a supervised daemon.
 #
@@ -61,14 +62,21 @@ if [ "$ready" -ne 1 ]; then
 fi
 
 # --- Apply routing ----------------------------------------------------------
-# Single quotes keep the inner double quotes intact. qcmd fails by exit status.
-"$QCMD" 'AT+CPMS="ME","ME","ME"' >/dev/null 2>&1
+mem=$({ tr -d ' \r\n' < /etc/qmanager/sms_storage | tr 'a-z' 'A-Z'; } 2>/dev/null)
+[ "$mem" = "SM" ] || mem="ME"
+if [ "$mem" = "SM" ] && ! /usr/bin/qsms status SM >/dev/null 2>&1; then
+    qlog_warn "SIM storage chosen but unusable; using modem storage this boot"
+    mem="ME"
+fi
+
+# Single quotes would block $mem, so escape the inner quotes. qcmd fails by exit status.
+"$QCMD" "AT+CPMS=\"$mem\",\"$mem\",\"$mem\"" >/dev/null 2>&1
 apply_rc=$?
 
 if [ "$apply_rc" -eq 0 ]; then
-    qlog_info "CPMS routing set to ME (incoming SMS -> modem storage)"
+    qlog_info "CPMS routing set to $mem (incoming SMS storage)"
     exit 0
 fi
 
-qlog_warn "Failed to set CPMS routing (rc=$apply_rc)"
+qlog_warn "Failed to set CPMS routing to $mem (rc=$apply_rc)"
 exit 1

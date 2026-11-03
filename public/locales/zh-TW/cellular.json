@@ -2145,153 +2145,24 @@
   "sms": {
     "page": {
       "title": "簡訊中心",
-      "description": "檢視、管理並從調變解調器傳送簡訊。",
-      "forwarding": "轉發"
+      "description": "檢視、管理並從調變解調器傳送簡訊。"
     },
     "inbox": {
-      "title": "收件箱",
-      "description": "檢視和管理您的簡訊",
-      "storage_suffix": " — 已儲存 {{used}}/{{total}} 條簡訊",
-      "tabs": {
-        "all": "全部",
-        "unread": "未讀",
-        "read": "已讀"
-      },
-      "unread_aria": "未讀訊息",
-      "table": {
-        "headers": {
-          "from": "發件人",
-          "message": "訊息",
-          "date": "日期"
-        },
-        "actions": {
-          "open_menu": "開啟選單",
-          "view": "檢視",
-          "delete": "刪除"
-        },
-        "empty_row": "未找到訊息。",
-        "empty_unread": "沒有未讀訊息。",
-        "empty_read": "沒有已讀訊息。",
-        "select_all_aria": "全選",
-        "select_row_aria": "選擇行",
-        "sim_badge": "SIM",
-        "empty_search": "沒有符合搜尋條件的簡訊。",
-        "unread_sr": "未讀"
-      },
-      "empty_state": {
-        "title": "暫無訊息",
-        "description": "收到的簡訊將顯示在這裡。傳送一條簡訊即可開始。"
-      },
       "buttons": {
-        "refresh_aria": "重新整理收件箱",
-        "delete_selected": "刪除 ({{count}})",
-        "delete_selected_aria": "刪除 {{count}} 條選中的訊息",
-        "delete_all": "全部刪除",
-        "delete_all_aria": "刪除所有訊息",
-        "new_message": "新簡訊",
-        "mark_all_read": "全部標為已讀",
-        "mark_all_read_aria": "將所有訊息標記為已讀",
-        "prev": "上一頁",
-        "next": "下一頁",
-        "first_page": "轉到第一頁",
-        "prev_page": "轉到上一頁",
-        "next_page": "轉到下一頁",
-        "last_page": "轉到最後一頁",
-        "delete_selected_short": "刪除所選"
-      },
-      "pagination": {
-        "total_one": "{{count}} 條訊息",
-        "total_other": "{{count}} 條訊息",
-        "page_info": "{{current}} / {{total}}",
-        "rows_per_page": "每頁行數",
-        "page_label": "第 {{current}} 頁，共 {{total}} 頁",
-        "selected_info": "已選擇 {{selected}} / {{total}}"
-      },
-      "error": {
-        "title": "載入訊息失敗",
-        "description_prefix": "載入訊息失敗",
-        "body_stale": "可能有另一個 AT 使用方正持有數據機鎖定，通常會在一個輪詢週期內釋放。下方訊息為最後一次成功讀取的結果，已不是即時資料。",
-        "body_empty": "尚未從數據機讀取到任何內容。"
-      },
-      "view_dialog": {
-        "title": "來自 {{sender}} 的訊息",
-        "timestamp_aria": "{{timestamp}}",
-        "slot": "{{storage}} 插槽 {{slots}}",
-        "slots": "{{storage}} 插槽 {{slots}}",
-        "copy": "複製文字",
-        "copied": "已複製",
-        "copy_error": "無法複製 — 瀏覽器在此連線上封鎖了剪貼簿存取。",
-        "reply": "回覆",
-        "no_reply_hint": "該寄件者是英數字識別碼而非號碼，因此無法回覆。",
-        "close": "關閉"
+        "delete_all": "全部刪除"
       },
       "delete_single_confirm": {
-        "title": "刪除訊息",
-        "description": "確定要刪除來自 {{sender}} 的這條訊息嗎？此操作不可撤銷。",
-        "confirm": "刪除",
         "deleting": "刪除中…"
       },
       "delete_all_confirm": {
-        "title": "刪除全部 {{count}} 則訊息？",
-        "description": "這將從數據機記憶體中刪除 {{me}}，並從 SIM 卡中刪除 {{sm}}。已刪除的訊息無法復原，數據機不會重新啟動。",
+        "title": "刪除所有訊息",
+        "description": "所有已儲存的訊息和對話都將被永久刪除，此操作無法復原。",
         "confirm": "全部刪除",
         "cancel": "保留訊息",
-        "deleting": "正在全部刪除…",
-        "progress_title": "正在刪除所有訊息",
-        "progress_note": "每個儲存區一次刪除操作，在共享 AT 鎖定後串列執行。"
-      },
-      "delete_selected_confirm": {
-        "title": "刪除選中的訊息",
-        "description_one": "確定要刪除 {{count}} 條選中的訊息嗎？此操作不可撤銷。",
-        "description_other": "確定要刪除 {{count}} 條選中的訊息嗎？此操作不可撤銷。",
-        "confirm": "刪除 ({{count}})",
-        "deleting": "刪除中…",
-        "progress_title_one": "正在刪除 {{count}} 則訊息",
-        "progress_title_other": "正在刪除 {{count}} 則訊息"
+        "deleting": "正在全部刪除…"
       },
       "toast": {
-        "delete_success": "訊息已刪除",
-        "delete_error": "刪除訊息失敗",
-        "delete_all_success": "所有訊息已刪除",
-        "delete_all_error": "刪除訊息失敗",
-        "delete_selected_success_one": "已刪除 {{count}} 條訊息",
-        "delete_selected_success_other": "已刪除 {{count}} 條訊息",
-        "delete_selected_error": "刪除選中的訊息失敗",
-        "mark_all_read_success": "所有訊息已標記為已讀",
-        "delete_memory_error": "無法清除 {{memory}}"
-      },
-      "search": {
-        "placeholder": "搜尋簡訊…",
-        "aria": "搜尋簡訊"
-      },
-      "sort": {
-        "label": "排序",
-        "newest": "最新優先",
-        "oldest": "最早優先",
-        "aria": "排序方式"
-      },
-      "description_loading": "正在從兩個儲存區讀取訊息。",
-      "description_split": "已從兩個儲存區讀取訊息。數據機記憶體 {{me}}/{{meTotal}}，SIM 卡 {{sm}}/{{smTotal}}。",
-      "description_combined": "已從兩個儲存區讀取訊息。兩者共使用 {{used}} 個插槽。",
-      "description_unknown": "在下一次成功讀取之前，插槽使用情況未知。",
-      "stale_chip": "已過期，{{time}}",
-      "selection": {
-        "label": "已選取",
-        "clear_aria": "清除選取"
-      },
-      "memory": {
-        "me": "數據機記憶體",
-        "sm": "SIM 卡儲存"
-      },
-      "delete_progress": {
-        "pending": "{{memory}} 已排入佇列",
-        "running": "正在清除 {{memory}}",
-        "done": "{{memory}} 已清除",
-        "failed": "{{memory}} 失敗",
-        "count_pending_one": "待刪除 {{count}} 則",
-        "count_pending_other": "待刪除 {{count}} 則",
-        "count_done_one": "已刪除 {{count}} 則",
-        "count_done_other": "已刪除 {{count}} 則"
+        "delete_all_success": "所有訊息已刪除"
       }
     },
     "compose": {
@@ -2301,21 +2172,16 @@
         "phone_label": "電話號碼",
         "phone_placeholder": "+1234567890",
         "message_label": "訊息",
-        "message_placeholder": "請輸入您的訊息...",
-        "char_counter": "{{count}}/{{max}}"
+        "message_placeholder": "請輸入您的訊息..."
       },
-      "unicode_indicator": "（Unicode）",
-      "limit_warning": "超過單則簡訊長度，將分 {{parts}} 部分傳送。",
       "buttons": {
         "send": "傳送",
         "sending": "傳送中…"
       },
       "toast": {
         "success": "簡訊傳送成功",
-        "error": "傳送簡訊失敗",
         "partial": "{{parts}} 部分中僅傳送了 {{sent}} 部分；再次傳送會重複這些部分。"
       },
-      "sending_note": "正在傳送訊息",
       "encoding_hint": "出現 GSM 字母表以外的字元時，訊息將切換為 UCS-2 編碼，單則上限為 70 個字元。",
       "encoding": {
         "gsm7": "GSM 7 位元",
@@ -2324,108 +2190,258 @@
     },
     "forwarding": {
       "page": {
-        "title": "簡訊轉發",
+        "title": "轉發",
         "description": "將每則收到的簡訊轉發到另一個號碼，並查看轉發是否真正送達。"
       },
-      "card": {
-        "relay": {
-          "title": "轉發中繼",
-          "description": "開啟中繼並選擇訊息的去向。"
-        },
-        "health": {
-          "title": "送達狀況",
-          "description": "即時中繼狀態、收件人預覽以及所有傳送失敗記錄。"
-        }
-      },
-      "fields": {
-        "enabled_label": "啟用轉發",
-        "target_label": "轉發至",
-        "target_placeholder": "+15551234567",
-        "target_hint": "請包含國家/地區代碼。此數據機收到的每則訊息都會轉發到該號碼。",
-        "target_invalid": "請輸入有效的電話號碼，並包含國家/地區代碼 — 例如 +15551234567。"
-      },
-      "buttons": {
-        "save": "儲存轉發設定",
-        "send_test": "傳送測試",
-        "sending": "傳送中…",
-        "clear_failures": "清除失敗記錄",
-        "clearing": "清除中…"
-      },
       "health": {
-        "forwarding_to": "轉發至",
-        "active": {
-          "label": "轉發已啟用"
-        },
-        "issue": {
-          "label": "送達異常"
-        },
-        "unconfigured": {
-          "label": "未設定目標號碼",
-          "description": "轉發已開啟，但尚未設定接收號碼。新增一個號碼即可開始轉發。"
-        },
-        "off": {
-          "label": "轉發已關閉",
-          "description": "收到的訊息將保留在數據機收件匣中，不會轉發到任何地方。"
-        }
+        "toast_test_success": "測試簡訊已傳送到您的轉發號碼。",
+        "toast_clear_success": "已清除。",
+        "card_title": "投遞與狀態",
+        "card_description": "收到的簡訊是否正在送達您的號碼。",
+        "state_active": "運作中 · 正常",
+        "state_issue": "投遞發生問題",
+        "state_unconfigured": "未設定轉發號碼",
+        "state_off": "轉發已關閉",
+        "destination_label": "傳送至",
+        "destination_none": "開啟轉發並儲存號碼後即可開始轉發簡訊。",
+        "state_unconfigured_description": "轉發已開啟，但尚無轉發目標。新增一個號碼即可開始轉發。",
+        "preview_label": "收件者看到",
+        "preview_hint_label": "關於此預覽",
+        "preview_hint": "「來自」行中的號碼是範例發件人。您儲存的號碼會收到此訊息，而不是由它發出。",
+        "preview_from": "來自 {{sender}}：",
+        "preview_sample_body": "你好，下午三點還約嗎？",
+        "failures_title_one": "有 {{count}} 則簡訊轉發失敗",
+        "failures_title_other": "有 {{count}} 則簡訊轉發失敗",
+        "failures_description": "新簡訊仍會繼續轉發。以下簡訊在 3 次嘗試後仍未成功：",
+        "failures_unknown_sender": "未知寄件者",
+        "clear_button": "清除提醒",
+        "failures_empty": "沒有投遞問題。",
+        "test_hint": "向您儲存的號碼傳送測試。",
+        "test_disabled_hint": "開啟轉發並儲存號碼後即可傳送測試。",
+        "test_sending": "傳送中…",
+        "test_button": "傳送測試"
       },
-      "preview": {
-        "eyebrow": "收件人看到",
-        "from": "來自 {{sender}}：",
-        "sample_body": "您的驗證碼是 123456。",
-        "note": "「來自」一行中的號碼只是來信寄件者的範例。您儲存的號碼是接收這則訊息的一方，而不是傳送方。"
+      "sms": {
+        "loading_label": "正在載入轉發設定",
+        "error_load": "無法載入轉發設定",
+        "validation_phone": "請輸入有效的電話號碼（例如 +886912345678）。",
+        "toast_save_success": "轉發設定已儲存。",
+        "card_title": "簡訊轉發",
+        "card_description": "自動將每則收到的簡訊重新傳送到您選擇的號碼。",
+        "enable_label": "轉發收到的簡訊",
+        "target_label": "轉發至",
+        "target_hint_label": "關於轉寄的簡訊",
+        "target_description": "每則新簡訊將以「來自 <sender>：<message>」的格式重新傳送到此號碼。",
+        "target_placeholder": "+886912345678"
       },
-      "test": {
-        "hint_ready": "向已儲存的號碼傳送一則測試訊息，因此檢驗的是實際運作中的轉發路徑。",
-        "hint_blocked": "請先開啟轉發並儲存目標號碼 — 測試始終依據已儲存的設定執行，不會使用未儲存的修改。"
-      },
-      "failures": {
-        "title_one": "{{value}} 次送達失敗",
-        "title_other": "{{value}} 次送達失敗",
-        "description": "中繼對每則訊息重試三次後放棄，因此訊息仍留在收件匣中。轉發功能仍在執行。",
-        "unknown_sender": "未知寄件者"
-      },
-      "empty": {
-        "failures": {
-          "title": "沒有送達失敗",
-          "description": "到目前為止，中繼處理的每則訊息都已送達。"
-        }
-      },
-      "states": {
-        "loading_sr": "正在載入簡訊轉發設定",
-        "retry": "重試",
-        "error": {
-          "title": "無法載入轉發設定",
-          "description": "數據機沒有回應，因此目前的中繼設定未知。"
-        }
-      },
-      "toast": {
-        "save_success": "轉發設定已儲存",
-        "save_error": "儲存轉發設定失敗",
-        "test_success": "測試訊息已傳送至已儲存的號碼",
-        "test_error": "傳送測試訊息失敗",
-        "clear_success": "送達失敗記錄已清除",
-        "clear_error": "清除送達失敗記錄失敗"
+      "errors": {
+        "load_failed": "數據機未回傳轉寄設定，請稍後再試。",
+        "save_failed": "無法儲存轉寄設定。",
+        "test_failed": "無法傳送測試簡訊。",
+        "clear_failed": "無法清除警示。"
       }
     },
-    "tiles": {
-      "loading_sr": "正在載入收件匣摘要",
-      "capacity_unknown": "未回報",
-      "unread": {
-        "label": "未讀",
-        "of": "共 {{total}}",
-        "caption_newest": "最新 {{timestamp}}",
-        "caption_none": "尚未收到任何訊息"
+    "center": {
+      "toast": {
+        "message_marked_unread": "已標為未讀",
+        "mark_unread_failed": "無法將訊息標為未讀",
+        "thread_marked_read": "已標為已讀",
+        "message_deleted": "訊息已刪除",
+        "message_delete_failed": "無法刪除訊息",
+        "thread_deleted": "會話已刪除",
+        "thread_delete_failed": "無法刪除會話",
+        "address_copied": "已複製發件人地址",
+        "copy_failed": "無法複製。此連線下瀏覽器已禁止存取剪貼簿。",
+        "message_copied": "訊息已複製"
       },
-      "me": {
-        "label": "數據機記憶體"
+      "header": {
+        "synced": "{{seconds}} 秒前已同步",
+        "refresh_failed": "重新整理失敗"
       },
-      "sm": {
-        "label": "SIM 卡儲存"
+      "actions": {
+        "refresh": "重新整理",
+        "more": "更多選項",
+        "back": "返回全部訊息",
+        "copy_address": "複製發件人地址",
+        "thread_options": "會話選項",
+        "mark_read": "全部標為已讀",
+        "delete_thread": "刪除會話",
+        "copy_text": "複製文字",
+        "forward": "轉發…",
+        "mark_unread": "標為未讀",
+        "details": "詳情…",
+        "delete_message": "刪除",
+        "compose": "新訊息"
       },
-      "combined": {
+      "states": {
+        "missing": {
+          "title": "該會話已不存在",
+          "description": "它已不再儲存，可能在建立此連結後被刪除。",
+          "action": "返回全部訊息"
+        },
+        "no_selection": {
+          "title": "選擇一個會話",
+          "description": "從左側選擇一個會話，或新增訊息。"
+        },
+        "loading_thread_sr": "正在載入會話",
+        "thread_empty": {
+          "title": "這裡還沒有內容",
+          "description": "此會話沒有已儲存的訊息。傳送一條即可開始。"
+        },
+        "loading_sr": "正在載入會話",
+        "error": {
+          "title": "無法載入訊息",
+          "description": "您已儲存的訊息是安全的。請稍後重試。",
+          "retry": "重試"
+        },
+        "no_matches": {
+          "title": "無匹配結果",
+          "description": "沒有符合搜尋條件的會話。可嘗試姓名、號碼或訊息中的某個詞。"
+        },
+        "no_unread": {
+          "title": "沒有未讀訊息",
+          "description": "所有已儲存的訊息都已在此瀏覽器中開啟過。"
+        },
+        "empty": {
+          "title": "暫無訊息",
+          "description": "收到的訊息將顯示在這裡。",
+          "action": "寫訊息"
+        }
+      },
+      "delete_thread": {
+        "title": "刪除此會話？",
+        "description": "將移除為 {{contact}} 儲存的所有訊息，此操作不可撤銷。",
+        "confirm": "刪除會話"
+      },
+      "delete_message": {
+        "title": "刪除此訊息？",
+        "description": "將被永久移除，此操作不可撤銷。",
+        "confirm": "刪除訊息"
+      },
+      "composer": {
+        "segments_one": "{{count}} 條簡訊",
+        "segments_other": "{{count}} 條簡訊",
+        "aria": "回覆 {{contact}}",
+        "placeholder": "簡訊",
+        "remaining_one": "還可輸入 {{count}} 個字元",
+        "remaining_other": "還可輸入 {{count}} 個字元",
+        "send": "傳送訊息",
+        "no_reply": "該寄件者是名稱而非號碼，因此無法回覆。"
+      },
+      "identity": {
+        "matched": "已匹配"
+      },
+      "time": {
+        "today": "今天",
+        "yesterday": "昨天"
+      },
+      "send": {
+        "sending": "傳送中…",
+        "failed": "傳送失敗",
+        "retry": "重試",
+        "discard": "放棄",
+        "sent_at": "{{time}} 已傳送"
+      },
+      "phishing": {
+        "with_logo": "含有連結。發件人名稱可能被偽造，{{name}} 未必傳送了此訊息。",
+        "generic": "含有連結。僅在您預期收到此訊息時才開啟。"
+      },
+      "code": {
+        "copied": "已複製",
+        "copy": "複製驗證碼"
+      },
+      "forward": {
+        "prefix": "來自 {{addr}}：",
+        "title": "轉發訊息",
+        "description": "將從此數據機傳送一條新簡訊，原訊息保持不變。",
+        "to_label": "收件人",
+        "alpha_disabled": "發件人名稱無法接收簡訊",
+        "include_sender": "包含原發件人",
+        "include_sender_hint": "在頂部新增一行「來自 {{addr}}：」",
+        "submit": "轉發"
+      },
+      "details": {
+        "kind": {
+          "msisdn": "電話號碼",
+          "shortcode": "短號碼",
+          "alphanumeric": "發件人名稱"
+        },
+        "title": "訊息詳情",
+        "description": "QManager 掌握的此訊息的全部資訊。",
+        "to": "收件人",
+        "from": "發件人",
+        "sender_type": "發件人類型",
+        "sent_at": "傳送時間",
+        "received_at": "接收時間",
+        "length": "長度",
+        "length_value_one": "{{count}} 個字元",
+        "length_value_other": "{{count}} 個字元",
+        "close": "關閉"
+      },
+      "storage": {
+        "unknown": "未回報",
         "label": "訊息儲存",
-        "caption": "兩個儲存區共用的插槽"
+        "modem": "數據機記憶體",
+        "sim": "SIM 卡儲存",
+        "combined_caption": "兩個儲存區共用的插槽"
+      },
+      "search": {
+        "aria": "搜尋訊息",
+        "placeholder": "搜尋訊息"
+      },
+      "filters": {
+        "all": "全部",
+        "unread": "未讀"
+      },
+      "sort": {
+        "to_oldest": "最早的在前",
+        "to_newest": "最新的在前"
+      },
+      "preview": {
+        "you": "你："
+      },
+      "a11y": {
+        "unread_count_one": "{{count}} 條未讀訊息",
+        "unread_count_other": "{{count}} 條未讀訊息"
       }
+    },
+    "errors": {
+      "delete_all": "刪除全部訊息失敗",
+      "send": "傳送簡訊失敗",
+      "fetch": "載入訊息失敗"
+    },
+    "settings": {
+      "title": "簡訊設定",
+      "description": "選擇此數據機傳送和儲存簡訊的方式。",
+      "smsc": {
+        "toast_saved": "運營商號碼已儲存。",
+        "save_failed": "無法儲存運營商號碼。",
+        "title": "運營商號碼",
+        "hint_label": "關於運營商號碼",
+        "hint": "也稱為簡訊中心 (SMSC)。該號碼由運營商設定，僅在簡訊無法傳送時才需要修改。",
+        "description": "用於轉發您發出簡訊的運營商號碼。",
+        "placeholder": "例如 +639180000101",
+        "invalid": "請輸入 3 至 20 位數字，開頭可帶 +。",
+        "unreadable": "無法讀取目前號碼，但仍可設定新號碼。"
+      }
+    },
+    "storage": {
+      "full": "已滿",
+      "nearly_full": "即將存滿",
+      "card_title": "簡訊儲存位置",
+      "card_description": "新簡訊的儲存位置。現有簡訊保持原位。",
+      "load_failed": "無法讀取簡訊儲存資訊。",
+      "toast_saved": "簡訊儲存位置已儲存。",
+      "field_label": "新簡訊儲存至",
+      "hint_label": "關於簡訊儲存",
+      "hint": "數據機可儲存更多簡訊。儲存在 SIM 卡上的簡訊會隨 SIM 卡轉移到其他裝置。",
+      "option_modem": "數據機",
+      "option_sim": "SIM 卡",
+      "row_modem": "數據機",
+      "row_sim": "SIM 卡",
+      "used_of_total": "{{used}} / {{total}}",
+      "unavailable": "無法使用",
+      "save_failed": "無法儲存簡訊儲存位置。"
     }
   },
   "tower_locking": {
