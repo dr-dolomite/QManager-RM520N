@@ -29,19 +29,21 @@ Everything runs as a real `tailscaled` daemon on the modem's own Linux. QManager
 | `tailscale up` tracking | `/tmp/qmanager_tailscale_up_output` · `_up_pid` |
 | Frontend page | `/monitoring/tailscale` (`components/monitoring/tailscale/`) |
 | i18n | `common.json` → `tailscale.*` (149 keys, all five packs) |
-| Pinned version | `TAILSCALE_VERSION="1.92.5"`, `TAILSCALE_ARCH="arm"` in the helper |
+| Version | resolved at install time from `pkgs.tailscale.com/stable/?mode=json` (`TarballsVersion`); `TAILSCALE_ARCH="arm"` in the helper. No pin, no fallback |
 
 ---
 
 ## The install is a download, over the link being managed
 
-`qmanager_tailscale_mgr install` curls `https://pkgs.tailscale.com/stable/tailscale_<ver>_arm.tgz` and unpacks it into `/usrdata/tailscale/`. Three consequences fall out of that and all three are visible in the UI:
+`qmanager_tailscale_mgr install` asks `pkgs.tailscale.com/stable/?mode=json` for the latest version, fetches the sibling `.sha256`, curls `tailscale_<ver>_arm.tgz`, verifies it and unpacks it into `/usrdata/tailscale/`. An unreachable lookup or a missing or malformed checksum fails the install (`version_lookup_failed` / `checksum_lookup_failed`); there is no pinned fallback, because a stale pin is the vulnerable build. Every curl has a timeout (the temp unit also has `TimeoutStartSec`), so a stalled link cannot hold the install lock; curl exit 60 (the 1970 clock / no SIM) is reported as a clock/SIM problem. Nothing installed is touched until the tarball has passed its checksum, so a failed download leaves the previous state alone. Three consequences fall out of that and all three are visible in the UI:
 
 - **It needs working upstream connectivity**, on the very cellular link the user's session is riding. The install hero says so in one sentence rather than discovering it in a failure.
 - **It is slow and must not block a request.** The helper runs detached, writes progress to `/tmp/qmanager_tailscale_install.json`, and appends to `/tmp/qmanager_tailscale_install.log`. The CGI's `install_status` action polls both, which is what feeds the live transcript panel.
 - **It writes to the rootfs.** The unit lands in `/lib/systemd/system/`, so the helper does `mount -o remount,rw /` first and **never restores `ro`** — the platform contract in `docs/BACKEND.md` §2.1.
 
-`uninstall` reverses all of it and the UI then offers a reboot, because firewall rules and interface state outlive the packages.
+`uninstall` reverses all of it and the UI then offers a reboot, because firewall rules and interface state outlive the packages. It retries the removal, then checks that the directory, unit, wants-symlink and both CLI symlinks are gone; if not, it writes `{"status":"error","op":"uninstall","error":"uninstall_incomplete"}` and exits 1, and the UI keeps showing "installed" so the user can retry.
+
+**Install vs update is decided by coherence, not by the binary alone.** A coherent install is the unit plus executable `tailscale` and `tailscaled` (`ts_coherent`, in the wrapper and the inner script). Only a coherent install takes the `tailscale update` branch. Anything else (e.g. binary left after the unit was removed) is cleaned (old binaries, `systemd/`, `/usrdata/tailscale_*_arm*`; `tailscaled.state` is kept) and installed fresh. `install_rm520n.sh` also rewrites a missing unit when the binary exists, so OTA heals that state too.
 
 ---
 
@@ -164,8 +166,7 @@ One page cascade (`staggerContainer` / `staggerItem`, 120ms, 10px), row cascades
 - **"Last seen" needs a 1970 guard.** The device has no battery RTC and boots at Jan 1970, so a delta taken before the clock steps renders every offline peer as decades stale. `formatLastSeen` returns the unknown sentinel when `Date.now()` is before 2020 or the delta exceeds a year. Any new relative-time rendering on this platform needs the same guard.
 - **Uninstall unmounts the card that confirms it.** A successful uninstall flips the view to `notInstalled`, which would take the danger row — and its own reboot dialog — down with it. The dialog therefore lives in the **page shell**, not in `danger-card.tsx`.
 - **The reboot handoff is duplicated here.** The connection flow fires `qm_rebooting` + clears `qm_logged_in` + navigates to `/reboot/` inline, rather than going through the shared three-line contract. Dropping any one of those lines silently breaks `cgi_reboot_response`'s ack wait — see [`ip-passthrough.md`](./ip-passthrough.md). Worth extracting; not yet extracted.
-- **A fresh install is the pinned build, so an update is usually on offer right after it.** `tailscale update` then moves to the newest stable.
-- **The version is pinned in the helper, in two places.** `TAILSCALE_VERSION` appears at the top of `qmanager_tailscale_mgr` and again inside the heredoc it writes. Bump both.
+- **A fresh install is the latest stable.** The checksum comes from the same host as the tarball, so it guards against corruption and truncation, not a compromised host.
 - **`peers[]` is `.Peer` keyed by node ID**, flattened to an array by the CGI's jq. Ordering is therefore whatever jq's `to_entries` gives, not "most recently seen" — the table does not sort, and a large tailnet has no search. Both are known gaps.
 
 ---

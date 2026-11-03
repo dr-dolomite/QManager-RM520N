@@ -15,9 +15,10 @@
 #   systemd oneshot unit, then fires the unit and exits. The inner script runs
 #   detached under systemd, independent of the caller's process lifetime.
 #
-#   Hardcoded version 1.92.5 and arch 'arm' — no CDN scraping, no version
-#   detection, no timeout gymnastics. The old detect_latest_version() call
-#   without a timeout was the root cause of the install-hangs bug.
+#   Arch is 'arm'. The latest stable version and its published .sha256 are
+#   resolved at install time (bounded curl, fail closed, no pinned fallback).
+#   An update runs only on a coherent install (unit + both binaries); any
+#   other leftover state is cleaned and reinstalled fresh.
 #
 #   Download lands in /usrdata/ (persistent partition) not /tmp. Systemd units
 #   come from /usr/lib/qmanager/ (staged by the QManager installer).
@@ -28,7 +29,6 @@
 #   /tmp/qmanager_tailscale_install.log    — Inner script stdout/stderr
 # =============================================================================
 
-TAILSCALE_VERSION="1.92.5"
 TAILSCALE_ARCH="arm"
 TAILSCALE_DIR="/usrdata/tailscale"
 TAILSCALE_SYSD_DIR="/usrdata/tailscale/systemd"
@@ -53,6 +53,12 @@ write_status() {
 # Check if a PID is alive. Used to detect concurrent install attempts.
 pid_is_alive() {
     [ -n "$1" ] && [ "$1" != "0" ] && kill -0 "$1" 2>/dev/null
+}
+
+# Coherent = unit and both binaries present; anything less is reinstalled fresh.
+ts_coherent() {
+    [ -f "$SYSTEMD_DIR/tailscaled.service" ] \
+        && [ -x "$TAILSCALE_DIR/tailscale" ] && [ -x "$TAILSCALE_DIR/tailscaled" ]
 }
 
 # =============================================================================
@@ -83,7 +89,7 @@ do_install() {
     # script takes over (see MainPID polling below).
     echo $$ > "$INSTALL_PID"
     printf '%s' "$run_id" > "$UPDATE_RUN_FILE"
-    if [ -f "$TAILSCALE_DIR/tailscale" ]; then
+    if ts_coherent || [ -n "$run_id" ]; then
         write_status '{"success":true,"status":"running","op":"update"'"$run_field"',"message":"Starting Tailscale update..."}'
     else
         write_status '{"success":true,"status":"running","message":"Starting Tailscale install..."}'
@@ -104,13 +110,8 @@ do_install() {
 export HOME=/usrdata/root
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/opt/bin:/opt/sbin:/usrdata/root/bin
 
-TAILSCALE_VERSION="1.92.5"
 TAILSCALE_ARCH="arm"
-TAILSCALE_TARBALL="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}.tgz"
-TAILSCALE_URL="https://pkgs.tailscale.com/stable/${TAILSCALE_TARBALL}"
-# Pinned SHA-256 of the 1.92.5 arm tarball (pkgs.tailscale.com .sha256). Update with the version.
-TAILSCALE_SHA256="db77be7b897fea0b783a378a22d90330a0aa23ade1e545aaeaffe47ad08da107"
-TAILSCALE_EXTRACT_DIR="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}"
+PKGS_BASE="https://pkgs.tailscale.com/stable"
 TAILSCALE_DIR="/usrdata/tailscale"
 TAILSCALE_SYSD_DIR="/usrdata/tailscale/systemd"
 SYSTEMD_DIR="/lib/systemd/system"
@@ -123,6 +124,9 @@ LOG_FILE="/tmp/qmanager_tailscale_install.log"
 UPDATE_RUN_FILE="/tmp/qmanager_tailscale_update_run"
 RUN_FIELD=""
 [ -s "$UPDATE_RUN_FILE" ] && RUN_FIELD=',"run":"'"$(cat "$UPDATE_RUN_FILE")"'"'
+# A repair run started from the update button must still carry op + run id.
+FX=""
+[ -n "$RUN_FIELD" ] && FX=',"op":"update"'"$RUN_FIELD"
 
 # Redirect own output to log file — more portable than systemd StandardOutput=append:
 exec >> "$LOG_FILE" 2>&1
@@ -145,18 +149,22 @@ trap 'rm -f "$INSTALL_PID"; sync' EXIT
 echo $$ > "$INSTALL_PID"
 
 echo "=== qmanager_tailscale_mgr — install started ==="
-echo "Version: $TAILSCALE_VERSION"
 echo "Arch:    $TAILSCALE_ARCH"
-echo "URL:     $TAILSCALE_URL"
 echo "Target:  $TAILSCALE_DIR"
 echo
 
 remount_rw
 
+# Unit + both binaries; anything less is cleaned and reinstalled fresh.
+ts_coherent() {
+    [ -f "$SYSTEMD_DIR/tailscaled.service" ] \
+        && [ -x "$TAILSCALE_DIR/tailscale" ] && [ -x "$TAILSCALE_DIR/tailscaled" ]
+}
+
 # -----------------------------------------------------------------------------
-# Update path — if already installed, run `tailscale update` and exit
+# Update path — coherent install: run `tailscale update` and exit
 # -----------------------------------------------------------------------------
-if [ -f "$TAILSCALE_DIR/tailscale" ]; then
+if ts_coherent; then
     echo "Tailscale already installed — running update..."
     write_status '{"success":true,"status":"running","op":"update"'"$RUN_FIELD"',"message":"Updating Tailscale..."}'
 
@@ -184,49 +192,101 @@ fi
 # -----------------------------------------------------------------------------
 # Fresh install
 # -----------------------------------------------------------------------------
-write_status '{"success":true,"status":"running","message":"Installing Tailscale v'"$TAILSCALE_VERSION"'..."}'
+write_status '{"success":true,"status":"running"'"$FX"',"message":"Checking the latest Tailscale version..."}'
+
+# Status for a failed lookup/download; curl exit 60 means the TLS clock check failed.
+fail_net() {
+    _detail="pkgs.tailscale.com unreachable — check internet connection"
+    [ "$3" = "60" ] && _detail="TLS check failed — check the device clock and SIM"
+    write_status '{"success":false,"status":"error"'"$FX"',"error":"'"$1"'","message":"'"$2"'","detail":"'"$_detail"'"}'
+    echo "=== ERROR: $2 (curl rc $3) ==="
+    exit 1
+}
+
+# Latest stable version + its published SHA-256. Fails closed; no pinned fallback.
+echo "Resolving latest stable version..."
+meta=$(curl -fsS --connect-timeout 15 -m 30 "$PKGS_BASE/?mode=json"); rc=$?
+[ "$rc" -ne 0 ] && fail_net version_lookup_failed "Could not check the latest Tailscale version" "$rc"
+TAILSCALE_VERSION=$(printf '%s' "$meta" | jq -r '.TarballsVersion // empty' 2>/dev/null)
+case "$TAILSCALE_VERSION" in
+    ''|*[!0-9.]*|.*|*.|*..*) TAILSCALE_VERSION="" ;;
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) TAILSCALE_VERSION="" ;;
+esac
+[ -z "$TAILSCALE_VERSION" ] && fail_net version_lookup_failed "Could not check the latest Tailscale version" 0
+TAILSCALE_TARBALL="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}.tgz"
+TAILSCALE_URL="$PKGS_BASE/${TAILSCALE_TARBALL}"
+TAILSCALE_EXTRACT_DIR="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}"
+echo "Version: $TAILSCALE_VERSION"
+echo "URL:     $TAILSCALE_URL"
+
+sha_body=$(curl -fsS --connect-timeout 15 -m 30 "${TAILSCALE_URL}.sha256"); rc=$?
+[ "$rc" -ne 0 ] && fail_net checksum_lookup_failed "Could not fetch the Tailscale checksum" "$rc"
+TAILSCALE_SHA256=$(printf '%s' "$sha_body" | tr -d '\r' | awk 'NR==1 { print tolower($1) }')
+case "$TAILSCALE_SHA256" in
+    *[!0-9a-f]*) TAILSCALE_SHA256="" ;;
+esac
+[ "${#TAILSCALE_SHA256}" -ne 64 ] && fail_net checksum_lookup_failed "Could not fetch the Tailscale checksum" 0
+
+write_status '{"success":true,"status":"running"'"$FX"',"message":"Installing Tailscale v'"$TAILSCALE_VERSION"'..."}'
+
+cd /usrdata || { write_status '{"success":false,"status":"error"'"$FX"',"message":"Cannot cd /usrdata"}'; exit 1; }
+
+# Old tarball/extract residue only; nothing installed is touched until the new
+# download has passed verification.
+rm -rf /usrdata/tailscale_*_"$TAILSCALE_ARCH"*
+
+free_kb=$(df -k /usrdata 2>/dev/null | awk 'END { print $4 }')
+case "$free_kb" in ''|*[!0-9]*) free_kb=0 ;; esac
+if [ "$free_kb" -lt 40000 ]; then
+    write_status '{"success":false,"status":"error"'"$FX"',"error":"no_space","message":"Not enough free storage to install Tailscale","detail":"free up space on the modem and retry"}'
+    echo "=== ERROR: only ${free_kb} KB free on /usrdata ==="
+    exit 1
+fi
+
+echo "Downloading $TAILSCALE_TARBALL..."
+# -f: an HTTP error must not leave an HTML page named like a tarball.
+curl -fS --connect-timeout 20 -m 600 -o "$TAILSCALE_TARBALL" "$TAILSCALE_URL"; rc=$?
+if [ "$rc" -ne 0 ] || [ ! -f "$TAILSCALE_TARBALL" ]; then
+    rm -f "$TAILSCALE_TARBALL"
+    fail_net download_failed "Failed to download Tailscale v$TAILSCALE_VERSION" "$rc"
+fi
+
+actual_sha=$(sha256sum "$TAILSCALE_TARBALL" 2>/dev/null | awk '{ print $1 }')
+if [ -z "$actual_sha" ] || [ "$actual_sha" != "$TAILSCALE_SHA256" ]; then
+    rm -f "$TAILSCALE_TARBALL"
+    write_status '{"success":false,"status":"error"'"$FX"',"error":"checksum_mismatch","message":"Tailscale download failed verification","detail":"SHA-256 mismatch or sha256sum missing"}'
+    exit 1
+fi
+
+# Verified. Only now remove the old (incoherent) binaries and staging; the
+# tailscaled.state in the data dir is kept so a repair does not log the node out.
+echo "Cleaning leftovers..."
+systemctl stop tailscaled 2>/dev/null || true
+rm -f "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscaled"
+rm -rf "$TAILSCALE_SYSD_DIR"
 
 echo "Creating directories..."
 mkdir -p "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
 # www-data (CGI) needs traverse+read on these to detect the binary later.
 chmod 755 "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
 
-echo "Downloading $TAILSCALE_TARBALL..."
-cd /usrdata || { write_status '{"success":false,"status":"error","message":"Cannot cd /usrdata"}'; exit 1; }
-rm -f "$TAILSCALE_TARBALL"
-rm -rf "$TAILSCALE_EXTRACT_DIR"
-
-# Bare curl -O matches rgmii-toolkit — no timeouts, no flags, no fallback.
-# This is the proven pattern that doesn't hang.
-if ! curl -O "$TAILSCALE_URL"; then
-    write_status '{"success":false,"status":"error","message":"Failed to download Tailscale v'"$TAILSCALE_VERSION"'","detail":"curl failed — check internet connection"}'
-    exit 1
-fi
-
-if [ ! -f "$TAILSCALE_TARBALL" ]; then
-    write_status '{"success":false,"status":"error","message":"Downloaded tarball not found"}'
-    exit 1
-fi
-
-actual_sha=$(sha256sum "$TAILSCALE_TARBALL" 2>/dev/null | awk '{ print $1 }')
-if [ -z "$actual_sha" ] || [ "$actual_sha" != "$TAILSCALE_SHA256" ]; then
-    rm -f "$TAILSCALE_TARBALL"
-    write_status '{"success":false,"status":"error","error":"checksum_mismatch","message":"Tailscale download failed verification","detail":"SHA-256 mismatch or sha256sum missing"}'
-    exit 1
-fi
-
 echo "Extracting..."
-tar -xzf "$TAILSCALE_TARBALL"
+if ! tar -xzf "$TAILSCALE_TARBALL"; then
+    rm -rf "$TAILSCALE_TARBALL" "$TAILSCALE_EXTRACT_DIR"
+    write_status '{"success":false,"status":"error"'"$FX"',"error":"extract_failed","message":"Could not unpack Tailscale","detail":"archive unreadable or storage full"}'
+    exit 1
+fi
 rm -f "$TAILSCALE_TARBALL"
 
 if [ ! -d "$TAILSCALE_EXTRACT_DIR" ]; then
-    write_status '{"success":false,"status":"error","message":"Extraction failed — no extract dir"}'
+    write_status '{"success":false,"status":"error"'"$FX"',"message":"Extraction failed — no extract dir"}'
     exit 1
 fi
 
 cd "/usrdata/$TAILSCALE_EXTRACT_DIR" || exit 1
 if [ ! -f tailscale ] || [ ! -f tailscaled ]; then
-    write_status '{"success":false,"status":"error","message":"Extracted archive missing binaries"}'
+    write_status '{"success":false,"status":"error"'"$FX"',"message":"Extracted archive missing binaries"}'
     cd /usrdata || true
     rm -rf "$TAILSCALE_EXTRACT_DIR"
     exit 1
@@ -289,7 +349,7 @@ ln -sf "$SYSTEMD_DIR/tailscaled.service" "$WANTS_DIR/tailscaled.service"
 # -----------------------------------------------------------------------------
 # Start daemon
 # -----------------------------------------------------------------------------
-write_status '{"success":true,"status":"running","message":"Starting Tailscale daemon..."}'
+write_status '{"success":true,"status":"running"'"$FX"',"message":"Starting Tailscale daemon..."}'
 systemctl daemon-reload
 sleep 2
 
@@ -319,10 +379,10 @@ systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 # Finalize
 # -----------------------------------------------------------------------------
 if [ -x "$TAILSCALE_DIR/tailscale" ] && [ -x "$TAILSCALE_DIR/tailscaled" ]; then
-    write_status '{"success":true,"status":"complete","message":"Tailscale v'"$TAILSCALE_VERSION"' installed successfully"}'
+    write_status '{"success":true,"status":"complete"'"$FX"',"message":"Tailscale v'"$TAILSCALE_VERSION"' installed successfully"}'
     echo "=== Tailscale v${TAILSCALE_VERSION} installed successfully ==="
 else
-    write_status '{"success":false,"status":"error","message":"Install completed but binaries not found"}'
+    write_status '{"success":false,"status":"error"'"$FX"',"message":"Install completed but binaries not found"}'
     echo "=== ERROR: binaries not found after install ==="
 fi
 
@@ -341,6 +401,7 @@ DefaultDependencies=no
 
 [Service]
 Type=oneshot
+TimeoutStartSec=1200
 ExecStart=/bin/bash $INNER_SCRIPT
 RemainAfterExit=no
 
@@ -389,12 +450,17 @@ do_uninstall() {
     rm -f "$TEMP_SERVICE_FILE"
     systemctl daemon-reload 2>/dev/null || true
 
-    # Remove binaries, state, and staging directory.
-    rm -rf "$TAILSCALE_DIR"
-
-    # Remove BOTH CLI symlinks — matches the install-time symlinks.
-    rm -f /usrdata/root/bin/tailscale
-    rm -f /usr/bin/tailscale
+    # Remove binaries, state, staging directory and tarball residue; retry once.
+    # Glob is unquoted on purpose and cannot match $TAILSCALE_DIR itself.
+    for _try in 1 2; do
+        rm -rf "$TAILSCALE_DIR" /usrdata/tailscale_*_"$TAILSCALE_ARCH"*
+        rm -f /usrdata/root/bin/tailscale /usr/bin/tailscale
+        rm -f "$WANTS_DIR/tailscaled.service" "$SYSTEMD_DIR/tailscaled.service"
+        [ -e "$TAILSCALE_DIR" ] || [ -L /usr/bin/tailscale ] || [ -L /usrdata/root/bin/tailscale ] \
+            || [ -e "$SYSTEMD_DIR/tailscaled.service" ] || [ -L "$WANTS_DIR/tailscaled.service" ] \
+            || break
+        sleep 1
+    done
 
     # Clean up runtime temp files.
     rm -f /tmp/qmanager_tailscale_auth_url \
@@ -411,11 +477,23 @@ do_uninstall() {
     # Drop tailscale0 from the firewall's trusted set now the binary is gone.
     systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
 
-    # No ro-restore: rootfs stays rw for the rest of uptime by project
-    # convention (see qmanager_auto_update_arm's "Left rw afterwards" comment)
-    # since qmanager_setup already remounted rw at boot and never restores.
-    # `sync` still flushes the removals above to survive an unclean power loss.
+    # No ro-restore: rootfs stays rw (see docs/BACKEND.md §2.1). `sync` flushes
+    # the removals to survive an unclean power loss.
     sync
+
+    # Report leftovers instead of a silent partial state; the UI keeps showing
+    # "installed" while the unit or directory remains, so the user can retry.
+    left=""
+    [ -e "$TAILSCALE_DIR" ] && left="$left dir"
+    [ -e "$SYSTEMD_DIR/tailscaled.service" ] && left="$left unit"
+    [ -L "$WANTS_DIR/tailscaled.service" ] && left="$left wants"
+    { [ -L /usr/bin/tailscale ] || [ -L /usrdata/root/bin/tailscale ]; } && left="$left cli"
+    if [ -n "$left" ]; then
+        write_status '{"success":false,"status":"error","op":"uninstall","error":"uninstall_incomplete","message":"Tailscale could not be fully removed","detail":"left:'"$left"'"}'
+        echo "ERROR: uninstall incomplete, left:$left" >&2
+        return 1
+    fi
+    return 0
 }
 
 # =============================================================================
@@ -449,13 +527,14 @@ do_ensure_units() {
 case "${1:-}" in
     install)      do_install ;;
     update)
-        if [ ! -f "$TAILSCALE_DIR/tailscale" ]; then
+        # An incoherent install the UI shows as installed is repaired by the fresh branch.
+        if [ ! -f "$SYSTEMD_DIR/tailscaled.service" ] && [ ! -e "$TAILSCALE_DIR/tailscale" ]; then
             echo "ERROR: Tailscale is not installed" >&2
             exit 1
         fi
         do_install "${2:-}"
         ;;
-    uninstall)    do_uninstall ;;
+    uninstall)    do_uninstall; exit $? ;;
     ensure_units) do_ensure_units ;;
     *)
         echo "Usage: qmanager_tailscale_mgr {install|update|uninstall|ensure_units}" >&2
