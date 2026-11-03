@@ -9,12 +9,17 @@ _CONFIG_LOADED=1
 QM_CONFIG="/etc/qmanager/qmanager.conf"
 QM_CONFIG_LOCK="/etc/qmanager/qmanager.conf.lock"
 
+# Lock is 0644 and opened read-only; noclobber (O_EXCL) refuses a planted symlink.
+_qm_config_lock_ready() {
+    [ -L "$QM_CONFIG_LOCK" ] && return 1
+    [ -f "$QM_CONFIG_LOCK" ] || (umask 022; set -C; : > "$QM_CONFIG_LOCK") 2>/dev/null
+    [ -f "$QM_CONFIG_LOCK" ] && [ ! -L "$QM_CONFIG_LOCK" ]
+}
+
 # _qm_config_mutate <jq args...>: locked jq edit, published via a per-call temp + mv.
-# The lock file is 0666 and opened read-only, so root and www-data can both use it.
 _qm_config_mutate() {
-    [ -e "$QM_CONFIG_LOCK" ] || (umask 000; : >> "$QM_CONFIG_LOCK") 2>/dev/null
     (
-        if [ -e "$QM_CONFIG_LOCK" ]; then
+        if _qm_config_lock_ready; then
             exec 9< "$QM_CONFIG_LOCK"
             flock -x 9 || exit 1
         fi
@@ -32,7 +37,7 @@ _qm_config_mutate() {
 qm_config_init() {
     [ -s "$QM_CONFIG" ] && return 0
     (
-        if [ -e "$QM_CONFIG_LOCK" ] || (umask 000; : >> "$QM_CONFIG_LOCK") 2>/dev/null; then
+        if _qm_config_lock_ready; then
             exec 9< "$QM_CONFIG_LOCK"
             flock -x 9 || exit 1
         fi
