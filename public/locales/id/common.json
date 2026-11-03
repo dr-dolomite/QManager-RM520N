@@ -438,7 +438,9 @@
     "toast_ttl_error": "Tidak dapat menerapkan TTL dan batas hop.",
     "toast_mtu_applied": "MTU disetel ke {{mtu}}.",
     "toast_mtu_cleared": "MTU kembali ke nilai bawaan 1500.",
-    "toast_mtu_error": "Tidak dapat menerapkan MTU."
+    "toast_mtu_error": "Tidak dapat menerapkan MTU.",
+    "toast_mtu_disable_error": "Tidak dapat mematikan MTU kustom.",
+    "mtu_load_error": "Tidak dapat membaca pengaturan MTU."
   },
   "ipPassthrough": {
     "page": {

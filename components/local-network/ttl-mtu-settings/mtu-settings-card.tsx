@@ -96,6 +96,12 @@ const MTU_MAX = 9000;
  */
 const ERR_MTU_RANGE = `${K}.errors.mtu_range`;
 
+/** The result's reason as a toast description, dropped when it only restates the title. */
+function failureReason(title: string, reason: string | null): string | undefined {
+  const bare = (s: string) => s.trim().replace(/[.。]$/, "");
+  return reason && bare(reason) !== bare(title) ? reason : undefined;
+}
+
 /** What this card is allowed to know about the MTU endpoint. */
 export interface MtuCardValue {
   isEnabled: boolean;
@@ -240,7 +246,8 @@ export function MtuSettingsCard({
           markSaved();
           toast.success(t(`${K}.toast_mtu_cleared`));
         } else {
-          toast.error(cleared.error ?? t(`${K}.toast_mtu_error`));
+          const title = t(`${K}.toast_mtu_disable_error`);
+          toast.error(title, { description: failureReason(title, cleared.error) });
         }
         return;
       }
@@ -253,7 +260,8 @@ export function MtuSettingsCard({
         markSaved();
         toast.success(t(`${K}.toast_mtu_applied`, { mtu: next }));
       } else {
-        toast.error(result.error ?? t(`${K}.toast_mtu_error`));
+        const title = t(`${K}.toast_mtu_error`);
+        toast.error(title, { description: failureReason(title, result.error) });
       }
     },
     [

@@ -438,7 +438,9 @@
     "toast_ttl_error": "Couldn't apply the TTL and hop limit.",
     "toast_mtu_applied": "MTU set to {{mtu}}.",
     "toast_mtu_cleared": "MTU is back to the default of 1500.",
-    "toast_mtu_error": "Couldn't apply the MTU."
+    "toast_mtu_error": "Couldn't apply the MTU.",
+    "toast_mtu_disable_error": "Couldn't turn off the custom MTU.",
+    "mtu_load_error": "Couldn't read the MTU settings."
   },
   "ipPassthrough": {
     "page": {
