@@ -105,6 +105,8 @@ State file `/tmp/qmanager_config_restore.json`:
 | `adaptive_polling` | `qmanager.conf .poller` | `ap_save` + `/tmp/qmanager_poller_reload`; `is_default: true` deletes `.poller` | no | on |
 | `system` | `qmanager.conf .settings` / `.update`, `/etc/qmanager/tailscale_ssh` | Units, hostname, timezone (`sys_set_timezone`), scheduled reboot timer, update prefs, Tailscale SSH | no | on |
 
+**`system` hostname.** `settings.hostname` in `qmanager.conf` is a display name (1-64 printable characters, spaces allowed). `sys_set_hostname` also derives an RFC 1123 label from it (spaces and `_` become `-`, other characters outside `[A-Za-z0-9-]` are dropped, edge hyphens stripped, 63 max) and passes that to the root helper `qmanager_hostname_apply`, which writes `/etc/hostname` and the live kernel name. No usable label means the system name is left alone. rc 1 is a config write failure (retried); rc 2 is "saved, system apply failed" (`failed`, no retry).
+
 **Apply order** (`CFG_BACKUP_APPLY_ORDER`):
 
 ```text
@@ -173,8 +175,6 @@ Never collected, so never restored:
 
 ## Known follow-ups (not fixed)
 
-- **MTU cannot apply as www-data.** `conn_mtu_set` writes `/etc/firewall.user.mtu` and runs `ip link set`; as www-data both can fail, and the section then reports `failed` "MTU could not be applied". The same limit applies to `network/mtu.sh`.
-- **Hostname never reaches `/etc/hostname`.** `sys_set_hostname` (used by `system/settings.sh` and the `system` applier) writes `qmanager.conf`, then tries `/proc/sys/kernel/hostname` and `/etc/hostname` with a `mount -o remount,rw /`. As www-data the remount and the kernel write fail, so `/etc/hostname` changes only if www-data can already write it.
 - **`bands/lock.sh` does not validate against supported bands.** The restore applier does (`rv_bands_supported`); the CGI save does not.
 - **`tower/lock.sh` does not digit-check the NR-SA fields.** It checks presence only; the restore applier requires non-negative integers.
 - **A double POST can race.** The 409 check and the worker spawn in `apply.sh` are not atomic; a second POST in that window overwrites the input file and gets a job id that never runs (the tab then shows `status_lost`). The Restore button disables after the first click.

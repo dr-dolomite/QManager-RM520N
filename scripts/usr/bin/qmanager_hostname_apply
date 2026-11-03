@@ -1,0 +1,31 @@
+#!/bin/sh
+# qmanager_hostname_apply — root helper: persist an RFC 1123 label to /etc/hostname and the live kernel name.
+# Called via: sudo -n /usr/bin/qmanager_hostname_apply <label>  (www-data cannot write /etc).
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+LC_ALL=C; export LC_ALL
+
+HOSTNAME_FILE="/etc/hostname"
+tmp=""
+cleanup() { [ -z "$tmp" ] || rm -f "$tmp"; return 0; }
+trap cleanup EXIT INT TERM
+
+fail() { printf '{"success":false,"error":"%s","detail":"%s"}\n' "$1" "$2"; exit 1; }
+
+[ $# -eq 1 ] || fail "bad_args" "Exactly one hostname label is required"
+label="$1"
+[ -n "$label" ] && [ "${#label}" -le 63 ] || fail "invalid_hostname" "Hostname must be 1 to 63 characters"
+case "$label" in [A-Za-z0-9]*) ;; *) fail "invalid_hostname" "Hostname must start with a letter or digit" ;; esac
+case "$label" in *[!A-Za-z0-9-]*) fail "invalid_hostname" "Hostname may contain only letters, digits and hyphens" ;; esac
+case "$label" in *-) fail "invalid_hostname" "Hostname must not end with a hyphen" ;; esac
+
+# Temp inside /etc: only root can create or replace names there.
+tmp="$HOSTNAME_FILE.tmp.$$"
+printf '%s\n' "$label" > "$tmp" 2>/dev/null || fail "write_failed" "Could not write the hostname file"
+chmod 644 "$tmp" 2>/dev/null && chown root:root "$tmp" 2>/dev/null || fail "write_failed" "Could not set the hostname file permissions"
+mv -f "$tmp" "$HOSTNAME_FILE" 2>/dev/null || fail "write_failed" "Could not replace the hostname file"
+tmp=""
+sync
+printf '%s\n' "$label" > /proc/sys/kernel/hostname 2>/dev/null || fail "live_apply_failed" "Saved, but the running hostname could not be changed"
+
+printf '{"success":true,"hostname":"%s"}\n' "$label"
+exit 0

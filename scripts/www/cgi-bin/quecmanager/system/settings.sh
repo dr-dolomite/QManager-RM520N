@@ -150,6 +150,17 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         val=$(printf '%s' "$POST_DATA" | jq -r '.hostname // empty')
         if [ -n "$val" ]; then
             sys_set_hostname "$val"
+            case $? in
+                0) ;;
+                2)
+                    cgi_error "hostname_apply_failed" "The device name was saved but could not be applied to the system"
+                    exit 0
+                    ;;
+                *)
+                    cgi_error "hostname_save_failed" "Could not save the device name"
+                    exit 0
+                    ;;
+            esac
         fi
 
         # --- Temperature unit ---

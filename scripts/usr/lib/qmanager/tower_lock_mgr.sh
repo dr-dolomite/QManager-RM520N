@@ -867,7 +867,11 @@ _mtu_reapply_worker() {
         expected_mtu=$(grep -oE 'mtu [0-9]+' "$MTU_FILE" | head -1 | awk '{print $2}')
 
         if [ -n "$expected_mtu" ] && [ "$current_mtu" != "$expected_mtu" ]; then
-            . "$MTU_FILE"
+            if [ "$(id -u)" = "0" ]; then
+                /usr/bin/qmanager_mtu_set apply >/dev/null 2>&1
+            else
+                sudo -n /usr/bin/qmanager_mtu_set apply >/dev/null 2>&1
+            fi
             logger -t qmanager_mtu "Re-applied MTU after interface bounce (was $current_mtu, now $expected_mtu)"
         fi
 

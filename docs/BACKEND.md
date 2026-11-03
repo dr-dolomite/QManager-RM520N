@@ -539,7 +539,7 @@ System settings abstraction. Replaces `uci system.@system[0].*` for hostname and
 | Function | Description |
 |----------|-------------|
 | `sys_get_hostname` | Read hostname from `qmanager.conf` -> `/etc/hostname` -> default `"RM520N-GL"` |
-| `sys_set_hostname <name>` | Persist to `qmanager.conf`, write `/proc/sys/kernel/hostname`, update `/etc/hostname` |
+| `sys_set_hostname <name>` | Persist the display name to `qmanager.conf`, then derive an RFC 1123 label and apply it via `sudo -n /usr/bin/qmanager_hostname_apply` (writes `/etc/hostname` and `/proc/sys/kernel/hostname`). rc 0 ok (also when no label can be derived), rc 1 config write failed, rc 2 saved but system apply failed |
 | `sys_get_timezone` | Read POSIX TZ string from `qmanager.conf` (default `"UTC0"`) |
 | `sys_get_zonename` | Read IANA zone name from `qmanager.conf` (default `"UTC"`) |
 | `sys_set_timezone <tz> [zonename]` | Persist TZ + zonename to `qmanager.conf`, then apply the live clock via `sudo -n /usr/bin/qmanager_timezone_apply <zonename>` (copies the resolved TZif over `/etc/localtime`). Prints a status token on stdout: `applied` / `failed` / `not_attempted` / `invalid`. Does **not** write `/etc/TZ` or export `$TZ` (glibc 2.31 reads `/etc/localtime`, and `/etc/TZ` is inert here) |
@@ -1014,6 +1014,8 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 | `qmanager_console_mgr` | Console management via system settings CGI |
 | `qmanager_update` | `system/update.sh` (OTA update; added in v0.1.5 -- previously required ADB/SSH) |
 | `qmanager_timezone_apply` | `system_config.sh` `sys_set_timezone` (copies resolved TZif over `/etc/localtime`) |
+| `qmanager_mtu_set` | `connection_store.sh` `conn_mtu_set` / `conn_mtu_disable` (`network/mtu.sh`, config restore), `tower_lock_mgr.sh` `mtu_reapply_after_bounce` (`apply`) |
+| `qmanager_hostname_apply` | `system_config.sh` `sys_set_hostname` (`system/settings.sh`, config restore) |
 
 > ℹ️ NOTE: The rules block quoted above is illustrative and not exhaustive. The authoritative file is `scripts/etc/sudoers.d/qmanager`, which also carries `qmanager_crash_log_append`, `qmanager_dpi_install`, `qmanager_dpi_verify`, `qmanager_scenario_schedule_arm`, `qmanager_health_check`, `qmanager_ethernet_apply`, `qmanager_lan_apply`, `qmanager_language_pack_apply`, `qmanager_sim_registry_apply` and `qmanager_dns_apply`.
 
@@ -1326,7 +1328,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/etc/qmanager/imei_backup.json` | IMEI backup for rejection check restore |
 | `/etc/qmanager/imei_check_pending` | Marker: IMEI restore pending after next boot |
 | `/etc/qmanager/ttl_state` | TTL/HL values (`TTL=N\nHL=N`); absent = no rules |
-| `/etc/firewall.user.mtu` | MTU setting script (sourced by `qmanager_mtu.service`) |
+| `/etc/firewall.user.mtu` | MTU rules (root:root 0644, written by `qmanager_mtu_set`; sourced by `qmanager_mtu_apply` at boot) |
 | `/etc/qmanager/long_commands.list` | List of AT commands treated as long (one per line) |
 | `/usrdata/qmanager/crash.log` | Reboot log (`<epoch>\|reboot\|<tag>` and `<epoch>\|skip\|<reason>`): watchcat Tier-4 writes `tier4_escalation` (token-bucket source), `qmanager_scheduled_reboot` writes `scheduled` and `skip` lines, the `qmanager_crash_log_append` root helper writes `user`; read-only by alert_engine.sh for reboot classification. **Not in `/etc/qmanager`:** it moved to this root-owned `0755` dir in 2026-10 so `www-data` cannot swap it under a root writer. `qm_crash_log_prepare` (`crash_log.sh`) merges a legacy `/etc/qmanager/crash.log` once, marker `/usrdata/qmanager/.crash_log_migrated` — see [alerts.md](reference/alerts.md#the-user-breadcrumb-root-helper) |
 | `/etc/qmanager/qmanager_sim_failover` | Watchcat Tier-3 SIM-failover record (persistent so it survives a Tier-4 reboot) |

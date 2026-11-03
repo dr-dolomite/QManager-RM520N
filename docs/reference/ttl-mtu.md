@@ -18,7 +18,7 @@
 | CGI (MTU) | `scripts/www/cgi-bin/quecmanager/network/mtu.sh` |
 | Shared lib | `scripts/usr/lib/qmanager/ttl_state.sh` |
 | Boot units | `scripts/etc/systemd/system/qmanager-ttl.service`, `qmanager-mtu.service` |
-| Root helper (MTU) | `scripts/usr/bin/qmanager_mtu_apply` |
+| Root helpers (MTU) | `scripts/usr/bin/qmanager_mtu_set` (`set <n>` / `disable` / `apply`, via `sudo -n`; the only writer of `/etc/firewall.user.mtu`), `scripts/usr/bin/qmanager_mtu_apply` (boot replay) |
 | Persisted TTL state | `/etc/qmanager/ttl_state` (plain `TTL=`/`HL=` key-value, www-data-writable) |
 | Persisted MTU state | `/etc/firewall.user.mtu` (a list of `ip link set …` commands) |
 | i18n root | `ttlMtu.*` in `public/locales/<loc>/common.json` (62 leaves × 5 locales) |
@@ -61,7 +61,7 @@ A value of `0` is "remove the rule", not "set TTL to zero" — the insert is ski
 
 > ℹ️ NOTE: `detect_active_cid()` in `cgi_at.sh` cannot help here. It resolves a PDP **context ID**, and neither `+CGPADDR` nor `+QMAP` carries a Linux interface name — there is no CID→interface mapping anywhere in the codebase, and the `+QMAP` mux id matching `rmnet_dataN` today is coincidence, not a contract.
 
-The `POST` writes one `ip link set <iface> mtu <n>` line per `rmnet_data*` into `/etc/firewall.user.mtu` (temp file + `mv`) and applies them immediately. `{"mtu":"disable"}` removes the file and reverts to the carrier-negotiated value. Accepted range is **576–9000**, validated at the CGI.
+The `POST` runs `qmanager_mtu_set` (via `conn_mtu_set`, `sudo -n` unless already root), which writes one `ip link set <iface> mtu <n>` line per `rmnet_data*` into `/etc/firewall.user.mtu` (per-PID temp in `/etc` + `mv`, root:root 0644) and applies them immediately; a failure returns `mtu_apply_failed` / `mtu_disable_failed`. `{"mtu":"disable"}` removes the file and reverts to the carrier-negotiated value. Accepted range is **576–9000**, validated at the CGI.
 
 ## Page anatomy (re-authored 2026-08-31)
 
