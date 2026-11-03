@@ -504,9 +504,12 @@ At 10 s that is 2.3 → 0.8 points of the core today and 5.0 → 2.9 at the cap.
 awk's per-line work (≈ 0.09 ms a line).
 
 Invalid UTF-8 becomes U+FFFD exactly as jq 1.7 did it (one per bad sequence), so a stray byte
-cannot make the body invalid JSON. The body is byte-identical to the old script on 175 cases
-(live, 256 KB, crafted, invalid-UTF-8, empty, missing and rotated logs × 25 queries) on the
-RM520N-GL (150 of them also on the RG501Q-EU, run before the U+FFFD step was added), and on a
+cannot make the body invalid JSON. Two jq quirks are copied on purpose: a sequence cut off by the
+end of a field becomes one U+FFFD that takes the rest of the field, ASCII included; and in
+`available_components` jq decoded each `name\n` line alone, so a cut-off sequence there also takes
+the newline and joins that name to the next one. The body is byte-identical to the old script on
+200 cases (live, 256 KB, crafted, two invalid-UTF-8, empty, missing and rotated logs × 25 queries)
+on the RM520N-GL (150 of them also on the RG501Q-EU, run before the U+FFFD step was added), and on a
 blind verifier's own 1 232-case matrix except for the following, where the old output was broken:
 - A line with a raw control byte, such as CR from a CRLF line. The old `jq -s` refused it and
   the body came back **empty**; now the byte is escaped and the body is valid.

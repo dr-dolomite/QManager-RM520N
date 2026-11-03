@@ -105,18 +105,21 @@ render_logs() {
         -v filter_component="$PARAM_COMPONENT" \
         -v filter_search="$PARAM_SEARCH" \
         -v size_kb="$size_kb" -v line_count="$line_count" -v rotated="$rotated" '
-    function esc(s,    out, i, n, c, b, len, bad, cp, j, ch) {
-        if (!index(s, "\\") && !index(s, "\"") && s !~ CTL && s !~ HI) return s
+    # utf8only = 1: repair invalid UTF-8 but leave ASCII unescaped.
+    function esc(s, utf8only,    out, i, n, c, b, len, bad, cp, j, ch) {
+        if (s !~ HI && (utf8only || (!index(s, "\\") && !index(s, "\"") && s !~ CTL))) return s
         out = ""; n = length(s); i = 1
         while (i <= n) {
             c = substr(s, i, 1); b = O[c]
-            if (b < 128) { if (c in E) c = E[c]; out = out c; i++; continue }
+            if (b < 128) { if (!utf8only && (c in E)) c = E[c]; out = out c; i++; continue }
             # Invalid UTF-8 -> one U+FFFD per bad sequence, as jq 1.7 jvp_utf8_next decides it.
             len = 1; bad = 1
             if (b >= 194 && b <= 244) {
                 bad = 0
                 if (b < 224) { len = 2; cp = b - 192 } else if (b < 240) { len = 3; cp = b - 224 } else { len = 4; cp = b - 240 }
-                for (j = 1; j < len; j++) {
+                # A sequence cut off by the end of the field takes the rest of the field, ASCII too.
+                if (i + len - 1 > n) { bad = 1; len = n - i + 1 }
+                for (j = 1; !bad && j < len; j++) {
                     ch = O[substr(s, i + j, 1)]
                     if (ch < 128 || ch > 191) { bad = 1; len = j; break }
                     cp = cp * 64 + ch - 128
@@ -230,11 +233,18 @@ render_logs() {
             for (j = i - 1; j >= 1 && comp[j] > c; j--) comp[j + 1] = comp[j]
             comp[j + 1] = c
         }
-        if (ncomp == 0) {
+        # Old jq -R decoded each "name\n" line alone, so a cut-off sequence ate the newline and joined two names.
+        acc = ""; m = 0
+        for (i = 1; i <= ncomp; i++) {
+            acc = acc esc(comp[i] "\n", 1)
+            while ((p = index(acc, "\n")) > 0) { if (p > 1) outc[++m] = substr(acc, 1, p - 1); acc = substr(acc, p + 1) }
+        }
+        if (acc != "") outc[++m] = acc
+        if (m == 0) {
             printf "  \"available_components\": []\n}\n"
         } else {
             printf "  \"available_components\": [\n"
-            for (i = 1; i <= ncomp; i++) printf "    \"%s\"%s\n", esc(comp[i]), (i < ncomp ? "," : "")
+            for (i = 1; i <= m; i++) printf "    \"%s\"%s\n", esc(outc[i]), (i < m ? "," : "")
             printf "  ]\n}\n"
         }
     }' $sources
