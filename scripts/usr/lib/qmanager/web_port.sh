@@ -47,7 +47,8 @@ wp_read_file() {
     WP_PREV_HTTP=""
     WP_PREV_HTTPS=""
     if [ -f "$WP_FILE" ] && [ ! -L "$WP_FILE" ]; then
-        while IFS='=' read -r _wrf_k _wrf_v; do
+        # `|| [ -n ... ]` keeps a hand-edited last line that has no newline.
+        while IFS='=' read -r _wrf_k _wrf_v || [ -n "$_wrf_k" ]; do
             wp_port_valid "$_wrf_v" || continue
             case "$_wrf_k" in
                 http) WP_HTTP="$_wrf_v" ;;

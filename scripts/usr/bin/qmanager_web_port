@@ -284,7 +284,7 @@ case "${1:-}" in
         echo "$_r"
         # A conf that changed outside apply (OTA, killed apply) must not outrun the firewall.
         case "$_r" in
-            rendered*|fallback*) firewall_reload ;;
+            rendered*|fallback*) firewall_reload || true ;;
         esac
         ;;
     apply)

@@ -211,7 +211,7 @@
   "ports_equal": "HTTP 和 HTTPS 需要使用不同的端口。",
   "port_in_use": "该端口已被其他服务占用。",
   "port_reserved": "该端口已保留给其他服务。",
-  "busy": "正在进行更新或恢复，请在完成后重试。",
+  "busy": "另一项网页端口更改、更新或恢复正在进行，请在完成后重试。",
   "token_generation_failed": "无法创建安全令牌。请重试。",
   "poller_not_running": "后台服务未响应，请稍后重试",
   "reset_failed": "无法重置计数器",
