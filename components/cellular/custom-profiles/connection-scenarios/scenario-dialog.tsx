@@ -56,6 +56,13 @@ export const EMPTY_SCENARIO_DRAFT: ScenarioDraft = {
   nsaBands: "",
 };
 
+// NR5G-only is SA (NSA needs an LTE anchor); AUTO and LTE:NR5G can use every radio.
+function bandFieldsForMode(mode: string) {
+  if (mode === "LTE") return { lte: true, sa: false, nsa: false };
+  if (mode === "NR5G") return { lte: false, sa: true, nsa: false };
+  return { lte: true, sa: true, nsa: true };
+}
+
 interface ScenarioDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -84,18 +91,27 @@ export function ScenarioDialog({
   const set = (key: keyof ScenarioDraft) => (value: string) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
+  const { lte: showLte, sa: showSa, nsa: showNsa } = bandFieldsForMode(draft.mode);
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     setAttempted(true);
     if (nameMissing || isSaving) return;
-    onSubmit(draft);
+    // Hidden fields keep their text for a mode flip back, but never submit a lock the user can't see.
+    onSubmit({
+      ...draft,
+      lteBands: showLte ? draft.lteBands : "",
+      saBands: showSa ? draft.saBands : "",
+      nsaBands: showNsa ? draft.nsaBands : "",
+    });
   };
 
   const formId = `scenario-dialog-${mode}`;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !isSaving && onOpenChange(next)}>
-      <DialogContent className="rounded-card sm:max-w-md">
+      {/* Capped to the viewport; only the form scrolls, so the header and Create stay reachable on short phones. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] rounded-card sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {isAdd
@@ -105,7 +121,12 @@ export function ScenarioDialog({
           <DialogDescription>{t("scenarios.dialog.description")}</DialogDescription>
         </DialogHeader>
 
-        <form id={formId} onSubmit={handleSubmit} noValidate>
+        <form
+          id={formId}
+          onSubmit={handleSubmit}
+          noValidate
+          className="-mx-6 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 [scrollbar-width:thin]"
+        >
           <FieldGroup className="gap-5">
             <Field data-invalid={attempted && nameMissing ? true : undefined}>
               <FieldLabel htmlFor={`${formId}-name`}>{t(`${F}.name_label`)}</FieldLabel>
@@ -158,7 +179,7 @@ export function ScenarioDialog({
                       aria-label={label}
                       title={label}
                       className={cn(
-                        "grid h-9 place-items-center rounded-inline transition-colors duration-[var(--duration-quick)] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        "grid h-9 place-items-center pointer-coarse:h-11 rounded-inline transition-colors duration-[var(--duration-quick)] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                         selected
                           ? "bg-primary text-primary-foreground"
                           : "bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container",
@@ -201,42 +222,52 @@ export function ScenarioDialog({
               </Field>
             )}
 
-            <Field>
-              <FieldLabel htmlFor={`${formId}-lte`}>{t(`${F}.lte_band_label`)}</FieldLabel>
-              <Input
-                id={`${formId}-lte`}
-                inputMode="numeric"
-                className="tabular-nums"
-                value={draft.lteBands}
-                onChange={(e) => set("lteBands")(e.target.value)}
-                placeholder={t(`${F}.lte_band_placeholder`)}
-              />
-            </Field>
+            {showLte ? (
+              <Field>
+                <FieldLabel htmlFor={`${formId}-lte`}>{t(`${F}.lte_band_label`)}</FieldLabel>
+                <Input
+                  id={`${formId}-lte`}
+                  inputMode="numeric"
+                  className="tabular-nums"
+                  value={draft.lteBands}
+                  onChange={(e) => set("lteBands")(e.target.value)}
+                  placeholder={t(`${F}.lte_band_placeholder`)}
+                />
+              </Field>
+            ) : null}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor={`${formId}-sa`}>{t(`${F}.sa_band_label`)}</FieldLabel>
-                <Input
-                  id={`${formId}-sa`}
-                  inputMode="numeric"
-                  className="tabular-nums"
-                  value={draft.saBands}
-                  onChange={(e) => set("saBands")(e.target.value)}
-                  placeholder={t(`${F}.band_placeholder`)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`${formId}-nsa`}>{t(`${F}.nsa_band_label`)}</FieldLabel>
-                <Input
-                  id={`${formId}-nsa`}
-                  inputMode="numeric"
-                  className="tabular-nums"
-                  value={draft.nsaBands}
-                  onChange={(e) => set("nsaBands")(e.target.value)}
-                  placeholder={t(`${F}.band_placeholder`)}
-                />
-              </Field>
-            </div>
+            {showSa || showNsa ? (
+              <div
+                className={cn("grid grid-cols-1 gap-4", showSa && showNsa && "sm:grid-cols-2")}
+              >
+                {showSa ? (
+                  <Field>
+                    <FieldLabel htmlFor={`${formId}-sa`}>{t(`${F}.sa_band_label`)}</FieldLabel>
+                    <Input
+                      id={`${formId}-sa`}
+                      inputMode="numeric"
+                      className="tabular-nums"
+                      value={draft.saBands}
+                      onChange={(e) => set("saBands")(e.target.value)}
+                      placeholder={t(`${F}.band_placeholder`)}
+                    />
+                  </Field>
+                ) : null}
+                {showNsa ? (
+                  <Field>
+                    <FieldLabel htmlFor={`${formId}-nsa`}>{t(`${F}.nsa_band_label`)}</FieldLabel>
+                    <Input
+                      id={`${formId}-nsa`}
+                      inputMode="numeric"
+                      className="tabular-nums"
+                      value={draft.nsaBands}
+                      onChange={(e) => set("nsaBands")(e.target.value)}
+                      placeholder={t(`${F}.band_placeholder`)}
+                    />
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
           </FieldGroup>
         </form>
 
