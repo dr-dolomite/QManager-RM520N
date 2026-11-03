@@ -93,7 +93,6 @@
   "invalid_variant": "Questa versione di Tailscale non è disponibile",
   "ippt_nat_failed": "IP Configurazione NAT passthrough non riuscita",
   "dhcpv4dns_failed": "Configurazione del proxy DNS non riuscita",
-  "legacy_build": "Questa è la versione community precedente di Tailscale e non può essere aggiornata da qui. Disinstallala e installala di nuovo",
   "library_missing": "Libreria richiesta non trovata",
   "limit_reached": "È stato raggiunto il limite massimo",
   "list_failed": "Impossibile recuperare l'elenco",

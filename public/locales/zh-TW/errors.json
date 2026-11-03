@@ -93,7 +93,6 @@
   "invalid_variant": "該 Tailscale 版本無法使用",
   "ippt_nat_failed": "IP 直通 NAT 設定失敗",
   "dhcpv4dns_failed": "DNS 代理設定失敗",
-  "legacy_build": "這是 Tailscale 的舊版社群版本，無法在此更新。請先解除安裝，再重新安裝",
   "library_missing": "找不到必需的庫",
   "limit_reached": "已達到最大限制",
   "list_failed": "取得列表失敗",

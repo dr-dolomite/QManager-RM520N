@@ -93,7 +93,6 @@
   "invalid_variant": "Build Tailscale itu tidak tersedia",
   "ippt_nat_failed": "Konfigurasi NAT IP Passthrough gagal",
   "dhcpv4dns_failed": "Konfigurasi proksi DNS gagal",
-  "legacy_build": "Ini build komunitas Tailscale yang lama dan tidak dapat diperbarui dari sini. Copot lalu pasang ulang",
   "library_missing": "Library yang diperlukan tidak ditemukan",
   "limit_reached": "Batas maksimum telah tercapai",
   "list_failed": "Gagal mengambil daftar",

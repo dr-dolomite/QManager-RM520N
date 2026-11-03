@@ -93,7 +93,6 @@
   "invalid_variant": "That Tailscale build is not available",
   "ippt_nat_failed": "IP Passthrough NAT configuration failed",
   "dhcpv4dns_failed": "DNS proxy configuration failed",
-  "legacy_build": "This is the older community build of Tailscale and cannot be updated here. Uninstall it and install again",
   "library_missing": "Required library not found",
   "limit_reached": "Maximum limit has been reached",
   "list_failed": "Failed to fetch list",
