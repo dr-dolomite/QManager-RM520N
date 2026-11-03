@@ -3,7 +3,7 @@
 > **Applies to:** RM520N-GL (SDX65) · code-read 2026-10-31, browser-checked with a fetch shim, **not device-tested**
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-`/setup` is the wizard a fresh install lands on before any password exists. It sets the web password (and, best-effort, the SSH root password and the device name), then offers three optional radio steps — network mode, APN or SIM profile, band preset — before handing off to `/dashboard/`. It exists so a new owner reaches a working, password-protected modem without visiting four settings pages. Every write goes to an existing CGI endpoint; the wizard has no backend of its own.
+`/setup` is the wizard a fresh install lands on before any password exists. It sets the web password (and, best-effort, the SSH root password and the device name), then offers three optional radio steps — network mode, APN or SIM profile, band preset — and an optional web-port step before handing off to `/dashboard/`. It exists so a new owner reaches a working, password-protected modem without visiting four settings pages. Every write goes to an existing CGI endpoint; the wizard has no backend of its own.
 
 ---
 
@@ -17,7 +17,7 @@
 | Selectable row | `components/onboarding/option-row.tsx` |
 | Shared write helper | `components/onboarding/post-step.ts` (`postStep`, `stepFailureMessage`) |
 | Family shapes | `components/onboarding/shapes.ts` (`SHELL_CARD`, `optionRow`, `INNER_TILE`, …) |
-| Steps | `components/onboarding/steps/step-{welcome,password,network-mode,connection,band-locking,done}.tsx` |
+| Steps | `components/onboarding/steps/step-{welcome,password,network-mode,connection,band-locking,web-port,done}.tsx` |
 | Password rules (shared with Change Password) | `components/auth/password-requirements.tsx`, `components/auth/strong-password-toggle.tsx` |
 | Setup gate | `GET /cgi-bin/quecmanager/auth/check.sh` → `setup_required` |
 | i18n | namespace `onboarding` (`public/locales/<lang>/onboarding.json`); failures resolve through `errors`; SSH warning is `common` → `login.ssh_sync_failed` |
@@ -33,9 +33,10 @@
 | 3 | Network mode | no | `POST cellular/settings.sh` | `AUTO` with NR5G arch `0` (the defaults) advances without a write |
 | 4 | Connection | no | `POST cellular/apn.sh` **or** `POST profiles/save.sh` | nothing chosen advances without a write |
 | 5 | Band preferences | no | `POST bands/lock.sh`, once per category | both presets on `all` advances without a write |
-| 6 | Done | — | none; the button sets `window.location.href = "/dashboard/"` | — |
+| 6 | Web port | no | `POST system/web_port.sh` | unchanged ports advance without a write |
+| 7 | Done | — | none; the button opens `/dashboard/`, on the new origin after a port move (`followMove`) | — |
 
-Skip is offered on steps 3–5 only (`onSkip` in `onboarding-wizard.tsx`). The custom web-port step that RM551E carries is **not** here: it waits for parity phase P7, which ports the port-move backend. Its `web_port.*` keys already exist in `onboarding.json` with no caller.
+Skip is offered on steps 3–6 (`onSkip` in `onboarding-wizard.tsx`). Step 6 saves a port change but does not move the browser; it hands the new origin to Done (`movedOrigin`), which moves once the new origin answers and toasts `web_port.toast_unreachable` if the server rolled back — [web-port.md](web-port.md#browser-move-libweb-portts).
 
 ---
 

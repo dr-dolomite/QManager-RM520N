@@ -26,7 +26,7 @@ The Device Access page changes the two passwords that guard the modem: the **web
 | Capability marker | the line `# qm-capability: verify` in the helper |
 | Lockout state | `/tmp/qmanager_auth_attempts.json` — shared with sign-in, see [auth-rate-limiting.md](auth-rate-limiting.md) |
 
-The right-hand cell of the page grid is empty on purpose: a later phase adds the web-port card there.
+The right-hand cell of the page grid holds the Web Port card — [web-port.md](web-port.md).
 
 ---
 
