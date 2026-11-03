@@ -512,6 +512,7 @@
       "mode_eth": "Ethernet",
       "mode_usb": "USB",
       "target_automatic": "Automatic",
+      "target_device": "From LAN",
       "target_manual": "By MAC",
       "nat_on": "With NAT",
       "nat_off": "Without NAT",
@@ -538,7 +539,20 @@
       "retry": "Retry",
       "card_unread": "The modem hasn't answered yet, so there is nothing to change until the first read lands.",
       "mac_invalid": "Enter a full MAC address, six pairs of hex digits.",
-      "no_changes": "Nothing has changed yet."
+      "no_changes": "Nothing has changed yet.",
+      "device_unpicked": "Pick a connected device first."
+    },
+    "device": {
+      "label": "Target device from connected list",
+      "placeholder": "Select a device",
+      "scanning": "Scanning for connected devices…",
+      "error": "Couldn't load connected devices.",
+      "empty": "No connected devices found. Connect the device to the modem, then rescan.",
+      "retry": "Retry",
+      "rescan": "Rescan",
+      "rescan_label": "Rescan connected devices",
+      "enter_manually": "Enter manually",
+      "unknown": "Unknown device"
     }
   },
   "networkEvents": {

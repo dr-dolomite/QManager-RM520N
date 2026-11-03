@@ -15,12 +15,12 @@
 | ---- | ----- |
 | Route | `app/local-network/ip-passthrough/page.tsx` (thin re-export) |
 | Components | `components/local-network/ip-passthrough/` — `shapes.ts`, `status-strip.tsx`, `ip-passthrough-card.tsx`, `ip-passthrough.tsx` (shell) |
-| Hook | `hooks/use-ip-passthrough.ts` |
-| Types | `types/ip-passthrough.ts` |
-| CGI | `scripts/www/cgi-bin/quecmanager/network/ip_passthrough.sh` |
+| Hook | `hooks/use-ip-passthrough.ts`; `hooks/use-lan-devices.ts` (device picker) |
+| Types | `types/ip-passthrough.ts`, `types/lan-devices.ts` |
+| CGI | `scripts/www/cgi-bin/quecmanager/network/ip_passthrough.sh`; `network/lan_devices.sh` (read-only device list) |
 | Persisted config | `/etc/qmanager/ippt_config.json` (written by our own POST) |
 | Poller fallback | `/tmp/qmanager_status.json` → `.device.ippt_*`, set once at boot by `parse_ippt_*` in `scripts/usr/lib/qmanager/parse_at.sh` |
-| i18n root | `ipPassthrough.*` (59 leaves × 5 locales) |
+| i18n root | `ipPassthrough.*` (71 leaves × 5 locales) |
 | Apply semantics | **write all five settings, then reboot immediately** — there is no separate reboot action |
 
 ## The AT contract
@@ -135,7 +135,7 @@ The MAC is one of the few genuine `font-mono` cases under the Machine-Voice Rule
 | Group | Row | Control |
 | ----- | --- | ------- |
 | Passthrough | Mode | `SegmentedField`: Router / Ethernet / USB |
-| Passthrough | Target device | `SegmentedField`: Automatic / By MAC; By MAC reveals the MAC input below it. Held (key dimmed, control disabled, "Pick a mode first.") while the draft mode is `disabled` |
+| Passthrough | Target device | `SegmentedField` (`breakpoint="lg"`): Automatic / From LAN / By MAC. From LAN shows the device picker (a `Select` over `useLanDevices`, GET `network/lan_devices.sh`, rescanned on every switch to From LAN, with a rescan button). Scanning shows a status line only; empty offers Rescan and Enter manually, failed offers Retry and Enter manually. The pick is written into the same MAC draft as a typed one, and Apply is blocked unless that MAC is in the latest successful scan. By MAC reveals the MAC input. Held (key dimmed, control disabled, "Pick a mode first.") while the draft mode is `disabled` |
 | Network | NAT | `SegmentedField`: With NAT / Without NAT, `HintIcon` |
 | Network | USB connection | `SegmentedField` (RMNET / ECM / MBIM / RNDIS) from a 32rem card; a `Select` on its own line below it (`breakpoint="lg"`) |
 | Network | DNS proxy | `SegmentedField`: Off / On, `HintIcon` |
@@ -160,18 +160,17 @@ Draft state is `Partial<Draft>` edits over a memoised baseline, never a `useEffe
 
 The card's copy carries no em dashes and no config paths, script or AT-command names.
 
-### The three-line reboot handoff is load-bearing
+### The reboot handoff is load-bearing
 
 ```tsx
-// ip-passthrough-card.tsx:297-299
-sessionStorage.setItem("qm_rebooting", "1");
-document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-window.location.href = "/reboot/";
+// ip-passthrough-card.tsx, handleConfirmedApply
+markSaved();
+enterRebootFlow("ip_passthrough");
 ```
 
-All three tokens are required, and here is why each one exists.
+The card no longer writes the handoff itself (RM551E v0.1.34 parity). `enterRebootFlow` (`lib/reboot/index.ts`) waits `REBOOT_NAV_DELAY_MS` (2000 ms), then performs the three steps below; all three are required, and here is why each one exists.
 
-`cgi_base.sh:215-233` (`cgi_reboot_response`, `scripts/usr/lib/qmanager/`) returns `{"success":true}` **immediately** and then, in a backgrounded subshell, polls for `/tmp/qmanager_reboot_ack` before actually rebooting — up to `QM_REBOOT_ACK_TIMEOUT` (default 20 s), then a `QM_REBOOT_POST_ACK_DELAY` (default 1 s) grace, then `reboot`. The `/reboot/` page writes that marker on mount (via `update.sh action=reboot_ack`).
+`cgi_base.sh:209-229` (`cgi_reboot_response`, `scripts/usr/lib/qmanager/`) returns `{"success":true}` **immediately** and then, in a backgrounded subshell, polls for `/tmp/qmanager_reboot_ack` before actually rebooting — up to `QM_REBOOT_ACK_TIMEOUT` (default 20 s), then a `QM_REBOOT_POST_ACK_DELAY` (default 1 s) grace, then `reboot`. The `/reboot/` page writes that marker on mount (via `update.sh action=reboot_ack`).
 
 The reason the CGI does not just reboot is that QManager runs on the modem it is rebooting: killing the box mid-response would kill lighttpd mid-serve and the browser would get a dead socket instead of a page.
 
@@ -179,11 +178,11 @@ So:
 
 | Line | Drop it and you get |
 | ---- | ------------------- |
-| `sessionStorage.setItem("qm_rebooting","1")` | the countdown page does not know why it was opened |
+| `sessionStorage["qm_rebooting"] = "ip_passthrough"` | the countdown page does not know why it was opened |
 | clearing `qm_logged_in` | a stale login cookie survives a device that is about to come back with a fresh session |
 | `window.location.href = "/reboot/"` | nothing ever writes the ack marker, so the reboot is **delayed to the full `QM_REBOOT_ACK_TIMEOUT`** — silently. Everything reports success; the modem just sits there for 20 seconds |
 
-Each failure is quiet. A re-author that keeps the confirm dialog and drops one of these ships green with a broken reboot — which is why the review rule on this surface is **the three tokens, not the dialog**. Nothing checks them automatically: read the handoff line by line against the table above before approving any change to `ip-passthrough-card.tsx`.
+Each failure is quiet. A re-author that keeps the confirm dialog and drops the `enterRebootFlow` call (or hand-rolls a partial copy of it) ships green with a broken reboot — which is why the review rule on this surface is **the handoff, not the dialog**. Nothing checks it automatically.
 
 A failed apply fires `toast.error` and stays on the page. A successful one fires no toast: the navigation to `/reboot/` is its success signal (the navigation exception in [`toast-confirmation.md`](./toast-confirmation.md)).
 

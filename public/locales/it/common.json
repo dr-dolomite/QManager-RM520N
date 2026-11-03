@@ -512,6 +512,7 @@
       "mode_eth": "Ethernet",
       "mode_usb": "USB",
       "target_automatic": "Automatico",
+      "target_device": "Da LAN",
       "target_manual": "Per MAC",
       "nat_on": "Con NAT",
       "nat_off": "Senza NAT",
@@ -538,7 +539,20 @@
       "retry": "Riprova",
       "card_unread": "Il modem non ha ancora risposto, quindi non c'è nulla da modificare finché non arriva la prima lettura.",
       "mac_invalid": "Inserisci un indirizzo MAC completo, sei coppie di cifre esadecimali.",
-      "no_changes": "Non è ancora cambiato nulla."
+      "no_changes": "Non è ancora cambiato nulla.",
+      "device_unpicked": "Scegli prima un dispositivo connesso."
+    },
+    "device": {
+      "label": "Dispositivo di destinazione dall'elenco dei dispositivi connessi",
+      "placeholder": "Seleziona un dispositivo",
+      "scanning": "Ricerca dei dispositivi connessi…",
+      "error": "Impossibile caricare i dispositivi connessi.",
+      "empty": "Nessun dispositivo connesso trovato. Collega il dispositivo al modem, quindi esegui una nuova scansione.",
+      "retry": "Riprova",
+      "rescan": "Esegui nuova scansione",
+      "rescan_label": "Esegui una nuova scansione dei dispositivi connessi",
+      "enter_manually": "Inserisci manualmente",
+      "unknown": "Dispositivo sconosciuto"
     }
   },
   "networkEvents": {

@@ -8,10 +8,10 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
+import { RefreshCcwIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -39,9 +39,21 @@ import {
   SegmentedField,
   type SegmentedOption,
 } from "@/components/ui/segmented-field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMotionReduced } from "@/components/motion-preference";
+import {
+  useLanDevices,
+  type UseLanDevicesReturn,
+} from "@/hooks/use-lan-devices";
 import { DUR, EASE_STANDARD } from "@/lib/motion";
+import { enterRebootFlow } from "@/lib/reboot";
 import { cn } from "@/lib/utils";
 import type { IpPassthroughApplyData } from "@/hooks/use-ip-passthrough";
 import type {
@@ -57,6 +69,7 @@ import {
   CARD_PAD,
   CARD_SHELL,
   CARD_TITLE,
+  DEVICE_PICK,
   FOOT,
   MAC_FIELD,
   MODE_NOTE,
@@ -70,8 +83,9 @@ import { USB_SHORT } from "./status-strip";
 
 const K = "ipPassthrough";
 
+/** "device" writes the picked MAC into `macInput`, so it validates and applies like a typed one. */
+type MacSource = "automatic" | "device" | "manual";
 /** Descriptive local values: Radix's Select treats a bare `"0"` as unset. */
-type MacSource = "automatic" | "manual";
 type NatMode = "nat-on" | "nat-off";
 type UsbModeLocal = "rmnet" | "ecm" | "mbim" | "rndis";
 
@@ -175,6 +189,117 @@ function SettingsSkeleton() {
   );
 }
 
+/** The live connected-device list behind "From LAN". */
+function DevicePicker({
+  value,
+  lan,
+  onPick,
+  onManual,
+  disabled,
+}: {
+  value: string;
+  lan: UseLanDevicesReturn;
+  onPick: (mac: string) => void;
+  onManual: () => void;
+  disabled: boolean;
+}) {
+  const { t } = useTranslation("common");
+  const { devices, isLoading, error, refresh } = lan;
+  const selected = devices.find((d) => d.mac.toUpperCase() === value);
+
+  if (isLoading) {
+    return (
+      <div className={DEVICE_PICK.WRAP}>
+        <p role="status" className={DEVICE_PICK.NOTE}>
+          <RefreshCcwIcon
+            className={cn(DEVICE_PICK.GLYPH, "motion-safe:animate-spin")}
+            aria-hidden
+          />
+          {t(`${K}.device.scanning`)}
+        </p>
+      </div>
+    );
+  }
+
+  if (error !== null || devices.length === 0) {
+    return (
+      <div className={DEVICE_PICK.WRAP}>
+        <p
+          role={error !== null ? "alert" : "status"}
+          className={cn(DEVICE_PICK.NOTE, error !== null && DEVICE_PICK.NOTE_ERROR)}
+        >
+          {error !== null ? t(`${K}.device.error`) : t(`${K}.device.empty`)}
+        </p>
+        <div className={DEVICE_PICK.LINKS}>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            onClick={refresh}
+            disabled={disabled}
+            className={DEVICE_PICK.LINK}
+          >
+            <RefreshCcwIcon className={DEVICE_PICK.GLYPH} aria-hidden />
+            {error !== null ? t(`${K}.device.retry`) : t(`${K}.device.rescan`)}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            onClick={onManual}
+            disabled={disabled}
+            className={DEVICE_PICK.LINK}
+          >
+            {t(`${K}.device.enter_manually`)}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={DEVICE_PICK.WRAP}>
+      <div className={DEVICE_PICK.LINE}>
+        <Select
+          value={selected?.mac ?? ""}
+          onValueChange={(v) => onPick(v.toUpperCase())}
+          disabled={disabled}
+        >
+          <SelectTrigger
+            aria-label={t(`${K}.device.label`)}
+            className={DEVICE_PICK.TRIGGER}
+          >
+            <SelectValue placeholder={t(`${K}.device.placeholder`)} />
+          </SelectTrigger>
+          <SelectContent>
+            {devices.map((d) => (
+              <SelectItem key={d.mac} value={d.mac}>
+                <span className={DEVICE_PICK.ITEM}>
+                  <span className={DEVICE_PICK.ITEM_NAME}>
+                    {d.hostname || d.ip || t(`${K}.device.unknown`)}
+                  </span>
+                  <span className={DEVICE_PICK.ITEM_MAC}>{d.mac.toUpperCase()}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="tonal-neutral"
+          size="icon"
+          onClick={refresh}
+          disabled={disabled}
+          aria-label={t(`${K}.device.rescan_label`)}
+          className={DEVICE_PICK.RESCAN}
+        >
+          <RefreshCcwIcon aria-hidden />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export interface IpPassthroughCardProps {
   /** `null` until the first successful read. */
   passthroughMode: PassthroughMode | null;
@@ -241,6 +366,13 @@ export function IPPassthroughCard({
     setEdits((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Idle until the user picks "From LAN"; every switch to it rescans.
+  const lan = useLanDevices(false);
+  const handleSourceChange = (v: MacSource) => {
+    setField("macSource", v);
+    if (v === "device") lan.refresh();
+  };
+
   const modeDirty = state !== null && state.draft.mode !== state.baseline.mode;
   const targetDirty =
     state !== null && resolveMac(state.draft) !== resolveMac(state.baseline);
@@ -257,16 +389,28 @@ export function IPPassthroughCard({
   ].filter(Boolean).length;
 
   const macRequired = state !== null && state.draft.mode !== "disabled";
-  const macManual =
-    state !== null && macRequired && state.draft.macSource === "manual";
+  const macSource = state?.draft.macSource ?? "automatic";
+  const macManual = macRequired && macSource === "manual";
+  const macPicking = macRequired && macSource === "device";
+  // A device pick and a typed MAC both land in `macInput`; both must be whole.
+  // From LAN applies only a MAC the latest successful scan lists, so a hidden MAC never ships.
+  const macListed =
+    !lan.isLoading &&
+    lan.error === null &&
+    lan.devices.some((d) => d.mac.toUpperCase() === state?.draft.macInput);
   const macValid =
-    state === null || !macManual || MAC_PATTERN.test(state.draft.macInput);
+    state === null ||
+    !macRequired ||
+    macSource === "automatic" ||
+    (macPicking ? macListed : MAC_PATTERN.test(state.draft.macInput));
 
   const blockedReason =
     state === null
       ? t(`${K}.errors.card_unread`)
       : !macValid
-        ? t(`${K}.errors.mac_invalid`)
+        ? macPicking
+          ? t(`${K}.errors.device_unpicked`)
+          : t(`${K}.errors.mac_invalid`)
         : dirtyCount === 0
           ? t(`${K}.errors.no_changes`)
           : null;
@@ -298,11 +442,9 @@ export function IPPassthroughCard({
       return;
     }
 
+    // The CGI reboots once /reboot/ acks; the hand-off is the success signal.
     markSaved();
-    // The deferred-reboot contract: all three lines, in this order.
-    sessionStorage.setItem("qm_rebooting", "1");
-    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-    window.location.href = "/reboot/";
+    enterRebootFlow("ip_passthrough");
   };
 
   // Strip non-hex, uppercase, re-insert colons: typing is format-correct by construction.
@@ -321,6 +463,7 @@ export function IPPassthroughCard({
   ];
   const targetOptions: readonly SegmentedOption<MacSource>[] = [
     { value: "automatic", label: t(`${K}.options.target_automatic`) },
+    { value: "device", label: t(`${K}.options.target_device`) },
     { value: "manual", label: t(`${K}.options.target_manual`) },
   ];
   const natOptions: readonly SegmentedOption<NatMode>[] = [
@@ -334,6 +477,12 @@ export function IPPassthroughCard({
     { value: "disabled", label: t(`${K}.options.dns_off`) },
     { value: "enabled", label: t(`${K}.options.dns_on`) },
   ];
+
+  const revealMotion = {
+    initial: { opacity: 0, y: reduced ? 0 : -6 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: DUR.quick, ease: EASE_STANDARD },
+  } as const;
 
   return (
     <>
@@ -398,47 +547,58 @@ export function IPPassthroughCard({
                   dirty={targetDirty}
                   sub={macRequired ? undefined : t(`${K}.rows.target.pick_mode`)}
                   held={!macRequired}
+                  wide
                 >
                   <SegmentedField
                     value={state.draft.macSource}
-                    onValueChange={(v) => setField("macSource", v)}
+                    onValueChange={handleSourceChange}
                     options={targetOptions}
                     ariaLabel={t(`${K}.rows.target.label`)}
                     disabled={held || !macRequired}
-                    breakpoint="never"
+                    breakpoint="lg"
                     glyph={NO_GLYPH}
                   />
-                  <AnimatePresence initial={false}>
-                    {macManual ? (
-                      <motion.div
-                        key="mac-entry"
-                        className={MAC_FIELD.WRAP}
-                        initial={{ opacity: 0, y: reduced ? 0 : -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: reduced ? 0 : -6 }}
-                        transition={{ duration: DUR.quick, ease: EASE_STANDARD }}
-                      >
-                        <input
-                          type="text"
-                          autoComplete="off"
-                          spellCheck={false}
-                          maxLength={17}
-                          value={state.draft.macInput}
-                          onChange={handleMacChange}
-                          disabled={held}
-                          aria-label={t(`${K}.card.mac_label`)}
-                          aria-invalid={!macValid || undefined}
-                          placeholder={t(`${K}.card.mac_placeholder`)}
-                          className={cn(fieldVariants(), MAC_FIELD.INPUT)}
-                        />
-                        {!macValid ? (
-                          <span className={MAC_FIELD.ERROR} role="alert">
-                            {t(`${K}.errors.mac_invalid`)}
-                          </span>
-                        ) : null}
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
+                  {/* Swapped slots get an entrance only; a swapped-out control is simply gone. */}
+                  {macPicking ? (
+                    <motion.div
+                      key="mac-device"
+                      className={DEVICE_PICK.SLOT}
+                      {...revealMotion}
+                    >
+                      <DevicePicker
+                        value={state.draft.macInput}
+                        lan={lan}
+                        onPick={(mac) => setField("macInput", mac)}
+                        onManual={() => setField("macSource", "manual")}
+                        disabled={held}
+                      />
+                    </motion.div>
+                  ) : macManual ? (
+                    <motion.div
+                      key="mac-entry"
+                      className={MAC_FIELD.WRAP}
+                      {...revealMotion}
+                    >
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        spellCheck={false}
+                        maxLength={17}
+                        value={state.draft.macInput}
+                        onChange={handleMacChange}
+                        disabled={held}
+                        aria-label={t(`${K}.card.mac_label`)}
+                        aria-invalid={!macValid || undefined}
+                        placeholder={t(`${K}.card.mac_placeholder`)}
+                        className={cn(fieldVariants(), MAC_FIELD.INPUT)}
+                      />
+                      {!macValid ? (
+                        <span className={MAC_FIELD.ERROR} role="alert">
+                          {t(`${K}.errors.mac_invalid`)}
+                        </span>
+                      ) : null}
+                    </motion.div>
+                  ) : null}
                 </SettingRow>
               </div>
 

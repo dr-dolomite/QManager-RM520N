@@ -512,6 +512,7 @@
       "mode_eth": "乙太網路",
       "mode_usb": "USB",
       "target_automatic": "自動",
+      "target_device": "從區域網路",
       "target_manual": "依 MAC",
       "nat_on": "啟用 NAT",
       "nat_off": "不啟用 NAT",
@@ -538,7 +539,20 @@
       "retry": "重試",
       "card_unread": "數據機尚未回應，在首次讀取完成前沒有可變更的內容。",
       "mac_invalid": "請輸入完整的 MAC 位址，即六組十六進位數字。",
-      "no_changes": "尚未有任何變更。"
+      "no_changes": "尚未有任何變更。",
+      "device_unpicked": "請先選擇一個已連線的裝置。"
+    },
+    "device": {
+      "label": "從已連線清單中選擇目標裝置",
+      "placeholder": "選擇裝置",
+      "scanning": "正在掃描已連線裝置…",
+      "error": "無法載入已連線裝置。",
+      "empty": "找不到已連線裝置。請將裝置連接至調變解調器，然後重新掃描。",
+      "retry": "重試",
+      "rescan": "重新掃描",
+      "rescan_label": "重新掃描已連線裝置",
+      "enter_manually": "手動輸入",
+      "unknown": "未知裝置"
     }
   },
   "networkEvents": {
