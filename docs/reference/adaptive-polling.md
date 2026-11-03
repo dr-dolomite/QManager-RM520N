@@ -17,7 +17,27 @@ When no browser is polling, `qmanager_poller` stops asking the modem every cycle
 
 - `TIER2_REFRESH_FLAG` forces one Active cycle with Tier 2. The long-running (scan) flag returns early and reports `active`.
 - The first Active cycle after Idle/Deep runs per-antenna and Tier 2 at once, so a returning user sees a full snapshot.
-- Constants only; there are no config keys and no settings page.
+- `AP_ENABLED` and the four tier times come from `qmanager.conf .poller` (below); `AP_T2_*` and `AP_LOCAL_INTERVAL` are constants.
+
+## Settings (P7a, 2026-11-03)
+
+**System Settings → Adaptive Polling** (`app/system-settings/adaptive-polling/`, `hooks/use-adaptive-polling.ts`) edits `qmanager.conf .poller` through `system/adaptive_polling.sh`. No seed: an absent section means defaults, and the CGI reports `isDefault: true`.
+
+| Key | Poller global | Range | Default |
+| --- | --- | --- | --- |
+| `enabled` | `AP_ENABLED` | `0`/`false`/`no`/`off` = off, anything else on | on |
+| `active_grace` | `AP_ACTIVE_GRACE` | 20–120 | 20 |
+| `idle_interval` | `AP_IDLE_INTERVAL` | 5–300 | 15 |
+| `idle_threshold` | `AP_IDLE_THRESHOLD` | 60–3600 and > `active_grace` | 300 |
+| `deep_idle_interval` | `AP_DEEP_INTERVAL` | ≥ `idle_interval` and ≤ 300 | 60 (raised to `idle_interval` if lower) |
+
+- **Clamp in the poller.** The file is www-data writable, so `resolve_poller_config` accepts only digit strings of ≤ 5 digits inside the range; anything else is the default. The CGI GET applies the same rules in jq, so the page shows what the poller runs with; the POST rejects out-of-range values and non-numbers (`invalid_<key>`).
+- **Why the floors.** `active_grace` ≥ 20: the worst heartbeat age with an open page is ≈ 14 s (invariant 6). `deep_idle_interval` ≤ 300: `qmanager_tower_failover` reads `.nr.rsrp` every 20 s with no age check.
+- **`enabled=0` pins Active** in `decide_tier` (AT every cycle, like a page always open).
+- **Reload.** The CGI writes the five keys with `qm_config_set`, then touches `/tmp/qmanager_poller_reload` as www-data. The poller tests it each cycle (builtin `[ -f ]`), removes it and re-reads: the new values apply within one cycle. The poller never creates the flag (a root-owned copy would lock www-data out, as with the heartbeat). It also re-reads at start. Scan cycles skip the check; the flag waits.
+- **jq missing.** `/usr/bin/jq` dangles until `/opt` mounts (~30 s into boot). jq rc 126/127 keeps defaults and retries every 60 s of uptime. Any other failure (absent file, bad JSON, absent section) is final until the next reload.
+- The section key and shape are a contract: Config Backup (P7b) reads `qmanager.conf .poller`.
+- Measured on RM520N-GL 61368cd2: with no page open, Idle AT cycles 15 s apart by default and 28–31 s apart after saving `idle_interval=30`; the poller logged the new values 2 s after the POST.
 
 ## Invariants
 

@@ -1021,5 +1021,49 @@
       "title": "裝置存取",
       "description": "用於存取此數據機的密碼和連接埠。"
     }
+  },
+  "adaptive_polling": {
+    "page_title": "自適應輪詢",
+    "page_description": "無人開啟 QManager 時，減少查詢數據機的頻率。",
+    "card_title": "自適應輪詢",
+    "card_description": "頁面開啟時狀態按全速重新整理，之後逐步放慢。",
+    "tier": {
+      "active": "全速",
+      "idle": "空閒（降速）",
+      "deep": "深度空閒（最低）"
+    },
+    "tier_aria": "當前輪詢：{{tier}}",
+    "enabled": {
+      "label": "空閒時降速",
+      "on": "寬限期過後輪詢降速。",
+      "off": "狀態始終按全速重新整理。",
+      "hint_label": "哪些功能保持執行",
+      "hint": "提醒和連線看門狗在任何速率下都正常工作，僅狀態重新整理會放慢。"
+    },
+    "fields": {
+      "active_grace": {
+        "label": "寬限期",
+        "consequence": "最後一個頁面關閉後，仍按全速執行這麼久（{{min}} 至 {{max}} 秒）。"
+      },
+      "idle_interval": {
+        "label": "空閒間隔",
+        "consequence": "空閒時兩次重新整理的間隔（{{min}} 至 {{max}} 秒）。"
+      },
+      "idle_threshold": {
+        "label": "進入深度空閒前",
+        "consequence": "重新整理進一步放慢前的空閒時間（{{min}} 至 {{max}} 秒）。"
+      },
+      "deep_idle_interval": {
+        "label": "深度空閒間隔",
+        "consequence": "深度空閒時兩次重新整理的間隔（{{min}} 至 {{max}} 秒）。"
+      }
+    },
+    "unit_seconds": "秒",
+    "error_title": "無法載入自適應輪詢",
+    "error_description": "設定未能載入，請稍後重試。",
+    "save_failed_status": "未儲存",
+    "default_status": "預設時間",
+    "toast_saved": "自適應輪詢已儲存。",
+    "toast_failed": "無法儲存自適應輪詢。"
   }
 }

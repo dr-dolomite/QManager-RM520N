@@ -59,10 +59,15 @@ CYCLE_TIME_BUDGET=10   # seconds; warn if poll_cycle exceeds this
 # Status CGIs rewrite UI_ACTIVE_FILE on every hit; any content change is a heartbeat. Ages and
 # deadlines are uptime seconds, so the boot-time clock step cannot flip a tier.
 UI_ACTIVE_FILE="/tmp/qmanager_ui_active"
+# The next five come from qmanager.conf .poller (resolve_poller_config); these are the defaults.
+AP_ENABLED=1           # 0 pins Active
 AP_ACTIVE_GRACE=20     # s since the last heartbeat that stays Active (AT every cycle)
 AP_IDLE_THRESHOLD=300  # s since the last heartbeat before Idle drops to Deep
 AP_IDLE_INTERVAL=15    # Idle: serving cell + CA + per-antenna every N s
 AP_DEEP_INTERVAL=60    # Deep: serving cell only every N s
+QM_CONF_FILE="/etc/qmanager/qmanager.conf"
+POLLER_RELOAD_FLAG="/tmp/qmanager_poller_reload"   # created by the CGI; the poller only removes it
+_AP_CFG_RETRY_MONO=-1  # uptime of the next config read while jq is missing; -1 = none pending
 AP_T2_IDLE=60          # Tier 2 at most every N s in Idle
 AP_T2_DEEP=300         # Tier 2 at most every N s in Deep
 ap_tier="active"       # emitted as .device.poller_tier
@@ -2494,6 +2499,49 @@ write_cache() {
 # POLL CYCLE
 # =============================================================================
 
+# _ap_int <value> <min> <max> <default> — prints value if it is an integer in range, else default.
+_ap_int() {
+    case "$1" in
+        ''|*[!0-9]*|??????*) echo "$4"; return 0 ;;
+    esac
+    local _n=$((10#$1))
+    if [ "$_n" -ge "$2" ] && [ "$_n" -le "$3" ]; then echo "$_n"; else echo "$4"; fi
+}
+
+# resolve_poller_config — one jq read of qmanager.conf .poller into AP_*. The file is
+# www-data writable, so every value is clamped; an absent section means defaults.
+resolve_poller_config() {
+    local _row="" _rc _en="-" _ag="-" _ii="-" _it="-" _di="-"
+    _AP_CFG_RETRY_MONO=-1
+    if [ -f "$QM_CONF_FILE" ]; then
+        _row=$(jq -r '(.poller // {}) as $p
+            | [$p.enabled, $p.active_grace, $p.idle_interval, $p.idle_threshold, $p.deep_idle_interval]
+            | map(if . == null then "-" else tostring end | if . == "" then "-" else . end) | @tsv' "$QM_CONF_FILE" 2>/dev/null)
+        _rc=$?
+        # 126/127: /usr/bin/jq dangles until /opt mounts. Try again in 60 s.
+        if [ "$_rc" -eq 126 ] || [ "$_rc" -eq 127 ]; then
+            _AP_CFG_RETRY_MONO=$((_MONO_TOP + 60))
+            qlog_warn "adaptive polling: jq unavailable (rc=${_rc}), defaults until retry"
+            _row=""
+        elif [ "$_rc" -ne 0 ]; then
+            _row=""
+        fi
+    fi
+    [ -n "$_row" ] && IFS=$'\t' read -r _en _ag _ii _it _di <<< "$_row"
+
+    case "$_en" in
+        0|false|no|off) AP_ENABLED=0 ;;
+        *) AP_ENABLED=1 ;;
+    esac
+    AP_ACTIVE_GRACE=$(_ap_int "$_ag" 20 120 20)
+    AP_IDLE_INTERVAL=$(_ap_int "$_ii" 5 300 15)
+    AP_IDLE_THRESHOLD=$(_ap_int "$_it" 60 3600 300)
+    [ "$AP_IDLE_THRESHOLD" -gt "$AP_ACTIVE_GRACE" ] || AP_IDLE_THRESHOLD=300
+    AP_DEEP_INTERVAL=$(_ap_int "$_di" "$AP_IDLE_INTERVAL" 300 60)
+    [ "$AP_DEEP_INTERVAL" -ge "$AP_IDLE_INTERVAL" ] || AP_DEEP_INTERVAL="$AP_IDLE_INTERVAL"
+    qlog_info "adaptive polling: enabled=${AP_ENABLED} active_grace=${AP_ACTIVE_GRACE} idle_interval=${AP_IDLE_INTERVAL} idle_threshold=${AP_IDLE_THRESHOLD} deep_idle_interval=${AP_DEEP_INTERVAL}"
+}
+
 # decide_tier — sets ap_tier, _at_due (1 = run the AT block) and _t2_due (idle/deep only).
 # $1 = 1 forces Active (TIER2_REFRESH_FLAG). Builtins only.
 decide_tier() {
@@ -2507,7 +2555,7 @@ decide_tier() {
         _HB_SEEN_MONO="$_MONO_TOP"
     fi
 
-    if [ "$1" = "1" ] || [ "$_MONO_TOP" -eq 0 ]; then
+    if [ "$1" = "1" ] || [ "$_MONO_TOP" -eq 0 ] || [ "$AP_ENABLED" = "0" ]; then
         ap_tier="active"
         return 0
     fi
@@ -2578,6 +2626,12 @@ poll_cycle() {
     if [ -f "$TIER2_REFRESH_FLAG" ]; then
         force_tier2=true
         rm -f "$TIER2_REFRESH_FLAG"
+    fi
+    if [ -f "$POLLER_RELOAD_FLAG" ]; then
+        rm -f "$POLLER_RELOAD_FLAG"
+        resolve_poller_config
+    elif [ "$_AP_CFG_RETRY_MONO" -ge 0 ] && [ "$_MONO_TOP" -ge "$_AP_CFG_RETRY_MONO" ]; then
+        resolve_poller_config
     fi
     local _prev_tier="$ap_tier" _force=0
     [ "$force_tier2" = "true" ] && _force=1
@@ -2706,6 +2760,8 @@ main() {
     update_system_health
     _MONO_TOP="${uptime_seconds:-0}"
     _HB_SEEN_MONO="$_MONO_TOP"
+    rm -f "$POLLER_RELOAD_FLAG"
+    resolve_poller_config
     cq_thresholds_refresh
     alert_engine_init
     restore_event_state

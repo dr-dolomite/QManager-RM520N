@@ -42,6 +42,7 @@
     "connection_quality": "连接质量",
     "languages": "语言",
     "device_access": "设备访问",
+    "adaptive_polling": "自适应轮询",
     "software_update": "软件更新",
     "terminals": "终端",
     "at_terminal": "AT 终端",

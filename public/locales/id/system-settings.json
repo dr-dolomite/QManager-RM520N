@@ -1021,5 +1021,49 @@
       "title": "Akses Perangkat",
       "description": "Kata sandi dan port yang dipakai untuk menjangkau modem ini."
     }
+  },
+  "adaptive_polling": {
+    "page_title": "Polling Adaptif",
+    "page_description": "Kueri modem lebih jarang saat tidak ada yang membuka QManager.",
+    "card_title": "Polling adaptif",
+    "card_description": "Status diperbarui dengan kecepatan penuh saat halaman terbuka, lalu melambat.",
+    "tier": {
+      "active": "Kecepatan penuh",
+      "idle": "Siaga (diperlambat)",
+      "deep": "Siaga dalam (minimal)"
+    },
+    "tier_aria": "Polling saat ini: {{tier}}",
+    "enabled": {
+      "label": "Perlambat saat siaga",
+      "on": "Polling melambat setelah masa tenggang di bawah.",
+      "off": "Status selalu diperbarui dengan kecepatan penuh.",
+      "hint_label": "Yang tetap berjalan",
+      "hint": "Peringatan dan watchdog koneksi tetap bekerja pada kecepatan apa pun. Hanya pembaruan status yang melambat."
+    },
+    "fields": {
+      "active_grace": {
+        "label": "Masa tenggang",
+        "consequence": "Kecepatan penuh berlanjut selama ini setelah halaman terakhir ditutup ({{min}} hingga {{max}} dtk)."
+      },
+      "idle_interval": {
+        "label": "Interval siaga",
+        "consequence": "Jeda antar pembaruan saat siaga ({{min}} hingga {{max}} dtk)."
+      },
+      "idle_threshold": {
+        "label": "Siaga dalam setelah",
+        "consequence": "Waktu siaga sebelum pembaruan melambat lebih lanjut ({{min}} hingga {{max}} dtk)."
+      },
+      "deep_idle_interval": {
+        "label": "Interval siaga dalam",
+        "consequence": "Jeda antar pembaruan saat siaga dalam ({{min}} hingga {{max}} dtk)."
+      }
+    },
+    "unit_seconds": "dtk",
+    "error_title": "Tidak dapat memuat polling adaptif",
+    "error_description": "Pengaturan tidak dimuat. Coba lagi sebentar lagi.",
+    "save_failed_status": "Belum disimpan",
+    "default_status": "Waktu default",
+    "toast_saved": "Polling adaptif disimpan.",
+    "toast_failed": "Tidak dapat menyimpan polling adaptif."
   }
 }
