@@ -51,7 +51,7 @@ RFC 4861 requires Hop Limit 255 on Neighbor Discovery, and the carrier drops an 
 
 A value of `0` is "remove the rule", not "set TTL to zero" — the insert is skipped entirely.
 
-> ⚠️ WARNING: **From the CGI, these calls go through an allow-list.** As `www-data`, `run_iptables` / `run_ip6tables` forward their argv to the root helper `/usr/bin/qmanager_fw_apply`, which accepts only the exact TTL/HL and ND-exemption shapes above (plus the `-vnL POSTROUTING` read), with `-w 5 -t mangle` in front and a value of 1–255. Change the rule shape in `ttl_state.sh` — another interface, another chain, an extra match — and update `qmanager_fw_apply` with it, or the CGI's apply is refused (`refused: shape`, exit 2). Root callers run iptables directly and do not see the difference.
+> ⚠️ WARNING: **From the CGI, these calls go through an allow-list.** As `www-data`, `run_iptables` / `run_ip6tables` forward their argv to the root helper `/usr/bin/qmanager_fw_apply`, which accepts only the exact TTL/HL and ND-exemption shapes above (plus the `-vnL POSTROUTING` read), with `-w 5 -t mangle` in front and, for the TTL/HL shapes, a value of 1–255 (the ND shapes take no value and only types 133, 135, 136). Change the rule shape in `ttl_state.sh` — another interface, another chain, an extra match — and update `qmanager_fw_apply` with it, or the CGI's apply is refused (`refused: shape`, exit 2). Root callers run iptables directly and do not see the difference.
 
 ### `resolve_wan_interface()` — why the MTU read is not `rmnet_data0`
 
