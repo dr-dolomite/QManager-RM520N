@@ -292,7 +292,16 @@ locked() {
         return
     fi
     (
-        flock -w 30 9 || log "lock wait timed out; running unlocked"
+        # BusyBox flock has no -w: poll -n for up to 30 s.
+        lw=0
+        while ! flock -n 9; do
+            lw=$((lw + 1))
+            if [ "$lw" -ge 30 ]; then
+                log "lock wait timed out; running unlocked"
+                break
+            fi
+            sleep 1
+        done
         "$@"
     ) 9>"$LOCK"
 }
