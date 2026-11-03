@@ -88,7 +88,7 @@ State file `/tmp/qmanager_config_restore.json`:
 | `bands` | `AT+QNWPREFCFG="lte_band"` / `"nsa_nr5g_band"` / `"nr5g_band"`, `/etc/qmanager/band_failover_enabled` | All categories validated before the first write; failover toggle first, then `bands_lock_write` per category 0.2 s apart, then `bands_arm_failover`. A `null` or `"0"` category is left as is | no | on |
 | `apn` | `/etc/qmanager/apn_setting.json`, `apn_names.json` | Names for CIDs 1–6; active APN through `apn_setting_apply` (attach cycle, WAN drops a few seconds), skipped when `AT+CGDCONT?` already holds the same CID/APN/PDP | no | on |
 | `tower_lock` | `/etc/qmanager/tower_lock.json`, `AT+QNWLOCK` persistence | Persistence → LTE leg → NR-SA leg → failover → schedule; the schedule timers are re-armed | no | off |
-| `ttl_mtu` | `/etc/qmanager/ttl_state`, `/etc/firewall.user.mtu` | `ttl_state_apply` + persist; MTU via `conn_mtu_set` / `conn_mtu_disable` (see follow-ups) | no | on |
+| `ttl_mtu` | `/etc/qmanager/ttl_state`, `/etc/firewall.user.mtu` | `ttl_state_apply` + persist; MTU via `conn_mtu_set` / `conn_mtu_disable` (root helper `qmanager_mtu_set` over `sudo -n`) | no | on |
 | `imei` | modem IMEI, `/etc/qmanager/imei_backup.json` | Writes the IMEI only when it differs **and** `options.imei_confirmed=true`; else `failed` "IMEI change not confirmed" | when written | off |
 | `profiles` | `/etc/qmanager/profiles/p_*.json`, `/etc/qmanager/active_profile` | **Replaces** the set via a staging dir and `profile_save`; ICCID gate on the active pointer | see trade-offs | off |
 | `scenarios` | `/etc/qmanager/scenarios/custom-*.json`, `/etc/qmanager/active_scenario` | **Replaces** the custom set (≤ 20); built-ins are never stored. Activation skipped while the active SIM profile owns the radio | no | off |
@@ -104,6 +104,8 @@ State file `/tmp/qmanager_config_restore.json`:
 | `alerts` | `/etc/qmanager/sms_alerts.json`, `email_alerts.json`, `discord_bot.json`, `alert_routing.json` | Channel settings and wait; routing events **merged** onto the device's | no | on |
 | `adaptive_polling` | `qmanager.conf .poller` | `ap_save` + `/tmp/qmanager_poller_reload`; `is_default: true` deletes `.poller` | no | on |
 | `system` | `qmanager.conf .settings` / `.update`, `/etc/qmanager/tailscale_ssh` | Units, hostname, timezone (`sys_set_timezone`), scheduled reboot timer, update prefs, Tailscale SSH | no | on |
+
+**`system` hostname.** `settings.hostname` in `qmanager.conf` is a display name (1-64 printable characters, spaces allowed). `sys_set_hostname` also derives an RFC 1123 label from it (spaces and `_` become `-`, other characters outside `[A-Za-z0-9-]` are dropped, edge hyphens stripped, 63 max) and passes that to the root helper `qmanager_hostname_apply`, which writes `/etc/hostname` and the live kernel name. No usable label means the system name is left alone. rc 1 is a config write failure (retried); rc 2 is "saved, system apply failed" (`failed`, no retry).
 
 **Apply order** (`CFG_BACKUP_APPLY_ORDER`):
 
@@ -171,11 +173,6 @@ Never collected, so never restored:
 - **`profiles` and the SIM.** The set is always written. The active pointer is honoured only when the profile's `sim_iccid` matches the inserted SIM (canonical ICCID from the poller cache, else `AT+QCCID`); on a mismatch the section reports `skipped:sim_mismatch` although the set **was** replaced. Activation writes `/etc/qmanager/active_profile` and raises the reboot flag; boot auto-apply then applies it. A replaced set with a profile matching the current SIM also raises it. A profile that references a custom scenario is dropped unless that scenario exists, so restore `scenarios` with it (scenarios apply first) or have it on the device.
 - **`scenarios` replace** removes device `custom-*.json` files the backup does not carry, including ones a device profile still points at when `profiles` is not restored too.
 
-## Known follow-ups (not fixed)
-
-- **MTU cannot apply as www-data.** `conn_mtu_set` writes `/etc/firewall.user.mtu` and runs `ip link set`; as www-data both can fail, and the section then reports `failed` "MTU could not be applied". The same limit applies to `network/mtu.sh`.
-- **Hostname never reaches `/etc/hostname`.** `sys_set_hostname` (used by `system/settings.sh` and the `system` applier) writes `qmanager.conf`, then tries `/proc/sys/kernel/hostname` and `/etc/hostname` with a `mount -o remount,rw /`. As www-data the remount and the kernel write fail, so `/etc/hostname` changes only if www-data can already write it.
-
 ## Shared-path guarantees (P7 follow-ups, 2026-11-03)
 
 The restore reuses the same CGIs and libraries as the UI saves, so these hold for both:
@@ -184,5 +181,5 @@ The restore reuses the same CGIs and libraries as the UI saves, so these hold fo
 - **`apply.sh` check, write and spawn are atomic.** A non-blocking `flock` on `/tmp/qmanager_config_restore.spawn.lock` is held from before the live-pid check until the CGI exits; the worker is started with that fd closed. A second near-simultaneous POST gets 409 `restore_in_progress` (empty `detail` if the first job has no pid yet) and never touches the first job's input file.
 - **Scenario ids are unique.** `scenarios/save.sh` creates `custom-<epoch>` and appends `-<n>` while that file exists, under `flock` on `/tmp/qmanager_scenario_save.lock`, which also keeps the 20-scenario limit exact. The ids still match `rv_scenario_id` and every `custom-*` consumer.
 - **Tower unlock with nothing locked succeeds.** `_tower_do_unlock` reads the lock state first and skips the AT write when it is `unlocked` (the modem ERRORs on `AT+QNWLOCK="common/4g",0` / `"common/5g",0` with no lock), then still clears the config flag and stops the failover watcher and service. An unreadable state still attempts the write. Applies to `tower/lock.sh` and the applier alike.
-- **`tower/lock.sh` NR-SA lock** rejects a `pci`, `arfcn` or `band` that is not digits-only (`invalid_pci`, `invalid_arfcn`, `invalid_band`; `rv_tower_nr_fields`) before any AT write. `invalid_arfcn` and `invalid_band` have no `errors.json` entry yet, so the UI shows the device's `detail` text.
+- **`tower/lock.sh` NR-SA lock** rejects a `pci`, `arfcn` or `band` that is not digits-only (`invalid_pci`, `invalid_arfcn`, `invalid_band`; `rv_tower_nr_fields`) before any AT write.
 - **`bands/lock.sh`** rejects bands outside `.device.supported_*_bands` with `invalid_bands` (`rv_bands_supported`; an empty or missing list passes), as the applier does.

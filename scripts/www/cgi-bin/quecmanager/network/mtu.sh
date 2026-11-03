@@ -134,7 +134,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$mtu_value" = "disable" ]; then
         qlog_info "Disabling custom MTU"
 
-        conn_mtu_disable
+        if ! conn_mtu_disable; then
+            qlog_error "MTU disable failed"
+            cgi_error "mtu_disable_failed" "Could not remove the custom MTU setting"
+            exit 0
+        fi
 
         default_mtu=$(get_current_mtu)
         default_mtu=${default_mtu:-1500}
@@ -160,7 +164,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     qlog_info "Setting MTU=$mtu_value"
 
     # --- Persist the rules file and apply live (shared with config restore) ---
-    conn_mtu_set "$mtu_value"
+    if ! conn_mtu_set "$mtu_value"; then
+        qlog_error "MTU set to $mtu_value failed"
+        cgi_error "mtu_apply_failed" "Could not apply the MTU"
+        exit 0
+    fi
 
     qlog_info "MTU set to $mtu_value"
 

@@ -393,7 +393,12 @@ _cbs_sys_settings() {
         if ! qm_valid_hostname_label "$v"; then
             cfg_drop
         elif [ "$(qm_config_get settings hostname '')" != "$v" ]; then
-            sys_set_hostname "$v" || rc="$CFG_RC_RETRY"
+            sys_set_hostname "$v"
+            case $? in
+                0) ;;
+                2) CFG_MESSAGE="the device name was saved but could not be applied to the system"; rc=$(_cbs_merge "$rc" "$CFG_RC_INVALID") ;;
+                *) rc="$CFG_RC_RETRY" ;;
+            esac
         fi
     fi
 

@@ -169,28 +169,24 @@ apn_setting_deactivate() {
 # =============================================================================
 MTU_FIREWALL_FILE="/etc/firewall.user.mtu"
 
-# conn_mtu_set <value> — rebuild the persistent rules file and apply live.
-# rc 1 if the file could not be written or any interface refused the change.
-conn_mtu_set() {
-    local _v="$1" _tmp="${MTU_FIREWALL_FILE}.tmp" _if _rc=0
-    if { : > "$_tmp"; } 2>/dev/null; then
-        for _if in $(ls /sys/class/net 2>/dev/null | grep '^rmnet_data'); do
-            echo "ip link set $_if mtu $_v" >> "$_tmp"
-        done
-        mv "$_tmp" "$MTU_FIREWALL_FILE" 2>/dev/null || { rm -f "$_tmp" 2>/dev/null; _rc=1; }
+# _conn_mtu_helper <verb> [value] — run the root helper (sudo -n unless already root).
+_conn_mtu_helper() {
+    if [ "$(id -u)" = "0" ]; then
+        /usr/bin/qmanager_mtu_set "$@" >/dev/null 2>&1
     else
-        _rc=1
+        sudo -n /usr/bin/qmanager_mtu_set "$@" >/dev/null 2>&1
     fi
-    for _if in $(ls /sys/class/net 2>/dev/null | grep '^rmnet_data'); do
-        ip link set "$_if" mtu "$_v" 2>/dev/null || _rc=1
-    done
-    return $_rc
 }
 
-# conn_mtu_disable — drop the persistent rules file. rc 1 if it is still there.
+# conn_mtu_set <value> — rewrite the persistent rules file and apply live via the root helper.
+# rc 1 if the file could not be written or any interface refused the change.
+conn_mtu_set() {
+    _conn_mtu_helper set "$1"
+}
+
+# conn_mtu_disable — drop the persistent rules file via the root helper. rc 1 if it is still there.
 conn_mtu_disable() {
-    rm -f "$MTU_FIREWALL_FILE" 2>/dev/null
-    [ ! -e "$MTU_FIREWALL_FILE" ]
+    _conn_mtu_helper disable
 }
 
 # =============================================================================

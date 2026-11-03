@@ -245,5 +245,8 @@
   "sections_conflict": "Bagian-bagian itu tidak dapat dipulihkan bersamaan.",
   "persist_failed": "Modem tidak dapat menyimpan permintaan pemulihan.",
   "profile_apply_in_progress": "Profil SIM sedang diterapkan. Coba lagi setelah selesai.",
-  "status_lost": "Kontak dengan modem terputus selama pemulihan. Periksa pengaturan Anda setelah modem kembali."
+  "status_lost": "Kontak dengan modem terputus selama pemulihan. Periksa pengaturan Anda setelah modem kembali.",
+  "hostname_apply_failed": "Nama perangkat disimpan, tetapi tidak dapat diterapkan ke sistem. Coba lagi.",
+  "hostname_save_failed": "Tidak dapat menyimpan nama perangkat. Coba lagi.",
+  "invalid_hostname": "Nama perangkat harus terdiri dari 1 sampai 64 karakter yang dapat dicetak."
 }

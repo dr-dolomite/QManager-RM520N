@@ -58,9 +58,9 @@ conn_validate_apn_setting() {
 
 conn_validate_mtu() {
     case "$1" in
-        ''|*[!0-9]*) _conn_fail "invalid_mtu" "MTU must be a number"; return 1 ;;
+        ''|*[!0-9]*|0*) _conn_fail "invalid_mtu" "MTU must be a whole number without leading zeros"; return 1 ;;
     esac
-    if [ "$1" -lt 576 ] 2>/dev/null || [ "$1" -gt 9000 ] 2>/dev/null; then
+    if [ "${#1}" -gt 4 ] || [ "$1" -lt 576 ] || [ "$1" -gt 9000 ]; then
         _conn_fail "invalid_mtu" "MTU must be between 576 and 9000"
         return 1
     fi

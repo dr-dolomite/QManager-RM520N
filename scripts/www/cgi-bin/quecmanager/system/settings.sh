@@ -147,9 +147,20 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # val=$(printf '%s' "$POST_DATA" | jq -r 'if has("wan_guard_enabled") then (.wan_guard_enabled | tostring) else "" end')
 
         # --- Hostname (display name) ---
+        # A hostname failure is reported after every other field is saved.
         val=$(printf '%s' "$POST_DATA" | jq -r '.hostname // empty')
+        hn_err=""
         if [ -n "$val" ]; then
+            if ! qm_valid_hostname_label "$val"; then
+                cgi_error "invalid_hostname" "The device name must be 1 to 64 printable characters"
+                exit 0
+            fi
             sys_set_hostname "$val"
+            case $? in
+                0) ;;
+                2) hn_err="hostname_apply_failed"; hn_detail="The device name was saved but could not be applied to the system" ;;
+                *) hn_err="hostname_save_failed"; hn_detail="Could not save the device name" ;;
+            esac
         fi
 
         # --- Temperature unit ---
@@ -183,6 +194,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
 
         # AT device is hardcoded to /dev/smd11 in qcmd — no override needed
+
+        if [ -n "$hn_err" ]; then
+            cgi_error "$hn_err" "$hn_detail"
+            exit 0
+        fi
 
         qlog_info "System settings saved"
         jq -n --arg tz_status "$tz_status" '{success:true, timezone_apply_status:$tz_status}'

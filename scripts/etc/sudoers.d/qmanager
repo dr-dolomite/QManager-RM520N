@@ -141,6 +141,14 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_web_port
 # Timezone apply (copies resolved TZif over /etc/localtime)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_timezone_apply
 
+# Custom MTU (Cellular -> MTU). Bare path; the helper takes one of set <n> / disable / apply,
+# validates the value and writes /etc/firewall.user.mtu itself.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_mtu_set
+
+# Device hostname (System Settings). Bare path; the helper validates the RFC 1123 label and
+# writes /etc/hostname and the live kernel name.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_hostname_apply
+
 # Runtime language-pack downloader (commits validated staging into the
 # root-owned persistent store + served web-root copy; remove mode too)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_language_pack_apply

@@ -202,11 +202,11 @@ apply_ttl_mtu() {
         cur_mtu=$(_cfgbk_mtu_configured)
         if [ "$val" = "disable" ]; then
             if [ "$cur_mtu" != "disable" ] && ! conn_mtu_disable; then
-                _cfgbk_c_note "$CFG_RC_INVALID" "MTU could not be reset (no permission to write /etc)"
+                _cfgbk_c_note "$CFG_RC_INVALID" "MTU could not be reset"
             fi
         elif conn_validate_mtu "$val"; then
             if [ "$val" != "$cur_mtu" ] && ! conn_mtu_set "$val"; then
-                _cfgbk_c_note "$CFG_RC_INVALID" "MTU could not be applied (no permission to write /etc or change interfaces)"
+                _cfgbk_c_note "$CFG_RC_INVALID" "MTU could not be applied"
             fi
         else
             cfg_drop
