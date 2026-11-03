@@ -131,7 +131,7 @@ export const SETTING = {
   HELD: "opacity-55",
   CONTROL: "ml-auto flex max-w-full flex-col items-end gap-1.5",
   /** USB: a Select on its own line below a 32rem card, the pill beside the key above it. */
-  CONTROL_WIDE: "flex basis-full flex-col items-end gap-1.5 @lg/card:ml-auto @lg/card:basis-auto",
+  CONTROL_WIDE: "flex min-w-0 basis-full flex-col items-end gap-1.5 @lg/card:ml-auto @lg/card:basis-auto",
   /** The dirty marker is reserved on every row and fades in on the quick token. */
   DOT: "size-[7px] flex-none rounded-pill bg-primary transition-[opacity,transform] duration-[var(--duration-quick)] ease-[var(--ease-standard)] motion-reduce:transition-none",
   DOT_OFF: "scale-[0.6] opacity-0",
@@ -153,6 +153,24 @@ export const MAC_FIELD = {
   WRAP: "flex w-60 max-w-full flex-col items-end gap-1.5",
   INPUT: `${PILL_H} px-3.5 font-mono text-[0.84375rem] font-medium uppercase placeholder:font-sans placeholder:normal-case`,
   ERROR: "text-destructive-on-surface text-right text-xs leading-[1.5]",
+} as const;
+
+/** The connected-device picker; scanning, empty and failed share the control's 42px lane. */
+export const DEVICE_PICK = {
+  /** The animated slot owns the width, so `max-w-full` resolves against the row. */
+  SLOT: "w-[22rem] max-w-full",
+  WRAP: "flex w-full flex-col items-end gap-1.5",
+  LINE: "flex w-full items-center gap-2",
+  TRIGGER: `${PILL_H} w-full min-w-0 rounded-pill`,
+  ITEM: "flex w-full min-w-0 items-center justify-between gap-3",
+  ITEM_NAME: "min-w-0 truncate",
+  ITEM_MAC: "text-on-surface-variant flex-none font-mono text-xs",
+  RESCAN: `${PILL_H} w-[2.625rem] flex-none rounded-pill`,
+  NOTE: `${ROW_MIN_H} text-on-surface-variant flex w-full items-center justify-end gap-2 text-right text-[0.8125rem] text-pretty`,
+  NOTE_ERROR: "text-destructive-on-surface",
+  LINKS: "flex flex-wrap items-center justify-end gap-x-4 gap-y-1",
+  LINK: "h-8 px-0 has-[>svg]:px-0 gap-1 text-[0.8125rem] font-semibold",
+  GLYPH: "size-3.5 flex-none",
 } as const;
 
 export const FOOT = {

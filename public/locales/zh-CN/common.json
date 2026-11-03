@@ -512,6 +512,7 @@
       "mode_eth": "以太网",
       "mode_usb": "USB",
       "target_automatic": "自动",
+      "target_device": "从局域网",
       "target_manual": "按 MAC 地址",
       "nat_on": "启用 NAT",
       "nat_off": "不启用 NAT",
@@ -538,7 +539,20 @@
       "retry": "重试",
       "card_unread": "调制解调器尚未响应，在首次读取完成前没有可更改的内容。",
       "mac_invalid": "请输入完整的 MAC 地址，即六组两位十六进制数字。",
-      "no_changes": "尚未有任何更改。"
+      "no_changes": "尚未有任何更改。",
+      "device_unpicked": "请先选择一个已连接的设备。"
+    },
+    "device": {
+      "label": "从已连接列表中选择目标设备",
+      "placeholder": "选择设备",
+      "scanning": "正在扫描已连接设备…",
+      "error": "无法加载已连接设备。",
+      "empty": "未找到已连接设备。请将设备连接到调制解调器，然后重新扫描。",
+      "retry": "重试",
+      "rescan": "重新扫描",
+      "rescan_label": "重新扫描已连接设备",
+      "enter_manually": "手动输入",
+      "unknown": "未知设备"
     }
   },
   "networkEvents": {

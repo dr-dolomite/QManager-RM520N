@@ -512,6 +512,7 @@
       "mode_eth": "Ethernet",
       "mode_usb": "USB",
       "target_automatic": "Otomatis",
+      "target_device": "Dari LAN",
       "target_manual": "Lewat MAC",
       "nat_on": "Dengan NAT",
       "nat_off": "Tanpa NAT",
@@ -538,7 +539,20 @@
       "retry": "Coba lagi",
       "card_unread": "Modem belum menjawab, jadi tidak ada yang dapat diubah sampai pembacaan pertama masuk.",
       "mac_invalid": "Masukkan alamat MAC lengkap, enam pasang digit heksadesimal.",
-      "no_changes": "Belum ada yang berubah."
+      "no_changes": "Belum ada yang berubah.",
+      "device_unpicked": "Pilih perangkat terhubung terlebih dahulu."
+    },
+    "device": {
+      "label": "Perangkat target dari daftar perangkat terhubung",
+      "placeholder": "Pilih Perangkat",
+      "scanning": "Memindai perangkat terhubung…",
+      "error": "Gagal memuat daftar perangkat terhubung.",
+      "empty": "Tidak ada perangkat terhubung yang ditemukan. Hubungkan perangkat ke modem, lalu pindai ulang.",
+      "retry": "Coba lagi",
+      "rescan": "Pindai Ulang",
+      "rescan_label": "Pindai ulang perangkat terhubung",
+      "enter_manually": "Masukkan secara manual",
+      "unknown": "Perangkat tidak dikenal"
     }
   },
   "networkEvents": {
