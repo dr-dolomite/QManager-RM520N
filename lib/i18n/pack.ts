@@ -108,6 +108,31 @@ export function cldrCategories(langCode: string): Set<PluralCategory> {
   return cats;
 }
 
+const _oneIsWiderCache = new Map<string, boolean>();
+
+/**
+ * Whether the language's CLDR `one` category covers numbers other than 1 —
+ * e.g. ru/uk/be (21, 31, 101…) or fr (0). English writes some `_one` values
+ * as words ("1 domain imported", "The one cell…"), which is exact there
+ * because `one` means only 1. In these languages the same `_one` string is
+ * also shown for 21 or 0, so the translation needs `{{count}}` to stay true.
+ */
+export function oneCategoryIsWider(langCode: string): boolean {
+  const cached = _oneIsWiderCache.get(langCode);
+  if (cached !== undefined) return cached;
+  let wider = false;
+  try {
+    const rules = new Intl.PluralRules(langCode);
+    for (let n = 0; n <= 200 && !wider; n++) {
+      if (n !== 1 && rules.select(n) === "one") wider = true;
+    }
+  } catch {
+    wider = false;
+  }
+  _oneIsWiderCache.set(langCode, wider);
+  return wider;
+}
+
 // ---------------------------------------------------------------------------
 // Placeholder + HTML integrity
 // ---------------------------------------------------------------------------
@@ -417,6 +442,18 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
 
       // Placeholder integrity — a missing/invented {{var}} renders broken text.
       const phDiff = multisetDiff(placeholders(enVal), placeholders(val));
+      // i18next always passes `count` to a plural key, so an added {{count}} in
+      // `_one` is safe — and required where `one` is wider than 1 (see
+      // oneCategoryIsWider): English "1 domain" would read "1" at 21 in ru.
+      if (
+        phDiff.missing.length === 0 &&
+        phDiff.extra.length > 0 &&
+        phDiff.extra.every((v) => v === "count") &&
+        splitPlural(k)?.category === "one" &&
+        oneCategoryIsWider(lang)
+      ) {
+        phDiff.extra = [];
+      }
       if (phDiff.missing.length || phDiff.extra.length) {
         const parts: string[] = [];
         if (phDiff.missing.length) parts.push(`missing ${phDiff.missing.map((v) => `{{${v}}}`).join(", ")}`);
@@ -470,7 +507,34 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
         // fail) — a genuinely useful form we didn't anticipate shouldn't block.
         const enCats = baseBases.get(p.base)!;
         if (enCats.has(p.category) || allowedPlural.has(p.category)) {
-          report.translatedKeys++; // it's a real translated plural form
+          // A real translated plural form (e.g. ru `_few`/`_many`). Not added to
+          // translatedKeys: totalKeys counts English keys only, so counting it
+          // pushed completeness past 100% (and into a built pack's _pack.json).
+          // Its placeholders are checked against English `_other`, the form
+          // it stands in for, so a typo here is caught like anywhere else.
+          const enOther = baseKeys.get(`${p.base}_other`);
+          const val = targetKeys.get(k) ?? "";
+          if (enOther !== undefined && val.trim() !== "") {
+            const phDiff = multisetDiff(placeholders(enOther), placeholders(val));
+            if (phDiff.missing.length || phDiff.extra.length) {
+              const parts: string[] = [];
+              if (phDiff.missing.length) parts.push(`missing ${phDiff.missing.map((v) => `{{${v}}}`).join(", ")}`);
+              if (phDiff.extra.length) parts.push(`unexpected ${phDiff.extra.map((v) => `{{${v}}}`).join(", ")}`);
+              const issue: Issue = {
+                lang,
+                ns,
+                key: k,
+                kind: "placeholder",
+                hard: true,
+                message: `placeholder mismatch — ${parts.join("; ")}. Copy every {{…}} from the English "_other" form exactly; the app fills them with live values`,
+                enValue: enOther,
+                value: val,
+                line: findKeyLine(loaded.raw, k),
+              };
+              report.issues.push(issue);
+              flatIssues.push(issue);
+            }
+          }
           continue;
         }
         const issue: Issue = {
