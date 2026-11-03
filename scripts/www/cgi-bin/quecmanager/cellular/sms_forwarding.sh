@@ -1,5 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/connection_validate.sh
+. /usr/lib/qmanager/connection_store.sh
 # =============================================================================
 # sms_forwarding.sh — CGI Endpoint: SMS Forwarding Settings (GET + POST)
 # =============================================================================
@@ -29,25 +31,8 @@ qlog_init "cgi_sms_forwarding"
 cgi_headers
 cgi_handle_options
 
-CONFIG="/etc/qmanager/sms_forwarding.json"
-RELOAD_FLAG="/tmp/qmanager_sms_forward_reload"
+CONFIG="$SMS_FWD_CONFIG"
 FAILURES_FILE="/tmp/qmanager_sms_forward_failures.json"
-
-# --- Validation: E.164-ish — optional +, first digit 1-9, 7-15 digits. -------
-# Reused verbatim from monitoring/sms_alerts.sh / cellular/sms.sh conventions.
-_validate_phone() {
-    _vp=$(printf '%s' "$1" | sed 's/^+//')
-    case "$_vp" in
-        ''|*[!0-9]*) return 1 ;;
-    esac
-    _vp_len=${#_vp}
-    if [ "$_vp_len" -lt 7 ] || [ "$_vp_len" -gt 15 ]; then
-        return 1
-    fi
-    _vp_first=$(printf '%s' "$_vp" | cut -c1)
-    [ "$_vp_first" = "0" ] && return 1
-    return 0
-}
 
 # =============================================================================
 # GET — Fetch settings + failures
@@ -115,50 +100,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # When enabling, the target must be valid. When disabling, an empty
         # or bad number is tolerated (the daemon idles regardless).
         if [ "$ENABLED" = "true" ]; then
-            if ! _validate_phone "$TARGET"; then
+            if ! conn_validate_phone "$TARGET"; then
                 cgi_error "invalid_phone" "target_phone is not a valid phone number"
                 exit 0
             fi
         fi
 
-        # Disable requested: stop/disable the daemon BEFORE persisting the
-        # config, so a failed disable never leaves stale saved state behind.
-        if [ "$ENABLED" = "false" ]; then
-            svc_stop qmanager_sms_forward
-            if ! svc_disable qmanager_sms_forward; then
-                cgi_error "service_disable_failed" "Settings were not saved: the daemon could not be disabled on boot (rootfs may be read-only)"
-                exit 0
-            fi
-        fi
-
-        mkdir -p "$(dirname "$CONFIG")" 2>/dev/null
-
-        TMP="${CONFIG}.tmp"
-        jq -n \
-            --argjson enabled "$ENABLED" \
-            --arg target_phone "$TARGET" \
-            '{enabled: $enabled, target_phone: $target_phone}' > "$TMP" \
-            && mv "$TMP" "$CONFIG"
-
-        # Signal the running daemon to re-read config within one cycle.
-        touch "$RELOAD_FLAG" 2>/dev/null
-
-        # Drive service state to match the saved `enabled` flag — mirrors
-        # monitoring/discord_bot/configure.sh's save_settings exactly.
-        # svc_restart (not svc_start) is used on enable because a config
-        # change (freshly-set target_phone) needs the daemon to notice; the
-        # reload flag already covers that mid-cycle, but restart also starts
-        # a stopped unit, so it cleanly covers "was disabled" -> "now enabled"
-        # in one call. NEVER call systemctl directly — always svc_*.
-        if [ "$ENABLED" = "true" ]; then
-            if ! svc_enable qmanager_sms_forward; then
-                cgi_error "service_enable_failed" "SMS forwarding settings were saved, but the daemon could not be enabled on boot (rootfs may be read-only)"
-                exit 0
-            fi
-            svc_restart qmanager_sms_forward
-            qlog_info "SMS forwarding enabled, daemon enabled and restarted"
-        else
-            qlog_info "SMS forwarding disabled, daemon stopped and disabled"
+        # Service control, config and reload flag: shared with config restore.
+        if ! conn_sms_fwd_save "$ENABLED" "$TARGET"; then
+            cgi_error "$SMS_ERR_CODE" "$SMS_ERR_DETAIL"
+            exit 0
         fi
 
         jq -n \
@@ -190,7 +141,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         TARGET=""
         [ -f "$CONFIG" ] && TARGET=$(jq -r '.target_phone // ""' "$CONFIG" 2>/dev/null)
 
-        if ! _validate_phone "$TARGET"; then
+        if ! conn_validate_phone "$TARGET"; then
             cgi_error "invalid_phone" "no valid target_phone configured"
             exit 0
         fi

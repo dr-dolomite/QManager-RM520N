@@ -1,6 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/platform.sh
+. /usr/lib/qmanager/system_validate.sh
 # =============================================================================
 # tailscale.sh — CGI Endpoint: Tailscale VPN Management (GET + POST)
 # =============================================================================
@@ -61,11 +62,7 @@ get_boot_enabled() {
 # other than "1". This is the QManager-owned source of truth for whether
 # `tailscale up` should be invoked with `--ssh`.
 get_ssh_pref() {
-    if [ -f "$SSH_PREF_FILE" ] && [ "$(cat "$SSH_PREF_FILE" 2>/dev/null | tr -d ' \n\r')" = "1" ]; then
-        echo "true"
-    else
-        echo "false"
-    fi
+    qm_ts_ssh_pref
 }
 
 # --- Helper: kill stale tailscale up process from previous connect attempt ----
@@ -655,47 +652,21 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 ;;
         esac
 
-        # Snapshot previous flag for rollback on `tailscale set` failure.
-        old_flag=""
-        if [ -f "$SSH_PREF_FILE" ]; then
-            old_flag=$(cat "$SSH_PREF_FILE" 2>/dev/null | tr -d ' \n\r')
-        fi
-
-        # Atomic write: .tmp + mv (matches the convention in email/sms alert configs).
-        mkdir -p /etc/qmanager 2>/dev/null
-        tmp_file="${SSH_PREF_FILE}.tmp"
-        trap 'rm -f "$tmp_file"' EXIT
-        if ! printf '%s\n' "$new_flag" > "$tmp_file"; then
-            cgi_error "write_failed" "Could not write SSH preference file"
-            exit 0
-        fi
-        if ! mv -f "$tmp_file" "$SSH_PREF_FILE"; then
-            cgi_error "write_failed" "Could not persist SSH preference (filesystem error)"
-            exit 0
-        fi
-        trap - EXIT
-
-        # If daemon is up, apply immediately. Otherwise return pending=true so
-        # the UI surfaces "applies on next connect".
-        if is_daemon_running; then
-            set_output=$(ts_cmd set --ssh="$ssh_value" 2>&1)
-            set_rc=$?
-            if [ "$set_rc" -ne 0 ]; then
-                # Roll back the flag write so the UI state matches reality.
-                if [ -n "$old_flag" ]; then
-                    printf '%s\n' "$old_flag" > "$SSH_PREF_FILE"
-                else
-                    rm -f "$SSH_PREF_FILE"
-                fi
-                qlog_error "tailscale set --ssh=$ssh_value failed: $set_output"
-                jq -n --arg detail "$set_output" '{success: false, error: "set_failed", detail: $detail}'
-                exit 0
+        # Atomic flag write, then `tailscale set --ssh=` if the daemon is up, with rollback
+        # (lib: system_validate.sh). A stopped daemon returns pending=true so the UI says
+        # "applies on next connect".
+        if ! qm_ts_ssh_save "$ssh_value"; then
+            if [ "$QM_TS_ERR" = "set_failed" ]; then
+                jq -n --arg detail "$QM_TS_DETAIL" '{success: false, error: "set_failed", detail: $detail}'
+            else
+                cgi_error "$QM_TS_ERR" "$QM_TS_DETAIL"
             fi
-            qlog_info "Tailscale SSH set to $ssh_value"
-            cgi_success
-        else
-            qlog_info "Tailscale SSH preference set to $ssh_value (daemon stopped, will apply on next connect)"
+            exit 0
+        fi
+        if [ "$QM_TS_PENDING" = "1" ]; then
             jq -n '{success: true, pending: true, message: "Tailscale SSH will activate on next connect."}'
+        else
+            cgi_success
         fi
         exit 0
     fi

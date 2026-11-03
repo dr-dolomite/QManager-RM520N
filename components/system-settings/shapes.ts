@@ -567,6 +567,107 @@ export const TAB_RAIL = {
 } as const;
 
 // -----------------------------------------------------------------------------
+// Config Backup / Restore (ported from QManager v0.1.34)
+// -----------------------------------------------------------------------------
+
+/**
+ * The section picker: a labelled group per family of settings, each a
+ * `ROW_GROUP` of checkbox rows. A checkbox row is a choice, so it carries a
+ * second line only when the mutex holds it or restoring it has a consequence.
+ */
+export const PICK = {
+  /** The group's section label, sitting on the card's column edge. */
+  LABEL: "text-on-surface-variant px-1 text-xs font-semibold",
+  ROW: "flex min-h-11 cursor-pointer items-center gap-3 rounded-field px-3.5 py-2.5 has-[button:disabled]:cursor-default",
+  TEXT: "flex min-w-0 flex-1 flex-col gap-0.5",
+  NAME: "text-sm font-medium",
+  /** Why a row is held, or what restoring it does. */
+  WHY: "text-on-surface-variant text-xs leading-relaxed text-pretty",
+  /** The group count beside an accordion trigger's label. */
+  COUNT: "text-on-surface-variant ml-auto pr-2 text-xs font-medium tabular-nums",
+} as const;
+
+/** The match line under the confirm field: ink on the neutral group. */
+export const MATCH = {
+  ROOT: "flex items-center gap-1.5 text-xs font-medium",
+  OK: "text-success-on-surface",
+  BAD: "text-destructive-on-surface",
+  GLYPH: "size-3.5 flex-none",
+} as const;
+
+/**
+ * The restore card's one inner container while no backup is open: a centred
+ * empty state that also absorbs the row's slack.
+ */
+export const DROP = {
+  ROOT: "flex min-h-0 flex-1 flex-col items-center justify-center gap-3.5 rounded-tile bg-surface-container px-6 py-10 text-center",
+  /** Neutral disc: an empty state names no role. */
+  DISC: "grid size-14 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant",
+  GLYPH: "size-[1.625rem]",
+  TITLE: "text-base font-semibold",
+  BODY: "text-on-surface-variant max-w-[36ch] text-sm text-pretty",
+} as const;
+
+/** Receipt rows (key left, value right) describing an opened backup. */
+export const RECEIPT = {
+  ROW: "flex min-h-11 items-center justify-between gap-4 rounded-field px-4 py-2.5",
+  KEY: "text-on-surface-variant text-sm",
+  VALUE: "min-w-0 truncate text-right text-sm font-semibold tabular-nums",
+} as const;
+
+/** An IMEI quoted in a confirm line: an opaque string, so mono. */
+export const IMEI_TEXT = "font-mono text-[0.8125rem] font-medium whitespace-nowrap";
+
+/**
+ * The Sequenced Pipeline Dialog: a status hero, a determinate fill and a
+ * one-level step ledger.
+ */
+export const PIPELINE = {
+  HERO: "flex flex-col items-center gap-3 py-1 text-center",
+  /** The role's STRONG fill, keyed by `PIPELINE_TONE`. */
+  DISC: "grid size-14 flex-none place-items-center rounded-pill transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
+  GLYPH: "size-7",
+  /** Reserves two lines so advancing a step never resizes the dialog. */
+  TEXT: "flex min-h-[2.875rem] flex-col justify-center gap-0.5",
+  HEADLINE: "text-base font-semibold tracking-[-0.005em]",
+  SUB: "text-on-surface-variant text-sm tabular-nums",
+  TRACK: "h-2 w-full overflow-hidden rounded-pill bg-surface-container-high",
+  FILL: "h-full w-full origin-left rounded-pill",
+  LEDGER: "flex max-h-72 flex-col gap-0.5 overflow-y-auto rounded-tile bg-surface-container p-1.5",
+  STEP: "flex min-h-10 items-center gap-2.5 rounded-field px-3 py-2 transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
+  /** Highlight-by-Container: the running step is promoted one step. */
+  STEP_RUNNING: "bg-primary-container text-on-primary-container",
+  STEP_GLYPH: "size-4 flex-none",
+  STEP_TEXT: "flex min-w-0 flex-1 flex-col",
+  STEP_NAME: "truncate text-sm font-medium",
+  /** Ignored / dropped counts under a step's name. */
+  STEP_NOTE: "truncate text-xs",
+  STEP_DETAIL: "max-w-[45%] flex-none truncate text-xs",
+} as const;
+
+export type PipelineTone = "info" | "success" | "warning" | "destructive";
+
+export const PIPELINE_TONE: Record<PipelineTone, { disc: string; fill: string }> = {
+  info: { disc: "bg-primary text-primary-foreground", fill: "bg-primary" },
+  success: { disc: "bg-success text-success-foreground", fill: "bg-success" },
+  warning: { disc: "bg-warning text-warning-foreground", fill: "bg-warning" },
+  destructive: {
+    disc: "bg-destructive text-destructive-foreground",
+    fill: "bg-destructive",
+  },
+};
+
+/** The create card's picker while the supported-section list loads. */
+export const BACKUP_SKELETON = {
+  /** Worn inside a real `PICK.ROW`, so the row resolves to its own height. */
+  BOX: "size-4 flex-none rounded-inline",
+  NAME: "h-5 w-40 max-w-full rounded-inline",
+  LABEL: "h-[1.125rem] w-24 rounded-inline",
+  /** Rows the skeleton draws: the Connection group, which opens first. */
+  ROWS: 6,
+} as const;
+
+// -----------------------------------------------------------------------------
 // Adaptive Polling
 // -----------------------------------------------------------------------------
 

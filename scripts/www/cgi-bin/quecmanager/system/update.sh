@@ -3,6 +3,7 @@
 . /usr/lib/qmanager/config.sh
 . /usr/lib/qmanager/semver.sh
 . /usr/lib/qmanager/downloader.sh
+. /usr/lib/qmanager/system_validate.sh
 # =============================================================================
 # update.sh — CGI Endpoint: Software Update (GET + POST)
 # =============================================================================
@@ -63,6 +64,11 @@ check_lock() {
             exit 0
         fi
         rm -f "$PID_FILE"
+    fi
+    # The install stops lighttpd, which would kill a running config restore.
+    if pid_is "$(cat /tmp/qmanager_config_restore.pid 2>/dev/null)" qmanager_config_restore; then
+        cgi_error "restore_in_progress" "A configuration restore is running"
+        exit 0
     fi
 }
 
@@ -314,11 +320,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$ACTION" = "save_prerelease" ]; then
         ensure_update_config
         enabled=$(printf '%s' "$POST_DATA" | jq -r '(.enabled) | if . == null then empty else tostring end')
-        case "$enabled" in
-            true)  qm_config_set update include_prerelease 1 ;;
-            false) qm_config_set update include_prerelease 0 ;;
-            *) cgi_error "invalid_value" "enabled must be true or false"; exit 0 ;;
-        esac
+        qm_update_save_prerelease "$enabled" || { cgi_error "invalid_value" "enabled must be true or false"; exit 0; }
         cgi_success
         exit 0
     fi
@@ -333,34 +335,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             true|false) ;;
             *) cgi_error "invalid_value" "enabled must be true or false"; exit 0 ;;
         esac
-        # case, not grep -E: BusyBox grep returns rc 2 on error too, which a
-        # bare `||` can't tell apart from a clean no-match.
-        case "$auto_time" in
-            [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
-            *) cgi_error "invalid_value" "time must be HH:MM format"; exit 0 ;;
-        esac
+        qm_valid_hhmm "$auto_time" || { cgi_error "invalid_value" "time must be HH:MM format"; exit 0; }
 
-        case "$enabled" in
-            true)  qm_config_set update auto_update_enabled 1 ;;
-            false) qm_config_set update auto_update_enabled 0 ;;
-        esac
-        qm_config_set update auto_update_time "$auto_time"
-
-        # Arm/disarm the systemd timer LIVE so the toggle takes effect immediately,
-        # not just at the next install/OTA. This replaced a dead crontab-writer: CGI
-        # runs as www-data (can't write root's /var/spool/cron/crontabs/root) and no
-        # cron daemon runs on RM520N-GL at all, so the old entry was never scheduled.
-        # qmanager_auto_update_arm persists via /lib timers.target.wants (matching the
-        # installer's own arming) and is a clean no-op if the .timer unit predates this
-        # device's OTA base. Best-effort: a helper hiccup logs but never fails the save
-        # — the config write above is the source of truth the auto-updater also re-checks.
-        if [ "$enabled" = "true" ]; then
-            sudo -n /usr/bin/qmanager_auto_update_arm on >/dev/null 2>&1 \
-                || logger -t update "auto_update_arm on failed (non-fatal)"
-        else
-            sudo -n /usr/bin/qmanager_auto_update_arm off >/dev/null 2>&1 \
-                || logger -t update "auto_update_arm off failed (non-fatal)"
-        fi
+        # Config write plus the live timer arm/disarm (lib: system_validate.sh). A helper
+        # hiccup logs but never fails the save; the config is what the auto-updater re-checks.
+        qm_update_save_auto "$enabled" "$auto_time"
 
         cgi_success
         exit 0

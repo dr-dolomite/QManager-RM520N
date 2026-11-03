@@ -269,6 +269,11 @@ run_install_with_progress() {
     local version="$1"
     local last_label="" current_label="" step_line="" rc=0
 
+    # Covers the auto-update timer too: the install stops lighttpd and would kill the restore worker.
+    if pid_is "$(cat /tmp/qmanager_config_restore.pid 2>/dev/null)" qmanager_config_restore; then
+        die "A configuration restore is running. Try again when it finishes."
+    fi
+
     : > "$INSTALL_LOG"
     # --force skips the firmware prompt (stdin is closed). The flag defers lighttpd's
     # restart: a reboot always follows a successful install.

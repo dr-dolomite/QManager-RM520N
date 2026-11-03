@@ -76,20 +76,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     new_ttl=$(printf '%s' "$POST_DATA" | jq -r '.ttl // 0')
     new_hl=$(printf '%s' "$POST_DATA" | jq -r '.hl // 0')
 
-    # Validate (lib also validates, but giving the user a clean error message
-    # at the CGI layer is friendlier than relying on lib return codes)
-    case "$new_ttl" in
-        ''|*[!0-9]*) cgi_error "invalid_ttl" "TTL must be a number between 0 and 255"; exit 0 ;;
-    esac
-    if [ "$new_ttl" -gt 255 ] 2>/dev/null; then
-        cgi_error "invalid_ttl" "TTL must be between 0 and 255"; exit 0
-    fi
-    case "$new_hl" in
-        ''|*[!0-9]*) cgi_error "invalid_hl" "HL must be a number between 0 and 255"; exit 0 ;;
-    esac
-    if [ "$new_hl" -gt 255 ] 2>/dev/null; then
-        cgi_error "invalid_hl" "HL must be between 0 and 255"; exit 0
-    fi
+    ttl_state_validate_field TTL "$new_ttl" || { cgi_error "$TTL_ERR_CODE" "$TTL_ERR_DETAIL"; exit 0; }
+    ttl_state_validate_field HL "$new_hl" || { cgi_error "$TTL_ERR_CODE" "$TTL_ERR_DETAIL"; exit 0; }
 
     qlog_info "Applying TTL=$new_ttl HL=$new_hl"
 

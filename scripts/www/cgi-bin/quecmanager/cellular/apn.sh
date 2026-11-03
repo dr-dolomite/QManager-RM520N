@@ -20,6 +20,8 @@ MAX_EVENTS=300
 # WS6 save, legacy save).
 APN_APPLY_LOCK_WAIT=5
 . /usr/lib/qmanager/apn_apply.sh
+. /usr/lib/qmanager/connection_validate.sh
+. /usr/lib/qmanager/connection_store.sh
 # =============================================================================
 # apn.sh — CGI Endpoint: WAN Profile Management (GET + POST), AT-only
 # =============================================================================
@@ -108,10 +110,10 @@ MAX_PROFILES=6
 # write here silently no-opped for as long as the sidecars lived there.
 # install_rm520n.sh's migrate_apn_sidecars() moves fielded devices across.
 # /etc is persistent UBIFS on this platform, so this survives reboots and OTA.
-NAME_FILE="/etc/qmanager/apn_names.json"
+NAME_FILE="$APN_NAMES_FILE"
 # WS6 single-APN sidecar (see addendum above). Sibling of NAME_FILE, same dir,
 # same lazy-create-on-first-save pattern — no installer seeding needed.
-SETTING_FILE="/etc/qmanager/apn_setting.json"
+SETTING_FILE="$APN_SETTING_FILE"
 
 # =============================================================================
 # Helpers
@@ -123,25 +125,6 @@ die() {
     qlog_error "$1: ${2:-}"
     cgi_error "$1" "${2:-}"
     exit 0
-}
-
-# PDP type <-> frontend vocabulary. AT+CGDCONT uses IP/IPV6/IPV4V6; the UI
-# uses ipv4/ipv6/ipv4v6 (see PDP_TYPE_OPTIONS in types/wan-profiles.ts).
-pdp_to_frontend() {
-    case "$1" in
-        IP|IPV4) echo "ipv4" ;;
-        IPV6)    echo "ipv6" ;;
-        IPV4V6)  echo "ipv4v6" ;;
-        *)       echo "" ;;
-    esac
-}
-pdp_to_at() {
-    case "$1" in
-        ipv4)   echo "IP" ;;
-        ipv6)   echo "IPV6" ;;
-        ipv4v6) echo "IPV4V6" ;;
-        *)      echo "" ;;
-    esac
 }
 
 # Auth type <-> frontend vocabulary. AT (QICSGP/CGAUTH) uses 0/1/2.
@@ -178,72 +161,6 @@ apn_type_of() {
         sos|SOS) echo "emergency" ;;
         *)       echo "" ;;
     esac
-}
-
-# Read the persisted profile-name sidecar as a compact JSON object.
-# Missing/corrupt file -> "{}" (all names empty; not an error).
-read_names_json() {
-    if [ -f "$NAME_FILE" ]; then
-        _nj=$(jq -c '.' "$NAME_FILE" 2>/dev/null)
-        [ -n "$_nj" ] && { printf '%s' "$_nj"; return; }
-    fi
-    printf '%s' "{}"
-}
-
-# write_name <cid> <name> — merge one {cid:name} entry into the sidecar.
-# Written by www-data (CGI runs as www-data; /etc/qmanager is www-data-owned),
-# then chmod 644 explicitly so the mode does not depend on umask.
-write_name() {
-    _wc="$1"
-    _wn="$2"
-    _wdir=$(dirname "$NAME_FILE")
-    [ -d "$_wdir" ] || mkdir -p "$_wdir" 2>/dev/null
-    _wcur=$(read_names_json)
-    _wnew=$(printf '%s' "$_wcur" | jq -c --arg k "$_wc" --arg v "$_wn" '.[$k]=$v' 2>/dev/null)
-    [ -z "$_wnew" ] && return 1
-    _wtmp="${NAME_FILE}.tmp.$$"
-    printf '%s\n' "$_wnew" > "$_wtmp" 2>/dev/null || { rm -f "$_wtmp" 2>/dev/null; return 1; }
-    chmod 644 "$_wtmp" 2>/dev/null
-    mv "$_wtmp" "$NAME_FILE" 2>/dev/null || { rm -f "$_wtmp" 2>/dev/null; return 1; }
-    chmod 644 "$NAME_FILE" 2>/dev/null
-    return 0
-}
-
-# --- WS6 single-APN sidecar (SETTING_FILE) ----------------------------------
-
-# Read the persisted single-APN setting as a compact JSON object.
-# Missing/corrupt file -> {"active":0} (defensive: treat as carrier default
-# with no stored APN, never an error).
-read_setting_json() {
-    if [ -f "$SETTING_FILE" ]; then
-        _sj=$(jq -c '.' "$SETTING_FILE" 2>/dev/null)
-        [ -n "$_sj" ] && { printf '%s' "$_sj"; return; }
-    fi
-    printf '%s' '{"active":0}'
-}
-
-# write_setting_json <apn> <pdp_type> <cid> <active> — atomic tmp+mv, 644.
-# <pdp_type> is frontend vocabulary (ipv4/ipv6/ipv4v6); <active> is 0 or 1.
-write_setting_json() {
-    _sa="$1"
-    _sp="$2"
-    _sc="$3"
-    _sact="$4"
-    _sdir=$(dirname "$SETTING_FILE")
-    [ -d "$_sdir" ] || mkdir -p "$_sdir" 2>/dev/null
-    _snew=$(jq -n \
-        --arg apn "$_sa" \
-        --arg pdp_type "$_sp" \
-        --argjson cid "$_sc" \
-        --argjson active "$_sact" \
-        '{apn: $apn, pdp_type: $pdp_type, cid: $cid, active: $active}' 2>/dev/null)
-    [ -z "$_snew" ] && return 1
-    _stmp="${SETTING_FILE}.tmp.$$"
-    printf '%s\n' "$_snew" > "$_stmp" 2>/dev/null || { rm -f "$_stmp" 2>/dev/null; return 1; }
-    chmod 644 "$_stmp" 2>/dev/null
-    mv "$_stmp" "$SETTING_FILE" 2>/dev/null || { rm -f "$_stmp" 2>/dev/null; return 1; }
-    chmod 644 "$SETTING_FILE" 2>/dev/null
-    return 0
 }
 
 # get_cgact_state <cid> — activation state for one CID from the cached
@@ -283,7 +200,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     cgdcont_raw=$(run_at 'AT+CGDCONT?')
     cgact_raw=$(run_at 'AT+CGACT?')
-    names_json=$(read_names_json)
+    names_json=$(apn_names_read)
 
     tsv=""
     cid=1
@@ -416,8 +333,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     [ -z "$cids_json" ] && die "parse_failed" "Could not assemble modem context list"
 
     # Stored single-APN setting (WS6 sidecar). Defensive defaults mirror
-    # read_setting_json's {"active":0} fallback for a missing/corrupt file.
-    setting_json=$(read_setting_json)
+    # apn_setting_read's {"active":0} fallback for a missing/corrupt file.
+    setting_json=$(apn_setting_read)
     active_ptr=$(printf '%s' "$setting_json" | jq -r 'if .active == 1 then 1 else 0 end')
     setting_apn=$(printf '%s' "$setting_json" | jq -r 'if .apn == null then "" else .apn end')
     setting_pdp=$(printf '%s' "$setting_json" | jq -r 'if .pdp_type == null then "ipv4v6" else .pdp_type end')
@@ -471,58 +388,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # BEFORE the common index/cid validation below.
     # -----------------------------------------------------------------------
     if [ "$ACTION" = "deactivate" ]; then
-        setting_json=$(read_setting_json)
-        cur_active=$(printf '%s' "$setting_json" | jq -r 'if .active == 1 then 1 else 0 end')
-
-        # Already carrier-default: nothing to revert, do NOT touch the modem
-        # (avoids an unnecessary WAN drop).
-        if [ "$cur_active" != "1" ]; then
-            qlog_info "Deactivate (WS6): already carrier default; no modem write"
-            jq -n '{success: true, active: 0}'
+        # Shared with the config-backup applier (connection_store.sh).
+        apn_setting_deactivate || die "$APN_ERR_CODE" "$APN_ERR_DETAIL"
+        if [ "$APN_SAVE_PERSISTED" != "1" ]; then
+            jq -n '{success: true, active: 0, persisted: false}'
             exit 0
         fi
-
-        SET_CID=$(printf '%s' "$setting_json" | jq -r 'if .cid == null then 1 else .cid end')
-        SET_PDP=$(printf '%s' "$setting_json" | jq -r 'if .pdp_type == null then "ipv4v6" else .pdp_type end')
-        case "$SET_CID" in
-            ''|*[!0-9]*) SET_CID=1 ;;
-        esac
-        PDP_AT=$(pdp_to_at "$SET_PDP")
-        [ -z "$PDP_AT" ] && PDP_AT="IPV4V6"
-
-        qlog_info "Deactivate (WS6): reverting cid=$SET_CID to carrier default; active=0"
-
-        # --- Drive the modem via the shared write-first attach-cycle
-        # primitive; allow_empty=1 since this is a deliberate revert-to-
-        # carrier-default, not a silently-missing APN.
-        apn_apply_write "$SET_CID" "$PDP_AT" "" 1
-        case "$APN_APPLY_RC" in
-            1) die "cgdcont_failed" "$APN_APPLY_DETAIL" ;;
-            2) die "cops_detach_failed" "$APN_APPLY_DETAIL" ;;
-            3) die "cops_attach_failed" "$APN_APPLY_DETAIL" ;;
-            5) die "cops_attach_failed" "$APN_APPLY_DETAIL" ;;
-            7) die "apn_busy" "$APN_APPLY_DETAIL" ;;
-            # 0 (done_carrier_default): fall through to persist + success below.
-            # 6 (skipped_empty_apn) cannot occur here (allow_empty=1 forces
-            # the bracket even for a blank APN).
-        esac
-
-        # --- Persist active=0. A persist failure AFTER a successful modem
-        # revert still reports success (the modem is already on carrier
-        # default). Fallback: drop the sidecar (a missing file reads as
-        # active=0 and frees space on a full disk); if even that fails,
-        # reply persisted:false so the UI knows the next GET may disagree.
-        if ! write_setting_json "" "$SET_PDP" "$SET_CID" 0; then
-            qlog_warn "Reverted cid $SET_CID on modem but failed to persist active=0 to $SETTING_FILE"
-            if rm -f "$SETTING_FILE" 2>/dev/null && [ ! -e "$SETTING_FILE" ]; then
-                qlog_warn "Removed $SETTING_FILE instead (missing sidecar reads as active=0)"
-            else
-                qlog_error "Could not remove $SETTING_FILE; sidecar still says active=1"
-                jq -n '{success: true, active: 0, persisted: false}'
-                exit 0
-            fi
-        fi
-
         jq -n '{success: true, active: 0}'
         exit 0
     fi
@@ -532,12 +403,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # WS6 single-APN `cid` field (same integer, different key name depending
     # on which frontend contract is calling).
     IDX=$(printf '%s' "$POST_DATA" | jq -r '(.index // .cid // empty) | tostring')
-    case "$IDX" in
-        *[!0-9]*|"") die "invalid_index" "index/cid must be a number 1-${MAX_PROFILES}" ;;
-    esac
-    if [ "$IDX" -lt 1 ] || [ "$IDX" -gt "$MAX_PROFILES" ]; then
-        die "invalid_index" "index/cid must be 1-${MAX_PROFILES}"
-    fi
+    conn_validate_cid "$IDX" "$MAX_PROFILES" || die "$CONN_ERR_CODE" "$CONN_ERR_DETAIL"
 
     # -----------------------------------------------------------------------
     # action: toggle — activate/deactivate one PDP context
@@ -577,51 +443,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             WS_APN=$(printf '%s' "$POST_DATA" | jq -r 'if .apn == null then "" else .apn end')
             WS_PDP=$(printf '%s' "$POST_DATA" | jq -r 'if .pdp_type == null then "" else .pdp_type end')
 
-            [ -z "$WS_APN" ] && die "missing_fields" "apn is required"
-            case "$WS_APN" in
-                *'"'*) die "invalid_value" "APN may not contain a double-quote" ;;
-            esac
+            conn_validate_apn_setting "$WS_APN" "$WS_PDP" || die "$CONN_ERR_CODE" "$CONN_ERR_DETAIL"
             WS_PDP_AT=$(pdp_to_at "$WS_PDP")
-            [ -z "$WS_PDP_AT" ] && die "invalid_pdp_type" "pdp_type must be ipv4, ipv6, or ipv4v6"
 
             qlog_info "Save APN (WS6): apn=$WS_APN pdp=$WS_PDP_AT cid=$IDX"
 
-            # --- Write-first attach cycle via the shared primitive ----------
-            # allow_empty defaults to 0; WS_APN was already validated
-            # non-empty above, so this is never the silent-blank-APN case.
-            apn_apply_write "$IDX" "$WS_PDP_AT" "$WS_APN"
-            case "$APN_APPLY_RC" in
-                1) die "cgdcont_failed" "$APN_APPLY_DETAIL" ;;
-                2) die "cops_detach_failed" "$APN_APPLY_DETAIL" ;;
-                3) die "cops_attach_failed" "$APN_APPLY_DETAIL" ;;
-                4) die "apn_mismatch" "$APN_APPLY_DETAIL" ;;
-                5) die "cops_attach_failed" "$APN_APPLY_DETAIL" ;;
-                7) die "apn_busy" "$APN_APPLY_DETAIL" ;;
-                # 0 (done): fall through to TTL/HL re-apply + sidecar write.
-            esac
-
-            # --- Re-apply persisted TTL/HL hotspot-bypass rules -------------
-            # (parity with the legacy save path — TTL is orthogonal to APN).
-            read -r persisted_ttl persisted_hl <<EOF
-$(ttl_state_read_persisted)
-EOF
-            persisted_ttl="${persisted_ttl:-0}"
-            persisted_hl="${persisted_hl:-0}"
-            if [ "$persisted_ttl" -gt 0 ] 2>/dev/null || [ "$persisted_hl" -gt 0 ] 2>/dev/null; then
-                qlog_info "Re-applying persisted TTL=$persisted_ttl HL=$persisted_hl after APN save"
-                if ! ttl_state_apply "$persisted_ttl" "$persisted_hl"; then
-                    qlog_warn "TTL/HL re-apply failed after APN save; rules may be partial"
-                fi
-            fi
-
-            # --- Persist to the WS6 sidecar (best-effort after modem apply) -
-            # Modem is the source of truth: if the modem write succeeded but
-            # the sidecar persist fails, still report success and warn. Store
-            # the NEGOTIATED APN (APN_APPLY_NEGOTIATED_APN), not the
-            # requested one — on rc=0 they are identical, so this only
-            # matters if the two ever diverge.
-            if ! write_setting_json "$APN_APPLY_NEGOTIATED_APN" "$WS_PDP" "$IDX" 1; then
-                qlog_warn "Applied APN to modem but failed to persist $SETTING_FILE"
+            # Attach cycle, TTL/HL re-apply and sidecar write: shared with the
+            # config-backup applier (connection_store.sh).
+            apn_setting_apply "$IDX" "$WS_PDP" "$WS_APN" || die "$APN_ERR_CODE" "$APN_ERR_DETAIL"
+            if [ "$APN_SAVE_PERSISTED" != "1" ]; then
                 jq -n '{success: true, active: 1, persisted: false}'
                 exit 0
             fi
@@ -746,7 +576,7 @@ EOF
         esac
 
         # --- Step 4: persist the profile name (filesystem only) -----------
-        if ! write_name "$IDX" "$NAME"; then
+        if ! apn_name_write "$IDX" "$NAME"; then
             qlog_warn "Failed to persist profile name for CID $IDX to $NAME_FILE"
         fi
 

@@ -33,6 +33,8 @@
 SCENARIOS_DIR="/etc/qmanager/scenarios"
 MAX_SCENARIOS=20
 
+. /usr/lib/qmanager/radio_validate.sh
+
 qlog_init "cgi_scenario_save"
 cgi_headers
 cgi_handle_options
@@ -68,15 +70,10 @@ if [ -z "$SCENARIO_ID" ] || ! echo "$SCENARIO_ID" | grep -q "^custom-"; then
 fi
 
 # --- Sanitize ID (prevent path traversal) ------------------------------------
-case "$SCENARIO_ID" in
-    custom-[0-9]*)
-        # Valid format
-        ;;
-    *)
-        cgi_error "invalid_id" "Invalid scenario ID format"
-        exit 0
-        ;;
-esac
+if ! rv_scenario_id "$SCENARIO_ID"; then
+    cgi_error "invalid_id" "Invalid scenario ID format"
+    exit 0
+fi
 
 # --- Check limit on new creation ---------------------------------------------
 if [ "$IS_NEW" -eq 1 ]; then

@@ -28,7 +28,6 @@ qlog_init "cgi_lan_config"
 
 # Full reboot (ack wait up to 20 s + the /reboot/ countdown) plus margin.
 WINDOW_SECONDS=120
-UPDATE_PID_FILE="/tmp/qmanager_update.pid"
 
 # Headers are deferred so a 409 can carry its Status line; every branch sets them once.
 if [ "$REQUEST_METHOD" = "OPTIONS" ]; then
@@ -50,21 +49,14 @@ else
     lan_err "lan_read_failed" "LAN library is not installed"
 fi
 
-update_running() {
-    [ -f "$UPDATE_PID_FILE" ] || return 1
-    _up_pid=$(cat "$UPDATE_PID_FILE" 2>/dev/null)
-    case "$_up_pid" in ''|*[!0-9]*) return 1 ;; esac
-    pid_alive "$_up_pid"
-}
-
 # current_lan — sets cur_ip, cur_mask, cur_prefix from the XML; non-zero when unreadable.
 current_lan() {
-    _cl=$(qm_lan_read) || return 1
-    set -- $_cl
-    cur_ip="$1"
-    cur_mask="$2"
-    cur_prefix=$(qm_lan_mask_to_prefix "$cur_mask") || return 2
-    return 0
+    qm_lan_current
+    _cl_rc=$?
+    cur_ip="$QM_LAN_CUR_IP"
+    cur_mask="$QM_LAN_CUR_MASK"
+    cur_prefix="$QM_LAN_CUR_PREFIX"
+    return "$_cl_rc"
 }
 
 # =============================================================================
@@ -136,24 +128,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         else (.prefix | tostring)
         end
     ' 2>/dev/null)
-    case "$prefix" in
-        ''|*[!0-9]*)
-            lan_err "invalid_prefix" "prefix must be an integer between 16 and 30"
-            ;;
-    esac
-    if [ "${#prefix}" -gt 2 ] || [ "$prefix" -lt 16 ] || [ "$prefix" -gt 30 ]; then
-        lan_err "invalid_prefix" "prefix must be an integer between 16 and 30"
-    fi
-
-    # Strict dotted quad: 4 octets 0-255, no leading zeros.
-    qm_lan_split "$ipaddr" || lan_err "invalid_ipaddr" "Address must be four numeric octets 0-255 without leading zeros"
-
-    # RFC1918 only; with prefix >= 16 the whole subnet stays inside its private block.
-    qm_lan_is_private "$ipaddr" || lan_err "invalid_private_address" "Address must be in 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16"
-
-    qm_lan_host_ok "$ipaddr" "$prefix" || lan_err "invalid_host_in_subnet" "Address is the network/broadcast address for /$prefix"
-
-    netmask=$(qm_lan_prefix_to_mask "$prefix") || lan_err "invalid_prefix" "Cannot derive netmask"
+    # Prefix range, dotted quad, RFC1918 and host checks live in lan_subnet.sh.
+    qm_lan_check_request "$ipaddr" "$prefix" || lan_err "$QM_LAN_ERR" "$QM_LAN_ERR_DETAIL"
+    netmask="$QM_LAN_NETMASK"
 
     qlog_info "LAN change requested: ipaddr=$ipaddr netmask=$netmask prefix=$prefix"
 
@@ -177,26 +154,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
-    if update_running; then
+    if qm_lan_update_running; then
         qlog_warn "LAN change refused: software update in progress"
         lan_err "update_in_progress" "A software update is running" "409 Conflict"
     fi
 
-    $_SUDO -n /usr/bin/qmanager_lan_apply "$ipaddr" "$prefix" </dev/null >/dev/null 2>&1
-    apply_rc=$?
-    case "$apply_rc" in
-        0) ;;
-        3)
-            lan_err "update_in_progress" "A software update is running" "409 Conflict"
-            ;;
-        4)
-            lan_err "lan_busy" "Another LAN change is in progress"
-            ;;
-        *)
-            qlog_error "qmanager_lan_apply failed (rc=$apply_rc)"
-            lan_err "lan_save_failed" "Failed to save LAN settings"
-            ;;
-    esac
+    qm_lan_apply_run "$ipaddr" "$prefix" || lan_err "$QM_LAN_ERR" "$QM_LAN_ERR_DETAIL" "$QM_LAN_ERR_HTTP"
 
     qlog_info "LAN config saved ($ipaddr/$prefix), rebooting after ack"
 

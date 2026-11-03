@@ -44,6 +44,7 @@ cgi_handle_options
 
 # --- SIM slot read-back verification (shared with qmanager_watchcat) ---------
 . /usr/lib/qmanager/slot_verify.sh
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Configuration -----------------------------------------------------------
 CMD_GAP=0.2
@@ -315,13 +316,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     fi
 
     if [ "$MODE_PREF" != "unset" ]; then
-        case "$MODE_PREF" in
-            AUTO|LTE|NR5G|WCDMA|LTE:NR5G|LTE:WCDMA|NR5G:LTE:WCDMA) ;;
-            *)
-                cgi_error "invalid_mode_pref" "Invalid network mode"
-                exit 0
-                ;;
-        esac
+        if ! rv_mode_pref "$MODE_PREF"; then
+            cgi_error "$RV_CODE" "$RV_DETAIL"
+            exit 0
+        fi
     fi
 
     if [ "$NR5G_MODE" != "unset" ]; then
@@ -421,7 +419,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     # 4. Network mode
     if [ "$MODE_PREF" != "unset" ]; then
-        if at_write "AT+QNWPREFCFG=\"mode_pref\",$MODE_PREF"; then
+        if radio_set_mode_pref "$MODE_PREF"; then
             qlog_info "Set mode_pref=$MODE_PREF"
             applied="${applied}mode_pref,"
         else

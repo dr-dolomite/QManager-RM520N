@@ -17,6 +17,8 @@
 SCENARIOS_DIR="/etc/qmanager/scenarios"
 ACTIVE_SCENARIO_FILE="/etc/qmanager/active_scenario"
 
+. /usr/lib/qmanager/radio_validate.sh
+
 qlog_init "cgi_scenario_delete"
 cgi_headers
 cgi_handle_options
@@ -39,15 +41,10 @@ if [ -z "$SCENARIO_ID" ]; then
 fi
 
 # --- Sanitize ID (prevent path traversal) ------------------------------------
-case "$SCENARIO_ID" in
-    custom-[0-9]*)
-        # Valid format
-        ;;
-    *)
-        cgi_error "invalid_id" "Only custom scenarios can be deleted"
-        exit 0
-        ;;
-esac
+if ! rv_scenario_id "$SCENARIO_ID"; then
+    cgi_error "invalid_id" "Only custom scenarios can be deleted"
+    exit 0
+fi
 
 # --- Delete the scenario file ------------------------------------------------
 SCENARIO_FILE="$SCENARIOS_DIR/${SCENARIO_ID}.json"

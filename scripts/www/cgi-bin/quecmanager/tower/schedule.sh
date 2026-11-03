@@ -25,6 +25,7 @@ cgi_handle_options
 
 # --- Load library ------------------------------------------------------------
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -54,37 +55,18 @@ fi
 
 if [ "$ENABLED" = "true" ]; then
     # Validate time format HH:MM
-    case "$START_TIME" in
-        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
-        *)
-            cgi_error "invalid_start_time" "start_time must be HH:MM format"
-            exit 0
-            ;;
-    esac
-    case "$END_TIME" in
-        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
-        *)
-            cgi_error "invalid_end_time" "end_time must be HH:MM format"
-            exit 0
-            ;;
-    esac
-
-    # Validate days
-    if [ -z "$DAYS_RAW" ]; then
-        cgi_error "no_days" "At least one day must be selected"
+    if ! rv_hhmm "$START_TIME"; then
+        cgi_error "invalid_start_time" "start_time must be HH:MM format"
+        exit 0
+    fi
+    if ! rv_hhmm "$END_TIME"; then
+        cgi_error "invalid_end_time" "end_time must be HH:MM format"
         exit 0
     fi
 
-    # Validate each day is 0-6
-    invalid_day=""
-    for d in $(echo "$DAYS_RAW" | tr ',' ' '); do
-        case "$d" in
-            0|1|2|3|4|5|6) ;;
-            *) invalid_day="$d" ;;
-        esac
-    done
-    if [ -n "$invalid_day" ]; then
-        cgi_error "invalid_day" "Days must be 0-6 (0=Sun, 6=Sat)"
+    # Validate days (at least one, each 0-6)
+    if ! rv_tower_days "$DAYS_RAW"; then
+        cgi_error "$RV_CODE" "$RV_DETAIL"
         exit 0
     fi
 fi
@@ -94,20 +76,7 @@ tower_config_init
 
 # --- Scenario 1 guard: Reject enable if no lock targets configured -----------
 if [ "$ENABLED" = "true" ]; then
-    # Check LTE: at least one cell with earfcn+pci (using jq)
-    has_lte=$(tower_config_get '.lte.cells | map(select(. != null)) | length')
-    [ -z "$has_lte" ] && has_lte="0"
-
-    # Check NR-SA: pci and arfcn are non-null (using jq)
-    nr_pci=$(tower_config_get '.nr_sa.pci')
-    nr_arfcn=$(tower_config_get '.nr_sa.arfcn')
-    has_nr="false"
-    if [ -n "$nr_pci" ] && [ "$nr_pci" != "null" ] && \
-       [ -n "$nr_arfcn" ] && [ "$nr_arfcn" != "null" ]; then
-        has_nr="true"
-    fi
-
-    if [ "$has_lte" = "0" ] && [ "$has_nr" = "false" ]; then
+    if ! tower_has_lock_targets; then
         cgi_error "no_lock_targets" "Configure LTE or NR-SA lock targets before enabling schedule"
         exit 0
     fi
@@ -132,19 +101,10 @@ tower_config_update_schedule "$ENABLED" "$START_TIME" "$END_TIME" "$DAYS_JSON"
 # is necessary but not sufficient on its own).
 day_list="$DAYS_RAW"
 
-if [ "$ENABLED" = "true" ]; then
-    arm_json=$(sudo -n /usr/bin/qmanager_tower_schedule_arm install "$START_TIME" "$END_TIME" "$day_list" 2>/dev/null)
-else
-    arm_json=$(sudo -n /usr/bin/qmanager_tower_schedule_arm teardown 2>/dev/null)
-fi
-
-arm_ok=$(printf '%s' "$arm_json" | jq -r '.success // false' 2>/dev/null)
-armed=$(printf '%s' "$arm_json" | jq -r 'if has("armed") then (.armed|tostring) else "false" end' 2>/dev/null)
-arm_reason=$(printf '%s' "$arm_json" | jq -r '.reason // ""' 2>/dev/null)
-if [ "$arm_ok" != "true" ]; then
-    qlog_error "Tower schedule timer arm/disarm failed: ${arm_json:-<empty response>}"
-fi
-qlog_info "Tower schedule timer ${ENABLED}: apply at ${START_TIME}, clear at ${END_TIME}, days=${day_list}, armed=${armed}"
+tower_apply_schedule_timer "$ENABLED" "$START_TIME" "$END_TIME" "$day_list"
+arm_ok="$TW_ARM_OK"
+armed="$TW_ARMED"
+arm_reason="$TW_ARM_REASON"
 
 # --- Response (using jq for guaranteed valid JSON) ---------------------------
 # Reconstruct days as JSON array for response

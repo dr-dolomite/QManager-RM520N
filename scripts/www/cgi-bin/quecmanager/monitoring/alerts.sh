@@ -2,6 +2,7 @@
 LIB_DIR="${QM_LIB_DIR:-/usr/lib/qmanager}"
 . "$LIB_DIR/cgi_base.sh"
 . "$LIB_DIR/conn_state.sh"
+. "$LIB_DIR/monitoring_validate.sh"
 # =============================================================================
 # alerts.sh — CGI Endpoint: Centralized Alerts (GET + POST)
 # =============================================================================
@@ -74,11 +75,6 @@ REBOOT_HISTORY="/etc/qmanager/reboot_history.json"
 SECRET_HELPER="/usr/bin/qmanager_secret_set"
 EMAIL_SEND_HELPER="/usr/bin/qmanager_email_send"
 
-SMS_RELOAD="/tmp/qmanager_sms_reload"
-EMAIL_RELOAD="/tmp/qmanager_email_reload"
-DISCORD_RELOAD="/tmp/qmanager_discord_reload"
-ROUTING_RELOAD="/tmp/qmanager_alert_routing_reload"
-
 SMS_LOG="/tmp/qmanager_sms_log.json"
 EMAIL_LOG="/tmp/qmanager_email_log.json"
 DISCORD_LOG="/tmp/qmanager_discord_log.json"
@@ -93,7 +89,7 @@ MSMTP_INSTALL_PID="/tmp/qmanager_msmtp_install.pid"
 # exactly, since that's the backend truth the engine enforces regardless of
 # what's written here. Enforcing it again here just keeps the persisted
 # routing file honest for the GET response / future engine changes.
-ROUTING_DEFAULT='{"connection_lost":{"sms":true,"email":false,"discord":false},"connection_restored":{"sms":true,"email":true,"discord":true},"reboot":{"sms":true,"email":true,"discord":true}}'
+ROUTING_DEFAULT="$MV_ROUTING_DEFAULT"
 
 # =============================================================================
 # Root-helper invocation — shared by both privileged helpers this endpoint uses
@@ -337,14 +333,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         for _pair in "sms:$sms_threshold_in" "email:$email_threshold_in" "discord:$discord_threshold_in"; do
             _name="${_pair%%:*}"
             _val="${_pair#*:}"
-            case "$_val" in
-                ''|0*|?????*|*[!0-9]*)
-                    cgi_error "invalid_threshold" "${_name}.threshold_minutes must be a number between 1 and 1440"
-                    exit 0
-                    ;;
-            esac
-            if [ "$_val" -lt 1 ] || [ "$_val" -gt 1440 ]; then
-                cgi_error "invalid_threshold" "${_name}.threshold_minutes must be between 1 and 1440"
+            if ! _r=$(mv_check_wait_minutes "${_name}.threshold_minutes" "$_val"); then
+                cgi_error "invalid_threshold" "$_r"
                 exit 0
             fi
         done
@@ -353,14 +343,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # ONE wait: the last one that differs from the current value wins.
         new_wait="$cur_wait"
         if [ -n "$alert_after_in" ]; then
-            case "$alert_after_in" in
-                0*|?????*|*[!0-9]*)
-                    cgi_error "invalid_threshold" "alert_after_min must be a number between 1 and 1440"
-                    exit 0
-                    ;;
-            esac
-            if [ "$alert_after_in" -lt 1 ] || [ "$alert_after_in" -gt 1440 ]; then
-                cgi_error "invalid_threshold" "alert_after_min must be between 1 and 1440"
+            if ! _r=$(mv_check_wait_minutes "alert_after_min" "$alert_after_in"); then
+                cgi_error "invalid_threshold" "$_r"
                 exit 0
             fi
             new_wait="$alert_after_in"
@@ -372,30 +356,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         # --- SMS: phone required + validated only when enabled ----------------
         if [ "$sms_enabled_in" = "true" ]; then
-            case "$sms_phone_in" in
-                '')
-                    cgi_error "invalid_phone" "sms.recipient_phone is required when SMS alerts are enabled"
-                    exit 0
-                    ;;
-            esac
-            _phone_check="${sms_phone_in#+}"
-            case "$_phone_check" in
-                ''|*[!0-9]*)
-                    cgi_error "invalid_phone" "Phone must contain only digits (with optional leading +)"
-                    exit 0
-                    ;;
-            esac
-            _plen=${#_phone_check}
-            if [ "$_plen" -lt 7 ] || [ "$_plen" -gt 15 ]; then
-                cgi_error "invalid_phone" "Phone must be 7-15 digits"
+            if ! _r=$(mv_check_phone "$sms_phone_in"); then
+                cgi_error "invalid_phone" "$_r"
                 exit 0
             fi
-            case "$_phone_check" in
-                0*)
-                    cgi_error "invalid_phone" "Phone must start with a country code (not 0)"
-                    exit 0
-                    ;;
-            esac
         fi
 
         # --- Email: shape + marker carry-forward -------------------------------
@@ -403,40 +367,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # endpoint can know is the NON-SECRET marker written by the helper —
         # which is also what it must carry forward when the user saves without
         # re-typing a password.
-        _existing_email_pw_set="false"
-        if [ -f "$EMAIL_CONFIG" ]; then
-            _existing_email_pw_set=$(jq -r '(.app_password_set) | if . == true then "true" else "false" end' "$EMAIL_CONFIG" 2>/dev/null)
-        fi
-        case "$_existing_email_pw_set" in true) ;; *) _existing_email_pw_set="false" ;; esac
+        _existing_email_pw_set=$(mv_alert_email_pw_set)
 
         if [ "$email_enabled_in" = "true" ]; then
-            if [ -z "$email_sender_in" ] || [ -z "$email_recipient_in" ]; then
-                cgi_error "invalid_email" "email.sender_email and email.recipient_email are required when email alerts are enabled"
+            if ! _r=$(mv_check_email_fields "$email_sender_in" "$email_recipient_in" "$email_password_in"); then
+                cgi_error "invalid_email" "$_r"
                 exit 0
-            fi
-            # Reject control characters / newlines in any field that gets
-            # templated verbatim into msmtprc (sender, recipient, and a
-            # NEWLY-TYPED password). A newline would otherwise inject arbitrary
-            # msmtp directives — the glob email checks below match across
-            # embedded newlines, so this control-char gate must run FIRST.
-            # (Security: config injection.)
-            #
-            # Only a newly-typed password can be checked here; an already-stored
-            # one was validated by the helper when it was set, and this process
-            # can no longer read it. The helper re-validates both the password
-            # and sender_email itself before templating, so nothing reaches
-            # msmtprc unchecked.
-            case "${email_sender_in}${email_recipient_in}${email_password_in}" in
-                *[[:cntrl:]]*)
-                    cgi_error "invalid_email" "email fields must not contain control characters"
-                    exit 0
-                    ;;
-            esac
-            if ! printf '%s' "$email_sender_in" | grep -qE '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; then
-                cgi_error "invalid_email" "email.sender_email is not a valid email address"; exit 0
-            fi
-            if ! printf '%s' "$email_recipient_in" | grep -qE '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; then
-                cgi_error "invalid_email" "email.recipient_email is not a valid email address"; exit 0
             fi
             # Required unless already set: a saved password stays in place when
             # the user edits some other field, so only demand one when nothing
@@ -449,29 +385,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         # --- Discord: owner id + marker carry-forward --------------------------
         # Previous state decides below whether the daemon needs a restart.
-        _existing_discord_token_set="false"
-        _existing_discord_enabled="false"
-        _existing_discord_owner=""
-        if [ -f "$DISCORD_CONFIG" ]; then
-            _dprev=$(jq -r '[(.token_set == true), ((.enabled | tostring) == "true"), (.owner_discord_id // "" | tostring)] | map(tostring) | join(" ")' "$DISCORD_CONFIG" 2>/dev/null)
-            read -r _dp_tok _dp_en _dp_owner <<EOF
-$_dprev
-EOF
-            [ "$_dp_tok" = "true" ] && _existing_discord_token_set="true"
-            [ "$_dp_en" = "true" ] && _existing_discord_enabled="true"
-            _existing_discord_owner="$_dp_owner"
-        fi
+        mv_alert_discord_prev
+        _existing_discord_token_set="$MV_DP_TOKEN"
+        _existing_discord_enabled="$MV_DP_EN"
+        _existing_discord_owner="$MV_DP_OWNER"
 
         if [ "$discord_enabled_in" = "true" ]; then
-            case "$discord_owner_in" in
-                ''|*[!0-9]*)
-                    cgi_error "invalid_discord_id" "discord.owner_discord_id must be a numeric Discord user ID"
-                    exit 0
-                    ;;
-            esac
-            _dlen=${#discord_owner_in}
-            if [ "$_dlen" -lt 15 ] || [ "$_dlen" -gt 25 ]; then
-                cgi_error "invalid_discord_id" "discord.owner_discord_id does not look like a Discord snowflake ID"
+            if ! _r=$(mv_check_discord_owner "$discord_owner_in"); then
+                cgi_error "invalid_discord_id" "$_r"
                 exit 0
             fi
             if [ -z "$discord_token_in" ] && [ "$_existing_discord_token_set" != "true" ]; then
@@ -484,58 +405,31 @@ EOF
         # (connection_lost.email / connection_lost.discord are ALWAYS false —
         # server-authoritative regardless of what the client submits, mirroring
         # alert_engine.sh's hardcoded capability table.)
-        _routing_usr="null"
-        if [ -n "$routing_in" ] && [ "$routing_in" != "null" ]; then
-            _routing_usr="$routing_in"
-        fi
-        routing_final=$(jq -n --argjson def "$ROUTING_DEFAULT" --argjson usr "$_routing_usr" '
-            ($def * ($usr // {}))
-            | .connection_lost.email = false
-            | .connection_lost.discord = false
-        ' 2>/dev/null)
-        if [ -z "$routing_final" ]; then
-            routing_final="$ROUTING_DEFAULT"
-        fi
-
-        mkdir -p /etc/qmanager
+        routing_final=$(mv_alert_routing_final "$routing_in")
 
         # --- Write the single wait into the Connection Quality config (merge) ---
-        if ! cq_quality_merge '.alert_after_min = $wait' --argjson wait "$new_wait"; then
+        if ! mv_alert_write_wait "$new_wait"; then
             cgi_error "write_failed" "Failed to write alert wait"
             exit 0
         fi
 
         # --- Write SMS config (atomic) ------------------------------------------
-        if ! jq -n \
-            --argjson enabled "$sms_enabled_in" \
-            --arg recipient_phone "$sms_phone_in" \
-            --argjson threshold_minutes "$new_wait" \
-            '{enabled:$enabled, recipient_phone:$recipient_phone, threshold_minutes:$threshold_minutes}' \
-            > "${SMS_CONFIG}.tmp"; then
-            rm -f "${SMS_CONFIG}.tmp"
+        mv_alert_write_sms "$sms_enabled_in" "$sms_phone_in" "$new_wait"
+        if [ $? -eq 1 ]; then
             cgi_error "write_failed" "Failed to write SMS config"
             exit 0
         fi
-        mv "${SMS_CONFIG}.tmp" "$SMS_CONFIG"
 
         # --- Write email config (atomic, NO secret) ----------------------------
         # Ordering matters: the JSON goes down FIRST, carrying the existing
         # marker forward, and only then does the helper run. The helper reads
         # sender_email out of this file to render msmtprc, and it owns the
         # marker — so writing afterwards would clobber whatever it just set.
-        if ! jq -n \
-            --argjson enabled "$email_enabled_in" \
-            --arg sender_email "$email_sender_in" \
-            --arg recipient_email "$email_recipient_in" \
-            --argjson app_password_set "$_existing_email_pw_set" \
-            --argjson threshold_minutes "$new_wait" \
-            '{enabled:$enabled, sender_email:$sender_email, recipient_email:$recipient_email, app_password_set:$app_password_set, threshold_minutes:$threshold_minutes}' \
-            > "${EMAIL_CONFIG}.tmp"; then
-            rm -f "${EMAIL_CONFIG}.tmp"
+        mv_alert_write_email "$email_enabled_in" "$email_sender_in" "$email_recipient_in" "$_existing_email_pw_set" "$new_wait"
+        if [ $? -eq 1 ]; then
             cgi_error "write_failed" "Failed to write email config"
             exit 0
         fi
-        mv "${EMAIL_CONFIG}.tmp" "$EMAIL_CONFIG"
 
         # Store a newly-typed password, or re-render msmtprc from the stored one
         # (a sender_email change alone still has to be templated into msmtprc).
@@ -554,18 +448,11 @@ EOF
         email_password_in=""
 
         # --- Write Discord config (atomic, NO secret) + drive service state -----
-        if ! jq -n \
-            --argjson enabled "$discord_enabled_in" \
-            --arg owner_discord_id "$discord_owner_in" \
-            --argjson threshold_minutes "$new_wait" \
-            --argjson token_set "$_existing_discord_token_set" \
-            '{enabled:$enabled, owner_discord_id:$owner_discord_id, threshold_minutes:$threshold_minutes, token_set:$token_set}' \
-            > "${DISCORD_CONFIG}.tmp"; then
-            rm -f "${DISCORD_CONFIG}.tmp"
+        mv_alert_write_discord "$discord_enabled_in" "$discord_owner_in" "$new_wait" "$_existing_discord_token_set"
+        if [ $? -eq 1 ]; then
             cgi_error "write_failed" "Failed to write Discord config"
             exit 0
         fi
-        mv "${DISCORD_CONFIG}.tmp" "$DISCORD_CONFIG"
 
         # Store the token BEFORE the service restart below — the daemon reads
         # the secret file at startup, so restarting first would race it against
@@ -583,39 +470,19 @@ EOF
 
         # The daemon caches token/owner/dmChannel in memory at startup, so it is restarted when
         # one of those changed (or it was just enabled); an unrelated save leaves it connected.
-        _discord_svc_err=""
-        _discord_restart_err=""
-        if [ "$discord_enabled_in" = "true" ]; then
-            if ! svc_enable qmanager_discord; then
-                _discord_svc_err="Discord alert settings were saved, but the discord service could not be enabled on boot (rootfs may be read-only)"
-                qlog_warn "svc_enable qmanager_discord failed"
-            fi
-            if [ "$_existing_discord_enabled" != "true" ] \
-                || [ "$discord_owner_in" != "$_existing_discord_owner" ] \
-                || [ "$_discord_token_new" = "1" ] \
-                || ! svc_is_running qmanager_discord; then
-                svc_reset_failed qmanager_discord
-                if ! svc_restart qmanager_discord; then
-                    _discord_restart_err="Discord alert settings were saved, but the Discord service could not be restarted"
-                    qlog_warn "svc_restart qmanager_discord failed"
-                fi
-            fi
-        else
-            svc_stop qmanager_discord
-            svc_disable qmanager_discord || qlog_warn "svc_disable qmanager_discord failed"
-        fi
+        mv_alert_discord_service "$discord_enabled_in" "$_existing_discord_enabled" "$discord_owner_in" "$_existing_discord_owner" "$_discord_token_new"
+        _discord_svc_err="$MV_DISCORD_SVC_ERR"
+        _discord_restart_err="$MV_DISCORD_RESTART_ERR"
 
         # --- Write routing config (atomic, wrapped under version+events) -------
-        if ! jq -n --argjson events "$routing_final" '{version:1, events:$events}' \
-            > "${ROUTING_CONFIG}.tmp" 2>/dev/null; then
-            rm -f "${ROUTING_CONFIG}.tmp"
+        mv_alert_write_routing "$routing_final"
+        if [ $? -eq 1 ]; then
             cgi_error "write_failed" "Failed to write routing config"
             exit 0
         fi
-        mv "${ROUTING_CONFIG}.tmp" "$ROUTING_CONFIG"
 
         # --- Signal alert_engine.sh (and channel libs) to reload ---------------
-        touch "$SMS_RELOAD" "$EMAIL_RELOAD" "$DISCORD_RELOAD" "$ROUTING_RELOAD" "$QUALITY_RELOAD_FLAG" 2>/dev/null
+        mv_alert_touch_reload
 
         qlog_info "Centralized alert settings saved: sms=$sms_enabled_in email=$email_enabled_in discord=$discord_enabled_in"
         if [ -n "$_discord_restart_err" ]; then

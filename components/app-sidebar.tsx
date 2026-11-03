@@ -155,6 +155,7 @@ const navSystem: NavItem[] = [
         url: "/system-settings/system-health-check",
       },
       { t_key: "logs", url: "/system-settings/logs" },
+      { t_key: "config_backup", url: "/system-settings/config-backup" },
     ],
   },
   {

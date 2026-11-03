@@ -3,6 +3,7 @@
 . /usr/lib/qmanager/config.sh
 . /usr/lib/qmanager/platform.sh
 . /usr/lib/qmanager/system_config.sh
+. /usr/lib/qmanager/system_validate.sh
 # =============================================================================
 # settings.sh — CGI Endpoint: System Settings (GET + POST)
 # =============================================================================
@@ -154,25 +155,23 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # --- Temperature unit ---
         val=$(printf '%s' "$POST_DATA" | jq -r '.temp_unit // empty')
         if [ -n "$val" ]; then
-            case "$val" in
-                celsius|fahrenheit) qm_config_set settings temp_unit "$val" ;;
-                *)
-                    cgi_error "invalid_temp_unit" "temp_unit must be 'celsius' or 'fahrenheit'"
-                    exit 0
-                    ;;
-            esac
+            if qm_valid_temp_unit "$val"; then
+                qm_config_set settings temp_unit "$val"
+            else
+                cgi_error "invalid_temp_unit" "temp_unit must be 'celsius' or 'fahrenheit'"
+                exit 0
+            fi
         fi
 
         # --- Distance unit ---
         val=$(printf '%s' "$POST_DATA" | jq -r '.distance_unit // empty')
         if [ -n "$val" ]; then
-            case "$val" in
-                km|miles) qm_config_set settings distance_unit "$val" ;;
-                *)
-                    cgi_error "invalid_distance_unit" "distance_unit must be 'km' or 'miles'"
-                    exit 0
-                    ;;
-            esac
+            if qm_valid_distance_unit "$val"; then
+                qm_config_set settings distance_unit "$val"
+            else
+                cgi_error "invalid_distance_unit" "distance_unit must be 'km' or 'miles'"
+                exit 0
+            fi
         fi
 
         # --- Timezone ---
@@ -210,64 +209,35 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # Validate when enabling
         if [ "$ENABLED" = "true" ]; then
             # Validate time format HH:MM
-            case "$SCHED_TIME" in
-                [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
-                *)
-                    cgi_error "invalid_time" "time must be HH:MM format"
+            if ! qm_valid_hhmm "$SCHED_TIME"; then
+                cgi_error "invalid_time" "time must be HH:MM format"
+                exit 0
+            fi
+
+            # Validate days
+            qm_sched_days_check "$DAYS_RAW"
+            case $? in
+                1)
+                    cgi_error "no_days" "At least one day must be selected"
+                    exit 0
+                    ;;
+                2)
+                    cgi_error "invalid_day" "Days must be 0-6 (0=Sun, 6=Sat)"
                     exit 0
                     ;;
             esac
-
-            # Validate days
-            if [ -z "$DAYS_RAW" ]; then
-                cgi_error "no_days" "At least one day must be selected"
-                exit 0
-            fi
-
-            invalid_day=""
-            for d in $(printf '%s' "$DAYS_RAW" | tr ',' ' '); do
-                case "$d" in
-                    0|1|2|3|4|5|6) ;;
-                    *) invalid_day="$d" ;;
-                esac
-            done
-            if [ -n "$invalid_day" ]; then
-                cgi_error "invalid_day" "Days must be 0-6 (0=Sun, 6=Sat)"
-                exit 0
-            fi
         fi
 
         # Defaults for disabled state
         [ -z "$SCHED_TIME" ] && SCHED_TIME="04:00"
         [ -z "$DAYS_RAW" ] && DAYS_RAW="0,1,2,3,4,5,6"
 
-        # Write to config
-        case "$ENABLED" in
-            true)  qm_config_set settings sched_reboot_enabled 1 ;;
-            false) qm_config_set settings sched_reboot_enabled 0 ;;
-        esac
-        qm_config_set settings sched_reboot_time "$SCHED_TIME"
-        qm_config_set settings sched_reboot_days "$DAYS_RAW"
-
-        # --- Arm/disarm the runtime systemd timer (root helper) ---
-        # RM520N has no crond (qmanager_scheduled_reboot_arm's header explains
-        # why the old /var/spool/cron/crontabs/root write was a silent no-op).
-        # The helper hardcodes the unit + re-validates time/days itself before
-        # they touch a generated .timer file — this CGI-side validation above
-        # is necessary but not sufficient on its own.
-        if [ "$ENABLED" = "true" ]; then
-            arm_json=$(sudo -n /usr/bin/qmanager_scheduled_reboot_arm install "$SCHED_TIME" "$DAYS_RAW" 2>/dev/null)
-        else
-            arm_json=$(sudo -n /usr/bin/qmanager_scheduled_reboot_arm teardown 2>/dev/null)
-        fi
-
-        arm_ok=$(printf '%s' "$arm_json" | jq -r '.success // false' 2>/dev/null)
-        armed=$(printf '%s' "$arm_json" | jq -r 'if has("armed") then (.armed|tostring) else "false" end' 2>/dev/null)
-        arm_reason=$(printf '%s' "$arm_json" | jq -r '.reason // ""' 2>/dev/null)
-        if [ "$arm_ok" != "true" ]; then
-            qlog_error "Scheduled reboot timer arm/disarm failed: ${arm_json:-<empty response>}"
-        fi
-        qlog_info "Scheduled reboot timer ${ENABLED}: ${SCHED_TIME} days=${DAYS_RAW} armed=${armed}"
+        # Config write, then arm/disarm the runtime systemd timer (root helper). RM520N has no
+        # crond; the helper re-validates time/days itself. Lib: system_validate.sh.
+        qm_sched_reboot_save "$ENABLED" "$SCHED_TIME" "$DAYS_RAW"
+        arm_ok="$QM_ARM_OK"
+        armed="$QM_ARM_ARMED"
+        arm_reason="$QM_ARM_REASON"
 
         # Build response
         DAYS_RESP=$(printf '%s' "$DAYS_RAW" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)

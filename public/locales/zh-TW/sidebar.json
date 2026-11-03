@@ -38,6 +38,7 @@
     "tailscale": "Tailscale VPN",
     "system_settings": "系統設定",
     "logs": "日誌",
+    "config_backup": "設定備份",
     "system_health_check": "系統健康檢查",
     "connection_quality": "連線質量",
     "languages": "語言",

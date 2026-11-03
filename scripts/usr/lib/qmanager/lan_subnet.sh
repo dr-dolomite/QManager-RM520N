@@ -341,3 +341,73 @@ qm_lan_subnet_normalize() {
     qm_lan_mark_set
     return 0
 }
+
+# --- LAN change: request check + apply (network/lan_config.sh and Config Backup) ---
+
+: "${QM_UPDATE_PID_FILE:=/tmp/qmanager_update.pid}"
+QM_LAN_ERR="" QM_LAN_ERR_DETAIL="" QM_LAN_ERR_HTTP="" QM_LAN_NETMASK=""
+QM_LAN_CUR_IP="" QM_LAN_CUR_MASK="" QM_LAN_CUR_PREFIX=""
+
+# qm_lan_update_running — 0 while an OTA worker is alive (needs platform.sh's pid_alive).
+qm_lan_update_running() {
+    [ -f "$QM_UPDATE_PID_FILE" ] || return 1
+    _qlu_pid=$(cat "$QM_UPDATE_PID_FILE" 2>/dev/null)
+    case "$_qlu_pid" in ''|*[!0-9]*) return 1 ;; esac
+    pid_alive "$_qlu_pid"
+}
+
+# qm_lan_current — sets QM_LAN_CUR_IP/MASK/PREFIX; 1 = unreadable, 2 = malformed mask.
+qm_lan_current() {
+    _qlc=$(qm_lan_read) || return 1
+    set -- $_qlc
+    QM_LAN_CUR_IP="$1"
+    QM_LAN_CUR_MASK="$2"
+    QM_LAN_CUR_PREFIX=$(qm_lan_mask_to_prefix "$QM_LAN_CUR_MASK") || return 2
+    return 0
+}
+
+# qm_lan_check_request <ipaddr> <prefix> — sets QM_LAN_NETMASK; on failure QM_LAN_ERR + QM_LAN_ERR_DETAIL and rc 1.
+qm_lan_check_request() {
+    _qlr_ip=$1
+    _qlr_p=$2
+    case "$_qlr_p" in
+        ''|*[!0-9]*)
+            QM_LAN_ERR="invalid_prefix"; QM_LAN_ERR_DETAIL="prefix must be an integer between 16 and 30"; return 1 ;;
+    esac
+    if [ "${#_qlr_p}" -gt 2 ] || [ "$_qlr_p" -lt 16 ] || [ "$_qlr_p" -gt 30 ]; then
+        QM_LAN_ERR="invalid_prefix"; QM_LAN_ERR_DETAIL="prefix must be an integer between 16 and 30"; return 1
+    fi
+    # Strict dotted quad: 4 octets 0-255, no leading zeros.
+    if ! qm_lan_split "$_qlr_ip"; then
+        QM_LAN_ERR="invalid_ipaddr"; QM_LAN_ERR_DETAIL="Address must be four numeric octets 0-255 without leading zeros"; return 1
+    fi
+    # RFC1918 only; with prefix >= 16 the whole subnet stays inside its private block.
+    if ! qm_lan_is_private "$_qlr_ip"; then
+        QM_LAN_ERR="invalid_private_address"; QM_LAN_ERR_DETAIL="Address must be in 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16"; return 1
+    fi
+    if ! qm_lan_host_ok "$_qlr_ip" "$_qlr_p"; then
+        QM_LAN_ERR="invalid_host_in_subnet"; QM_LAN_ERR_DETAIL="Address is the network/broadcast address for /$_qlr_p"; return 1
+    fi
+    QM_LAN_NETMASK=$(qm_lan_prefix_to_mask "$_qlr_p") || {
+        QM_LAN_ERR="invalid_prefix"; QM_LAN_ERR_DETAIL="Cannot derive netmask"; return 1
+    }
+    return 0
+}
+
+# qm_lan_apply_run <ipaddr> <prefix> — the sudo helper; on failure QM_LAN_ERR/_DETAIL/_HTTP, QM_LAN_APPLY_RC, rc 1.
+qm_lan_apply_run() {
+    QM_LAN_ERR_HTTP=""
+    $_SUDO -n /usr/bin/qmanager_lan_apply "$1" "$2" </dev/null >/dev/null 2>&1
+    QM_LAN_APPLY_RC=$?
+    case "$QM_LAN_APPLY_RC" in
+        0) return 0 ;;
+        3)
+            QM_LAN_ERR="update_in_progress"; QM_LAN_ERR_DETAIL="A software update is running"; QM_LAN_ERR_HTTP="409 Conflict" ;;
+        4)
+            QM_LAN_ERR="lan_busy"; QM_LAN_ERR_DETAIL="Another LAN change is in progress" ;;
+        *)
+            _qm_lan_log error "qmanager_lan_apply failed (rc=$QM_LAN_APPLY_RC)"
+            QM_LAN_ERR="lan_save_failed"; QM_LAN_ERR_DETAIL="Failed to save LAN settings" ;;
+    esac
+    return 1
+}

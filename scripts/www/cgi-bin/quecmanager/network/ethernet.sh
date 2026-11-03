@@ -1,6 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/ethtool_helper.sh
+. /usr/lib/qmanager/network_validate.sh
 # =============================================================================
 # ethernet.sh — CGI Endpoint: Ethernet Link Status & Speed Limit (GET + POST)
 # =============================================================================
@@ -110,13 +111,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     fi
 
     # --- Persisted speed limit ---
-    speed_limit="auto"
-    if [ -f "$ETHERNET_SPEED_FILE" ]; then
-        persisted=$(cat "$ETHERNET_SPEED_FILE" 2>/dev/null | tr -d '[:space:]')
-        case "$persisted" in
-            auto|10|100|1000|2500) speed_limit="$persisted" ;;
-        esac
-    fi
+    speed_limit=$(qm_eth_persisted)
 
     # --- 2.5G support ---
     sup2500=$(supports_2500)
@@ -157,36 +152,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
-    # --- Validate ---
-    case "$speed_limit" in
-        auto|10|100|1000|2500) ;;
-        *)
-            cgi_error "invalid_speed" "speed_limit must be one of: auto, 10, 100, 1000, 2500"
-            exit 0
-            ;;
-    esac
-
-    # --- Reject 2500 if PHY doesn't support it ---
-    if [ "$speed_limit" = "2500" ]; then
-        sup2500=$(supports_2500)
-        if [ "$sup2500" != "true" ]; then
-            cgi_error "unsupported_speed" "2.5G is not supported by this PHY"
-            exit 0
-        fi
-    fi
-
-    qlog_info "Applying speed_limit=$speed_limit"
-
-    apply_out=$(sudo -n /usr/bin/qmanager_ethernet_apply "$speed_limit" 2>&1)
-    apply_rc=$?
-
-    if [ "$apply_rc" -ne 0 ]; then
-        qlog_error "qmanager_ethernet_apply failed rc=$apply_rc: $apply_out"
-        cgi_error "apply_failed" "Failed to apply ethernet speed limit"
+    # --- Validate, gate 2.5G, apply (lib: network_validate.sh) ---
+    if ! qm_eth_save "$speed_limit"; then
+        cgi_error "$QM_ETH_ERR" "$QM_ETH_ERR_DETAIL"
         exit 0
     fi
-
-    qlog_info "Speed limit applied: $speed_limit"
 
     jq -n \
         --arg speed_limit "$speed_limit" \

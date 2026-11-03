@@ -224,5 +224,15 @@
   "report_tool_missing": "The debug report tool isn't installed on this modem.",
   "capture_failed": "The debug report couldn't be generated.",
   "invalid_version": "That version name isn't valid.",
-  "invalid_rollback": "That build can't be rolled back to."
+  "invalid_rollback": "That build can't be rolled back to.",
+  "foreign_platform": "This backup was made by QManager for a different modem, so it can't be restored here.",
+  "backup_too_new": "This backup was made by a newer QManager. Update QManager to restore it.",
+  "insecure_context": "Backups need a secure connection. Open QManager over https:// and try again.",
+  "decrypt_failed": "Wrong passphrase, or the file was changed.",
+  "invalid_payload": "The backup's contents couldn't be read.",
+  "collect_failed": "The modem couldn't read its settings.",
+  "sections_conflict": "Those sections can't be restored together.",
+  "persist_failed": "The modem couldn't save the restore request.",
+  "profile_apply_in_progress": "A SIM profile is being applied. Try again when it finishes.",
+  "status_lost": "Lost contact with the modem during the restore. Check your settings once it's back."
 }
