@@ -28,7 +28,7 @@ bool() { "$@" && echo true || echo false; }
 emit_state() {
     wp_read_file
     _last="null"
-    if read -r _st _rh _rs _at < "$WP_RESULT" 2>/dev/null \
+    if [ -r "$WP_RESULT" ] && read -r _st _rh _rs _at < "$WP_RESULT" \
        && wp_port_valid "$_rh" && wp_port_valid "$_rs"; then
         case "$_st" in
             pending|applied|unchanged|rolled_back|failed) ;;
@@ -41,8 +41,8 @@ emit_state() {
     jq -n \
         --argjson http "$WP_HTTP" \
         --argjson https "$WP_HTTPS" \
-        --argjson lh "$(bool wp_listening "$WP_HTTP")" \
-        --argjson ls "$(bool wp_listening "$WP_HTTPS")" \
+        --argjson lh "$(bool wp_port_open "$WP_HTTP")" \
+        --argjson ls "$(bool wp_port_open "$WP_HTTPS")" \
         --argjson last "$_last" \
         '{success:true, http_port:$http, https_port:$https,
           listening:{http:$lh, https:$ls}, last_result:$last}'

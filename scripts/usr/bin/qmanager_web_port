@@ -98,7 +98,7 @@ detach() {
 wait_result() {
     _i=0
     while [ $_i -lt 40 ]; do
-        if read -r _st _rh _rs _at < "$WP_RESULT" 2>/dev/null && [ "$_st" != "pending" ]; then
+        if [ -r "$WP_RESULT" ] && read -r _st _rh _rs _at < "$WP_RESULT" && [ "$_st" != "pending" ]; then
             case "$_st" in
                 applied) echo "QManager now listens on HTTP $_rh and HTTPS $_rs." ;;
                 rolled_back) echo "lighttpd did not start on the new ports. Kept HTTP $_rh and HTTPS $_rs." >&2; return 1 ;;

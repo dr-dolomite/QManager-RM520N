@@ -109,7 +109,12 @@ wp_listening() {
     _wp_listeners "$1" | grep -q '/lighttpd$'
 }
 
-# Something other than lighttpd holds the port. As www-data, other users' sockets show as "-".
+# Anything listens on <port>. For www-data, which sees "-" for every root-started socket, lighttpd's included.
+wp_port_open() {
+    [ -n "$(_wp_listeners "$1")" ]
+}
+
+# Something other than lighttpd holds the port. Root-only: as www-data every socket shows as "-".
 wp_port_taken() {
     _wp_listeners "$1" | grep -qv '/lighttpd$'
 }
