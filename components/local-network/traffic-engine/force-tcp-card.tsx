@@ -46,7 +46,7 @@ export function ForceTcpCard() {
       );
     } else {
       toast.error(t("traffic_engine.force_tcp_toast_error"), {
-        description: failureReason(t, result.error),
+        description: failureReason(t, result),
       });
     }
   };

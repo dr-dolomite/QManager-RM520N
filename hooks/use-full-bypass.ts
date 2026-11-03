@@ -109,10 +109,10 @@ export function useFullBypass(): UseFullBypassReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          // The returned reason is the backend's own words only; local fallbacks stay in `error` state.
+          // Return the backend's code and detail as sent; local fallbacks stay in `error` state.
           const reason = json.detail || json.error || null;
           setError(reason ?? "Failed to save Full Bypass settings");
-          return { ok: false, error: reason };
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         await fetchStatus(true);
         return { ok: true, error: null };

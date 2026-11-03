@@ -251,5 +251,10 @@
   "status_lost": "恢复期间与调制解调器失去联系。恢复连接后请检查您的设置。",
   "hostname_apply_failed": "设备名称已保存，但无法应用到系统。请重试。",
   "hostname_save_failed": "无法保存设备名称。请重试。",
-  "invalid_hostname": "设备名称必须为 1 至 64 个字符。"
+  "invalid_hostname": "设备名称必须为 1 至 64 个字符。",
+  "binary_not_installed": "流量引擎尚未安装。请先安装，然后重试。",
+  "engine_start_failed": "设置已保存，但引擎未能启动。",
+  "invalid_sni_domain": "该域名无效。",
+  "sudo_unavailable": "设备拒绝了此更改所需的权限。",
+  "invalid_hostlist": "主机名列表为空或包含无效名称。"
 }

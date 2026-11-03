@@ -245,7 +245,7 @@ export default function TrafficEngine() {
       } else {
         setPending(null);
         toast.error(t("traffic_engine.toast_mode_error"), {
-          description: failureReason(t, result.error),
+          description: failureReason(t, result),
         });
       }
       // Both, even on failure: the backend mutex may have changed the other section.
@@ -285,7 +285,7 @@ export default function TrafficEngine() {
     if (result.ok) toast.success(t("traffic_engine.toast_install_success"));
     else {
       toast.error(t("traffic_engine.toast_install_error"), {
-        description: failureReason(t, result.error),
+        description: failureReason(t, result),
       });
     }
     refreshEngine(true);
@@ -297,7 +297,7 @@ export default function TrafficEngine() {
     if (result.ok) toast.success(t("traffic_engine.advanced_toast_success"));
     else {
       toast.error(t("traffic_engine.advanced_toast_error"), {
-        description: failureReason(t, result.error),
+        description: failureReason(t, result),
       });
     }
     refreshEngine(true);

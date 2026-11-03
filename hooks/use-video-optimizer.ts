@@ -136,10 +136,10 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          // The returned reason is the backend's own words only; local fallbacks stay in `error` state.
+          // Return the backend's code and detail as sent; local fallbacks stay in `error` state.
           const reason = json.detail || json.error || null;
           setError(reason ?? "Failed to save engine settings");
-          return { ok: false, error: reason };
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         await fetchStatus(true);
         return { ok: true, error: null };
@@ -196,7 +196,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
           setError(msg);
           setInstallMessage(msg);
           setInstallPhase("error");
-          return { ok: false, error: reason };
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         if (json.status === "already") {
           if (isInstall) {
@@ -270,7 +270,10 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
               setInstallPhase("idle");
               setInstallMessage(null);
             }
-            return st.status === "complete" ? { ok: true, error: null } : { ok: false, error: failMsg };
+            // The worker writes free text, never a code.
+            return st.status === "complete"
+              ? { ok: true, error: null }
+              : { ok: false, error: null, detail: failMsg };
           }
         }
         setInstallPhase("error");

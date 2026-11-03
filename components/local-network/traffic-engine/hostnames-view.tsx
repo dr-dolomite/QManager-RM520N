@@ -100,7 +100,7 @@ export function useHostlistDraft(hostlist: Hostlist) {
       toast.success(t("traffic_engine.toast_hosts_saved"));
     } else {
       toast.error(t("traffic_engine.toast_hosts_save_error"), {
-        description: failureReason(t, result.error),
+        description: failureReason(t, result),
       });
     }
     return result.ok;
@@ -112,7 +112,7 @@ export function useHostlistDraft(hostlist: Hostlist) {
       toast.success(t("traffic_engine.toast_hosts_restored"));
     } else {
       toast.error(t("traffic_engine.toast_hosts_restore_error"), {
-        description: failureReason(t, result.error),
+        description: failureReason(t, result),
       });
     }
   }, [restoreDefaults, t]);

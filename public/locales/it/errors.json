@@ -251,5 +251,10 @@
   "status_lost": "Contatto con il modem perso durante il ripristino. Controlla le impostazioni quando torna disponibile.",
   "hostname_apply_failed": "Il nome del dispositivo è stato salvato, ma non è stato possibile applicarlo al sistema. Riprova.",
   "hostname_save_failed": "Impossibile salvare il nome del dispositivo. Riprova.",
-  "invalid_hostname": "Il nome del dispositivo deve contenere da 1 a 64 caratteri."
+  "invalid_hostname": "Il nome del dispositivo deve contenere da 1 a 64 caratteri.",
+  "binary_not_installed": "Traffic Engine non è ancora installato. Installalo, poi riprova.",
+  "engine_start_failed": "L'impostazione è stata salvata, ma il motore non si è avviato.",
+  "invalid_sni_domain": "Quel nome di dominio non è valido.",
+  "sudo_unavailable": "Il dispositivo ha negato il permesso richiesto da questa modifica.",
+  "invalid_hostlist": "L'elenco dei nomi host è vuoto o contiene un nome non valido."
 }

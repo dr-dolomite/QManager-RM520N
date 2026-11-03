@@ -251,5 +251,10 @@
   "status_lost": "Lost contact with the modem during the restore. Check your settings once it's back.",
   "hostname_apply_failed": "The device name was saved, but it couldn't be applied to the system. Try again.",
   "hostname_save_failed": "Couldn't save the device name. Try again.",
-  "invalid_hostname": "The device name must be 1 to 64 characters."
+  "invalid_hostname": "The device name must be 1 to 64 characters.",
+  "binary_not_installed": "Traffic Engine isn't installed yet. Install it, then try again.",
+  "engine_start_failed": "The setting was saved, but the engine didn't start.",
+  "invalid_sni_domain": "That domain name isn't valid.",
+  "sudo_unavailable": "The device refused the permission this change needs.",
+  "invalid_hostlist": "The hostname list is empty or has a name that isn't valid."
 }

@@ -88,10 +88,10 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          // The returned reason is the backend's own words only; local fallbacks stay in `error` state.
+          // Return the backend's code and detail as sent; local fallbacks stay in `error` state.
           const reason = json.detail || json.error || null;
           setError(reason ?? fallback);
-          return { ok: false, error: reason };
+          return { ok: false, error: json.error || null, detail: json.detail || null };
         }
         await fetchHostlist(true);
         return { ok: true, error: null };
