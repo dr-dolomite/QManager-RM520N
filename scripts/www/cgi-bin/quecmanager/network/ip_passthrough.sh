@@ -1,6 +1,8 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/cgi_at.sh
+. /usr/lib/qmanager/connection_validate.sh
+. /usr/lib/qmanager/connection_store.sh
 # =============================================================================
 # ip_passthrough.sh — CGI Endpoint: IP Passthrough (IPPT) Settings (GET + POST)
 # =============================================================================
@@ -41,16 +43,7 @@ cgi_handle_options
 
 # --- Configuration -----------------------------------------------------------
 CMD_GAP=0.2
-IPPT_CONFIG="/etc/qmanager/ippt_config.json"
 POLLER_CACHE="/tmp/qmanager_status.json"
-
-# --- Helper: Validate MAC address (XX:XX:XX:XX:XX:XX) -----------------------
-validate_mac() {
-    case "$1" in
-        [0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
-        *) return 1 ;;
-    esac
-}
 
 # =============================================================================
 # GET — Fetch current IP Passthrough settings
@@ -109,32 +102,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     cgi_read_post
 
-    # qcmd write helper — rc + positive OK assertion. qcmd never writes the
-    # literal string "ERROR" to stdout (failure = exit status + stderr,
-    # empty stdout), so `case "$result" in *ERROR*)` could never match and
-    # every write below fell through to "success". A write additionally
-    # needs to see the modem's own "OK" — qcmd's third exit arm can return 0
-    # with unconfirmed pass-through data for a response containing neither
-    # OK nor ERROR. No `local` in this script's existing style — `_aw_`
-    # prefixed vars avoid clobbering caller scope and stay readable for the
-    # caller's own log line right after the call.
-    at_write() {
-        _aw_out=$(qcmd "$1" 2>/dev/null)
-        _aw_rc=$?
-        if [ $_aw_rc -ne 0 ]; then
-            return $_aw_rc
-        fi
-        # Line-exact, not a *OK* substring glob: a response echoes the
-        # issued command back, so any AT argument containing the two
-        # characters "OK" would match itself and mask a real failure.
-        # Today's validators (hex MAC, fixed enums) cannot produce one,
-        # which makes this a latent landmine rather than a live bug.
-        if printf '%s' "$_aw_out" | tr -d '\r' | grep -qx 'OK'; then
-            return 0
-        fi
-        return 1
-    }
-
     # --- Extract action ---
     ACTION=$(printf '%s' "$POST_DATA" | jq -r '.action // empty')
 
@@ -155,134 +122,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         qlog_info "Apply: mode=$PASSTHROUGH_MODE mac=$TARGET_MAC nat=$IPPT_NAT usb=$USB_MODE dns=$DNS_PROXY"
 
-        # --- Validate passthrough_mode ---
-        case "$PASSTHROUGH_MODE" in
-            disabled|eth|usb) ;;
-            *)
-                cgi_error "invalid_passthrough_mode" "passthrough_mode must be disabled, eth, or usb"
-                exit 0
-                ;;
-        esac
-
-        # --- Validate MAC (required for eth/usb) ---
-        if [ "$PASSTHROUGH_MODE" != "disabled" ]; then
-            if [ -z "$TARGET_MAC" ]; then
-                cgi_error "missing_target_mac" "target_mac is required when passthrough_mode is eth or usb"
-                exit 0
-            fi
-            if ! validate_mac "$TARGET_MAC"; then
-                cgi_error "invalid_target_mac" "target_mac must be in XX:XX:XX:XX:XX:XX format"
-                exit 0
-            fi
-        fi
-
-        # --- Validate ippt_nat ---
-        case "$IPPT_NAT" in
-            0|1) ;;
-            *)
-                cgi_error "invalid_ippt_nat" "ippt_nat must be 0 (WithoutNAT) or 1 (WithNAT)"
-                exit 0
-                ;;
-        esac
-
-        # --- Validate usb_mode ---
-        case "$USB_MODE" in
-            0|1|2|3) ;;
-            *)
-                cgi_error "invalid_usb_mode" "usb_mode must be 0, 1, 2, or 3"
-                exit 0
-                ;;
-        esac
-
-        # --- Validate dns_proxy ---
-        case "$DNS_PROXY" in
-            enabled|disabled) ;;
-            *)
-                cgi_error "invalid_dns_proxy" "dns_proxy must be enabled or disabled"
-                exit 0
-                ;;
-        esac
-
-        # --- Step 1: Apply MPDN_RULE passthrough setting ---
-        case "$PASSTHROUGH_MODE" in
-            disabled)
-                if ! at_write 'AT+QMAP="MPDN_rule",0'; then
-                    qlog_error "MPDN_rule disable failed (rc=$_aw_rc): $_aw_out"
-                    cgi_error "mpdn_rule_failed" "Failed to reset MPDN_rule"
-                    exit 0
-                fi
-                sleep "$CMD_GAP"
-                # WAC reset — required when disabling passthrough, non-fatal
-                if ! at_write 'AT+QMAPWAC=1'; then
-                    qlog_warn "QMAPWAC=1 failed (non-fatal, rc=$_aw_rc): $_aw_out"
-                fi
-                ;;
-            eth)
-                if ! at_write "AT+QMAP=\"MPDN_rule\",0,1,0,1,1,\"${TARGET_MAC}\""; then
-                    qlog_error "MPDN_rule ETH failed (rc=$_aw_rc): $_aw_out"
-                    cgi_error "mpdn_rule_failed" "Failed to set ETH passthrough rule"
-                    exit 0
-                fi
-                ;;
-            usb)
-                if ! at_write "AT+QMAP=\"MPDN_rule\",0,1,0,3,1,\"${TARGET_MAC}\""; then
-                    qlog_error "MPDN_rule USB failed (rc=$_aw_rc): $_aw_out"
-                    cgi_error "mpdn_rule_failed" "Failed to set USB passthrough rule"
-                    exit 0
-                fi
-                ;;
-        esac
-
-        sleep "$CMD_GAP"
-
-        # --- Step 2: Apply IPPT_NAT mode ---
-        if ! at_write "AT+QMAP=\"IPPT_NAT\",${IPPT_NAT}"; then
-            qlog_error "IPPT_NAT failed (rc=$_aw_rc): $_aw_out"
-            cgi_error "ippt_nat_failed" "Failed to set IPPT NAT mode"
+        if ! conn_validate_ippt "$PASSTHROUGH_MODE" "$TARGET_MAC" "$IPPT_NAT" "$USB_MODE" "$DNS_PROXY"; then
+            cgi_error "$CONN_ERR_CODE" "$CONN_ERR_DETAIL"
             exit 0
         fi
 
-        sleep "$CMD_GAP"
-
-        # --- Step 3: Apply USB modem protocol ---
-        if ! at_write "AT+QCFG=\"usbnet\",${USB_MODE}"; then
-            qlog_error "QCFG usbnet failed (rc=$_aw_rc): $_aw_out"
-            cgi_error "usbnet_failed" "Failed to set USB modem protocol"
+        # AT writes + ippt_config.json (shared with config restore); the reboot is ours.
+        if ! conn_ippt_apply "$PASSTHROUGH_MODE" "$TARGET_MAC" "$IPPT_NAT" "$USB_MODE" "$DNS_PROXY"; then
+            cgi_error "$IPPT_ERR_CODE" "$IPPT_ERR_DETAIL"
             exit 0
-        fi
-
-        sleep "$CMD_GAP"
-
-        # --- Step 4: Apply DNS offloading ---
-        case "$DNS_PROXY" in
-            enabled)  dns_cmd='AT+QMAP="DHCPV4DNS","enable"' ;;
-            disabled) dns_cmd='AT+QMAP="DHCPV4DNS","disable"' ;;
-        esac
-
-        if ! at_write "$dns_cmd"; then
-            qlog_error "DHCPV4DNS failed (rc=$_aw_rc): $_aw_out"
-            cgi_error "dhcpv4dns_failed" "Failed to set DNS offloading"
-            exit 0
-        fi
-
-        qlog_info "All settings applied — saving config and rebooting"
-
-        # --- Step 5: Persist settings to config file (atomic: temp + mv) ---
-        # This is the authoritative source read back by GET after reboot.
-        mkdir -p /etc/qmanager
-        IPPT_TMP="${IPPT_CONFIG}.tmp"
-        if jq -n \
-            --arg mode "$PASSTHROUGH_MODE" \
-            --arg mac  "$TARGET_MAC" \
-            --arg nat  "$IPPT_NAT" \
-            --arg usb  "$USB_MODE" \
-            --arg dns  "$DNS_PROXY" \
-            '{mode:$mode, mac:$mac, nat:$nat, usb_mode:$usb, dns_proxy:$dns}' \
-            > "$IPPT_TMP" 2>/dev/null; then
-            mv "$IPPT_TMP" "$IPPT_CONFIG" 2>/dev/null || { rm -f "$IPPT_TMP"; qlog_warn "Failed to save ippt_config.json"; }
-        else
-            rm -f "$IPPT_TMP"
-            qlog_warn "Failed to write ippt_config.json (non-fatal)"
         fi
 
         # Coordinated reboot — emits success JSON, waits for /reboot/ page ack

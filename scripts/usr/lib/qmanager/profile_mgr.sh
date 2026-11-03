@@ -335,8 +335,15 @@ profile_save() {
                 '{"success":false,"error":"limit_reached","detail":("Maximum " + ($max | tostring) + " profiles allowed")}'
             return 1
         fi
-        id=$(_generate_profile_id)
-        created_at="$updated_at"
+        # PROFILE_SAVE_KEEP_ID=1 (config restore): keep the supplied id and created_at.
+        if [ "$PROFILE_SAVE_KEEP_ID" = "1" ] && [ -n "$existing_id" ]; then
+            id="$existing_id"
+            created_at=$(printf '%s' "$input" | jq -r '(.created_at) | if type == "number" then floor | tostring else empty end' 2>/dev/null)
+            [ -z "$created_at" ] && created_at="$updated_at"
+        else
+            id=$(_generate_profile_id)
+            created_at="$updated_at"
+        fi
         qlog_info "Creating profile: $id ($name)" 2>/dev/null
     fi
 

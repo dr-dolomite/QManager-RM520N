@@ -20,6 +20,7 @@
 # Public API:
 #   TTL_STATE_FILE              — constant: /etc/qmanager/ttl_state
 #   TTL_STATE_DIR               — constant: /etc/qmanager
+#   ttl_state_validate_field    — CGI input check (sets TTL_ERR_CODE/DETAIL)
 #   ttl_state_read_persisted    — print "<ttl> <hl>" from file (0 if absent)
 #   ttl_state_read_live         — print "<ttl> <hl>" from live iptables rules
 #   ttl_state_write_persisted   — atomic write (or remove if both 0)
@@ -46,6 +47,28 @@ _ttl_is_int() {
         ''|*[!0-9]*) return 1 ;;
     esac
     [ "$1" -ge 0 ] && [ "$1" -le 255 ]
+}
+
+# =============================================================================
+# ttl_state_validate_field <TTL|HL> <value> — the CGI's input check
+# =============================================================================
+# On failure returns 1 with TTL_ERR_CODE / TTL_ERR_DETAIL set to the CGI's error pair.
+ttl_state_validate_field() {
+    local label="$1" val="$2" code
+    code="invalid_$(printf '%s' "$label" | tr 'A-Z' 'a-z')"
+    case "$val" in
+        ''|*[!0-9]*)
+            TTL_ERR_CODE="$code"
+            TTL_ERR_DETAIL="$label must be a number between 0 and 255"
+            return 1
+            ;;
+    esac
+    if [ "$val" -gt 255 ] 2>/dev/null; then
+        TTL_ERR_CODE="$code"
+        TTL_ERR_DETAIL="$label must be between 0 and 255"
+        return 1
+    fi
+    return 0
 }
 
 # =============================================================================

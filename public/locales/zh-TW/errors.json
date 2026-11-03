@@ -224,5 +224,15 @@
   "report_tool_missing": "此數據機未安裝偵錯報告工具。",
   "capture_failed": "無法產生偵錯報告。",
   "invalid_version": "該版本號無效。",
-  "invalid_rollback": "無法回復到該版本。"
+  "invalid_rollback": "無法回復到該版本。",
+  "foreign_platform": "此備份是 QManager 為其他型號的數據機建立的，無法在此還原。",
+  "backup_too_new": "此備份由較新版本的 QManager 建立。請更新 QManager 後再還原。",
+  "insecure_context": "備份需要安全連線。請透過 https:// 開啟 QManager 後再試一次。",
+  "decrypt_failed": "密碼片語錯誤，或檔案已被修改。",
+  "invalid_payload": "無法讀取備份內容。",
+  "collect_failed": "數據機無法讀取其設定。",
+  "sections_conflict": "這些項目不能同時還原。",
+  "persist_failed": "數據機無法儲存還原要求。",
+  "profile_apply_in_progress": "正在套用 SIM 設定檔。請在完成後再試一次。",
+  "status_lost": "還原期間與數據機失去聯繫。恢復連線後請檢查您的設定。"
 }

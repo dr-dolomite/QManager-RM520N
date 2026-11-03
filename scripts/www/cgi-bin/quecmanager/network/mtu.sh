@@ -1,5 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/connection_validate.sh
+. /usr/lib/qmanager/connection_store.sh
 # =============================================================================
 # mtu.sh — CGI Endpoint: MTU Configuration (GET + POST)
 # =============================================================================
@@ -26,7 +28,7 @@ cgi_headers
 cgi_handle_options
 
 # --- Configuration -----------------------------------------------------------
-MTU_FIREWALL_FILE="/etc/firewall.user.mtu"
+# MTU_FIREWALL_FILE comes from connection_store.sh.
 
 # --- Helper: resolve the interface that currently carries the WAN ------------
 # The WAN does NOT live on a fixed rmnet_dataN. The channel index migrates
@@ -132,7 +134,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$mtu_value" = "disable" ]; then
         qlog_info "Disabling custom MTU"
 
-        rm -f "$MTU_FIREWALL_FILE"
+        conn_mtu_disable
 
         default_mtu=$(get_current_mtu)
         default_mtu=${default_mtu:-1500}
@@ -150,31 +152,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     fi
 
     # --- Validate MTU (numeric, reasonable range) ---
-    case "$mtu_value" in
-        ''|*[!0-9]*)
-            cgi_error "invalid_mtu" "MTU must be a number"
-            exit 0
-            ;;
-    esac
-    if [ "$mtu_value" -lt 576 ] 2>/dev/null || [ "$mtu_value" -gt 9000 ] 2>/dev/null; then
-        cgi_error "invalid_mtu" "MTU must be between 576 and 9000"
+    if ! conn_validate_mtu "$mtu_value"; then
+        cgi_error "$CONN_ERR_CODE" "$CONN_ERR_DETAIL"
         exit 0
     fi
 
     qlog_info "Setting MTU=$mtu_value"
 
-    # --- Write firewall MTU configuration file (atomic: temp + mv) ---
-    MTU_TMP="${MTU_FIREWALL_FILE}.tmp"
-    > "$MTU_TMP"
-    for iface in $(ls /sys/class/net 2>/dev/null | grep '^rmnet_data'); do
-        echo "ip link set $iface mtu $mtu_value" >> "$MTU_TMP"
-    done
-    mv "$MTU_TMP" "$MTU_FIREWALL_FILE"
-
-    # --- Immediately apply MTU ---
-    for iface in $(ls /sys/class/net 2>/dev/null | grep '^rmnet_data'); do
-        ip link set "$iface" mtu "$mtu_value" 2>/dev/null
-    done
+    # --- Persist the rules file and apply live (shared with config restore) ---
+    conn_mtu_set "$mtu_value"
 
     qlog_info "MTU set to $mtu_value"
 

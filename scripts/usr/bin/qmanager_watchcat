@@ -321,6 +321,9 @@ check_locked() {
     # Long-running AT command (cell scan, firmware update)
     qm_long_flag_up "$LONG_RUNNING_FLAG" && return 0
 
+    # Config restore re-registers bands/APN; no recovery tier may fire meanwhile.
+    pid_is "$(cat /tmp/qmanager_config_restore.pid 2>/dev/null)" qmanager_config_restore && return 0
+
     # Profile apply in progress
     if [ -f "$PROFILE_APPLY_PID" ]; then
         local pid

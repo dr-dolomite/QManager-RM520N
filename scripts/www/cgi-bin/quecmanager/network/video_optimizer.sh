@@ -113,17 +113,6 @@ emit_status() {
 }
 
 # ---------------------------------------------------------------------------
-# Boolean validation — contract payloads use real booleans
-# ---------------------------------------------------------------------------
-bool_of() {
-    case "$1" in
-        true) echo 1 ;;
-        false) echo 0 ;;
-        *) return 1 ;;
-    esac
-}
-
-# ---------------------------------------------------------------------------
 # GET routing
 # ---------------------------------------------------------------------------
 if [ "$REQUEST_METHOD" = "GET" ]; then
@@ -247,40 +236,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # as absent (false // empty → no output), so a disable request
             # read as an empty string and failed bool_of validation.
             EN=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then .enabled else empty end' 2>/dev/null)
-            EN_INT=$(bool_of "$EN") || {
+            EN_INT=$(dpi_bool_of "$EN") || {
                 cgi_error "invalid_enabled" "enabled must be true or false"
                 exit 0
             }
-            # Engine requires the binary — refuse to "enable" into a dead state.
-            if [ "$EN_INT" = "1" ] && ! dpi_binary_installed; then
-                cgi_error "binary_not_installed" "tpws is not installed — run install first"
-                exit 0
-            fi
-            qm_config_set video_optimizer enabled "$EN_INT"
-            # Mutex: video optimizer owns the engine; full bypass must yield.
-            qm_config_set full_bypass enabled 0
-            qlog_info "save: video_optimizer enabled=$EN_INT"
-            if [ "$EN_INT" = "1" ]; then
-                # A previous engine failure may have latched the unit's start
-                # limit, which refuses restart for the whole hour. Clearing it
-                # here is user-initiated, so it does not erode the automatic
-                # backoff the way a timed reset would.
-                # Record the fault state FIRST: reset-failed erases Result and
-                # NRestarts, and with journald masked to /dev/null that is the
-                # only crash record there is. qlog writes to a real file.
-                qlog_info "save: pre-reset engine fault state: $(${_SYSTEMCTL:-systemctl} show qmanager-dpi -p Result -p NRestarts -p ActiveState --value 2>/dev/null | tr '\n' ' ')"
-                svc_reset_failed qmanager-dpi
-                # restart, NOT start: start is a no-op on an already-active
-                # unit, so switching modes kept serving the previous mode's
-                # argv — Full Bypass silently never applied.
-                if ! svc_restart qmanager-dpi; then
-                    cgi_error "engine_start_failed" "settings saved but the engine did not start"
-                    exit 0
-                fi
-            else
-                dpi_remove_rule
-                svc_stop qmanager-dpi
-            fi
+            # Binary check, config + mutex, engine start/stop: lib dpi_state.sh.
+            dpi_save_mode video_optimizer "$EN_INT"
+            case $? in
+                2) cgi_error "binary_not_installed" "tpws is not installed — run install first"; exit 0 ;;
+                3) cgi_error "engine_start_failed" "settings saved but the engine did not start"; exit 0 ;;
+            esac
             cgi_success
             exit 0
             ;;
@@ -292,7 +257,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # as absent (false // empty → no output), so a disable request
             # read as an empty string and failed bool_of validation.
             EN=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then .enabled else empty end' 2>/dev/null)
-            EN_INT=$(bool_of "$EN") || {
+            EN_INT=$(dpi_bool_of "$EN") || {
                 cgi_error "invalid_enabled" "enabled must be true or false"
                 exit 0
             }
@@ -301,47 +266,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # splits every real ClientHello instead of forging one. That gap is
             # what the rename was for. See docs/reference/dpi.md.
             SNI=$(printf '%s' "$POST_DATA" | jq -r '.sni_domain // "speedtest.net"' 2>/dev/null)
-            case "$SNI" in
-                ''|*[!A-Za-z0-9._-]*) cgi_error "invalid_sni_domain" "sni_domain contains invalid characters"; exit 0 ;;
+            dpi_sni_valid "$SNI" || { cgi_error "invalid_sni_domain" "$DPI_SNI_ERR"; exit 0; }
+            dpi_save_mode full_bypass "$EN_INT" "$SNI" "$ACTION"
+            case $? in
+                2) cgi_error "binary_not_installed" "tpws is not installed — run install first"; exit 0 ;;
+                3) cgi_error "engine_start_failed" "settings saved but the engine did not start"; exit 0 ;;
             esac
-            if ! printf '%s' "$SNI" | grep -q '\.'; then
-                cgi_error "invalid_sni_domain" "sni_domain must contain at least one dot"
-                exit 0
-            fi
-            [ "${#SNI}" -le 253 ] || {
-                cgi_error "invalid_sni_domain" "sni_domain exceeds 253 characters"
-                exit 0
-            }
-            if [ "$EN_INT" = "1" ] && ! dpi_binary_installed; then
-                cgi_error "binary_not_installed" "tpws is not installed — run install first"
-                exit 0
-            fi
-            qm_config_set full_bypass enabled "$EN_INT"
-            qm_config_set full_bypass sni_domain "$SNI"
-            # Mutex: full bypass owns the engine; video optimizer must yield.
-            qm_config_set video_optimizer enabled 0
-            qlog_info "save_full_bypass: enabled=$EN_INT sni_domain=$SNI (action=$ACTION)"
-            if [ "$EN_INT" = "1" ]; then
-                # A previous engine failure may have latched the unit's start
-                # limit, which refuses restart for the whole hour. Clearing it
-                # here is user-initiated, so it does not erode the automatic
-                # backoff the way a timed reset would.
-                # Record the fault state FIRST: reset-failed erases Result and
-                # NRestarts, and with journald masked to /dev/null that is the
-                # only crash record there is. qlog writes to a real file.
-                qlog_info "save: pre-reset engine fault state: $(${_SYSTEMCTL:-systemctl} show qmanager-dpi -p Result -p NRestarts -p ActiveState --value 2>/dev/null | tr '\n' ' ')"
-                svc_reset_failed qmanager-dpi
-                # restart, NOT start: start is a no-op on an already-active
-                # unit, so switching modes kept serving the previous mode's
-                # argv — Full Bypass silently never applied.
-                if ! svc_restart qmanager-dpi; then
-                    cgi_error "engine_start_failed" "settings saved but the engine did not start"
-                    exit 0
-                fi
-            else
-                dpi_remove_rule
-                svc_stop qmanager-dpi
-            fi
             cgi_success
             exit 0
             ;;
@@ -353,17 +283,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # applied/removed here and re-asserted every 60s by the ensure
             # timer (independent of engine state).
             EN=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then .enabled else empty end' 2>/dev/null)
-            EN_INT=$(bool_of "$EN") || {
+            EN_INT=$(dpi_bool_of "$EN") || {
                 cgi_error "invalid_enabled" "enabled must be true or false"
                 exit 0
             }
-            qm_config_set quic force_tcp "$EN_INT"
-            qlog_info "save_force_tcp: enabled=$EN_INT"
-            if [ "$EN_INT" = "1" ]; then
-                dpi_apply_force_tcp_rule
-            else
-                dpi_remove_force_tcp_rule
-            fi
+            dpi_save_force_tcp "$EN_INT"
             cgi_success
             exit 0
             ;;
@@ -433,61 +357,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 cgi_error "invalid_hostlist" "domains must be a non-empty array"
                 exit 0
             }
-            printf '%s' "$DOMAINS" | jq -e 'type == "array" and length <= 300' >/dev/null 2>&1 || {
-                qlog_info "save_hostlist rejected: invalid array shape"
-                cgi_error "invalid_hostlist" "domains must be an array of at most 300 entries"
+            # Shape + per-domain validation and the atomic write: lib dpi_state.sh.
+            dpi_hostlist_check "$DOMAINS" || {
+                qlog_info "save_hostlist rejected: $DPI_HL_LOG"
+                cgi_error "invalid_hostlist" "$DPI_HL_DETAIL"
                 exit 0
             }
-            # Per-domain validation WITHOUT jq regex functions: this firmware's
-            # Entware jq is compiled without Oniguruma, so test() aborts at
-            # runtime and a jq-only validator rejects EVERY payload. POSIX
-            # shell patterns are immune to the build difference. Every
-            # rejection path logs its reason — silent refusals cost a day.
-            N_DOMAINS=$(printf '%s' "$DOMAINS" | jq 'length')
-            VALID=1
-            _read=0
-            ENTRIES=$(printf '%s' "$DOMAINS" | jq -r '.[]')
-            for _d in $ENTRIES; do
-                _read=$((_read + 1))
-                case "$_d" in
-                    ''|*[!A-Za-z0-9._-]*)
-                        qlog_info "save_hostlist rejected: entry $_read has invalid characters"
-                        VALID=0; break ;;
-                esac
-                case "$_d" in
-                    *.*) ;;
-                    *)  qlog_info "save_hostlist rejected: entry $_read missing dot"
-                        VALID=0; break ;;
-                esac
-                [ "${#_d}" -le 253 ] || {
-                    qlog_info "save_hostlist rejected: entry $_read exceeds 253 chars"
-                    VALID=0
-                    break
-                }
-            done
-            if [ "$VALID" = "1" ] && [ "$_read" != "$N_DOMAINS" ]; then
-                # Entry count changed during extraction — a payload trick or
-                # an embedded newline/space split one domain into several.
-                qlog_info "save_hostlist rejected: extracted $_read entries from $N_DOMAINS declared"
-                VALID=0
-            fi
-            [ "$VALID" = "1" ] || {
-                cgi_error "invalid_hostlist" "each domain must be a valid hostname (letters, digits, dots, dashes)"
-                exit 0
-            }
-            if {
-                printf '# QManager Video Optimizer hostlist\n'
-                printf '%s' "$DOMAINS" | jq -r '.[]'
-            } > "$DPI_HOSTLIST.tmp" && mv "$DPI_HOSTLIST.tmp" "$DPI_HOSTLIST"; then
-                qlog_info "save_hostlist: $N_DOMAINS domains written"
+            if dpi_hostlist_write "$DOMAINS"; then
                 cgi_success
             else
-                # A failed write must never masquerade as success — the old
-                # fall-through here reported success:true with the file
-                # unchanged, and the UI happily showed a list that was never
-                # saved.
-                rm -f "$DPI_HOSTLIST.tmp"
-                qlog_error "save_hostlist: WRITE FAILED ($N_DOMAINS domains) — check permissions on $(dirname "$DPI_HOSTLIST")"
                 cgi_error "write_failed" "could not write the hostlist file"
             fi
             exit 0

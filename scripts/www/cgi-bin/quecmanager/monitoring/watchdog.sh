@@ -15,6 +15,7 @@ if [ -f /usr/lib/qmanager/wd_quality.sh ]; then
 else
     q_lat_limit=250; q_loss_limit=30; wd_quality_limits() { :; }
 fi
+. /usr/lib/qmanager/monitoring_validate.sh
 # =============================================================================
 # watchdog.sh — CGI Endpoint: Watchdog Settings & Status (GET + POST)
 # =============================================================================
@@ -39,64 +40,10 @@ cgi_handle_options
 WATCHCAT_STATE="/tmp/qmanager_watchcat.json"
 SIM_SWAP_FLAG="/tmp/qmanager_sim_swap_detected"
 SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
-RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
 PING_PROFILE_CONFIG="/etc/qmanager/ping_profile.json"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
 CRASH_LOG="${QM_CRASH_LOG:-/usrdata/qmanager/crash.log}"
-
-# validate_int: unsigned-integer-only range check (rejects "", leading +/-,
-# non-digits, and out-of-range values).
-validate_int() {
-    local val="$1" min="$2" max="$3"
-    case "$val" in ''|*[!0-9]*) return 1 ;; esac
-    [ "$val" -ge "$min" ] 2>/dev/null && [ "$val" -le "$max" ] 2>/dev/null
-}
-
-# Defensive runtime migration: if a legacy watchcat.max_failures value exists
-# and watchcat.fail_threshold is unset, copy it across once and delete the old
-# key. Idempotent (returns immediately once fail_threshold is present). Covers
-# a device that hits this CGI before the installer's own migration runs.
-migrate_fail_threshold() {
-    local current legacy
-    current=$(qm_config_get watchcat fail_threshold "")
-    [ -n "$current" ] && return
-    legacy=$(qm_config_get watchcat max_failures "")
-    if [ -n "$legacy" ]; then
-        qm_config_set watchcat fail_threshold "$legacy"
-        qm_config_delete watchcat max_failures
-        qlog_info "Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
-    fi
-}
-
-# True when the daemon's own heartbeat (uptime delta, the poller's test) is past
-# its limit: the unit can be active while the daemon is hung. Unknown reads as live.
-watchcat_state_stale() {
-    local up mono limit v
-    read -r up _ < /proc/uptime 2>/dev/null
-    up="${up%%.*}"
-    set -- $(jq -r '[(.mono // 0), (.stale_after // 0)] | map(tostring) | join(" ")' "$WATCHCAT_STATE" 2>/dev/null)
-    mono="$1" limit="$2"
-    for v in "$up" "$mono" "$limit"; do
-        case "$v" in ''|*[!0-9]*) return 1 ;; esac
-    done
-    [ "$mono" -gt 0 ] && [ "$limit" -gt 0 ] && [ $((up - mono)) -gt "$limit" ]
-}
-
-# wd_keys_json: the wd_common.sh keys as one JSON object (a 0-1 range is a boolean).
-wd_keys_json() {
-    local k v out sep
-    out=""; sep=""
-    for k in $WD_KEYS; do
-        v=$(wd_key_get "$k")
-        case "$(wd_key_spec "$k")" in
-            *" 0 1") [ "$v" = "1" ] && v=true || v=false ;;
-        esac
-        out="${out}${sep}\"${k}\":${v}"
-        sep=","
-    done
-    printf '{%s}' "$out"
-}
 
 # reject_field: emit a structured validation error and exit. Used only
 # during PASS 1 (validation) — never after any qm_config_set write.
@@ -162,7 +109,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # Check if watchcat was auto-disabled
     auto_disabled="false"
     [ -f "$DISABLED_FLAG" ] && auto_disabled="true"
-    wd_settings=$(wd_keys_json)
+    wd_settings=$(mv_wd_keys_json)
     # The limits the quality trigger really uses: Connection Quality's presets raised to the floors.
     wd_quality_limits
 
@@ -240,25 +187,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         f_fail_threshold=$(printf '%s' "$POST_DATA" | jq -r '.fail_threshold // empty')
         if [ -n "$f_fail_threshold" ]; then
-            validate_int "$f_fail_threshold" 1 20 || reject_field "fail_threshold" "must be an integer between 1 and 20"
+            _r=$(mv_wd_check fail_threshold "$f_fail_threshold") || reject_field "fail_threshold" "$_r"
         fi
 
         # probe_interval is Connection Quality's interval_sec; only a changed value is written.
         f_probe_interval=$(printf '%s' "$POST_DATA" | jq -r '.probe_interval // empty')
         if [ -n "$f_probe_interval" ]; then
-            validate_int "$f_probe_interval" 1 60 || reject_field "probe_interval" "must be an integer between 1 and 60"
+            _r=$(mv_wd_check probe_interval "$f_probe_interval") || reject_field "probe_interval" "$_r"
             conn_state_cadence "$PING_PROFILE_CONFIG"
             [ "$f_probe_interval" = "$CQ_CFG_INTERVAL_SEC" ] && f_probe_interval=""
         fi
 
         f_check_interval=$(printf '%s' "$POST_DATA" | jq -r '.check_interval // empty')
         if [ -n "$f_check_interval" ]; then
-            validate_int "$f_check_interval" 5 60 || reject_field "check_interval" "must be an integer between 5 and 60"
+            _r=$(mv_wd_check check_interval "$f_check_interval") || reject_field "check_interval" "$_r"
         fi
 
         f_cooldown=$(printf '%s' "$POST_DATA" | jq -r '.cooldown // empty')
         if [ -n "$f_cooldown" ]; then
-            validate_int "$f_cooldown" 10 300 || reject_field "cooldown" "must be an integer between 10 and 300"
+            _r=$(mv_wd_check cooldown "$f_cooldown") || reject_field "cooldown" "$_r"
         fi
 
         # Tier enable/disable booleans: legacy parity — anything other than
@@ -271,15 +218,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         f_backup_sim_slot=$(printf '%s' "$POST_DATA" | jq -r '.backup_sim_slot // empty')
         if [ -n "$f_backup_sim_slot" ] && [ "$f_backup_sim_slot" != "null" ]; then
-            case "$f_backup_sim_slot" in
-                1|2) ;;
-                *) reject_field "backup_sim_slot" "must be 1 or 2" ;;
-            esac
+            _r=$(mv_wd_check backup_sim_slot "$f_backup_sim_slot") || reject_field "backup_sim_slot" "$_r"
         fi
 
         f_max_reboots=$(printf '%s' "$POST_DATA" | jq -r '.max_reboots_per_hour // empty')
         if [ -n "$f_max_reboots" ]; then
-            validate_int "$f_max_reboots" 1 10 || reject_field "max_reboots_per_hour" "must be an integer between 1 and 10"
+            _r=$(mv_wd_check max_reboots_per_hour "$f_max_reboots") || reject_field "max_reboots_per_hour" "$_r"
         fi
 
         # wd_common.sh keys: booleans take true/false, the rest their table range.
@@ -287,113 +231,24 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         for _k in $WD_KEYS; do
             _v=$(printf '%s' "$POST_DATA" | jq -r --arg k "$_k" '.[$k] | if . == null then empty else tostring end')
             [ -n "$_v" ] || continue
-            set -- $(wd_key_spec "$_k")
-            if [ "$2" = "0" ] && [ "$3" = "1" ]; then
-                case "$_v" in true) _v=1 ;; false) _v=0 ;; *) reject_field "$_k" "must be true or false" ;; esac
-            else
-                wd_key_valid "$_k" "$_v" || reject_field "$_k" "must be an integer between $2 and $3"
-            fi
+            _v=$(mv_wd_key_normalize "$_k" "$_v") || reject_field "$_k" "$_v"
             wd_writes="$wd_writes $_k=$_v"
         done
 
         # ---------------------------------------------------------------
         # PASS 2 — apply. Only reached if every field above validated cleanly.
         # ---------------------------------------------------------------
-        qm_config_init
-        migrate_fail_threshold
-
-        if [ -n "$f_enabled" ]; then
-            case "$f_enabled" in
-                true)  qm_config_set watchcat enabled 1 ;;
-                false) : ;; # committed only after svc_disable succeeds, below
-            esac
-        fi
-
-        [ -n "$f_fail_threshold" ] && qm_config_set watchcat fail_threshold "$f_fail_threshold"
-
-        [ -n "$f_check_interval" ] && qm_config_set watchcat check_interval "$f_check_interval"
-        [ -n "$f_cooldown" ] && qm_config_set watchcat cooldown "$f_cooldown"
-
-        if [ -n "$f_tier1" ]; then
-            case "$f_tier1" in true) qm_config_set watchcat tier1_enabled 1 ;; false) qm_config_set watchcat tier1_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_tier2" ]; then
-            case "$f_tier2" in true) qm_config_set watchcat tier2_enabled 1 ;; false) qm_config_set watchcat tier2_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_tier3" ]; then
-            case "$f_tier3" in true) qm_config_set watchcat tier3_enabled 1 ;; false) qm_config_set watchcat tier3_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_tier4" ]; then
-            case "$f_tier4" in true) qm_config_set watchcat tier4_enabled 1 ;; false) qm_config_set watchcat tier4_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_backup_sim_slot" ] && [ "$f_backup_sim_slot" != "null" ]; then
-            qm_config_set watchcat backup_sim_slot "$f_backup_sim_slot"
-        else
-            qm_config_set watchcat backup_sim_slot ""
-        fi
-
-        [ -n "$f_max_reboots" ] && qm_config_set watchcat max_reboots_per_hour "$f_max_reboots"
-
-        for _kv in $wd_writes; do
-            qm_config_set watchcat "${_kv%%=*}" "${_kv#*=}"
-        done
-
-        if [ -n "$f_probe_interval" ]; then
-            _pp='{}'
-            [ -f "$PING_PROFILE_CONFIG" ] && _pp=$(cat "$PING_PROFILE_CONFIG" 2>/dev/null)
-            printf '%s' "$_pp" | jq -e 'type == "object"' >/dev/null 2>&1 || _pp='{}'
-            if printf '%s' "$_pp" | jq --argjson v "$f_probe_interval" '.interval_sec = $v' > "${PING_PROFILE_CONFIG}.tmp" 2>/dev/null &&
-                [ -s "${PING_PROFILE_CONFIG}.tmp" ]; then
-                mv "${PING_PROFILE_CONFIG}.tmp" "$PING_PROFILE_CONFIG"
-                touch /tmp/qmanager_ping_reload
-            else
-                rm -f "${PING_PROFILE_CONFIG}.tmp"
-                qlog_error "Failed to write interval_sec to $PING_PROFILE_CONFIG"
-            fi
-        fi
-
-        # Signal running watchcat daemon to reload config (if it's already running)
-        touch "$RELOAD_FLAG"
-
-        # Desired enabled state: this request's f_enabled if it set one,
-        # otherwise whatever is already persisted (enabled=0 for "false" is
-        # NOT yet written — see the deferred commit below).
-        new_enabled=""
-        if [ "$f_enabled" = "false" ]; then
-            new_enabled=0
-        else
-            new_enabled=$(qm_config_get watchcat enabled 0)
-        fi
-        if [ "$new_enabled" = "1" ]; then
-            rm -f "$DISABLED_FLAG"
-            # Enable and start the watchcat service
-            if ! svc_enable qmanager_watchcat; then
+        mv_wd_commit
+        case $? in
+            10)
                 cgi_error "service_enable_failed" "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)"
                 exit 0
-            fi
-            # A live daemon reloads from the flag touched above (a restart would drop
-            # its recovery state); start it when down, restart it when hung.
-            if svc_is_running qmanager_watchcat && ! watchcat_state_stale; then
-                qlog_info "Watchdog settings saved, running watchcat will reload"
-            else
-                ( svc_restart qmanager_watchcat & )
-                qlog_info "Watchdog settings saved, watchcat enabled and (re)started"
-            fi
-        else
-            # Stop and disable the watchcat service BEFORE persisting enabled=0,
-            # so a failed disable never leaves stale "enabled=0" config behind.
-            svc_stop qmanager_watchcat
-            if ! svc_disable qmanager_watchcat; then
+                ;;
+            11)
                 cgi_error "service_disable_failed" "Watchdog settings were saved, but the watchcat service could not be disabled on boot (rootfs may be read-only)"
                 exit 0
-            fi
-            qm_config_set watchcat enabled 0
-            qlog_info "Watchdog settings saved, watchcat stopped and disabled"
-        fi
+                ;;
+        esac
         echo '{"success":true}'
         exit 0
     fi

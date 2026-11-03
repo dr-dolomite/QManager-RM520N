@@ -501,3 +501,152 @@ dpi_build_args() {
             ;;
     esac
 }
+
+# =============================================================================
+# Save paths shared by network/video_optimizer.sh and Config Backup
+# =============================================================================
+
+# dpi_bool_of <true|false> — prints 1/0; non-zero on anything else.
+dpi_bool_of() {
+    case "$1" in
+        true) echo 1 ;;
+        false) echo 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# dpi_sni_valid <sni> — 0 when valid; else DPI_SNI_ERR holds the detail and rc is 1.
+dpi_sni_valid() {
+    DPI_SNI_ERR=""
+    case "$1" in
+        ''|*[!A-Za-z0-9._-]*) DPI_SNI_ERR="sni_domain contains invalid characters"; return 1 ;;
+    esac
+    case "$1" in
+        *.*) ;;
+        *) DPI_SNI_ERR="sni_domain must contain at least one dot"; return 1 ;;
+    esac
+    [ "${#1}" -le 253 ] || { DPI_SNI_ERR="sni_domain exceeds 253 characters"; return 1; }
+    return 0
+}
+
+# dpi_save_mode <video_optimizer|full_bypass> <0|1> [sni_domain] [log_label]
+# Config write, mode mutex, then engine restart (enable) or rule drain + stop (disable).
+# rc 0 ok, 2 tpws not installed (nothing written), 3 engine did not start (config saved).
+dpi_save_mode() {
+    local mode="$1" en="$2" sni="${3:-}" label="${4:-save_full_bypass}"
+    if [ "$en" = "1" ] && ! dpi_binary_installed; then
+        return 2
+    fi
+    if [ "$mode" = "video_optimizer" ]; then
+        qm_config_set video_optimizer enabled "$en"
+        # Mutex: video optimizer owns the engine; full bypass must yield.
+        qm_config_set full_bypass enabled 0
+        qlog_info "save: video_optimizer enabled=$en"
+    else
+        qm_config_set full_bypass enabled "$en"
+        qm_config_set full_bypass sni_domain "$sni"
+        # Mutex: full bypass owns the engine; video optimizer must yield.
+        qm_config_set video_optimizer enabled 0
+        qlog_info "save_full_bypass: enabled=$en sni_domain=$sni (action=$label)"
+    fi
+    if [ "$en" = "1" ]; then
+        # A latched start limit refuses restart for the hour; clear it (user-initiated), but log
+        # the fault state first — reset-failed erases Result/NRestarts and journald is masked.
+        qlog_info "save: pre-reset engine fault state: $(${_SYSTEMCTL:-systemctl} show qmanager-dpi -p Result -p NRestarts -p ActiveState --value 2>/dev/null | tr '\n' ' ')"
+        svc_reset_failed qmanager-dpi
+        # restart, NOT start: start is a no-op on an active unit, so a mode switch kept the old argv.
+        svc_restart qmanager-dpi || return 3
+    else
+        dpi_remove_rule
+        svc_stop qmanager-dpi
+    fi
+    return 0
+}
+
+# dpi_save_force_tcp <0|1> — standalone QUIC handle: config + rule only, no binary check, no mutex.
+dpi_save_force_tcp() {
+    qm_config_set quic force_tcp "$1"
+    qlog_info "save_force_tcp: enabled=$1"
+    if [ "$1" = "1" ]; then
+        dpi_apply_force_tcp_rule
+    else
+        dpi_remove_force_tcp_rule
+    fi
+}
+
+# dpi_hostname_check <domain> — 0 when valid; else DPI_HN_ERR names the reason and rc is 1.
+dpi_hostname_check() {
+    DPI_HN_ERR=""
+    case "$1" in
+        ''|*[!A-Za-z0-9._-]*) DPI_HN_ERR="has invalid characters"; return 1 ;;
+    esac
+    case "$1" in
+        *.*) ;;
+        *) DPI_HN_ERR="missing dot"; return 1 ;;
+    esac
+    [ "${#1}" -le 253 ] || { DPI_HN_ERR="exceeds 253 chars"; return 1; }
+    return 0
+}
+
+# dpi_hostlist_check <json> — array of at most 300 valid hostnames. On failure DPI_HL_LOG is the log
+# reason, DPI_HL_DETAIL the user-facing detail, rc 1. Shell patterns, not jq regex (device jq has none).
+dpi_hostlist_check() {
+    local n_domains nread=0 valid=1 entries d
+    DPI_HL_LOG=""
+    DPI_HL_DETAIL=""
+    printf '%s' "$1" | jq -e 'type == "array" and length <= 300' >/dev/null 2>&1 || {
+        DPI_HL_LOG="invalid array shape"
+        DPI_HL_DETAIL="domains must be an array of at most 300 entries"
+        return 1
+    }
+    n_domains=$(printf '%s' "$1" | jq 'length')
+    entries=$(printf '%s' "$1" | jq -r '.[]')
+    # noglob: an entry like "*" must be rejected by the charset check, not expanded to filenames.
+    set -f
+    for d in $entries; do
+        nread=$((nread + 1))
+        dpi_hostname_check "$d" || {
+            DPI_HL_LOG="entry $nread $DPI_HN_ERR"
+            valid=0
+            break
+        }
+    done
+    set +f
+    if [ "$valid" = "1" ] && [ "$nread" != "$n_domains" ]; then
+        # An embedded newline/space split one domain into several.
+        DPI_HL_LOG="extracted $nread entries from $n_domains declared"
+        valid=0
+    fi
+    [ "$valid" = "1" ] || {
+        DPI_HL_DETAIL="each domain must be a valid hostname (letters, digits, dots, dashes)"
+        return 1
+    }
+    return 0
+}
+
+# dpi_hostlist_write <json array> — atomic rewrite of the hostlist (www-data owns it, no sudo).
+dpi_hostlist_write() {
+    local n_domains
+    n_domains=$(printf '%s' "$1" | jq 'length')
+    if {
+        printf '# QManager Video Optimizer hostlist\n'
+        printf '%s' "$1" | jq -r '.[]'
+    } > "$DPI_HOSTLIST.tmp" && mv "$DPI_HOSTLIST.tmp" "$DPI_HOSTLIST"; then
+        qlog_info "save_hostlist: $n_domains domains written"
+        return 0
+    fi
+    # A failed write must never masquerade as success.
+    rm -f "$DPI_HOSTLIST.tmp"
+    qlog_error "save_hostlist: WRITE FAILED ($n_domains domains) — check permissions on $(dirname "$DPI_HOSTLIST")"
+    return 1
+}
+
+# dpi_hostlist_json — the live hostlist as a JSON array (comments and blanks stripped); [] when absent.
+dpi_hostlist_json() {
+    local out
+    [ -f "$DPI_HOSTLIST" ] || { echo '[]'; return 0; }
+    out=$(sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$DPI_HOSTLIST" \
+        | grep -v '^#' | grep -v '^$' | jq -R . | jq -s .)
+    [ -n "$out" ] || out='[]'
+    echo "$out"
+}

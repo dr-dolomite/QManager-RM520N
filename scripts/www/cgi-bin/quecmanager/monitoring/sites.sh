@@ -1,5 +1,6 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/monitoring_validate.sh
 # =============================================================================
 # sites.sh — CGI Endpoint: Sites monitor (GET + POST)
 # =============================================================================
@@ -8,7 +9,7 @@
 # POST {"action":"check_now"}             : raise the sweep flag for the daemon.
 # POST {"action":"save","enabled":b,"interval_sec":n,"sites":[{"host","label"}]}
 #
-# Config : /etc/qmanager/sites.json      (this CGI writes; the daemon reads)
+# Config : /etc/qmanager/sites.json      (this CGI writes; the daemon reads; paths and savers in monitoring_validate.sh)
 # State  : /tmp/qmanager_sites*.json|ndjson, /usrdata/qmanager/sites/*.jsonl
 #          (all written by the root daemon qmanager_sites; read-only here)
 # Flag   : /tmp/qmanager_sites_now       (created here as www-data)
@@ -23,7 +24,6 @@ cgi_handle_options
 
 TMP_DIR="${QM_SITES_TMP_DIR:-/tmp}"
 DATA_DIR="${QM_SITES_DATA_DIR:-/usrdata/qmanager/sites}"
-CONF_FILE="${QM_SITES_CONF:-/etc/qmanager/sites.json}"
 
 LATEST_FILE="$TMP_DIR/qmanager_sites.json"
 RAW_FILE="$TMP_DIR/qmanager_sites_raw.ndjson"
@@ -35,47 +35,11 @@ LIVE_FILE="$TMP_DIR/qmanager_sites_live.json"
 
 SANE_EPOCH=1700000000
 LIVE_MAX_AGE=6             # a live sample older than this is ignored
-DEFAULT_SITES="google.com facebook.com tiktok.com youtube.com roblox.com spotify.com x.com cellmapper.net reddit.com github.com discord.com instagram.com messenger.com"
-
-# Conservative hostname / IPv4 check, no regex (device jq has none).
-valid_host() {
-    local h="$1"
-    [ "${#h}" -ge 3 ] && [ "${#h}" -le 253 ] || return 1
-    case "$h" in
-        *[!A-Za-z0-9.-]*|-*|.*|*.|*-|*..*|*.-*|*-.*) return 1 ;;
-        *.*) return 0 ;;
-    esac
-    return 1
-}
 
 reject_field() {
     jq -n --arg field "$1" --arg reason "$2" \
         '{success:false, error:"invalid_field", field:$field, reason:$reason}'
     exit 0
-}
-
-# Prints the effective config as compact JSON (defaults when absent/unreadable).
-read_config() {
-    local defaults cfg
-    defaults=$(jq -cn --arg s "$DEFAULT_SITES" '$s | split(" ") | map({host: ., label: .})')
-    cfg=""
-    if [ -f "$CONF_FILE" ]; then
-        cfg=$(jq -c --argjson d "$defaults" '
-            {enabled: (if .enabled == false then false else true end),
-             interval_sec: (.interval_sec | if type == "number"
-                 then (floor | if . < 60 then 60 elif . > 3600 then 3600 else . end)
-                 else 300 end),
-             sites: (if has("sites") and (.sites | type == "array")
-                 then [.sites[:32][] | select(type == "object" and (.host | type) == "string")
-                       | {host: (.host | ascii_downcase),
-                          label: (if (.label | type) == "string" and (.label | length) > 0
-                                  then .label else .host end)}]
-                 else $d end)}' "$CONF_FILE" 2>/dev/null)
-    fi
-    if [ -z "$cfg" ]; then
-        cfg=$(jq -cn --argjson d "$defaults" '{enabled: true, interval_sec: 300, sites: $d}')
-    fi
-    printf '%s' "$cfg"
 }
 
 # yyyy-mm-dd -> yyyymmdd for numeric comparison (ash `[` has no string <).
@@ -198,7 +162,7 @@ handle_get() {
         start=$((now - span))
     fi
 
-    cfg=$(read_config)
+    cfg=$(mv_sites_read_config)
     # Lease renewal only while enabled; a write failure is ignored (the page falls back to sweep data).
     if [ "$live_mode" = "true" ] && [ "$(printf '%s' "$cfg" | jq -r '.enabled')" = "true" ]; then
         { printf '%s\n' "$now" > "$LIVE_LEASE"; } 2>/dev/null
@@ -260,7 +224,7 @@ handle_get() {
 # =============================================================================
 handle_check_now() {
     local cfg
-    cfg=$(read_config)
+    cfg=$(mv_sites_read_config)
     if [ "$(printf '%s' "$cfg" | jq -r '.enabled')" != "true" ]; then
         cgi_error "disabled" "Sites monitor is turned off"
         return
@@ -273,14 +237,12 @@ handle_check_now() {
 }
 
 handle_save() {
-    local enabled interval nsites hosts nlines h lines new tmp
+    local enabled interval nsites hosts nlines h lines new
 
-    enabled=$(printf '%s' "$POST_DATA" | jq -r '.enabled | if type == "boolean" then tostring else "invalid" end' 2>/dev/null)
+    enabled=$(mv_sites_norm_enabled "$POST_DATA")
     case "$enabled" in true|false) ;; *) reject_field "enabled" "must be true or false" ;; esac
 
-    interval=$(printf '%s' "$POST_DATA" | jq -r '.interval_sec
-        | if type == "number" then (floor | if . < 60 then 60 elif . > 3600 then 3600 else . end | tostring)
-          else "invalid" end' 2>/dev/null)
+    interval=$(mv_sites_norm_interval "$POST_DATA")
     case "$interval" in ''|invalid|*[!0-9]*) reject_field "interval_sec" "must be a number of seconds" ;; esac
 
     nsites=$(printf '%s' "$POST_DATA" | jq -r '.sites | if type == "array" then length | tostring else "invalid" end' 2>/dev/null)
@@ -294,7 +256,7 @@ handle_save() {
             | if type == "object" and (.host | type) == "string" then (.host | ascii_downcase) else "" end')
         while IFS= read -r h; do
             nlines=$((nlines + 1))
-            valid_host "$h" || reject_field "sites" "invalid host"
+            mv_valid_host "$h" || reject_field "sites" "invalid host"
             hosts="$hosts $h"
         done <<EOF
 $lines
@@ -302,31 +264,15 @@ EOF
         [ "$nlines" -eq "$nsites" ] || reject_field "sites" "invalid host"
     fi
 
-    new=$(printf '%s' "$POST_DATA" | jq -c --argjson en "$enabled" --argjson iv "$interval" '
-        {enabled: $en, interval_sec: $iv,
-         sites: ([.sites[] | (.host | ascii_downcase) as $h
-                  | {host: $h,
-                     label: (((.label | if type == "string" then . else "" end)
-                              | explode | map(select(. >= 32 and . != 127)) | implode | .[:40])
-                             | if . == "" then $h else . end)}]
-                 | reduce .[] as $s ([]; if any(.[]; .host == $s.host) then . else . + [$s] end))}') || {
+    new=$(mv_sites_build "$enabled" "$interval" "$POST_DATA") || {
         cgi_error "save_failed" "Could not build the configuration"
         return
     }
 
-    tmp=$(mktemp "${CONF_FILE}.XXXXXX" 2>/dev/null) || {
-        qlog_error "mktemp in $(dirname "$CONF_FILE") failed"
-        cgi_error "save_failed" "Could not write the configuration"
-        return
-    }
-    if printf '%s\n' "$new" > "$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$CONF_FILE"; then
-        [ "$enabled" = "true" ] && : > "$NOW_FLAG" 2>/dev/null
-        # Disabling drops the live lease so the daemon stops live ticks at once.
-        [ "$enabled" = "false" ] && rm -f "$LIVE_LEASE" 2>/dev/null
+    if mv_sites_write "$new" "$enabled"; then
         qlog_info "Saved sites config ($nsites sites, enabled=$enabled)"
         printf '%s' "$new" | jq '{success: true} + .'
     else
-        rm -f "$tmp"
         cgi_error "save_failed" "Could not write the configuration"
     fi
 }

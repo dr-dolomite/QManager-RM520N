@@ -224,5 +224,15 @@
   "report_tool_missing": "Alat laporan debug tidak terpasang di modem ini.",
   "capture_failed": "Laporan debug tidak dapat dibuat.",
   "invalid_version": "Nama versi tidak valid.",
-  "invalid_rollback": "Tidak dapat kembali ke build tersebut."
+  "invalid_rollback": "Tidak dapat kembali ke build tersebut.",
+  "foreign_platform": "Cadangan ini dibuat oleh QManager untuk modem lain, jadi tidak bisa dipulihkan di sini.",
+  "backup_too_new": "Cadangan ini dibuat oleh QManager yang lebih baru. Perbarui QManager untuk memulihkannya.",
+  "insecure_context": "Cadangan memerlukan koneksi aman. Buka QManager melalui https:// lalu coba lagi.",
+  "decrypt_failed": "Frasa sandi salah, atau file telah diubah.",
+  "invalid_payload": "Isi cadangan tidak dapat dibaca.",
+  "collect_failed": "Modem tidak dapat membaca pengaturannya.",
+  "sections_conflict": "Bagian-bagian itu tidak dapat dipulihkan bersamaan.",
+  "persist_failed": "Modem tidak dapat menyimpan permintaan pemulihan.",
+  "profile_apply_in_progress": "Profil SIM sedang diterapkan. Coba lagi setelah selesai.",
+  "status_lost": "Kontak dengan modem terputus selama pemulihan. Periksa pengaturan Anda setelah modem kembali."
 }

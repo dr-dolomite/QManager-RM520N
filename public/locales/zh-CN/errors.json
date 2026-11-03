@@ -224,5 +224,15 @@
   "report_tool_missing": "此调制解调器未安装调试报告工具。",
   "capture_failed": "无法生成调试报告。",
   "invalid_version": "该版本号无效。",
-  "invalid_rollback": "无法回滚到该版本。"
+  "invalid_rollback": "无法回滚到该版本。",
+  "foreign_platform": "此备份是 QManager 为其他型号的调制解调器创建的，无法在此恢复。",
+  "backup_too_new": "此备份由更新版本的 QManager 创建。请更新 QManager 后再恢复。",
+  "insecure_context": "备份需要安全连接。请通过 https:// 打开 QManager 后重试。",
+  "decrypt_failed": "密码短语错误，或文件已被修改。",
+  "invalid_payload": "无法读取备份内容。",
+  "collect_failed": "调制解调器无法读取其设置。",
+  "sections_conflict": "这些部分不能同时恢复。",
+  "persist_failed": "调制解调器无法保存恢复请求。",
+  "profile_apply_in_progress": "正在应用 SIM 配置文件。请在完成后重试。",
+  "status_lost": "恢复期间与调制解调器失去联系。恢复连接后请检查您的设置。"
 }

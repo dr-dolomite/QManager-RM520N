@@ -38,6 +38,7 @@
     "tailscale": "Tailscale VPN",
     "system_settings": "Pengaturan Sistem",
     "logs": "Log",
+    "config_backup": "Cadangan Konfigurasi",
     "system_health_check": "Pemeriksaan Kesehatan Sistem",
     "connection_quality": "Kualitas Koneksi",
     "languages": "Bahasa",

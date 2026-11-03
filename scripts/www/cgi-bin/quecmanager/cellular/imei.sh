@@ -1,6 +1,8 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/cgi_at.sh
+. /usr/lib/qmanager/connection_validate.sh
+. /usr/lib/qmanager/connection_store.sh
 # =============================================================================
 # imei.sh — CGI Endpoint: IMEI Mangling Settings (GET + POST)
 # =============================================================================
@@ -26,8 +28,8 @@ cgi_handle_options
 
 # --- Configuration -----------------------------------------------------------
 POLLER_CACHE="/tmp/qmanager_status.json"
-BACKUP_CONFIG="/etc/qmanager/imei_backup.json"
-CHECK_PENDING="/etc/qmanager/imei_check_pending"
+BACKUP_CONFIG="$IMEI_BACKUP_CONFIG"
+CHECK_PENDING="$IMEI_CHECK_PENDING"
 CMD_GAP=0.2
 
 # =============================================================================
@@ -111,38 +113,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         qlog_info "Writing IMEI: $NEW_IMEI"
 
-        # Write IMEI to modem NVM. qcmd never puts the literal "ERROR" on
-        # stdout (failure = exit status + stderr, empty stdout), so matching
-        # stdout for "*ERROR*" could never fire and a rejected write always
-        # reported success. rc is captured immediately; a write additionally
-        # needs to see the modem's own "OK" since qcmd's third exit arm can
-        # return 0 with unconfirmed data for a response containing neither
-        # OK nor ERROR.
-        result=$(qcmd "AT+EGMR=1,7,\"${NEW_IMEI}\"" 2>/dev/null)
-        rc=$?
-        egmr_ok="false"
-        # Line-exact, not a *OK* substring glob: the response echoes the
-        # issued command back, so an argument containing "OK" would match
-        # itself. A 15-digit IMEI cannot today, but the guard is free.
-        if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
-            egmr_ok="true"
-        fi
-        if [ "$egmr_ok" != "true" ]; then
-            qlog_error "Failed to write IMEI (rc=$rc): $result"
+        # Write the IMEI and set the boot-time check flag (shared with config restore).
+        if ! conn_imei_write "$NEW_IMEI"; then
             cgi_error "egmr_failed" "Failed to write IMEI to modem"
             exit 0
         fi
 
-        # Set check-pending flag if backup IMEI is enabled
-        if [ -f "$BACKUP_CONFIG" ]; then
-            b_enabled=$(jq -r '(.enabled) | if . == null then "false" else tostring end' "$BACKUP_CONFIG" 2>/dev/null)
-            if [ "$b_enabled" = "true" ]; then
-                touch "$CHECK_PENDING"
-                qlog_info "Backup enabled — set IMEI check pending flag"
-            fi
-        fi
-
-        qlog_info "IMEI written successfully (reboot required)"
         jq -n '{"success":true,"reboot_required":true}'
         exit 0
     fi
@@ -154,48 +130,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         ENABLED=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then (.enabled | tostring) else "" end')
         BACKUP_IMEI=$(printf '%s' "$POST_DATA" | jq -r '.backup_imei // ""')
 
-        if [ -z "$ENABLED" ]; then
-            cgi_error "missing_enabled" "enabled field is required"
+        if ! conn_validate_imei_backup "$ENABLED" "$BACKUP_IMEI"; then
+            cgi_error "$CONN_ERR_CODE" "$CONN_ERR_DETAIL"
             exit 0
-        fi
-
-        case "$ENABLED" in
-            true|false) ;;
-            *)
-                cgi_error "invalid_enabled" "enabled must be true or false"
-                exit 0
-                ;;
-        esac
-
-        # When enabling, backup IMEI must be valid
-        if [ "$ENABLED" = "true" ]; then
-            if ! validate_imei "$BACKUP_IMEI"; then
-                cgi_error "invalid_backup_imei" "Backup IMEI must be exactly 15 digits"
-                exit 0
-            fi
         fi
 
         qlog_info "Saving backup config: enabled=$ENABLED imei=$BACKUP_IMEI"
 
-        # Ensure config directory exists
-        mkdir -p /etc/qmanager
-
-        # Write config atomically
-        jq -n \
-            --argjson enabled "$ENABLED" \
-            --arg imei "$BACKUP_IMEI" \
-            '{ enabled: $enabled, imei: $imei }' \
-            > "${BACKUP_CONFIG}.tmp" && mv "${BACKUP_CONFIG}.tmp" "$BACKUP_CONFIG"
-
-        if [ $? -ne 0 ]; then
-            qlog_error "Failed to write backup config"
+        if ! conn_imei_save_backup "$ENABLED" "$BACKUP_IMEI"; then
             cgi_error "write_failed" "Failed to save backup configuration"
             exit 0
-        fi
-
-        # If disabling, remove any pending check flag
-        if [ "$ENABLED" = "false" ]; then
-            rm -f "$CHECK_PENDING"
         fi
 
         qlog_info "Backup config saved"

@@ -24,6 +24,7 @@ cgi_handle_options
 
 # --- Load library ------------------------------------------------------------
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -77,17 +78,9 @@ current_fo_threshold=$(tower_config_get ".failover.threshold")
 [ "$FO_THRESHOLD" = "unset" ] && FO_THRESHOLD="$current_fo_threshold"
 
 # Validate threshold range
-if [ -n "$FO_THRESHOLD" ]; then
-    case "$FO_THRESHOLD" in
-        *[!0-9]*)
-            cgi_error "invalid_threshold" "Threshold must be a number 0-100"
-            exit 0
-            ;;
-    esac
-    if [ "$FO_THRESHOLD" -lt 0 ] 2>/dev/null || [ "$FO_THRESHOLD" -gt 100 ] 2>/dev/null; then
-        cgi_error "invalid_threshold" "Threshold must be 0-100"
-        exit 0
-    fi
+if ! rv_tower_threshold "$FO_THRESHOLD"; then
+    cgi_error "$RV_CODE" "$RV_DETAIL"
+    exit 0
 fi
 
 qlog_info "Updating tower settings: persist=$PERSIST persist_lte=$PERSIST_LTE persist_nr=$PERSIST_NR failover_enabled=$FO_ENABLED threshold=$FO_THRESHOLD"
@@ -95,94 +88,20 @@ qlog_info "Updating tower settings: persist=$PERSIST persist_lte=$PERSIST_LTE pe
 # --- Send persist AT command if changed --------------------------------------
 # save_ctrl writes both radios at once, so read the live pair first; an
 # unreadable modem blocks the write rather than guessing the untouched radio.
-persist_ok="true"
-applied_lte="null"
-applied_nr="null"
-new_persist="$current_persist"
-if [ "$PERSIST" != "unset" ] || [ "$PERSIST_LTE" != "unset" ] || [ "$PERSIST_NR" != "unset" ]; then
-    if ! cur_state=$(tower_read_persist); then
-        qlog_error "Persist read failed; not writing save_ctrl"
-        persist_ok="false"
-    else
-        set -- $cur_state
-        cur_lte="$1"
-        cur_nr="$2"
-        want_lte="$cur_lte"
-        want_nr="$cur_nr"
-        case "$PERSIST" in
-            true) want_lte="1"; want_nr="1" ;;
-            false) want_lte="0"; want_nr="0" ;;
-        esac
-        case "$PERSIST_LTE" in true) want_lte="1" ;; false) want_lte="0" ;; esac
-        case "$PERSIST_NR" in true) want_nr="1" ;; false) want_nr="0" ;; esac
-
-        if [ "$want_lte" != "$cur_lte" ] || [ "$want_nr" != "$cur_nr" ]; then
-            # qcmd fails by exit status; ERROR never reaches stdout.
-            sleep 0.1
-            if tower_set_persist "$want_lte" "$want_nr" >/dev/null; then
-                qlog_info "Persist set lte=$want_lte nr=$want_nr"
-            else
-                qlog_error "Persist AT command failed"
-                persist_ok="false"
-            fi
-        fi
-
-        # What the modem holds now: the request if it landed, else what it had.
-        fin_lte="$cur_lte"
-        fin_nr="$cur_nr"
-        if [ "$persist_ok" = "true" ]; then
-            fin_lte="$want_lte"
-            fin_nr="$want_nr"
-        fi
-        applied_lte="false"
-        applied_nr="false"
-        [ "$fin_lte" = "1" ] && applied_lte="true"
-        [ "$fin_nr" = "1" ] && applied_nr="true"
-        # config.persist mirrors "both radios keep the lock".
-        new_persist="false"
-        [ "$applied_lte" = "true" ] && [ "$applied_nr" = "true" ] && new_persist="true"
-    fi
-fi
+tower_apply_persist "$PERSIST" "$PERSIST_LTE" "$PERSIST_NR" "$current_persist"
+persist_ok="$TW_PERSIST_OK"
+applied_lte="$TW_APPLIED_LTE"
+applied_nr="$TW_APPLIED_NR"
+new_persist="$TW_NEW_PERSIST"
 
 # --- Update config file using jq (atomic, safe) -----------------------------
 tower_config_update_settings "$new_persist" "$FO_ENABLED" "$FO_THRESHOLD"
 
-# --- Ensure failover daemon is running when enabled + lock active ------------
-watcher_spawned="false"
-svc_enable_failed="false"
-if [ "$FO_ENABLED" = "true" ]; then
-    lte_active=$(tower_config_get ".lte.enabled")
-    nr_active=$(tower_config_get ".nr_sa.enabled")
-    if [ "$lte_active" = "true" ] || [ "$nr_active" = "true" ]; then
-        # Only spawn if daemon is not already running (avoids resetting settle timer)
-        daemon_alive="false"
-        if [ -f "$TOWER_FAILOVER_PID" ]; then
-            wpid=$(cat "$TOWER_FAILOVER_PID" 2>/dev/null | tr -d ' \n\r')
-            pid_alive "$wpid" && daemon_alive="true"
-        fi
-        if [ "$daemon_alive" != "true" ]; then
-            spawn_result=$(tower_spawn_failover_watcher); _spawn_rc=$?
-            [ "$spawn_result" = "true" ] && watcher_spawned="true"
-            # rc 2 = daemon live but svc_enable failed, so failover won't
-            # survive a reboot. The printed boolean describes only the running
-            # daemon, so without this the lost persistence is invisible.
-            [ "$_spawn_rc" = "2" ] && svc_enable_failed="true"
-            qlog_info "Failover spawn attempt: result=$spawn_result rc=$_spawn_rc"
-        fi
-    fi
-fi
-
-# --- Kill failover daemon if failover was just disabled ----------------------
-svc_disable_failed="false"
-if [ "$FO_ENABLED" = "false" ] && [ "$current_fo_enabled" = "true" ]; then
-    tower_kill_failover_watcher
-    rm -f "$TOWER_FAILOVER_FLAG"
-    if ! svc_disable qmanager_tower_failover; then
-        svc_disable_failed="true"
-        qlog_warn "svc_disable qmanager_tower_failover failed (rootfs may be read-only)"
-    fi
-    qlog_info "Failover disabled — killed daemon, disabled service"
-fi
+# --- Failover daemon: start when enabled with a lock active, stop when just disabled
+tower_apply_failover_state "$FO_ENABLED" "$current_fo_enabled"
+watcher_spawned="$TW_WATCHER_SPAWNED"
+svc_enable_failed="$TW_SVC_ENABLE_FAILED"
+svc_disable_failed="$TW_SVC_DISABLE_FAILED"
 
 # --- Response ----------------------------------------------------------------
 # persist_lte / persist_nr: each radio's value after this call, null when

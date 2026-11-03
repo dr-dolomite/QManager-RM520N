@@ -38,6 +38,7 @@
     "tailscale": "Tailscale VPN",
     "system_settings": "Impostazioni di sistema",
     "logs": "Log",
+    "config_backup": "Backup configurazione",
     "system_health_check": "Controllo dello stato del sistema",
     "connection_quality": "Qualità della connessione",
     "languages": "Lingue",
