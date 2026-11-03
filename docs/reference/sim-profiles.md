@@ -251,9 +251,12 @@ actually granted — can verify that an APN apply took. Any future change to thi
 step must keep verifying against `CGCONTRDP`, never `CGDCONT?`. The one
 exception is the no-bearer case (S11): when `CGCONTRDP` has no record at all, a
 `CGDCONT?` match only skips a pointless re-attach; it never reports an apply as
-verified.
+verified. Known limit: that skip does not compare the PDP type, so a profile
+that changes only the PDP type is not written on a no-bearer apply (the
+bearer-present skip has the same gap).
 
-That rule fixes **which command to ask**, and it is unconditional. It does not,
+That rule fixes **which command to ask** to verify an apply, and that
+verification rule is unconditional. It does not,
 however, license trusting the reply's *shape*: `+CGCONTRDP` field quoting
 differs by firmware — SDX65 quotes every string field, SDX55 emits them all bare
 — so any parser for it must split on the **comma** and strip quotes per field
