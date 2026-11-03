@@ -243,5 +243,7 @@
   "sections_conflict": "Those sections can't be restored together.",
   "persist_failed": "The modem couldn't save the restore request.",
   "profile_apply_in_progress": "A SIM profile is being applied. Try again when it finishes.",
-  "status_lost": "Lost contact with the modem during the restore. Check your settings once it's back."
+  "status_lost": "Lost contact with the modem during the restore. Check your settings once it's back.",
+  "hostname_apply_failed": "The device name was saved, but it couldn't be applied to the system. Try again.",
+  "hostname_save_failed": "Couldn't save the device name. Try again."
 }

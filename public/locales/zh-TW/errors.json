@@ -243,5 +243,7 @@
   "sections_conflict": "這些項目不能同時還原。",
   "persist_failed": "數據機無法儲存還原要求。",
   "profile_apply_in_progress": "正在套用 SIM 設定檔。請在完成後再試一次。",
-  "status_lost": "還原期間與數據機失去聯繫。恢復連線後請檢查您的設定。"
+  "status_lost": "還原期間與數據機失去聯繫。恢復連線後請檢查您的設定。",
+  "hostname_apply_failed": "裝置名稱已儲存，但無法套用到系統。請重試。",
+  "hostname_save_failed": "無法儲存裝置名稱。請重試。"
 }
