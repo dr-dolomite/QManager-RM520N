@@ -7,10 +7,11 @@ import { StepPassword } from "./steps/step-password";
 import { StepNetworkMode } from "./steps/step-network-mode";
 import { StepConnection } from "./steps/step-connection";
 import { StepBandLocking } from "./steps/step-band-locking";
+import { StepWebPort } from "./steps/step-web-port";
 import { StepDone } from "./steps/step-done";
 
-// Steps: 1 Welcome, 2 Password (required), 3 Network mode, 4 Connection, 5 Bands, 6 Done.
-// Steps 3-5 are skippable; each registers the submit fn the shell's Continue calls.
+// Steps: 1 Welcome, 2 Password (required), 3 Network mode, 4 Connection, 5 Bands, 6 Web port, 7 Done.
+// Steps 3-6 are skippable; each registers the submit fn the shell's Continue calls.
 
 type AsyncVoidFn = () => Promise<void>;
 type SyncVoidFn = () => void;
@@ -19,6 +20,8 @@ export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [passwordValid, setPasswordValid] = useState(false);
+  // Set by the web-port step when the server moves; Done opens the dashboard there.
+  const [movedOrigin, setMovedOrigin] = useState<string | null>(null);
 
   const submitFnRef = useRef<AsyncVoidFn | SyncVoidFn | null>(null);
   const inFlightRef = useRef(false);
@@ -58,7 +61,7 @@ export function OnboardingWizard() {
       currentStep={currentStep}
       onNext={currentStep === 1 ? advance : handleContinue}
       onBack={goBack}
-      onSkip={currentStep >= 3 && currentStep <= 5 ? advance : undefined}
+      onSkip={currentStep >= 3 && currentStep <= 6 ? advance : undefined}
       isLoading={isLoading}
       continueDisabled={currentStep === 2 && !passwordValid}
     >
@@ -97,7 +100,16 @@ export function OnboardingWizard() {
         />
       )}
 
-      {currentStep === 6 && <StepDone />}
+      {currentStep === 6 && (
+        <StepWebPort
+          onSubmitRef={registerSubmit}
+          onLoadingChange={setIsLoading}
+          onSuccess={advance}
+          onMove={setMovedOrigin}
+        />
+      )}
+
+      {currentStep === 7 && <StepDone movedOrigin={movedOrigin} />}
     </OnboardingShell>
   );
 }

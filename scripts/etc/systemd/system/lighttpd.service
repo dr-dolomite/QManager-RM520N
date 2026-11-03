@@ -11,6 +11,8 @@ Type=simple
 # and our lighttpd.conf sets no server.pid-file so we never write one — the
 # path it used to name was Entware's default pidfile (the rival instance),
 # harmless today but wrong if this unit is ever changed to Type=forking.
+# Renders the port lines from /usrdata/qmanager/web_port; "-" so it never blocks the start.
+ExecStartPre=-/usr/bin/qmanager_web_port render
 ExecStartPre=/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf
 ExecStart=/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf
 ExecReload=/bin/kill -USR1 $MAINPID

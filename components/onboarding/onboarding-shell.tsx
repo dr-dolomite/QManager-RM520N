@@ -19,6 +19,7 @@ const STEP_LABEL_KEYS = [
   "step_label_network_mode",
   "step_label_connection",
   "step_label_band_preferences",
+  "step_label_web_port",
   "step_label_complete",
 ] as const;
 

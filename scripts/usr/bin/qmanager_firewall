@@ -9,7 +9,7 @@
 #
 # Usage: qmanager_firewall {start|stop|restart|reload}
 #
-# Web UI (80, 443): allowed on lo, bridge0, eth0, tailscale0 (if installed);
+# Web UI (80, 443 + custom web ports): allowed on lo, bridge0, eth0, tailscale0 (if installed);
 #   dropped everywhere else (IPv4). Dropped on rmnet+ (IPv6 — lighttpd binds
 #   IPv4 only today; this is defence in depth).
 # SSH (22): dropped on rmnet+ only, IPv4 and IPv6. Every other interface keeps
@@ -29,7 +29,11 @@
 
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
+# Web ports: 80/443 always, plus the configured and in-change pairs from the port file.
 PORTS="80 443"
+if [ -f /usr/lib/qmanager/web_port.sh ] && . /usr/lib/qmanager/web_port.sh; then
+    PORTS=$(wp_fw_ports)
+fi
 SSH_PORT="22"
 WAN_IFACE="rmnet+"
 TRUSTED="lo bridge0 eth0"

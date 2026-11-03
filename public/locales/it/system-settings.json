@@ -1209,5 +1209,25 @@
     "default_status": "Tempi predefiniti",
     "toast_saved": "Polling adattivo salvato.",
     "toast_failed": "Impossibile salvare il polling adattivo."
+  },
+  "web_port": {
+    "card_title": "Porta web",
+    "card_description": "Le porte su cui risponde questa interfaccia.",
+    "http_label": "Porta HTTP",
+    "http_consequence": "L'HTTP in chiaro reindirizza soltanto alla porta HTTPS.",
+    "https_label": "Porta HTTPS",
+    "https_consequence": "La porta cifrata su cui viene servita questa interfaccia.",
+    "pending": "Si aprirà su {{origin}} dopo l'applicazione.",
+    "moving": "Spostamento su {{origin}}… Se il browser lo chiede, accetta il certificato per la nuova porta.",
+    "invalid": "Usa un numero intero da 1 a 65535.",
+    "same": "HTTP e HTTPS richiedono porte diverse.",
+    "confirm_title": "Cambiare la porta web?",
+    "confirm_description": "QManager si riavvia sulla nuova porta e questa pagina passa a {{origin}}. Se la nuova porta non si avvia, torna da sola quella precedente.",
+    "confirm_action": "Cambia porta",
+    "toast_failed": "Impossibile cambiare la porta web.",
+    "toast_unchanged": "Porta web salvata.",
+    "toast_unreachable": "La nuova porta non ha risposto, quindi QManager è rimasto su quella precedente.",
+    "error_title": "Impossibile leggere la porta web",
+    "error_description": "Le porte non si sono caricate. Riprova tra un attimo."
   }
 }

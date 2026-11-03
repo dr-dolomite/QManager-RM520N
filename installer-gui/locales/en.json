@@ -65,7 +65,7 @@
   "run.rebooting": "Rebooting — this takes about a minute",
   "run.done": "Done",
   "result.again": "Install to another device",
-  "run.done.detail": "QManager is installed. Open http://{ip} in a browser once the modem finishes rebooting.",
+  "run.done.detail": "QManager is installed. Open {url} in a browser once the modem finishes rebooting.",
   "run.done.detail.unknown_ip": "QManager is installed. Open the modem's web panel in a browser once it finishes rebooting.",
   "run.failed": "Install failed",
   "run.failed.detail": "Step \"{step}\" exited with code {code}.",

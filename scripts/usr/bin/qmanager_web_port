@@ -1,0 +1,301 @@
+#!/bin/sh
+# qmanager_web_port — show or change the ports QManager's web server listens on.
+#
+#   qmanager_web_port                  show configured and listening ports
+#   qmanager_web_port set HTTP HTTPS   e.g. qmanager_web_port set 8088 8443
+#   qmanager_web_port reset            back to 80 / 443
+#
+# If lighttpd does not come up on the new ports, the old ones come back on their own.
+# Internal (root, never under sudo): render (lighttpd.service ExecStartPre), apply (detached worker).
+# Exit: 0 ok, 1 failure, 2 invalid input or usage, 3 busy. Doc: docs/reference/web-port.md
+
+PATH=/opt/bin:/opt/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+LIB=/usr/lib/qmanager/web_port.sh
+UNIT=qm-web-port
+WAIT_S=10
+
+if [ ! -f "$LIB" ]; then
+    echo "error apply_failed library_missing"
+    exit 1
+fi
+. "$LIB"
+
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+    qlog_init "web_port" 2>/dev/null
+fi
+log() {
+    command -v qlog_info >/dev/null 2>&1 && qlog_info "$*"
+    logger -t qmanager_web_port "$*" 2>/dev/null
+    return 0
+}
+
+usage() {
+    sed -n '4,6p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+require_root() {
+    [ "$(id -u)" = "0" ] || { echo "error apply_failed not_root"; exit 1; }
+}
+
+# render/apply take effect without validation of their caller, so sudo may not reach them.
+refuse_sudo() {
+    if [ -n "${SUDO_UID:-}" ]; then
+        echo "error apply_failed not_permitted"
+        exit 2
+    fi
+}
+
+_yesno() { "$@" && echo "yes" || echo "no"; }
+
+show() {
+    wp_read_file
+    printf 'HTTP port:  %s (listening: %s)\n' "$WP_HTTP" "$(_yesno wp_listening "$WP_HTTP")"
+    printf 'HTTPS port: %s (listening: %s)\n' "$WP_HTTPS" "$(_yesno wp_listening "$WP_HTTPS")"
+    [ -n "$WP_PREV_HTTP" ] && printf 'Change in progress from %s / %s\n' "$WP_PREV_HTTP" "$WP_PREV_HTTPS"
+    return 0
+}
+
+lock_free() {
+    [ -e "$WP_LOCK" ] || return 0
+    exec 7<"$WP_LOCK" || return 0
+    if flock -n 7; then
+        exec 7<&-
+        return 0
+    fi
+    exec 7<&-
+    return 1
+}
+
+unit_present() {
+    _up=$(systemctl show -p LoadState --value "$UNIT" 2>/dev/null)
+    [ -n "$_up" ] && [ "$_up" != "not-found" ]
+}
+
+# detach -> run `apply` in its own transient unit; lighttpd's restart would kill it in our cgroup.
+detach() {
+    if command -v systemd-run >/dev/null 2>&1; then
+        _try=0
+        while [ $_try -lt 2 ]; do
+            systemd-run --unit="$UNIT" --no-block --collect --quiet \
+                -E QM_WEB_PORT_DETACHED=1 /usr/bin/qmanager_web_port apply </dev/null >/dev/null 2>&1 && return 0
+            unit_present || break
+            _try=$((_try + 1))
+            [ $_try -lt 2 ] && sleep 2
+        done
+        [ $_try -ge 2 ] && return 3
+    fi
+    # Under sudo the in-place child keeps SUDO_UID and apply would refuse it.
+    [ -n "${SUDO_UID:-}" ] && return 1
+    # No usable systemd-run: run in place, after the caller's reply.
+    ( ( QM_WEB_PORT_DETACHED=1 /usr/bin/qmanager_web_port apply ) </dev/null >/dev/null 2>&1 & )
+    return 0
+}
+
+# wait_result -> for an SSH caller: block until apply writes a final result.
+wait_result() {
+    _i=0
+    while [ $_i -lt 40 ]; do
+        if [ -r "$WP_RESULT" ] && read -r _st _rh _rs _at < "$WP_RESULT" && [ "$_st" != "pending" ]; then
+            case "$_st" in
+                applied) echo "QManager now listens on HTTP $_rh and HTTPS $_rs." ;;
+                rolled_back) echo "lighttpd did not start on the new ports. Kept HTTP $_rh and HTTPS $_rs." >&2; return 1 ;;
+                *) echo "Could not change the port ($_st)." >&2; return 1 ;;
+            esac
+            return 0
+        fi
+        sleep 1
+        _i=$((_i + 1))
+    done
+    echo "Still applying; run qmanager_web_port to check." >&2
+    return 1
+}
+
+# restore_file -> put back the port file wp_read_file last read (used before anything restarted).
+restore_file() {
+    wp_write_file "$WP_HTTP" "$WP_HTTPS" ${WP_PREV_HTTP:+"$WP_PREV_HTTP" "$WP_PREV_HTTPS"}
+    wp_result failed "$WP_HTTP" "$WP_HTTPS"
+}
+
+set_ports() {
+    require_root
+    _err=$(wp_validate "$1" "$2")
+    case "$_err" in
+        "") ;;
+        *:*) echo "error ${_err%%:*} ${_err#*:}"; exit 2 ;;
+        *) echo "error $_err"; exit 2 ;;
+    esac
+    _b=$(wp_busy)
+    if [ -n "$_b" ]; then
+        echo "error busy $_b"
+        exit 3
+    fi
+    if ! lock_free || unit_present; then
+        echo "error busy apply"
+        exit 3
+    fi
+
+    wp_read_file
+    if [ "$1" = "$WP_HTTP" ] && [ "$2" = "$WP_HTTPS" ] && [ -z "$WP_PREV_HTTP" ] \
+       && wp_listening "$1" && wp_listening "$2"; then
+        wp_result unchanged "$1" "$2"
+        echo "unchanged $1 $2"
+        exit 0
+    fi
+
+    # prev = what lighttpd serves now, so the firewall keeps guarding it until apply finishes.
+    _ph=$WP_HTTP
+    _ps=$WP_HTTPS
+    if ! { wp_listening "$_ph" && wp_listening "$_ps"; } && [ -n "$WP_PREV_HTTP" ] \
+       && wp_listening "$WP_PREV_HTTP" && wp_listening "$WP_PREV_HTTPS"; then
+        _ph=$WP_PREV_HTTP
+        _ps=$WP_PREV_HTTPS
+    fi
+    if ! wp_write_file "$1" "$2" "$_ph" "$_ps"; then
+        echo "error apply_failed write"
+        exit 1
+    fi
+    # The firewall covers every port in the file before anything can listen on it.
+    if ! firewall_reload; then
+        restore_file
+        echo "error apply_failed firewall"
+        exit 1
+    fi
+    wp_result pending "$1" "$2"
+    log "Web port change requested: http $_ph->$1 https $_ps->$2"
+
+    detach
+    case $? in
+        0) ;;
+        3) restore_file; echo "error busy apply"; exit 3 ;;
+        *) restore_file; echo "error apply_failed detach"; exit 1 ;;
+    esac
+    echo "applying $1 $2"
+    if [ -z "${SUDO_UID:-}" ]; then
+        wait_result >&2
+        exit $?
+    fi
+    exit 0
+}
+
+# Through systemd so two rebuilds never share the staging chain; direct when the unit is not active.
+firewall_reload() {
+    systemctl reload qmanager-firewall >/dev/null 2>&1 8>&- && return 0
+    /usr/bin/qmanager_firewall reload >/dev/null 2>&1 8>&- && return 0
+    log "firewall reload failed"
+    return 1
+}
+
+restart_lighttpd() {
+    systemctl reset-failed lighttpd >/dev/null 2>&1
+    systemctl restart lighttpd >/dev/null 2>&1 8>&-
+}
+
+wait_listening() {
+    _wl=0
+    while [ $_wl -lt "$WAIT_S" ]; do
+        wp_listening "$1" && wp_listening "$2" && return 0
+        sleep 1
+        _wl=$((_wl + 1))
+    done
+    return 1
+}
+
+apply() {
+    require_root
+    refuse_sudo
+    install -d -o root -g root -m 0700 "$WP_LOCK_DIR" || exit 1
+    exec 8>"$WP_LOCK"
+    _i=0
+    until flock -n 8; do
+        _i=$((_i + 1))
+        [ $_i -ge 30 ] && { echo "error busy apply"; exit 3; }
+        sleep 1
+    done
+    # Let the CGI reply leave before lighttpd restarts.
+    [ -n "${QM_WEB_PORT_DETACHED:-}" ] && sleep 1
+
+    wp_read_file
+    _h=$WP_HTTP
+    _s=$WP_HTTPS
+    _oh=${WP_PREV_HTTP:-$WP_DEFAULT_HTTP}
+    _os=${WP_PREV_HTTPS:-$WP_DEFAULT_HTTPS}
+
+    # Never let lighttpd bind a port the firewall does not guard yet.
+    if ! firewall_reload; then
+        wp_write_file "$_oh" "$_os"
+        wp_result failed "$_oh" "$_os"
+        echo "failed $_oh $_os"
+        exit 1
+    fi
+    restart_lighttpd
+    if wait_listening "$_h" "$_s"; then
+        wp_write_file "$_h" "$_s"
+        firewall_reload
+        wp_result applied "$_h" "$_s"
+        log "Web port moved to http=$_h https=$_s"
+        echo "applied $_h $_s"
+        exit 0
+    fi
+
+    log "lighttpd did not listen on http=$_h https=$_s; rolling back to $_oh/$_os"
+    wp_write_file "$_oh" "$_os" "$_h" "$_s"
+    restart_lighttpd
+    if ! wait_listening "$_oh" "$_os"; then
+        _oh=$WP_DEFAULT_HTTP
+        _os=$WP_DEFAULT_HTTPS
+        wp_write_file "$_oh" "$_os" "$_h" "$_s"
+        restart_lighttpd
+        wait_listening "$_oh" "$_os" || {
+            wp_write_file "$_oh" "$_os"
+            firewall_reload
+            wp_result failed "$_oh" "$_os"
+            log "Web port rollback failed; lighttpd is not listening"
+            echo "failed $_oh $_os"
+            exit 1
+        }
+    fi
+    wp_write_file "$_oh" "$_os"
+    firewall_reload
+    wp_result rolled_back "$_oh" "$_os"
+    echo "rolled_back $_oh $_os"
+    exit 1
+}
+
+case "${1:-}" in
+    ""|show|status)
+        show
+        ;;
+    set)
+        [ $# -eq 3 ] || { usage >&2; exit 2; }
+        set_ports "$2" "$3"
+        ;;
+    reset)
+        [ $# -eq 1 ] || { usage >&2; exit 2; }
+        set_ports "$WP_DEFAULT_HTTP" "$WP_DEFAULT_HTTPS"
+        ;;
+    render)
+        [ $# -eq 1 ] || exit 2
+        require_root
+        refuse_sudo
+        _r=$(wp_render)
+        echo "$_r"
+        # A conf that changed outside apply (OTA, killed apply) must not outrun the firewall.
+        case "$_r" in
+            rendered*|fallback*) firewall_reload || true ;;
+        esac
+        ;;
+    apply)
+        [ $# -eq 1 ] || exit 2
+        apply
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

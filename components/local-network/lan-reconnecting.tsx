@@ -58,7 +58,7 @@ export function LanReconnecting({
   const navigatedRef = useRef(false);
 
   // Keep this page's protocol and port: the web port is user-configurable
-  // (System Settings > Web Port), so the new address answers on the same one.
+  // (System Settings > Device Access), so the new address answers on the same one.
   const loc = typeof window === "undefined" ? null : window.location;
   const url = `${loc?.protocol ?? "http:"}//${newIpaddr}${loc?.port ? `:${loc.port}` : ""}`;
   const address = `${newIpaddr}/${prefix}`;

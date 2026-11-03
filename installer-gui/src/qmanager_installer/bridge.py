@@ -62,6 +62,7 @@ class Bridge:
         self._progress: dict | None = None
         self._state = "idle"
         self._error: dict | None = None
+        self._https_port = 443
         self._log_path: Path | None = None
         self._cancel_event: threading.Event | None = None
 
@@ -313,6 +314,7 @@ class Bridge:
         with self._lock:
             self._lines, self._progress, self._error = [], None, None
             self._state = "running"
+            self._https_port = 443
             self._cancel_event = cancel_event
 
         runner_cls = UninstallRunner if action == "uninstall" else InstallRunner
@@ -327,7 +329,9 @@ class Bridge:
 
         def work() -> None:
             try:
-                runner.run(InstallOptions(reboot=reboot, skip_packages=skip_packages))
+                outcome = runner.run(InstallOptions(reboot=reboot, skip_packages=skip_packages))
+                with self._lock:
+                    self._https_port = outcome.https_port
                 state, error = "done", None
             except InstallCancelled:
                 # A third outcome, deliberately not ok=False wearing a
@@ -398,4 +402,5 @@ class Bridge:
                 "error": self._error,
                 "log_path": str(self._log_path) if self._log_path else None,
                 "host": self._host,
+                "https_port": self._https_port,
             }

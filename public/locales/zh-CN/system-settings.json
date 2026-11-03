@@ -1209,5 +1209,25 @@
     "default_status": "默认时间",
     "toast_saved": "自适应轮询已保存。",
     "toast_failed": "无法保存自适应轮询。"
+  },
+  "web_port": {
+    "card_title": "网页端口",
+    "card_description": "本界面监听的端口。",
+    "http_label": "HTTP 端口",
+    "http_consequence": "明文 HTTP 只会跳转到 HTTPS 端口。",
+    "https_label": "HTTPS 端口",
+    "https_consequence": "本界面使用的加密端口。",
+    "pending": "应用后将在 {{origin}} 打开。",
+    "moving": "正在切换到 {{origin}}… 如果浏览器提示，请接受新端口的证书。",
+    "invalid": "请输入 1 到 65535 之间的整数。",
+    "same": "HTTP 和 HTTPS 需要使用不同的端口。",
+    "confirm_title": "更改网页端口？",
+    "confirm_description": "QManager 将在新端口上重启，本页面会跳转到 {{origin}}。如果新端口无法启动，将自动恢复旧端口。",
+    "confirm_action": "更改端口",
+    "toast_failed": "无法更改网页端口。",
+    "toast_unchanged": "网页端口已保存。",
+    "toast_unreachable": "新端口没有响应，QManager 仍使用旧端口。",
+    "error_title": "无法读取网页端口",
+    "error_description": "端口未能加载，请稍后重试。"
   }
 }

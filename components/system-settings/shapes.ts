@@ -691,3 +691,20 @@ export const SKELETON_POLLING = {
   FIELD: `${FIELD_HEIGHT} w-full rounded-field @2xl/card:w-36`,
   ACTION: `${FIELD_HEIGHT} w-28 rounded-pill`,
 } as const;
+
+// -----------------------------------------------------------------------------
+// Web Port
+// -----------------------------------------------------------------------------
+
+/** The two port rows always stack: the card is half width on Device Access. */
+export const PORT_GRID = "grid grid-cols-1 content-start gap-0.5";
+
+export const PORT_FIELD =
+  "w-full text-[0.84375rem] font-medium tabular-nums @2xl/card:w-28";
+
+export const SKELETON_WEB_PORT = {
+  LABEL: LINE.LABEL,
+  CONSEQUENCE: LINE.CONSEQUENCE,
+  FIELD: `${FIELD_HEIGHT} w-full rounded-field @2xl/card:w-28`,
+  ACTION: `${FIELD_HEIGHT} w-28 rounded-pill`,
+} as const;

@@ -217,6 +217,8 @@
   "invalid_port": "連接埠必須是 1 到 65535 之間的整數。",
   "ports_equal": "HTTP 與 HTTPS 需要使用不同的連接埠。",
   "port_in_use": "該連接埠已被其他服務佔用。",
+  "port_reserved": "該連接埠已保留給其他服務。",
+  "busy": "另一項網頁連接埠變更、更新或還原正在進行，請在完成後重試。",
   "token_generation_failed": "無法建立安全權杖。請重試。",
   "poller_not_running": "背景服務未回應，請稍後再試",
   "reset_failed": "無法重設計數器",
