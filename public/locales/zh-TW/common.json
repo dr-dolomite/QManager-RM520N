@@ -411,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "覆寫 MTU",
-        "consequence": "關閉後，行動網路介面會回到電信商協商的數值。"
+        "consequence": "關閉後，行動網路介面會回到預設值 1500。"
       },
       "mtu_value": {
         "label": "MTU 值",
@@ -437,7 +437,7 @@
     "toast_ttl_cleared": "數據機已回到電信商自己的跳躍數。",
     "toast_ttl_error": "無法套用 TTL 與跳躍限制。",
     "toast_mtu_applied": "已將 MTU 設為 {{mtu}}。",
-    "toast_mtu_cleared": "MTU 已回到電信商協商的數值。",
+    "toast_mtu_cleared": "MTU 已回到預設值 1500。",
     "toast_mtu_error": "無法套用 MTU。"
   },
   "ipPassthrough": {

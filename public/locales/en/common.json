@@ -411,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "Override the MTU",
-        "consequence": "Off restores the carrier-negotiated value on the cellular interface."
+        "consequence": "Off sets the cellular interface back to the default of 1500."
       },
       "mtu_value": {
         "label": "MTU value",
@@ -437,7 +437,7 @@
     "toast_ttl_cleared": "The modem is back on the carrier's own hop count.",
     "toast_ttl_error": "Couldn't apply the TTL and hop limit.",
     "toast_mtu_applied": "MTU set to {{mtu}}.",
-    "toast_mtu_cleared": "MTU is back to the carrier-negotiated value.",
+    "toast_mtu_cleared": "MTU is back to the default of 1500.",
     "toast_mtu_error": "Couldn't apply the MTU."
   },
   "ipPassthrough": {

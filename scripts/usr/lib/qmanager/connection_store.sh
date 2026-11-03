@@ -184,7 +184,7 @@ conn_mtu_set() {
     _conn_mtu_helper set "$1"
 }
 
-# conn_mtu_disable — drop the persistent rules file via the root helper. rc 1 if it is still there.
+# conn_mtu_disable — drop the rules file and reset rmnet_data to 1500 via the root helper. rc 1 on failure.
 conn_mtu_disable() {
     _conn_mtu_helper disable
 }

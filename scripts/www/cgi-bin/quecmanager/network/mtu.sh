@@ -136,7 +136,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         if ! conn_mtu_disable; then
             qlog_error "MTU disable failed"
-            cgi_error "mtu_disable_failed" "Could not remove the custom MTU setting"
+            cgi_error "mtu_disable_failed" "Could not turn off the custom MTU"
             exit 0
         fi
 

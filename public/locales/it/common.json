@@ -411,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "Sostituisci la MTU",
-        "consequence": "Se disattivata, sull'interfaccia cellulare viene ripristinato il valore negoziato con l'operatore."
+        "consequence": "Se disattivata, l'interfaccia cellulare torna al valore predefinito di 1500."
       },
       "mtu_value": {
         "label": "Valore MTU",
@@ -437,7 +437,7 @@
     "toast_ttl_cleared": "Il modem è tornato al conteggio di hop dell'operatore.",
     "toast_ttl_error": "Impossibile applicare TTL e limite di hop.",
     "toast_mtu_applied": "MTU impostata a {{mtu}}.",
-    "toast_mtu_cleared": "La MTU è tornata al valore negoziato con l'operatore.",
+    "toast_mtu_cleared": "La MTU è tornata al valore predefinito di 1500.",
     "toast_mtu_error": "Impossibile applicare la MTU."
   },
   "ipPassthrough": {

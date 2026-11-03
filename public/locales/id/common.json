@@ -411,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "Ganti nilai MTU",
-        "consequence": "Jika nonaktif, nilai hasil negosiasi operator dipulihkan di antarmuka seluler."
+        "consequence": "Jika nonaktif, antarmuka seluler kembali ke nilai bawaan 1500."
       },
       "mtu_value": {
         "label": "Nilai MTU",
@@ -437,7 +437,7 @@
     "toast_ttl_cleared": "Modem kembali memakai jumlah hop dari operator.",
     "toast_ttl_error": "Tidak dapat menerapkan TTL dan batas hop.",
     "toast_mtu_applied": "MTU disetel ke {{mtu}}.",
-    "toast_mtu_cleared": "MTU kembali ke nilai hasil negosiasi operator.",
+    "toast_mtu_cleared": "MTU kembali ke nilai bawaan 1500.",
     "toast_mtu_error": "Tidak dapat menerapkan MTU."
   },
   "ipPassthrough": {

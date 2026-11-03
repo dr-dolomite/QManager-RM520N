@@ -71,7 +71,9 @@ case "$1" in
         [ $# -eq 1 ] || fail "bad_args" "disable takes no arguments"
         rm -f "$MTU_FILE" 2>/dev/null
         [ ! -e "$MTU_FILE" ] || fail "remove_failed" "Could not remove the MTU rules file"
-        printf '{"success":true,"verb":"disable"}\n'
+        # 1500 is the boot MTU of every rmnet_data on both devices.
+        count=$(apply_live 1500) || fail "apply_failed" "An interface refused the default MTU"
+        printf '{"success":true,"verb":"disable","mtu":1500,"interfaces":%s}\n' "$count"
         ;;
     apply)
         [ $# -eq 1 ] || fail "bad_args" "apply takes no arguments"

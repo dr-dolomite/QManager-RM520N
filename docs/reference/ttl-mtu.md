@@ -61,7 +61,7 @@ A value of `0` is "remove the rule", not "set TTL to zero" — the insert is ski
 
 > ℹ️ NOTE: `detect_active_cid()` in `cgi_at.sh` cannot help here. It resolves a PDP **context ID**, and neither `+CGPADDR` nor `+QMAP` carries a Linux interface name — there is no CID→interface mapping anywhere in the codebase, and the `+QMAP` mux id matching `rmnet_dataN` today is coincidence, not a contract.
 
-The `POST` runs `qmanager_mtu_set` (via `conn_mtu_set`, `sudo -n` unless already root), which writes one `ip link set <iface> mtu <n>` line per `rmnet_data*` into `/etc/firewall.user.mtu` (per-PID temp in `/etc` + `mv`, root:root 0644) and applies them immediately; a failure returns `mtu_apply_failed` / `mtu_disable_failed`. `{"mtu":"disable"}` removes the file and reverts to the carrier-negotiated value. Accepted range is **576–9000**, validated at the CGI.
+The `POST` runs `qmanager_mtu_set` (via `conn_mtu_set`, `sudo -n` unless already root), which writes one `ip link set <iface> mtu <n>` line per `rmnet_data*` into `/etc/firewall.user.mtu` (per-PID temp in `/etc` + `mv`, root:root 0644) and applies them immediately; a failure returns `mtu_apply_failed` / `mtu_disable_failed`. `{"mtu":"disable"}` removes the file and sets every `rmnet_data*` back to 1500 (the boot value; the network reports no MTU). Accepted range is **576–9000**, validated at the CGI.
 
 ## Page anatomy (re-authored 2026-08-31)
 

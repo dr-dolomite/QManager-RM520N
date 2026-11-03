@@ -411,7 +411,7 @@
       },
       "mtu_toggle": {
         "label": "覆盖 MTU",
-        "consequence": "关闭后，蜂窝接口会恢复运营商协商的数值。"
+        "consequence": "关闭后，蜂窝接口会恢复为默认值 1500。"
       },
       "mtu_value": {
         "label": "MTU 值",
@@ -437,7 +437,7 @@
     "toast_ttl_cleared": "调制解调器已恢复使用运营商自己的跳数。",
     "toast_ttl_error": "无法应用 TTL 和跳数限制。",
     "toast_mtu_applied": "已将 MTU 设为 {{mtu}}。",
-    "toast_mtu_cleared": "MTU 已恢复为运营商协商的数值。",
+    "toast_mtu_cleared": "MTU 已恢复为默认值 1500。",
     "toast_mtu_error": "无法应用 MTU。"
   },
   "ipPassthrough": {
