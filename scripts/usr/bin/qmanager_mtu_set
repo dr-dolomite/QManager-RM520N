@@ -6,8 +6,8 @@ PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
 LC_ALL=C; export LC_ALL
 
 MTU_FILE="/etc/firewall.user.mtu"
-tmp=""
-cleanup() { [ -z "$tmp" ] || rm -f "$tmp"; return 0; }
+tmp=""; bak=""
+cleanup() { [ -z "$tmp" ] || rm -f "$tmp"; [ -z "$bak" ] || rm -f "$bak"; return 0; }
 trap cleanup EXIT INT TERM
 
 fail() { printf '{"success":false,"error":"%s","detail":"%s"}\n' "$1" "$2"; exit 1; }
@@ -40,13 +40,31 @@ case "$1" in
             content="${content}ip link set ${p##*/} mtu $mtu
 "
         done
-        # Temp inside /etc: only root can create or replace names there.
+        # Temps inside /etc: only root can create or replace names there.
+        if [ -f "$MTU_FILE" ]; then
+            bak="$MTU_FILE.prev.$$"
+            cp -p "$MTU_FILE" "$bak" 2>/dev/null || fail "write_failed" "Could not back up the MTU rules file"
+        fi
+        prev=""
+        for p in /sys/class/net/rmnet_data*; do
+            [ -e "$p" ] || continue
+            prev="$prev ${p##*/}=$(cat "$p/mtu" 2>/dev/null)"
+        done
         tmp="$MTU_FILE.tmp.$$"
         printf '%s' "$content" > "$tmp" 2>/dev/null || fail "write_failed" "Could not write the MTU rules file"
         chmod 644 "$tmp" 2>/dev/null && chown root:root "$tmp" 2>/dev/null || fail "write_failed" "Could not set the MTU rules file permissions"
         mv -f "$tmp" "$MTU_FILE" 2>/dev/null || fail "write_failed" "Could not replace the MTU rules file"
         tmp=""
-        count=$(apply_live "$mtu") || fail "apply_failed" "An interface refused the MTU change"
+        if ! count=$(apply_live "$mtu"); then
+            # Put the file and the interfaces back so they agree with the reported error.
+            for e in $prev; do
+                case "${e#*=}" in ''|*[!0-9]*) continue ;; esac
+                ip link set "${e%%=*}" mtu "${e#*=}" 2>/dev/null
+            done
+            if [ -n "$bak" ]; then mv -f "$bak" "$MTU_FILE" 2>/dev/null; bak=""; else rm -f "$MTU_FILE"; fi
+            fail "apply_failed" "An interface refused the MTU change"
+        fi
+        [ -z "$bak" ] || rm -f "$bak"; bak=""
         printf '{"success":true,"verb":"set","mtu":%s,"interfaces":%s}\n' "$mtu" "$count"
         ;;
     disable)

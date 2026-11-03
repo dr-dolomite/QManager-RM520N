@@ -151,6 +151,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         val=$(printf '%s' "$POST_DATA" | jq -r '.hostname // empty')
         hn_err=""
         if [ -n "$val" ]; then
+            if ! qm_valid_hostname_label "$val"; then
+                cgi_error "invalid_hostname" "The device name must be 1 to 64 printable characters"
+                exit 0
+            fi
             sys_set_hostname "$val"
             case $? in
                 0) ;;

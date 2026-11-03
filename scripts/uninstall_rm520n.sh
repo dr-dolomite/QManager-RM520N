@@ -520,7 +520,7 @@ step "Cleaning up firewall rules"
 # Legacy TTL/MTU helper files that may persist independently of the service
 rm -f /etc/firewall.user.ttl /etc/firewall.user.mtu 2>/dev/null || true
 # Leftover per-PID temps from the root MTU / hostname helpers
-rm -f /etc/firewall.user.mtu.tmp.* /etc/hostname.tmp.* 2>/dev/null || true
+rm -f /etc/firewall.user.mtu.tmp.* /etc/firewall.user.mtu.prev.* /etc/hostname.tmp.* 2>/dev/null || true
 
 # The qmanager-firewall service (stopped in Step 1) runs ExecStop to flush
 # its rules. The fallbacks below cover the case where the service was

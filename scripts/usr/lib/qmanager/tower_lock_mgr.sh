@@ -872,7 +872,11 @@ _mtu_reapply_worker() {
             else
                 sudo -n /usr/bin/qmanager_mtu_set apply >/dev/null 2>&1
             fi
-            logger -t qmanager_mtu "Re-applied MTU after interface bounce (was $current_mtu, now $expected_mtu)"
+            if [ $? -eq 0 ]; then
+                logger -t qmanager_mtu "Re-applied MTU after interface bounce (was $current_mtu, now $expected_mtu)"
+            else
+                logger -t qmanager_mtu "MTU re-apply after interface bounce FAILED (was $current_mtu, wanted $expected_mtu)"
+            fi
         fi
 
         # Done — exit regardless of whether we re-applied

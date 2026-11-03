@@ -23,16 +23,14 @@ sys_get_hostname() {
     printf '%s' "$h"
 }
 
-# _sys_hostname_label <display name> — RFC 1123 label for the system hostname: spaces and
-# underscores become hyphens, other characters outside [A-Za-z0-9-] are dropped, edge hyphens
-# are stripped, 63 chars max. Prints nothing when no usable character is left.
+# _sys_hostname_label <display name> — RFC 1123 label: spaces/underscores become hyphens, other
+# characters outside [A-Za-z0-9-] are dropped, edge hyphens stripped, 63 max; empty if nothing is left.
 _sys_hostname_label() {
     printf '%s' "$1" | tr ' _' '--' | tr -cd 'A-Za-z0-9-' | sed 's/^-*//' | cut -c1-63 | sed 's/-*$//'
 }
 
-# Set hostname: the display name goes to qmanager.conf, a derived label to the system.
-# rc 0 ok (also when no label can be derived), rc 1 config write failed, rc 2 saved but the
-# system hostname could not be applied.
+# Save the display name to qmanager.conf, apply the derived label to the system.
+# rc 0 ok (or no label), 1 config write failed, 2 saved but the system apply failed.
 sys_set_hostname() {
     local name="$1" label
     [ -z "$name" ] && return 1
