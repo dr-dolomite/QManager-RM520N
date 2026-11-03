@@ -510,7 +510,7 @@ end of a field becomes one U+FFFD that takes the rest of the field, ASCII includ
 the newline and joins that name to the next one. The body is byte-identical to the old script on
 200 cases (live, 256 KB, crafted, two invalid-UTF-8, empty, missing and rotated logs × 25 queries)
 on the RM520N-GL (150 of them also on the RG501Q-EU, run before the U+FFFD step was added), and on a
-blind verifier's own 1 232-case matrix except for the following, where the old output was broken:
+blind verifier's own 1 632-case matrix except for the following, where the old output was broken:
 - A line with a raw control byte, such as CR from a CRLF line. The old `jq -s` refused it and
   the body came back **empty**; now the byte is escaped and the body is valid.
 - A `"` in the component or pid, or an invalid `\x` escape there: old body empty, now valid.
@@ -520,6 +520,10 @@ blind verifier's own 1 232-case matrix except for the following, where the old o
   `available_components`.
 - A rotated file with no trailing newline. The old `cat` joined it onto the next file's first
   line; awk now reads each file separately.
+- A NUL byte anywhere in a file. The old `grep -o` called it binary and printed nothing, so
+  `available_components` was `[]`; now the components are listed.
+- A component-list line over about 4 094 bytes. The old `jq -R` read in 4 095-byte chunks, so a
+  valid multi-byte character split across a chunk edge became several U+FFFD; now it is kept.
 
 ---
 
