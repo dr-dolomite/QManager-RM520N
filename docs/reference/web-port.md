@@ -31,9 +31,16 @@ The **Web Port** card on `/system-settings/device-access` (and optional onboardi
 
 ## Browser move (`lib/web-port.ts`)
 
-A save that moves the port is self-severing. `followMove(origin, path)` probes the new origin with a `no-cors` fetch. If the probe never answers, it asks the **old** origin (`authFetch` GET): if that answers, the server rolled back, so the card stays and toasts `web_port.toast_unreachable`. If the old origin is gone too, it navigates anyway, because Firefox keys certificate exceptions by host:port and the probe can fail against a working server. The moving status tells the user to accept the certificate on the new port. Navigation is the success signal (toast navigation exception); a no-op save toasts `toast_unchanged`.
+A save that moves the port is self-severing. `followMove(target, path, startedAt)` polls once a second, bounded by 60 s from the save (at least 10 s from the call):
 
-Onboarding saves on step 6 but moves only from Done (`StepDone movedOrigin`, `followMove(..., "/dashboard/", { graceMs: 0 })`), so the wizard is never cut off mid-step.
+- **This origin's CGI** (`authFetch` GET, `last_result`). `set` writes `pending` before the save replies, so any other status read afterwards belongs to this move. `applied` with the target's ports navigates; `rolled_back` / `failed` / `unchanged` returns `rolled_back` on this origin (the card toasts `toast_unreachable` and refreshes). This is the only signal when the origin does not change (HTTP-only change on an HTTPS page): the old lighttpd answers `pending` until it restarts, so the browser never moves early.
+- **The target** (`no-cors` probe). lighttpd binds every socket or none, so a target that answers is the applied config and the browser moves.
+- **80/443**, only while this origin is down: if it answers, the rollback fell back to the defaults; the card toasts `toast_back_on` with an Open action and stays.
+- After 45 s (apply's worst case: three restarts with a 10 s listen wait each) with nothing else answering, it navigates anyway, because Firefox keys certificate exceptions by host:port and the probe can fail against a working server. A bound reached while this origin still answers `pending` toasts `toast_timeout`.
+
+The result JSON is read only on this origin: the CGI sends `Access-Control-Allow-Origin: *`, which browsers refuse for a credentialed request, and the `qm_session` cookie (no `Domain`, `SameSite=Strict`) would reach another port but the response could not be read. The moving status tells the user to accept the certificate on the new port. Navigation is the success signal (toast navigation exception); a no-op save toasts `toast_unchanged`.
+
+Onboarding saves on step 6 but moves only from Done (`StepDone movedOrigin: PendingMove`, the save time is carried so a late click skips the wait), so the wizard is never cut off mid-step.
 
 ## Lifecycle
 

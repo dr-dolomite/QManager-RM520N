@@ -136,6 +136,9 @@
     "error_same": "HTTP e HTTPS richiedono porte diverse.",
     "toast_failed": "Impossibile cambiare la porta web.",
     "toast_unreachable": "La nuova porta non ha risposto, quindi QManager è rimasto su quella precedente.",
+    "toast_back_on": "La nuova porta non si è avviata. QManager è tornato su {{origin}}.",
+    "toast_timeout": "Il cambio di porta non è terminato. Ricarica la pagina tra poco.",
+    "open_origin": "Apri",
     "opening": "Apertura sulla nuova porta…"
   }
 }

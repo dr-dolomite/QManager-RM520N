@@ -136,6 +136,9 @@
     "error_same": "HTTP and HTTPS need different ports.",
     "toast_failed": "Couldn't change the web port.",
     "toast_unreachable": "The new port didn't answer, so QManager stayed on the old one.",
+    "toast_back_on": "The new port didn't start. QManager is back on {{origin}}.",
+    "toast_timeout": "The port change hasn't finished. Reload this page in a moment.",
+    "open_origin": "Open",
     "opening": "Opening on the new port…"
   }
 }

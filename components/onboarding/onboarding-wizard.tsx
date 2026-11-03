@@ -9,6 +9,7 @@ import { StepConnection } from "./steps/step-connection";
 import { StepBandLocking } from "./steps/step-band-locking";
 import { StepWebPort } from "./steps/step-web-port";
 import { StepDone } from "./steps/step-done";
+import type { PendingMove } from "@/lib/web-port";
 
 // Steps: 1 Welcome, 2 Password (required), 3 Network mode, 4 Connection, 5 Bands, 6 Web port, 7 Done.
 // Steps 3-6 are skippable; each registers the submit fn the shell's Continue calls.
@@ -21,7 +22,7 @@ export function OnboardingWizard() {
   const [isLoading, setIsLoading] = useState(false);
   const [passwordValid, setPasswordValid] = useState(false);
   // Set by the web-port step when the server moves; Done opens the dashboard there.
-  const [movedOrigin, setMovedOrigin] = useState<string | null>(null);
+  const [movedOrigin, setMovedOrigin] = useState<PendingMove | null>(null);
 
   const submitFnRef = useRef<AsyncVoidFn | SyncVoidFn | null>(null);
   const inFlightRef = useRef(false);

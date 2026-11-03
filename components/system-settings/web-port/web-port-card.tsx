@@ -180,9 +180,25 @@ const WebPortCard = () => {
       result.httpPort ?? httpPort,
       result.httpsPort ?? httpsPort,
     );
-    if (await followMove(origin, LANDING_PATH)) return;
+    const outcome = await followMove(origin, LANDING_PATH);
+    if (outcome.kind === "navigated") return;
     setPhase("idle");
-    toast.error(t(`${K}.toast_unreachable`));
+    if (outcome.kind === "timeout") {
+      toast.error(t(`${K}.toast_timeout`));
+    } else if (outcome.origin === window.location.origin) {
+      toast.error(t(`${K}.toast_unreachable`));
+    } else {
+      // This origin is gone; the rollback landed on the default ports.
+      const back = outcome.origin;
+      toast.error(t(`${K}.toast_back_on`, { origin: back }), {
+        duration: Infinity,
+        action: {
+          label: t(`${K}.open_origin`),
+          onClick: () => window.location.assign(`${back}${LANDING_PATH}`),
+        },
+      });
+      return;
+    }
     refresh();
   };
 

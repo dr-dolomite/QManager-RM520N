@@ -136,6 +136,9 @@
     "error_same": "HTTP 與 HTTPS 需要使用不同的連接埠。",
     "toast_failed": "無法變更網頁連接埠。",
     "toast_unreachable": "新連接埠沒有回應，QManager 仍使用舊連接埠。",
+    "toast_back_on": "新連接埠未能啟動，QManager 已恢復到 {{origin}}。",
+    "toast_timeout": "連接埠變更尚未完成，請稍後重新載入此頁面。",
+    "open_origin": "開啟",
     "opening": "正在新連接埠上開啟…"
   }
 }

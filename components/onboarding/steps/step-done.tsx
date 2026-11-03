@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useTranslation, Trans } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { followMove } from "@/lib/web-port";
+import { followMove, type PendingMove } from "@/lib/web-port";
 import { INNER_TILE, STEP_DESCRIPTION, STEP_HEADING } from "../shapes";
 import { useMotionReduced } from "@/components/motion-preference";
 
@@ -42,7 +42,7 @@ function confettiColors(): string[] {
   }
 }
 
-export function StepDone({ movedOrigin = null }: { movedOrigin?: string | null }) {
+export function StepDone({ movedOrigin = null }: { movedOrigin?: PendingMove | null }) {
   const { t } = useTranslation("onboarding");
   const [opening, setOpening] = useState(false);
   const prefersReducedMotion = useMotionReduced();
@@ -114,8 +114,24 @@ export function StepDone({ movedOrigin = null }: { movedOrigin?: string | null }
       return;
     }
     setOpening(true);
-    if (await followMove(movedOrigin, "/dashboard/", { graceMs: 0 })) return;
-    toast.error(t("web_port.toast_unreachable"));
+    const outcome = await followMove(movedOrigin.origin, "/dashboard/", movedOrigin.startedAt);
+    if (outcome.kind === "navigated") return;
+    if (outcome.kind === "rolled_back" && outcome.origin !== window.location.origin) {
+      // This origin is gone; the rollback landed on the default ports.
+      const back = outcome.origin;
+      setOpening(false);
+      toast.error(t("web_port.toast_back_on", { origin: back }), {
+        duration: Infinity,
+        action: {
+          label: t("web_port.open_origin"),
+          onClick: () => window.location.assign(`${back}/dashboard/`),
+        },
+      });
+      return;
+    }
+    toast.error(
+      t(outcome.kind === "timeout" ? "web_port.toast_timeout" : "web_port.toast_unreachable"),
+    );
     window.location.href = "/dashboard/";
   };
 
