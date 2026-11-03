@@ -1,5 +1,5 @@
 # S10 — CGI cost residue (lighttpd keep-alive, settings/about one-shots)
-status: BUILT 2026-11-03 (L1), gates running   base: development @ 69604a63   branch: claude/s10-cgi-cost-residue-b2cf85
+status: DONE 2026-11-03 (L1), portability SAFE TO SHIP, verifier FAIL on 2 unlisted diffs (pending user)   base: development @ 69604a63   branch: claude/s10-cgi-cost-residue-b2cf85
 
 Base note: the worktree was cut from `main` (7a7007c1, 1090 commits behind); reset to `development` before any write.
 
@@ -71,5 +71,13 @@ At 10 s: 2.3 → 0.8 pts today, 5.0 → 2.9 pts at the cap. The 256 KB target (�
 
 Docs: `docs/reference/logs.md` (data path, "Cost per poll" section, residue line removed), RELEASE_NOTES bullet.
 
+## 5. Gates (fix rounds e2ae6d0c, 600a3ecd, f366ab93)
+- e914d813 verifier FAIL: invalid UTF-8 raw, doc said two diffs. Fixed in e2ae6d0c (U+FFFD, jq 1.7 rules).
+- e2ae6d0c portability BLOCKED both devices, 9/328: a lead cut off by the end of a field takes the rest of the field in jq. 600a3ecd copies that, and the `jq -R -s` component-list rule (each `name
+` line decoded alone, so a cut-off lead eats the newline and joins two names). My harness 200/200 on RM520N-GL.
+- 600a3ecd portability SAFE TO SHIP: 433/433 identical on RM520N-GL and RG501Q-EU, awk constructs same on 1.29.3/1.31.1.
+- 600a3ecd verifier FAIL (A2 only): 1632 cases, all invalid UTF-8 identical; A1/A3/A4 PASS (30 KB 230 to 86 ms, 262 KB 496 to 302 ms, forks 59 to 9), A5 PASS_WITH_NOTES. Two unlisted diffs, old output valid but wrong: NUL byte in a file (old component list `[]`), component-list line over ~4094 bytes (old split a multibyte char at jq's 4095-byte fgets chunk). Listed in logs.md by f366ab93; need user acceptance.
+- User accepted the four earlier diffs (control byte, quote/bad escape, backslash escape in comp/pid, rotated file without newline), via PM.
+
 ## Device files left
-`/tmp/s10/` (probe scripts, `big.log` 268 KB synthetic copy, `logs_big.sh` copy). No installed file was changed; my session files were removed on exit (verified). `ce7f0c7a…` (root-owned) is not mine.
+None. `/tmp/s10`, `/tmp/s10v`, `/tmp/s10pc` removed on both devices; installed logs.sh md5 ba95fc24... on both. `ce7f0c7a...` (root-owned) is not mine.
