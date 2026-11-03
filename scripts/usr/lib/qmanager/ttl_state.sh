@@ -34,6 +34,9 @@ _TTL_STATE_LOADED=1
 TTL_STATE_FILE="/etc/qmanager/ttl_state"
 TTL_STATE_DIR="/etc/qmanager"
 
+# Outgoing ICMPv6 ND types (RS, NS, NA): RFC 4861 needs HL 255, so HL is not rewritten.
+_TTL_ND_TYPES="133 135 136"
+
 # =============================================================================
 # _ttl_is_int — validate that $1 is a non-negative integer 0-255
 # Returns 0 if valid, 1 if not.
@@ -132,7 +135,8 @@ ttl_state_write_persisted() {
 # ttl_state_apply <ttl> <hl> — clear old rules and insert new ones
 # =============================================================================
 # Reads live state, deletes any existing TTL/HL POSTROUTING rules on rmnet+,
-# then inserts new rules if the values are non-zero.
+# then inserts new rules if the values are non-zero. A non-zero HL also adds
+# ACCEPT rules above it for outgoing ND, so those keep their Hop Limit.
 # Returns 0 on success (failures from -D are silenced; -I failures propagate).
 ttl_state_apply() {
     local ttl="$1" hl="$2"
@@ -178,6 +182,17 @@ ttl_state_apply() {
         i=$((i + 1))
     done
 
+    # Drop the ND exemption rules too; they are re-inserted below when HL > 0.
+    local t
+    for t in $_TTL_ND_TYPES; do
+        i=0
+        while [ "$i" -lt 8 ]; do
+            run_ip6tables -w 5 -t mangle -D POSTROUTING \
+                -o rmnet+ -p ipv6-icmp --icmpv6-type "$t" -j ACCEPT 2>/dev/null || break
+            i=$((i + 1))
+        done
+    done
+
     # --- Insert new rules (skip if value is 0) ---
     if [ "$ttl" -gt 0 ]; then
         run_iptables -w 5 -t mangle -I POSTROUTING \
@@ -186,6 +201,11 @@ ttl_state_apply() {
     if [ "$hl" -gt 0 ]; then
         run_ip6tables -w 5 -t mangle -I POSTROUTING \
             -o rmnet+ -j HL --hl-set "$hl" || return 1
+        # Inserted after the HL rule so they sit above it and ND keeps its own HL.
+        for t in $_TTL_ND_TYPES; do
+            run_ip6tables -w 5 -t mangle -I POSTROUTING \
+                -o rmnet+ -p ipv6-icmp --icmpv6-type "$t" -j ACCEPT || return 1
+        done
     fi
 
     return 0
