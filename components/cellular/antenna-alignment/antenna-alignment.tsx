@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { Banner } from "@/components/ui/banner";
 import { STATUS_POLL_FAST_MS, useModemStatus } from "@/hooks/use-modem-status";
+import { useConnectionStatus } from "@/lib/reboot/connection";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { AimConsole, CondensedAim } from "./live-aim";
@@ -75,6 +76,7 @@ const SENTINEL_MARGIN = "-72px 0px 0px 0px";
 export default function AntennaAlignmentComponent() {
   const { t, i18n } = useTranslation("cellular");
   const { data, isLoading, isStale, error, refresh } = useModemStatus({ pollInterval: STATUS_POLL_FAST_MS });
+  const { reconnecting } = useConnectionStatus();
 
   const spa = data?.signal_per_antenna ?? null;
   const mode = spa ? detectRadioMode(spa) : null;
@@ -152,7 +154,8 @@ export default function AntennaAlignmentComponent() {
 
       {/* Outside the cascade: a condition banner should arrive when the condition
           does, not on the page's entrance clock. */}
-      {!isLoading && !unreachable && feedStalled && (
+      {/* The shell's Reconnecting banner owns an outage; never stack both. */}
+      {!isLoading && !unreachable && feedStalled && !reconnecting && (
         <Banner
           role="stale"
           title={
