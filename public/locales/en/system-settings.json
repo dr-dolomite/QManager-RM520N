@@ -1227,6 +1227,9 @@
     "toast_failed": "Couldn't change the web port.",
     "toast_unchanged": "Web port saved.",
     "toast_unreachable": "The new port didn't answer, so QManager stayed on the old one.",
+    "toast_back_on": "The new port didn't start, so QManager went back to {{origin}}.",
+    "toast_timeout": "The port change hasn't finished yet, so reload this page in a moment.",
+    "open_origin": "Open",
     "error_title": "Couldn't read the web port",
     "error_description": "The ports didn't load. Try again in a moment."
   }

@@ -1227,6 +1227,9 @@
     "toast_failed": "无法更改网页端口。",
     "toast_unchanged": "网页端口已保存。",
     "toast_unreachable": "新端口没有响应，QManager 仍使用旧端口。",
+    "toast_back_on": "新端口未能启动，QManager 已恢复到 {{origin}}。",
+    "toast_timeout": "端口更改尚未完成，请稍后重新加载此页面。",
+    "open_origin": "打开",
     "error_title": "无法读取网页端口",
     "error_description": "端口未能加载，请稍后重试。"
   }

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useTranslation, Trans } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { followMove } from "@/lib/web-port";
+import { followMove, type PendingMove } from "@/lib/web-port";
 import { INNER_TILE, STEP_DESCRIPTION, STEP_HEADING } from "../shapes";
 import { useMotionReduced } from "@/components/motion-preference";
 
@@ -42,9 +42,13 @@ function confettiColors(): string[] {
   }
 }
 
-export function StepDone({ movedOrigin = null }: { movedOrigin?: string | null }) {
+export function StepDone({ movedOrigin = null }: { movedOrigin?: PendingMove | null }) {
   const { t } = useTranslation("onboarding");
   const [opening, setOpening] = useState(false);
+  // Set after a failed move: the next click opens the dashboard where QManager actually is.
+  const [stayHref, setStayHref] = useState<string | null>(null);
+  const followAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => followAbortRef.current?.abort(), []);
   const prefersReducedMotion = useMotionReduced();
 
   const [show, setShow] = useState(prefersReducedMotion);
@@ -109,14 +113,30 @@ export function StepDone({ movedOrigin = null }: { movedOrigin?: string | null }
 
   // After a port move the dashboard opens on the new origin once it answers.
   const goToDashboard = async () => {
-    if (!movedOrigin) {
-      window.location.href = "/dashboard/";
+    if (!movedOrigin || stayHref) {
+      window.location.href = stayHref ?? "/dashboard/";
       return;
     }
     setOpening(true);
-    if (await followMove(movedOrigin, "/dashboard/", { graceMs: 0 })) return;
-    toast.error(t("web_port.toast_unreachable"));
-    window.location.href = "/dashboard/";
+    followAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    followAbortRef.current = ctrl;
+    const outcome = await followMove(movedOrigin.origin, "/dashboard/", {
+      startedAt: movedOrigin.startedAt,
+      signal: ctrl.signal,
+    });
+    if (outcome.kind === "navigated" || outcome.kind === "aborted") return;
+    // Stay on Done so the failure toast is read; the next click opens the dashboard.
+    setOpening(false);
+    if (outcome.kind === "rolled_back" && outcome.origin !== window.location.origin) {
+      setStayHref(`${outcome.origin}/dashboard/`);
+      toast.error(t("web_port.toast_back_on", { origin: outcome.origin }));
+      return;
+    }
+    setStayHref("/dashboard/");
+    toast.error(
+      t(outcome.kind === "timeout" ? "web_port.toast_timeout" : "web_port.toast_unreachable"),
+    );
   };
 
   return (

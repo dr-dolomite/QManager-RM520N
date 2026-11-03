@@ -12,7 +12,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { useWebPort } from "@/hooks/use-web-port";
-import { originForPorts } from "@/lib/web-port";
+import { originForPorts, type PendingMove } from "@/lib/web-port";
 import { STEP_DESCRIPTION, STEP_HEADING } from "../shapes";
 
 // Step 6 (optional). A change is saved here, but the browser moves only from the
@@ -23,7 +23,7 @@ interface StepWebPortProps {
   onLoadingChange: (loading: boolean) => void;
   onSuccess: () => void;
   /** Called with the new origin when the server is moving to new ports. */
-  onMove: (origin: string) => void;
+  onMove: (move: PendingMove) => void;
 }
 
 function parsePort(raw: string): number | null {
@@ -80,12 +80,13 @@ export function StepWebPort({
       return;
     }
     if (result.moving) {
-      onMove(
-        originForPorts(
+      onMove({
+        origin: originForPorts(
           result.httpPort ?? httpPort,
           result.httpsPort ?? httpsPort,
         ),
-      );
+        startedAt: Date.now(),
+      });
     }
     onSuccess();
   }, [state, httpPort, httpsPort, save, onLoadingChange, onSuccess, onMove, t]);

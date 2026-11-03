@@ -136,6 +136,8 @@
     "error_same": "HTTP dan HTTPS harus memakai port yang berbeda.",
     "toast_failed": "Tidak dapat mengubah port web.",
     "toast_unreachable": "Port baru tidak merespons, jadi QManager tetap di port lama.",
+    "toast_back_on": "Port baru tidak berjalan, jadi QManager kembali ke {{origin}}.",
+    "toast_timeout": "Perubahan port belum selesai, jadi muat ulang halaman ini sebentar lagi.",
     "opening": "Membuka di port baru…"
   }
 }

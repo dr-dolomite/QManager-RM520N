@@ -1227,6 +1227,9 @@
     "toast_failed": "Tidak dapat mengubah port web.",
     "toast_unchanged": "Port web disimpan.",
     "toast_unreachable": "Port baru tidak merespons, jadi QManager tetap di port lama.",
+    "toast_back_on": "Port baru tidak berjalan, jadi QManager kembali ke {{origin}}.",
+    "toast_timeout": "Perubahan port belum selesai, jadi muat ulang halaman ini sebentar lagi.",
+    "open_origin": "Buka",
     "error_title": "Tidak dapat membaca port web",
     "error_description": "Port tidak termuat. Coba lagi sebentar lagi."
   }
