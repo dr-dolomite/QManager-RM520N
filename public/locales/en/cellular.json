@@ -770,8 +770,11 @@
         },
         "error_title": "Failed to load carrier profiles",
         "toast": {
-          "applied": "Carrier profile updated — reboot required",
-          "error": "Failed to apply carrier profile"
+          "error": "Failed to apply carrier profile",
+          "auto_enabled": "Auto-select enabled — reboot required",
+          "auto_disabled": "Auto-select disabled — reboot required",
+          "profile_applied": "Carrier profile applied — reboot required",
+          "reboot_error": "Reboot failed — restart the device manually"
         },
         "reboot": {
           "title": "Reboot required",
@@ -779,6 +782,13 @@
           "later": "Reboot later",
           "now": "Reboot now",
           "rebooting": "Rebooting…"
+        },
+        "errors": {
+          "load_failed": "The modem didn't answer with its carrier profiles. Try again in a moment.",
+          "save_failed": "Couldn't apply the carrier profile setting.",
+          "autosel_failed": "The modem didn't accept the automatic selection change.",
+          "deactivate_failed": "The modem couldn't release the current carrier profile.",
+          "select_failed": "The modem didn't accept that carrier profile."
         }
       },
       "status": {

@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
 import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
-import { rebootNow } from "@/lib/reboot";
+import { enterRebootFlow, rebootNow } from "@/lib/reboot";
 
 // =============================================================================
 // useSoftwareUpdate — Check, download, install QManager updates
@@ -285,15 +285,11 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
 
         if (json.status === "rebooting") {
           settleStall();
-          // Navigate to /reboot/ immediately so the static page loads from
-          // lighttpd before the OTA worker fires the reboot syscall. The
-          // worker waits for the page's reboot_ack before issuing reboot,
-          // so any delay here only widens the race.
+          // Hand off to /reboot/ so the static page loads before the OTA worker
+          // reboots; the worker waits up to 20 s for the page's reboot_ack.
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
-          sessionStorage.setItem("qm_rebooting", "1");
-          document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-          window.location.href = "/reboot/";
+          enterRebootFlow("software_update");
         }
 
         if (json.status === "error") {
@@ -311,9 +307,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
         settleStall();
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
-        sessionStorage.setItem("qm_rebooting", "1");
-        document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-        window.location.href = "/reboot/";
+        enterRebootFlow("software_update");
       }
     }, POLL_INTERVAL);
   }, [fail, trackStall, settleStall]);
@@ -445,9 +439,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
           settleStall();
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
-          sessionStorage.setItem("qm_rebooting", "1");
-          document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-          window.location.href = "/reboot/";
+          enterRebootFlow("software_update");
         }
 
         if (json.status === "error") {
@@ -464,9 +456,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
           settleStall();
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
-          sessionStorage.setItem("qm_rebooting", "1");
-          document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-          window.location.href = "/reboot/";
+          enterRebootFlow("software_update");
         }
       }
     }, POLL_INTERVAL);

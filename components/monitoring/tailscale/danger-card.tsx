@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import type { TailscaleActionResult } from "@/hooks/use-tailscale";
+import { rebootNow } from "@/lib/reboot";
 
 import { DANGER } from "./shapes";
 
@@ -115,17 +116,8 @@ export function RebootDialog({
   const reboot = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsRebooting(true);
-    fetch("/cgi-bin/quecmanager/system/reboot.sh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reboot" }),
-      keepalive: true,
-    }).catch(() => {});
-    setTimeout(() => {
-      sessionStorage.setItem("qm_rebooting", "1");
-      document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-      window.location.href = "/reboot/";
-    }, 2000);
+    // Fire-and-forget POST, then the shared /reboot/ countdown hand-off.
+    rebootNow("tailscale");
   };
 
   return (

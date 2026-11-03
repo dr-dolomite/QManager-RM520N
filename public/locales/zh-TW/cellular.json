@@ -770,8 +770,11 @@
         },
         "error_title": "載入電信業者設定檔失敗",
         "toast": {
-          "applied": "電信業者設定檔已更新 — 需要重新開機",
-          "error": "套用電信業者設定檔失敗"
+          "error": "套用電信業者設定檔失敗",
+          "auto_enabled": "已啟用自動選擇 — 需要重新開機",
+          "auto_disabled": "已停用自動選擇 — 需要重新開機",
+          "profile_applied": "電信業者設定檔已套用 — 需要重新開機",
+          "reboot_error": "重新開機失敗 — 請手動重新啟動裝置"
         },
         "reboot": {
           "title": "需要重新開機",
@@ -779,6 +782,13 @@
           "later": "稍後重新開機",
           "now": "立即重新開機",
           "rebooting": "正在重新開機…"
+        },
+        "errors": {
+          "load_failed": "數據機未回傳電信業者設定檔，請稍後再試。",
+          "save_failed": "無法套用電信業者設定檔設定。",
+          "autosel_failed": "數據機未接受自動選擇的變更。",
+          "deactivate_failed": "數據機無法釋放目前的電信業者設定檔。",
+          "select_failed": "數據機未接受該電信業者設定檔。"
         }
       },
       "status": {
