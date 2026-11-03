@@ -857,6 +857,20 @@ ensure_usrdata_wait_unit() {
     return 0
 }
 
+# opkg update with its error kept: rc as opkg's, first error line in OPKG_UPDATE_ERR,
+# full output in the install log (failure only).
+qm_opkg_update() {
+    local _out
+    OPKG_UPDATE_ERR=""
+    if _out=$("$OPKG" update 2>&1); then
+        return 0
+    fi
+    _log_raw "opkg update failed: $(printf '%s' "$_out" | tr -d '\r' | tr '\n' ' ' | cut -c1-600)"
+    OPKG_UPDATE_ERR=$(printf '%s\n' "$_out" | tr -d '\r' | grep -E 'Failed|returned|Cannot|rror' | head -n1 | sed 's/^[ *]*//' | cut -c1-200) || true
+    [ -n "$OPKG_UPDATE_ERR" ] || OPKG_UPDATE_ERR="no error text"
+    return 1
+}
+
 # --- Ensure Zoneinfo Packages -------------------------------------------------
 
 # Installs the zoneinfo-all Entware package (full IANA tzdata) into
@@ -884,7 +898,7 @@ ensure_zoneinfo_packages() {
     fi
 
     info "Installing timezone data ($ZONEINFO_PACKAGE)..."
-    if "$OPKG" update >/dev/null 2>&1 && "$OPKG" install "$ZONEINFO_PACKAGE" >/dev/null 2>&1; then
+    if qm_opkg_update && "$OPKG" install "$ZONEINFO_PACKAGE" >/dev/null 2>&1; then
         info "$ZONEINFO_PACKAGE installed"
     else
         warn "Failed to install $ZONEINFO_PACKAGE (offline?) — timezone apply will fail until this succeeds"
@@ -1370,8 +1384,8 @@ SVCEOF
         # only safe here because it runs after the opt.mount start above,
         # where /opt is guaranteed to be the bind-mounted /usrdata/opt and
         # never the rootfs.
-        /opt/bin/opkg update >/dev/null 2>&1 \
-            || { rm -f /opt/bin/opkg; die "Package list download failed — no usable wget for opkg, or check connectivity"; }
+        qm_opkg_update \
+            || { rm -f /opt/bin/opkg; die "Package list download failed (opkg: $OPKG_UPDATE_ERR) — check connectivity, or opkg has no usable wget"; }
         /opt/bin/opkg install entware-opt >/dev/null 2>&1 \
             || { rm -f /opt/bin/opkg; die "Failed to install entware-opt base package"; }
         info "Entware base installed"
@@ -1403,10 +1417,10 @@ SVCEOF
     # --- Entware packages (requires opkg to be available) ---------------------
     _opkg_ready=0
     if [ -x "$OPKG" ]; then
-        if "$OPKG" update >/dev/null 2>&1; then
+        if qm_opkg_update; then
             _opkg_ready=1
         else
-            warn "Package list download failed — no usable wget for opkg, or check connectivity"
+            warn "Package list download failed (opkg: $OPKG_UPDATE_ERR) — check connectivity, or opkg has no usable wget"
             warn "Skipping Entware package installs (lighttpd, sudo, jq, etc.)"
             warn "Re-run the installer with internet to complete package setup"
         fi

@@ -756,7 +756,7 @@ apply_apn() {
     # SIM failover, manual re-activate) would re-run the full detach/attach
     # bracket even though the APN is already correct. The detail string
     # below still reports the profile's ORIGINAL-case p_apn_name.
-    local rdp current_negotiated
+    local rdp current_negotiated cgd
     # A failed read is an unknown state: never run the COPS=2/0 cycle on it.
     # A bare OK (rc 0, no +CGCONTRDP line) is a known no-bearer state and proceeds.
     if ! rdp=$(run_at "AT+CGCONTRDP=${p_apn_cid}"); then
@@ -780,6 +780,20 @@ apply_apn() {
        [ "$(printf '%s' "$current_negotiated" | tr 'A-Z' 'a-z')" = "$(printf '%s' "$p_apn_name" | tr 'A-Z' 'a-z')" ]; then
         mark_step_skipped "apn" "APN already negotiated: ${p_apn_name} (CID ${p_apn_cid})"
         return
+    fi
+
+    # No bearer yet but the context already holds this APN: the next attach uses it,
+    # so a COPS=2/0 cycle would only restart registration. A failed read falls through.
+    if [ -z "$current_negotiated" ] && cgd=$(run_at "AT+CGDCONT?"); then
+        local configured
+        configured=$(printf '%s\n' "$cgd" | tr -d '\r' | awk -F'"' -v cid="$p_apn_cid" '
+            /^\+CGDCONT:/ { c = $1; sub(/^\+CGDCONT:[ \t]*/, "", c); sub(/[ \t]*,.*$/, "", c)
+                            if (c == cid) { print $4; exit } }')
+        if [ -n "$configured" ] && \
+           [ "$(printf '%s' "$configured" | tr 'A-Z' 'a-z')" = "$(printf '%s' "$p_apn_name" | tr 'A-Z' 'a-z')" ]; then
+            mark_step_skipped "apn" "APN configured, waiting for bearer: ${p_apn_name} (CID ${p_apn_cid})"
+            return
+        fi
     fi
 
     # --- Fail closed if the shared primitive failed to load -----------------
