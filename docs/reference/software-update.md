@@ -433,10 +433,14 @@ PAGE_ROOT
   [Banner role="degraded"]     only when previous_install_failed && pending_version
   <PageHeader />               title + one contextual verb (+ "Check again" when an update is known)
   <StatusBand />               head label + 3 tiles (Installed · Latest release · Automatic updates)
-  <UpdateCard />               ANCHOR — delta strip + step ladder + consequence notice
-  {!running && <ReleaseNotesCard />}
+  <CARD_GRID>                  <UpdateCard /> ANCHOR (delta strip + step ladder + consequence notice)
+                               {!running && <ReleaseNotesCard />}   — 2-up from @3xl/main; CARD_GRID_SOLO while running
   {!running && <CARD_GRID>     <UpdatePreferencesCard /> <VersionManagementCard /> </>}
 ```
+
+The anchor and the release notes share one row at `@3xl/main`, at one height set by the anchor.
+The notes panel (`NOTES.SLOT` + `NOTES.PANEL`) is absolutely laid into the slack, so a long
+changelog scrolls instead of stretching the row; stacked, it is in flow and capped at 220px.
 
 `running` is `installing || rebooting` only. **Download and verify leave the page whole** — there
 is nothing dangerous about a file sitting in `/tmp`, and unmounting three cards to say so would

@@ -49,6 +49,9 @@ export const PAGE_HEAD = {
 export const CARD_GRID =
   "grid grid-cols-1 items-stretch gap-5 *:h-full *:*:data-[slot=card]:h-full @3xl/main:grid-cols-2";
 
+/** The anchor row while a run replaces files: the anchor stands alone. */
+export const CARD_GRID_SOLO = "grid grid-cols-1";
+
 /** One grid cell. Each card cascades on its own step, so it needs a wrapper. */
 export const CARD_CELL = "flex min-w-0 flex-col";
 
@@ -332,12 +335,19 @@ export const STEP_BADGE: Record<Exclude<StepState, "pending">, BadgeVariant> = {
  */
 export const NOTES = {
   /**
+   * The panel's slot. Stacked, the panel is in flow and capped at 220px. Side
+   * by side, the slot takes the row's slack (`flex-1`) and the panel is
+   * absolutely laid into it, so a long changelog scrolls instead of setting the
+   * row's height — the anchor card does that.
+   */
+  SLOT: "relative min-h-0 flex-1 @3xl/main:min-h-[13.75rem]",
+  /**
    * Both axes are DECLARED: `RELEASE_NOTES.md` ships verbatim curl/wget blocks,
    * so the sideways scroll is real and not inherited from the y-axis. The panel
    * is focusable because it scrolls, so it also carries a ring — its host is the
    * card's own surface.
    */
-  PANEL: `rounded-field bg-surface-container-high px-5 py-4 max-h-[13.75rem] overflow-x-auto overflow-y-auto ${FOCUS_RING_ON_SURFACE}`,
+  PANEL: `rounded-field bg-surface-container-high px-5 py-4 max-h-[13.75rem] overflow-x-auto overflow-y-auto @3xl/main:absolute @3xl/main:inset-0 @3xl/main:max-h-none ${FOCUS_RING_ON_SURFACE}`,
   /** Markdown ink on canon tokens; the primitive's own inks are retired. */
   PROSE:
     "prose prose-sm dark:prose-invert max-w-none prose-p:text-on-surface-variant prose-li:text-on-surface-variant prose-headings:text-on-surface prose-strong:text-on-surface prose-code:bg-surface-container prose-code:text-on-surface prose-hr:border-outline prose-a:text-primary",

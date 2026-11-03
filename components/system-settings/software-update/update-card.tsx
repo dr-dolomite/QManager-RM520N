@@ -54,7 +54,8 @@ const NOTICE_COPY: Record<
   loading: null,
   unreachable: "failed",
   check_failed: "failed",
-  up_to_date: "rest",
+  // Nothing to install, so no restart to warn about.
+  up_to_date: null,
   available: "rest",
   downloading: null,
   verifying: null,

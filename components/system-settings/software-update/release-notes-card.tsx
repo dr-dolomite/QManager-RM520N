@@ -101,13 +101,15 @@ export function ReleaseNotesCard({
         <CardContent className={cn(CARD_PAD, CARD_STACK)}>
           {changelog ? (
             <>
-              <div
-                role="region"
-                aria-label={t(`${K}.region_label`)}
-                tabIndex={0}
-                className={cn(NOTES.PANEL, NOTES.PROSE)}
-              >
-                <Markdown>{changelog}</Markdown>
+              <div className={NOTES.SLOT}>
+                <div
+                  role="region"
+                  aria-label={t(`${K}.region_label`)}
+                  tabIndex={0}
+                  className={cn(NOTES.PANEL, NOTES.PROSE)}
+                >
+                  <Markdown>{changelog}</Markdown>
+                </div>
               </div>
               <div className={NOTES.FOOTER}>
                 <Button

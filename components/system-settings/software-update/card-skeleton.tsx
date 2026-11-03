@@ -107,12 +107,14 @@ export function NotesCardSkeleton(): React.JSX.Element {
         </CardHeader>
 
         <CardContent className={cn(CARD_PAD, CARD_STACK)}>
-          <div className={SKELETON.NOTES.PANEL}>
-            <div className={SKELETON.NOTES.STACK}>
-              {NOTES_LINES.map((line) => (
-                <Skeleton key={line} className={SKELETON.NOTES.LINE} />
-              ))}
-              <Skeleton className={SKELETON.NOTES.LINE_SHORT} />
+          <div className={NOTES.SLOT}>
+            <div className={cn(SKELETON.NOTES.PANEL, "overflow-hidden")}>
+              <div className={SKELETON.NOTES.STACK}>
+                {NOTES_LINES.map((line) => (
+                  <Skeleton key={line} className={SKELETON.NOTES.LINE} />
+                ))}
+                <Skeleton className={SKELETON.NOTES.LINE_SHORT} />
+              </div>
             </div>
           </div>
 

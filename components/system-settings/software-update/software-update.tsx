@@ -36,6 +36,7 @@ import {
 } from "./derive";
 import {
   CARD_GRID,
+  CARD_GRID_SOLO,
   DIALOG_MOTION,
   ERROR_STATE,
   FOCUS_RING_ON_SURFACE,
@@ -177,10 +178,10 @@ export function SoftwareUpdate(): React.JSX.Element {
       />
 
       {view === "loading" ? (
-        <>
+        <div className={CARD_GRID}>
           <AnchorCardSkeleton />
           <NotesCardSkeleton />
-        </>
+        </div>
       ) : view === "unreachable" ? (
         // This branch mounts AFTER the page root settled, so it declares its
         // own directions: a variants-only child that mounts late renders blank.
@@ -214,22 +215,26 @@ export function SoftwareUpdate(): React.JSX.Element {
           initial="hidden"
           animate="visible"
         >
-          <UpdateCard
-            view={view}
-            info={updateInfo}
-            failure={failure}
-            packageStaged={packageStaged}
-            onDownload={() => void handleDownload()}
-            onInstall={() => setInstallDialogOpen(true)}
-            onReboot={() => setRebootDialogOpen(true)}
-          />
+          {/* The anchor and the notes share a row. The wrapper keeps its
+              identity across a run, so the anchor never remounts. */}
+          <div className={running ? CARD_GRID_SOLO : CARD_GRID}>
+            <UpdateCard
+              view={view}
+              info={updateInfo}
+              failure={failure}
+              packageStaged={packageStaged}
+              onDownload={() => void handleDownload()}
+              onInstall={() => setInstallDialogOpen(true)}
+              onReboot={() => setRebootDialogOpen(true)}
+            />
 
-          {/* Download and verify leave the page whole; only a run that is
-              replacing files takes the trailing cards away. */}
+            {/* Download and verify leave the page whole; only a run that is
+                replacing files takes the notes away. */}
+            {!running && <ReleaseNotesCard view={view} info={updateInfo} />}
+          </div>
+
           {!running && (
             <>
-              <ReleaseNotesCard view={view} info={updateInfo} />
-
               <div className={CARD_GRID}>
                 <UpdatePreferencesCard
                   view={view}
