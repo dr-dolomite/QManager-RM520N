@@ -65,7 +65,9 @@ The banner is a compact `warning-container` strip with `role="status"` and `aria
 | **Dismiss**, then confirm | `PendingRebootBanner` | Cleared |
 | A reboot by any other path (user menu, power cycle, watchdog, scheduled reboot) | nobody | **Unchanged** |
 
-> ⚠️ WARNING: no RM520N page calls `requestRebootLater` yet. Every reboot-needing flow today (IMEI, MBN, IP Passthrough, Tailscale, Software Update) reboots immediately and writes `qm_rebooting` itself, so the banner appears only once a page is converted to defer. Converting one means: set the flag with its `RebootSource`, add a `pending_reboot.description.<source>` key to all five catalogs if the default line does not fit, and render nothing of your own.
+Three RM520N pages defer through `requestRebootLater`: IMEI (`imei-settings.tsx`, `"imei"`), MBN (`mbn-card.tsx`, `"mbn"`: any reboot-dialog close except **Reboot now**, and a save whose first write landed before the second failed) and Config Restore (`restore-backup-card.tsx`, `"config_restore"`). Their **Reboot now** awaits a reboot POST (the `reboot` action of `imei.sh` / `mbn.sh`, `reboot.sh` for Config Restore), then calls `enterRebootFlow`. Tailscale (`rebootNow("tailscale")`) and the user menu (`rebootNow("manual")`) reboot at once and never set the flag. IP Passthrough and the four OTA hand-offs in `hooks/use-software-update.ts` still write `qm_rebooting` inline; the OTA sites stay inline on purpose (see `software-update.md`).
+
+> ⚠️ WARNING: converting another page means: set the flag with its `RebootSource`, add a `pending_reboot.description.<source>` key to all five catalogs if the default line does not fit, and render nothing of your own.
 
 > ⚠️ WARNING: a reboot that does not go through the banner never clears the flag, because it lives in the browser, not on the modem. That is why the banner keeps **Dismiss** (an accepted exception to the Dismiss-Only-Notices Rule, decided on RM551E as U4.11.2) and why Dismiss sits behind a confirm: dismissing a reboot that is still needed hides a true fact.
 

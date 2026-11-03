@@ -52,13 +52,8 @@ import {
   SETTING_ROW,
 } from "../shapes";
 
-// =============================================================================
-// Carrier Profile (MBN) — an auto-select pill and a bundle choice list
-// =============================================================================
-// A save never reboots: QManager runs on the modem it configures. The dialog
-// after a successful save offers the reboot; any other close defers it to the
-// app-wide pending-reboot banner.
-// =============================================================================
+// Carrier Profile (MBN). A save never reboots: the dialog offers it, and any
+// other close defers it to the app-wide pending-reboot banner.
 
 const K = "core_settings.apn.mbn";
 
