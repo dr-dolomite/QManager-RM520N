@@ -51,8 +51,8 @@ sim_db_normalize() {
 
 # iccid_canonicalize <raw>
 # COMPARE-TIME normalization only. Strips space/CR/LF (like sim_db_normalize),
-# then strips a single trailing BCD pad nibble (F/f) if present. An ICCID whose
-# final significant digit is odd is padded to 20 nibbles with a trailing F, and
+# then strips every trailing BCD pad nibble (F/f). An ICCID shorter than 20
+# nibbles is padded with trailing F (one F, or FF on some SIMs/modems), and
 # different read paths disagree on whether they keep it: apply-time readers keep
 # the raw QCCID string (with F), while a digits-only extractor drops it. The
 # real last character of an ICCID is always a decimal check digit, so a trailing
@@ -62,9 +62,12 @@ sim_db_normalize() {
 iccid_canonicalize() {
     local _simdb_canon
     _simdb_canon=$(printf '%s' "$1" | tr -d ' \r\n')
-    case "$_simdb_canon" in
-        *[Ff]) _simdb_canon=${_simdb_canon%?} ;;
-    esac
+    while :; do
+        case "$_simdb_canon" in
+            *[Ff]) _simdb_canon=${_simdb_canon%?} ;;
+            *) break ;;
+        esac
+    done
     printf '%s' "$_simdb_canon"
 }
 
