@@ -368,27 +368,49 @@ export default function SmsCenterComponent() {
     [t],
   );
 
-  const handleSend = React.useCallback(
-    (text: string) => {
-      if (!openAddr) return;
-      // THE KEY again: the reply destination is the raw stored address.
-      void queueSend(openAddr, text).done.then(toastSend);
-    },
-    [openAddr, queueSend, toastSend],
-  );
-
-  const handleRetrySend = React.useCallback(
-    (clientId: string) => {
-      void retrySend(clientId).then(toastSend);
-    },
-    [retrySend, toastSend],
-  );
-
   // Read in the send's settle callback, after the closure that queued it.
   const openAddrRef = React.useRef(openAddr);
   React.useEffect(() => {
     openAddrRef.current = openAddr;
   }, [openAddr]);
+
+  // The backend files a send under the normalized number: follow it there if still open.
+  const settleSend = React.useCallback(
+    (dest: string, outcome: SmsSendOutcome | null) => {
+      toastSend(outcome);
+      if (
+        outcome?.result.ok &&
+        outcome.addr !== dest &&
+        openAddrRef.current === dest
+      ) {
+        router.replace(
+          `/cellular/sms/?thread=${encodeURIComponent(outcome.addr)}`,
+          { scroll: false },
+        );
+      }
+    },
+    [toastSend, router],
+  );
+
+  const handleSend = React.useCallback(
+    (text: string) => {
+      if (!openAddr) return;
+      // THE KEY again: the reply destination is the raw stored address.
+      const dest = openAddr;
+      void queueSend(dest, text).done.then((o) => settleSend(dest, o));
+    },
+    [openAddr, queueSend, settleSend],
+  );
+
+  const handleRetrySend = React.useCallback(
+    (clientId: string) => {
+      const dest = openAddrRef.current;
+      void retrySend(clientId).then((o) =>
+        dest ? settleSend(dest, o) : toastSend(o),
+      );
+    },
+    [retrySend, settleSend, toastSend],
+  );
 
   // ---- per-message context menu actions ------------------------------------
   const handleForwardSubmit = React.useCallback(
@@ -396,22 +418,9 @@ export default function SmsCenterComponent() {
       const { done } = queueSend(dest, text);
       setForwardTarget(null);
       if (dest !== openAddr) openThread(dest);
-      void done.then((outcome) => {
-        toastSend(outcome);
-        // The backend files it under the normalized number: follow it there.
-        if (
-          outcome?.result.ok &&
-          outcome.addr !== dest &&
-          openAddrRef.current === dest
-        ) {
-          router.replace(
-            `/cellular/sms/?thread=${encodeURIComponent(outcome.addr)}`,
-            { scroll: false },
-          );
-        }
-      });
+      void done.then((outcome) => settleSend(dest, outcome));
     },
-    [queueSend, openThread, openAddr, toastSend, router],
+    [queueSend, openThread, openAddr, settleSend],
   );
 
   const handleMarkMessageUnread = React.useCallback(

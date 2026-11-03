@@ -478,7 +478,8 @@ export function useSms(): UseSmsReturn {
       }
 
       // A deep link the list does not hold: read it, holding the same guard.
-      if (inFlightRef.current) await inFlightDoneRef.current;
+      // A loop: a queued re-read can take the guard again before this resumes.
+      while (inFlightRef.current) await inFlightDoneRef.current;
       inFlightRef.current = true;
       let release = () => {};
       inFlightDoneRef.current = new Promise<void>((r) => {

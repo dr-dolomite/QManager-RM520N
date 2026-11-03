@@ -456,8 +456,8 @@ mcc_to_calling_code() {
 normalize_phone() {
     _phone="$1"
 
-    # Strip + prefix
-    _phone=$(printf '%s' "$_phone" | sed 's/^+//')
+    # Strip + prefix and the spaces, dashes, dots and brackets people type
+    _phone=$(printf '%s' "$_phone" | tr -d ' ().-' | sed 's/^+//')
 
     # If starts with 0, replace with country calling code from SIM's MCC
     case "$_phone" in

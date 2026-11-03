@@ -112,9 +112,11 @@ export function useSmsReadState(
       setReadSet((prev) => {
         const fresh = msgs.map(smsFingerprint).filter((fp) => !prev.has(fp));
         if (fresh.length === 0) return prev;
-        // Prune to what is present, unless a store is missing from the list.
+        // Prune to what is present, unless a store is missing or the list has not loaded
+        // (a caller holding a pre-load closure sees an empty `present`).
+        const prune = canPrune && present.size > 0;
         const next = new Set<string>();
-        for (const x of prev) if (!canPrune || present.has(x)) next.add(x);
+        for (const x of prev) if (!prune || present.has(x)) next.add(x);
         for (const fp of fresh) next.add(fp);
         return next;
       });

@@ -276,7 +276,7 @@ There is no stable backend message ID. The fingerprint is a **djb2** hash of `st
 
 ### Self-pruning
 
-The hook receives only **inbound** messages. Whenever the set changes, the persisted copy is filtered to the fingerprints of the messages currently present, so a message deleted on the modem loses its marker on the next write and the set cannot grow unbounded. Nothing is written while the list is still empty (first load), so the stored set survives until there is a list to prune it against.
+The hook receives only **inbound** messages. The set is saved as-is; it is pruned to the fingerprints of the messages currently present only when the user marks something (`markManyRead`, `markAllRead`), so a message deleted on the modem loses its marker then and the set cannot grow unbounded. No pruning while the list has not loaded (an empty `present`) or while the GET reports `storage_errors` (`canPrune` false), so a store that failed to read keeps its marks.
 
 ### Trade-offs
 
@@ -338,7 +338,7 @@ Runs the CPMS heal, lists ME and SM with one `qsms list all`, merges the sent lo
 
 | Action | Required fields | Notes |
 |---|---|---|
-| `send` | `phone`, `message` | Normalizes `phone` (strip `+`, local-number → country code via SIM MCC); on failure returns `{success:false, error:"send_failed", detail:"<plain sentence>", parts, sent_parts, concat_ref, refs, ambiguous}` (HTTP 200; the last three copied from `qsms` as-is, `null` when absent), for `bad_number` and `message_too_long` too (counts are 0 there) |
+| `send` | `phone`, `message` | Normalizes `phone` (drop spaces, dashes, dots and brackets, strip `+`, local-number → country code via SIM MCC); a result that is not all digits is refused before `qsms` with `send_failed` and no sent-log record. Success returns `{success:true, addr:<normalized>}`, the number the sent record is filed under (the UI follows it). On failure, also with `addr`, returns `{success:false, error:"send_failed", detail:"<plain sentence>", parts, sent_parts, concat_ref, refs, ambiguous}` (HTTP 200; the last three copied from `qsms` as-is, `null` when absent), for `bad_number` and `message_too_long` too (counts are 0 there) |
 | `delete` | `indexes` (array), `storage` (`"ME"`\|`"SM"`, default `"ME"`) | One `qsms delete` for all valid slots; `partial_failure` (`"N message(s) failed to delete"`) when `.deleted` is shorter than `indexes` |
 | `delete` | `storage:"SENT"`, `identities` (array of `S<seq>:<time>`) | Drops those sent-log records only; `missing_identities` when empty |
 | `delete` | `addr`, `index:"ALL"` | Lists, then one `qsms delete` per storage holding that sender, then drops the sent records to `addr`; `partial_failure` carries the failed count |
@@ -418,7 +418,7 @@ Verdicts live in `localStorage` key `qm_logos_v2`: at most 200 entries, a hit re
 
 - **No background refresh.** `useSms` fetches on mount, on Refresh, and after a send or delete. Each inbox read costs ~1.6 s of SIM reads ([The GET is not free](#the-get-is-not-free)), so do not add a timer. The 10 s interval in `sms-center.tsx` only re-renders the "synced N s ago" readout. (Some comments in `sms-center.tsx` still say "poll"; there is none.)
 - **One inbox read at a time.** `inFlightRef` makes `fetchInbox` single-flight. A request made during a read sets `queuedRef` and runs once, silently, after the read finishes. That request is usually a post-mutation refresh, so dropping it would leave a deleted message on screen. The guard is released in `finally` unconditionally, or a remounted page could never fetch.
-- **Thread detail is one `GET ?addr=` per open,** outside the single-flight guard, and it is a full `qsms list all` on the device. The open thread shows the union of the list's messages for that `addr` and the detail, de-duplicated on time, direction and body.
+- **Thread detail reads under the same guard.** `fetchThread` waits for a read in flight, answers from the list when it holds that `addr`, and only otherwise sends one `GET ?addr=` (a full `qsms list all` on the device) while holding the guard. The open thread shows the union of the list's messages for that `addr` and the detail, de-duplicated on time, direction and body.
 - **Refresh is silent.** The Refresh button calls `refresh(true)`; a non-silent fetch raises `isLoading` and swaps the panes for skeletons. Only the error panel's Retry calls `refresh()`.
 - **A failed refresh keeps the list.** With threads on screen, an error adds a `warning` chip to the header and the list stays; the error panel shows only when there are no threads.
 - **Delete all calls `delete_all`** through `deleteAllSms`: one POST clears ME, SM and the sent log.
