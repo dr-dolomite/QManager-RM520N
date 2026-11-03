@@ -76,6 +76,19 @@ QManager's own set path writes `$6$` (or `$1$` as a fallback) with a plain 16-he
 
 ---
 
+## dropbear reads `/opt/etc/shadow`, not `/etc/shadow`
+
+Entware's dropbear looks accounts up through Entware's libc, which reads `/opt/etc/passwd` and `/opt/etc/shadow`. The helper writes `/etc/shadow`, so SSH only sees the new password while `/opt/etc/shadow` is a symlink to `/etc/shadow`. Without the link every password is rejected, yet the helper and the SSH tab still report success (issue #23).
+
+- The Entware bootstrap in `install_dependencies()` links `passwd group shells shadow gshadow`, but only the ones that exist at that moment.
+- `ensure_entware_account_links()` in `install_rm520n.sh` repeats that on every install and OTA (called unconditionally from `main()`, before `setup_ssh_early`). It acts only when `/opt` is a mount point in `/proc/self/mountinfo`. It creates a missing link, replaces a wrong or dangling one, and leaves a regular file alone with a warning.
+- The System Health Check test `perm.opt_account_links` fails when `shadow` is not linked and warns for the other four.
+- Uninstall leaves the links: they belong to the Entware bootstrap, and Entware's dropbear and sudo still need them.
+
+Verified 2026-11-03 on both devices. With the link removed, SSH password login was rejected; after the function ran it worked.
+
+---
+
 ## Both endpoints share the sign-in lockout
 
 Each endpoint runs `qm_check_rate_limit` before checking the current password, and `qm_record_failed_attempt` after a wrong one. It is the same state file the login form reads. **A wrong SSH password counts toward the web sign-in lockout**, and the reverse. Without this, a signed-in session would be a free oracle for guessing root's password.

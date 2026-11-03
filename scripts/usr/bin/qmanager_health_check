@@ -271,6 +271,7 @@ _test_catalog_pending() {
         {id:"perm.qmanager_dir",  category:"permissions", label:"/usrdata/qmanager traversable",    status:"pending", duration_ms:0, detail:""},
         {id:"perm.rootfs_state",  category:"permissions", label:"rootfs read-only by default",      status:"pending", duration_ms:0, detail:""},
         {id:"perm.tmp_writable",  category:"permissions", label:"/tmp writable by www-data",        status:"pending", duration_ms:0, detail:""},
+        {id:"perm.opt_account_links", category:"permissions", label:"Entware account files linked to /etc", status:"pending", duration_ms:0, detail:""},
 
         {id:"at.echo",            category:"at_transport", label:"AT echo (qcmd \"AT\")",           status:"pending", duration_ms:0, detail:""},
         {id:"at.cgmi",            category:"at_transport", label:"AT+CGMI returns manufacturer",    status:"pending", duration_ms:0, detail:""},
@@ -494,6 +495,31 @@ t_perm_tmp_writable() {
         echo "fail|uid $self_uid cannot write to /tmp (rc=$rc)"
     else
         echo "fail|uid $self_uid cannot write to /tmp"
+    fi
+}
+# Entware's dropbear reads /opt/etc/shadow; without the link SSH password login fails.
+t_perm_opt_account_links() {
+    local f cur bad="" shadow_bad=0
+    if ! awk '$5 == "/opt" { f = 1 } END { exit !f }' /proc/self/mountinfo 2>/dev/null; then
+        echo "skip|/opt is not mounted"
+        return 0
+    fi
+    for f in passwd group shells shadow gshadow; do
+        ls -ld "/opt/etc/$f" >> "$OUTPUT_FILE" 2>&1
+        [ -e "/etc/$f" ] || continue
+        cur=""
+        [ -L "/opt/etc/$f" ] && cur=$(readlink "/opt/etc/$f" 2>/dev/null)
+        if [ "$cur" != "/etc/$f" ]; then
+            bad="$bad $f"
+            [ "$f" = "shadow" ] && shadow_bad=1
+        fi
+    done
+    if [ "$shadow_bad" = "1" ]; then
+        echo "fail|not linked to /etc:$bad (SSH password login fails)"
+    elif [ -n "$bad" ]; then
+        echo "warn|not linked to /etc:$bad"
+    else
+        echo "pass|all linked to /etc"
     fi
 }
 
@@ -1077,6 +1103,7 @@ _run_test perm.www_dialout    permissions  "www-data is in dialout group"       
 _run_test perm.qmanager_dir   permissions  "/usrdata/qmanager traversable"         t_perm_qmanager_dir
 _run_test perm.rootfs_state   permissions  "rootfs read-only by default"           t_perm_rootfs_state
 _run_test perm.tmp_writable   permissions  "/tmp writable by www-data"             t_perm_tmp_writable
+_run_test perm.opt_account_links permissions "Entware account files linked to /etc" t_perm_opt_account_links
 
 _run_test at.echo             at_transport "AT echo (qcmd \"AT\")"                 t_at_echo
 _run_test at.cgmi             at_transport "AT+CGMI returns manufacturer"          t_at_cgmi
