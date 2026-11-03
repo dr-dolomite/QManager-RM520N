@@ -79,7 +79,10 @@
       "duplex": {
         "label": "Duplex",
         "caption": "Transmit and receive at once",
-        "caption_down": "Needs an active link"
+        "caption_down": "Needs an active link",
+        "caption_half": "Transmit and receive in turns",
+        "value_full": "Full",
+        "value_half": "Half"
       },
       "negotiation": {
         "label": "Negotiation",

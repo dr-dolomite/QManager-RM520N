@@ -79,7 +79,10 @@
       "duplex": {
         "label": "Dupleks",
         "caption": "Mengirim dan menerima sekaligus",
-        "caption_down": "Memerlukan tautan aktif"
+        "caption_down": "Memerlukan tautan aktif",
+        "caption_half": "Mengirim dan menerima bergantian",
+        "value_full": "Penuh",
+        "value_half": "Paruh"
       },
       "negotiation": {
         "label": "Negosiasi",

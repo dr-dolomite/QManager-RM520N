@@ -198,8 +198,9 @@ function formatSpeed(speed: string): string {
   return speed;
 }
 
+// Fallback for values other than full/half (sysfs "unknown", ethtool "Unknown! (255)").
 function formatDuplex(duplex: string): string {
-  if (!duplex || duplex === "Unknown") return VALUE_NONE;
+  if (!duplex || /^unknown/i.test(duplex)) return VALUE_NONE;
   return duplex.charAt(0).toUpperCase() + duplex.slice(1);
 }
 
@@ -260,7 +261,14 @@ export function LinkStateStrip({
         };
 
   const rate = isConnected ? formatSpeed(status?.speed ?? "") : VALUE_NONE;
-  const duplex = isConnected ? formatDuplex(status?.duplex ?? "") : VALUE_NONE;
+  const duplexMode = (status?.duplex ?? "").trim().toLowerCase();
+  const duplex = !isConnected
+    ? VALUE_NONE
+    : duplexMode === "full"
+      ? t(`${K}.tiles.duplex.value_full`)
+      : duplexMode === "half"
+        ? t(`${K}.tiles.duplex.value_half`)
+        : formatDuplex(status?.duplex ?? "");
 
   // The ceiling answers the question the page could not answer before: am I
   // getting the port's full speed, or is something capping me? `supports_2500`
@@ -343,9 +351,11 @@ export function LinkStateStrip({
               glyph={ArrowLeftRightIcon}
               eyebrow={t(`${K}.tiles.duplex.label`)}
               caption={t(
-                isConnected
-                  ? `${K}.tiles.duplex.caption`
-                  : `${K}.tiles.duplex.caption_down`,
+                !isConnected
+                  ? `${K}.tiles.duplex.caption_down`
+                  : duplexMode === "half"
+                    ? `${K}.tiles.duplex.caption_half`
+                    : `${K}.tiles.duplex.caption`,
               )}
             >
               <span className={VALUE_TEXT}>{duplex}</span>

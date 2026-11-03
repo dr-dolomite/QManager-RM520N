@@ -79,7 +79,10 @@
       "duplex": {
         "label": "Duplex",
         "caption": "Trasmette e riceve contemporaneamente",
-        "caption_down": "Richiede un collegamento attivo"
+        "caption_down": "Richiede un collegamento attivo",
+        "caption_half": "Trasmette e riceve a turno",
+        "value_full": "Completo",
+        "value_half": "Alternato"
       },
       "negotiation": {
         "label": "Negoziazione",

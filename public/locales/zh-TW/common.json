@@ -79,7 +79,10 @@
       "duplex": {
         "label": "雙工模式",
         "caption": "同時收發",
-        "caption_down": "需要作用中鏈路"
+        "caption_down": "需要作用中鏈路",
+        "caption_half": "收發交替進行",
+        "value_full": "全雙工",
+        "value_half": "半雙工"
       },
       "negotiation": {
         "label": "協商模式",
