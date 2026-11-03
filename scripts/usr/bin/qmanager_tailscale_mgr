@@ -20,7 +20,8 @@
 #   An update runs only on a coherent install (unit + both binaries); any
 #   other leftover state is cleaned and reinstalled fresh.
 #
-#   Download lands in /usrdata/ (persistent partition) not /tmp. Systemd units
+#   The download streams through sha256sum into tar (no tarball on disk or in
+#   /tmp); see docs/reference/tailscale.md. Systemd units
 #   come from /usr/lib/qmanager/ (staged by the QManager installer).
 #
 # Progress reporting:
@@ -246,45 +247,50 @@ sync
 free_kb=$(free_now)
 echo "Free space after cleanup: ${free_kb} KB"
 case "$free_kb" in ''|*[!0-9]*) free_kb=0 ;; esac
-if [ "$free_kb" -lt 40000 ]; then
+if [ "$free_kb" -lt 55000 ]; then
     write_status '{"success":false,"status":"error"'"$FX"',"error":"no_space","message":"Not enough free storage to install Tailscale","detail":"free up space on the modem and retry"}'
     echo "=== ERROR: only ${free_kb} KB free on /usrdata ==="
     exit 1
 fi
 
-echo "Downloading $TAILSCALE_TARBALL..."
-# -f: an HTTP error must not leave an HTML page named like a tarball.
-curl -fS --connect-timeout 20 -m 600 -o "$TAILSCALE_TARBALL" "$TAILSCALE_URL"; rc=$?
-if [ "$rc" -ne 0 ] || [ ! -f "$TAILSCALE_TARBALL" ]; then
-    rm -f "$TAILSCALE_TARBALL"
-    fail_net download_failed "Failed to download Tailscale v$TAILSCALE_VERSION" "$rc"
-fi
+# The tarball and its unpacked binaries do not fit together on the shared volume,
+# so the download streams through sha256sum straight into tar and no tarball is
+# written. The staging dir is only used after the checksum matches.
+echo "Downloading and unpacking $TAILSCALE_TARBALL (streamed)..."
+SHA_FIFO="/tmp/qmanager_tailscale_sha.fifo"
+SHA_OUT="/tmp/qmanager_tailscale_sha.out"
+rm -f "$SHA_FIFO" "$SHA_OUT"
+mkfifo "$SHA_FIFO"
+( sha256sum < "$SHA_FIFO" | awk '{ print $1 }' > "$SHA_OUT" ) &
+sha_pid=$!
+curl -fS --connect-timeout 20 --speed-limit 5000 --speed-time 60 -m 1000 -o - "$TAILSCALE_URL" | tee "$SHA_FIFO" \
+    | { tar -xzf - "$TAILSCALE_EXTRACT_DIR/tailscale" "$TAILSCALE_EXTRACT_DIR/tailscaled"; _t=$?; cat >/dev/null; exit $_t; }
+rcs=("${PIPESTATUS[@]}")
+wait "$sha_pid"
+actual_sha=$(cat "$SHA_OUT" 2>/dev/null)
+rm -f "$SHA_FIFO" "$SHA_OUT"
+echo "Free space after unpack: $(free_now) KB"
 
-actual_sha=$(sha256sum "$TAILSCALE_TARBALL" 2>/dev/null | awk '{ print $1 }')
+if [ "${rcs[0]}" -ne 0 ]; then
+    rm -rf "$TAILSCALE_EXTRACT_DIR"
+    fail_net download_failed "Failed to download Tailscale v$TAILSCALE_VERSION" "${rcs[0]}"
+fi
+if [ "${rcs[2]}" -ne 0 ]; then
+    rm -rf "$TAILSCALE_EXTRACT_DIR"
+    write_status '{"success":false,"status":"error"'"$FX"',"error":"extract_failed","message":"Could not unpack Tailscale","detail":"archive unreadable or storage full"}'
+    echo "=== ERROR: unpack failed, free: $(free_now) KB ==="
+    exit 1
+fi
 if [ -z "$actual_sha" ] || [ "$actual_sha" != "$TAILSCALE_SHA256" ]; then
-    rm -f "$TAILSCALE_TARBALL"
+    rm -rf "$TAILSCALE_EXTRACT_DIR"
     write_status '{"success":false,"status":"error"'"$FX"',"error":"checksum_mismatch","message":"Tailscale download failed verification","detail":"SHA-256 mismatch or sha256sum missing"}'
     exit 1
 fi
-
-echo "Free space after download: $(free_now) KB"
 
 echo "Creating directories..."
 mkdir -p "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
 # www-data (CGI) needs traverse+read on these to detect the binary later.
 chmod 755 "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
-
-# Extract only the two binaries; the tarball goes as soon as it is unpacked.
-echo "Extracting..."
-if ! tar -xzf "$TAILSCALE_TARBALL" \
-        "$TAILSCALE_EXTRACT_DIR/tailscale" "$TAILSCALE_EXTRACT_DIR/tailscaled"; then
-    rm -rf "$TAILSCALE_TARBALL" "$TAILSCALE_EXTRACT_DIR"
-    write_status '{"success":false,"status":"error"'"$FX"',"error":"extract_failed","message":"Could not unpack Tailscale","detail":"archive unreadable or storage full"}'
-    echo "=== ERROR: extract failed, free: $(free_now) KB ==="
-    exit 1
-fi
-rm -f "$TAILSCALE_TARBALL"
-echo "Free space after extract: $(free_now) KB"
 
 if [ ! -d "$TAILSCALE_EXTRACT_DIR" ]; then
     write_status '{"success":false,"status":"error"'"$FX"',"message":"Extraction failed — no extract dir"}'
