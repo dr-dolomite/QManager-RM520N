@@ -42,6 +42,7 @@
     "connection_quality": "連線質量",
     "languages": "語言",
     "device_access": "裝置存取",
+    "adaptive_polling": "自適應輪詢",
     "software_update": "軟體更新",
     "terminals": "終端機",
     "at_terminal": "AT 終端",

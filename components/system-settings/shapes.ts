@@ -565,3 +565,28 @@ export const TAB_RAIL = {
     "[transition:color_var(--duration-standard)_var(--ease-standard),background-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
   ].join(" "),
 } as const;
+
+// -----------------------------------------------------------------------------
+// Adaptive Polling
+// -----------------------------------------------------------------------------
+
+/** Two columns on a wide card; the On/Off row spans both because it governs the rest. */
+export const POLLING_GRID = {
+  GROUP: "@5xl/card:grid @5xl/card:grid-cols-2",
+  SPAN: "@5xl/card:col-span-2",
+} as const;
+
+/** A narrow numeric field with a trailing unit. */
+export const SECONDS_FIELD = {
+  WRAP: "relative w-full @2xl/card:w-36",
+  INPUT: "pr-9 text-[0.84375rem] font-medium tabular-nums",
+  UNIT: "text-on-surface-variant pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-medium",
+} as const;
+
+export const SKELETON_POLLING = {
+  LABEL: LINE.LABEL,
+  CONSEQUENCE: LINE.CONSEQUENCE,
+  PILL: `${FIELD_HEIGHT} w-full rounded-pill @2xl/card:w-36`,
+  FIELD: `${FIELD_HEIGHT} w-full rounded-field @2xl/card:w-36`,
+  ACTION: `${FIELD_HEIGHT} w-28 rounded-pill`,
+} as const;

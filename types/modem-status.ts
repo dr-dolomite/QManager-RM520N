@@ -336,7 +336,7 @@ export interface DeviceStatus {
   /** Hardware-supported SA NR5G bands, colon-delimited (boot-only) */
   supported_sa_nr5g_bands: string;
   /** Poller activity tier: AT reads slow down while no browser is polling; absent on older pollers */
-  poller_tier?: "active" | "idle" | "deep";
+  poller_tier?: PollerTier;
   /** Monotonic second of the QMI snapshot; null without the sidecar */
   qmi_read_mono?: number | null;
   /** QMI lane state ("up", ...); "" without the sidecar */
@@ -1141,4 +1141,17 @@ export function formatUptime(seconds: number): string {
   parts.push(`${minutes}m`);
 
   return parts.join(" ");
+}
+
+/** Poller activity tier (docs/reference/adaptive-polling.md). */
+export type PollerTier = "active" | "idle" | "deep";
+
+/** qmanager.conf .poller, as the adaptive_polling CGI reports it. All times in seconds. */
+export interface AdaptivePollingSettings {
+  /** false pins the poller at full rate. */
+  enabled: boolean;
+  active_grace: number;
+  idle_interval: number;
+  idle_threshold: number;
+  deep_idle_interval: number;
 }

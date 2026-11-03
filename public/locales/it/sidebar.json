@@ -42,6 +42,7 @@
     "connection_quality": "Qualità della connessione",
     "languages": "Lingue",
     "device_access": "Accesso al dispositivo",
+    "adaptive_polling": "Polling Adattivo",
     "software_update": "Aggiornamento del software",
     "terminals": "Terminali",
     "at_terminal": "Terminale AT",
