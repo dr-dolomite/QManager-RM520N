@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { failureReason } from "../ttl-mtu-settings/failure-reason";
 import { CheckIcon } from "lucide-react";
 import { HintIcon } from "@/components/ui/hint-icon";
 import { SEGMENTED, SegmentedField } from "@/components/ui/segmented-field";
@@ -41,7 +42,12 @@ export function BypassHotspotRow({ ttl }: BypassHotspotRowProps) {
           t(next ? "traffic_engine.bypass_toast_enabled" : "traffic_engine.bypass_toast_disabled"),
         );
       } else {
-        toast.error(t("traffic_engine.bypass_toast_error"));
+        // The TTL hook already translates its reason; its generic fallback only restates this title.
+        const title = t("traffic_engine.bypass_toast_error");
+        const generic = t("ttlMtu.toast_ttl_error", { ns: "common" });
+        toast.error(title, {
+          description: failureReason(title, result.error === generic ? null : result.error),
+        });
       }
     },
     [saveTtlHl, t],

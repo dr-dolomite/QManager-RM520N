@@ -109,9 +109,10 @@ export function useFullBypass(): UseFullBypassReturn {
         if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          const msg = json.detail || json.error || "Failed to save Full Bypass settings";
-          setError(msg);
-          return { ok: false, error: msg };
+          // The returned reason is the backend's own words only; local fallbacks stay in `error` state.
+          const reason = json.detail || json.error || null;
+          setError(reason ?? "Failed to save Full Bypass settings");
+          return { ok: false, error: reason };
         }
         await fetchStatus(true);
         return { ok: true, error: null };
@@ -119,7 +120,7 @@ export function useFullBypass(): UseFullBypassReturn {
         if (!mountedRef.current) return { ok: false, error: null };
         const msg = err instanceof Error ? err.message : "Failed to save Full Bypass settings";
         setError(msg);
-        return { ok: false, error: msg };
+        return { ok: false, error: null };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }
