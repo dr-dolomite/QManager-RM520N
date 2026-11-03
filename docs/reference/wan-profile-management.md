@@ -584,10 +584,10 @@ Fielded devices are moved across by `migrate_apn_sidecars()` in
 - Idempotent — no-op when the source is absent or the destination is already a
   regular file, so re-running an install never clobbers newer state. If both
   exist, the stale original is deleted so no later reader can pick it up.
-- The temp file is created in the **destination** directory. `/usrdata` and
-  `/etc` are separate UBIFS volumes, so a cross-volume `mv` is not an atomic
-  `rename(2)` — BusyBox degrades it to copy + unlink and loses crash-atomicity
-  on flash.
+- The temp file is created in the **destination** directory, so the `mv` is a
+  same-directory `rename(2)`. (`/usrdata` and `/etc` are one UBIFS volume,
+  `ubi2_0`, measured 2026-11-03 on 61368cd2; same-directory keeps that true
+  if they are ever split.)
 - Mode and owner are set on the temp file *before* the rename, because BusyBox
   `mktemp` creates `0600 root:root` and `mv` carries both across. Both are
   guarded with `|| true`: the function is called bare from `install_backend()`
