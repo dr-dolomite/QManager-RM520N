@@ -1057,6 +1057,7 @@
       "quality": "连接质量",
       "sites": "延迟监控站点",
       "alerts": "告警",
+      "adaptive_polling": "自适应轮询",
       "system": "系统设置"
     },
     "create": {

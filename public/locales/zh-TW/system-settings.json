@@ -1057,6 +1057,7 @@
       "quality": "連線品質",
       "sites": "延遲監控站點",
       "alerts": "警示",
+      "adaptive_polling": "自適應輪詢",
       "system": "系統設定"
     },
     "create": {

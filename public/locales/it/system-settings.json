@@ -1057,6 +1057,7 @@
       "quality": "Qualità della connessione",
       "sites": "Siti di monitoraggio latenza",
       "alerts": "Avvisi",
+      "adaptive_polling": "Polling adattivo",
       "system": "Impostazioni di sistema"
     },
     "create": {

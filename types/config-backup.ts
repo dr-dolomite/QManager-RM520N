@@ -20,6 +20,7 @@ export type BackupSectionKey =
   | "quality"
   | "sites"
   | "alerts"
+  | "adaptive_polling"
   | "system";
 
 /** The four picker groups (labels via i18n). */

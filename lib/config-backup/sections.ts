@@ -32,7 +32,7 @@ export const BACKUP_SECTIONS: BackupSectionMeta[] = [
   { key: "quality", group: "monitoring", defaultChecked: true, needsReboot: false },
   { key: "sites", group: "monitoring", defaultChecked: true, needsReboot: false },
   { key: "alerts", group: "monitoring", defaultChecked: true, needsReboot: false },
-  // adaptive_polling goes here (monitoring) once P7a merges; collect.sh's list hides it until then.
+  { key: "adaptive_polling", group: "monitoring", defaultChecked: true, needsReboot: false },
   { key: "system", group: "system", defaultChecked: true, needsReboot: false },
 ];
 
