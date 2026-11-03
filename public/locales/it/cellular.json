@@ -770,8 +770,11 @@
         },
         "error_title": "Impossibile caricare i profili operatore",
         "toast": {
-          "applied": "Profilo operatore aggiornato — riavvio necessario",
-          "error": "Impossibile applicare il profilo operatore"
+          "error": "Impossibile applicare il profilo operatore",
+          "auto_enabled": "Selezione automatica abilitata: è necessario riavviare",
+          "auto_disabled": "Selezione automatica disabilitata: è necessario riavviare",
+          "profile_applied": "Profilo operatore applicato: è necessario riavviare",
+          "reboot_error": "Riavvio non riuscito: riavvia il dispositivo manualmente"
         },
         "reboot": {
           "title": "Riavvio necessario",
@@ -779,6 +782,13 @@
           "later": "Riavvia più tardi",
           "now": "Riavvia ora",
           "rebooting": "Riavvio in corso…"
+        },
+        "errors": {
+          "load_failed": "Il modem non ha restituito i profili dell'operatore. Riprova tra poco.",
+          "save_failed": "Impossibile applicare l'impostazione del profilo dell'operatore.",
+          "autosel_failed": "Il modem non ha accettato la modifica della selezione automatica.",
+          "deactivate_failed": "Il modem non è riuscito a rilasciare il profilo operatore attuale.",
+          "select_failed": "Il modem non ha accettato quel profilo operatore."
         }
       },
       "status": {

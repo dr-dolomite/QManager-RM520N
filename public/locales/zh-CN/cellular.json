@@ -770,8 +770,11 @@
         },
         "error_title": "加载运营商配置文件失败",
         "toast": {
-          "applied": "运营商配置文件已更新 — 需要重启",
-          "error": "应用运营商配置文件失败"
+          "error": "应用运营商配置文件失败",
+          "auto_enabled": "已启用自动选择 — 需要重启",
+          "auto_disabled": "已禁用自动选择 — 需要重启",
+          "profile_applied": "运营商配置文件已应用 — 需要重启",
+          "reboot_error": "重启失败 — 请手动重启设备"
         },
         "reboot": {
           "title": "需要重启",
@@ -779,6 +782,13 @@
           "later": "稍后重启",
           "now": "立即重启",
           "rebooting": "正在重启…"
+        },
+        "errors": {
+          "load_failed": "调制解调器未返回运营商配置文件，请稍后重试。",
+          "save_failed": "无法应用运营商配置文件设置。",
+          "autosel_failed": "调制解调器未接受自动选择的更改。",
+          "deactivate_failed": "调制解调器无法释放当前的运营商配置文件。",
+          "select_failed": "调制解调器未接受该运营商配置文件。"
         }
       },
       "status": {

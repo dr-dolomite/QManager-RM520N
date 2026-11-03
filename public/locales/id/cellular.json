@@ -770,8 +770,11 @@
         },
         "error_title": "Gagal memuat profil operator",
         "toast": {
-          "applied": "Profil operator diperbarui — perlu reboot",
-          "error": "Gagal menerapkan profil operator"
+          "error": "Gagal menerapkan profil operator",
+          "auto_enabled": "Pilihan otomatis diaktifkan — reboot diperlukan",
+          "auto_disabled": "Pilihan otomatis dinonaktifkan — reboot diperlukan",
+          "profile_applied": "Profil operator diterapkan — reboot diperlukan",
+          "reboot_error": "Reboot gagal — mulai ulang perangkat secara manual"
         },
         "reboot": {
           "title": "Perlu reboot",
@@ -779,6 +782,13 @@
           "later": "Reboot nanti",
           "now": "Reboot sekarang",
           "rebooting": "Sedang reboot…"
+        },
+        "errors": {
+          "load_failed": "Modem tidak mengembalikan profil operator. Coba lagi sebentar lagi.",
+          "save_failed": "Tidak dapat menerapkan pengaturan profil operator.",
+          "autosel_failed": "Modem tidak menerima perubahan pilihan otomatis.",
+          "deactivate_failed": "Modem tidak dapat melepas profil operator saat ini.",
+          "select_failed": "Modem tidak menerima profil operator tersebut."
         }
       },
       "status": {

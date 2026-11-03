@@ -60,6 +60,7 @@ const APNSettingsComponent = () => {
     isSaving: mbnSaving,
     error: mbnError,
     saveMbn,
+    rebootDevice: rebootMbn,
     refresh: refreshMbn,
   } = useMbnSettings();
 
@@ -193,8 +194,9 @@ const APNSettingsComponent = () => {
             autoSel={autoSel}
             isLoading={mbnLoading}
             isSaving={mbnSaving}
-            error={mbnError}
+            loadError={mbnError}
             onSave={saveMbn}
+            onReboot={rebootMbn}
             onRetry={refreshMbn}
           />
         </motion.div>

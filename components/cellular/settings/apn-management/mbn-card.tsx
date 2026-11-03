@@ -29,9 +29,15 @@ import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { SEGMENTED, SegmentedField } from "@/components/ui/segmented-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TonalBanner } from "@/components/ui/tonal-banner";
+import { ConditionScreen } from "@/components/cellular/condition-screen";
+import { requestRebootLater } from "@/lib/reboot";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { MbnProfile, MbnSaveRequest } from "@/types/mbn-settings";
+import type {
+  MbnActionResult,
+  MbnProfile,
+  MbnSaveRequest,
+} from "@/types/mbn-settings";
 
 import { ApplyFootSkeleton } from "../apply-foot";
 import SettingRow from "../setting-row";
@@ -46,38 +52,32 @@ import {
   SETTING_ROW,
 } from "../shapes";
 
-// =============================================================================
-// Carrier Profile (MBN) — a switch and a choice list, not two dropdowns
-// =============================================================================
-// An MBN bundle is a firmware payload that sets a carrier's APN, IMS and band
-// defaults in one go. Two things follow from that, and both drove this shape:
-//
-// SELECTION IS A PROMOTION, NOT A RADIO CIRCLE. The comp drew Material's
-// `radio_button_checked` / `radio_button_unchecked` pair; neither glyph is in
-// the font subset, and adding them would mean a Google Fonts round-trip plus a
-// committed binary for an affordance this system already expresses better. The
-// chosen row IS a `primary-container` block (`CHOICE_ROW`), which reads across
-// the card at a glance where an 18px circle does not, and survives grayscale.
-//
-// THE REBOOT IS OFFERED, NEVER TAKEN. QManager runs ON the modem it manages, so
-// a reboot kills the very HTTP request that asked for it. The write completes
-// first; the reboot is a separate, explicitly-confirmed action afterwards.
-//
-// The old card was two Selects with an always-live Save that answered a no-op
-// press with a toast reading "No changes to save" — it could not tell you
-// whether you had changed anything, so it waited for you to ask and said no.
-// The bar below exists only while something is pending, and Save is disabled
-// until then.
-// =============================================================================
+// Carrier Profile (MBN). A save never reboots: the dialog offers it, and any
+// other close defers it to the app-wide pending-reboot banner.
+
+const K = "core_settings.apn.mbn";
 
 export interface MBNCardProps {
   profiles: MbnProfile[] | null;
   autoSel: number | null;
   isLoading: boolean;
   isSaving: boolean;
-  error?: string | null;
-  onSave: (request: MbnSaveRequest) => Promise<boolean>;
-  onRetry?: () => void;
+  /** Why the last read failed (translated), or null. */
+  loadError: string | null;
+  onRetry: () => void;
+  onSave: (request: MbnSaveRequest) => Promise<MbnActionResult>;
+  /** Fires the reboot and enters the /reboot/ flow; false if it was not accepted. */
+  onReboot: () => Promise<boolean>;
+}
+
+function MbnCardHeader() {
+  const { t } = useTranslation("cellular");
+  return (
+    <CardHeader className={CARD_PAD}>
+      <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
+      <CardDescription>{t(`${K}.description`)}</CardDescription>
+    </CardHeader>
+  );
 }
 
 export function MBNCard({
@@ -85,21 +85,18 @@ export function MBNCard({
   autoSel,
   isLoading,
   isSaving,
-  error = null,
-  onSave,
+  loadError,
   onRetry,
+  onSave,
+  onReboot,
 }: MBNCardProps) {
   const { t } = useTranslation("cellular");
   const { saved, markSaved } = useSaveFlash();
-  const K = "core_settings.apn.mbn";
 
   const liveSelected = profiles?.find((profile) => profile.selected) ?? null;
   const liveSelectedName = liveSelected?.name ?? "";
 
-  // Draft state, re-seeded whenever the BASELINE changes rather than once on
-  // first fetch — same reasoning as the APN card: a refetch after a successful
-  // apply must move the form onto the new truth, and a refetch that changes
-  // nothing must not disturb an edit in progress.
+  // Re-seed the draft whenever the baseline changes, so a refetch after apply lands the new truth.
   const baselineKey =
     autoSel !== null ? `${autoSel} ${liveSelectedName}` : null;
 
@@ -116,17 +113,13 @@ export function MBNCard({
   const [showRebootDialog, setShowRebootDialog] = React.useState(false);
   const [isRebooting, setIsRebooting] = React.useState(false);
 
-  // Roving tabindex for the bundle radiogroup. Declared above the loading
-  // early-return, because hooks cannot sit behind a branch.
+  // Roving tabindex refs; declared above the early returns (hooks cannot branch).
   const rowRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
 
   if (isLoading) {
     return (
       <Card className={cn(CARD_SHELL)}>
-        <CardHeader className={CARD_PAD}>
-          <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
-          <CardDescription>{t(`${K}.description`)}</CardDescription>
-        </CardHeader>
+        <MbnCardHeader />
         <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
           <div className={ROW_GROUP.ROOT}>
             <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
@@ -145,26 +138,34 @@ export function MBNCard({
     );
   }
 
+  // Only the never-read case; a failed re-read keeps the last snapshot under a banner.
+  if (loadError && profiles === null) {
+    return (
+      <Card className={cn(CARD_SHELL)}>
+        <MbnCardHeader />
+        <CardContent className={cn(CARD_PAD, "flex flex-1 flex-col")}>
+          <ConditionScreen
+            tone="destructive"
+            glyph="error"
+            ariaRole="alert"
+            title={t(`${K}.error_title`)}
+            description={loadError}
+            onRetry={onRetry}
+            retryLabel={t("actions.retry", { ns: "common" })}
+            className="flex-1 rounded-tile py-10"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
   const autoDirty = autoSel !== null && autoOn !== (autoSel === 1);
   const profileDirty = !autoOn && !!selectedName && selectedName !== liveSelectedName;
   const changeCount = (autoDirty ? 1 : 0) + (profileDirty ? 1 : 0);
 
   const bundles = profiles ?? [];
 
-  // ---------------------------------------------------------------------------
-  // The radiogroup's keyboard contract
-  // ---------------------------------------------------------------------------
-  // `role="radiogroup"` over `role="radio"` children is a PROMISE, and the list
-  // shipped without keeping it: every bundle was its own tab stop (twenty of
-  // them on some carrier firmware) and the arrow keys did nothing, so a screen
-  // reader announced a radio group whose members behaved like a button list.
-  //
-  // The fix is the real one rather than downgrading to `aria-pressed`: exactly
-  // one row is tabbable, and the arrows move focus AND selection through the
-  // group, which is what APG specifies for radios and what makes twenty bundles
-  // reachable in one Tab plus a held arrow key. The tabbable row is the chosen
-  // one — or the first, before anything is chosen — so Tab always lands where
-  // the user's attention already is.
+  // APG radio group: one tab stop (the chosen row, else the first); arrows move focus and selection.
   const activeIndex = Math.max(
     0,
     bundles.findIndex((bundle) => bundle.name === selectedName),
@@ -182,8 +183,6 @@ export function MBNCard({
   const handleListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (listDisabled || bundles.length === 0) return;
 
-    // Both axes: a vertical list still gets Left/Right, because a radio group's
-    // arrow contract is direction-agnostic and users arrive with either habit.
     const step =
       event.key === "ArrowDown" || event.key === "ArrowRight"
         ? 1
@@ -193,7 +192,6 @@ export function MBNCard({
 
     if (step !== 0) {
       event.preventDefault();
-      // Wrapping, per APG — a radio group is a ring, not a list with ends.
       focusBundle((activeIndex + step + bundles.length) % bundles.length);
       return;
     }
@@ -214,80 +212,74 @@ export function MBNCard({
   };
 
   const handleSave = async () => {
-    // Sequential, in dependency order: auto-select must be OFF before a pinned
-    // bundle means anything, so the toggle is written first and the bundle only
-    // if that write landed. The previous card wrote whichever ONE change it
-    // noticed first, so turning auto off and picking a bundle in the same pass
-    // silently dropped the bundle.
-    let ok = true;
+    // Auto-select must be off before a pinned bundle means anything, so it is written first.
+    let result: MbnActionResult = { ok: true };
+    let successKey: string | null = null;
 
     if (autoDirty) {
-      ok = await onSave({ action: "auto_sel", auto_sel: autoOn ? 1 : 0 });
+      result = await onSave({ action: "auto_sel", auto_sel: autoOn ? 1 : 0 });
+      if (result.ok) {
+        successKey = autoOn ? `${K}.toast.auto_enabled` : `${K}.toast.auto_disabled`;
+      }
     }
-    if (ok && profileDirty) {
-      ok = await onSave({
+    if (result.ok && profileDirty) {
+      result = await onSave({
         action: "apply_profile",
         profile_name: selectedName,
       });
+      if (result.ok) successKey = `${K}.toast.profile_applied`;
     }
 
-    if (ok) {
-      markSaved();
-      toast.success(t(`${K}.toast.applied`));
-      setShowRebootDialog(true);
-    } else {
-      toast.error(t(`${K}.toast.error`));
+    if (!result.ok) {
+      // A first write that landed still needs its reboot.
+      if (successKey) requestRebootLater("mbn");
+      toast.error(t(`${K}.toast.error`), { description: result.error });
+      return;
     }
+
+    markSaved();
+    if (successKey) toast.success(t(successKey));
+    setShowRebootDialog(true);
   };
 
-  const handleReboot = (event: React.MouseEvent) => {
+  const handleRebootLater = () => {
+    requestRebootLater("mbn");
+    setShowRebootDialog(false);
+  };
+
+  const handleReboot = async (event: React.MouseEvent) => {
     event.preventDefault();
     setIsRebooting(true);
-
-    // Prepare session state for the countdown page.
-    sessionStorage.setItem("qm_rebooting", "1");
-    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-
-    // Fire-and-forget: `keepalive` is what lets the request survive the
-    // navigation on the next line — and the modem is about to kill this
-    // connection anyway, so there is no response to wait for.
-    fetch("/cgi-bin/quecmanager/cellular/mbn.sh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reboot" }),
-      keepalive: true,
-    }).catch(() => {});
-
-    window.location.href = "/reboot/";
+    // The /reboot/ hand-off is the success signal; only a failure toasts.
+    const sent = await onReboot();
+    if (!sent) {
+      toast.error(t(`${K}.toast.reboot_error`));
+      setIsRebooting(false);
+    }
   };
 
   return (
     <Card className={cn(CARD_SHELL)}>
-      <CardHeader className={CARD_PAD}>
-        <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
-        <CardDescription>{t(`${K}.description`)}</CardDescription>
-      </CardHeader>
+      <MbnCardHeader />
 
       <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-        {error ? (
+        {loadError ? (
           <TonalBanner
             tone="destructive"
             icon="error"
             title={t(`${K}.error_title`)}
           >
             <span className="flex flex-wrap items-center gap-2">
-              {t("core_settings.apn.page.error_load_description")}
-              {onRetry ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onRetry}
-                  className={BANNER_ACTION}
-                >
-                  {t("actions.retry", { ns: "common" })}
-                </Button>
-              ) : null}
+              {loadError}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onRetry}
+                className={BANNER_ACTION}
+              >
+                {t("actions.retry", { ns: "common" })}
+              </Button>
             </span>
           </TonalBanner>
         ) : null}
@@ -323,19 +315,7 @@ export function MBNCard({
           />
         </div>
 
-        {/* THE EMPTY STATE IS GATED ON A REAL READ. `bundles = profiles ?? []`
-            collapses `null` (never fetched, or the fetch failed) and `[]` (the
-            firmware genuinely reported none) into one `.length === 0` branch —
-            so on a failed fetch the user saw the destructive banner above
-            ("Failed to load carrier profiles") and, directly underneath it, a
-            paragraph asserting the firmware had reported none. A contradiction
-            on one screen, not a silence. When `profiles === null` the banner is
-            the whole story and this block does not render.
-
-            The copy below is only true of a SUCCESSFUL read that returned
-            nothing: some firmware really does ship no bundle list, and there
-            automatic selection is not a preference, it is the only option.
-            Geometry imported from the family's empty-state constant. */}
+        {/* Empty copy is only true of a successful read that returned nothing. */}
         {profiles !== null && bundles.length === 0 ? (
           <div className={EMPTY_BLOCK.ROOT}>
             <MaterialSymbol
@@ -371,8 +351,6 @@ export function MBNCard({
                     type="button"
                     role="radio"
                     aria-checked={chosen}
-                    // Exactly one tab stop for the whole group; the arrows do
-                    // the rest. See `handleListKeyDown`.
                     tabIndex={index === activeIndex ? 0 : -1}
                     variants={staggerRowItem}
                     disabled={listDisabled}
@@ -384,13 +362,8 @@ export function MBNCard({
                     )}
                   >
                     <span className={CHOICE_ROW.TEXT}>
-                      {/* A bundle name is a firmware identifier read straight
-                          back off the modem — machine voice. */}
                       <span className={CHOICE_ROW.NAME}>{bundle.name}</span>
-                      {/* The caption reports the MODEM's live selection, not
-                          the draft: a bundle only starts running at boot, so
-                          claiming it for a row the user just clicked would be
-                          asserting something that has not happened yet. */}
+                      {/* The modem's live selection, not the draft: a bundle runs only after boot. */}
                       {bundle.selected && bundle.activated ? (
                         <span className={CHOICE_ROW.CAPTION}>
                           {t(`${K}.selected_caption`)}
@@ -410,18 +383,6 @@ export function MBNCard({
             </motion.div>
           </div>
         )}
-
-        {/* THE STANDING REBOOT WARNING IS GONE. A `warning` TonalBanner
-            rendered here unconditionally — at rest, nothing pending, nothing
-            selected — and said what two other elements on this card already
-            say: `pending_note` in the footer below, and `reboot.description`
-            in the confirm dialog. Two of the three were on screen at once.
-
-            A warning that has no off state is not a warning, it is wallpaper,
-            and it spends the Functional-Color Promise on a static caption. The
-            fact survives in the two places that carry it when it is actually
-            actionable: the moment a change is pending, and the moment of
-            committing it. */}
       </CardContent>
 
       {/* Persistent; the reboot note shows only while a change is pending. */}
@@ -461,12 +422,13 @@ export function MBNCard({
         }
       />
 
-      {/* Deferred reboot. Opened only AFTER a successful write, never as part
-          of it — the modem serving this page is the one being rebooted. */}
+      {/* Opened only after a successful write; any close but Reboot now defers to the banner. */}
       <AlertDialog
         open={showRebootDialog}
         onOpenChange={(open) => {
-          if (!isRebooting) setShowRebootDialog(open);
+          if (isRebooting) return;
+          if (!open) handleRebootLater();
+          else setShowRebootDialog(true);
         }}
       >
         <AlertDialogContent>
@@ -490,11 +452,6 @@ export function MBNCard({
                   <MaterialSymbol
                     name="progress_activity"
                     size={16}
-                    // `motion-safe:`, matching `ConditionScreen` and the rest
-                    // of the family. Both variants are redefined in
-                    // globals.css so the Animations preference can outrank the
-                    // OS setting in either direction; two spellings for one
-                    // gesture inside one feature is how a retune misses half.
                     className="motion-safe:animate-spin"
                   />
                   {t(`${K}.reboot.rebooting`)}
