@@ -598,11 +598,11 @@ tower_do_nr_lock() {
     return 0
 }
 
-# _tower_do_unlock <label> <unlock_fn> <own_key> <other_key> <other_label> <err_detail>
+# _tower_do_unlock <label> <unlock_fn> <own_key> <other_key> <other_label> <err_detail> <read_fn>
 # Sets TW_SVC_DISABLE_FAILED.
 _tower_do_unlock() {
-    local label="$1" unlock_fn="$2" own="$3" other="$4" other_label="$5" err_detail="$6"
-    local fo_was_enabled result rc other_active
+    local label="$1" unlock_fn="$2" own="$3" other="$4" other_label="$5" err_detail="$6" read_fn="$7"
+    local fo_was_enabled result rc other_active state
     TW_ERR_CODE=""
     TW_ERR_DETAIL=""
     TW_SVC_DISABLE_FAILED="false"
@@ -612,17 +612,24 @@ _tower_do_unlock() {
     fo_was_enabled=$(tower_config_get ".failover.enabled")
     tower_kill_failover_watcher
 
-    result=$($unlock_fn)
-    rc=$?
-    if [ $rc -ne 0 ] || [ -z "$result" ]; then
-        qlog_error "$label tower unlock failed (rc=$rc)"
-        TW_ERR_CODE="modem_error"
-        TW_ERR_DETAIL="$err_detail"
-        return 1
-    fi
+    # The modem ERRORs on an unlock with nothing locked, so read the state first;
+    # an unreadable state ("error") still attempts the write.
+    state=$($read_fn)
+    if [ "$state" = "unlocked" ]; then
+        qlog_info "$label tower already unlocked — clearing config only"
+    else
+        result=$($unlock_fn)
+        rc=$?
+        if [ $rc -ne 0 ] || [ -z "$result" ]; then
+            qlog_error "$label tower unlock failed (rc=$rc)"
+            TW_ERR_CODE="modem_error"
+            TW_ERR_DETAIL="$err_detail"
+            return 1
+        fi
 
-    qlog_info "$label tower lock cleared"
-    mtu_reapply_after_bounce
+        qlog_info "$label tower lock cleared"
+        mtu_reapply_after_bounce
+    fi
 
     # Keep the cell data, only clear the enabled flag.
     tower_config_update ".$own.enabled = false"
@@ -644,11 +651,11 @@ _tower_do_unlock() {
 }
 
 tower_do_lte_unlock() {
-    _tower_do_unlock "LTE" tower_unlock_lte "lte" "nr_sa" "NR" "Failed to clear tower lock"
+    _tower_do_unlock "LTE" tower_unlock_lte "lte" "nr_sa" "NR" "Failed to clear tower lock" tower_read_lte_lock
 }
 
 tower_do_nr_unlock() {
-    _tower_do_unlock "NR-SA" tower_unlock_nr "nr_sa" "lte" "LTE" "Failed to clear NR tower lock"
+    _tower_do_unlock "NR-SA" tower_unlock_nr "nr_sa" "lte" "LTE" "Failed to clear NR tower lock" tower_read_nr_lock
 }
 
 # tower_apply_persist <persist> <persist_lte> <persist_nr> <current_persist>

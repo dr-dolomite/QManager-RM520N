@@ -143,10 +143,10 @@ _dpi_uninstall_run() {
     # uninstall stranding an enabled-but-uninstallable mode. Unlike the READ
     # sites, which were renamed outright, this one keeps the legacy name until
     # no supported upgrade path can still be carrying it.
-    QM_CONF="/etc/qmanager/qmanager.conf"
-    [ -f "$QM_CONF" ] \
-        && jq 'del(.video_optimizer, .full_bypass, .traffic_masquerade)' "$QM_CONF" > "${QM_CONF}.tmp" 2>/dev/null \
-        && mv "${QM_CONF}.tmp" "$QM_CONF"
+    . /usr/lib/qmanager/config.sh
+    qm_config_delete_section video_optimizer
+    qm_config_delete_section full_bypass
+    qm_config_delete_section traffic_masquerade
     qlog_info "tpws uninstalled (binary absent: $(dpi_binary_installed && echo no || echo yes))"
     _dpi_marker_complete "Engine binary removed successfully" ""
     rm -f "$DPI_INSTALL_PID"

@@ -185,6 +185,20 @@ rv_tower_lte_cells() {
     return 0
 }
 
+# rv_tower_nr_fields <pci> <arfcn> <band>: each a non-negative integer.
+rv_tower_nr_fields() {
+    case "$1" in
+        ''|*[!0-9]*) RV_CODE="invalid_pci"; RV_DETAIL="PCI must be a non-negative integer"; return 1 ;;
+    esac
+    case "$2" in
+        ''|*[!0-9]*) RV_CODE="invalid_arfcn"; RV_DETAIL="ARFCN must be a non-negative integer"; return 1 ;;
+    esac
+    case "$3" in
+        ''|*[!0-9]*) RV_CODE="invalid_band"; RV_DETAIL="Band must be a non-negative integer"; return 1 ;;
+    esac
+    return 0
+}
+
 rv_tower_scs() {
     case "$1" in
         15|30|60|120|240) return 0 ;;

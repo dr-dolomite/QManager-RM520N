@@ -130,6 +130,12 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
             exit 0
         fi
 
+        # Non-negative integers only (jq tostring yields "-1" / "1.5" for those)
+        if ! rv_tower_nr_fields "$nr_pci" "$nr_arfcn" "$nr_band"; then
+            cgi_error "$RV_CODE" "$RV_DETAIL"
+            exit 0
+        fi
+
         # Validate SCS value
         if ! rv_tower_scs "$nr_scs"; then
             cgi_error "$RV_CODE" "$RV_DETAIL"

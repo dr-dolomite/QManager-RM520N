@@ -34,6 +34,15 @@ live_pid() {
 case "$CONTENT_LENGTH" in ''|0|*[!0-9]*) fail "" "no_body" "POST body is empty" ;; esac
 [ "$CONTENT_LENGTH" -le "$MAX_BODY" ] || fail "413 Payload Too Large" "payload_too_large" "Limit is 256 KiB"
 
+# Held until this CGI exits (the worker is spawned without it): serialises
+# the live-pid check, the input-file write and the spawn against a second POST.
+SPAWN_LOCK="/tmp/qmanager_config_restore.spawn.lock"
+( : >> "$SPAWN_LOCK" ) 2>/dev/null || fail "" "persist_failed" ""
+exec 8>> "$SPAWN_LOCK"
+if ! flock -x -n 8; then
+    fail "409 Conflict" "restore_in_progress" "$(live_pid "$PID_FILE")"
+fi
+
 if pid=$(live_pid "$PID_FILE"); then
     fail "409 Conflict" "restore_in_progress" "$pid"
 fi
@@ -78,7 +87,7 @@ jq -c '{schema, platform, format_version, source_model: (.source_model // ""),
 rm -f "$CANCEL_FILE" "$STATE_FILE"
 
 JOB_ID=$(date +%s)
-( "$APPLY_BIN" "$JOB_ID" </dev/null >/dev/null 2>&1 & )
+( "$APPLY_BIN" "$JOB_ID" </dev/null >/dev/null 2>&1 8>&- & )
 
 # The worker writes its PID within ~1 s; report a start that died at once.
 i=0
