@@ -1,108 +1,235 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
+import { useSmsReadState } from "@/hooks/use-sms-read-state";
 import type {
   SmsMessage,
+  SmsThread,
+  SmscConfig,
   SmsStorage,
   SmsInboxResponse,
+  SmsThreadDetailResponse,
   SmsActionResponse,
-  SmsSendResult,
 } from "@/types/sms";
 
 // =============================================================================
-// useSms — SMS Inbox Fetch & Mutation Hook
+// useSms — SMS Inbox, Threads & Mutation Hook
 // =============================================================================
-// Fetches inbox messages + storage status on mount.
-// Provides sendSms, deleteSms, deleteAllSms for mutations.
+// Fetches inbox messages, conversation threads, the provider number (SMSC) and
+// storage on mount, on explicit refresh and after a mutation. No timer: an
+// inbox GET reads the SIM store too (docs/reference/sms.md > The GET is not free). Supports sendSms,
+// deleteSms, deleteThread, deleteAllSms, fetchThread, updateSmsc,
+// markThreadRead, markMessageUnread and an optimistic outbound send queue.
 //
 // Backend endpoint:
 //   GET/POST /cgi-bin/quecmanager/cellular/sms.sh
+//
+// -----------------------------------------------------------------------------
+// `addr` is a KEY, never a label
+// -----------------------------------------------------------------------------
+// Every address this hook passes to the backend (the thread-fetch query, the
+// delete payload, the send destination) is the RAW stored address the modem
+// gave us. `display_name` is a rendered title and must never reach any of them.
+// See `types/sms.ts`.
+//
+// -----------------------------------------------------------------------------
+// Unread is a client-side overlay
+// -----------------------------------------------------------------------------
+// The modem marks every message read on each listing, so it can never report
+// unread. `useSmsReadState` keeps a per-browser read set; this hook stamps
+// `unread = 1` on inbound messages whose fingerprint is not in it and rolls the
+// count up onto the threads. "Mark as read" and "Mark as unread" are therefore
+// local and never POST.
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/cellular/sms.sh";
 
+/**
+ * Mutation outcome. `error` is the backend error CODE (or undefined when the
+ * request itself failed), to be resolved through `smsErrorMessage` /
+ * `resolveErrorMessage` at the call site, never shown raw.
+ */
+export interface SmsActionResult {
+  ok: boolean;
+  error?: string;
+  detail?: string;
+  /** Send failure only: total parts, and how many went out before it failed. */
+  parts?: number;
+  sentParts?: number;
+}
+
+const OK: SmsActionResult = { ok: true };
+
+/** Turn a failed result into a sentence, falling back to `fallback`. */
+export function smsErrorMessage(
+  t: TFunction,
+  result: SmsActionResult,
+  fallback: string,
+): string {
+  // Some parts already went out: a resend repeats them, so say so.
+  if (result.sentParts && result.sentParts > 0 && result.parts) {
+    return t("sms.compose.toast.partial", {
+      ns: "cellular",
+      sent: result.sentParts,
+      parts: result.parts,
+    });
+  }
+  return resolveErrorMessage(t, result.error, result.detail, fallback);
+}
+
+/** Lifecycle of one optimistic outbound message. */
+export type SmsSendState = "queued" | "sending" | "sent" | "failed";
+
+export interface PendingSmsSend {
+  /**
+   * Stable for the life of the entry, including across retries. A retry reuses
+   * this id rather than enqueuing a second entry, so a failed-then-retried
+   * message can never render as two bubbles.
+   */
+  clientId: string;
+  /** Destination. THE RAW STORED ADDRESS, never a display name. */
+  addr: string;
+  /** Body as typed. Retried verbatim. */
+  text: string;
+  state: SmsSendState;
+  /** Epoch ms the entry was queued, used for ordering against server messages. */
+  createdAt: number;
+  /** Epoch ms the send was acknowledged. Only set when `sent`. */
+  settledAt?: number;
+  /** Backend error code, for `resolveErrorMessage`. Only set when `failed`. */
+  errorCode?: string;
+  /** Backend detail string, for `resolveErrorMessage`. Only set when `failed`. */
+  errorDetail?: string;
+  /** Parts already sent before a multi-part send failed. Only set when `failed`. */
+  sentParts?: number;
+  parts?: number;
+}
+
 export interface SmsData {
   messages: SmsMessage[];
+  threads: SmsThread[];
   storage: SmsStorage;
+  smsc: SmscConfig | null;
+  unreadTotal: number;
+}
+
+/** The inbox exactly as the backend sent it, before the unread overlay. */
+interface RawInbox {
+  messages: SmsMessage[];
+  threads: SmsThread[];
+  storage: SmsStorage;
+  smsc: SmscConfig | null;
 }
 
 export interface UseSmsReturn {
   /** Current SMS data (null before first fetch) */
   data: SmsData | null;
-  /**
-   * Epoch ms of the last GET that actually returned an inbox, or `null` before
-   * the first one lands. Set on the success branch and deliberately PRESERVED
-   * on the error branch, so the staleness chip can say how old the rows on
-   * screen are rather than blanking them.
-   *
-   * This is the CLIENT's own clock, not a field from the CGI, and that is the
-   * point: a server-side stamp would report when the shell script ran, which is
-   * not the same question as "when did this browser last see good data". It is
-   * also why nothing derives it from `Date.now()` during render — the value is
-   * captured inside the fetch callback and read back as data, which keeps
-   * `react-hooks/purity` satisfied at every consumer.
-   */
-  lastSuccessfulFetch: number | null;
   /** True while initial fetch is in progress */
   isLoading: boolean;
-  /**
-   * True while ANY inbox GET is in flight, silent ones included.
-   *
-   * `isLoading` cannot answer that question — it is deliberately scoped to the
-   * first, non-silent load, because it is what swaps the whole card for a
-   * skeleton. A refresh is silent by design (see `refresh`), so before this flag
-   * existed nothing on the refresh path was observable at all: the Retry button
-   * was wired to `isSaving`, which only send/delete ever sets, so its spinner
-   * could never fire.
-   */
+  /** True while any inbox GET is in flight, silent ones included. */
   isFetching: boolean;
-  /** True while a send/delete operation is in progress */
+  /** True while a send/delete/save operation is in progress */
   isSaving: boolean;
-  /** Error message if any operation failed */
+  /** Translated message for a failed list read, or null. */
   error: string | null;
-  /** Send an SMS message. Returns true on success. */
-  sendSms: (phone: string, message: string) => Promise<SmsSendResult>;
-  /** Delete a message by its storage indexes. Returns true on success.
-   *  `storage` selects which modem memory (ME / SM) the indexes live in;
-   *  the backend deletes one storage per call. */
-  deleteSms: (indexes: number[], storage: "ME" | "SM") => Promise<boolean>;
-  /** Delete all messages. Returns true on success. */
-  deleteAllSms: () => Promise<boolean>;
+  /** Epoch ms of the last successful list read, or null before the first one. */
+  lastSyncedAt: number | null;
+  /** Optimistic outbound messages that have not yet settled into the thread. */
+  pendingSends: PendingSmsSend[];
+  /** Send an SMS message. Resolves with the outcome. */
+  sendSms: (phone: string, message: string) => Promise<SmsActionResult>;
+  /**
+   * Optimistically queue an outbound message to a RAW stored address and start
+   * sending. Returns the client id, which is also the retry handle.
+   */
+  queueSend: (addr: string, text: string) => string;
+  /** Retry a failed queued send, reusing its client id. */
+  retrySend: (clientId: string) => void;
+  /** Drop a queued send from the optimistic list. */
+  dismissSend: (clientId: string) => void;
+  /** Delete one message (received from the modem, or a sent record). */
+  deleteSms: (message: SmsMessage) => Promise<SmsActionResult>;
+  /** Delete an entire contact conversation thread. */
+  deleteThread: (addr: string) => Promise<SmsActionResult>;
+  /** Delete all messages. */
+  deleteAllSms: () => Promise<SmsActionResult>;
+  /**
+   * Fetch a thread's full history, oldest first, and mark its received
+   * messages read. Never call this on a poll.
+   */
+  fetchThread: (addr: string) => Promise<SmsMessage[]>;
+  /** Update the provider number (SMSC). */
+  updateSmsc: (addr: string) => Promise<SmsActionResult>;
+  /** Mark every received message in a thread as read (local only). */
+  markThreadRead: (addr: string) => SmsActionResult;
+  /** Mark ONE received message unread again (local only). */
+  markMessageUnread: (addr: string, identity: string) => SmsActionResult;
   /** Re-fetch inbox data. Pass true for silent (no loading skeleton). */
   refresh: (silent?: boolean) => void;
 }
 
+let clientIdSeq = 0;
+function nextClientId(): string {
+  clientIdSeq += 1;
+  return `snd-${Date.now().toString(36)}-${clientIdSeq}`;
+}
+
+/**
+ * Accept a collection from the envelope only if it really is an array. The
+ * backend builds these fields in shell + jq, where an empty collection could in
+ * principle arrive as `{}`; `for...of` over that throws in a render-path memo
+ * and would turn the error panel into a blank screen.
+ */
+function coerceCollection<T>(value: unknown, field: string): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value !== undefined && value !== null) {
+    console.warn(
+      `useSms: sms.sh returned a non-array \`${field}\` (${typeof value}); treating it as empty.`,
+      value,
+    );
+  }
+  return [];
+}
+
+function isInboundMessage(msg: SmsMessage): boolean {
+  if (msg.direction) return msg.direction === "inbound";
+  if (typeof msg.type === "number") return msg.type === 1;
+  return msg.storage !== "SENT";
+}
+
+function keyOf(msg: SmsMessage): string {
+  return msg.addr || msg.sender;
+}
+
 export function useSms(): UseSmsReturn {
-  const [data, setData] = useState<SmsData | null>(null);
-  const [lastSuccessfulFetch, setLastSuccessfulFetch] = useState<number | null>(
-    null,
-  );
+  const { t } = useTranslation("cellular");
+  // Read through a ref so a language switch does not rebuild fetchInbox and
+  // re-run the mount fetch.
+  const tRef = useRef(t);
+  tRef.current = t;
+  const [raw, setRaw] = useState<RawInbox | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [pendingSends, setPendingSends] = useState<PendingSmsSend[]>([]);
 
   const mountedRef = useRef(true);
-
-  /**
-   * The in-flight guard, and why this hook needs one.
-   *
-   * ONE inbox GET takes the shared AT lock SIX times and returned 13 KB on the
-   * live device. Concurrent GETs do not go faster — they queue behind each
-   * other on `/tmp/qmanager_at.lock`, contending with the status poller and the
-   * connection watchdog for the same lock, so a burst of Refresh clicks starves
-   * unrelated subsystems for the duration.
-   *
-   * `queuedRef` is the other half, and it is not optional. A re-fetch requested
-   * while another is in flight is usually a POST-MUTATION refresh, whose entire
-   * job is to replace rows the in-flight GET was issued *before* the delete or
-   * send happened. Dropping it outright would leave a deleted message on screen
-   * until the next manual refresh. So a coincident request is remembered and run
-   * once, silently, after the current one lands.
-   */
+  /** One inbox GET at a time; a request made meanwhile runs once after it. */
   const inFlightRef = useRef(false);
   const queuedRef = useRef(false);
+  /**
+   * Authoritative copy of the optimistic queue. `pendingSends` mirrors it for
+   * rendering; the ref exists because `runSend` has to find its own entry on
+   * the same tick it was queued, before React has re-rendered. Written only
+   * through `commitPending`, never during render.
+   */
+  const pendingRef = useRef<PendingSmsSend[]>([]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -112,218 +239,451 @@ export function useSms(): UseSmsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Fetch inbox messages + storage status
+  // Unread overlay
   // ---------------------------------------------------------------------------
-  const fetchInbox = useCallback(async function runFetch(
-    silent = false,
-  ): Promise<void> {
-    if (inFlightRef.current) {
-      queuedRef.current = true;
-      return;
-    }
-    inFlightRef.current = true;
+  const inbound = useMemo(
+    () => (raw ? raw.messages.filter(isInboundMessage) : []),
+    [raw],
+  );
+  const readState = useSmsReadState(inbound);
+  const { isRead, markManyRead, markUnread } = readState;
 
-    setIsFetching(true);
-    if (!silent) setIsLoading(true);
-    setError(null);
+  const data = useMemo<SmsData | null>(() => {
+    if (!raw) return null;
 
-    try {
-      const resp = await authFetch(CGI_ENDPOINT);
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
+    const unreadByAddr = new Map<string, number>();
+    const messages = raw.messages.map((msg) => {
+      if (!isInboundMessage(msg) || isRead(msg)) return msg;
+      const key = keyOf(msg);
+      unreadByAddr.set(key, (unreadByAddr.get(key) ?? 0) + 1);
+      return { ...msg, unread: 1 };
+    });
+    const threads = raw.threads.map((th) => ({
+      ...th,
+      unreadCount: unreadByAddr.get(th.addr) ?? 0,
+    }));
+    let unreadTotal = 0;
+    for (const n of unreadByAddr.values()) unreadTotal += n;
 
-      const json: SmsInboxResponse = await resp.json();
-      if (!mountedRef.current) return;
+    return {
+      messages,
+      threads,
+      storage: raw.storage,
+      smsc: raw.smsc,
+      unreadTotal,
+    };
+  }, [raw, isRead]);
 
-      if (!json.success) {
-        setError(json.detail || json.error || "Failed to fetch SMS inbox");
-        return;
-      }
+  // The mark-read callbacks must stay referentially stable (the surface fetches
+  // a thread from an effect keyed on `fetchThread`), yet they need the CURRENT
+  // list. A ref, refreshed after every commit, bridges the two.
+  const latestRef = useRef({ inbound, markManyRead, markUnread });
+  useEffect(() => {
+    latestRef.current = { inbound, markManyRead, markUnread };
+  });
 
-      setData({
-        messages: json.messages || [],
-        storage: json.storage || { used: 0, total: 0 },
-      });
-      // Stamped only here, on the branch that actually produced an inbox. The
-      // error branches below leave it untouched on purpose — that is what makes
-      // "Stale, 09:14:02" a true statement about the rows still on screen.
-      setLastSuccessfulFetch(Date.now());
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch SMS inbox"
-      );
-    } finally {
-      // Released unconditionally — an unmount must not strand the guard, or a
-      // remounted card would refuse to fetch for the life of the page.
-      inFlightRef.current = false;
-      if (mountedRef.current) {
-        setIsFetching(false);
-        if (!silent) setIsLoading(false);
-      }
-    }
-
-    if (queuedRef.current && mountedRef.current) {
-      queuedRef.current = false;
-      await runFetch(true);
-    }
+  // ---------------------------------------------------------------------------
+  // The optimistic queue's single writer
+  // ---------------------------------------------------------------------------
+  const commitPending = useCallback((next: PendingSmsSend[]) => {
+    pendingRef.current = next;
+    setPendingSends(next);
   }, []);
 
-  // Fetch on mount
-  useEffect(() => {
-    fetchInbox();
-  }, [fetchInbox]);
-
-  // ---------------------------------------------------------------------------
-  // Send SMS
-  // ---------------------------------------------------------------------------
-  const sendSms = useCallback(
-    async (phone: string, message: string): Promise<SmsSendResult> => {
-      const failed: SmsSendResult = { success: false, parts: 0, sentParts: 0 };
-      setError(null);
-      setIsSaving(true);
-
-      try {
-        const resp = await authFetch(CGI_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "send", phone, message }),
-        });
-
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-        }
-
-        const json: SmsActionResponse = await resp.json();
-        if (!mountedRef.current) return failed;
-
-        if (!json.success) {
-          setError(json.detail || json.error || "Failed to send SMS");
-          return {
-            success: false,
-            parts: json.parts ?? 0,
-            sentParts: json.sent_parts ?? 0,
-          };
-        }
-
-        // Delayed silent re-fetch — modem needs a moment to process the sent message
-        setTimeout(() => {
-          if (mountedRef.current) fetchInbox(true);
-        }, 1000);
-        return { success: true, parts: 0, sentParts: 0 };
-      } catch (err) {
-        if (!mountedRef.current) return failed;
-        setError(err instanceof Error ? err.message : "Failed to send SMS");
-        return failed;
-      } finally {
-        if (mountedRef.current) {
-          setIsSaving(false);
-        }
-      }
+  const patchPending = useCallback(
+    (clientId: string, patch: Partial<PendingSmsSend>) => {
+      commitPending(
+        pendingRef.current.map((p) =>
+          p.clientId === clientId ? { ...p, ...patch } : p,
+        ),
+      );
     },
-    [fetchInbox]
+    [commitPending],
   );
 
   // ---------------------------------------------------------------------------
-  // Delete single message
+  // POST helper: one place that turns an envelope into a result
   // ---------------------------------------------------------------------------
-  const deleteSms = useCallback(
-    async (indexes: number[], storage: "ME" | "SM"): Promise<boolean> => {
-      setError(null);
-      setIsSaving(true);
-
+  const post = useCallback(
+    async (
+      body: Record<string, unknown>,
+    ): Promise<{ result: SmsActionResult; json: SmsActionResponse | null }> => {
       try {
         const resp = await authFetch(CGI_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "delete", indexes, storage }),
+          body: JSON.stringify(body),
         });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        const json: SmsActionResponse = await resp.json();
+        if (!json.success) {
+          return {
+            result: {
+              ok: false,
+              error: json.error,
+              detail: json.detail,
+              parts: json.parts,
+              sentParts: json.sent_parts,
+            },
+            json,
+          };
+        }
+        return { result: OK, json };
+      } catch {
+        return { result: { ok: false }, json: null };
+      }
+    },
+    [],
+  );
 
+  // ---------------------------------------------------------------------------
+  // Fetch inbox overview (threads, flat messages, storage, smsc)
+  // ---------------------------------------------------------------------------
+  // `silent` suppresses the loading skeleton; `quiet` additionally suppresses
+  // the error state while we still hold good data. A background poll is both:
+  // one failed tick on a modem that is briefly busy must not replace a
+  // populated conversation with a full-panel error screen.
+  const fetchInbox = useCallback(
+    async function runFetch(silent = false, quiet = false): Promise<boolean> {
+      if (inFlightRef.current) {
+        // Usually a post-mutation refresh: it must still run, after this one.
+        queuedRef.current = true;
+        return false;
+      }
+      inFlightRef.current = true;
+      setIsFetching(true);
+      if (!silent) setIsLoading(true);
+      if (!quiet) setError(null);
+      const startedAt = Date.now();
+      let ok = false;
+
+      try {
+        const resp = await authFetch(CGI_ENDPOINT);
         if (!resp.ok) {
           throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         }
 
-        const json: SmsActionResponse = await resp.json();
+        const json: SmsInboxResponse = await resp.json();
         if (!mountedRef.current) return false;
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to delete message");
+          if (!quiet) {
+            setError(
+              resolveErrorMessage(
+                tRef.current,
+                json.error,
+                json.detail,
+                tRef.current("sms.errors.fetch"),
+              ),
+            );
+          }
           return false;
         }
 
-        // Silent re-fetch to update inbox
-        await fetchInbox(true);
-        return true;
-      } catch (err) {
+        setRaw({
+          messages: coerceCollection<SmsMessage>(json.messages, "messages"),
+          threads: coerceCollection<SmsThread>(json.threads, "threads"),
+          storage: json.storage || { used: 0, total: 0 },
+          smsc: json.smsc ?? null,
+        });
+        setLastSyncedAt(Date.now());
+        if (quiet) setError(null);
+
+        // A send acknowledged BEFORE this read started is in this list as a
+        // real message now, so its optimistic bubble can go.
+        if (
+          pendingRef.current.some(
+            (p) =>
+              p.state === "sent" &&
+              p.settledAt !== undefined &&
+              p.settledAt <= startedAt,
+          )
+        ) {
+          commitPending(
+            pendingRef.current.filter(
+              (p) =>
+                !(
+                  p.state === "sent" &&
+                  p.settledAt !== undefined &&
+                  p.settledAt <= startedAt
+                ),
+            ),
+          );
+        }
+        ok = true;
+      } catch {
         if (!mountedRef.current) return false;
-        setError(
-          err instanceof Error ? err.message : "Failed to delete message"
-        );
-        return false;
+        if (!quiet) setError(tRef.current("sms.errors.fetch"));
       } finally {
+        // Released unconditionally, or a remounted page could never fetch.
+        inFlightRef.current = false;
         if (mountedRef.current) {
-          setIsSaving(false);
+          setIsFetching(false);
+          if (!silent) setIsLoading(false);
         }
       }
+      if (queuedRef.current && mountedRef.current) {
+        queuedRef.current = false;
+        return runFetch(true, true);
+      }
+      return ok;
     },
-    [fetchInbox]
+    [commitPending],
+  );
+
+  // Fetch on mount
+  useEffect(() => {
+    void fetchInbox();
+  }, [fetchInbox]);
+
+  // ---------------------------------------------------------------------------
+  // Thread detail: once per deliberate open, never polled
+  // ---------------------------------------------------------------------------
+  const fetchThread = useCallback(
+    async (addr: string): Promise<SmsMessage[]> => {
+      try {
+        // `addr` is the RAW stored address; a display name here fetches an
+        // empty thread.
+        const resp = await authFetch(
+          `${CGI_ENDPOINT}?addr=${encodeURIComponent(addr)}`,
+        );
+        if (!resp.ok) return [];
+
+        const json: SmsThreadDetailResponse = await resp.json();
+        if (!json.success || !Array.isArray(json.messages)) return [];
+
+        // Opening a thread reads it: everything received in it, whether it is
+        // already in the list or only in this response.
+        const { inbound: listed, markManyRead: markMany } = latestRef.current;
+        markMany([
+          ...listed.filter((m) => keyOf(m) === addr),
+          ...json.messages.filter(isInboundMessage),
+        ]);
+        return json.messages;
+      } catch {
+        return [];
+      }
+    },
+    [],
   );
 
   // ---------------------------------------------------------------------------
-  // Delete all messages
+  // Mutations
   // ---------------------------------------------------------------------------
-  const deleteAllSms = useCallback(async (): Promise<boolean> => {
-    setError(null);
-    setIsSaving(true);
+  const withSaving = useCallback(
+    async <R,>(run: () => Promise<R>): Promise<R> => {
+      setIsSaving(true);
+      try {
+        return await run();
+      } finally {
+        if (mountedRef.current) setIsSaving(false);
+      }
+    },
+    [],
+  );
 
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete_all" }),
+  const sendSms = useCallback(
+    (phone: string, message: string): Promise<SmsActionResult> =>
+      withSaving(async () => {
+        const { result } = await post({ action: "send", phone, message });
+        if (mountedRef.current) void fetchInbox(true, true);
+        return result;
+      }),
+    [fetchInbox, post, withSaving],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Optimistic send queue: queued -> sending -> sent | failed
+  // ---------------------------------------------------------------------------
+  // The conversation renders these bubbles immediately at `queued`, dims them
+  // while `sending`, and settles them to `sent` (never "delivered": the modem
+  // acknowledging a submission is not a delivery receipt) or `failed` with a
+  // retry. Retry reuses the same `clientId`, so the bubble transitions in place
+  // rather than a second one appearing beside it. A `sent` entry is dropped by
+  // the first list read that starts after it was acknowledged (see
+  // `fetchInbox`), so the real message replaces it.
+  const runSend = useCallback(
+    async (clientId: string) => {
+      const entry = pendingRef.current.find((p) => p.clientId === clientId);
+      if (!entry) return;
+
+      patchPending(clientId, {
+        state: "sending",
+        errorCode: undefined,
+        errorDetail: undefined,
+        sentParts: undefined,
+        parts: undefined,
       });
 
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      // THE KEY: the raw stored address the thread is filed under, which is
+      // also the destination the modem dials. Never `display_name`.
+      const { result } = await post({
+        action: "send",
+        phone: entry.addr,
+        message: entry.text,
+      });
+      if (!mountedRef.current) return;
+
+      if (!result.ok) {
+        patchPending(clientId, {
+          state: "failed",
+          errorCode: result.error,
+          errorDetail: result.detail,
+          sentParts: result.sentParts,
+          parts: result.parts,
+        });
+        return;
       }
 
-      const json: SmsActionResponse = await resp.json();
-      if (!mountedRef.current) return false;
+      patchPending(clientId, { state: "sent", settledAt: Date.now() });
+      void fetchInbox(true, true);
+    },
+    [fetchInbox, patchPending, post],
+  );
 
-      if (!json.success) {
-        setError(
-          json.detail || json.error || "Failed to delete all messages"
-        );
-        return false;
-      }
+  const queueSend = useCallback(
+    (addr: string, text: string): string => {
+      const clientId = nextClientId();
+      const entry: PendingSmsSend = {
+        clientId,
+        addr,
+        text,
+        state: "queued",
+        createdAt: Date.now(),
+      };
+      // Commit synchronously so `runSend` can find the entry on the same tick.
+      commitPending([...pendingRef.current, entry]);
+      void runSend(clientId);
+      return clientId;
+    },
+    [commitPending, runSend],
+  );
 
-      // Silent re-fetch to update inbox
-      await fetchInbox(true);
-      return true;
-    } catch (err) {
-      if (!mountedRef.current) return false;
-      setError(
-        err instanceof Error ? err.message : "Failed to delete all messages"
+  const retrySend = useCallback(
+    (clientId: string) => {
+      const entry = pendingRef.current.find((p) => p.clientId === clientId);
+      if (!entry || entry.state === "sending") return;
+      void runSend(clientId);
+    },
+    [runSend],
+  );
+
+  const dismissSend = useCallback(
+    (clientId: string) => {
+      commitPending(pendingRef.current.filter((p) => p.clientId !== clientId));
+    },
+    [commitPending],
+  );
+
+  // A delete may have removed some items even when it reports a failure
+  // (partial_failure), so the list is re-read either way.
+  const deleteSms = useCallback(
+    (message: SmsMessage): Promise<SmsActionResult> =>
+      withSaving(async () => {
+        const body: Record<string, unknown> =
+          message.storage === "SENT"
+            ? {
+                action: "delete",
+                storage: "SENT",
+                identities: message.identity ? [message.identity] : [],
+              }
+            : {
+                action: "delete",
+                indexes: message.indexes,
+                storage: message.storage,
+              };
+        const { result } = await post(body);
+        if (mountedRef.current) await fetchInbox(true, true);
+        return result;
+      }),
+    [fetchInbox, post, withSaving],
+  );
+
+  const deleteThread = useCallback(
+    (addr: string): Promise<SmsActionResult> =>
+      withSaving(async () => {
+        // `addr` is the RAW stored address.
+        const { result } = await post({ action: "delete", addr, index: "ALL" });
+        if (mountedRef.current) await fetchInbox(true, true);
+        return result;
+      }),
+    [fetchInbox, post, withSaving],
+  );
+
+  const deleteAllSms = useCallback(
+    (): Promise<SmsActionResult> =>
+      withSaving(async () => {
+        const { result } = await post({ action: "delete_all" });
+        if (mountedRef.current) await fetchInbox(true, true);
+        return result;
+      }),
+    [fetchInbox, post, withSaving],
+  );
+
+  const updateSmsc = useCallback(
+    (smscAddr: string): Promise<SmsActionResult> =>
+      withSaving(async () => {
+        const { result, json } = await post({
+          action: "set_smsc",
+          addr: smscAddr,
+        });
+        if (result.ok && json?.smsc && mountedRef.current) {
+          const smsc = json.smsc;
+          setRaw((prev) => (prev ? { ...prev, smsc } : prev));
+        }
+        return result;
+      }),
+    [post, withSaving],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Read state: local only, no request
+  // ---------------------------------------------------------------------------
+  const markThreadRead = useCallback((addr: string): SmsActionResult => {
+    const { inbound: listed, markManyRead: markMany } = latestRef.current;
+    markMany(listed.filter((m) => keyOf(m) === addr));
+    return OK;
+  }, []);
+
+  const markMessageUnread = useCallback(
+    (addr: string, identity: string): SmsActionResult => {
+      const { inbound: listed, markUnread: markOne } = latestRef.current;
+      const msg = listed.find(
+        (m) => m.identity === identity && keyOf(m) === addr,
       );
-      return false;
-    } finally {
-      if (mountedRef.current) {
-        setIsSaving(false);
-      }
-    }
-  }, [fetchInbox]);
+      if (!msg) return { ok: false };
+      markOne(msg);
+      return OK;
+    },
+    [],
+  );
+
+  const refresh = useCallback(
+    (silent = false) => {
+      void fetchInbox(silent);
+    },
+    [fetchInbox],
+  );
 
   return {
     data,
-    lastSuccessfulFetch,
     isLoading,
     isFetching,
     isSaving,
     error,
+    lastSyncedAt,
+    pendingSends,
     sendSms,
+    queueSend,
+    retrySend,
+    dismissSend,
     deleteSms,
+    deleteThread,
     deleteAllSms,
-    refresh: fetchInbox,
+    fetchThread,
+    updateSmsc,
+    markThreadRead,
+    markMessageUnread,
+    refresh,
   };
 }
