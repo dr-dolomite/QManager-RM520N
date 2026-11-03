@@ -65,6 +65,11 @@ check_lock() {
         fi
         rm -f "$PID_FILE"
     fi
+    # The install stops lighttpd, which would kill a running config restore.
+    if pid_is "$(cat /tmp/qmanager_config_restore.pid 2>/dev/null)" qmanager_config_restore; then
+        cgi_error "restore_in_progress" "A configuration restore is running"
+        exit 0
+    fi
 }
 
 # Fetch URL to a file, capturing HTTP headers for rate-limit detection.

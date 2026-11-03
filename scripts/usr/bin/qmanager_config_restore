@@ -117,8 +117,11 @@ apply_one() {
         state_write running
         LAST_ATTEMPTS=$attempt
         # fd 9 closed so a daemon an applier starts cannot inherit the lock.
+        # apply.sh's umask 077 is for our /tmp files; config files keep the UI's 0644.
+        umask 022
         cfg_backup_apply "$key" "$SECTION_FILE" 9>&-
         rc=$?
+        umask 077
         [ "$rc" -eq "$CFG_RC_RETRY" ] || return "$rc"
         if [ "$attempt" -lt 4 ]; then
             sleep "$delay"
@@ -147,6 +150,7 @@ for key in $present; do
         continue
     fi
     LAST_ATTEMPTS=1
+    CFG_IGNORED=0; CFG_DROPPED=0
     apply_one "$key"
     rc=$?
     ignored_total=$((ignored_total + CFG_IGNORED))
