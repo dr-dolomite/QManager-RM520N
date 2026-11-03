@@ -111,10 +111,11 @@ export const FIELD_ERROR = "text-destructive-on-surface pl-10 text-xs leading-re
 // Pill rows, restated from Cellular Information's ROW_SHAPE
 // -----------------------------------------------------------------------------
 
+/** Wraps like the dashboard PillRow: on a phone the value drops under its key instead of cutting it. */
 export const ROW = {
-  ROOT: `flex ${CONTROL_H} min-w-0 items-center justify-between gap-4 rounded-pill bg-surface-container px-4 text-[0.8125rem] leading-5 font-semibold`,
-  KEY: "text-on-surface-variant min-w-0 truncate",
-  VALUE: "flex min-w-0 items-center gap-1.5 whitespace-nowrap tabular-nums",
+  ROOT: "flex min-h-[2.625rem] min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-0.5 rounded-pill bg-surface-container px-4 py-[0.3125rem] text-[0.8125rem] leading-5 font-semibold",
+  KEY: "text-on-surface-variant min-w-0",
+  VALUE: "ml-auto flex min-w-0 items-center gap-1.5 whitespace-nowrap tabular-nums",
   QUIET: "text-on-surface-variant font-medium",
   LINK: "text-primary-on-surface inline-flex items-center gap-1 rounded-inline font-semibold underline-offset-4 hover:underline",
   LINK_GLYPH: "size-3.5",
@@ -124,7 +125,7 @@ export const ROW = {
 
 /** The custom limit field inside a pill row: a compact numeric input plus its unit. */
 export const CUSTOM_FIELD = {
-  WRAP: "flex items-center gap-1.5",
+  WRAP: "ml-auto flex items-center gap-1.5",
   INPUT: "h-8 w-24 rounded-pill bg-card px-3 text-right text-[0.8125rem] font-semibold tabular-nums",
   UNIT: "text-on-surface-variant font-medium",
 } as const;

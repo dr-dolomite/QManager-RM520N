@@ -487,7 +487,8 @@ const ConnectionQualityComponent = ({
         </div>
       ) : null}
       {hasOutageField ? (
-        <div className="flex min-h-5 items-center gap-2">
+        // Wraps like PillRow: the value drops to its own line before it can overlap the key.
+        <div className="flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1">
           <MaterialSymbol
             name="history"
             size={16}
@@ -497,11 +498,11 @@ const ConnectionQualityComponent = ({
             {t("connection_quality.last_outage")}
           </span>
           {outageS === null ? (
-            <span className="shrink-0 text-sm font-semibold text-on-surface-variant">
+            <span className="ml-auto shrink-0 text-sm font-semibold text-on-surface-variant">
               {t("connection_quality.last_outage_none")}
             </span>
           ) : (
-            <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-1 text-sm font-semibold tabular-nums text-on-surface">
+            <span className="ml-auto flex flex-wrap items-center justify-end gap-x-1 text-sm font-semibold tabular-nums text-on-surface">
               {/* The tip qualifies the reading, so it leads the value it describes. */}
               <span className="flex items-center gap-1 whitespace-nowrap">
                 {outageWanIp ? (

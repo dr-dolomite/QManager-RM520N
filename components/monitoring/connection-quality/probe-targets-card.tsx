@@ -499,7 +499,7 @@ function ProbeChain({
             glyph={renderCheckGlyph}
           />
         </div>
-        <div className={cn(ROW.ROOT, "gap-3")}>
+        <div className={cn(ROW.ROOT, "gap-x-3")}>
           <span className={ROW.KEY}>{t(`${K}.interval.label`)}</span>
           <span className={ROW.VALUE}>
             <Link href={WATCHDOG_HREF} className={cn(ROW.LINK, FOCUS_RING)}>

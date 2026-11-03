@@ -276,7 +276,8 @@ export function SegmentedField<T extends string>({
 
       <Select
         value={value}
-        onValueChange={(next) => onValueChange(next as T)}
+        // Radix's hidden native select bubbles "" when the value moves before its options register.
+        onValueChange={(next) => next && onValueChange(next as T)}
         disabled={disabled}
       >
         <SelectTrigger
