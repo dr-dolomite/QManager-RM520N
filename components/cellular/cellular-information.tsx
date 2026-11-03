@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { Banner } from "@/components/ui/banner";
 import { useModemStatus } from "@/hooks/use-modem-status";
+import { useConnectionStatus } from "@/lib/reboot/connection";
 import { reconcileCarriers } from "@/lib/carrier-aggregation";
 import type { ResolvedCarrier } from "@/lib/carrier-aggregation";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -60,6 +61,7 @@ const CellularInformationComponent = () => {
   const { t } = useTranslation("cellular");
   const { data, isLoading, isStale, receivedAtMs, error, refresh } =
     useModemStatus();
+  const { reconnecting } = useConnectionStatus();
 
   const mode = resolveRadioMode(data, isLoading);
 
@@ -171,7 +173,8 @@ const CellularInformationComponent = () => {
 
       {/* Outside the cascade on purpose: the banner carries its own
           `.animate-banner-in`, and a condition should never wait its turn. */}
-      {error && !isLoading && (
+      {/* The shell's Reconnecting banner owns an outage; never stack both. */}
+      {error && !isLoading && !reconnecting && (
         <Banner role="stale" title={t("radio_info.alert.modem_unreachable")} />
       )}
 

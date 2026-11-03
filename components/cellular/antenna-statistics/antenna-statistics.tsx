@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { Banner } from "@/components/ui/banner";
 import { useModemStatus } from "@/hooks/use-modem-status";
+import { useConnectionStatus } from "@/lib/reboot/connection";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { ContextTiles } from "./context-tiles";
 import { AntennaStatsSkeleton, AntennaStatsUnreachable } from "./states";
@@ -12,6 +13,7 @@ import { CARD_GRID, TechCard } from "./tech-card";
 export default function AntennaStatistics() {
   const { t } = useTranslation("cellular");
   const { data, isLoading, isStale, error, refresh } = useModemStatus();
+  const { reconnecting } = useConnectionStatus();
 
   const signal = data?.signal_per_antenna;
 
@@ -55,7 +57,8 @@ export default function AntennaStatistics() {
           and a condition should never wait its turn. `error` and `isStale` are
           different facts — the fetch failed, versus the fetch succeeded but the
           poller's own timestamp is old — so they do not share a message. */}
-      {!isLoading && !unreachable && (error || isStale) && (
+      {/* The shell's Reconnecting banner owns an outage; never stack both. */}
+      {!isLoading && !unreachable && (error || isStale) && !reconnecting && (
         <Banner
           role="stale"
           title={
