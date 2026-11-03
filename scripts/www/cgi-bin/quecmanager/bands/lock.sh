@@ -63,6 +63,18 @@ if ! rv_bands_format "$BANDS"; then
     exit 0
 fi
 
+# Reject bands the modem does not support (an unknown supported list passes).
+case "$BAND_TYPE" in
+    lte)      SUP_KEY="supported_lte_bands" ;;
+    nsa_nr5g) SUP_KEY="supported_nsa_nr5g_bands" ;;
+    *)        SUP_KEY="supported_sa_nr5g_bands" ;;
+esac
+SUPPORTED=$(jq -r ".device.$SUP_KEY // empty" /tmp/qmanager_status.json 2>/dev/null)
+if ! rv_bands_supported "$BANDS" "$SUPPORTED"; then
+    cgi_error "invalid_bands" "One or more bands are not supported by this modem"
+    exit 0
+fi
+
 qlog_info "Band lock request: type=$BAND_TYPE param=$AT_PARAM bands=$BANDS"
 
 # --- Send AT command ---------------------------------------------------------
