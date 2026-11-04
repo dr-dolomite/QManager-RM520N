@@ -5,7 +5,7 @@
   <h3>A modern, custom GUI for Quectel modem management</h3>
   <p>Visualize, configure, and optimize your cellular modem's performance with an intuitive web interface</p>
 
-  ![Version](https://img.shields.io/badge/version-v0.1.5-blue?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-v0.1.18-blue?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-green?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-RM520N--GL-orange?style=flat-square)
   ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square)
@@ -26,7 +26,7 @@
 
 ---
 
-> **Note:** QManager is the successor to [SimpleAdmin](https://github.com/dr-dolomite/simpleadmin-mockup), rebuilt from the ground up with a modern tech stack and improved user experience. This branch targets the **Quectel RM520N-GL** modem running its internal Linux OS (SDXLEMUR, ARMv7l, kernel 5.4.180).
+> **Note:** QManager is the successor to [SimpleAdmin](https://github.com/dr-dolomite/simpleadmin-mockup), rebuilt from the ground up with a modern tech stack and improved user experience. This branch targets the **Quectel RM520N-GL** modem running its internal Linux OS (SDXLEMUR, ARMv7l, kernel 5.4.210).
 
 > **Other modems:** This build is primarily developed and tested against the RM520N-GL (Qualcomm SDXLEMUR chipset), but since it targets the vanilla Linux OS running on the modem itself rather than a device-specific stack, it may also work on other Quectel modems with a similar internal architecture -- notably Qualcomm **SDX55 / SDXPRAIRIE**-based models. These aren't officially validated -- your mileage may vary, and issue reports from other SDX55/SDXPRAIRIE modems are welcome.
 
@@ -207,23 +207,24 @@ Browser --- authFetch() --- lighttpd --- CGI Scripts --- qcmd --- qmanager_atd -
         reads /tmp/qmanager_status.json
                 |
          qmanager_poller
-       (tiered polling: 2s/10s/30s)
+   (~3.7-4.0s cycle; idle/deep tiers)
 ```
 
 The frontend is a statically-exported Next.js app served by lighttpd from `/usrdata/qmanager/www`. The backend is shell scripts running on the modem's internal Linux -- CGI endpoints for API requests and systemd-managed daemons for data collection.
 
 **Key Data Flow:**
 
-- **Poller daemon** queries the modem via AT commands every 2-30s (3 tiers) and writes a JSON cache file
+- **Poller daemon** queries the modem via AT commands each cycle (measured ~3.7-4.0s; per-antenna every 5 cycles, warm reads every 15) while a browser is polling, drops to `idle` and `deep` tiers with longer AT intervals when none is, and writes a JSON cache file ([adaptive polling](docs/reference/adaptive-polling.md))
 - **CGI endpoints** (63 scripts) read the cache for GET requests, execute AT commands for POST requests
 - **React hooks** (31 custom hooks) poll the CGI layer and provide loading/error/staleness states
-- **AT transport** uses `qcmd`, a link to the `qmanager_atd` broker, on `/dev/smd11` directly (no socat PTY bridge needed)
+- **AT transport** uses `qcmd`, a link to the `qmanager_atd` broker, on `/dev/smd11` directly (no socat PTY bridge needed); all writes and live AT reads go this way
+- **QMI lane** (read-only, over QRTR) fills LTE signal on idle/deep cycles and data-call settings; SMS runs on QMI WMS via `qsms` with no AT lock ([QMI lane](docs/reference/qmi-lane.md), [SMS](docs/reference/sms.md))
 
 **Platform Details:**
 
 | Concern | RM520N-GL |
 |---------|-----------|
-| OS | Vanilla Linux (SDXLEMUR, ARMv7l, kernel 5.4.180) |
+| OS | Vanilla Linux (SDXLEMUR, ARMv7l, kernel 5.4.210) |
 | Init | systemd |
 | Root FS | Read-only by default (remounted RW when needed) |
 | Persistent storage | `/usrdata/` partition |
@@ -294,7 +295,7 @@ QManager/
 ├── lib/                        # Utilities (auth-fetch, earfcn, csv)
 ├── constants/                  # Static data (MNO presets, event labels)
 ├── scripts/                    # Backend shell scripts
-│   ├── etc/systemd/system/     # Systemd service units (8)
+│   ├── etc/systemd/system/     # Systemd units (27)
 │   ├── etc/sudoers.d/          # CGI privilege escalation rules
 │   ├── etc/qmanager/           # Default config files
 │   ├── usr/bin/                # Daemons & utilities (19)
@@ -314,7 +315,7 @@ QManager/
 
 ## Backend Services
 
-QManager runs 10 systemd services on the modem:
+QManager ships 27 `qmanager-*` systemd units (25 services, 2 timers); the core ones are:
 
 | Service | Purpose |
 |---------|---------|
