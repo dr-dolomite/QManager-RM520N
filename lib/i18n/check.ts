@@ -48,6 +48,10 @@
 
 import { buildBaseIndex, compareAll, type Issue, type IssueKind } from "./pack";
 import { scanLang, type PassthroughHit } from "./passthrough";
+import { AVAILABLE_LANGUAGES } from "./available-languages";
+
+/** The five shipped languages; any other folder under public/locales is a community pack. */
+const BUNDLED_LANGS: ReadonlySet<string> = new Set(AVAILABLE_LANGUAGES.map((l) => l.code));
 
 /** Kinds that pack.ts marks soft but this gate promotes to errors in strict mode. */
 const PROMOTED: ReadonlySet<IssueKind> = new Set<IssueKind>(["missing_key", "missing_ns"]);
@@ -98,6 +102,7 @@ function usage(): void {
       "Validates public/locales/<lang>/**.json against the English superset.",
       "With no flags it is STRICT: a missing key, an empty value, an extra key,",
       "malformed JSON, or a {{placeholder}}/HTML mismatch all exit 1.",
+      "Community packs (languages not bundled) may be partial: missing keys warn.",
       "",
       "  --warn-only, --no-strict   missing keys + empty values become warnings",
       "                             (also: QM_I18N_WARN_ONLY=1)",
@@ -155,7 +160,9 @@ function main(argv: string[]): number {
   const base = opts.passthrough ? buildBaseIndex() : null;
 
   for (const r of reports) {
-    const isError = (i: Issue) => i.hard || (opts.strict && PROMOTED.has(i.kind));
+    // Downloadable community packs may be partial: missing keys stay warnings.
+    const strictLang = opts.strict && BUNDLED_LANGS.has(r.lang);
+    const isError = (i: Issue) => i.hard || (strictLang && PROMOTED.has(i.kind));
     const hard = r.issues.filter(isError);
     const soft = r.issues.filter((i) => !isError(i));
     for (const i of hard) {
