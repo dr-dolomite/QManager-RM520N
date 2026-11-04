@@ -178,7 +178,7 @@
     "switch_aria": "Ganti bahasa"
   },
   "login": {
-    "ssh_sync_failed": "Kata sandi QManager sudah diatur, tetapi kata sandi root SSH tidak dapat diperbarui. Atur di Pengaturan Sistem → Akses SSH.",
+    "ssh_sync_failed": "Kata sandi QManager sudah diatur, tetapi kata sandi root SSH tidak dapat diperbarui. Atur di Pengaturan Sistem → Akses Perangkat.",
     "brand_label": "QManager · Manajemen Modem Quectel",
     "welcome": "Selamat datang di QManager",
     "password_label": "Kata sandi",

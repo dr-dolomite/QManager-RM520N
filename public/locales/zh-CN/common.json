@@ -178,7 +178,7 @@
     "switch_aria": "切换语言"
   },
   "login": {
-    "ssh_sync_failed": "QManager 密码已设置，但 SSH root 密码未能更新。请在 系统设置 → SSH 访问 中设置。",
+    "ssh_sync_failed": "QManager 密码已设置，但 SSH root 密码未能更新。请在 系统设置 → 设备访问 中设置。",
     "brand_label": "QManager · Quectel 调制解调器管理",
     "welcome": "欢迎使用 QManager",
     "password_label": "密码",
