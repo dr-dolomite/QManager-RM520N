@@ -40,7 +40,6 @@ import type {
   DeviceStatus,
   LteStatus,
   NrStatus,
-  StatusSystemHealth,
 } from "@/types/modem-status";
 import {
   formatBytes,
@@ -79,8 +78,6 @@ interface DeviceMetricsComponentProps {
   nrData: NrStatus | null;
   /** `.data_used` from the shared status payload (no separate poll) */
   dataUsed: Omit<DataUsedBlock, "stale"> | null;
-  /** `.system_health.storage` from the shared status payload */
-  storage: StatusSystemHealth["storage"] | null;
   isLoading: boolean;
   /**
    * Whether the last poll actually reached the modem.
@@ -206,13 +203,13 @@ function MeterRow({
 }
 
 /**
- * Skeleton (Skeleton-Mirror Rule): four meter groups, the Data Used and Cell
+ * Skeleton (Skeleton-Mirror Rule): three meter groups, the Data Used and Cell
  * Distance pills, and the pinned speed-test tile, at the loaded body's heights.
  */
 function MetricsSkeleton() {
   return (
     <div className="flex flex-1 flex-col gap-3.5">
-      {Array.from({ length: 4 }).map((_, i) => (
+      {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-1.5">
           <div className="flex h-5 items-center justify-between gap-2">
             <Skeleton className="h-4 w-32" />
@@ -236,7 +233,6 @@ const DeviceMetricsComponent = ({
   lteData,
   nrData,
   dataUsed,
-  storage,
   isLoading,
   modemReachable,
 }: DeviceMetricsComponentProps) => {
@@ -260,13 +256,8 @@ const DeviceMetricsComponent = ({
   const isCpuHigh = cpu !== null && cpu >= CPU_WARN;
   const memPct = memTotal > 0 ? (memUsed / memTotal) * 100 : 0;
 
-  // Data counter and /usrdata usage both ride the status poll; only the
-  // counter's reset is its own request.
+  // The data counter rides the status poll; only its reset is its own request.
   const { isResetting, resetCounter } = useDataUsedReset();
-  const storageTotalKb = storage?.total_kb ?? 0;
-  const storageUsedKb = storage?.used_kb ?? 0;
-  const storagePct =
-    storageTotalKb > 0 ? (storageUsedKb / storageTotalKb) * 100 : 0;
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
@@ -332,10 +323,9 @@ const DeviceMetricsComponent = ({
   // survives, so what is on screen is a photograph. Step 03 made this same
   // call for the two uptimes.
   //
-  // NOT GATED — CPU (/proc/stat), memory (/proc/meminfo) and storage (df on
-  // /usrdata, in the same status payload) are measured locally and are
-  // still fresh; the poller reads the first two unconditionally, before it
-  // ever talks to the modem. Blanking them would be inventing an outage this
+  // NOT GATED — CPU (/proc/stat) and memory (/proc/meminfo) are measured
+  // locally and are still fresh; the poller reads them unconditionally,
+  // before it ever talks to the modem. Blanking them would be inventing an outage this
   // box is not having. The data counter below is cumulative and monotone: a
   // byte total cannot become WRONG while we are not looking, only incomplete.
   //
@@ -349,10 +339,6 @@ const DeviceMetricsComponent = ({
       : formatTemperature(temp, unitPrefs?.tempUnit);
   const cpuValue = cpu !== null ? `${cpu}%` : ABSENT;
   const memValue = memTotal > 0 ? `${memUsed} MB / ${memTotal} MB` : ABSENT;
-  const storageValue =
-    storageTotalKb > 0
-      ? `${formatBytes(storageUsedKb * 1024)} / ${formatBytes(storageTotalKb * 1024)}`
-      : ABSENT;
 
   const lteKm = calculateLteDistance(lteData?.ta ?? null);
   const nrKm = calculateNrDistance(nrData?.ta ?? null);
@@ -465,25 +451,6 @@ const DeviceMetricsComponent = ({
         >
           <span className={VALUE_CLASS}>
             <TickingValue value={memUsed}>{memValue}</TickingValue>
-          </span>
-        </MeterRow>
-
-        {/* ── Storage (/usrdata partition) ──────────────────────────────── */}
-        <MeterRow
-          label={t("metrics.storage_label")}
-          bar={
-            <MetricBar
-              value={storageTotalKb > 0 ? storagePct : null}
-              max={100}
-              warnAt={80}
-              dangerAt={95}
-              track="surface-container-high"
-              index={3}
-            />
-          }
-        >
-          <span className={VALUE_CLASS}>
-            <TickingValue value={storageUsedKb}>{storageValue}</TickingValue>
           </span>
         </MeterRow>
 

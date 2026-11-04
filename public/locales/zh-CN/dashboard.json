@@ -85,7 +85,6 @@
     "cpu_usage": "CPU 使用率",
     "high_cpu_warning": "CPU 占用过高",
     "memory_usage": "内存使用率",
-    "storage_label": "存储",
     "data_used_label": "已用流量",
     "reset_counter_aria": "重置流量计数器",
     "reset_confirm_title": "重置已用流量计数器？",

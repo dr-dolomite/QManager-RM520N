@@ -85,7 +85,6 @@
     "cpu_usage": "CPU Utilizzo",
     "high_cpu_warning": "Alto CPU",
     "memory_usage": "Utilizzo della memoria",
-    "storage_label": "Archiviazione",
     "data_used_label": "Consumo dati",
     "reset_counter_aria": "Reimposta il contatore del consumo dati",
     "reset_confirm_title": "Reimpostare il contatore del consumo dati?",

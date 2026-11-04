@@ -236,7 +236,7 @@ several cards would let a single poll cascade past the poll interval itself.
 
 | Card | Wraps | Note |
 |------|-------|------|
-| `components/dashboard/device-metrics.tsx` | the body `motion.div` | One wrapper already yields temp → cpu → mem → storage → rx → tx → lteDist → nrDist: top-to-bottom down the card **and** left-to-right across the rx/tx pair |
+| `components/dashboard/device-metrics.tsx` | the body `motion.div` | One wrapper already yields temp → cpu → mem → rx → tx → lteDist → nrDist: top-to-bottom down the card **and** left-to-right across the rx/tx pair |
 | `components/dashboard/device-status.tsx` | both halves (identity `motion.dl` + the uptime tiles `div`) | 11 figures, past the ~8 ceiling — and that is fine *precisely because* rank is over what moved: the nine identity rows never enter the ranking |
 | `components/dashboard/carrier-aggregation.tsx` | the card | Two cascades on this card, see below |
 | `components/dashboard/signal-status-card.tsx` | the rows `motion.dl` | Shared body for **both** the 4G and 5G primary status cards |

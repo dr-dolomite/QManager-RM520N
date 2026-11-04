@@ -85,7 +85,6 @@
     "cpu_usage": "Penggunaan CPU",
     "high_cpu_warning": "CPU Tinggi",
     "memory_usage": "Penggunaan Memori",
-    "storage_label": "Penyimpanan",
     "data_used_label": "Data Terpakai",
     "reset_counter_aria": "Atur ulang penghitung penggunaan data",
     "reset_confirm_title": "Atur ulang penghitung Data Terpakai?",

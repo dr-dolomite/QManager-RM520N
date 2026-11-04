@@ -192,7 +192,6 @@ const HomeComponent = () => {
             lteData={data?.lte ?? null}
             nrData={data?.nr ?? null}
             dataUsed={data?.data_used ?? null}
-            storage={data?.system_health?.storage ?? null}
             isLoading={isLoading}
             modemReachable={data?.modem_reachable ?? false}
           />

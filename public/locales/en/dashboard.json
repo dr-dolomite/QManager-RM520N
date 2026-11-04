@@ -85,7 +85,6 @@
     "cpu_usage": "CPU Usage",
     "high_cpu_warning": "High CPU",
     "memory_usage": "Memory Usage",
-    "storage_label": "Storage",
     "data_used_label": "Data Used",
     "reset_counter_aria": "Reset data usage counter",
     "reset_confirm_title": "Reset Data Used counter?",

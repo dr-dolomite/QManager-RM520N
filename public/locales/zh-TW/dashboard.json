@@ -85,7 +85,6 @@
     "cpu_usage": "CPU 使用率",
     "high_cpu_warning": "CPU 佔用過高",
     "memory_usage": "記憶體使用率",
-    "storage_label": "儲存空間",
     "data_used_label": "已用資料量",
     "reset_counter_aria": "重設資料使用量計數器",
     "reset_confirm_title": "要重設「已用資料量」計數器嗎？",

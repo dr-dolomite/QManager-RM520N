@@ -139,7 +139,7 @@ The surface uses three repeating units, and the canon owns all three.
 
   | Form | Width | Where | Why |
   |------|-------|-------|-----|
-  | **Full-width meter** | spans the row | Device Metrics — CPU, memory, storage, temperature | The bar owns its own line beneath the label, so it has the width to spend |
+  | **Full-width meter** | spans the row | Device Metrics — CPU, memory, temperature | The bar owns its own line beneath the label, so it has the width to spend |
   | **Inline lane** | `w-14` (56px), `LANE` | The NR / LTE signal rows | It shares a 40px row with the figure it qualifies. A full-width bar under the last line would read as a coloured bottom border rather than as a gauge |
   | **Compact lane** | `w-11` (44px), `QUALITY.LANE` | Connection Quality's Internet and DNS lookup rows | It sits between a label and a fixed `w-16` value column in a 20px row inside one tile, so both rows share a right edge whatever their digit counts |
 
