@@ -6,14 +6,10 @@ import type { SmsMessage } from "@/types/sms";
 // =============================================================================
 // useSmsReadState — client-side read/unread tracking for SMS messages
 // =============================================================================
-// The modem cannot be the source of truth for read/unread:
-//   1. `sms_tool -j` drops the per-message status field, so the CGI never sees
-//      REC READ / REC UNREAD.
-//   2. Every inbox GET issues `AT+CMGL=4`, which the modem treats as "mark all
-//      read" — so any unread state self-erases on each fetch.
-// We therefore track "has THIS browser opened this message" locally. "Unread"
+// The backend does not report read/unread, so we track "has THIS browser opened this message" locally. "Unread"
 // means the message's fingerprint is absent from the persisted read-set. New
-// incoming messages are unread by default.
+// incoming messages are unread by default. `useSms` overlays the result onto
+// the inbox it hands the surface.
 //
 // Trade-off (accepted): read-state is per-browser. It does not sync across
 // devices and resets if the browser's localStorage is cleared.
@@ -26,6 +22,8 @@ const STORAGE_KEY = "qmanager.sms.read.v1";
  * derive one from immutable fields. A djb2 hash keeps the persisted set compact
  * regardless of body length, and folds multi-part bodies + storage + sender +
  * timestamp into a single collision-resistant-enough token for this volume.
+ *
+ * Do not change the inputs: doing so marks every message unread again.
  */
 export function smsFingerprint(msg: SmsMessage): string {
   const raw = `${msg.storage}|${msg.sender}|${msg.timestamp}|${msg.content}`;
@@ -36,27 +34,6 @@ export function smsFingerprint(msg: SmsMessage): string {
   }
   // Unsigned, base-36 for a short token.
   return (h >>> 0).toString(36);
-}
-
-/**
- * Parse the modem's `"MM/DD/YY HH:MM:SS"` timestamp into epoch millis for
- * chronological sorting. Returns 0 on any malformed value so a bad timestamp
- * sorts last rather than throwing. Exported so the inbox can sort newest-first
- * independently of backend ordering.
- */
-export function parseSmsTimestamp(ts: string): number {
-  const m = ts.match(/^(\d{2})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
-  if (!m) return 0;
-  const [, mo, dy, yr, hh, mm, ss] = m;
-  // 2-digit year — SMS dates are contemporary, so 20YY is correct.
-  return new Date(
-    2000 + Number(yr),
-    Number(mo) - 1,
-    Number(dy),
-    Number(hh),
-    Number(mm),
-    Number(ss),
-  ).getTime();
 }
 
 function loadReadSet(): Set<string> {
@@ -77,6 +54,10 @@ export interface UseSmsReadStateReturn {
   isRead: (msg: SmsMessage) => boolean;
   /** Mark a single message read. */
   markRead: (msg: SmsMessage) => void;
+  /** Mark several messages read in one update. */
+  markManyRead: (msgs: SmsMessage[]) => void;
+  /** Make one message unread again. */
+  markUnread: (msg: SmsMessage) => void;
   /** Mark every currently-present message read. */
   markAllRead: () => void;
   /** Number of currently-present messages that are unread. */
@@ -84,28 +65,30 @@ export interface UseSmsReadStateReturn {
 }
 
 /**
- * @param messages the full (unfiltered) message list — used both to count
- *   unread and to prune dead fingerprints from the persisted set.
+ * @param messages the full INBOUND list: counts unread, and bounds the stored set.
+ * @param canPrune false while a store failed to read, so its marks are kept.
  */
-export function useSmsReadState(messages: SmsMessage[]): UseSmsReadStateReturn {
+export function useSmsReadState(
+  messages: SmsMessage[],
+  canPrune = true,
+): UseSmsReadStateReturn {
   const [readSet, setReadSet] = useState<Set<string>>(loadReadSet);
 
-  // Fingerprints of messages currently in the inbox. Used to prune the stored
-  // set on write so it can't grow unbounded as messages are deleted.
+  // Fingerprints of messages currently in the inbox. Used to prune what is
+  // written to storage so it can't grow unbounded as messages are deleted.
   const present = useMemo(
     () => new Set(messages.map(smsFingerprint)),
     [messages],
   );
 
-  // One-way sync: persist whenever the read-set changes. This is a genuine
-  // state -> localStorage side effect (no setState here), so it does not trip
-  // the react-compiler setState-in-effect rule.
+  // Persist as-is: pruning happens only on a user mark (below), so a list
+  // that is briefly missing a store never erases that store's marks.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...readSet]));
     } catch {
-      // Quota exceeded or storage disabled — read-state is best-effort.
+      // Quota exceeded or storage disabled: read-state is best-effort.
     }
   }, [readSet]);
 
@@ -123,30 +106,45 @@ export function useSmsReadState(messages: SmsMessage[]): UseSmsReadStateReturn {
     [messages, readSet],
   );
 
-  const markRead = useCallback(
-    (msg: SmsMessage) => {
-      const fp = smsFingerprint(msg);
+  const markManyRead = useCallback(
+    (msgs: SmsMessage[]) => {
+      if (msgs.length === 0) return;
       setReadSet((prev) => {
-        if (prev.has(fp)) return prev;
-        // Prune to present, then add — keeps the persisted set bounded.
+        const fresh = msgs.map(smsFingerprint).filter((fp) => !prev.has(fp));
+        if (fresh.length === 0) return prev;
+        // Prune to what is present, unless a store is missing or the list has not loaded
+        // (a caller holding a pre-load closure sees an empty `present`).
+        const prune = canPrune && present.size > 0;
         const next = new Set<string>();
-        for (const x of prev) if (present.has(x)) next.add(x);
-        next.add(fp);
+        for (const x of prev) if (!prune || present.has(x)) next.add(x);
+        for (const fp of fresh) next.add(fp);
         return next;
       });
     },
-    [present],
+    [present, canPrune],
   );
 
-  const markAllRead = useCallback(() => {
-    // Replacing with exactly the present set both marks all read and prunes.
-    setReadSet((prev) => {
-      if (prev.size === present.size && [...present].every((x) => prev.has(x))) {
-        return prev;
-      }
-      return new Set(present);
-    });
-  }, [present]);
+  const markRead = useCallback(
+    (msg: SmsMessage) => markManyRead([msg]),
+    [markManyRead],
+  );
 
-  return { isRead, markRead, markAllRead, unreadCount };
+  const markUnread = useCallback((msg: SmsMessage) => {
+    const fp = smsFingerprint(msg);
+    setReadSet((prev) => {
+      if (!prev.has(fp)) return prev;
+      const next = new Set(prev);
+      next.delete(fp);
+      return next;
+    });
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setReadSet((prev) => {
+      if ([...present].every((x) => prev.has(x))) return prev;
+      return canPrune ? new Set(present) : new Set([...prev, ...present]);
+    });
+  }, [present, canPrune]);
+
+  return { isRead, markRead, markManyRead, markUnread, markAllRead, unreadCount };
 }

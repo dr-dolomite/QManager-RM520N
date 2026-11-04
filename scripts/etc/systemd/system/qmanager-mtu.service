@@ -2,11 +2,11 @@
 [Unit]
 Description=QManager MTU Settings Persistence
 After=network.target qmanager-setup.service
+ConditionPathExists=/etc/firewall.user.mtu
+ConditionFileIsExecutable=/usr/bin/qmanager_mtu_apply
 
 [Service]
 Type=simple
-ConditionPathExists=/etc/firewall.user.mtu
-ConditionFileIsExecutable=/usr/bin/qmanager_mtu_apply
 ExecStart=/usr/bin/qmanager_mtu_apply
 Restart=no
 

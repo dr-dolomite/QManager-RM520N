@@ -29,22 +29,11 @@ import {
 } from "@/components/ui/tooltip";
 import { useModemSubsys } from "@/hooks/use-modem-subsys";
 import type { ModemSubsysState } from "@/types/modem-subsys";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ─── Animation variants ────────────────────────────────────────────────────
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.25, ease: "easeOut" },
-  },
-};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -63,30 +52,21 @@ function ModemStateBadge({ state }: { state: ModemSubsysState }) {
   switch (state) {
     case "online":
       return (
-        <Badge
-          variant="outline"
-          className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-        >
+        <Badge variant="success">
           <CheckCircle2Icon className="size-3" />
           Online
         </Badge>
       );
     case "crashed":
       return (
-        <Badge
-          variant="outline"
-          className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-        >
+        <Badge variant="destructive">
           <XCircleIcon className="size-3" />
           Crashed
         </Badge>
       );
     case "offline":
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="size-3" />
           Offline
         </Badge>
@@ -94,10 +74,7 @@ function ModemStateBadge({ state }: { state: ModemSubsysState }) {
     case "unknown":
     default:
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="size-3" />
           Unknown
         </Badge>
@@ -153,7 +130,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-20" />
                 <Skeleton className="h-5 w-12" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
             {/* Load Average */}
             <Separator />
@@ -162,7 +139,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-28" />
                 <Skeleton className="h-5 w-28" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
             {/* Memory */}
             <Separator />
@@ -171,7 +148,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-16" />
                 <Skeleton className="h-5 w-28" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
             {/* Storage */}
             <Separator />
@@ -180,7 +157,7 @@ export default function ModemSubsystemCard() {
                 <Skeleton className="h-5 w-24" />
                 <Skeleton className="h-5 w-28" />
               </div>
-              <Skeleton className="h-1 w-full" />
+              <Skeleton className="h-2 w-full" />
             </div>
           </div>
         </CardContent>
@@ -259,24 +236,21 @@ export default function ModemSubsystemCard() {
       <CardContent>
         <motion.div
           className="grid gap-2"
-          variants={containerVariants}
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
         >
           {/* ── State ──────────────────────────────────────────────── */}
           <Separator />
           <motion.div
-            variants={itemVariants}
+            variants={staggerItem}
             className="flex items-center justify-between"
           >
             <p className="font-semibold text-muted-foreground text-sm">State</p>
             {data ? (
               <ModemStateBadge state={data.state} />
             ) : (
-              <Badge
-                variant="outline"
-                className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-              >
+              <Badge variant="muted">
                 <MinusCircleIcon className="size-3" />
                 Unknown
               </Badge>
@@ -286,7 +260,7 @@ export default function ModemSubsystemCard() {
           {/* ── Crashes since boot ─────────────────────────────────── */}
           <Separator />
           <motion.div
-            variants={itemVariants}
+            variants={staggerItem}
             className="flex items-center justify-between"
           >
             <p className="font-semibold text-muted-foreground text-sm">
@@ -300,7 +274,7 @@ export default function ModemSubsystemCard() {
           {/* ── Last crashed ───────────────────────────────────────── */}
           <Separator />
           <motion.div
-            variants={itemVariants}
+            variants={staggerItem}
             className="flex items-center justify-between"
           >
             <p className="font-semibold text-muted-foreground text-sm">
@@ -316,7 +290,7 @@ export default function ModemSubsystemCard() {
           {/* ── CPU Frequency ──────────────────────────────────────── */}
           <Separator />
           <motion.div
-            variants={itemVariants}
+            variants={staggerItem}
             className="flex items-center justify-between"
           >
             <p className="font-semibold text-muted-foreground text-sm">
@@ -331,7 +305,7 @@ export default function ModemSubsystemCard() {
 
           {/* ── CPU Usage ──────────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+          <motion.div variants={staggerItem} className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-muted-foreground text-sm">
                 CPU Usage
@@ -355,7 +329,7 @@ export default function ModemSubsystemCard() {
             <>
               <Separator />
               <motion.div
-                variants={itemVariants}
+                variants={staggerItem}
                 className="flex flex-col gap-1.5"
               >
                 <div className="flex items-center justify-between">
@@ -401,7 +375,7 @@ export default function ModemSubsystemCard() {
 
           {/* ── Memory ─────────────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+          <motion.div variants={staggerItem} className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-muted-foreground text-sm">
                 Memory
@@ -424,7 +398,7 @@ export default function ModemSubsystemCard() {
 
           {/* ── Storage ────────────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+          <motion.div variants={staggerItem} className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <p
                 className="font-semibold text-muted-foreground text-sm"
@@ -453,16 +427,13 @@ export default function ModemSubsystemCard() {
             <>
               <Separator />
               <motion.div
-                variants={itemVariants}
+                variants={staggerItem}
                 className="flex items-center justify-between"
               >
                 <p className="font-semibold text-muted-foreground text-sm">
                   Diagnostic data
                 </p>
-                <Badge
-                  variant="outline"
-                  className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-                >
+                <Badge variant="warning">
                   <TriangleAlertIcon className="size-3" />
                   Coredump available
                 </Badge>

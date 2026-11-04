@@ -13,8 +13,14 @@ ExecStartPre=/bin/sh -c '\
     nr=$(jq -r "(.nr_sa.enabled) | if . == null then \"false\" else tostring end" /etc/qmanager/tower_lock.json 2>/dev/null); \
     [ "$fo" = "true" ] || exit 1; \
     [ "$lte" = "true" ] || [ "$nr" = "true" ] || exit 1'
+# Clear the activation flag when a watcher STARTS, not when one stops.
+# The daemon writes /tmp/qmanager_tower_failover on activation and then exits 0;
+# its own EXIT trap deliberately spares the flag so the trace outlives the process.
+# Deleting it in ExecStopPost destroyed that trace milliseconds after it was written,
+# which made the "failover fired" state unobservable to every reader.
+ExecStartPre=-/bin/sh -c 'rm -f /tmp/qmanager_tower_failover'
 ExecStart=/usr/bin/qmanager_tower_failover
-ExecStopPost=/bin/sh -c 'rm -f /tmp/qmanager_tower_failover.pid /tmp/qmanager_tower_failover'
+ExecStopPost=/bin/sh -c 'rm -f /tmp/qmanager_tower_failover.pid'
 TimeoutStopSec=10
 Restart=no
 

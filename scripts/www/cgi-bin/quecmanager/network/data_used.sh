@@ -74,5 +74,4 @@ if [ -z "$data_used" ]; then
     exit 0
 fi
 
-qlog_info "Serving data_used block stale=$stale"
 printf '%s' "$data_used" | jq --argjson stale "$stale" '. + { stale: $stale }'

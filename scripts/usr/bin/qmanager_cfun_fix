@@ -20,14 +20,17 @@
 # Dependencies: qcmd
 # =============================================================================
 
-. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
     qlog_init() { :; }
     qlog_info() { :; }
     qlog_warn() { :; }
-}
+fi
 qlog_init "cfun_fix"
 
-# qcmd handles the /tmp/qmanager_at.lock flock so this serializes cleanly
+# qcmd goes through the broker, which holds the AT lock, so this serializes cleanly
 # against the poller and any CGI traffic that may already be in flight.
 result=$(/usr/bin/qcmd "AT+CFUN=1" 2>&1)
 rc=$?

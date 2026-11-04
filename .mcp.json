@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "modem": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "tools/modem-mcp/server.ts", "--device", "rm520n"]
+    },
+    "modem-rg501q": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "tools/modem-mcp/server.ts", "--device", "rg501q"]
+    }
+  }
+}

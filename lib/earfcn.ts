@@ -17,6 +17,21 @@ export interface LTEBandEntry {
   ulLow: number;
   /** EARFCN offset (N_Offs-DL) */
   earfcnOffset: number;
+  /**
+   * Uplink EARFCN offset (N_Offs-UL), 3GPP TS 36.101 Table 5.7.3-1.
+   *
+   * This is a TABLE VALUE, not a derived one. The uplink channel number is
+   * `N_Offs-UL + (EARFCN_DL − N_Offs-DL)`, and the gap between the two offsets
+   * is 18000 for most FDD bands — which is exactly why it used to be written
+   * into the calculator as a hardcoded `+ 18000`. Three shipped bands break it:
+   * B30 (17890), B66 (65536) and B71 (64536). Their UL EARFCN was rendered in
+   * machine voice, as authoritative, and wrong.
+   *
+   * For TDD this equals `earfcnOffset` — the uplink shares the channel. For SDL
+   * there is no uplink; the field is 0 and every reader must gate on
+   * `duplexType` before touching it.
+   */
+  ulEarfcnOffset: number;
   /** Valid EARFCN range [min, max] */
   earfcnRange: [number, number];
   /** Channel spacing in MHz (always 0.1 for LTE) */
@@ -27,37 +42,37 @@ export interface LTEBandEntry {
 
 export const LTE_BANDS: LTEBandEntry[] = [
   // FDD
-  { band: 1,  name: "IMT 2100",       dlLow: 2110, ulLow: 1920, earfcnOffset: 0,     earfcnRange: [0, 599],       spacing: 0.1, duplexType: "FDD" },
-  { band: 2,  name: "PCS 1900",       dlLow: 1930, ulLow: 1850, earfcnOffset: 600,   earfcnRange: [600, 1199],    spacing: 0.1, duplexType: "FDD" },
-  { band: 3,  name: "DCS 1800",       dlLow: 1805, ulLow: 1710, earfcnOffset: 1200,  earfcnRange: [1200, 1949],   spacing: 0.1, duplexType: "FDD" },
-  { band: 4,  name: "AWS-1",          dlLow: 2110, ulLow: 1710, earfcnOffset: 1950,  earfcnRange: [1950, 2399],   spacing: 0.1, duplexType: "FDD" },
-  { band: 5,  name: "CLR 850",        dlLow: 869,  ulLow: 824,  earfcnOffset: 2400,  earfcnRange: [2400, 2649],   spacing: 0.1, duplexType: "FDD" },
-  { band: 7,  name: "IMT-E 2600",     dlLow: 2620, ulLow: 2500, earfcnOffset: 2750,  earfcnRange: [2750, 3449],   spacing: 0.1, duplexType: "FDD" },
-  { band: 8,  name: "GSM 900",        dlLow: 925,  ulLow: 880,  earfcnOffset: 3450,  earfcnRange: [3450, 3799],   spacing: 0.1, duplexType: "FDD" },
-  { band: 12, name: "Lower 700 a",    dlLow: 729,  ulLow: 699,  earfcnOffset: 5010,  earfcnRange: [5010, 5179],   spacing: 0.1, duplexType: "FDD" },
-  { band: 13, name: "Upper 700 c",    dlLow: 746,  ulLow: 777,  earfcnOffset: 5180,  earfcnRange: [5180, 5279],   spacing: 0.1, duplexType: "FDD" },
-  { band: 14, name: "Upper 700 PS",   dlLow: 758,  ulLow: 788,  earfcnOffset: 5280,  earfcnRange: [5280, 5379],   spacing: 0.1, duplexType: "FDD" },
-  { band: 17, name: "Lower 700 b",    dlLow: 734,  ulLow: 704,  earfcnOffset: 5730,  earfcnRange: [5730, 5849],   spacing: 0.1, duplexType: "FDD" },
-  { band: 20, name: "EU 800 DD",      dlLow: 791,  ulLow: 832,  earfcnOffset: 6150,  earfcnRange: [6150, 6449],   spacing: 0.1, duplexType: "FDD" },
-  { band: 25, name: "PCS 1900+",      dlLow: 1930, ulLow: 1850, earfcnOffset: 8040,  earfcnRange: [8040, 8689],   spacing: 0.1, duplexType: "FDD" },
-  { band: 26, name: "ESMR 850+",      dlLow: 859,  ulLow: 814,  earfcnOffset: 8690,  earfcnRange: [8690, 9039],   spacing: 0.1, duplexType: "FDD" },
-  { band: 28, name: "APT 700",        dlLow: 758,  ulLow: 703,  earfcnOffset: 9210,  earfcnRange: [9210, 9659],   spacing: 0.1, duplexType: "FDD" },
-  { band: 66, name: "AWS-3",          dlLow: 2110, ulLow: 1710, earfcnOffset: 66436, earfcnRange: [66436, 67335], spacing: 0.1, duplexType: "FDD" },
-  { band: 71, name: "600 MHz",        dlLow: 617,  ulLow: 663,  earfcnOffset: 68586, earfcnRange: [68586, 68935], spacing: 0.1, duplexType: "FDD" },
-  // SDL (Supplemental Downlink — no UL)
-  { band: 29, name: "Lower 700 d",    dlLow: 717,  ulLow: 0,    earfcnOffset: 9660,  earfcnRange: [9660, 9769],   spacing: 0.1, duplexType: "SDL" },
-  { band: 30, name: "WCS 2300",       dlLow: 2350, ulLow: 2305, earfcnOffset: 9770,  earfcnRange: [9770, 9869],   spacing: 0.1, duplexType: "FDD" },
-  { band: 32, name: "DL 1500",        dlLow: 1452, ulLow: 0,    earfcnOffset: 9920,  earfcnRange: [9920, 10359],  spacing: 0.1, duplexType: "SDL" },
-  // TDD (UL = DL)
-  { band: 34, name: "IMT 2000 TDD",   dlLow: 2010, ulLow: 2010, earfcnOffset: 36200, earfcnRange: [36200, 36349], spacing: 0.1, duplexType: "TDD" },
-  { band: 38, name: "IMT-E 2600 TDD", dlLow: 2570, ulLow: 2570, earfcnOffset: 37750, earfcnRange: [37750, 38249], spacing: 0.1, duplexType: "TDD" },
-  { band: 39, name: "DCS 1900 TDD",   dlLow: 1880, ulLow: 1880, earfcnOffset: 38250, earfcnRange: [38250, 38649], spacing: 0.1, duplexType: "TDD" },
-  { band: 40, name: "TD 2300",        dlLow: 2300, ulLow: 2300, earfcnOffset: 38650, earfcnRange: [38650, 39649], spacing: 0.1, duplexType: "TDD" },
-  { band: 41, name: "BRS/EBS",        dlLow: 2496, ulLow: 2496, earfcnOffset: 39650, earfcnRange: [39650, 41589], spacing: 0.1, duplexType: "TDD" },
-  { band: 42, name: "CBRS 3500",      dlLow: 3400, ulLow: 3400, earfcnOffset: 41590, earfcnRange: [41590, 43589], spacing: 0.1, duplexType: "TDD" },
-  { band: 43, name: "C-Band 3700",    dlLow: 3600, ulLow: 3600, earfcnOffset: 43590, earfcnRange: [43590, 45589], spacing: 0.1, duplexType: "TDD" },
-  { band: 46, name: "LAA 5 GHz",      dlLow: 5150, ulLow: 5150, earfcnOffset: 46790, earfcnRange: [46790, 54539], spacing: 0.1, duplexType: "TDD" },
-  { band: 48, name: "CBRS",           dlLow: 3550, ulLow: 3550, earfcnOffset: 55240, earfcnRange: [55240, 56739], spacing: 0.1, duplexType: "TDD" },
+  { band: 1,  name: "IMT 2100",       dlLow: 2110, ulLow: 1920, earfcnOffset: 0,     ulEarfcnOffset: 18000,  earfcnRange: [0, 599],       spacing: 0.1, duplexType: "FDD" },
+  { band: 2,  name: "PCS 1900",       dlLow: 1930, ulLow: 1850, earfcnOffset: 600,   ulEarfcnOffset: 18600,  earfcnRange: [600, 1199],    spacing: 0.1, duplexType: "FDD" },
+  { band: 3,  name: "DCS 1800",       dlLow: 1805, ulLow: 1710, earfcnOffset: 1200,  ulEarfcnOffset: 19200,  earfcnRange: [1200, 1949],   spacing: 0.1, duplexType: "FDD" },
+  { band: 4,  name: "AWS-1",          dlLow: 2110, ulLow: 1710, earfcnOffset: 1950,  ulEarfcnOffset: 19950,  earfcnRange: [1950, 2399],   spacing: 0.1, duplexType: "FDD" },
+  { band: 5,  name: "CLR 850",        dlLow: 869,  ulLow: 824,  earfcnOffset: 2400,  ulEarfcnOffset: 20400,  earfcnRange: [2400, 2649],   spacing: 0.1, duplexType: "FDD" },
+  { band: 7,  name: "IMT-E 2600",     dlLow: 2620, ulLow: 2500, earfcnOffset: 2750,  ulEarfcnOffset: 20750,  earfcnRange: [2750, 3449],   spacing: 0.1, duplexType: "FDD" },
+  { band: 8,  name: "GSM 900",        dlLow: 925,  ulLow: 880,  earfcnOffset: 3450,  ulEarfcnOffset: 21450,  earfcnRange: [3450, 3799],   spacing: 0.1, duplexType: "FDD" },
+  { band: 12, name: "Lower 700 a",    dlLow: 729,  ulLow: 699,  earfcnOffset: 5010,  ulEarfcnOffset: 23010,  earfcnRange: [5010, 5179],   spacing: 0.1, duplexType: "FDD" },
+  { band: 13, name: "Upper 700 c",    dlLow: 746,  ulLow: 777,  earfcnOffset: 5180,  ulEarfcnOffset: 23180,  earfcnRange: [5180, 5279],   spacing: 0.1, duplexType: "FDD" },
+  { band: 14, name: "Upper 700 PS",   dlLow: 758,  ulLow: 788,  earfcnOffset: 5280,  ulEarfcnOffset: 23280,  earfcnRange: [5280, 5379],   spacing: 0.1, duplexType: "FDD" },
+  { band: 17, name: "Lower 700 b",    dlLow: 734,  ulLow: 704,  earfcnOffset: 5730,  ulEarfcnOffset: 23730,  earfcnRange: [5730, 5849],   spacing: 0.1, duplexType: "FDD" },
+  { band: 20, name: "EU 800 DD",      dlLow: 791,  ulLow: 832,  earfcnOffset: 6150,  ulEarfcnOffset: 24150,  earfcnRange: [6150, 6449],   spacing: 0.1, duplexType: "FDD" },
+  { band: 25, name: "PCS 1900+",      dlLow: 1930, ulLow: 1850, earfcnOffset: 8040,  ulEarfcnOffset: 26040,  earfcnRange: [8040, 8689],   spacing: 0.1, duplexType: "FDD" },
+  { band: 26, name: "ESMR 850+",      dlLow: 859,  ulLow: 814,  earfcnOffset: 8690,  ulEarfcnOffset: 26690,  earfcnRange: [8690, 9039],   spacing: 0.1, duplexType: "FDD" },
+  { band: 28, name: "APT 700",        dlLow: 758,  ulLow: 703,  earfcnOffset: 9210,  ulEarfcnOffset: 27210,  earfcnRange: [9210, 9659],   spacing: 0.1, duplexType: "FDD" },
+  { band: 66, name: "AWS-3",          dlLow: 2110, ulLow: 1710, earfcnOffset: 66436, ulEarfcnOffset: 131972, earfcnRange: [66436, 67335], spacing: 0.1, duplexType: "FDD" },
+  { band: 71, name: "600 MHz",        dlLow: 617,  ulLow: 663,  earfcnOffset: 68586, ulEarfcnOffset: 133122, earfcnRange: [68586, 68935], spacing: 0.1, duplexType: "FDD" },
+  // SDL (Supplemental Downlink — no UL; ulEarfcnOffset is 0 and must never be read)
+  { band: 29, name: "Lower 700 d",    dlLow: 717,  ulLow: 0,    earfcnOffset: 9660,  ulEarfcnOffset: 0,      earfcnRange: [9660, 9769],   spacing: 0.1, duplexType: "SDL" },
+  { band: 30, name: "WCS 2300",       dlLow: 2350, ulLow: 2305, earfcnOffset: 9770,  ulEarfcnOffset: 27660,  earfcnRange: [9770, 9869],   spacing: 0.1, duplexType: "FDD" },
+  { band: 32, name: "DL 1500",        dlLow: 1452, ulLow: 0,    earfcnOffset: 9920,  ulEarfcnOffset: 0,      earfcnRange: [9920, 10359],  spacing: 0.1, duplexType: "SDL" },
+  // TDD (UL = DL, so N_Offs-UL = N_Offs-DL)
+  { band: 34, name: "IMT 2000 TDD",   dlLow: 2010, ulLow: 2010, earfcnOffset: 36200, ulEarfcnOffset: 36200,  earfcnRange: [36200, 36349], spacing: 0.1, duplexType: "TDD" },
+  { band: 38, name: "IMT-E 2600 TDD", dlLow: 2570, ulLow: 2570, earfcnOffset: 37750, ulEarfcnOffset: 37750,  earfcnRange: [37750, 38249], spacing: 0.1, duplexType: "TDD" },
+  { band: 39, name: "DCS 1900 TDD",   dlLow: 1880, ulLow: 1880, earfcnOffset: 38250, ulEarfcnOffset: 38250,  earfcnRange: [38250, 38649], spacing: 0.1, duplexType: "TDD" },
+  { band: 40, name: "TD 2300",        dlLow: 2300, ulLow: 2300, earfcnOffset: 38650, ulEarfcnOffset: 38650,  earfcnRange: [38650, 39649], spacing: 0.1, duplexType: "TDD" },
+  { band: 41, name: "BRS/EBS",        dlLow: 2496, ulLow: 2496, earfcnOffset: 39650, ulEarfcnOffset: 39650,  earfcnRange: [39650, 41589], spacing: 0.1, duplexType: "TDD" },
+  { band: 42, name: "CBRS 3500",      dlLow: 3400, ulLow: 3400, earfcnOffset: 41590, ulEarfcnOffset: 41590,  earfcnRange: [41590, 43589], spacing: 0.1, duplexType: "TDD" },
+  { band: 43, name: "C-Band 3700",    dlLow: 3600, ulLow: 3600, earfcnOffset: 43590, ulEarfcnOffset: 43590,  earfcnRange: [43590, 45589], spacing: 0.1, duplexType: "TDD" },
+  { band: 46, name: "LAA 5 GHz",      dlLow: 5150, ulLow: 5150, earfcnOffset: 46790, ulEarfcnOffset: 46790,  earfcnRange: [46790, 54539], spacing: 0.1, duplexType: "TDD" },
+  { band: 48, name: "CBRS",           dlLow: 3550, ulLow: 3550, earfcnOffset: 55240, ulEarfcnOffset: 55240,  earfcnRange: [55240, 56739], spacing: 0.1, duplexType: "TDD" },
 ];
 
 // --- NR Band Table (3GPP TS 38.104) ------------------------------------------
@@ -189,6 +204,25 @@ export function lteULFrequency(earfcn: number): number | null {
   }
   // FDD: apply same channel offset to UL low edge
   return band.ulLow + (earfcn - band.earfcnOffset) * band.spacing;
+}
+
+/**
+ * Uplink EARFCN for a given downlink EARFCN, per 3GPP TS 36.101 §5.7.3:
+ *   N_UL = N_Offs-UL + (N_DL − N_Offs-DL)
+ *
+ * Returns null for SDL bands, which have no uplink carrier at all, and for an
+ * EARFCN outside every band's range. TDD returns the input unchanged, because
+ * the uplink shares the channel rather than mirroring it.
+ *
+ * The band is passed in rather than looked up so a caller iterating several
+ * matching bands gets each band's own answer instead of the first match's.
+ */
+export function lteULEarfcn(
+  band: LTEBandEntry,
+  earfcn: number
+): number | null {
+  if (band.duplexType === "SDL") return null;
+  return band.ulEarfcnOffset + (earfcn - band.earfcnOffset);
 }
 
 // --- NR Frequency Calculations -----------------------------------------------
@@ -369,4 +403,114 @@ export function findAllMatchingNRBands(nrarfcn: number): NRBandEntry[] {
   return NR_BANDS.filter(
     (b) => nrarfcn >= b.nrarfcnRange[0] && nrarfcn <= b.nrarfcnRange[1]
   );
+}
+
+// --- NR PRB → Channel Bandwidth --------------------------------------------
+//
+// AT+QSCAN reports an NR carrier's bandwidth as a PRB (Physical Resource Block)
+// count, NOT megahertz — and the same PRB count means different MHz at
+// different subcarrier spacings (e.g. 106 PRB = 20 MHz @ 15 kHz but 40 MHz
+// @ 30 kHz). Conversion therefore requires BOTH the PRB count and the SCS.
+//
+// Tables below invert 3GPP TS 38.101-1 Table 5.3.2-1 (FR1) — the maximum
+// transmission bandwidth configuration N_RB — keyed [SCS kHz][PRB] → MHz.
+// FR2 (mmWave, SCS 120 kHz, bands n257+) is included for completeness but is
+// out of scope for this project's sub-6 hardware (RM520N/RM551E). SCS 60 kHz
+// here is the FR1 mapping; the FR2 SCS-60 variant is not modeled.
+const NR_PRB_TO_MHZ: Record<number, Record<number, number>> = {
+  // SCS 15 kHz (FR1)
+  15: { 25: 5, 52: 10, 79: 15, 106: 20, 133: 25, 160: 30, 216: 40, 270: 50 },
+  // SCS 30 kHz (FR1)
+  30: {
+    11: 5, 24: 10, 38: 15, 51: 20, 65: 25, 78: 30, 106: 40, 133: 50,
+    162: 60, 189: 70, 217: 80, 245: 90, 273: 100,
+  },
+  // SCS 60 kHz (FR1)
+  60: {
+    11: 10, 18: 15, 24: 20, 31: 25, 38: 30, 51: 40, 65: 50, 79: 60,
+    93: 70, 107: 80, 121: 90, 135: 100,
+  },
+  // SCS 120 kHz (FR2, mmWave — unreachable on sub-6 hardware)
+  120: { 32: 50, 66: 100, 132: 200, 264: 400 },
+};
+
+/**
+ * Normalize a raw SCS field to its subcarrier spacing in kHz.
+ *
+ * The modem may report SCS either as a 3GPP numerology index (0=15, 1=30,
+ * 2=60, 3=120, 4=240 kHz) or as a literal kHz value. The two encodings are
+ * disjoint — indices are {0..4}, kHz values are {15,30,60,120,240} — so a
+ * single normalizer accepts either without ambiguity.
+ *
+ * @returns SCS in kHz, or null if the value is missing/unrecognized.
+ */
+export function normalizeScs(raw: number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  switch (raw) {
+    case 15:
+    case 30:
+    case 60:
+    case 120:
+    case 240:
+      return raw;
+    case 0:
+      return 15;
+    case 1:
+      return 30;
+    case 2:
+      return 60;
+    case 3:
+      return 120;
+    case 4:
+      return 240;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Convert an NR PRB count + SCS into the 3GPP channel bandwidth in MHz.
+ *
+ * @param prb    Carrier bandwidth as a PRB count (QSCAN field 12 for NR5G).
+ * @param rawScs Raw SCS field — either a numerology index or a kHz value.
+ * @returns Channel bandwidth in MHz, or null when SCS is missing/unknown or
+ *          the PRB count is not in the standard table (caller should then fall
+ *          back to showing the raw PRB count rather than a guessed MHz value).
+ */
+export function prbToBandwidthMhz(
+  prb: number | null | undefined,
+  rawScs: number | null | undefined
+): number | null {
+  if (prb === null || prb === undefined || prb <= 0) return null;
+  const scsKhz = normalizeScs(rawScs);
+  if (scsKhz === null) return null;
+  const table = NR_PRB_TO_MHZ[scsKhz];
+  if (!table) return null;
+  return table[prb] ?? null;
+}
+
+/**
+ * Human-readable bandwidth label for a cell-scan row, correct per RAT.
+ *
+ * LTE rows already carry MHz (the scanner daemon converts RB→MHz backend-side),
+ * so they pass through. NR rows carry a raw PRB count and are converted using
+ * the row's SCS; when SCS is missing/unknown or the PRB count is off-table, the
+ * raw PRB count is shown labeled "PRB" — an honest fallback that never prints a
+ * wrong MHz figure. Two PRB counts can map to different MHz at different SCS, so
+ * guessing a default SCS would be actively misleading, not merely imprecise.
+ */
+export function formatCellBandwidth(
+  networkType: string,
+  bandwidth: number | null | undefined,
+  scs: number | null | undefined
+): string {
+  if (bandwidth === null || bandwidth === undefined || bandwidth <= 0) {
+    return "—";
+  }
+  if (networkType === "NR5G") {
+    const mhz = prbToBandwidthMhz(bandwidth, scs);
+    return mhz !== null ? `${mhz} MHz` : `${bandwidth} PRB`;
+  }
+  // LTE (and any other RAT) is already in MHz from the backend.
+  return `${bandwidth} MHz`;
 }

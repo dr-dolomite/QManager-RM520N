@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { startVisibleInterval } from "@/lib/visible-interval";
+import { reportConnectionState } from "@/lib/reboot/connection";
 
 const CHECK_ENDPOINT = "/cgi-bin/quecmanager/auth/check.sh";
 
@@ -23,7 +25,7 @@ function clearSessionCookie() {
 }
 
 /**
- * Polls auth/check.sh every POLL_INTERVAL_MS while the dashboard is mounted.
+ * Polls auth/check.sh every POLL_INTERVAL_MS while the dashboard is mounted and visible.
  *
  * - 401 response   → authFetch already redirects to /login/ (session gone after reboot)
  * - Network error  → starts the offline clock
@@ -42,24 +44,38 @@ export function useAutoLogout() {
         await authFetch(CHECK_ENDPOINT);
         // Any successful response: device is reachable, reset clock
         offlineSinceRef.current = null;
+        reportConnectionState(false);
       } catch {
-        // Network error: device is unreachable
+        // Network error: one missed check already spans 10 s, so warn at once.
+        reportConnectionState(true);
         if (offlineSinceRef.current === null) {
           offlineSinceRef.current = Date.now();
         } else if (Date.now() - offlineSinceRef.current >= OFFLINE_THRESHOLD_MS) {
           clearSessionCookie();
+          reportConnectionState(false);
           window.location.href = "/login/?reason=offline";
         }
       }
     };
 
-    const id = setInterval(() => {
-      if (!cancelled) tick();
-    }, POLL_INTERVAL_MS);
+    // Paused while hidden (check.sh never answers 401, so nothing is missed); the
+    // offline clock restarts on hide because nobody was watching the gap.
+    const stop = startVisibleInterval(
+      () => {
+        if (!cancelled) tick();
+      },
+      POLL_INTERVAL_MS,
+      {
+        onHide: () => {
+          offlineSinceRef.current = null;
+          reportConnectionState(false);
+        },
+      },
+    );
 
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
     };
   }, []);
 }

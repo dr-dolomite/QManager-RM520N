@@ -1,0 +1,147 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_fw_apply — root helper: the iptables calls QManager's CGI layer makes
+# =============================================================================
+# Called via: sudo -n /usr/bin/qmanager_fw_apply <v4|v6> <iptables argv...>
+#
+# Replaces the raw `iptables`/`ip6tables` sudoers grants: iptables has an option
+# (--modprobe) that runs a program, so any-argument access is root code
+# execution. platform.sh's run_iptables/run_ip6tables forward their argv here
+# unchanged; this helper accepts ONLY the shapes below and then runs an argv it
+# builds itself from constants plus one validated integer, never caller text.
+#
+# Allowed (all start `-w 5 -t <table>`; N = integer 1-255):
+#   v4 mangle  -vnL POSTROUTING
+#   v4 mangle  -D|-I POSTROUTING -o rmnet+ -j TTL --ttl-set N
+#   v6 mangle  -vnL POSTROUTING
+#   v6 mangle  -D|-I POSTROUTING -o rmnet+ -j HL --hl-set N
+#   v6 mangle  -D|-I POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type T -j ACCEPT
+#              (T = ND 133-137 or MLD 130|131|132|143)
+#   v4 mangle  -D POSTROUTING -p udp --dport 443 -j DSCP --set-dscp 0x2e
+#   v4 nat     -S PREROUTING | -L PREROUTING -n -v -x
+#   v4 nat     -D|-I PREROUTING <engine match | legacy match> -j REDIRECT --to-ports 989
+#   v4 filter  -S FORWARD
+#   v4 filter  -D|-I FORWARD -i bridge0 -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
+# Exit status is iptables' own; a refused call exits 2.
+# =============================================================================
+
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+# Unquoted constant lists below must word-split, never glob.
+set -f
+
+_die() {
+    echo "qmanager_fw_apply: refused: $*" >&2
+    exit 2
+}
+
+# Kept in sync with dpi_state.sh (_DPI_RULE_MATCH / _DPI_RULE_MATCH_LEGACY).
+DPI_MATCH="-i bridge0 -p tcp -m multiport --dports 80,443 -m addrtype ! --dst-type LOCAL"
+DPI_MATCH_LEGACY="-i bridge0 -p tcp -m multiport --dports 80,443"
+
+[ "$#" -ge 5 ] || _die "usage"
+
+case "$1" in
+    v4) BIN=/usr/sbin/iptables;  FAM=4 ;;
+    v6) BIN=/usr/sbin/ip6tables; FAM=6 ;;
+    *) _die "family" ;;
+esac
+shift
+
+# Every argument is a short token of safe characters, so "$*" joins
+# unambiguously (no argument can hide a space). This rejects --modprobe=<path>
+# style values too; the shape match below rejects the option itself.
+for _a in "$@"; do
+    case "$_a" in
+        ''|*[!A-Za-z0-9+,._=!-]*) _die "argument" ;;
+    esac
+done
+
+[ "$1" = "-w" ] && [ "$2" = "5" ] && [ "$3" = "-t" ] || _die "shape"
+table="$4"
+shift 4
+rest="$*"
+
+# Integer 1-255 from the last argument; leading zeros stripped so the value
+# can never be read as octal.
+_num() {
+    n="$1"
+    case "$n" in
+        ''|*[!0-9]*) _die "number" ;;
+    esac
+    n="${n#"${n%%[!0]*}"}"
+    case "$n" in
+        ''|????*) _die "number" ;;
+    esac
+    [ "$n" -ge 1 ] && [ "$n" -le 255 ] || _die "number"
+}
+
+# Last argument, and the shape with it removed (no spaces inside any argument).
+for _last in "$@"; do :; done
+shape="${rest% *}"
+
+# ND/MLD exemption rules (list kept in sync with ttl_state.sh): the argv is
+# built from constants, never caller text.
+if [ "$FAM:$table" = "6:mangle" ]; then
+    for _t in 130 131 132 133 134 135 136 137 143; do
+        case "$rest" in
+            "-D POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type $_t -j ACCEPT")
+                exec "$BIN" -w 5 -t mangle -D POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type "$_t" -j ACCEPT ;;
+            "-I POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type $_t -j ACCEPT")
+                exec "$BIN" -w 5 -t mangle -I POSTROUTING -o rmnet+ -p ipv6-icmp --icmpv6-type "$_t" -j ACCEPT ;;
+        esac
+    done
+fi
+
+case "$FAM:$table:$rest" in
+    4:mangle:"-vnL POSTROUTING"|6:mangle:"-vnL POSTROUTING")
+        exec "$BIN" -w 5 -t mangle -vnL POSTROUTING
+        ;;
+    4:nat:"-S PREROUTING")
+        exec "$BIN" -w 5 -t nat -S PREROUTING
+        ;;
+    4:nat:"-L PREROUTING -n -v -x")
+        exec "$BIN" -w 5 -t nat -L PREROUTING -n -v -x
+        ;;
+    4:filter:"-S FORWARD")
+        exec "$BIN" -w 5 -t filter -S FORWARD
+        ;;
+    4:nat:"-D PREROUTING $DPI_MATCH -j REDIRECT --to-ports 989")
+        exec "$BIN" -w 5 -t nat -D PREROUTING $DPI_MATCH -j REDIRECT --to-ports 989
+        ;;
+    4:nat:"-I PREROUTING $DPI_MATCH -j REDIRECT --to-ports 989")
+        exec "$BIN" -w 5 -t nat -I PREROUTING $DPI_MATCH -j REDIRECT --to-ports 989
+        ;;
+    4:nat:"-D PREROUTING $DPI_MATCH_LEGACY -j REDIRECT --to-ports 989")
+        exec "$BIN" -w 5 -t nat -D PREROUTING $DPI_MATCH_LEGACY -j REDIRECT --to-ports 989
+        ;;
+    4:filter:"-D FORWARD -i bridge0 -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable")
+        exec "$BIN" -w 5 -t filter -D FORWARD -i bridge0 -p udp --dport 443 \
+            -j REJECT --reject-with icmp-port-unreachable
+        ;;
+    4:filter:"-I FORWARD -i bridge0 -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable")
+        exec "$BIN" -w 5 -t filter -I FORWARD -i bridge0 -p udp --dport 443 \
+            -j REJECT --reject-with icmp-port-unreachable
+        ;;
+    4:mangle:"-D POSTROUTING -p udp --dport 443 -j DSCP --set-dscp 0x2e")
+        exec "$BIN" -w 5 -t mangle -D POSTROUTING -p udp --dport 443 -j DSCP --set-dscp 0x2e
+        ;;
+    4:mangle:*)
+        case "$shape" in
+            "-D POSTROUTING -o rmnet+ -j TTL --ttl-set") _num "$_last"; exec "$BIN" -w 5 -t mangle -D POSTROUTING -o rmnet+ -j TTL --ttl-set "$n" ;;
+            "-I POSTROUTING -o rmnet+ -j TTL --ttl-set") _num "$_last"; exec "$BIN" -w 5 -t mangle -I POSTROUTING -o rmnet+ -j TTL --ttl-set "$n" ;;
+            *) _die "shape" ;;
+        esac
+        ;;
+    6:mangle:*)
+        case "$shape" in
+            "-D POSTROUTING -o rmnet+ -j HL --hl-set") _num "$_last"; exec "$BIN" -w 5 -t mangle -D POSTROUTING -o rmnet+ -j HL --hl-set "$n" ;;
+            "-I POSTROUTING -o rmnet+ -j HL --hl-set") _num "$_last"; exec "$BIN" -w 5 -t mangle -I POSTROUTING -o rmnet+ -j HL --hl-set "$n" ;;
+            *) _die "shape" ;;
+        esac
+        ;;
+    *)
+        _die "shape"
+        ;;
+esac

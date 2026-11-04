@@ -1,0 +1,619 @@
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  QManager redesign review: artifact template.
+  Copy this file to the scratchpad, fill every double-underscore placeholder, author the parts marked AUTHOR,
+  then run scripts/finalize.py to embed the screenshot and lint the page.
+  Section anatomy and rules: references/artifact-spec.md.
+  Tokens are copied verbatim from app/globals.css (normative): its :root block into the bare :root below,
+  its .dark block into BOTH dark blocks. Names match the app's CSS variables, so bg-surface-container
+  becomes var(--surface-container). If globals.css has changed, re-grep it and update all three blocks.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400..600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..500,0..1,0&display=block">
+<style>
+/* ── Tokens: light (app/globals.css :root, verbatim) ─────────── */
+:root {
+  --background: oklch(0.985 0.003 258);
+  --surface: oklch(1 0 258);
+  --surface-container: oklch(0.967 0.005 258);
+  --surface-container-high: oklch(0.938 0.007 258);
+  --on-surface: oklch(0.205 0.011 258);
+  --on-surface-variant: oklch(0.505 0.012 258);
+  --border: oklch(0.905 0.006 258);
+  --outline: oklch(0.868 0.008 258);
+  --input: oklch(0.868 0.008 258);
+  --ring: oklch(0.565 0.235 262);
+
+  --primary: oklch(0.565 0.235 262);
+  --primary-foreground: oklch(0.985 0.006 262);
+  --primary-on-surface: oklch(0.535 0.22 262);
+  --primary-container: oklch(0.89 0.052 262);
+  --on-primary-container: oklch(0.36 0.16 262);
+  --lte: oklch(0.51 0.24 296);
+  --lte-foreground: oklch(0.985 0.007 296);
+  --lte-on-surface: oklch(0.465 0.22 296);
+  --lte-container: oklch(0.85 0.082 296);
+  --on-lte-container: oklch(0.36 0.16 296);
+  --downlink: oklch(0.48 0.204 341);
+  --downlink-on-surface: oklch(0.45 0.191 341);
+  --uplink: oklch(0.545 0.091 200);
+  --uplink-on-surface: oklch(0.515 0.086 200);
+  --spatial: oklch(0.55 0.11 232);
+  --spatial-on-surface: oklch(0.515 0.103 232);
+
+  --success: oklch(0.54 0.15 149);
+  --success-foreground: oklch(0.985 0.012 149);
+  --success-on-surface: oklch(0.505 0.14 149);
+  --success-container: oklch(0.895 0.145 149);
+  --on-success-container: oklch(0.36 0.1 149);
+  --warning: oklch(0.56 0.118 72);
+  --warning-on-surface: oklch(0.525 0.11 72);
+  --warning-container: oklch(0.855 0.115 72);
+  --on-warning-container: oklch(0.36 0.075 72);
+  --destructive: oklch(0.48 0.192 27);
+  --destructive-foreground: oklch(0.985 0.007 27);
+  --destructive-on-surface: oklch(0.44 0.176 27);
+  --destructive-container: oklch(0.835 0.089 27);
+  --on-destructive-container: oklch(0.36 0.144 27);
+  --tone-destructive-1: oklch(0.945 0.027 27);
+
+  --quality-1: oklch(0.385 0.154 27);  --quality-1-bar: oklch(0.48 0.192 27);
+  --quality-2: oklch(0.415 0.116 45);  --quality-2-bar: oklch(0.51 0.143 45);
+  --quality-3: oklch(0.445 0.093 72);  --quality-3-bar: oklch(0.54 0.113 72);
+  --quality-4: oklch(0.475 0.106 115); --quality-4-bar: oklch(0.57 0.127 115);
+  --quality-5: oklch(0.505 0.14 149);  --quality-5-bar: oklch(0.6 0.166 149);
+
+  --tag-nr-text: oklch(0.535 0.22 262);       --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.465 0.22 296);      --tag-lte-border: oklch(0.545 0.19 296);
+  --tag-spatial-text: oklch(0.515 0.103 232); --tag-spatial-border: oklch(0.615 0.123 232);
+  --tag-neutral-text: oklch(0.505 0.012 258); --tag-neutral-border: oklch(0.62 0.012 258);
+
+  --shadow-whisper: 0 1px 2px oklch(0.205 0.011 258 / 6%);
+  --card-sheen: none;
+
+  /* Mock-only: components/ui/tabs.tsx active trigger (bg-background + shadow-sm in light). */
+  --seg-on: oklch(0.985 0.003 258);
+  --seg-shadow: 0 1px 2px oklch(0 0 0 / 0.1);
+
+  --font-sans: "Rethink Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --duration-quick: 360ms;
+  --duration-standard: 600ms;
+  --duration-emphasized: 800ms;
+}
+/* ── Tokens: dark (app/globals.css .dark, verbatim; OS preference unless the host forces light) ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: oklch(0.12 0.008 258);
+    --surface: oklch(0.17 0.009 258);
+    --surface-container: oklch(0.2 0.01 258);
+    --surface-container-high: oklch(0.235 0.012 258);
+    --on-surface: oklch(0.965 0.004 258);
+    --on-surface-variant: oklch(0.762 0.011 258);
+    --border: oklch(0.288 0.012 258);
+    --outline: oklch(0.33 0.013 258);
+    --input: oklch(0.33 0.013 258);
+    --ring: oklch(0.605 0.2 262);
+    --primary: oklch(0.605 0.2 262);
+    --primary-foreground: oklch(0.195 0.055 262);
+    --primary-on-surface: oklch(0.65 0.183 262);
+    --primary-container: oklch(0.375 0.145 262);
+    --on-primary-container: oklch(0.9 0.047 262);
+    --lte: oklch(0.7 0.175 296);
+    --lte-foreground: oklch(0.195 0.055 296);
+    --lte-on-surface: oklch(0.74 0.149 296);
+    --lte-container: oklch(0.27 0.145 296);
+    --on-lte-container: oklch(0.9 0.053 296);
+    --downlink: oklch(0.66 0.2 341);
+    --downlink-on-surface: oklch(0.7 0.2 341);
+    --uplink: oklch(0.82 0.137 200);
+    --uplink-on-surface: oklch(0.87 0.145 200);
+    --spatial: oklch(0.79 0.127 232);
+    --spatial-on-surface: oklch(0.82 0.108 232);
+    --success: oklch(0.74 0.2 149);
+    --success-foreground: oklch(0.195 0.054 149);
+    --success-on-surface: oklch(0.78 0.2 149);
+    --success-container: oklch(0.31 0.086 149);
+    --on-success-container: oklch(0.9 0.11 149);
+    --warning: oklch(0.79 0.166 72);
+    --warning-on-surface: oklch(0.815 0.151 72);
+    --warning-container: oklch(0.41 0.086 72);
+    --on-warning-container: oklch(0.9 0.077 72);
+    --destructive: oklch(0.64 0.2 27);
+    --destructive-foreground: oklch(0.195 0.055 27);
+    --destructive-on-surface: oklch(0.68 0.2 27);
+    --destructive-container: oklch(0.245 0.098 27);
+    --on-destructive-container: oklch(0.9 0.051 27);
+    --tone-destructive-1: oklch(0.22 0.045 27);
+    --quality-1: oklch(0.64 0.2 27);    --quality-1-bar: oklch(0.6 0.22 27);
+    --quality-2: oklch(0.665 0.187 45); --quality-2-bar: oklch(0.645 0.181 45);
+    --quality-3: oklch(0.71 0.149 72);  --quality-3-bar: oklch(0.69 0.145 72);
+    --quality-4: oklch(0.755 0.168 115);--quality-4-bar: oklch(0.735 0.164 115);
+    --quality-5: oklch(0.8 0.2 149);    --quality-5-bar: oklch(0.78 0.216 149);
+    --tag-nr-text: oklch(0.65 0.183 262);       --tag-nr-border: oklch(0.6 0.19 262);
+    --tag-lte-text: oklch(0.74 0.149 296);      --tag-lte-border: oklch(0.54 0.19 296);
+    --tag-spatial-text: oklch(0.82 0.108 232);  --tag-spatial-border: oklch(0.64 0.128 232);
+    --tag-neutral-text: oklch(0.762 0.011 258); --tag-neutral-border: oklch(0.52 0.012 258);
+    --shadow-whisper: 0 0 #0000;
+    --card-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, oklch(1 0 0 / 0) 42%, oklch(0 0 0 / 0.03) 100%);
+    /* Mock-only: tabs.tsx dark active trigger (bg-input/30 + border-input). */
+    --seg-on: oklch(0.33 0.013 258 / 0.3);
+    --seg-shadow: inset 0 0 0 1px oklch(0.33 0.013 258);
+  }
+}
+/* ── Tokens: dark (forced by the host or the Theme toggle); keep identical to the block above ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(0.12 0.008 258);
+  --surface: oklch(0.17 0.009 258);
+  --surface-container: oklch(0.2 0.01 258);
+  --surface-container-high: oklch(0.235 0.012 258);
+  --on-surface: oklch(0.965 0.004 258);
+  --on-surface-variant: oklch(0.762 0.011 258);
+  --border: oklch(0.288 0.012 258);
+  --outline: oklch(0.33 0.013 258);
+  --input: oklch(0.33 0.013 258);
+  --ring: oklch(0.605 0.2 262);
+  --primary: oklch(0.605 0.2 262);
+  --primary-foreground: oklch(0.195 0.055 262);
+  --primary-on-surface: oklch(0.65 0.183 262);
+  --primary-container: oklch(0.375 0.145 262);
+  --on-primary-container: oklch(0.9 0.047 262);
+  --lte: oklch(0.7 0.175 296);
+  --lte-foreground: oklch(0.195 0.055 296);
+  --lte-on-surface: oklch(0.74 0.149 296);
+  --lte-container: oklch(0.27 0.145 296);
+  --on-lte-container: oklch(0.9 0.053 296);
+  --downlink: oklch(0.66 0.2 341);
+  --downlink-on-surface: oklch(0.7 0.2 341);
+  --uplink: oklch(0.82 0.137 200);
+  --uplink-on-surface: oklch(0.87 0.145 200);
+  --spatial: oklch(0.79 0.127 232);
+  --spatial-on-surface: oklch(0.82 0.108 232);
+  --success: oklch(0.74 0.2 149);
+  --success-foreground: oklch(0.195 0.054 149);
+  --success-on-surface: oklch(0.78 0.2 149);
+  --success-container: oklch(0.31 0.086 149);
+  --on-success-container: oklch(0.9 0.11 149);
+  --warning: oklch(0.79 0.166 72);
+  --warning-on-surface: oklch(0.815 0.151 72);
+  --warning-container: oklch(0.41 0.086 72);
+  --on-warning-container: oklch(0.9 0.077 72);
+  --destructive: oklch(0.64 0.2 27);
+  --destructive-foreground: oklch(0.195 0.055 27);
+  --destructive-on-surface: oklch(0.68 0.2 27);
+  --destructive-container: oklch(0.245 0.098 27);
+  --on-destructive-container: oklch(0.9 0.051 27);
+  --tone-destructive-1: oklch(0.22 0.045 27);
+  --quality-1: oklch(0.64 0.2 27);    --quality-1-bar: oklch(0.6 0.22 27);
+  --quality-2: oklch(0.665 0.187 45); --quality-2-bar: oklch(0.645 0.181 45);
+  --quality-3: oklch(0.71 0.149 72);  --quality-3-bar: oklch(0.69 0.145 72);
+  --quality-4: oklch(0.755 0.168 115);--quality-4-bar: oklch(0.735 0.164 115);
+  --quality-5: oklch(0.8 0.2 149);    --quality-5-bar: oklch(0.78 0.216 149);
+  --tag-nr-text: oklch(0.65 0.183 262);       --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.74 0.149 296);      --tag-lte-border: oklch(0.54 0.19 296);
+  --tag-spatial-text: oklch(0.82 0.108 232);  --tag-spatial-border: oklch(0.64 0.128 232);
+  --tag-neutral-text: oklch(0.762 0.011 258); --tag-neutral-border: oklch(0.52 0.012 258);
+  --shadow-whisper: 0 0 #0000;
+  --card-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, oklch(1 0 0 / 0) 42%, oklch(0 0 0 / 0.03) 100%);
+  --seg-on: oklch(0.33 0.013 258 / 0.3);
+  --seg-shadow: inset 0 0 0 1px oklch(0.33 0.013 258);
+}
+
+/* ── Base ───────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--on-surface); font: 400 15px/1.55 var(--font-sans); -webkit-font-smoothing: antialiased; }
+.ms {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none;
+  display: inline-block; white-space: nowrap; direction: ltr; flex: none; user-select: none;
+  font-feature-settings: "liga"; -webkit-font-feature-settings: "liga";
+  font-variation-settings: "FILL" 0, "wght" 400, "opsz" 24;
+}
+.ms.f { font-variation-settings: "FILL" 1, "wght" 400, "opsz" 24; }
+.num { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }  /* every figure, incl. EARFCN/PCI/band */
+.mono { font-family: var(--font-mono); }  /* opaque strings: IMEI, ICCID, IP, MAC, paths, raw AT */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+button { font: inherit; color: inherit; }
+/* Focus: 3px ring at full strength over a 2px gap (DESIGN.md > Buttons). */
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* ── Document chrome (the review page itself, not QManager) ─── */
+.doc { max-width: 1280px; margin: 0 auto; padding: 40px 16px 72px; display: flex; flex-direction: column; gap: 56px; }
+@media (min-width: 720px) { .doc { padding-inline: 32px; } }
+.doc-head { display: flex; flex-direction: column; gap: 10px; max-width: 70ch; }
+.eyebrow { font: 500 12px/1 var(--font-mono); color: var(--on-surface-variant); letter-spacing: 0.02em; overflow-wrap: anywhere; }
+.doc-head h1 { margin: 0; font: 700 34px/1.1 var(--font-sans); letter-spacing: -0.02em; text-wrap: balance; }
+.doc-head p { margin: 0; color: var(--on-surface-variant); font-size: 16px; text-wrap: pretty; }
+.sec { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.sec > h2 { margin: 0; font: 600 21px/1.2 var(--font-sans); letter-spacing: -0.01em; }
+.sec > .lede { margin: -12px 0 0; color: var(--on-surface-variant); max-width: 70ch; text-wrap: pretty; }
+.doc code { font: 500 12.5px/1.4 var(--font-mono); background: var(--surface-container); padding: 2px 6px; border-radius: 6px; color: var(--on-surface); }
+
+/* 1. before: pinned screenshot + findings */
+.before { display: grid; gap: 24px; }
+@media (min-width: 1000px) { .before { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; } }
+.shots { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.shot { position: relative; margin: 0; border-radius: 14px; overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--border); }
+.shot img { display: block; width: 100%; height: auto; }
+.shot.phone-shot { max-width: 320px; }
+.pin {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center;
+  background: oklch(0.565 0.235 262); color: #fff; font: 700 13px/1 var(--font-sans); font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 3px oklch(0.12 0.008 258 / 0.85), 0 4px 12px oklch(0 0 0 / 0.4);
+}
+.shot figcaption { position: absolute; left: 12px; bottom: 12px; font: 500 12px/1 var(--font-sans); color: #fff; background: oklch(0 0 0 / 0.6); padding: 6px 10px; border-radius: 999px; }
+.findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.findings li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; }
+.findings .n { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; background: var(--primary-container); color: var(--on-primary-container); font: 700 13px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+.findings b { display: block; font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.findings span { color: var(--on-surface-variant); font-size: 14px; text-wrap: pretty; }
+
+/* 2. demo controls */
+.demo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.demo-bar .grp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.demo-bar .lbl { font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); letter-spacing: 0.04em; text-transform: uppercase; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--on-surface-variant); }
+.chip:hover { color: var(--on-surface); background: var(--surface-container); }
+.chip[aria-pressed="true"] { background: var(--on-surface); color: var(--background); border-color: var(--on-surface); }
+
+/* stage: shows the mock at its chosen width */
+.stage { border-radius: 22px; background: var(--surface-container-high); padding: 12px; }
+.frame { margin: 0 auto; max-width: 100%; transition: max-width var(--duration-standard) var(--ease-standard); }
+.frame.phone { max-width: 390px; }
+
+/* 3. before and after: one row or component, same width, twice */
+.ba { display: grid; gap: 16px; }
+@media (min-width: 900px) { .ba { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.ba-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ba-side .lbl { font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); letter-spacing: 0.04em; text-transform: uppercase; }
+.ba-plate { background: var(--surface); background-image: var(--card-sheen); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-whisper); min-width: 0; }
+.ba-side .cls { font: 500 12px/1.5 var(--font-mono); color: var(--on-surface-variant); overflow-wrap: anywhere; margin: 0; }
+
+/* 4–5. change table + kept / ask */
+.tbl-wrap { overflow-x: auto; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+table.changes { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
+.changes th { text-align: left; font: 500 12px/1 var(--font-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-surface-variant); padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.changes td { padding: 14px 16px; vertical-align: top; border-bottom: 1px solid var(--border); text-wrap: pretty; }
+.changes tr:last-child td { border-bottom: 0; }
+.changes td:first-child { font-weight: 600; width: 28%; }
+.changes td:nth-child(2) { color: var(--on-surface-variant); }
+.changes code, .keep code, .ask code { white-space: nowrap; }
+.new { display: inline-block; margin-left: 6px; font: 600 10.5px/1 var(--font-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-warning-container); background: var(--warning-container); padding: 4px 8px; border-radius: 999px; vertical-align: 2px; }
+.cols2 { display: grid; gap: 24px; }
+@media (min-width: 900px) { .cols2 { grid-template-columns: 1fr 1fr; } }
+.keep, .ask { margin: 0; padding: 0 0 0 20px; display: flex; flex-direction: column; gap: 10px; color: var(--on-surface-variant); font-size: 14px; }
+.keep b, .ask b { color: var(--on-surface); font-weight: 600; }
+.sub { margin: 0 0 12px; font: 600 16px/1.3 var(--font-sans); }
+
+/* ── The QManager mock: primitives mirroring components/ui/* ────────
+   Container steps (Tailwind v4): @xs 20rem · @sm 24rem · @md 28rem · @lg 32rem · @xl 36rem
+   @2xl 42rem · @3xl 48rem · @4xl 56rem · @5xl 64rem · @6xl 72rem. Use the step the real
+   component will use, so the mock and the build agree. Geometry: references/artifact-spec.md. */
+.qm { container: main / inline-size; background: var(--background); border-radius: 16px; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; font-size: 14px; line-height: 1.5; }
+.qm-head h1 { margin: 0 0 6px; font: 700 30px/1.15 var(--font-sans); letter-spacing: -0.02em; }
+.qm-head p { margin: 0; color: var(--on-surface-variant); font-size: 14px; }
+
+/* Card: rounded-card 16, px-6 py-6 gap-6, border-0, card-sheen in dark. Hero: rounded-hero 20, 28px. */
+.card { container: card / inline-size; min-width: 0; background-color: var(--surface); background-image: var(--card-sheen); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-whisper); display: flex; flex-direction: column; gap: 24px; }
+.card.hero { border-radius: 20px; }
+@container main (min-width: 40rem) { .card.hero { padding: 28px; } }
+
+/* CardHeader: title + one-line description left, CardAction on the right edge. No icons in the title. */
+.sh { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
+.sh-t { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 16rem; }
+.sh h2 { margin: 0; font: 600 18px/1.3 var(--font-sans); }
+.sh p { margin: 0; color: var(--on-surface-variant); font-size: 14px; max-width: 56ch; text-wrap: pretty; }
+.sh-m { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+
+/* Outline Tag: identity and metadata only. px-2 py-0.5 text-xs font-medium, 22px. */
+.tag { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--tag-neutral-border); color: var(--tag-neutral-text); font: 500 12px/1 var(--font-sans); white-space: nowrap; }
+.tag.nr { border-color: var(--tag-nr-border); color: var(--tag-nr-text); }
+.tag.lte { border-color: var(--tag-lte-border); color: var(--tag-lte-text); }
+.tag.spatial { border-color: var(--tag-spatial-border); color: var(--tag-spatial-text); }
+.tag.mono { font-family: var(--font-mono); font-size: 11.5px; }
+
+/* Filled status Badge: container + on-container ink + mandatory 12px glyph. Same 22px box as a tag. */
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 999px; font: 500 12px/1 var(--font-sans); white-space: nowrap; }
+.badge .ms { font-size: 12px; font-variation-settings: "FILL" 1, "wght" 400, "opsz" 20; }
+.badge.success { background: var(--success-container); color: var(--on-success-container); }
+.badge.warning { background: var(--warning-container); color: var(--on-warning-container); }
+.badge.destructive { background: var(--destructive-container); color: var(--on-destructive-container); }
+.badge.info { background: var(--primary-container); color: var(--on-primary-container); }
+.badge.muted { background: var(--surface-container-high); color: var(--on-surface-variant); }
+
+/* Buttons: pill, 42px (Button size="action"), 600. One primary per card. .sm = PILL_QUIET (36px). */
+.btn { height: 42px; padding: 0 20px; border-radius: 999px; border: 0; background: var(--primary); color: var(--primary-foreground); font-weight: 600; font-size: 14px; cursor: pointer; flex: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { filter: brightness(1.06); }
+.btn.tonal { background: var(--primary-container); color: var(--on-primary-container); }
+.btn.ghost { background: transparent; color: var(--on-surface-variant); }
+.btn.ghost:hover { background: var(--surface-container); filter: none; }
+.btn.destructive { background: var(--destructive); color: var(--destructive-foreground); }
+.btn.sm { height: 36px; padding: 0 14px; font-size: 12px; }
+.btn .ms { font-size: 18px; }
+
+/* Field: rounded-field 10, 42px, one tonal step above its host, no rest border */
+.inp { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 0; background: var(--surface-container); color: var(--on-surface); padding: 0 14px; font: 400 14px/1 var(--font-sans); outline: 3px solid transparent; outline-offset: 2px; transition: outline-color var(--duration-quick) ease-out; }
+.inp.num { font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+.inp::placeholder { font: 400 14px var(--font-sans); color: var(--on-surface-variant); }
+.inp:focus-visible { outline-color: var(--ring); }
+.inp[aria-invalid="true"] { outline: 2px solid var(--destructive-on-surface); outline-offset: 0; }
+.well .inp, .inp.on-container { background: var(--surface-container-high); }
+
+/* Segmented control (TabsList h-9 p-[3px]), sized to its content, never stretched */
+.seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 4.5rem; height: 36px; padding: 3px; border-radius: 999px; background: var(--surface-container); }
+.seg button { border: 0; border-radius: 999px; background: transparent; font-size: 13px; font-weight: 500; color: var(--on-surface-variant); cursor: pointer; transition: background var(--duration-quick) var(--ease-standard), color var(--duration-quick) var(--ease-standard); }
+.seg button[aria-checked="true"] { background: var(--seg-on); color: var(--on-surface); box-shadow: var(--seg-shadow); font-weight: 600; }
+
+/* Switch (44px touch floor applies on coarse pointers) */
+.switch { position: relative; width: 32px; height: 18px; border-radius: 999px; border: 0; background: var(--input); cursor: pointer; flex: none; transition: background var(--duration-quick) var(--ease-standard); }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: #fff; transition: transform var(--duration-standard) var(--ease-standard); }
+.switch::before { content: ""; position: absolute; inset: -13px -6px; }
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch[aria-checked="true"]::after { transform: translateX(14px); }
+
+/* The one inner container a card may have (One-Nest Rule): rounded-tile 12 */
+.well { background: var(--surface-container); border-radius: 12px; min-width: 0; }
+.well > .part { padding: 16px 20px; }
+.well > .part + .part { border-top: 1px solid var(--border); }
+.sec-label { margin: 0 0 6px; font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Receipt rows: key hard left, value hard right, 13px/600 on a 20px line box */
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rows li { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 13px; line-height: 20px; min-width: 0; }
+.rows .k { color: var(--on-surface-variant); min-width: 0; }
+.rows .v { font-weight: 600; text-align: right; min-width: 0; }
+.rows .v.quiet { color: var(--on-surface-variant); font-weight: 500; }  /* default value: quiet */
+.cols { display: grid; gap: 8px 32px; }
+@container card (min-width: 48rem) { .cols { grid-template-columns: 1fr 1fr; } }
+
+/* Glyph disc: 52px tile disc (TILE_SHAPE.DISC), 44px block, 40px row. Strong fill for identity. */
+.disc { width: 52px; height: 52px; border-radius: 999px; display: grid; place-items: center; flex: none; transition: background var(--duration-standard) var(--ease-standard), color var(--duration-standard) var(--ease-standard); }
+.disc.block { width: 44px; height: 44px; }
+.disc.row { width: 40px; height: 40px; }
+.disc .ms { font-size: 24px; }
+.disc.idle { background: var(--surface-container-high); color: var(--on-surface-variant); }
+.disc.nr { background: var(--primary); color: var(--primary-foreground); }
+.disc.lte { background: var(--lte); color: var(--lte-foreground); }
+.disc.bad { background: var(--tone-destructive-1); color: var(--destructive-on-surface); }
+
+/* Tile: pinned 104px, rounded-tile 12, neutral body, the disc carries the colour */
+.tile { height: 104px; border-radius: 12px; background: var(--surface-container); display: flex; align-items: center; gap: 14px; padding: 0 18px; min-width: 0; }
+
+/* Quality bar: 8px, full-round, length carries the value; 56px lane when inline */
+.bar { position: relative; height: 8px; border-radius: 999px; background: var(--surface-container-high); overflow: hidden; }
+.bar.lane { width: 56px; flex: none; }
+.bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--quality-4-bar); }
+
+/* Pair grid for two cards sharing a row (equal heights) */
+.pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@container main (min-width: 58rem) { .pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; } }
+
+/* Empty state: glyph + title + one line (+ one action) */
+.empty { min-height: 9rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center; }
+.empty > .ms { font-size: 22px; color: var(--on-surface-variant); width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; background: var(--surface-container-high); }
+.empty b { font-size: 14px; font-weight: 600; }
+.empty span { font-size: 12.5px; color: var(--on-surface-variant); max-width: 26rem; }
+
+/* Skeleton: mirrors the loaded geometry */
+.skel { background: var(--surface-container-high); border-radius: 8px; }
+
+.swap { animation: swapIn var(--duration-standard) var(--ease-standard) both; }
+@keyframes swapIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (hover: none) { .hover-only { opacity: 1 !important; } }
+
+/* AUTHOR: page-specific mock styles go here. Name them after the constants they'll become. */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<main class="doc">
+  <header class="doc-head">
+    <span class="eyebrow">__ROUTE__</span>
+    <h1>__HEADLINE__</h1>
+    <!-- The reframe: the question the page answers, what the layout does to it, then the headline moves. -->
+    <p>__REFRAME__</p>
+  </header>
+
+  <!-- 1. DIAGNOSIS ─────────────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-now">
+    <h2 id="h-now">Where it reads rough today</h2>
+    <p class="lede">__SHOT_LEDE__</p>
+    <div class="before">
+      <div class="shots">
+        <figure class="shot">
+          <img src="__SHOT__" alt="__SHOT_ALT__" width="1920" height="1080">
+          <!-- AUTHOR: one pin per finding; left/top are % of the image. -->
+          <span class="pin" style="left:25%;top:30%">1</span>
+          <figcaption>Current, dark theme</figcaption>
+        </figure>
+        <!-- Optional phone screenshot: add a second figure.shot.phone-shot whose img src is a second placeholder (SHOT_PHONE in double underscores), embedded with a second --shot flag. -->
+      </div>
+      <ol class="findings">
+        <!-- AUTHOR: 4–7 findings, same order as the pins. Title = concrete claim with a number.
+             Body = what was measured, the cause (file/constant and value in <code>), the rule, the cost. -->
+        <li><span class="n">1</span><div><b>__FINDING_TITLE__</b><span>__FINDING_BODY__</span></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 2. PROPOSAL ─────────────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-new">
+    <h2 id="h-new">Proposed layout</h2>
+    <p class="lede">__MOCK_LEDE__</p>
+
+    <div class="demo-bar">
+      <div class="grp">
+        <span class="lbl">State</span>
+        <div class="chips" id="states">
+          <!-- AUTHOR: one chip per REAL state (idle/empty, loading, result, applying/partial, edge cases, error).
+               data-state keys must exist in STATES below; name chips by real content. -->
+          <button class="chip" data-state="idle" aria-pressed="false">Idle</button>
+          <button class="chip" data-state="result" aria-pressed="true">Result</button>
+          <button class="chip" data-state="edge" aria-pressed="false">Edge case</button>
+          <button class="chip" data-state="error" aria-pressed="false">Error</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="lbl">Width</span>
+        <div class="chips" id="widths">
+          <button class="chip" data-w="wide" aria-pressed="true">Wide</button>
+          <button class="chip" data-w="phone" aria-pressed="false">Phone</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="lbl">Theme</span>
+        <div class="chips" id="themes">
+          <button class="chip" data-t="auto" aria-pressed="true">Auto</button>
+          <button class="chip" data-t="light" aria-pressed="false">Light</button>
+          <button class="chip" data-t="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="frame" id="frame">
+        <div class="qm">
+          <header class="qm-head">
+            <h1>__PAGE_TITLE__</h1>
+            <p>__PAGE_DESCRIPTION__</p>
+          </header>
+
+          <!-- AUTHOR: the mock. Real domain content, real copy (under budget), real computed data.
+               Render state-dependent regions from render() so every state chip works. -->
+          <section class="card" aria-labelledby="c-main">
+            <div class="sh">
+              <div class="sh-t">
+                <h2 id="c-main">__CARD_TITLE__</h2>
+                <p>__CARD_DESCRIPTION__</p>
+              </div>
+              <div class="sh-m" id="c-main-action"></div>
+            </div>
+            <div class="well" id="c-main-body"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. BEFORE AND AFTER ────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-ba">
+    <h2 id="h-ba">Before and after</h2>
+    <p class="lede">__BA_LEDE__</p>
+    <div class="ba">
+      <div class="ba-side">
+        <span class="lbl">Today</span>
+        <!-- AUTHOR: rebuild today's row/component from its real class strings, value for value. -->
+        <div class="ba-plate">__BA_BEFORE__</div>
+        <p class="cls">__BA_BEFORE_CLASS__</p>
+      </div>
+      <div class="ba-side">
+        <span class="lbl">Proposed</span>
+        <div class="ba-plate">__BA_AFTER__</div>
+        <p class="cls">__BA_AFTER_CLASS__</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. WHAT CHANGES ────────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-chg">
+    <h2 id="h-chg">What changes</h2>
+    <p class="lede">__SCOPE_LEDE__</p>
+    <div class="tbl-wrap">
+      <table class="changes">
+        <thead><tr><th>Change</th><th>Why</th><th>Where</th></tr></thead>
+        <tbody>
+          <!-- AUTHOR: one row per change, including code-provenance fixes. Add <span class="new">new</span> after the Change text for new behaviour or content. -->
+          <tr><td>__CHANGE__</td><td>__WHY__</td><td><code>__FILE__</code>, <code>__CONSTANT__</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 5. KEPT / YOUR CALL ────────────────────────────────────── -->
+  <section class="sec cols2" aria-label="Kept and open">
+    <div>
+      <h3 class="sub">Kept as is</h3>
+      <ul class="keep">
+        <li><b>__KEPT__.</b> __KEPT_WHY__</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="sub">Your call before build</h3>
+      <ul class="ask">
+        <!-- AUTHOR: veto-worthy decisions first (upheld or overturned), then new rows, copy, glyphs, out-of-scope bugs. -->
+        <li><b>__DECISION__</b> __DECISION_QUESTION__</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // AUTHOR: real data. Compute values with the real formulas (see the exemplar's calcLTE/calcNR),
+  // or take them verbatim from the user's screenshot or the page's own fixtures. Never lorem ipsum.
+  const STATES = {
+    idle:   { rows: null },
+    result: { rows: [["Key", "Value"]] },
+    edge:   { rows: [["Key", "Value"], ["Another key", "Another value"]] },
+    error:  { error: "One sentence saying what went wrong." },
+  };
+  let state = "result";
+
+  function render() {
+    const s = STATES[state];
+    const body = $("c-main-body");
+    if (s.error) {
+      body.innerHTML = `<div class="empty swap"><span class="ms f" style="color:var(--destructive-on-surface)">error</span><b>Couldn't load</b><span>${esc(s.error)}</span></div>`;
+      return;
+    }
+    if (!s.rows) {
+      body.innerHTML = `<div class="empty"><span class="ms">tune</span><b>Nothing yet</b><span>One line that says what fills this.</span></div>`;
+      return;
+    }
+    body.innerHTML = `<div class="part swap"><ul class="rows">${s.rows.map(([k, v]) => `<li><span class="k">${esc(k)}</span><span class="v num">${esc(v)}</span></li>`).join("")}</ul></div>`;
+  }
+
+  function press(groupId, attr, value) {
+    document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.setAttribute("aria-pressed", String(c.dataset[attr] === value)));
+  }
+  $("states").addEventListener("click", e => {
+    const c = e.target.closest("[data-state]");
+    if (!c || !STATES[c.dataset.state]) return;
+    state = c.dataset.state; press("states", "state", state); render();
+  });
+  $("widths").addEventListener("click", e => {
+    const c = e.target.closest("[data-w]");
+    if (!c) return;
+    press("widths", "w", c.dataset.w);
+    $("frame").classList.toggle("phone", c.dataset.w === "phone");
+  });
+  // Theme: Auto restores whatever the host set (it may own data-theme), Light/Dark force it.
+  const root = document.documentElement;
+  const hostTheme = root.getAttribute("data-theme");
+  $("themes").addEventListener("click", e => {
+    const c = e.target.closest("[data-t]");
+    if (!c) return;
+    press("themes", "t", c.dataset.t);
+    if (c.dataset.t === "auto") { hostTheme ? root.setAttribute("data-theme", hostTheme) : root.removeAttribute("data-theme"); }
+    else root.setAttribute("data-theme", c.dataset.t);
+  });
+
+  render();
+})();
+</script>

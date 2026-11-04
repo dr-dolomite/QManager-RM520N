@@ -1,0 +1,203 @@
+#!/bin/sh
+# qmanager_config_restore — detached config restore worker (www-data).
+# Spawned by system/config-backup/apply.sh. Applies each section of
+# /tmp/qmanager_config_restore_input.json in CFG_BACKUP_APPLY_ORDER and writes
+# progress to /tmp/qmanager_config_restore.json. Never reboots.
+
+export PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
+
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
+    qlog_init() { :; }; qlog_info() { :; }; qlog_warn() { :; }; qlog_error() { :; }
+fi
+qlog_init "cfg_restore"
+
+EVENTS_FILE="/tmp/qmanager_events.json"
+MAX_EVENTS=50
+if [ -f /usr/lib/qmanager/events.sh ]; then
+    . /usr/lib/qmanager/events.sh
+else
+    append_event() { :; }
+fi
+[ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
+if [ -f /usr/lib/qmanager/config_backup_sections.sh ]; then
+    . /usr/lib/qmanager/config_backup_sections.sh
+else
+    qlog_error "config_backup_sections.sh missing"
+    exit 1
+fi
+
+JOB_ID="${1:-$(date +%s)}"
+INPUT_FILE="/tmp/qmanager_config_restore_input.json"
+STATE_FILE="/tmp/qmanager_config_restore.json"
+PID_FILE="/tmp/qmanager_config_restore.pid"
+LOCK_FILE="/tmp/qmanager_config_restore.lock"
+CANCEL_FILE="/tmp/qmanager_config_restore.cancel"
+SECTION_FILE="/tmp/qmanager_config_restore.section.json"
+
+# Root-created files in sticky /tmp would lock www-data (the CGIs) out of them.
+if [ "$(id -u)" = "0" ]; then
+    echo "qmanager_config_restore: run as www-data (sudo -n -u www-data ...)" >&2
+    exit 1
+fi
+
+exec 9>>"$LOCK_FILE" || exit 1
+flock -n 9 || { qlog_warn "Another restore holds $LOCK_FILE"; exit 1; }
+
+echo "$$" > "$PID_FILE" || { qlog_error "Cannot write $PID_FILE"; exit 1; }
+rm -f "$CFG_BACKUP_REBOOT_FLAG"
+
+cleanup() {
+    rm -f "$PID_FILE" "$CANCEL_FILE" "$INPUT_FILE" "$SECTION_FILE"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM
+
+if [ ! -f "$INPUT_FILE" ] || [ ! -O "$INPUT_FILE" ]; then
+    qlog_error "Input missing or not ours: $INPUT_FILE"
+    exit 1
+fi
+
+STARTED_AT=$(date +%s)
+
+# Foreign model: AT sections the modem rejects become skipped:incompatible.
+src_model=$(jq -r '.source_model // ""' "$INPUT_FILE" 2>/dev/null)
+cur_model=$(jq -r '.device.model // ""' /tmp/qmanager_status.json 2>/dev/null)
+CFG_FOREIGN_MODEL=0
+if [ -n "$src_model" ] && [ -n "$cur_model" ] && [ "$src_model" != "$cur_model" ]; then
+    CFG_FOREIGN_MODEL=1
+fi
+export CFG_FOREIGN_MODEL
+
+# Backup keys in apply order, then any key this build does not know.
+present=""
+for k in $CFG_BACKUP_APPLY_ORDER; do
+    jq -e --arg k "$k" '.sections | has($k)' "$INPUT_FILE" >/dev/null 2>&1 && present="$present $k"
+done
+for k in $(jq -r '.sections | keys[]' "$INPUT_FILE" 2>/dev/null); do
+    case " $present " in *" $k "*) ;; *) cfg_backup_valid_key "$k" && present="$present $k" ;; esac
+done
+
+sections_arr=$(for k in $present; do printf '%s\n' "$k"; done |
+    jq -R -s -c 'split("\n") | map(select(length > 0)) | map({key: ., status: "pending", attempts: 0, message: "", ignored_keys: 0, dropped: 0})')
+[ -n "$sections_arr" ] || sections_arr="[]"
+
+state_write() {
+    local status="$1" summary="${2:-null}" completed="${3:-null}" reboot=false tmp
+    [ -f "$CFG_BACKUP_REBOOT_FLAG" ] && reboot=true
+    tmp="${STATE_FILE}.tmp.$$"
+    jq -n --arg job "$JOB_ID" --arg status "$status" \
+        --argjson started "$STARTED_AT" --argjson completed "$completed" \
+        --argjson sections "$sections_arr" --argjson summary "$summary" \
+        --argjson reboot "$reboot" \
+        '{job_id:$job, status:$status, started_at:$started, completed_at:$completed,
+          sections:$sections, summary:$summary, reboot_required:$reboot}' > "$tmp" 2>/dev/null &&
+        mv -f "$tmp" "$STATE_FILE"
+}
+
+update_section() {
+    sections_arr=$(printf '%s' "$sections_arr" | jq -c \
+        --arg k "$1" --arg s "$2" --argjson a "$3" --arg m "$4" \
+        --argjson ig "${5:-0}" --argjson dr "${6:-0}" \
+        'map(if .key == $k then . + {status:$s, attempts:$a, message:$m, ignored_keys:$ig, dropped:$dr} else . end)')
+}
+
+# 1 attempt + 3 retries (1 s, 2 s, 4 s), only on CFG_RC_RETRY.
+apply_one() {
+    local key="$1" attempt=0 rc delay=1
+    while [ "$attempt" -lt 4 ]; do
+        [ -f "$CANCEL_FILE" ] && return 10
+        attempt=$((attempt + 1))
+        if [ "$attempt" -eq 1 ]; then
+            update_section "$key" running "$attempt" ""
+        else
+            update_section "$key" "retrying:$((attempt - 1))" "$attempt" "$CFG_MESSAGE"
+        fi
+        state_write running
+        LAST_ATTEMPTS=$attempt
+        # fd 9 closed so a daemon an applier starts cannot inherit the lock.
+        # apply.sh's umask 077 is for our /tmp files; config files keep the UI's 0644.
+        umask 022
+        cfg_backup_apply "$key" "$SECTION_FILE" 9>&-
+        rc=$?
+        umask 077
+        [ "$rc" -eq "$CFG_RC_RETRY" ] || return "$rc"
+        if [ "$attempt" -lt 4 ]; then
+            sleep "$delay"
+            delay=$((delay * 2))
+        fi
+    done
+    return "$CFG_RC_RETRY"
+}
+
+state_write running
+append_event "config_restore_started" "Configuration restore started ($(echo $present | wc -w) sections)" "info"
+qlog_info "Restore $JOB_ID started:$present (foreign_model=$CFG_FOREIGN_MODEL)"
+
+ok=0; failed=0; skipped=0; ignored_total=0; dropped_total=0; cancelled=0
+for key in $present; do
+    if [ -f "$CANCEL_FILE" ]; then cancelled=1; break; fi
+    if ! cfg_backup_is_known_section "$key"; then
+        update_section "$key" "skipped:not_supported" 0 "Not supported by this version"
+        skipped=$((skipped + 1))
+        state_write running
+        continue
+    fi
+    if ! jq -c --arg k "$key" '.sections[$k]' "$INPUT_FILE" > "$SECTION_FILE" 2>/dev/null; then
+        update_section "$key" failed 0 "Could not read section"
+        failed=$((failed + 1))
+        continue
+    fi
+    LAST_ATTEMPTS=1
+    CFG_IGNORED=0; CFG_DROPPED=0
+    apply_one "$key"
+    rc=$?
+    ignored_total=$((ignored_total + CFG_IGNORED))
+    dropped_total=$((dropped_total + CFG_DROPPED))
+    case "$rc" in
+        0)
+            update_section "$key" success "$LAST_ATTEMPTS" "$CFG_MESSAGE" "$CFG_IGNORED" "$CFG_DROPPED"
+            ok=$((ok + 1))
+            append_event "config_restore_section_success" "Restored: $key" "info"
+            ;;
+        2)
+            update_section "$key" "skipped:incompatible" "$LAST_ATTEMPTS" "$CFG_MESSAGE" "$CFG_IGNORED" "$CFG_DROPPED"
+            skipped=$((skipped + 1))
+            append_event "config_restore_section_skipped" "Skipped: $key (incompatible)" "warning"
+            ;;
+        3)
+            update_section "$key" "skipped:sim_mismatch" "$LAST_ATTEMPTS" "$CFG_MESSAGE" "$CFG_IGNORED" "$CFG_DROPPED"
+            skipped=$((skipped + 1))
+            append_event "config_restore_section_skipped" "Skipped: $key (SIM mismatch)" "warning"
+            ;;
+        10)
+            update_section "$key" pending 0 ""
+            cancelled=1
+            break
+            ;;
+        *)
+            update_section "$key" failed "$LAST_ATTEMPTS" "$CFG_MESSAGE" "$CFG_IGNORED" "$CFG_DROPPED"
+            failed=$((failed + 1))
+            append_event "config_restore_section_failed" "Failed to restore: $key" "error"
+            ;;
+    esac
+    state_write running
+done
+
+# UBIFS holds writes for up to 30 s; the UI may offer a reboot right after.
+sync
+
+summary=$(jq -n --argjson s "$ok" --argjson f "$failed" --argjson k "$skipped" \
+    --argjson i "$ignored_total" --argjson d "$dropped_total" \
+    '{success:$s, failed:$f, skipped:$k, ignored_keys:$i, dropped:$d}')
+final=done
+[ "$cancelled" = "1" ] && final=cancelled
+state_write "$final" "$summary" "$(date +%s)"
+
+sev=info
+[ "$failed" -gt 0 ] && sev=warning
+append_event "config_restore_completed" \
+    "Configuration restore $final ($ok restored, $failed failed, $skipped skipped)" "$sev"
+qlog_info "Restore $JOB_ID $final: ok=$ok failed=$failed skipped=$skipped ignored=$ignored_total dropped=$dropped_total"
+exit 0

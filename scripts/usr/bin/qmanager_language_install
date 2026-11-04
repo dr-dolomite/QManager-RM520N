@@ -26,9 +26,12 @@
 # /tmp/qmanager_language_install.cancel sentinel between steps.
 # =============================================================================
 
-. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
     qlog_init() { :; }; qlog_info() { :; }; qlog_warn() { :; }; qlog_error() { :; }
-}
+fi
 qlog_init "lang_install"
 
 . /usr/lib/qmanager/language_packs.sh

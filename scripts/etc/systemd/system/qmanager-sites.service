@@ -1,0 +1,16 @@
+# /lib/systemd/system/qmanager-sites.service
+[Unit]
+Description=QManager Sites Monitor Daemon
+After=network.target qmanager-setup.service
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qmanager_sites
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

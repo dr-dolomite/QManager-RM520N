@@ -1,0 +1,26 @@
+# /lib/systemd/system/qmanager-atd.service
+[Unit]
+Description=QManager AT Command Broker
+# qmanager_setup creates /run/qmanager_at/at.lock; the broker exits 1 without it.
+After=qmanager-setup.service
+Wants=qmanager-setup.service
+Before=qmanager-poller.service
+# Skipped (not failed) where the binary is not installed.
+ConditionPathExists=/usr/bin/qmanager_atd
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStartPre=/bin/sh -c 'i=0; while [ $i -lt 30 ] && [ ! -e /dev/smd11 ]; do sleep 1; i=$((i+1)); done; [ -e /dev/smd11 ] || { echo "AT device /dev/smd11 not found after 30s"; exit 1; }'
+ExecStart=/usr/bin/qmanager_atd
+# The broker pings only while its AT lane is idle or under 340 s into a job.
+WatchdogSec=30
+TimeoutStartSec=40
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

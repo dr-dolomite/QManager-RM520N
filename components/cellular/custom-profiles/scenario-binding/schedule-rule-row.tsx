@@ -1,12 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  Trash2Icon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import {
   Collapsible,
@@ -15,6 +10,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { MACHINE_VALUE } from "@/components/cellular/custom-profiles/shapes";
 
 import { ScheduleBlockEditor } from "./schedule-block-editor";
 import type { ScheduleBlockError } from "@/lib/scenario-schedule";
@@ -83,14 +79,9 @@ export function ScheduleRuleRow({
     end: block.end,
   });
 
-  const summary = t("custom_profiles.form.scenario.summary_line", {
-    time: timeRange,
-    scenario: nameForId(block.scenario),
-  });
-
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <div ref={rowRef} className="rounded-lg border">
+      <div ref={rowRef} className="rounded-tile border">
         <div className="flex items-center gap-1 p-2">
           {canReorder && (
             <div className="flex flex-col">
@@ -103,7 +94,7 @@ export function ScheduleRuleRow({
                 aria-label={t("custom_profiles.form.scenario.move_up_aria")}
                 onClick={onMoveUp}
               >
-                <ChevronUpIcon className="size-3.5" />
+                <MaterialSymbol name="arrow_upward" size={14} />
               </Button>
               <Button
                 type="button"
@@ -114,7 +105,7 @@ export function ScheduleRuleRow({
                 aria-label={t("custom_profiles.form.scenario.move_down_aria")}
                 onClick={onMoveDown}
               >
-                <ChevronDownIcon className="size-3.5" />
+                <MaterialSymbol name="arrow_downward" size={14} />
               </Button>
             </div>
           )}
@@ -124,15 +115,37 @@ export function ScheduleRuleRow({
               type="button"
               aria-expanded={open}
               aria-label={t("custom_profiles.form.scenario.expand_rule_aria")}
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left text-sm"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-inline px-1 py-1 text-left text-sm"
             >
               {flagged && (
-                <TriangleAlertIcon className="text-warning size-3 shrink-0" />
+                <MaterialSymbol
+                  name="warning"
+                  size={12}
+                  className="text-warning-on-surface shrink-0"
+                />
               )}
-              <span className="truncate tabular-nums">{summary}</span>
-              <ChevronDownIcon
+              {/* Machine-Voice Rule per segment: the HH:MM range is
+                  device-format and renders mono; the scenario name is
+                  human-authored (user-typed or a translated default) and
+                  stays proportional. The arrow is a bare separator glyph,
+                  not linguistic content, so it isn't routed through i18n. */}
+              <span className="flex min-w-0 items-center gap-1 truncate">
+                <span className={cn("shrink-0", MACHINE_VALUE)}>
+                  {timeRange}
+                </span>
+                <span
+                  className="text-on-surface-variant shrink-0"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+                <span className="truncate">{nameForId(block.scenario)}</span>
+              </span>
+              <MaterialSymbol
+                name="expand_more"
+                size={16}
                 className={cn(
-                  "text-muted-foreground ml-auto size-4 shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+                  "text-on-surface-variant ml-auto shrink-0 transition-transform duration-[var(--duration-quick)] ease-out motion-reduce:transition-none",
                   open && "rotate-180",
                 )}
               />
@@ -147,7 +160,7 @@ export function ScheduleRuleRow({
             aria-label={t("custom_profiles.form.scenario.remove_block_aria")}
             onClick={onRemove}
           >
-            <Trash2Icon className="size-4" />
+            <MaterialSymbol name="delete" size={16} />
           </Button>
         </div>
 

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 
 import {
@@ -13,38 +14,44 @@ import {
 } from "@/components/ui/card";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { AlertCircleIcon, RefreshCcwIcon } from "lucide-react";
-import { staggerItem } from "@/lib/motion-presets";
-import { type UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
-import { type SmsForwardingData } from "@/types/sms-forwarding";
+import { CardFoot } from "@/components/ui/card-foot";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { SegmentedField } from "@/components/ui/segmented-field";
+import { HintIcon } from "@/components/ui/hint-icon";
+import { staggerRowItem, staggerRows } from "@/lib/motion";
+import type { UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
+import type { SmsForwardingData } from "@/types/sms-forwarding";
+import { CARD_FOOT_GUTTER, CARD_SHELL, FORM_SKELETON } from "./shapes";
 
 // =============================================================================
 // SmsForwardingCard — the control surface for the daemon-backed SMS relay.
-// Setup only: enable toggle + destination number + save. Live status, the
-// recipient preview, the test action, and delivery failures all live in the
-// companion DeliveryHealthCard, which shares this card's lifted hook.
+//
+// Setup only: enable toggle + destination number + apply. Live status, the
+// recipient preview, the test action and delivery failures all live in the
+// companion DeliveryHealthCard, which shares this card's lifted hook. The split
+// is the State-Honesty Rule made structural: this card holds the half-edited
+// FORM, the health card reports the SAVED state, and neither speaks for the
+// other.
 // =============================================================================
 
 // E.164-ish: optional leading +, first digit 1-9, total 7-15 digits.
 const PHONE_REGEX = /^\+?[1-9]\d{6,14}$/;
 
 const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
-  const { data, isLoading, isSaving, isSendingTest, error, saveSettings, refresh } =
-    fwd;
+  const { t } = useTranslation("cellular");
+  const { data, isLoading, isSaving, isSendingTest, saveSettings } = fwd;
 
   const { saved, markSaved } = useSaveFlash();
+  const formId = useId();
   const [prevData, setPrevData] = useState<SmsForwardingData | null>(null);
   const [isEnabled, setIsEnabled] = useState(false);
   const [targetPhone, setTargetPhone] = useState("");
@@ -60,7 +67,7 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
   // by a stale/invalid number left in the field.
   const phoneError =
     isEnabled && targetPhone && !PHONE_REGEX.test(targetPhone)
-      ? "Enter a valid phone number (e.g. +15551234567)."
+      ? t("sms.forwarding.sms.validation_phone")
       : null;
 
   const isDirty = data
@@ -74,161 +81,176 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
     e.preventDefault();
     if (!canSave) return;
 
-    const success = await saveSettings({
+    const result = await saveSettings({
       enabled: isEnabled,
       target_phone: targetPhone,
     });
-    if (success) {
+    if (result.ok) {
       markSaved();
-      toast.success("Forwarding settings saved");
+      toast.success(t("sms.forwarding.sms.toast_save_success"));
     } else {
-      toast.error(error || "Failed to save settings");
+      // The reason rides on the RESULT; the hook's `error` state is a
+      // render-time capture from before this call.
+      toast.error(result.error);
     }
   };
 
-  // --- Loading skeleton ------------------------------------------------------
-  // Mirrors the real form geometry (toggle row → labeled input → button) so the
-  // card holds its height and nothing snaps when data lands.
+  const handleDiscard = () => {
+    if (!data) return;
+    setIsEnabled(data.settings.enabled);
+    setTargetPhone(data.settings.target_phone);
+  };
+
+  const header = (
+    <CardHeader>
+      <CardTitle>{t("sms.forwarding.sms.card_title")}</CardTitle>
+      <CardDescription>
+        {t("sms.forwarding.sms.card_description")}
+      </CardDescription>
+    </CardHeader>
+  );
+
+  // --- Loading ---------------------------------------------------------------
+  // Mirrors the real form geometry (labelled pill → labelled input → foot) from
+  // `FORM_SKELETON`, so the card holds its height and the handoff is a pure
+  // crossfade with no snap.
   if (isLoading) {
     return (
-      <Card className="@container/card h-full">
-        <CardHeader>
-          <CardTitle>Forwarding Relay</CardTitle>
-          <CardDescription>
-            Automatically forward incoming SMS to another number.
-          </CardDescription>
-        </CardHeader>
+      <Card className={CARD_SHELL}>
+        {header}
         <CardContent>
-          <div className="grid gap-6">
-            {/* Enable toggle row */}
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-5 w-9 rounded-full" />
+          <span className="sr-only">{t("sms.forwarding.sms.loading_label")}</span>
+          <div className="grid gap-4" aria-hidden="true">
+            <div className="flex flex-col gap-2">
+              <Skeleton className={FORM_SKELETON.LABEL} />
+              <Skeleton className={FORM_SKELETON.TOGGLE} />
             </div>
-            {/* Target field: label + input + helper */}
-            <div className="grid gap-2">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-9 w-full max-w-sm" />
-              <Skeleton className="h-3 w-48" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className={FORM_SKELETON.LABEL} />
+              <Skeleton className={FORM_SKELETON.INPUT} />
             </div>
-            {/* Save */}
-            <Skeleton className="h-9 w-32" />
           </div>
         </CardContent>
+        <CardFoot
+          className={CARD_FOOT_GUTTER}
+          liveStatus={false}
+          aria-hidden="true"
+          actions={<Skeleton className={FORM_SKELETON.ACTION} />}
+        />
       </Card>
     );
   }
 
-  // --- Initial fetch error ---------------------------------------------------
-  if (!isLoading && error && !data) {
-    return (
-      <Card className="@container/card h-full">
-        <CardHeader>
-          <CardTitle>Forwarding Relay</CardTitle>
-          <CardDescription>
-            Automatically forward incoming SMS to another number.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertCircleIcon className="size-4" />
-            <AlertTitle>Couldn&apos;t load forwarding settings</AlertTitle>
-            <AlertDescription>
-              <p>{error}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => refresh()}
-              >
-                <RefreshCcwIcon className="size-3.5" />
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+  // The page renders the read failure once, in place of both cards.
+  if (!data) return null;
 
   // --- Render ----------------------------------------------------------------
   return (
-    <Card className="@container/card h-full">
-      <CardHeader>
-        <CardTitle>Forwarding Relay</CardTitle>
-        <CardDescription>
-          Automatically forward incoming SMS to another number.
-        </CardDescription>
-      </CardHeader>
+    <Card className={CARD_SHELL}>
+      {header}
       <CardContent>
+        {/* `variants` only — no `initial`/`animate`. The stack inherits the
+            card's slot in the page cascade, so these rows arrive behind THIS
+            card rather than at t=0 alongside its sibling's rows. */}
         <motion.form
+          id={formId}
           className="grid gap-4"
           onSubmit={handleSave}
-          variants={staggerItem}
-          initial="hidden"
-          animate="visible"
+          variants={staggerRows}
         >
           <FieldSet>
             <FieldGroup>
               {/* Enable toggle */}
-              <Field orientation="horizontal" className="w-fit">
-                <FieldLabel htmlFor="sms-forwarding-enabled">
-                  Enable forwarding
-                </FieldLabel>
-                <Switch
-                  id="sms-forwarding-enabled"
-                  checked={isEnabled}
-                  onCheckedChange={setIsEnabled}
-                />
-              </Field>
+              <motion.div variants={staggerRowItem}>
+                <Field>
+                  <FieldLabel>{t("sms.forwarding.sms.enable_label")}</FieldLabel>
+                  <SegmentedField
+                    value={isEnabled ? "on" : "off"}
+                    onValueChange={(v) => setIsEnabled(v === "on")}
+                    options={[
+                      { value: "off", label: t("common:state.off") },
+                      { value: "on", label: t("common:state.on") },
+                    ]}
+                    ariaLabel={t("sms.forwarding.sms.enable_label")}
+                    breakpoint="never"
+                    className="w-fit"
+                    glyph={(className) => (
+                      <MaterialSymbol
+                        name="check"
+                        size={16}
+                        className={className}
+                      />
+                    )}
+                  />
+                </Field>
+              </motion.div>
 
               {/* Target phone */}
-              <Field>
-                <FieldLabel htmlFor="sms-forwarding-target">
-                  Forward to
-                </FieldLabel>
-                <Input
-                  id="sms-forwarding-target"
-                  type="tel"
-                  inputMode="tel"
-                  placeholder="+15551234567"
-                  className="max-w-sm font-mono"
-                  value={targetPhone}
-                  onChange={(e) => setTargetPhone(e.target.value)}
-                  disabled={!isEnabled}
-                  required={isEnabled}
-                  aria-invalid={!!phoneError}
-                  aria-describedby={
-                    phoneError
-                      ? "sms-forwarding-target-error"
-                      : "sms-forwarding-target-desc"
-                  }
-                  autoComplete="tel"
-                />
-                {phoneError ? (
-                  <FieldError id="sms-forwarding-target-error">
-                    {phoneError}
-                  </FieldError>
-                ) : (
-                  <FieldDescription id="sms-forwarding-target-desc">
-                    Include the country code. Every incoming message is relayed
-                    here.
-                  </FieldDescription>
-                )}
-              </Field>
-
-              {/* Save */}
-              <SaveButton
-                type="submit"
-                isSaving={isSaving}
-                saved={saved}
-                disabled={!canSave}
-                className="w-fit"
-              />
+              <motion.div variants={staggerRowItem}>
+                <Field>
+                  <div className="flex items-center gap-1.5">
+                    <FieldLabel htmlFor="sms-forwarding-target">
+                      {t("sms.forwarding.sms.target_label")}
+                    </FieldLabel>
+                    <HintIcon label={t("sms.forwarding.sms.target_hint_label")}>
+                      {t("sms.forwarding.sms.target_description")}
+                    </HintIcon>
+                  </div>
+                  {/* A phone number is an opaque string you compare and dial,
+                      so it stays mono. */}
+                  <Input
+                    id="sms-forwarding-target"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder={t("sms.forwarding.sms.target_placeholder")}
+                    className="max-w-sm font-mono"
+                    value={targetPhone}
+                    onChange={(e) => setTargetPhone(e.target.value)}
+                    disabled={!isEnabled}
+                    required={isEnabled}
+                    aria-invalid={!!phoneError}
+                    aria-describedby={
+                      phoneError ? "sms-forwarding-target-error" : undefined
+                    }
+                    autoComplete="tel"
+                  />
+                  {phoneError ? (
+                    <FieldError id="sms-forwarding-target-error">
+                      {phoneError}
+                    </FieldError>
+                  ) : null}
+                </Field>
+              </motion.div>
             </FieldGroup>
           </FieldSet>
         </motion.form>
       </CardContent>
+      {/* Outside the form so `mt-auto` reaches the card edge; `form=` keeps
+          Enter-to-submit. */}
+      <CardFoot
+        className={CARD_FOOT_GUTTER}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="action"
+              onClick={handleDiscard}
+              disabled={!isDirty || isSaving}
+            >
+              {t("common:actions.discard")}
+            </Button>
+            <SaveButton
+              type="submit"
+              form={formId}
+              isSaving={isSaving}
+              saved={saved}
+              disabled={!canSave}
+              size="action"
+            />
+          </>
+        }
+      />
     </Card>
   );
 };

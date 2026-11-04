@@ -1,0 +1,18 @@
+---
+name: project_conf_dir_recursive_chown
+description: install_rm520n.sh:1124 recursively chowns ALL of /etc/qmanager to www-data:www-data on every install/OTA run — conflicts with any per-file root:www-data ownership plan and creates a symlink-swap risk for root writers
+type: project
+---
+
+`chown -R www-data:www-data "$CONF_DIR"` at `scripts/install_rm520n.sh:1124` (inside the config-directory setup step, right after `mkdir -p "$CONF_DIR/profiles"`) runs **unconditionally on every install AND every OTA**. `CONF_DIR="/etc/qmanager"` (line 82).
+
+Consequences, live-confirmed by reading the code (not yet re-verified on-device this session):
+
+1. **Every file already under `/etc/qmanager` becomes www-data:www-data-owned**, not root:root — including root-written files like `crash.log` (written by `qmanager_watchcat`, which runs as root via systemd), `qmanager_sim_failover`, `last_iccid`, `tower_lock.json`. Root can still write regardless of ownership/mode (root bypasses DAC), so this doesn't break root writers today — but it means:
+   - A design that specifies `chown root:www-data` on a *specific* file inside `/etc/qmanager` will be **silently reverted to www-data:www-data by line 1124 on every subsequent OTA**, unless that per-file chown is explicitly sequenced to run strictly *after* line 1124, every single run. Ordering is fragile and not self-documenting — flag any per-file ownership plan inside CONF_DIR that doesn't account for this.
+   - **The directory itself (`/etc/qmanager`) is www-data-owned**, which typically means www-data has rwx on the dir (mode ~755 from mkdir + chown -R doesn't touch mode, but www-data as owner already has full directory rights). This means www-data can **delete-and-replace any file in `/etc/qmanager` with a symlink** (standard POSIX unlink/create checks the *directory's* write permission, not the target file's). Any root process that blindly appends (`>>`) to a path under `/etc/qmanager` — e.g. `qmanager_watchcat`'s `echo ... >> "$CRASH_LOG"` — is symlink-attackable by a compromised/buggy www-data-side process: it could repoint `crash.log` at an arbitrary root-owned file (`/etc/passwd`, a systemd unit, etc.) and get root to write attacker content there on the next Tier-4 reboot event.
+   - This is a **pre-existing latent risk**, not introduced by any single change — but it becomes load-bearing whenever a design proposes deliberately giving www-data a *second* writer role on a file that a root process also appends to (e.g. the crash.log dual-writer design audited 2026-07-20, see `project_crash_log_dual_writer_audit.md`). In that situation, recommend a **root-helper appender** (matching the existing `qmanager_*_apply` convention) that verifies `[ -L "$file" ]` and refuses/recreates rather than blindly following the path, instead of a raw group-write widening.
+
+2. New root-owned-looking or www-data-owned-looking files seeded into `/etc/qmanager` (new JSON configs, sidecar state files) will **all** end up www-data:www-data after the next install/OTA regardless of what mode/owner they were created with — this is actually convenient for CGI-writable config (no special-casing needed), but is a trap for anything meant to stay root-exclusive.
+
+**How to apply:** Whenever a design proposes explicit ownership/permission bits for a *new or existing* file under `/etc/qmanager`, check whether it survives line 1124's recursive chown, and check whether the file's directory-level exposure (www-data owns `/etc/qmanager` itself) creates a symlink-swap path for any root writer that touches that filename blindly. See also [[project_crash_log_dual_writer_audit]].

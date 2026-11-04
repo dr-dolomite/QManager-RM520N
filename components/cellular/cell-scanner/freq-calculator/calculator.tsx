@@ -1,523 +1,362 @@
 "use client";
 
-import { useState, useEffect, type KeyboardEvent } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import * as React from "react";
+import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
+
 import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { X, Trash2 } from "lucide-react";
+import { Tag } from "@/components/ui/tag";
+import { staggerItem } from "@/lib/motion";
+
+import { ScanEmptyState } from "../scan-states";
 import {
-  type LTEBandEntry,
-  type NRBandEntry,
-  LTE_BANDS,
-  NR_BANDS,
-  findAllMatchingLTEBands,
-  findAllMatchingNRBands,
-  lteDLFrequency,
-  lteULFrequency,
-  nrArfcnToFrequency,
-  nrULFrequency,
-} from "@/lib/earfcn";
+  BAND_TILE,
+  CALC_HERO,
+  CALC_SPLIT,
+  FORM,
+  HISTORY_CLEAR,
+  RESULTS_CARD,
+  SECTION_HEAD,
+} from "../shapes";
+import { SiblingRouteLink } from "../sibling-link";
+import { BAND_LABEL_KEY, BandTiles } from "./band-tiles";
+import {
+  type CalcError,
+  type CalcMode,
+  type CalculationResult,
+  type HistoryEntry,
+  HISTORY_LIMIT,
+  LTE_SPEC,
+  MAX_LTE_EARFCN,
+  MIN_NR_ARFCN,
+  NR_SPEC,
+  calculateFrequency,
+  readHistory,
+  toHistoryEntry,
+  writeHistory,
+} from "./calc-model";
+import { CalcReadout, type ReadoutState } from "./calc-readout";
+import { HistoryList } from "./history-list";
 
-// --- Auto-detection boundaries (derived from shared band tables) -------------
-const MAX_LTE_EARFCN = Math.max(...LTE_BANDS.map((b) => b.earfcnRange[1]));
-const MIN_NR_ARFCN = Math.min(...NR_BANDS.map((b) => b.nrarfcnRange[0]));
+// Frequency Calculator: controls left, answer rail right; a failure prints once, in the rail.
+// Bands and history are always-present peer cards, paired on a wide screen.
 
-// --- Types -------------------------------------------------------------------
+const MODE_LABEL_KEY = {
+  auto: "cell_scanner.calculator.form.label_auto",
+  lte: "cell_scanner.calculator.form.label_lte",
+  nr: "cell_scanner.calculator.form.label_nr",
+} as const satisfies Record<CalcMode, string>;
 
-type LTEMatchingBand = LTEBandEntry & {
-  dlFrequency: string;
-  ulFrequency: string;
-  ulEarfcn: number;
-  dlHigh: number;
-  ulHigh: number;
-};
+const ERROR_KEY = {
+  empty: "cell_scanner.calculator.error.empty",
+  not_a_number: "cell_scanner.calculator.error.not_a_number",
+  negative: "cell_scanner.calculator.error.negative",
+  auto_gap: "cell_scanner.calculator.error.auto_gap",
+  no_band: "cell_scanner.calculator.error.no_band",
+  unexpected: "cell_scanner.calculator.error.unexpected",
+} as const;
 
-type NRMatchingBand = NRBandEntry & {
-  dlFrequency: string;
-  ulFrequency: string;
-  dlHigh: number;
-  ulHigh: number;
-};
+const CHANNEL_READOUT_KEY = {
+  LTE: "cell_scanner.calculator.readout.channel_lte",
+  NR: "cell_scanner.calculator.readout.channel_nr",
+} as const;
 
-type LTEResult = {
-  networkType: "LTE";
-  earfcn: number;
-  frequency: string;
-  possibleBands: LTEMatchingBand[];
-};
-
-type NRResult = {
-  networkType: "NR";
-  earfcn: number;
-  frequency: string;
-  possibleBands: NRMatchingBand[];
-};
-
-type CalculationResult = LTEResult | NRResult | null;
-
-type ErrorResult = {
-  error: string;
-};
-
-type HistoryEntry = {
-  networkType: "LTE" | "NR";
-  earfcn: number;
-  frequency: string;
-  possibleBands: (LTEMatchingBand | NRMatchingBand)[];
-  timestamp: string;
-  id: string;
-};
-
-// --- Calculation functions using shared library --------------------------------
-
-const calculateLTEFrequency = (earfcn: number): LTEResult | null => {
-  const bands = findAllMatchingLTEBands(earfcn);
-  if (bands.length === 0) return null;
-
-  const matchingBands: LTEMatchingBand[] = bands.map((band) => {
-    const dlFreq = lteDLFrequency(earfcn) ?? 0;
-    const ulFreq = lteULFrequency(earfcn);
-    const ulEarfcn = band.duplexType === "FDD" ? earfcn + 18000 : earfcn;
-
-    // Compute band high edges from EARFCN range
-    const rangeSpan = (band.earfcnRange[1] - band.earfcnOffset) * band.spacing;
-    const dlHigh = Math.round((band.dlLow + rangeSpan) * 10) / 10;
-    const ulHigh =
-      band.duplexType === "SDL"
-        ? 0
-        : band.duplexType === "TDD"
-          ? dlHigh
-          : Math.round((band.ulLow + rangeSpan) * 10) / 10;
-
-    return {
-      ...band,
-      dlFrequency: dlFreq.toFixed(2),
-      ulFrequency: ulFreq !== null ? ulFreq.toFixed(2) : "-",
-      ulEarfcn,
-      dlHigh,
-      ulHigh,
-    };
-  });
-
-  return {
-    networkType: "LTE",
-    earfcn,
-    frequency: matchingBands[0].dlFrequency,
-    possibleBands: matchingBands,
-  };
-};
-
-const calculateNRFrequency = (nrarfcn: number): NRResult | null => {
-  const frequency = nrArfcnToFrequency(nrarfcn);
-  if (frequency === null) return null;
-
-  const bands = findAllMatchingNRBands(nrarfcn);
-  if (bands.length === 0) return null;
-
-  const matchingBands: NRMatchingBand[] = bands.map((band) => {
-    const dlFreq = frequency;
-    const ulFreq = nrULFrequency(nrarfcn, band.band);
-
-    // Compute high edges from NR-ARFCN range
-    const dlHigh = nrArfcnToFrequency(band.nrarfcnRange[1]) ?? band.dlLow;
-    const bandwidth = dlHigh - band.dlLow;
-    const ulHigh =
-      band.duplexType === "SDL"
-        ? 0
-        : band.duplexType === "TDD"
-          ? dlHigh
-          : band.ulLow + bandwidth;
-
-    return {
-      ...band,
-      dlFrequency: dlFreq.toFixed(2),
-      ulFrequency: ulFreq !== null ? ulFreq.toFixed(2) : "-",
-      dlHigh: Math.round(dlHigh * 100) / 100,
-      ulHigh: Math.round(ulHigh * 100) / 100,
-    };
-  });
-
-  return {
-    networkType: "NR",
-    earfcn: nrarfcn,
-    frequency: frequency.toFixed(2),
-    possibleBands: matchingBands,
-  };
-};
-
-// Decide which calculation to use based on the EARFCN/NR-ARFCN range
-const calculateFrequency = (
-  earfcn: string,
-  forceType: "lte" | "nr" | null = null
-): CalculationResult | ErrorResult => {
-  const earfcnNum = parseInt(earfcn);
-
-  if (isNaN(earfcnNum)) {
-    return { error: "Please enter a valid number" };
-  }
-
-  if (
-    forceType === "lte" ||
-    (forceType === null && earfcnNum >= 0 && earfcnNum <= MAX_LTE_EARFCN)
-  ) {
-    return calculateLTEFrequency(earfcnNum);
-  } else if (
-    forceType === "nr" ||
-    (forceType === null && earfcnNum >= MIN_NR_ARFCN)
-  ) {
-    return calculateNRFrequency(earfcnNum);
-  }
-
-  return null;
-};
-
-// Initialize history from localStorage
-const getInitialHistory = (): HistoryEntry[] => {
-  if (typeof window !== "undefined" && window.localStorage) {
-    try {
-      const savedHistory = localStorage.getItem("earfcnHistory");
-      if (savedHistory) {
-        return JSON.parse(savedHistory) as HistoryEntry[];
-      }
-    } catch {
-      // Silently fail
-    }
-  }
-  return [];
-};
+/** The rail's own id — the field's `aria-describedby` target while it is invalid. */
+const RAIL_ID = "calc-rail";
 
 const FrequencyCalculator = () => {
-  const [earfcn, setEarfcn] = useState<string>("");
-  const [result, setResult] = useState<CalculationResult>(null);
-  const [error, setError] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"auto" | "lte" | "nr">("auto");
-  const [history, setHistory] = useState<HistoryEntry[]>(getInitialHistory);
+  const { t } = useTranslation("cellular");
 
-  // Save history to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
-        if (history.length > 0) {
-          localStorage.setItem("earfcnHistory", JSON.stringify(history));
-        } else {
-          localStorage.removeItem("earfcnHistory");
-        }
-      } catch {
-        // Silently fail
-      }
-    }
+  const [channel, setChannel] = React.useState("");
+  const [result, setResult] = React.useState<CalculationResult | null>(null);
+  const [error, setError] = React.useState<CalcError | null>(null);
+  const [mode, setMode] = React.useState<CalcMode>("auto");
+  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+
+  // Read after mount, not in a lazy initialiser: the static export would otherwise hydrate-mismatch.
+  React.useEffect(() => {
+    const saved = readHistory();
+    if (saved.length > 0) setHistory(saved);
+  }, []);
+
+  React.useEffect(() => {
+    writeHistory(history);
   }, [history]);
 
-  const handleCalculate = (): void => {
-    if (!earfcn) {
-      setError("Please enter an E/ARFCN value");
-      setResult(null);
-      return;
-    }
+  // `record` is true only for an asked-for calculation; mode switches and recalls re-derive silently.
+  const run = React.useCallback(
+    (value: string, nextMode: CalcMode, record: boolean) => {
+      try {
+        const outcome = calculateFrequency(value, nextMode === "auto" ? null : nextMode);
 
-    try {
-      const forceType = activeTab === "auto" ? null : activeTab;
-      const calculationResult = calculateFrequency(earfcn, forceType);
+        if ("code" in outcome) {
+          setError(outcome);
+          setResult(null);
+          return;
+        }
 
-      if (calculationResult && !("error" in calculationResult)) {
-        setResult(calculationResult);
-        setError("");
+        setResult(outcome);
+        setError(null);
 
-        const historyEntry: HistoryEntry = {
-          ...calculationResult,
-          timestamp: new Date().toISOString(),
-          id: Date.now().toString(),
-        };
-
-        setHistory((prev) => [historyEntry, ...prev.slice(0, 9)]);
-      } else if (calculationResult && "error" in calculationResult) {
-        setError(calculationResult.error);
-        setResult(null);
-      } else {
-        setError("Could not identify band for this E/ARFCN value");
+        if (record) {
+          const entry = toHistoryEntry(
+            outcome,
+            new Date().toISOString(),
+            `${Date.now()}`,
+          );
+          setHistory((prev) => [entry, ...prev].slice(0, HISTORY_LIMIT));
+        }
+      } catch (err) {
+        setError({
+          code: "unexpected",
+          detail: err instanceof Error ? err.message : String(err),
+        });
         setResult(null);
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      setError("Calculation error: " + errorMessage);
-      setResult(null);
-    }
+    },
+    [],
+  );
+
+  const handleModeChange = (next: CalcMode) => {
+    setMode(next);
+    // Only re-answer a question already on screen; with nothing resolved the tab is a preference.
+    if (result || error) run(channel, next, false);
   };
 
-  const deleteHistoryEntry = (id: string): void => {
-    setHistory((prev) => prev.filter((entry) => entry.id !== id));
+  const handleChannelChange = (value: string) => {
+    setChannel(value);
+    // Typing is the recovery, so the failure state clears as soon as the value changes.
+    if (error) setError(null);
   };
 
-  const clearHistory = (): void => {
-    setHistory([]);
+  /** Recall a history row: restore its channel, force `auto`, and re-derive without recording. */
+  const handleRecall = (entry: HistoryEntry) => {
+    const value = String(entry.channel);
+    setChannel(value);
+    setMode("auto");
+    run(value, "auto", false);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleCalculate();
-    }
-  };
+  const errorText = error
+    ? t(ERROR_KEY[error.code], {
+        value: channel,
+        message: error.detail ?? "",
+        low: MAX_LTE_EARFCN + 1,
+        high: MIN_NR_ARFCN - 1,
+      })
+    : null;
+
+  const readout: ReadoutState = React.useMemo(() => {
+    if (error) return { kind: "failed" };
+    if (!result) return { kind: "idle" };
+
+    const single = result.bands.length === 1 ? result.bands[0] : null;
+
+    return {
+      kind: "result",
+      networkType: result.networkType,
+      figure: result.frequency,
+      unit: t("cell_scanner.calculator.units.mhz_short"),
+      channelLabel: t(CHANNEL_READOUT_KEY[result.networkType], {
+        value: result.channel,
+      }),
+      bandLabel: single
+        ? t(BAND_LABEL_KEY[result.networkType], { band: single.band })
+        : null,
+      bandName: single ? single.name : null,
+      caption: single
+        ? null
+        : t("cell_scanner.calculator.readout.several_bands", {
+            count: result.bands.length,
+          }),
+    };
+  }, [result, error, t]);
+
+  // The spec citation sits on the bands card it cites, once there is a result.
+  const specTag = result
+    ? {
+        text: result.networkType === "NR" ? NR_SPEC : LTE_SPEC,
+        title: t("cell_scanner.calculator.result.method", {
+          spec: result.networkType === "NR" ? NR_SPEC : LTE_SPEC,
+        }),
+      }
+    : null;
 
   return (
-    <div className="grid gap-4 @3xl/main:grid-cols-2">
-      {/* Calculator Card */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>E/ARFCN Calculator</CardTitle>
-          <CardDescription>
-            Enter a channel number to calculate frequency and band information.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) =>
-              setActiveTab(value as "auto" | "lte" | "nr")
-            }
-          >
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="auto">Auto</TabsTrigger>
-              <TabsTrigger value="lte">LTE</TabsTrigger>
-              <TabsTrigger value="nr">NR</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="space-y-2">
-            <Label htmlFor="earfcn">
-              {activeTab === "lte"
-                ? "E-ARFCN"
-                : activeTab === "nr"
-                ? "NR-ARFCN"
-                : "E/ARFCN Value"}
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="earfcn"
-                type="number"
-                placeholder="Enter channel number"
-                value={earfcn}
-                onChange={(e) => setEarfcn(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <Button onClick={handleCalculate}>Calculate</Button>
-            </div>
-          </div>
-
-          {error && (
-            <div className="p-3 bg-destructive/15 text-destructive border border-destructive/30 rounded-md text-sm">
-              {error}
-            </div>
-          )}
-
-          {result && (
-            <div className="space-y-4">
-              <Separator />
-              <div className="space-y-3">
-                <h3 className="font-semibold">Result</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="text-muted-foreground font-semibold">Network Type</div>
-                  <div className="font-medium">
-                    <Badge variant="default">{result.networkType}</Badge>
-                  </div>
-
-                  <div className="text-muted-foreground font-semibold">
-                    {result.networkType === "LTE" ? "EARFCN" : "NR-ARFCN"}
-                  </div>
-                  <div className="font-medium">{result.earfcn}</div>
-
-                  <div className="text-muted-foreground font-semibold">Frequency</div>
-                  <div className="font-medium">{result.frequency} MHz</div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <h4 className="font-semibold">Possible Operating Bands</h4>
-                <div className="space-y-4">
-                  {result.possibleBands.map((band, index) => (
-                    <div key={index} className="space-y-2">
-                      {index > 0 && <Separator />}
-                      <div className="font-semibold">
-                        {result.networkType === "NR"
-                          ? `n${band.band}`
-                          : `Band ${band.band}`}{" "}
-                        <span className="font-semibold text-sm">
-                          ({band.name})
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 text-sm">
-                        <div className="text-muted-foreground font-semibold">Duplex Mode</div>
-                        <div className="font-medium">{band.duplexType}</div>
-
-                        <div className="text-muted-foreground font-semibold">
-                          Downlink Range
-                        </div>
-                        <div className="font-medium">
-                          {band.dlLow} - {band.dlHigh} MHz
-                        </div>
-
-                        {band.duplexType === "FDD" && (
-                          <>
-                            <div className="text-muted-foreground font-semibold">
-                              Uplink Range
-                            </div>
-                            <div className="font-medium">
-                              {band.ulLow} - {band.ulHigh} MHz
-                            </div>
-                          </>
-                        )}
-
-                        <div className="text-muted-foreground font-semibold">
-                          {result.networkType === "LTE"
-                            ? "EARFCN Range"
-                            : "NR-ARFCN Range"}
-                        </div>
-                        <div className="font-medium">
-                          {"earfcnRange" in band
-                            ? `${band.earfcnRange[0]} - ${band.earfcnRange[1]}`
-                            : `${(band as NRMatchingBand).nrarfcnRange[0]} - ${(band as NRMatchingBand).nrarfcnRange[1]}`}
-                        </div>
-
-                        <div className="text-muted-foreground font-semibold">
-                          DL Frequency
-                        </div>
-                        <div className="font-medium">
-                          {band.dlFrequency} MHz
-                        </div>
-
-                        {band.duplexType !== "SDL" && (
-                          <>
-                            <div className="text-muted-foreground font-semibold">
-                              UL Frequency
-                            </div>
-                            <div className="font-medium">
-                              {band.ulFrequency} MHz
-                            </div>
-                          </>
-                        )}
-
-                        {band.duplexType === "SDL" && (
-                          <>
-                            <div className="text-muted-foreground font-semibold">
-                              UL Frequency
-                            </div>
-                            <div className="font-medium text-muted-foreground">
-                              Downlink Only
-                            </div>
-                          </>
-                        )}
-
-                        {"earfcnRange" in band &&
-                          band.duplexType === "FDD" && (
-                            <>
-                              <div className="text-muted-foreground font-semibold">
-                                UL EARFCN
-                              </div>
-                              <div className="font-medium">
-                                {(band as LTEMatchingBand).ulEarfcn}
-                              </div>
-                            </>
-                          )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="text-xs text-muted-foreground">
-                Calculation method:{" "}
-                {result.networkType === "NR"
-                  ? "3GPP TS 38.104 Section 5.4.2.1"
-                  : "3GPP TS 36.101 Section 5.7"}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History Card */}
-      <Card className="@container/card">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Calculation History</CardTitle>
-              <CardDescription>
-                Your recent calculations are saved locally.
+    <>
+      {/* ── The anchor ───────────────────────────────────────────────────── */}
+      <motion.div variants={staggerItem}>
+        <Card className={CALC_HERO}>
+          <div className={SECTION_HEAD.ROOT}>
+            <div className={SECTION_HEAD.TITLES}>
+              <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
+                {t("cell_scanner.calculator.form.title")}
+              </CardTitle>
+              <CardDescription className={SECTION_HEAD.DESC}>
+                {t("cell_scanner.calculator.form.description")}
               </CardDescription>
             </div>
-            {history.length > 0 && (
-              <Button variant="destructive" size="sm" onClick={clearHistory}>
-                <Trash2 className="size-4" />
-                Clear
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {history.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No calculation history yet.
+            <div className={SECTION_HEAD.META}>
+              <SiblingRouteLink
+                href="/cellular/cell-scanner"
+                glyph="radar"
+                label={t("cell_scanner.calculator.page.sibling")}
+              />
             </div>
-          ) : (
-            <div className="space-y-2">
-              {history.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="p-3 border rounded-lg flex justify-between items-start"
+          </div>
+
+          <div className={CALC_SPLIT}>
+            <div className={FORM.ROOT}>
+              <Tabs
+                value={mode}
+                onValueChange={(value) => handleModeChange(value as CalcMode)}
+              >
+                <div className={FORM.TOP}>
+                  <Label htmlFor="earfcn" className={FORM.LABEL}>
+                    {t(MODE_LABEL_KEY[mode])}
+                  </Label>
+                  <TabsList className={FORM.TABS}>
+                    <TabsTrigger value="auto" className={FORM.TAB}>
+                      {t("cell_scanner.calculator.form.mode_auto")}
+                    </TabsTrigger>
+                    <TabsTrigger value="lte" className={FORM.TAB}>
+                      {t("cell_scanner.calculator.form.mode_lte")}
+                    </TabsTrigger>
+                    <TabsTrigger value="nr" className={FORM.TAB}>
+                      {t("cell_scanner.calculator.form.mode_nr")}
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+              </Tabs>
+
+              <div className={FORM.ROW}>
+                <Input
+                  id="earfcn"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  className={FORM.INPUT}
+                  placeholder={t("cell_scanner.calculator.form.placeholder")}
+                  value={channel}
+                  onChange={(e) => handleChannelChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") run(channel, mode, true);
+                  }}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? RAIL_ID : undefined}
+                />
+                <Button
+                  type="button"
+                  onClick={() => run(channel, mode, true)}
+                  size="action"
                 >
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{entry.earfcn}</span>
-                      <Badge>{entry.networkType}</Badge>
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {entry.frequency} MHz
-                      </span>
-                    </div>
-                    {entry.possibleBands && (
-                      <div className="text-sm font-semibold">
-                        Bands:{" "}
-                        {entry.possibleBands
-                          .map((band) =>
-                            entry.networkType === "NR"
-                              ? `n${band.band}`
-                              : `B${band.band}`
-                          )
-                          .join(", ")}
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      {entry.timestamp
-                        ? new Date(entry.timestamp).toLocaleString()
-                        : "No timestamp"}
-                    </div>
-                  </div>
+                  {t("cell_scanner.calculator.form.submit")}
+                </Button>
+              </div>
+            </div>
+
+            <CalcReadout
+              id={RAIL_ID}
+              state={readout}
+              idleTitle={t("cell_scanner.calculator.readout.idle_title")}
+              idleBody={t("cell_scanner.calculator.readout.idle_body")}
+              failedTitle={t("cell_scanner.calculator.readout.failed_title")}
+              failedBody={errorText ?? t("cell_scanner.calculator.readout.failed_body")}
+            />
+          </div>
+        </Card>
+      </motion.div>
+
+      {/* ── Bands and history, paired on a wide screen ──────────────────── */}
+      <div className="grid grid-cols-1 gap-5 @4xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @4xl/main:items-stretch">
+        <motion.div variants={staggerItem} className="flex">
+          <Card className={`${RESULTS_CARD} h-full min-w-0 flex-1`}>
+            <div className={SECTION_HEAD.ROOT}>
+              <div className={SECTION_HEAD.TITLES}>
+                <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
+                  {t("cell_scanner.calculator.result.bands_title")}
+                </CardTitle>
+                <CardDescription className={SECTION_HEAD.DESC}>
+                  {t("cell_scanner.calculator.result.bands_description")}
+                </CardDescription>
+              </div>
+              {specTag ? (
+                <div className={SECTION_HEAD.META}>
+                  <Tag className="font-mono text-[11.5px]" title={specTag.title}>
+                    {specTag.text}
+                  </Tag>
+                </div>
+              ) : null}
+            </div>
+
+            {result ? (
+              <BandTiles result={result} />
+            ) : (
+              <div className={BAND_TILE.WELL}>
+                <ScanEmptyState
+                  title={t("cell_scanner.calculator.result.bands_empty_title")}
+                  body={t("cell_scanner.calculator.result.bands_empty_body")}
+                />
+              </div>
+            )}
+          </Card>
+        </motion.div>
+
+        {/* ── The history ────────────────────────────────────────────────── */}
+        <motion.div variants={staggerItem} className="flex">
+          <Card className={`${RESULTS_CARD} h-full min-w-0 flex-1`}>
+            <div className={SECTION_HEAD.ROOT}>
+              <div className={SECTION_HEAD.TITLES}>
+                <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
+                  {t("cell_scanner.calculator.history.title")}
+                </CardTitle>
+                <CardDescription className={SECTION_HEAD.DESC}>
+                  {t("cell_scanner.calculator.history.description")}
+                </CardDescription>
+              </div>
+              {history.length > 0 ? (
+                <div className={SECTION_HEAD.META}>
                   <Button
+                    type="button"
                     variant="ghost"
-                    size="icon"
-                    onClick={() => deleteHistoryEntry(entry.id)}
-                    aria-label="Delete history entry"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    size="sm"
+                    className={HISTORY_CLEAR}
+                    onClick={() => setHistory([])}
                   >
-                    <X className="size-4" />
+                    <MaterialSymbol name="delete" size={16} />
+                    {t("cell_scanner.calculator.history.clear")}
                   </Button>
                 </div>
-              ))}
+              ) : null}
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+
+            {/* `BAND_TILE.WELL` is the one inner-container shape both cards share. */}
+            <div className={BAND_TILE.WELL}>
+              {history.length === 0 ? (
+                <ScanEmptyState
+                  title={t("cell_scanner.calculator.history.empty_title")}
+                  body={t("cell_scanner.calculator.history.empty_body")}
+                />
+              ) : (
+                <HistoryList
+                  history={history}
+                  onRecall={handleRecall}
+                  onDelete={(id) =>
+                    setHistory((prev) => prev.filter((entry) => entry.id !== id))
+                  }
+                />
+              )}
+            </div>
+          </Card>
+        </motion.div>
+      </div>
+    </>
   );
 };
 

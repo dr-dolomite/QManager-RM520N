@@ -25,7 +25,7 @@
 # Install location: /usr/lib/qmanager/qlog.sh
 # =============================================================================
 
-[ -n "$_QLOG_LOADED" ] && return 0
+[ -n "${_QLOG_LOADED:-}" ] && return 0
 _QLOG_LOADED=1
 
 # --- Configuration (defaults, overridable via environment) -------------------
@@ -58,7 +58,11 @@ qlog_init() {
 
     # Ensure log directory exists (should be /tmp/ which always exists)
     local log_dir
-    log_dir=$(dirname "$QLOG_FILE")
+    # ${QLOG_FILE%/*} replaces dirname (no fork); a bare filename has no dir part -> ".".
+    case "$QLOG_FILE" in
+        */*) log_dir="${QLOG_FILE%/*}"; [ -n "$log_dir" ] || log_dir="/" ;;
+        *)   log_dir="." ;;
+    esac
     [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null
 }
 
@@ -104,6 +108,26 @@ _qlog_rotate() {
 
         # Start fresh
         : > "$QLOG_FILE"
+
+        # Re-assert the shared mode. /tmp/qmanager.log is seeded root:root 0666
+        # by qmanager_setup precisely so BOTH root daemons and www-data CGI can
+        # append to it; /tmp is root-owned mode 1777 with fs.protected_regular=1,
+        # and root-owned-in-a-root-owned-dir is the only ownership under which
+        # both UIDs may open it for write.
+        #
+        # The `mv` above breaks that when ROOT rotates: rename() moves the seeded
+        # inode out to .1 and `: >` creates a BRAND NEW one at root's umask 0022,
+        # i.e. 0644. From that moment www-data's appends are denied — and
+        # _qlog_write redirects with `>> ... 2>/dev/null`, so the loss is totally
+        # silent. Since the poller is the highest-volume logger, root wins the
+        # rotation almost every time, which would quietly re-introduce exactly
+        # the missing-warning blindness the shared seed exists to prevent.
+        #
+        # When WWW-DATA rotates, the `mv` fails first (sticky /tmp: it does not
+        # own the root-owned log), but `: >` still truncates THROUGH the existing
+        # inode, so ownership and mode survive and this chmod is a harmless
+        # no-op-or-EPERM. Either way the seed is preserved.
+        chmod 666 "$QLOG_FILE" 2>/dev/null
     fi
 }
 
@@ -115,8 +139,8 @@ _qlog_rotate() {
 #   $2 — Message
 # =============================================================================
 _qlog_write() {
-    local level="$1"
-    local message="$2"
+    local level="${1:-}"
+    local message="${2:-}"
 
     # Check if this level should be logged
     local msg_level_num
@@ -170,10 +194,10 @@ _qlog_write() {
 }
 
 # --- Public Logging Functions ------------------------------------------------
-qlog_debug() { _qlog_write "DEBUG" "$1"; }
-qlog_info()  { _qlog_write "INFO"  "$1"; }
-qlog_warn()  { _qlog_write "WARN"  "$1"; }
-qlog_error() { _qlog_write "ERROR" "$1"; }
+qlog_debug() { _qlog_write "DEBUG" "${1:-}"; }
+qlog_info()  { _qlog_write "INFO"  "${1:-}"; }
+qlog_warn()  { _qlog_write "WARN"  "${1:-}"; }
+qlog_error() { _qlog_write "ERROR" "${1:-}"; }
 
 # --- Utility: Log AT Command + Response (for debugging) ----------------------
 # Logs an AT command and its response at DEBUG level, truncating long responses.
@@ -184,8 +208,8 @@ qlog_error() { _qlog_write "ERROR" "$1"; }
 #   $3 — Exit code (optional)
 # =============================================================================
 qlog_at_cmd() {
-    local cmd="$1"
-    local response="$2"
+    local cmd="${1:-}"
+    local response="${2:-}"
     local exit_code="${3:-0}"
 
     # Truncate response for logging (first 200 chars)
@@ -214,8 +238,8 @@ qlog_at_cmd() {
 #   $2 — Extra detail (optional)
 # =============================================================================
 qlog_lock() {
-    local event="$1"
-    local detail="$2"
+    local event="${1:-}"
+    local detail="${2:-}"
 
     case "$event" in
         acquire)        qlog_debug "LOCK: Acquired${detail:+ ($detail)}" ;;
@@ -236,11 +260,24 @@ qlog_lock() {
 #   $3 — New value
 # =============================================================================
 qlog_state_change() {
-    local field="$1"
-    local old_val="$2"
-    local new_val="$3"
+    local field="${1:-}"
+    local old_val="${2:-}"
+    local new_val="${3:-}"
 
     if [ "$old_val" != "$new_val" ]; then
         qlog_info "STATE: ${field}: ${old_val} → ${new_val}"
     fi
+}
+
+# --- Utility: Long-running AT flag trust check -------------------------------
+# Only the root broker raises the flag. Trust it only if root-owned, a regular
+# file and nlink 1 (stat without -L is lstat, so a symlink fails). $1 = path.
+QM_LONG_FLAG="${QM_LONG_FLAG:-/run/qmanager_at/long_running}"
+qm_long_flag_up() {
+    local _st
+    _st=$(stat -c '%u %h %F' "${1:-$QM_LONG_FLAG}" 2>/dev/null </dev/null) || return 1
+    case "$_st" in
+        "0 1 regular"*) return 0 ;;
+    esac
+    return 1
 }

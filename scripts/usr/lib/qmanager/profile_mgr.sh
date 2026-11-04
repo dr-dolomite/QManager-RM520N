@@ -335,8 +335,15 @@ profile_save() {
                 '{"success":false,"error":"limit_reached","detail":("Maximum " + ($max | tostring) + " profiles allowed")}'
             return 1
         fi
-        id=$(_generate_profile_id)
-        created_at="$updated_at"
+        # PROFILE_SAVE_KEEP_ID=1 (config restore): keep the supplied id and created_at.
+        if [ "$PROFILE_SAVE_KEEP_ID" = "1" ] && [ -n "$existing_id" ]; then
+            id="$existing_id"
+            created_at=$(printf '%s' "$input" | jq -r '(.created_at) | if type == "number" then floor | tostring else empty end' 2>/dev/null)
+            [ -z "$created_at" ] && created_at="$updated_at"
+        else
+            id=$(_generate_profile_id)
+            created_at="$updated_at"
+        fi
         qlog_info "Creating profile: $id ($name)" 2>/dev/null
     fi
 
@@ -515,7 +522,17 @@ _profile_teardown_scenario_schedule() {
     if ! command -v scenario_teardown_schedule >/dev/null 2>&1; then
         . /usr/lib/qmanager/scenario_mgr.sh 2>/dev/null
     fi
-    command -v scenario_teardown_schedule >/dev/null 2>&1 && scenario_teardown_schedule
+    # Redirect: scenario_teardown_schedule is a thin wrapper over the
+    # qmanager_scenario_schedule_arm root helper, which prints a JSON object on
+    # EVERY exit path ({"success":true,"armed":false} and friends). Both callers
+    # of this helper run inside a CGI that emits its own JSON afterwards
+    # (profile_delete -> profiles/delete.sh, auto_apply_profile ->
+    # cellular/settings.sh), so an unredirected call concatenates two documents
+    # into one HTTP body and the response stops being valid JSON. Nothing
+    # anywhere captures or parses this output — verified across all call sites.
+    # (_profile_reset_scenario_to_default below needs no such redirect:
+    # scenario_reset_to_default writes only to the log, never to stdout.)
+    command -v scenario_teardown_schedule >/dev/null 2>&1 && scenario_teardown_schedule >/dev/null 2>&1
     return 0
 }
 
@@ -548,7 +565,7 @@ _profile_emit_event() {
     severity="$3"
     if ! command -v append_event >/dev/null 2>&1; then
         [ -z "$EVENTS_FILE" ] && EVENTS_FILE="/tmp/qmanager_events.json"
-        [ -z "$MAX_EVENTS" ] && MAX_EVENTS=50
+        [ -z "$MAX_EVENTS" ] && MAX_EVENTS=300
         . /usr/lib/qmanager/events.sh 2>/dev/null || return 0
     fi
     command -v append_event >/dev/null 2>&1 && append_event "$etype" "$msg" "$severity" 2>/dev/null
@@ -708,7 +725,18 @@ profile_check_lock() {
         if [ -n "$_profile_lock_pid" ] && [ -d "/proc/$_profile_lock_pid" ]; then
             return 1
         fi
-        rm -f "$PROFILE_APPLY_PID_FILE"
+        # Release by TRUNCATION, never `rm`. qmanager_setup seeds this file
+        # root:root 0666 so that both uids can take the lock (this runs as
+        # www-data from profiles/apply.sh and as root from the poller/watchcat).
+        # Unlinking destroys that seed: the next `echo $$ >` re-creates the file
+        # at the caller's umask — 0644 for root — and the OTHER uid is locked
+        # out for the rest of the boot, silently running unlocked.
+        #
+        # This is not a race. The seeded file is EMPTY, so the very first
+        # acquire after every boot reaches this branch with an empty
+        # _profile_lock_pid and would unlink the seed unconditionally.
+        # See docs/reference/tmp-file-ownership.md.
+        : > "$PROFILE_APPLY_PID_FILE" 2>/dev/null || true
     fi
     _profile_lock_pid=""
     return 0

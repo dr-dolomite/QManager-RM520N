@@ -16,7 +16,18 @@
 #   AT+QCCID). The inserted SIM stays known so clearing does not immediately
 #   re-fire the banner. If no SIM is present, the set is emptied. Also drops
 #   any stale /tmp/qmanager_sim_swap_detected banner flag.
-#   Returns {"success":true,"count":<N>}.
+#
+#   Clearing spans BOTH SIM stores. The set above answers "is this SIM new";
+#   the sim_registry.json sidecar answers "what do we know about it" and backs
+#   the Tracked SIMs card. Clearing only the set leaves the card listing SIMs
+#   the count says are forgotten, so the sidecar is reduced to the same single
+#   record via the qmanager_sim_registry_apply root helper (clear_keep). The
+#   kept record is preserved verbatim, so an already-dismissed banner for the
+#   inserted SIM does not come back.
+#
+#   Returns {"success":true,"count":<N>,"registry_cleared":true|false}.
+#   registry_cleared is false when the sidecar write failed — the set was
+#   still cleared, but the Tracked SIMs list may be stale.
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/system/known_sims.sh
 # Install location: /www/cgi-bin/quecmanager/system/known_sims.sh
@@ -51,14 +62,31 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             jq -n --argjson count "$count" '{success: true, count: $count}'
             ;;
         clear)
-            qlog_info "Clearing known-SIMs set (keeping currently-inserted SIM)"
+            qlog_info "Clearing known-SIMs set + registry (keeping currently-inserted SIM)"
             # Canonical QCCID pipeline — byte-identical to all other read sites.
             cur=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
             sim_db_clear_keep "$cur"
+
+            # The Tracked SIMs list is a SEPARATE store (sim_registry.json,
+            # root-owned). Clearing only the set above left the card listing
+            # SIMs the count already reported as forgotten. www-data cannot
+            # write the sidecar, so this goes through the same root helper the
+            # dismiss path uses. Reported back rather than swallowed: if the
+            # sidecar write fails, the UI must not claim a clean sweep.
+            registry_cleared=false
+            if sudo -n /usr/bin/qmanager_sim_registry_apply "$cur" clear_keep >/dev/null 2>&1; then
+                registry_cleared=true
+            else
+                qlog_warn "sim_registry clear_keep failed; Tracked SIMs may still list forgotten SIMs"
+            fi
+
             rm -f "$SIM_SWAP_FLAG"
             count=$(sim_db_count)
-            qlog_info "Known-SIMs set cleared; count now $count"
-            jq -n --argjson count "$count" '{success: true, count: $count}'
+            qlog_info "Known-SIMs set cleared; count now $count (registry_cleared=$registry_cleared)"
+            jq -n \
+                --argjson count "$count" \
+                --argjson registry_cleared "$registry_cleared" \
+                '{success: true, count: $count, registry_cleared: $registry_cleared}'
             ;;
         *)
             cgi_error "invalid_action" "Action must be: list or clear"

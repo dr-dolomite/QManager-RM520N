@@ -17,8 +17,15 @@
 
 EVENTS_FILE="/tmp/qmanager_events.json"
 
+# The on-disk ring holds MAX_EVENTS (300) so that a burst of radio churn cannot
+# evict the outage a user is trying to diagnose. The dashboard only ever reads
+# the newest 20 (use-recent-activities.ts) and renders 5, so serving the whole
+# ring on a 10-second poll would be paying ~35KB a request for data nothing
+# reads. Serve a slice comfortably deeper than the consumer needs instead.
+EVENTS_SERVE_LIMIT=50
+
 qlog_init "cgi_fetch_events"
 cgi_headers
 cgi_handle_options
 
-serve_ndjson_as_array "$EVENTS_FILE"
+serve_ndjson_as_array "$EVENTS_FILE" "$EVENTS_SERVE_LIMIT"

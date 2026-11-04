@@ -1,10 +1,9 @@
-import LatencyMonitoringComponent from '@/components/monitoring/latency-monitoring/latency-monitoring'
-import React from 'react'
+import React from "react";
 
-const LatencyMonitoringPage = () => {
-  return (
-    <LatencyMonitoringComponent />
-  )
-}
+import LatencyMonitorComponent from "@/components/monitoring/latency-monitoring/latency-monitoring";
 
-export default LatencyMonitoringPage
+const LatencyMonitorPage = () => {
+  return <LatencyMonitorComponent />;
+};
+
+export default LatencyMonitorPage;

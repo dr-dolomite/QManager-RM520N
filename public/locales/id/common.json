@@ -1,6 +1,10 @@
 {
   "actions": {
     "save": "Simpan",
+    "save_settings": "Simpan Pengaturan",
+    "save_and_apply": "Simpan & terapkan",
+    "save_profile": "Simpan Profil",
+    "update": "Perbarui",
     "saving": "Menyimpan…",
     "saved": "Tersimpan!",
     "cancel": "Batal",
@@ -8,12 +12,21 @@
     "apply": "Terapkan",
     "close": "Tutup",
     "retry": "Coba Lagi",
+    "dismiss": "Tutup",
     "reboot": "Reboot",
     "log_out": "Keluar",
     "reboot_device": "Reboot Perangkat",
     "reconnect_modem": "Sambungkan Ulang Modem",
     "change_display_name": "Ubah Nama Tampilan",
-    "change_password": "Ubah Kata Sandi"
+    "change_password": "Ubah Kata Sandi",
+    "toggle_theme": "Ganti Tema",
+    "discard": "Buang"
+  },
+  "motion": {
+    "label": "Animasi",
+    "system": "Sistem",
+    "full": "Penuh",
+    "reduced": "Dikurangi"
   },
   "state": {
     "loading": "Memuat…",
@@ -31,6 +44,121 @@
   "connection": {
     "reconnecting": "Kehilangan kontak dengan perangkat. Menyambungkan ulang…"
   },
+  "ethernet": {
+    "page": {
+      "title": "Status Ethernet",
+      "description": "Pantau tautan ethernet host dan konfigurasikan kecepatan negosiasinya."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "strip": {
+      "label": "Status tautan",
+      "unresponsive": "Tidak merespons",
+      "unavailable_title": "Tidak dapat membaca port ethernet",
+      "unavailable_body": "Mencoba lagi setiap 10 detik. Tidak ada yang diubah.",
+      "absent_title": "Tidak ada pengontrol ethernet",
+      "absent_body": "Perangkat ini tidak memiliki port eth0, jadi tidak ada yang dapat dilaporkan atau dikonfigurasi."
+    },
+    "tiles": {
+      "link": {
+        "label": "Status tautan",
+        "value_up": "Terhubung",
+        "value_down": "Terputus",
+        "value_unknown": "Tidak diketahui",
+        "caption_up": "Kabel terhubung ke port host",
+        "caption_down": "Tidak ada kabel terdeteksi di port host",
+        "caption_unknown": "Menunggu status tautan"
+      },
+      "speed": {
+        "label": "Kecepatan negosiasi",
+        "caption": "Dinogosiasikan dengan perangkat lawan",
+        "caption_ceiling": "Dari {{ceiling}} yang didukung port",
+        "caption_down": "Memerlukan tautan aktif"
+      },
+      "duplex": {
+        "label": "Dupleks",
+        "caption": "Mengirim dan menerima sekaligus",
+        "caption_down": "Memerlukan tautan aktif",
+        "caption_half": "Mengirim dan menerima bergantian",
+        "value_full": "Penuh",
+        "value_half": "Paruh"
+      },
+      "negotiation": {
+        "label": "Negosiasi",
+        "value_auto": "Otomatis",
+        "value_forced": "Dipaksa",
+        "value_unknown": "Tidak diketahui",
+        "caption_auto": "Tidak ada batas kecepatan",
+        "caption_limited": "Dibatasi ke {{speed}}"
+      }
+    },
+    "settings": {
+      "title": "Batas kecepatan tautan",
+      "description": "Paksa port host ke kecepatan tetap alih-alih membiarkannya bernegosiasi.",
+      "row_label": "Batas kecepatan",
+      "placeholder": "Pilih kecepatan",
+      "applying": "Menerapkan…",
+      "group_label": "Batas kecepatan",
+      "option_auto": "Otomatis (maks)",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "consequence": "Menerapkan akan memutus tautan sekitar 8 detik saat PHY bernegosiasi ulang. Anda sedang menggunakan tautan itu.",
+      "consequence_applying": "Tautan terputus saat PHY bernegosiasi ulang. Halaman ini akan mengonfirmasi kecepatan baru dengan sendirinya.",
+      "consequence_unresponsive": "Modem berhenti merespons, jadi kontrol ini ditahan sampai pembacaan berhasil berikutnya.",
+      "consequence_unread": "Modem belum merespons, jadi tidak ada yang dapat diubah sampai pembacaan pertama masuk.",
+      "consequence_absent": "Tidak ada port ethernet yang dapat dikonfigurasi di perangkat ini.",
+      "toast_success": "Kecepatan tautan diperbarui",
+      "toast_error": "Gagal mengatur kecepatan tautan",
+      "toast_confirm_error": "Tidak dapat mengonfirmasi kecepatan baru. Periksa tautan.",
+      "apply": "Terapkan",
+      "discard": "Buang"
+    },
+    "lan_config": {
+      "card_title": "Alamat LAN",
+      "card_description": "Atur alamat IP LAN router (gateway yang digunakan perangkat Anda) dan ukuran jaringan lokal.",
+      "label_gateway": "Alamat IP Gateway",
+      "help_gateway": "Alamat router itu sendiri di LAN. Perangkat menggunakannya sebagai gateway default.",
+      "label_subnet": "Masker Subnet",
+      "help_subnet": "Pilih ukuran jaringan LAN sebagai prefiks CIDR.",
+      "action_apply": "Terapkan Perubahan",
+      "confirm_title": "Ubah alamat LAN?",
+      "confirm_body": "LAN akan beralih ke {{address}} (netmask {{netmask}}). Modem akan dimulai ulang untuk menerapkannya, sehingga koneksi Anda saat ini akan terputus.",
+      "confirm_reconnect": "Modem tidak dapat dijangkau sekitar 1–2 menit selama dimulai ulang. Router atau perangkat yang memakai DHCP akan tersambung kembali sendiri; yang memakai IP statis harus dipindahkan ke subnet baru secara manual. Halaman ini akan membuka alamat baru setelah modem aktif kembali.",
+      "confirm_action": "Terapkan & Mulai Ulang",
+      "applied_title": "Alamat LAN sedang berubah",
+      "applied_body": "Modem sedang dimulai ulang ke {{address}} dan belum merespons di sana. Mulai ulang memakan waktu sekitar {{seconds}} detik. Jika perlu, sambungkan ulang kabel LAN atau Ethernet, lalu buka alamat baru:",
+      "applied_body_auto": "Modem sedang dimulai ulang ke {{address}} dan belum merespons di sana. Router yang diatur ke DHCP akan tersambung kembali sendiri dalam sekitar {{seconds}} detik dan mengambil gateway baru. Jika tidak, sambungkan ulang kabel, lalu buka alamat baru:",
+      "reconnecting_title": "Memulai ulang ke alamat baru…",
+      "reconnecting_auto_note": "Modem sedang dimulai ulang, sekitar 1–2 menit. Halaman ini akan membuka alamat baru setelah modem aktif kembali.",
+      "reconnecting_opening": "Membuka alamat baru…",
+      "toast_error_save": "Gagal menerapkan pengaturan LAN",
+      "error_invalid_ipaddr": "Masukkan alamat IPv4 unicast yang valid (mis. 192.168.1.1).",
+      "error_invalid_host_in_subnet": "Ini adalah alamat jaringan atau broadcast untuk subnet yang dipilih. Pilih alamat host yang dapat digunakan.",
+      "error_invalid_prefix": "Pilih prefiks subnet antara /16 dan /30.",
+      "errors": {
+        "fetch_failed": "Gagal memuat pengaturan LAN",
+        "save_failed": "Gagal menyimpan pengaturan LAN",
+        "parse_failed": "Gagal membaca respons penyimpanan"
+      },
+      "action_discard": "Buang",
+      "toast_no_change": "Alamat LAN sudah diatur seperti itu",
+      "error_invalid_private": "Gunakan alamat privat: 10.x.x.x, 172.16–31.x.x, atau 192.168.x.x.",
+      "server_errors": {
+        "no_body": "Permintaan sampai ke modem dalam keadaan kosong. Coba lagi",
+        "invalid_ipaddr": "Alamat IP tidak valid",
+        "invalid_prefix": "Prefiks subnet di luar rentang",
+        "invalid_host_in_subnet": "Alamat itu tidak dapat digunakan sebagai host di subnet yang dipilih",
+        "lan_read_failed": "Tidak dapat membaca pengaturan LAN saat ini",
+        "lan_save_failed": "Tidak dapat menyimpan pengaturan LAN",
+        "invalid_private_address": "Alamat harus berada di rentang privat (10.x, 172.16–31.x, atau 192.168.x)",
+        "update_in_progress": "Pembaruan perangkat lunak sedang berjalan. Coba lagi setelah selesai",
+        "lan_busy": "Perubahan LAN lain sedang diterapkan"
+      }
+    }
+  },
   "profile_override": {
     "banner": "{{controls}} dikelola oleh Profil SIM Khusus <strong>{{profile_name}}</strong>."
   },
@@ -47,33 +175,42 @@
   },
   "language": {
     "label": "Bahasa",
-    "switch_aria": "Ganti bahasa",
-    "page_title": "Bahasa",
-    "page_description": "Pilih bahasa tampilan untuk QManager. Pilihan Anda disimpan di perangkat ini.",
-    "active": "Aktif",
-    "select_prompt": "Pilih bahasa"
+    "switch_aria": "Ganti bahasa"
   },
   "login": {
-    "brand_label": "Konsol operator QManager",
+    "ssh_sync_failed": "Kata sandi QManager sudah diatur, tetapi kata sandi root SSH tidak dapat diperbarui. Atur di Pengaturan Sistem → Akses Perangkat.",
+    "brand_label": "QManager · Manajemen Modem Quectel",
     "welcome": "Selamat datang di QManager",
     "password_label": "Kata sandi",
     "submit": "Masuk",
     "signing_in": "Sedang masuk…",
-    "locked": "Terkunci ({{seconds}}s)",
+    "locked": "Terkunci ({{seconds}})",
+    "lockout_seconds": "{{seconds}} dtk",
     "show_password": "Tampilkan kata sandi",
     "hide_password": "Sembunyikan kata sandi",
-    "session_expired": "Sesi Anda berakhir karena perangkat tidak dapat dijangkau terlalu lama.",
+    "session_expired": "Perangkat tidak dapat dijangkau terlalu lama. Masuk lagi untuk melanjutkan.",
     "signing_in_to": "Masuk ke {{hostname}}",
+    "sign_in_to_label": "Masuk ke",
     "signing_in_as": "Masuk sebagai {{hostname}}",
     "recovery": {
       "toggle": "Tidak bisa masuk?",
       "intro": "Jika Anda kehilangan kata sandi admin, ada dua jalur pemulihan:",
-      "option_reset": "Buka sesi SSH ke perangkat dan jalankan <code>qmanager_reset_password</code> untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
-      "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut."
-    }
+      "option_reset": "Buka sesi SSH ke perangkat dan jalankan {{command}} untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
+      "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut.",
+      "option_reset_command": "Buka sesi SSH ke perangkat dan jalankan {{command}} untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)"
+    },
+    "session_expired_title": "Sesi berakhir",
+    "locked_title": "Terlalu banyak percobaan",
+    "locked_body": "Terkunci selama {{seconds}} untuk melindungi perangkat.",
+    "invalid_password": "Kata sandi salah.",
+    "attempts_left_one": "Kata sandi salah. Sisa {{count}} percobaan.",
+    "attempts_left_other": "Kata sandi salah. Sisa {{count}} percobaan.",
+    "password_to_manage": "Masukkan kata sandi Anda untuk mengelola {{hostname}}.",
+    "password_to_manage_bare": "Masukkan kata sandi Anda.",
+    "locked_countdown": "Terkunci ({{seconds}})"
   },
   "overview": {
-    "title": "QManager",
+    "title": "Ringkasan Modem",
     "tagline": "Status modem langsung",
     "login_button": "Masuk",
     "header": {
@@ -87,7 +224,7 @@
       "temperature": "Suhu"
     },
     "actions": {
-      "login": "Masuk",
+      "login": "Masuk untuk mengelola",
       "theme_toggle_aria": "Ganti tema",
       "theme_light": "Terang",
       "theme_dark": "Gelap",
@@ -114,7 +251,9 @@
       "count_one": "{{count}} aktif",
       "count_other": "{{count}} aktif",
       "bandwidth": "{{bandwidth}} MHz",
-      "rsrp_unit": "{{rsrp}} dBm"
+      "rsrp_unit": "{{rsrp}} dBm",
+      "section_count_one": "Pembawa",
+      "section_count_other": "Pembawa"
     },
     "metrics": {
       "rsrp": "RSRP",
@@ -137,6 +276,7 @@
       "good": "Baik",
       "fair": "Cukup",
       "poor": "Buruk",
+      "bad": "Sangat lemah",
       "none": "Tidak ada sinyal"
     },
     "connection": {
@@ -147,14 +287,14 @@
       "error": "Kesalahan",
       "disconnected": "Terputus",
       "unknown": "Tidak diketahui",
-      "modem_unreachable": "Modem tidak dapat dijangkau"
+      "modem_unreachable": "Offline"
     },
     "stale_indicator": "Data mungkin sudah kedaluwarsa",
     "redirecting_setup": "Mengalihkan ke pengaturan pertama…",
     "loading_status": "Memuat status modem…",
     "empty": {
       "title": "Status modem tidak tersedia",
-      "subtitle": "Masuk untuk detail diagnostik.",
+      "subtitle": "Modem belum melapor selama satu menit. Mungkin sedang memulai ulang — pembacaan akan pulih sendiri.",
       "fetch_error": "Tidak dapat menjangkau perangkat.",
       "retry": "Coba lagi"
     },
@@ -163,6 +303,1211 @@
       "hours": "{{hours}}j {{minutes}}m",
       "minutes": "{{minutes}}m"
     },
-    "copyright": "© {{year}} QManager"
+    "copyright": "© {{year}} QManager",
+    "stale": {
+      "banner": "Pembacaan sudah <age>{{age}}</age> yang lalu. Perangkat mungkin sibuk."
+    },
+    "footer": {
+      "updated_ago": "diperbarui {{age}} lalu",
+      "retrying": "mencoba lagi setiap {{seconds}} dtk",
+      "signin_works": "masuk tetap bisa"
+    },
+    "loading_chip": "Membaca",
+    "unreachable": {
+      "banner": "Modem sedang tidak merespons. Mungkin sedang sibuk atau memulai ulang."
+    }
+  },
+  "sim_swap": {
+    "title": "SIM baru terdeteksi",
+    "carrier_unknown": "Operator tidak diketahui",
+    "no_phone_number": "Nomor belum tersedia",
+    "description_match": "Profil <strong>{{profile_name}}</strong> cocok dengan SIM ini.",
+    "description_no_match": "Tidak ada profil tersimpan yang cocok dengan SIM ini.",
+    "apply_profile": "Terapkan Profil",
+    "create_profile": "Buat Profil",
+    "dismiss_aria": "Hentikan peringatan untuk SIM ini",
+    "toast_dismissed": "Peringatan dimatikan untuk SIM ini",
+    "toast_dismissed_detail": "SIM lain tetap memunculkan peringatan. Aktifkan kembali di Pengaturan Sistem → SIM Terdaftar.",
+    "toast_dismiss_failed": "Gagal mematikan peringatan untuk SIM ini",
+    "dismiss_dialog": {
+      "title": "Hentikan peringatan untuk SIM ini?",
+      "description": "QManager hanya akan berhenti menampilkan peringatan SIM baru untuk SIM {{carrier}} ini. Semua SIM lain tetap memunculkan peringatan, dan Anda dapat mengaktifkannya kembali kapan saja dari Pengaturan Sistem → SIM Terdaftar.",
+      "sim_label": "SIM ini (ICCID)",
+      "confirm": "Hentikan peringatan",
+      "dismissing": "Mematikan…"
+    }
+  },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL & MTU",
+      "description": "Tulis ulang jumlah hop dan ukuran paket yang dipasang modem pada antarmuka seluler."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "strip": {
+      "label": "Berlaku sekarang",
+      "chip_custom": "Kustom",
+      "chip_default": "Bawaan operator",
+      "retry": "Coba lagi",
+      "unavailable_title": "Tidak dapat membaca TTL atau MTU",
+      "unavailable_body": "Modem tidak menjawab. Tidak ada yang diubah pada modem.",
+      "idle_title": "Tidak ada penggantian yang berlaku",
+      "idle_body": "Modem memakai TTL dan MTU operator persis seperti hasil negosiasi. Aktifkan salah satu di bawah untuk mengubahnya."
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "Masih membaca",
+        "caption_unread": "Modem tidak menjawab"
+      },
+      "ttl": {
+        "label": "TTL (IPv4)",
+        "caption_active": "Ditulis ulang pada setiap paket",
+        "caption_idle": "Tidak ditulis ulang"
+      },
+      "hl": {
+        "label": "Batas hop (IPv6)",
+        "caption_active": "Ditulis ulang pada setiap paket",
+        "caption_idle": "Tidak ditulis ulang"
+      },
+      "mtu": {
+        "label": "MTU",
+        "unit": "byte",
+        "caption_active": "Bawaan operator adalah {{carrier}}",
+        "caption_idle": "Dinegosiasikan operator"
+      }
+    },
+    "banner": {
+      "title": "TTL dan batas hop berasal dari profil {{profile}}",
+      "body": "Mengaktifkan profil itu menulis kedua nilai tersebut, jadi kartu ini ditahan agar dua penulis tidak saling menimpa. Ubah nilainya di profil itu, atau aktifkan profil yang membiarkan TTL kosong."
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL & Batas Hop",
+        "description": "Diterapkan pada paket keluar di antarmuka seluler."
+      },
+      "mtu": {
+        "title": "Unit transmisi maksimum",
+        "description": "Paket terbesar yang dikirim antarmuka seluler tanpa fragmentasi."
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "Aktifkan penulisan ulang untuk mengatur nilai.",
+        "consequence_unread": "Modem belum menjawab, jadi belum ada yang dapat diubah."
+      },
+      "rewrite": {
+        "label": "Tulis ulang jumlah hop",
+        "consequence": "Jika nonaktif, modem meneruskan jumlah hop apa adanya dari klien. Sebagian operator menghitung hop untuk mendeteksi tethering."
+      },
+      "ttl_value": {
+        "label": "Nilai TTL",
+        "tag": "IPv4",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}. Perangkat yang berjarak satu hop dari modem biasanya memakai 64."
+      },
+      "hl_value": {
+        "label": "Nilai batas hop",
+        "tag": "IPv6",
+        "placeholder": "64",
+        "consequence": "Padanan IPv6-nya. Atur keduanya kecuali Anda tahu klien hanya single-stack."
+      },
+      "mtu_toggle": {
+        "label": "Ganti nilai MTU",
+        "consequence": "Jika nonaktif, antarmuka seluler kembali ke nilai bawaan 1500."
+      },
+      "mtu_value": {
+        "label": "Nilai MTU",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}. Di bawah sekitar 1400 dapat merusak path MTU discovery pada situs yang membuang ICMP.",
+        "consequence_off": "Aktifkan penggantian untuk mengatur nilai."
+      }
+    },
+    "values": {
+      "on": "Aktif",
+      "off": "Nonaktif"
+    },
+    "footer": {
+      "discard": "Buang",
+      "unsaved": "{{count}} perubahan belum tersimpan"
+    },
+    "errors": {
+      "value_range": "TTL dan batas hop masing-masing harus antara {{min}} dan {{max}}.",
+      "no_value": "Isi TTL atau batas hop sebelum menerapkan.",
+      "mtu_range": "MTU harus antara {{min}} dan {{max}}."
+    },
+    "toast_ttl_applied": "Diterapkan (TTL {{ttl}}, batas hop {{hl}}).",
+    "toast_ttl_cleared": "Modem kembali memakai jumlah hop dari operator.",
+    "toast_ttl_error": "Tidak dapat menerapkan TTL dan batas hop.",
+    "toast_mtu_applied": "MTU disetel ke {{mtu}}.",
+    "toast_mtu_cleared": "MTU kembali ke nilai bawaan 1500.",
+    "toast_mtu_error": "Tidak dapat menerapkan MTU.",
+    "toast_mtu_disable_error": "Tidak dapat mematikan MTU kustom.",
+    "mtu_load_error": "Tidak dapat membaca pengaturan MTU.",
+    "ttl_load_error": "Tidak dapat membaca pengaturan TTL."
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "Passthrough IP",
+      "description": "Serahkan IP publik modem langsung ke satu perangkat yang terhubung, bukan merutekan untuk seluruh LAN."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "status": {
+      "label": "Terakhir diterapkan",
+      "mode_title": {
+        "disabled": "Mode router",
+        "eth": "Passthrough Ethernet",
+        "usb": "Passthrough USB"
+      },
+      "blurb": {
+        "disabled": "Modem merutekan untuk LAN",
+        "eth": "Disetel untuk menyerahkan IP WAN ke perangkat Ethernet",
+        "usb": "Disetel untuk menyerahkan IP WAN ke perangkat USB"
+      },
+      "no_target": "Tidak ada perangkat dipilih",
+      "gateway": "Gateway LAN",
+      "gateway_served": "Dilayani",
+      "gateway_not_served": "Tidak dilayani"
+    },
+    "card": {
+      "title": "Konfigurasi passthrough",
+      "description": "Menerapkan akan menulis semua pengaturan dan me-reboot modem.",
+      "apply": "Terapkan dan reboot",
+      "discard": "Buang perubahan",
+      "unsaved_one": "{{count}} perubahan belum tersimpan",
+      "unsaved_other": "{{count}} perubahan belum tersimpan",
+      "mac_label": "Alamat MAC target",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "groups": {
+      "passthrough": "Passthrough",
+      "network": "Jaringan"
+    },
+    "rows": {
+      "mode": {
+        "label": "Mode"
+      },
+      "target": {
+        "label": "Perangkat target",
+        "pick_mode": "Pilih mode terlebih dahulu."
+      },
+      "nat": {
+        "label": "NAT",
+        "hint": "Dengan NAT cocok untuk hampir semua pengaturan.",
+        "hint_label": "Tentang NAT"
+      },
+      "usb": {
+        "label": "Koneksi USB"
+      },
+      "dns": {
+        "label": "Proxy DNS",
+        "hint": "Aktif, modem menjawab DNS lewat DHCP untuk perangkat target.",
+        "hint_label": "Tentang proxy DNS"
+      }
+    },
+    "options": {
+      "mode_disabled": "Router",
+      "mode_eth": "Ethernet",
+      "mode_usb": "USB",
+      "target_automatic": "Otomatis",
+      "target_device": "Dari LAN",
+      "target_manual": "Lewat MAC",
+      "nat_on": "Dengan NAT",
+      "nat_off": "Tanpa NAT",
+      "dns_off": "Nonaktif",
+      "dns_on": "Aktif"
+    },
+    "mode_note": {
+      "rest": "Ethernet atau USB menyerahkan IP WAN ke satu perangkat, dan modem berhenti menjawab di gateway LAN-nya. Siapkan Tailscale atau jalan masuk lain.",
+      "to_passthrough": "Menerapkan akan me-reboot modem dan tab ini kehilangan koneksinya. Setelah itu gateway LAN berhenti menjawab, jadi siapkan Tailscale atau jalan masuk lain.",
+      "to_router": "Menerapkan akan me-reboot modem dan tab ini kehilangan koneksinya. Gateway LAN kembali menjawab setelah reboot."
+    },
+    "dialog": {
+      "title": "Terapkan dan reboot sekarang?",
+      "body": "Pengaturan ditulis dan modem langsung reboot. Halaman ini beralih ke hitung mundur reboot dan mengeluarkan Anda dari sesi.",
+      "body_gateway": "Begitu passthrough aktif, modem berhenti menjawab di alamat gateway LAN-nya. Pastikan Anda punya Tailscale, perangkat passthrough itu sendiri, atau konsol serial untuk masuk kembali.",
+      "body_persist": "Pengaturan ini bertahan pada reboot berikutnya.",
+      "cancel": "Batal",
+      "confirm": "Terapkan dan reboot"
+    },
+    "toast_apply_error": "Tidak dapat menerapkan pengaturan Passthrough IP",
+    "errors": {
+      "read_title": "Tidak dapat membaca konfigurasi passthrough",
+      "read_body": "Tidak ada yang diubah. Coba lagi, atau periksa apakah modem menjawab.",
+      "retry": "Coba lagi",
+      "card_unread": "Modem belum menjawab, jadi tidak ada yang dapat diubah sampai pembacaan pertama masuk.",
+      "mac_invalid": "Masukkan alamat MAC lengkap, enam pasang digit heksadesimal.",
+      "no_changes": "Belum ada yang berubah.",
+      "device_unpicked": "Pilih perangkat terhubung terlebih dahulu."
+    },
+    "device": {
+      "label": "Perangkat target dari daftar perangkat terhubung",
+      "placeholder": "Pilih Perangkat",
+      "scanning": "Memindai perangkat terhubung…",
+      "error": "Gagal memuat daftar perangkat terhubung.",
+      "empty": "Tidak ada perangkat terhubung yang ditemukan. Hubungkan perangkat ke modem, lalu pindai ulang.",
+      "retry": "Coba lagi",
+      "rescan": "Pindai Ulang",
+      "rescan_label": "Pindai ulang perangkat terhubung",
+      "enter_manually": "Masukkan secara manual",
+      "unknown": "Perangkat tidak dikenal"
+    }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "Peristiwa Jaringan",
+      "description": "Perubahan pada radio dan koneksi, terbaru di atas."
+    },
+    "actions": {
+      "refresh": "Segarkan",
+      "updates_aria": "Pembaruan",
+      "live": "Langsung",
+      "paused": "Dijeda"
+    },
+    "now": {
+      "title": "Saat ini",
+      "description": "Yang masih berlangsung, dan yang terus berulang.",
+      "ongoing_one": "{{count}} masalah berlangsung",
+      "ongoing_other": "{{count}} masalah berlangsung",
+      "oldest_started": "Yang tertua dimulai {{age}}",
+      "clear": "Tidak ada yang berlangsung",
+      "last_problem": "Masalah terakhir {{age}}",
+      "no_problems": "Tidak ada masalah tercatat",
+      "no_events": "Belum ada peristiwa tercatat",
+      "repeating": "Berulang",
+      "repeat_meta_one": "{{count}} perubahan dalam {{span}}",
+      "repeat_meta_other": "{{count}} perubahan dalam {{span}}",
+      "nothing_repeating": "Tidak ada yang berulang."
+    },
+    "activity": {
+      "title": "Aktivitas",
+      "window_last_one": "{{count}} peristiwa terakhir, selama {{span}}.",
+      "window_last_other": "{{count}} peristiwa terakhir, selama {{span}}.",
+      "window_all_one": "{{count}} peristiwa sejak modem dinyalakan.",
+      "window_all_other": "Semua {{count}} peristiwa sejak modem dinyalakan.",
+      "window_empty": "Tidak ada peristiwa sejak modem dinyalakan.",
+      "chart_aria": "Peristiwa dari waktu ke waktu",
+      "column_one": "{{from}} hingga {{to}}: {{count}} peristiwa",
+      "column_other": "{{from}} hingga {{to}}: {{count}} peristiwa",
+      "now": "Sekarang",
+      "problems": "Masalah",
+      "recoveries": "Pemulihan",
+      "routine": "Rutin"
+    },
+    "span": {
+      "minutes_one": "{{count}} menit",
+      "minutes_other": "{{count}} menit",
+      "hours_one": "{{count}} jam",
+      "hours_other": "{{count}} jam"
+    },
+    "log": {
+      "title": "Log peristiwa",
+      "description_loading": "Memuat peristiwa.",
+      "description_unreadable": "Tidak ada hitungan yang ditampilkan selama log tidak terbaca.",
+      "description": "Pengulangan dikelompokkan; buka salah satu untuk melihat tiap peristiwa.",
+      "scroll_aria": "Peristiwa"
+    },
+    "run": {
+      "title": "{{label}} terus berubah",
+      "meta_one": "{{count}} peristiwa dalam {{span}}",
+      "meta_other": "{{count}} peristiwa dalam {{span}}",
+      "show": "Tampilkan {{count}}",
+      "hide": "Sembunyikan"
+    },
+    "filters": {
+      "all": "Semua",
+      "radio": "Radio",
+      "connectivity": "Konektivitas",
+      "mode": "Mode"
+    },
+    "sort": {
+      "label": "Urutkan",
+      "newest": "Terbaru dulu",
+      "oldest": "Terlama dulu"
+    },
+    "row": {
+      "ongoing": "Berlangsung"
+    },
+    "day": {
+      "today": "Hari ini",
+      "yesterday": "Kemarin"
+    },
+    "empty": {
+      "title": "Belum ada peristiwa",
+      "description": "Log dimulai ulang saat modem dinyalakan ulang. Peristiwa muncul di sini saat terjadi.",
+      "filtered_title": "Tidak ada apa pun di tampilan ini",
+      "filtered_description": "Saat ini tidak ada peristiwa jenis ini di log."
+    },
+    "error": {
+      "title": "Tidak dapat memuat peristiwa",
+      "description": "{{message}}",
+      "retry": "Coba lagi"
+    },
+    "notice": {
+      "stale": "Menampilkan peristiwa terakhir yang berhasil kami baca. {{message}}"
+    }
+  },
+  "alerts": {
+    "activity": {
+      "cause": {
+        "planned": "Direncanakan",
+        "scheduled": "Terjadwal",
+        "unexpected": "Tidak terduga",
+        "watchdog": "Watchdog"
+      },
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "day": {
+        "today": "Hari ini",
+        "undated": "Waktu tidak tercatat",
+        "yesterday": "Kemarin"
+      },
+      "description": "Peringatan terkirim dan reboot, terbaru di atas.",
+      "empty": {
+        "description": "Peringatan muncul di sini setelah salurannya mengirim satu, dan reboot dicatat otomatis beserta penyebabnya.",
+        "title": "Belum ada yang terjadi"
+      },
+      "error": {
+        "title": "Tidak dapat memuat aktivitas",
+        "description": "Perangkat tidak menjawab. Coba lagi sebentar lagi.",
+        "retry": "Coba lagi"
+      },
+      "event": {
+        "reboot": "Modem reboot"
+      },
+      "notice": {
+        "stale": "Menampilkan aktivitas terakhir yang berhasil kami baca."
+      },
+      "sr": {
+        "failed": "Peringatan gagal",
+        "reboot": "Reboot tercatat",
+        "sent": "Peringatan terkirim"
+      },
+      "time": {
+        "days_one": "{{count}}h lalu",
+        "days_other": "{{count}}h lalu",
+        "hours_one": "{{count}}j lalu",
+        "hours_other": "{{count}}j lalu",
+        "just_now": "Baru saja",
+        "minutes_one": "{{count}}m lalu",
+        "minutes_other": "{{count}}m lalu",
+        "unknown": "Tidak diketahui"
+      },
+      "title": "Aktivitas",
+      "transcript_label": "Riwayat peringatan dan reboot",
+      "trigger": {
+        "test": "Peringatan uji",
+        "alert": "Peringatan"
+      }
+    },
+    "channels": {
+      "description": "Atur bagaimana masing-masing menjangkau Anda.",
+      "discord": {
+        "id_error": "Masukkan ID pengguna Discord berupa angka 15 hingga 25 digit.",
+        "id_hint": "Aktifkan Developer Mode, klik kanan nama Anda, lalu pilih Copy User ID.",
+        "id_label": "ID Discord pemilik",
+        "id_missing": "ID Discord pemilik diperlukan.",
+        "test": "Kirim pesan tes",
+        "token_hide": "Sembunyikan token bot",
+        "token_hint": "Buat bot dan salin tokennya di Discord Developer Portal.",
+        "token_keep": "Biarkan kosong untuk tetap memakai token tersimpan",
+        "token_label": "Token bot",
+        "token_link": "Buka Discord Developer Portal",
+        "token_missing": "Token bot diperlukan untuk mengirim peringatan Discord.",
+        "token_placeholder": "Tempel token bot Anda",
+        "token_show": "Tampilkan token bot",
+        "title": "Peringatan Discord",
+        "sub": "Pesan langsung dari bot Anda.",
+        "id_hint_label": "Cara menemukan ID Discord Anda"
+      },
+      "email": {
+        "address_error": "Masukkan alamat email yang valid.",
+        "mailer_install": "Instal msmtp",
+        "mailer_installing": "Menginstal…",
+        "mailer_missing": "Mailer msmtp belum terinstal, jadi email belum bisa dikirim. SMS dan Discord tetap tersimpan.",
+        "mailer_recheck": "Periksa lagi",
+        "password_hide": "Sembunyikan kata sandi aplikasi",
+        "password_hint": "Buat kata sandi aplikasi untuk perangkat ini di Akun Google Anda.",
+        "password_keep": "Biarkan kosong untuk tetap memakai kata sandi tersimpan",
+        "password_label": "Kata sandi aplikasi Gmail",
+        "password_link": "Buka kata sandi aplikasi Google",
+        "password_missing": "Kata sandi aplikasi diperlukan untuk mengirim email.",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_show": "Tampilkan kata sandi aplikasi",
+        "recipient_hint": "Tujuan pengiriman peringatan.",
+        "recipient_label": "Email penerima",
+        "recipient_missing": "Alamat penerima diperlukan.",
+        "sender_hint": "Akun Gmail yang mengirim peringatan.",
+        "sender_label": "Email pengirim",
+        "sender_missing": "Alamat pengirim diperlukan.",
+        "test": "Kirim email tes",
+        "title": "Peringatan email",
+        "sub": "Dikirim lewat Gmail setelah koneksi kembali."
+      },
+      "empty": {
+        "description": "Perangkat ini tidak mengembalikan saluran peringatan apa pun, sehingga belum ada yang dapat dikonfigurasi.",
+        "title": "Tidak ada saluran yang dilaporkan"
+      },
+      "loading": "Memuat saluran peringatan",
+      "name": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "rail_label": "Saluran peringatan",
+      "save": {
+        "action": "Simpan Pengaturan",
+        "blocked": "Perbaiki kolom yang ditandai",
+        "blocked_in": "Perbaiki kesalahan di {{channels}}",
+        "clean": "Semua perubahan tersimpan",
+        "dirty": "Perubahan belum tersimpan",
+        "discard": "Buang",
+        "failed": "Pengaturan tidak dapat disimpan.",
+        "succeeded": "Pengaturan peringatan tersimpan",
+        "errors": {
+          "invalid_threshold": "Masukkan waktu tunggu 1 hingga 1440 menit.",
+          "invalid_phone": "Masukkan nomor telepon 7 hingga 15 digit yang diawali kode negara.",
+          "invalid_email": "Masukkan alamat email pengirim dan penerima yang valid.",
+          "missing_app_password": "Masukkan sandi aplikasi email.",
+          "invalid_discord_id": "Masukkan ID pengguna Discord berupa 15 hingga 25 digit.",
+          "missing_bot_token": "Masukkan token bot Discord.",
+          "invalid_secret": "Sandi aplikasi atau token bot berisi karakter yang tidak diizinkan.",
+          "partial": "Sandi atau token sudah disimpan, tetapi pengaturan belum selesai diperbarui, jadi simpan lagi.",
+          "service_restart_failed": "Pengaturan disimpan, tetapi bot Discord tidak dapat dimulai ulang.",
+          "service_enable_failed": "Pengaturan disimpan, tetapi bot Discord tidak dapat diatur untuk berjalan saat perangkat menyala."
+        }
+      },
+      "secret_saved": "Tersimpan",
+      "sms": {
+        "phone_error": "Masukkan nomor beserta kode negaranya, seperti +14155551234.",
+        "phone_hint": "Sertakan kode negara dengan tanda plus di depan.",
+        "phone_label": "Telepon penerima",
+        "phone_missing": "Nomor telepon penerima diperlukan.",
+        "test": "Kirim SMS tes",
+        "title": "Peringatan SMS",
+        "sub": "Tetap sampai meski saat gangguan."
+      },
+      "status": {
+        "incomplete": "Perlu disiapkan",
+        "needs_fixing": "Ada kesalahan yang belum disimpan",
+        "off": "Mati",
+        "ready": "Siap",
+        "unused": "Tidak ada peristiwa yang dirutekan"
+      },
+      "test": {
+        "blocked_busy": "Tes lain masih berjalan.",
+        "blocked_dirty": "Simpan perubahan Anda dahulu. Tes berjalan berdasarkan pengaturan yang tersimpan.",
+        "blocked_incomplete": "Selesaikan penyiapan saluran ini, lalu simpan, untuk mengirim tes.",
+        "blocked_mailer": "Instal mailer msmtp untuk mengirim email tes.",
+        "blocked_off": "Aktifkan saluran ini, lalu simpan, untuk mengirim tes.",
+        "blocked_offline": "Bot Discord belum terhubung.",
+        "failed": "Tes tidak dapat dikirim.",
+        "sending": "Mengirim…",
+        "succeeded": "Tes {{channel}} terkirim",
+        "errors": {
+          "library_missing": "Saluran ini tidak dapat mengirim peringatan di perangkat ini.",
+          "not_configured": "Aktifkan saluran ini dan selesaikan pengaturannya sebelum mengirim tes.",
+          "bot_not_running": "Bot Discord sedang offline, jadi tes tidak terkirim.",
+          "msmtp_missing": "Pengirim email belum terpasang, jadi email tes tidak terkirim.",
+          "send_failed_sms": "SMS tes tidak terkirim, jadi periksa sinyal, pulsa SIM, dan nomornya.",
+          "send_failed_email": "Email tes tidak terkirim, jadi periksa alamat, sandi aplikasi, dan koneksinya.",
+          "send_failed_discord": "Pesan tes tidak sampai ke bot Discord, jadi coba lagi."
+        }
+      },
+      "threshold_error": "Masukkan jumlah menit bulat dari 1 sampai 1440.",
+      "threshold_hint": "Gangguan yang lebih singkat dicatat, tidak dikirim.",
+      "threshold_label": "Tunggu sebelum memberi peringatan",
+      "threshold_unit": "mnt",
+      "title": "Saluran",
+      "sends_for": "Dikirim untuk",
+      "error": {
+        "title": "Saluran tidak dapat dimuat",
+        "description": "Perangkat tidak menjawab. Coba lagi sebentar lagi.",
+        "retry": "Coba lagi"
+      }
+    },
+    "coverage": {
+      "description": "Apa yang sampai ke Anda, sesuai yang disimpan.",
+      "emptyDesc": "Perangkat tidak melaporkan kemampuan peringatan apa pun, sehingga tidak ada yang dapat diaktifkan di sini.",
+      "emptyTitle": "Tidak ada yang dapat dirutekan",
+      "errorDesc": "Perangkat tidak menjawab, sehingga kami tidak dapat menunjukkan apa yang akan terpicu.",
+      "errorRetry": "Coba lagi",
+      "errorTitle": "Tidak dapat memuat cakupan",
+      "event": {
+        "connection_lost": {
+          "name": "Koneksi terputus"
+        },
+        "connection_restored": {
+          "name": "Koneksi pulih"
+        },
+        "reboot": {
+          "name": "Modem reboot"
+        }
+      },
+      "loading": "Memuat cakupan",
+      "reason": {
+        "discord_needs_internet": "Perlu internet",
+        "email_needs_internet": "Perlu internet",
+        "not_supported": "Saluran ini tidak dapat mengirim peristiwa ini"
+      },
+      "staleNotice": "Menampilkan pengaturan terakhir yang berhasil kami baca dari perangkat.",
+      "title": "Cakupan",
+      "verdict": {
+        "all": "Semua tercakup",
+        "outage": "Gangguan tidak tercakup",
+        "partial": "{{covered}} dari {{total}} tercakup",
+        "none": "Tidak ada yang akan dikirim"
+      },
+      "needsSetup": "{{channel}} perlu disiapkan",
+      "notSent": "Tidak dikirim"
+    },
+    "page": {
+      "description": "Siapa yang diberi tahu saat koneksi terputus, kembali, atau modem reboot.",
+      "refresh": "Segarkan",
+      "title": "Peringatan",
+      "unreadable": "Perangkat tidak menjawab."
+    }
+  },
+  "tailscale": {
+    "actions": {
+      "cancel": "Batal",
+      "retry": "Coba lagi"
+    },
+    "page": {
+      "title": "Tailscale VPN",
+      "description": "Mesh VPN Anda: yang sedang dilakukan modem ini di tailnet, dan siapa lagi yang tergabung.",
+      "refresh": "Segarkan",
+      "stale": "Menampilkan status terakhir yang berhasil kami baca. {{message}}",
+      "unreadableTitle": "Tidak dapat membaca status Tailscale",
+      "unreadable": "Perangkat tidak menjawab."
+    },
+    "status": {
+      "aria": "Status Tailscale",
+      "running": "Terhubung",
+      "needsLogin": "Perlu masuk",
+      "disconnected": "Terputus",
+      "serviceStopped": "Layanan berhenti",
+      "notInstalled": "Belum terinstal",
+      "unknown": "Tidak diketahui"
+    },
+    "band": {
+      "dash": "—",
+      "connectionEyebrow": "Koneksi",
+      "version": "Versi {{version}}",
+      "versionUnknown": "Versi tidak diketahui",
+      "deviceEyebrow": "Perangkat ini",
+      "deviceUnknown": "Belum ada alamat tailnet",
+      "tailnetEyebrow": "Tailnet",
+      "magicDnsOn": "MagicDNS aktif",
+      "magicDnsOff": "MagicDNS nonaktif",
+      "peersEyebrow": "Peer online",
+      "exitNodes_one": "{{count}} node keluar",
+      "exitNodes_other": "{{count}} node keluar",
+      "noExitNode": "Tidak ada node keluar"
+    },
+    "connection": {
+      "title": "Koneksi",
+      "description": "Apakah modem ini bergabung ke tailnet, dan bagaimana perilakunya setelah itu.",
+      "connect": "Hubungkan",
+      "connecting": "Menghubungkan…",
+      "disconnect": "Putuskan",
+      "disconnecting": "Memutuskan…",
+      "startService": "Mulai layanan",
+      "starting": "Memulai…",
+      "stopService": "Hentikan layanan",
+      "stopping": "Menghentikan…",
+      "logout": "Keluar",
+      "logoutDialogTitle": "Keluar dari Tailscale?",
+      "logoutDialogDescription": "Ini menghapus modem dari tailnet Anda. Anda perlu masuk lagi sebelum modem dapat terhubung kembali.",
+      "authTitle": "Masuk untuk menyelesaikan koneksi",
+      "authDescription": "Buka halaman masuk dan autentikasi dengan akun Tailscale Anda. Modem bergabung ke tailnet segera setelah Anda menyetujuinya.",
+      "openLogin": "Buka halaman masuk",
+      "authWaiting": "Menunggu Anda masuk",
+      "bootTitle": "Mulai saat boot",
+      "bootDescription": "Jalankan Tailscale otomatis setelah modem restart.",
+      "sshTitle": "Tailscale SSH",
+      "sshDescription": "Izinkan anggota tailnet membuka sesi SSH ke modem ini, sesuai ACL panel admin Anda.",
+      "sshPending": "Tertunda — ini akan diterapkan saat modem terhubung berikutnya.",
+      "sshLocked": "Hubungkan ke Tailscale untuk mengubah ini.",
+      "sshDialogTitle": "Aktifkan Tailscale SSH?",
+      "sshDialogDescription": "Anggota tailnet akan bisa membuka SSH ke modem ini berdasarkan ACL panel admin Tailscale Anda. Tinjau dulu kebijakan itu, agar hanya orang yang Anda maksud yang bisa menjangkau perangkat ini.",
+      "sshConfirm": "Aktifkan SSH",
+      "on": "Aktif",
+      "off": "Mati",
+      "updating": "Memperbarui…",
+      "updateAvailable": "Pembaruan tersedia ({{version}})",
+      "updateDialogTitle": "Perbarui Tailscale ke {{version}}?",
+      "updateDialogDescription": "Tunnel tersambung ulang selama beberapa detik saat versi baru dimulai.",
+      "update": "Perbarui",
+      "updateLogTitle": "Log pembaruan"
+    },
+    "device": {
+      "title": "Perangkat ini",
+      "description": "Bagaimana modem mengidentifikasi dirinya di tailnet.",
+      "hostname": "Hostname",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "dnsName": "Nama DNS",
+      "tailnet": "Tailnet",
+      "magicDns": "MagicDNS",
+      "relay": "Relay DERP",
+      "emptyTitle": "Belum di tailnet",
+      "emptyDescription": "Hubungkan Tailscale dan alamat, nama DNS, serta relay modem ini akan muncul di sini.",
+      "version": "Versi"
+    },
+    "peers": {
+      "title": "Peer jaringan",
+      "description": "Perangkat lain di tailnet Anda, dan apakah mereka bisa dijangkau.",
+      "dash": "—",
+      "unnamed": "Perangkat tanpa nama",
+      "exitNode": "Node keluar",
+      "colDevice": "Perangkat",
+      "colAddress": "Alamat",
+      "colOs": "OS",
+      "colStatus": "Status",
+      "colLastSeen": "Terakhir online",
+      "online": "Online",
+      "offline": "Offline",
+      "seenNow": "Sekarang",
+      "seenUnknown": "Tidak diketahui",
+      "seenJustNow": "Baru saja",
+      "seenMinutes": "{{n}}m lalu",
+      "seenHours": "{{n}}j lalu",
+      "seenDays": "{{n}}h lalu",
+      "countOnline": "{{online}} dari {{total}} online",
+      "countExitNodes_one": "{{count}} node keluar",
+      "countExitNodes_other": "{{count}} node keluar",
+      "errorTitle": "Tidak dapat memuat peer",
+      "emptyTitle": "Tidak ada perangkat lain",
+      "emptyDescription": "Belum ada yang bergabung ke tailnet ini. Tambahkan perangkat dari konsol admin Tailscale dan akan muncul di sini.",
+      "offlineTitle": "Tidak terhubung",
+      "offlineDescription": "Hubungkan Tailscale untuk melihat perangkat lain di tailnet Anda."
+    },
+    "install": {
+      "title": "Tailscale",
+      "description": "Mesh VPN untuk menjangkau modem ini dari mana saja, tanpa membuka port.",
+      "conditionTitle": "Tailscale belum terinstal",
+      "conditionDescription": "Instalasi mengunduh paket Tailscale lewat koneksi seluler yang sama dengan sesi ini, jadi ini memakai kuota data Anda dan koneksi akan lebih lambat selama berlangsung.",
+      "install": "Instal Tailscale",
+      "installing": "Menginstal…",
+      "checkAgain": "Periksa lagi",
+      "done": "Tailscale terinstal.",
+      "failed": "Instalasi tidak selesai.",
+      "manualLabel": "Atau instal lewat shell",
+      "copyCommand": "Salin perintah instalasi",
+      "logTitle": "Log instalasi",
+      "logWaiting": "Menunggu output…"
+    },
+    "danger": {
+      "title": "Hapus Tailscale",
+      "description": "Menghapus paket Tailscale dan aturan firewall dari modem ini.",
+      "uninstall": "Hapus instalasi",
+      "removing": "Menghapus…",
+      "dialogTitle": "Hapus instalasi Tailscale?",
+      "dialogDescription": "Ini menghapus paket Tailscale, aturan firewall-nya, dan semua status koneksi dari modem ini. Reboot setelahnya membersihkan sisa yang tertinggal.",
+      "rebootTitle": "Reboot disarankan",
+      "rebootDescription": "Tailscale telah dihapus. Reboot membersihkan sisa aturan firewall dan artefak lainnya. Reboot sekarang?",
+      "rebootLater": "Reboot nanti",
+      "rebootNow": "Reboot sekarang",
+      "rebooting": "Reboot…"
+    },
+    "toast": {
+      "bootEnabled": "Tailscale akan berjalan saat boot",
+      "bootDisabled": "Tailscale tidak akan berjalan saat boot",
+      "bootFailed": "Tidak dapat mengubah pengaturan boot",
+      "sshEnabled": "Tailscale SSH aktif",
+      "sshEnableFailed": "Tidak dapat mengaktifkan Tailscale SSH",
+      "sshDisabled": "Tailscale SSH nonaktif",
+      "sshDisableFailed": "Tidak dapat menonaktifkan Tailscale SSH",
+      "connected": "Menghubungkan ke Tailscale",
+      "connectFailed": "Tidak dapat memulai koneksi",
+      "disconnected": "Tailscale terputus",
+      "disconnectFailed": "Tidak dapat memutuskan koneksi",
+      "loggedOut": "Keluar dari Tailscale",
+      "logoutFailed": "Tidak dapat keluar",
+      "serviceStarted": "Layanan Tailscale dimulai",
+      "serviceStartFailed": "Tidak dapat memulai layanan Tailscale",
+      "serviceStopped": "Layanan Tailscale berhenti",
+      "serviceStopFailed": "Tidak dapat menghentikan layanan Tailscale",
+      "uninstalled": "Tailscale dihapus",
+      "uninstallFailed": "Tidak dapat menghapus Tailscale",
+      "copied": "Perintah disalin",
+      "copyFailed": "Tidak dapat menyalin perintah",
+      "installed": "Tailscale terinstal",
+      "installFailed": "Instalasi Tailscale tidak selesai",
+      "updated": "Tailscale diperbarui ke {{version}}",
+      "updateFailed": "Tailscale tidak dapat diperbarui"
+    }
+  },
+  "watchdog": {
+    "page": {
+      "title": "Watchdog",
+      "description": "Memantau koneksi internet dan menjalankan urutan pemulihan saat koneksi terputus.",
+      "refresh": "Segarkan",
+      "unreadableTitle": "Tidak dapat membaca pengaturan watchdog",
+      "unreadable": "Modem tidak menjawab.",
+      "retry": "Coba lagi"
+    },
+    "band": {
+      "checks": "Pemeriksaan Gagal",
+      "recoveries": "Pemulihan",
+      "reboots": "Reboot",
+      "absent": "Tidak dilaporkan",
+      "checksCaption": "Sebelum pemulihan dimulai",
+      "cooldownCaption": "Memeriksa ulang dalam {{seconds}} detik",
+      "recoveriesLast": "Langkah {{tier}}, {{ago}}",
+      "recoveriesNone": "Belum pernah",
+      "rebootsCaption": "Dalam satu jam terakhir",
+      "rebootsOff": "Langkah reboot nonaktif",
+      "aria": "Status watchdog",
+      "cooldownStep": "Langkah {{tier}} dijalankan. Memeriksa ulang dalam {{seconds}} detik."
+    },
+    "phase": {
+      "off": {
+        "label": "Mati",
+        "blurb": "Watchdog tidak memantau koneksi."
+      },
+      "unknown": {
+        "label": "Tidak diketahui",
+        "blurb": "Modem tidak merespons, sehingga status watchdog tidak dapat diketahui."
+      },
+      "starting": {
+        "label": "Memulai",
+        "blurb": "Layanan baru saja diaktifkan dan belum melaporkan apa pun."
+      },
+      "not_running": {
+        "label": "Tidak dilaporkan",
+        "blurb": "Diaktifkan, tetapi layanan belum melapor sejak boot."
+      },
+      "auto_disabled": {
+        "label": "Mati otomatis",
+        "blurb": "Batas reboot tercapai. Nyalakan lagi setelah koneksi stabil."
+      },
+      "monitor": {
+        "label": "Memantau",
+        "blurb": "Koneksi dalam kondisi baik. Memantau kemungkinan gangguan."
+      },
+      "suspect": {
+        "label": "Memeriksa",
+        "blurb": "Pemeriksaan konektivitas baru saja gagal. Memastikan sebelum bertindak."
+      },
+      "recovery": {
+        "label": "Memulihkan",
+        "blurb": "Menjalankan urutan pemulihan untuk memulihkan koneksi."
+      },
+      "cooldown": {
+        "label": "Cooldown",
+        "blurb": "Menunggu langkah pemulihan terakhir stabil sebelum memeriksa ulang."
+      },
+      "locked": {
+        "label": "Dijeda",
+        "blurb": "Pemeliharaan sedang berlangsung, sehingga watchdog menahan diri sementara."
+      },
+      "disabled": {
+        "label": "Nonaktif",
+        "blurb": "Layanan berjalan, tetapi dimatikan."
+      },
+      "ssr_hold": {
+        "label": "Menahan",
+        "blurb": "Baseband sedang memulai ulang sendiri. Pemulihan menunggu hingga kembali."
+      }
+    },
+    "master": {
+      "aria": "Aktifkan watchdog koneksi"
+    },
+    "ladder": {
+      "title": "Urutan pemulihan",
+      "description": "Dicoba berurutan, mulai dari yang paling ringan.",
+      "aria": "Urutan pemulihan",
+      "status": {
+        "blocked": "Perlu slot",
+        "done": "Sudah dicoba",
+        "running": "Sedang berjalan"
+      },
+      "tier1": {
+        "name": "Daftar ulang ke jaringan",
+        "consequence": "Koneksi terputus selama beberapa detik."
+      },
+      "tier2": {
+        "name": "Mulai ulang radio",
+        "consequence": "Dilewati saat penguncian tower aktif."
+      },
+      "tier3": {
+        "name": "Beralih ke SIM cadangan",
+        "consequence": "Tetap memakai SIM cadangan sampai Anda mengembalikannya.",
+        "slotLabel": "Slot SIM cadangan",
+        "slot": "Slot {{slot}}"
+      },
+      "tier4": {
+        "name": "Reboot Perangkat",
+        "consequence": "Offline sekitar satu menit.",
+        "capLabel": "Maksimum reboot per jam",
+        "capLead": "Hingga",
+        "capUnit": "per jam"
+      },
+      "tierAria": "Aktifkan langkah pemulihan ini: {{name}}",
+      "failback": {
+        "name": "Kembali ke SIM utama",
+        "consequence": "Mencoba ulang SIM utama; koneksi terputus sebentar tiap percobaan.",
+        "lead": "Setiap",
+        "unit": "mnt",
+        "intervalLabel": "Interval cek ulang SIM utama"
+      }
+    },
+    "detection": {
+      "title": "Deteksi",
+      "description": "Seberapa cepat koneksi yang diam dianggap sebagai gangguan.",
+      "probe": {
+        "label": "Periksa setiap",
+        "short": "{{seconds}} dtk"
+      },
+      "threshold": {
+        "label": "Terputus setelah",
+        "unit": "pemeriksaan gagal"
+      },
+      "cooldown": {
+        "label": "Jeda antarlangkah",
+        "unit": "dtk"
+      },
+      "timeline": {
+        "eyebrow": "Jika koneksi terputus",
+        "declaredStep": "Gangguan dinyatakan, langkah {{tier}}",
+        "declaredReboot": "Gangguan dinyatakan, langkah 4, reboot",
+        "step": "Langkah {{tier}}",
+        "reboot": "Langkah 4, reboot",
+        "about": "sekitar {{time}}",
+        "seconds": "{{s}} dtk",
+        "minutes": "{{m}} mnt",
+        "minutesSeconds": "{{m}} mnt {{s}} dtk",
+        "off": "Watchdog mati, jadi tidak ada yang berjalan.",
+        "none": "Tidak ada langkah yang aktif, jadi tidak ada yang berjalan.",
+        "invalid": "Masukkan nilai deteksi yang valid untuk melihat pratinjau urutan waktu.",
+        "stopped": "Langkah 3 tidak punya slot, jadi urutan berhenti di sana."
+      },
+      "ssr": {
+        "label": "Tahan saat baseband restart",
+        "unit": "dtk",
+        "caption": "Biarkan modem selesai memulai ulang sendiri dulu"
+      },
+      "quality": {
+        "label": "Pemicu kualitas",
+        "unit": "cek",
+        "caption": "Lebih dari {{ms}} ms atau kehilangan {{pct}}%",
+        "link": "Ambang batas"
+      }
+    },
+    "activity": {
+      "title": "Aktivitas pemulihan",
+      "description": "Tindakan yang telah dilakukan watchdog, terbaru dulu.",
+      "tier4Reboot": "Watchdog me-restart modem",
+      "type": {
+        "recovery": "Pemulihan",
+        "failover": "Failover SIM"
+      },
+      "day": {
+        "today": "Hari ini",
+        "yesterday": "Kemarin"
+      },
+      "time": {
+        "just_now": "Baru saja",
+        "minutes_one": "{{count}}m lalu",
+        "minutes_other": "{{count}}m lalu",
+        "hours_one": "{{count}}j lalu",
+        "hours_other": "{{count}}j lalu",
+        "days_one": "{{count}}h lalu",
+        "days_other": "{{count}}h lalu"
+      },
+      "empty": {
+        "title": "Belum ada aktivitas pemulihan",
+        "description": "Langkah pemulihan dan failover SIM muncul di sini saat watchdog menangani gangguan. Aktivitas lama akan tergeser keluar dari log peristiwa modem."
+      },
+      "error": {
+        "title": "Tidak dapat memuat aktivitas pemulihan",
+        "retry": "Coba lagi"
+      },
+      "allEvents": "Semua peristiwa"
+    },
+    "save": {
+      "discard": "Buang",
+      "action": "Simpan",
+      "clean": "Semua perubahan tersimpan",
+      "dirty": "Ada perubahan yang belum disimpan",
+      "blockedIn": "Periksa {{fields}} sebelum menyimpan",
+      "toastOk": "Pengaturan watchdog tersimpan",
+      "toastFail": "Tidak dapat menyimpan pengaturan watchdog",
+      "confirmReboot": {
+        "title": "Izinkan watchdog me-reboot modem?",
+        "body": "Setelah disimpan, watchdog dapat memulai ulang modem sendiri ketika semua langkah yang lebih ringan telah gagal. Halaman ini akan hilang sekitar satu menit selama modem kembali aktif.",
+        "cap": "Reboot dibatasi {{cap}} kali per jam. Saat batas itu tercapai, watchdog mematikan dirinya sampai Anda menyalakannya lagi.",
+        "cancel": "Batal",
+        "action": "Izinkan reboot"
+      }
+    },
+    "errors": {
+      "failThreshold": "Harus antara 1 dan 20",
+      "probeInterval": "Harus antara 1 dan 60 detik",
+      "cooldown": "Harus antara 10 dan 300 detik",
+      "maxReboots": "Harus antara 1 dan 10",
+      "backupSim": "Pilih slot SIM cadangan untuk mengaktifkan failover",
+      "ssrGrace": "Harus antara 10 dan 120 detik",
+      "qualityConsecutive": "Harus antara 1 dan 60",
+      "recheckInterval": "Harus antara 5 dan 1440 menit"
+    },
+    "failover": {
+      "title": "Berjalan menggunakan SIM cadangan",
+      "body": "Beralih ke slot {{current}} {{since}}. SIM asli berada di slot {{original}}.",
+      "recently": "baru-baru ini",
+      "revert": "Pulihkan SIM asli",
+      "reverting": "Memulihkan…",
+      "confirmTitle": "Pulihkan SIM asli?",
+      "confirmBody": "Ini akan beralih kembali ke slot SIM {{original}}. Internet Anda akan terputus sebentar saat modem tersambung ulang.",
+      "cancel": "Batal",
+      "confirm": "Pulihkan SIM",
+      "requested": "Permintaan pemulihan SIM diterima. Watchdog akan segera memprosesnya.",
+      "failed": "Tidak dapat meminta pemulihan SIM"
+    },
+    "strip": {
+      "title": "Pemeriksaan",
+      "noReply": "{{n}} tanpa balasan",
+      "average": "rata-rata {{ms}} ms",
+      "ago": "{{minutes}} mnt lalu",
+      "now": "Sekarang",
+      "empty": "Tidak ada data pemeriksaan dari modem",
+      "aria": "{{total}} pemeriksaan, {{missed}} tanpa balasan"
+    }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "Tentang Perangkat",
+      "description": "Identitas perangkat, alamat, dan perangkat lunak yang berjalan di dalamnya."
+    },
+    "actions": {
+      "refresh": "Segarkan",
+      "refreshing": "Menyegarkan…",
+      "retry": "Coba lagi"
+    },
+    "band": {
+      "label": "Identitas",
+      "not_responding": "Tidak merespons",
+      "unreachable": {
+        "title": "Perangkat tidak menjawab",
+        "detail": "{{reason}} dari {{endpoint}}. Tidak ada data di bawah ini yang terbaca.",
+        "no_reason": "Tidak ada respons"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "MODEL"
+      },
+      "firmware": {
+        "eyebrow": "FIRMWARE MODEM",
+        "caption": "Dibuat {{date}}"
+      },
+      "host": {
+        "eyebrow": "SISTEM HOST",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "INTERNET",
+        "reachable": "Terjangkau",
+        "not_reachable": "Tidak terjangkau",
+        "caption_reachable": "Publik {{address}}",
+        "caption_unreachable": "Tidak ada jawaban dari {{probe}}"
+      }
+    },
+    "modem": {
+      "title": "Modem",
+      "description": "Identitas perangkat keras dan rilis 3GPP yang diterapkan setiap radio."
+    },
+    "addresses": {
+      "title": "Alamat",
+      "description": "Posisi perangkat ini di LAN dan di jaringan operator.",
+      "provenance": "Alamat publik diselesaikan melalui {{probe}}. Tanda pisah berarti perangkat tidak melaporkan alamat."
+    },
+    "groups": {
+      "three_gpp": "Rilis 3GPP",
+      "local": "Lokal",
+      "wwan": "WWAN",
+      "public": "Publik"
+    },
+    "rows": {
+      "manufacturer": "Produsen",
+      "model": "Model",
+      "firmware": "Firmware",
+      "firmware_revision": "Revisi firmware",
+      "build_date": "Tanggal build",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "IP Perangkat",
+      "lan_gateway": "Gateway LAN",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "Tidak ada data",
+      "modem": "Angka-angka ini berasal dari perangkat, dan perangkat tidak menjawab.",
+      "addresses": "Alamat dibaca dari permintaan yang sama."
+    },
+    "credits": {
+      "title": "Kredit",
+      "description": "QManager memakai beberapa layanan eksternal dan data terbuka. Terima kasih kepada semua pihak di baliknya.",
+      "roles": {
+        "apn": "Preset APN operator",
+        "logos": "Logo merek untuk pengirim SMS dan situs yang dipantau",
+        "icons": "Ikon situs saat logo tidak ditemukan"
+      }
+    },
+    "qmanager": {
+      "title": "Tentang QManager",
+      "note": "Halo! Rus di sini. QManager adalah iterasi terbaru dari QuecManager, dibangun dengan pendekatan yang lebih baru dan lebih andal dibandingkan pendahulunya — sambil tetap menggabungkan pengaturan teknis untuk pengguna tingkat lanjut dengan antarmuka sederhana bagi yang baru memulai. Terima kasih khusus kepada iamromulan, clndwhr, dan Wutang Clan!",
+      "copyright": "© {{year}} QManager. Seluruh hak cipta dilindungi.",
+      "repository": "Repositori GitHub",
+      "release_notes": "Catatan rilis",
+      "support": "Dukung proyek ini",
+      "credits": "Kredit"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "Dukungan",
+      "description": "Laporkan bug, tanya komunitas, atau hubungi pengelola."
+    },
+    "help": {
+      "title": "Dapatkan bantuan",
+      "description": "Empat jalur, sesuai urutan yang paling sering dibutuhkan.",
+      "bug": {
+        "label": "Laporkan bug"
+      },
+      "community": {
+        "label": "Tanya komunitas"
+      },
+      "email": {
+        "label": "Email pengelola"
+      },
+      "release_notes": {
+        "label": "Baca catatan rilis",
+        "dest": "Terbaru: {{version}}"
+      }
+    },
+    "community": {
+      "title": "Komunitas",
+      "description": "Cellular Modem Talk/Development di Discord.",
+      "body": "Pengguna berbagi konfigurasi, memecahkan masalah bersama, dan membahas jaringan seluler. Pindai atau buka undangannya.",
+      "open_invite": "Buka undangan",
+      "qr_alt": "Kode QR untuk undangan server Discord QManager"
+    },
+    "opens_new_tab": "terbuka di tab baru"
+  },
+  "donate": {
+    "dialog": {
+      "title": "Dukung proyek ini",
+      "description": "Bantu QManager terus berjalan.",
+      "body": "Hai, saya Rus. QManager adalah proyek sampingan yang saya kelola secara gratis. Jika bermanfaat bagi Anda, dukungan kecil sangat berarti dan membuat saya terus melanjutkan.",
+      "thanks": "Terima kasih sudah luar biasa. 💙"
+    },
+    "links": {
+      "group_label": "Kanal donasi",
+      "opens_new_tab": "terbuka di tab baru"
+    },
+    "band": {
+      "title": "Dukung proyek ini",
+      "body": "QManager adalah proyek sampingan yang dikelola secara gratis. Jika bermanfaat untuk perangkat Anda, sedikit dukungan membuatnya terus berjalan — dan tidak akan ada fitur berbayar apa pun."
+    }
+  },
+  "not_found": {
+    "scene_label": "Api unggun berderak di bawah langit berbintang",
+    "title": "Sepertinya kamu tersesat, petualang",
+    "description": "Mau kembali membuat koneksimu lebih baik?",
+    "home": "Kembali ke Dasbor",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "Pilih file gambar.",
+    "photo_updated": "Foto profil diperbarui.",
+    "change_photo_aria": "Ubah foto profil",
+    "name_placeholder": "Nama Anda",
+    "name_saved": "Nama tampilan diperbarui.",
+    "name_save_failed": "Gagal memperbarui nama tampilan.",
+    "reconnect_description": "Modem akan terputus selama beberapa detik, lalu tersambung kembali secara otomatis.",
+    "disconnecting_description": "Memutuskan modem dari jaringan…",
+    "reconnecting_description": "Menyambungkan ulang modem ke jaringan…",
+    "reconnect_action": "Sambungkan Ulang",
+    "reconnect_complete": "Modem tersambung kembali.",
+    "reconnect_failed": "Gagal menyambungkan ulang modem.",
+    "reboot_description": "Perangkat akan dimulai ulang dan semua koneksi jaringan akan terputus hingga perangkat kembali online.",
+    "reboot_sent": "Perintah reboot terkirim. Anda akan segera keluar…",
+    "reboot_now": "Reboot Sekarang"
+  },
+  "pending_reboot": {
+    "title": "Reboot untuk menyelesaikan perubahan",
+    "reboot_now": "Reboot sekarang",
+    "rebooting": "Memulai ulang…",
+    "dismiss": "Tutup",
+    "reboot_failed_toast": "Tidak dapat memulai reboot. Coba lagi.",
+    "description": {
+      "config_restore": "Perubahan IMEI atau profil SIM dari pemulihan akan berlaku setelah reboot berikutnya.",
+      "imei": "IMEI baru berlaku setelah reboot berikutnya.",
+      "mbn": "Profil operator baru berlaku setelah modem dinyalakan ulang.",
+      "default": "Beberapa perubahan berlaku setelah reboot berikutnya."
+    },
+    "dismiss_dialog": {
+      "title": "Tutup pengingat reboot?",
+      "description": "Perubahan yang memerlukan reboot tetap tidak aktif sampai modem dimulai ulang. Tutup hanya jika Anda sudah me-reboot.",
+      "keep": "Pertahankan pengingat",
+      "confirm": "Tutup"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "Mematikan…",
+      "restarting": "Memulai ulang layanan…",
+      "almost_ready": "Hampir siap…",
+      "overtime": "Memakan waktu lebih lama dari biasanya…"
+    },
+    "subtitle": {
+      "normal": "Perangkat Anda akan segera online kembali",
+      "overtime": "Perangkat masih memulai ulang"
+    },
+    "timer_aria_one": "Tersisa {{count}} detik",
+    "timer_aria_other": "Tersisa {{count}} detik",
+    "timer_overtime_aria": "Menyambungkan ulang, memakan waktu lebih lama dari biasanya",
+    "seconds_unit": "dtk",
+    "escape": "Perangkat mungkin perlu ditangani manual. Buka halaman masuk"
+  },
+  "change_password": {
+    "title": "Ubah Kata Sandi",
+    "description": "Anda akan keluar setelah mengubah kata sandi.",
+    "current_label": "Kata Sandi Saat Ini",
+    "new_label": "Kata Sandi Baru",
+    "confirm_label": "Konfirmasi Kata Sandi Baru",
+    "match": "Kata sandi cocok",
+    "mismatch": "Kata sandi tidak cocok",
+    "error_weak": "Kata sandi baru minimal 6 karakter.",
+    "error_weak_strong": "Kata sandi baru minimal 6 karakter dan harus berisi huruf besar, huruf kecil, dan angka.",
+    "error_mismatch": "Kata sandi baru tidak cocok.",
+    "failed_toast": "Tidak dapat mengubah kata sandi. Coba lagi.",
+    "cancel": "Batal",
+    "submit": "Ubah Kata Sandi",
+    "submitting": "Mengubah…"
+  },
+  "password_rules": {
+    "requirements_label": "Persyaratan kata sandi",
+    "rule": {
+      "length": "Minimal 6 karakter",
+      "uppercase": "Huruf besar",
+      "lowercase": "Huruf kecil",
+      "number": "Angka"
+    },
+    "met": "(terpenuhi)",
+    "not_met": "(belum terpenuhi)",
+    "strong_label": "Gunakan kata sandi kuat",
+    "strong_hint_label": "Tentang kata sandi kuat",
+    "strong_hint": "Memerlukan huruf besar, huruf kecil, dan angka."
   }
 }

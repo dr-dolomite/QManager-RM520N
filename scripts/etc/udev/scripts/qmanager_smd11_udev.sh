@@ -5,7 +5,7 @@
 # Invoked by /etc/udev/rules.d/99-qmanager-smd11.rules whenever the kernel
 # emits an "add" event for /dev/smd11. Sets ownership to root:dialout and
 # mode 660 so www-data (member of dialout) can open the device for AT
-# commands via atcli_smd11.
+# commands via qcmd.
 #
 # This runs in udev's minimal environment (no PATH, no controlling tty).
 # We set PATH explicitly to cover both /bin and /usr/bin layouts (RM520N-GL

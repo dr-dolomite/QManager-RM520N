@@ -1,158 +1,117 @@
-import React, { useState } from "react";
-import { motion } from "motion/react";
-import { Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { AbstractPattern } from "./abstract-pattern";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import type { ScenarioConfig } from "@/types/connection-scenario";
+"use client";
 
-export interface Scenario {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ElementType;
-  gradient: string;
-  pattern: "gaming" | "streaming" | "balanced" | "custom";
-  config: ScenarioConfig;
+import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
+
+import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { Tag } from "@/components/ui/tag";
+import { staggerRowItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import type { ConnectionScenario } from "@/types/connection-scenario";
+import { resolveScenarioIcon } from "./scenario-icons";
+
+// =============================================================================
+// ScenarioItem — one scenario as a selectable tile
+// =============================================================================
+// Selecting a tile only shows it in the Selected-scenario card; activation is the explicit commit there. Only the
+// running scenario uses colour: `success` disc, pulse rings (off under reduced motion), sr-only label.
+// =============================================================================
+
+export interface Scenario extends Omit<ConnectionScenario, "isDefault"> {
   isDefault?: boolean;
 }
+
+/** The tile box; the card's skeleton renders this same class. */
+export const SCENARIO_TILE =
+  "flex h-full min-h-[9rem] w-full flex-col gap-3.5 rounded-tile px-6 py-5 text-left transition-colors duration-[var(--duration-quick)] ease-out focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[3px] focus-visible:outline-none";
+
+export const SCENARIO_TILE_GRID =
+  "grid grid-cols-1 gap-3 @md/card:grid-cols-2 @4xl/card:grid-cols-4";
 
 interface ScenarioItemProps {
   scenario: Scenario;
   isActive: boolean;
   isSelected: boolean;
+  /** Translated network-mode label, from `atModeValue`. */
+  modeLabel: string;
   onSelect: (id: string) => void;
-  onDelete?: (id: string) => void;
+  /** "HH:MM" of the next scheduled start, when a schedule will run it. */
+  nextAt?: string | null;
 }
-
-// Map gradient to matching ring color
-const getRingColor = (gradient: string) => {
-  if (gradient.includes("violet")) return "ring-violet-500";
-  if (gradient.includes("rose")) return "ring-rose-500";
-  if (gradient.includes("emerald")) return "ring-emerald-500";
-  if (gradient.includes("blue")) return "ring-blue-500";
-  if (gradient.includes("amber")) return "ring-amber-500";
-  if (gradient.includes("slate")) return "ring-slate-500";
-  if (gradient.includes("sky")) return "ring-sky-500";
-  if (gradient.includes("lime")) return "ring-lime-500";
-  if (gradient.includes("fuchsia")) return "ring-fuchsia-500";
-  if (gradient.includes("yellow")) return "ring-yellow-500";
-  if (gradient.includes("cyan")) return "ring-cyan-500";
-  if (gradient.includes("orange")) return "ring-orange-500";
-  return "ring-primary";
-};
 
 export const ScenarioItem = ({
   scenario,
   isActive,
   isSelected,
+  modeLabel,
   onSelect,
-  onDelete,
+  nextAt,
 }: ScenarioItemProps) => {
-  const Icon = scenario.icon;
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const isCustom = scenario.pattern === "custom";
-
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowDeleteDialog(true);
-  };
-
-  const handleConfirmDelete = () => {
-    onDelete?.(scenario.id);
-    setShowDeleteDialog(false);
-  };
+  const { t } = useTranslation("cellular");
+  const { lte_bands, nsa_nr_bands, sa_nr_bands } = scenario.config;
+  const pinsBands = Boolean(lte_bands || nsa_nr_bands || sa_nr_bands);
 
   return (
-    <>
-      <motion.div
-        className={cn(
-          "relative overflow-hidden rounded-xl cursor-pointer",
-          isActive
-            ? `ring-2 ${getRingColor(scenario.gradient)} ring-offset-3 ring-offset-background`
-            : isSelected
-              ? "ring-2 ring-muted-foreground/40 ring-offset-2 ring-offset-background"
-              : "",
-        )}
-        animate={{ scale: isActive || isSelected ? 1.01 : 1 }}
-        whileHover={!isActive && !isSelected ? { scale: 1.02, y: -2 } : {}}
-        whileTap={{ scale: 0.97 }}
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+    <motion.div variants={staggerRowItem} className="h-full">
+      <button
+        type="button"
+        aria-pressed={isSelected}
         onClick={() => onSelect(scenario.id)}
+        className={cn(
+          SCENARIO_TILE,
+          isSelected
+            ? "bg-surface-container-high ring-1 ring-outline ring-inset"
+            : "bg-surface-container hover:bg-surface-container-high",
+        )}
       >
-        {/* Background gradient */}
-        <div
-          className={cn("absolute inset-0 bg-linear-to-br", scenario.gradient)}
-        />
-
-        {/* Abstract pattern overlay */}
-        <AbstractPattern
-          type={scenario.pattern}
-          className="absolute inset-0 w-full h-full"
-        />
-
-        {/* Content */}
-        <div className="relative p-5 h-36 flex flex-col justify-between text-white group">
-          {/* Top row - Icon and badges/delete */}
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-2">
-              <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-lg">
-                <Icon size={20} />
-              </div>
-              {isActive && (
-                <span className="px-2 py-0.5 bg-white/25 backdrop-blur-sm rounded-full text-xs font-medium">
-                  Active
-                </span>
-              )}
-            </div>
-            {isCustom && (
-              <button
-                onClick={handleDeleteClick}
-                className="p-2 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-destructive/80 transition-all opacity-0 group-hover:opacity-100"
-              >
-                <Trash2 size={16} />
-              </button>
+        <span aria-hidden="true" className="relative grid size-10 flex-none place-items-center">
+          {isActive ? (
+            <>
+              {/* Translucent `success`: a tone step sits within a step of the
+                  tile ground in dark mode and vanishes. */}
+              <span className="absolute -inset-3 animate-pulse-ring rounded-pill bg-success/25" />
+              <span
+                className="absolute -inset-1.5 animate-pulse-ring rounded-pill bg-success/40"
+                style={{ animationDelay: "0.3s" }}
+              />
+            </>
+          ) : null}
+          <span
+            className={cn(
+              "relative grid size-10 place-items-center rounded-pill transition-colors duration-[var(--duration-standard)] ease-out",
+              isActive
+                ? "bg-success text-success-foreground"
+                : "bg-primary text-primary-foreground",
             )}
-          </div>
+          >
+            <MaterialSymbol name={resolveScenarioIcon(scenario.icon)} size={20} filled />
+          </span>
+        </span>
 
-          {/* Bottom row - Name and description */}
-          <div>
-            <h3 className="text-base font-semibold mb-0.5">{scenario.name}</h3>
-            <p className="text-white/80 text-xs">{scenario.description}</p>
-          </div>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate text-sm font-semibold">
+            {scenario.name}
+            {isActive ? (
+              <span className="sr-only"> ({t("scenarios.tile.in_force")})</span>
+            ) : null}
+          </span>
+          <span className="line-clamp-2 text-xs text-on-surface-variant">
+            {scenario.description}
+          </span>
         </div>
-      </motion.div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Scenario</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{scenario.name}&quot;? This
-              action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+        <div className="mt-auto flex flex-wrap gap-1.5">
+          <Tag variant="neutral">{modeLabel}</Tag>
+          {pinsBands ? (
+            <Tag variant="neutral">{t("scenarios.scenario_item.band_lock")}</Tag>
+          ) : null}
+          {nextAt ? (
+            <Tag variant="neutral" className="tabular-nums">
+              {t("scenarios.tile.caption_next", { time: nextAt })}
+            </Tag>
+          ) : null}
+        </div>
+      </button>
+    </motion.div>
   );
 };

@@ -8,6 +8,18 @@
 # Install location: /usr/bin/qmanager_setup
 # =============================================================================
 
+# AT lock in root-only /run: dir 0750 + lock 0640, root:dialout (the CGIs' group; flock
+# needs only a read fd). Only root writes there. An existing lock is never truncated.
+if { [ -e /run/qmanager_at ] || [ -L /run/qmanager_at ]; } && { [ -L /run/qmanager_at ] || [ ! -d /run/qmanager_at ]; }; then
+    rm -rf /run/qmanager_at
+fi
+[ -d /run/qmanager_at ] || mkdir /run/qmanager_at
+chown root:dialout /run/qmanager_at
+chmod 0750 /run/qmanager_at
+[ -e /run/qmanager_at/at.lock ] || : > /run/qmanager_at/at.lock
+chown root:dialout /run/qmanager_at/at.lock
+chmod 0640 /run/qmanager_at/at.lock
+
 # Remount root filesystem read-write if needed (RM520N-GL boots read-only)
 if ! touch /usr/.qm_rw_test 2>/dev/null; then
     mount -o remount,rw / 2>/dev/null
@@ -15,9 +27,32 @@ fi
 rm -f /usr/.qm_rw_test
 
 # Ensure required directories exist
-mkdir -p /var/lock /etc/qmanager /usr/lib/qmanager /tmp/quecmanager /var/spool/cron/crontabs
-# CGI (www-data) writes cron entries for root — needs write access to spool dir
-chmod 777 /var/spool/cron/crontabs
+mkdir -p /var/lock /etc/qmanager /tmp/quecmanager
+# /usr/lib/qmanager is created with an explicit 0755 rather than via `mkdir -p`,
+# which honours the ambient umask. Root helpers (qmanager_*_apply, reachable by
+# www-data through NOPASSWD sudo) `.` source libraries from here AS ROOT, and
+# directory write permission governs delete-and-replace of those libraries — so
+# a world-writable dir here is a root-code-execution vector. This runs on every
+# boot, so it is also the last line of defence if the directory is ever removed
+# and recreated outside the installer. See install_rm520n.sh's SECURITY note.
+install -d -o root -g root -m 0755 /usr/lib/qmanager
+# /var/spool/cron/crontabs is created (and its mode RE-ASSERTED) here for the
+# same self-healing reason as /usr/lib/qmanager above, even though nothing on
+# RM520N-GL runs crond — no unit, no boot symlink, no reader of this directory
+# at all. It is kept only so qmanager_update's scrub_legacy_cron() has a
+# stable path to scrub old QManager cron markers from on every OTA. It is
+# CREATED AND RE-TIGHTENED here rather than simply left alone because
+# QManager's own installer historically shipped it 0777 on persistent flash
+# (ubi0:rootfs, not tmpfs) — a device that already booted the old `chmod 777
+# /var/spool/cron/crontabs` line would stay world-writable forever if this
+# were simply removed with nothing in its place. Running `install -d` on
+# every boot self-heals those devices on their next reboot.
+# A world-writable spool is a latent root-escalation vector even with no
+# crond running today: scrub_legacy_cron writes a predictable
+# "${cron_file}.tmp" inside it, and any future release (or a manually
+# started crond) that read root's crontab would execute attacker-planted
+# content as root.
+install -d -o root -g root -m 0755 /var/spool/cron/crontabs
 
 # AT device permissions — www-data (via dialout group) needs read/write access.
 # Primary mechanism: /etc/udev/rules.d/99-qmanager-smd11.rules fires on the
@@ -34,22 +69,87 @@ fi
 # Shared /tmp files — pre-created with correct ownership for fs.protected_regular=1.
 # CRITICAL: RM520N-GL's sticky /tmp + protected_regular blocks O_CREAT and open-for-write
 # unless file_owner==caller OR dir_owner==caller (root owns /tmp).
-# Must match paths in /usr/bin/qcmd: LOCK_FILE and PID_FILE
 #
 # Strategy: files written by BOTH root (poller) and www-data (CGI) must be root-owned
 # with mode 666. Files written by www-data only are www-data-owned.
-touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid \
-      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json
-chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid \
-      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json
-chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid \
-      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json
+#
+# WHY root-owned and not www-data-owned: protected_regular's escape clause is
+# "file_owner == dir_owner OR file_owner == caller". /tmp is root-owned, so a
+# root-owned file satisfies the FIRST clause unconditionally and both UIDs may
+# write it. A www-data-owned file satisfies neither clause for root — and there
+# is no CAP_ override for this check — so root is locked out at ANY mode. The
+# asymmetry is the whole reason this block exists; do not "simplify" it by
+# giving everything to www-data.
+# (The AT lock is not seeded here any more: it lives in /run/qmanager_at above.)
 
 # Shared root-owned files — both root (poller/daemons) and www-data (CGI) write.
 # If www-data owned these, root would be blocked by fs.protected_regular=1.
-touch /tmp/qmanager.log
-chown root:root /tmp/qmanager.log
-chmod 666 /tmp/qmanager.log
+#
+# profile_apply.pid / profile_state.json are here because qmanager_profile_apply
+# runs as BOTH uids: www-data when profiles/apply.sh spawns it (no sudo), root
+# when the poller or watchcat do. Both write them — profile_mgr.sh:732
+# (`echo $$ >`) and write_state() respectively.
+#
+# events.json is here because events.sh's append is reached from root daemons
+# AND from www-data CGI. It was previously seeded nowhere, so root's poller won
+# the boot race and created it 0644, silently dropping every UI-originated event
+# while still logging success.
+#
+# These writers MUST write in place (`>` / `>>` / `cat >`), never tmp+`mv`:
+# rename() swaps the inode and replaces this seeded ownership with the writer's
+# own uid at its umask, which is exactly how these files got broken before.
+#
+# DO NOT "complete the set" by adding /tmp/qmanager_recovery_active here. That
+# path is a FLAG, not a data file: its mere EXISTENCE means "a recovery is in
+# progress, suppress further recovery attempts". Pre-creating it at boot would
+# leave the device permanently suppressed for the whole uptime.
+#
+# Seeding it 0666 specifically would be worse than seeding it at all. The claim
+# logic treats a flag it can open for write as one it OWNS (_apn_rf_owned=1),
+# but www-data cannot then unlink a root-owned file from sticky /tmp — so the
+# flag stays raised forever. That path is unreachable today only because the
+# only creator is root's `printf >`, which lands 0644 at umask 0022 and so
+# correctly falls into the "cannot claim, proceed unsuppressed" branch. A 0666
+# seed would make the stuck path the DEFAULT one.
+#
+# /tmp/qmanager_tower_write_inflight belongs in this list rather than with the
+# flags above. It is a CONTENT-BEARING file -- it holds a deadline timestamp
+# that the failover watcher parses -- not an existence-only flag, so the
+# "do not seed a flag" exception does not apply to it. Both UIDs write it:
+# www-data from tower/lock.sh under lighttpd, and root from
+# qmanager_tower_schedule. /tmp is tmpfs, so without a seed whichever UID
+# calls tower_write_begin() FIRST after a boot owns the file for the rest of
+# that uptime, and the other one's writes are refused for good -- silently,
+# since tower_write_begin sends stderr to /dev/null. The loser then stops
+# marking its AT writes as in-flight, and the watcher can read the reconnect
+# blip as a genuine bad sample: the exact race the marker exists to prevent.
+#
+# The SMS and Discord alert logs are appended by root (poller, engine, daemon) and by
+# www-data (the CGI test-send paths); the email log is root-only and stays unseeded.
+touch /tmp/qmanager.log \
+      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight \
+      /tmp/qmanager_dpi_install.json /tmp/qmanager_dpi_install.pid \
+      /tmp/qmanager_dpi_verify.json /tmp/qmanager_dpi_verify.pid \
+      /tmp/qmanager_sms_log.json /tmp/qmanager_discord_log.json
+chown root:root /tmp/qmanager.log \
+      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight \
+      /tmp/qmanager_dpi_install.json /tmp/qmanager_dpi_install.pid \
+      /tmp/qmanager_dpi_verify.json /tmp/qmanager_dpi_verify.pid \
+      /tmp/qmanager_sms_log.json /tmp/qmanager_discord_log.json
+chmod 666 /tmp/qmanager.log \
+      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight \
+      /tmp/qmanager_dpi_install.json /tmp/qmanager_dpi_install.pid \
+      /tmp/qmanager_dpi_verify.json /tmp/qmanager_dpi_verify.pid \
+      /tmp/qmanager_sms_log.json /tmp/qmanager_discord_log.json
+
+# Discord DM spool: root daemon drains it, root (poller) and www-data (CGI test) both enqueue.
+if [ -L /tmp/qmanager_discord_spool ] || { [ -e /tmp/qmanager_discord_spool ] && [ ! -d /tmp/qmanager_discord_spool ]; }; then
+    rm -f /tmp/qmanager_discord_spool
+fi
+install -d -o root -g root -m 1777 /tmp/qmanager_discord_spool
 
 # Session directory — www-data needs write access (cleared on reboot since /tmp is tmpfs)
 mkdir -p /tmp/qmanager_sessions
@@ -57,7 +157,51 @@ chown www-data:www-data /tmp/qmanager_sessions
 chmod 700 /tmp/qmanager_sessions
 
 # Config directory — www-data needs write access for auth.json, profiles
+#
+# WARNING: this is recursive and has NO exclusion list, so it runs on EVERY
+# boot and flattens the ownership of everything under /etc/qmanager. Any file
+# here that an installer pins to root:root is silently re-owned to www-data at
+# the next reboot — the pin has a lifetime of exactly one boot cycle. This
+# already cost us one real privilege-escalation bug: the systemd
+# EnvironmentFile for four root daemons used to live at
+# /etc/qmanager/environment with an install-time root:root carve-out, and
+# fielded devices were found with it www-data-owned and directly writable.
+#
+# So: a file that must NOT be www-data-writable does not belong in this
+# directory at all. Move it out (the EnvironmentFile now lives at
+# /etc/qmanager.env) rather than adding an exclusion here. Adding exclusions
+# does not scale — the directory is www-data-owned, so www-data can unlink and
+# replace any file in it regardless of that file's own owner or mode.
+
+# Self-heal the advisory hardware profile at boot, not only at install time.
+# install_rm520n.sh writes it once, at preflight — a device that installed
+# before a QM_HW_SCHEMA bump would otherwise never pick up a new field
+# (config.sh has no key-migration primitive), and a modem reflashed
+# independently of QManager would keep reporting its old fw_fingerprint
+# forever. Placed HERE, immediately before the chown below, so the
+# freshly (re)written file rides the same www-data ownership sweep as
+# everything else in this directory on the very next line — no separate
+# chown needed for it. Safe to source unconditionally: hw_profile.sh guards
+# itself with the ${_HW_PROFILE_LOADED:-} form, which — unlike every other
+# library in this directory except platform.sh — tolerates being sourced
+# under a shell with no `set -u`. Paths below are intentionally hardcoded,
+# not env-overridable: this is the one boot-time call site, not a test
+# fixture.
+if [ -f /usr/lib/qmanager/hw_profile.sh ]; then
+    . /usr/lib/qmanager/hw_profile.sh
+    qm_hw_self_heal /etc/qmanager/platform.json || true
+fi
+
 chown -R www-data:www-data /etc/qmanager
+
+# Reboot-cause log lives in the root-owned /usrdata/qmanager, never in the
+# www-data-owned /etc/qmanager (symlink-swap hole). Ensure the dir and move any
+# legacy /etc/qmanager/crash.log across once (read as www-data, see crash_log.sh).
+install -d -o root -g root -m 0755 /usrdata/qmanager
+if [ -f /usr/lib/qmanager/crash_log.sh ]; then
+    . /usr/lib/qmanager/crash_log.sh
+    qm_crash_log_prepare || true
+fi
 
 # Make all qmanager binaries executable
 for f in /usr/bin/qmanager_*; do
@@ -87,6 +231,52 @@ QSCAN
 QSCANFREQ
 QFOTADL
 EOF
+fi
+
+# Seed the default Video Optimizer hostlist if missing. www-data edits this
+# file directly from the UI (it lives in the www-data-owned /etc/qmanager
+# directory — it is DATA, never executed, so www-data ownership is fine),
+# so the seed is chowned immediately rather than waiting for the recursive
+# chown above on the next boot.
+DPI_HOSTLIST="/etc/qmanager/video_domains.txt"
+if [ ! -f "$DPI_HOSTLIST" ]; then
+    cat > "$DPI_HOSTLIST" << 'EOF'
+# QManager Video Optimizer hostlist — one domain per line, no wildcards.
+# Connections to these domains get desync treatment; everything else passes
+# through untouched.
+youtube.com
+googlevideo.com
+ytimg.com
+ggpht.com
+youtu.be
+facebook.com
+fbcdn.net
+instagram.com
+cdninstagram.com
+tiktok.com
+tiktokcdn.com
+tiktokv.com
+snapchat.com
+sc-cdn.net
+netflix.com
+nflxvideo.net
+disneyplus.com
+cloudfront.net
+akamaized.net
+speedtest.net
+ookla.com
+EOF
+    chown www-data:www-data "$DPI_HOSTLIST"
+    chmod 644 "$DPI_HOSTLIST"
+fi
+
+# Factory-default copy for restore_hostlist. Always ensured (not just on the
+# fresh seed above), so an upgrade that predates this file gets it too.
+# www-data owns /etc/qmanager — the default file is data, never executed.
+if [ ! -f "/etc/qmanager/video_domains_default.txt" ]; then
+    cp "$DPI_HOSTLIST" "/etc/qmanager/video_domains_default.txt"
+    chown www-data:www-data "/etc/qmanager/video_domains_default.txt"
+    chmod 644 "/etc/qmanager/video_domains_default.txt"
 fi
 
 # Initialize default JSON config if missing

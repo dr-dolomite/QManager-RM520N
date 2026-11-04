@@ -13,36 +13,74 @@ import { ALERT_EVENT_ORDER, ALERT_CHANNEL_ORDER } from "@/types/alerts";
 // =============================================================================
 // useAlertsForm — the single editable form behind the whole Alerts page
 // =============================================================================
-// Seeded ONCE from server truth (the page remounts this on a settings
-// signature after every save / refetch, so no in-render setState is needed and
-// the React Compiler lint rules stay satisfied). Owns all three channels and
-// the routing matrix; a single atomic submit commits everything.
+// Seeded from server truth and re-seeded in place whenever that truth changes,
+// via a render-phase sync keyed on a settings signature (NOT a useEffect — the
+// React-Compiler lint rules forbid setState-in-effect, and NOT a remount — a
+// `key` on the consuming subtree also destroyed the save flash, the active tab,
+// the show-secret toggles and every sibling card's state). Owns all three
+// channels, the routing and the one alert wait; a single atomic submit commits everything.
 // =============================================================================
 
 // E.164-ish: optional leading +, first digit 1–9, total 7–15 digits.
 const PHONE_REGEX = /^\+?[1-9]\d{6,14}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Discord snowflake IDs are 17–20 digit numeric strings.
-const DISCORD_ID_REGEX = /^\d{17,20}$/;
+// Matches the save endpoint's 15–25 digit check, which is the authority.
+const DISCORD_ID_REGEX = /^\d{15,25}$/;
 
 const THRESHOLD_MIN = 1;
-const THRESHOLD_MAX = 60;
+const THRESHOLD_MAX = 1440;
 
 function thresholdInvalid(v: string): boolean {
+  if (!/^\d+$/.test(v.trim())) return true;
   const n = Number(v);
-  return v.trim() === "" || Number.isNaN(n) || n < THRESHOLD_MIN || n > THRESHOLD_MAX;
+  return n < THRESHOLD_MIN || n > THRESHOLD_MAX;
+}
+
+/** The one alert wait: the top-level field, else the legacy per-channel copy. */
+function savedWait(state: AlertsState): string {
+  return String(state.alert_after_min ?? state.channels.sms.threshold_minutes);
+}
+
+// Value fingerprint of everything the form mirrors. A change here means server
+// truth moved and the fields must be re-seeded; an identical signature (e.g. a
+// refetch that returned the same values) leaves the user's edits alone.
+// NOTE: secrets are represented by their `*_set` booleans — the values are
+// never sent to the client — so a rotation (set → set) does NOT move the
+// signature. Clearing the secret inputs after a successful save is therefore
+// the settings card's job, not this sync's.
+function settingsSignature(state: AlertsState): string {
+  const { sms, email, discord } = state.channels;
+  const routing = ALERT_EVENT_ORDER.flatMap((ev) =>
+    ALERT_CHANNEL_ORDER.map((ch) =>
+      state.routing.events[ev]?.[ch] ? "1" : "0",
+    ),
+  ).join("");
+  return [
+    savedWait(state),
+    sms.enabled,
+    sms.recipient_phone,
+    email.enabled,
+    email.sender_email,
+    email.recipient_email,
+    email.app_password_set,
+    email.msmtp_installed,
+    discord.enabled,
+    discord.owner_discord_id,
+    discord.token_set,
+    discord.connected,
+    routing,
+  ].join("|");
 }
 
 export type RoutingDraft = Record<AlertEventKey, Record<AlertChannel, boolean>>;
 
 export interface AlertsFormErrors {
   smsPhone?: boolean;
-  smsThreshold?: boolean;
   senderEmail?: boolean;
   recipientEmail?: boolean;
-  emailThreshold?: boolean;
   discordId?: boolean;
-  discordThreshold?: boolean;
+  /** The one alert wait, shared by every channel. */
+  threshold?: boolean;
 }
 
 export interface AlertsForm {
@@ -51,8 +89,10 @@ export interface AlertsForm {
   setSmsEnabled: (v: boolean) => void;
   smsPhone: string;
   setSmsPhone: (v: string) => void;
-  smsThreshold: string;
-  setSmsThreshold: (v: string) => void;
+
+  /** The one alert wait in minutes, sent as top-level `alert_after_min` only when edited. */
+  threshold: string;
+  setThreshold: (v: string) => void;
 
   // Email channel
   emailEnabled: boolean;
@@ -65,8 +105,6 @@ export interface AlertsForm {
   setAppPassword: (v: string) => void;
   /** True when the device already has a stored app password (never revealed). */
   appPasswordSet: boolean;
-  emailThreshold: string;
-  setEmailThreshold: (v: string) => void;
 
   // Discord channel
   discordEnabled: boolean;
@@ -77,8 +115,6 @@ export interface AlertsForm {
   setBotToken: (v: string) => void;
   /** True when the device already has a stored bot token (never revealed). */
   botTokenSet: boolean;
-  discordThreshold: string;
-  setDiscordThreshold: (v: string) => void;
 
   // Routing matrix
   getRoute: (event: AlertEventKey, channel: AlertChannel) => boolean;
@@ -119,22 +155,17 @@ export function useAlertsForm({
   // ── Seed once from server truth ────────────────────────────────────────────
   const [smsEnabled, setSmsEnabled] = useState(sms.enabled);
   const [smsPhone, setSmsPhone] = useState(sms.recipient_phone);
-  const [smsThreshold, setSmsThreshold] = useState(String(sms.threshold_minutes));
+  const currentWait = savedWait(state);
+  const [threshold, setThreshold] = useState(currentWait);
 
   const [emailEnabled, setEmailEnabled] = useState(email.enabled);
   const [senderEmail, setSenderEmail] = useState(email.sender_email);
   const [recipientEmail, setRecipientEmail] = useState(email.recipient_email);
   const [appPassword, setAppPassword] = useState(""); // never pre-filled
-  const [emailThreshold, setEmailThreshold] = useState(
-    String(email.threshold_minutes),
-  );
 
   const [discordEnabled, setDiscordEnabled] = useState(discord.enabled);
   const [discordId, setDiscordId] = useState(discord.owner_discord_id);
   const [botToken, setBotToken] = useState(""); // never pre-filled
-  const [discordThreshold, setDiscordThreshold] = useState(
-    String(discord.threshold_minutes),
-  );
 
   const seedRouting = useCallback((): RoutingDraft => {
     const draft = {} as RoutingDraft;
@@ -171,22 +202,12 @@ export function useAlertsForm({
   const errors: AlertsFormErrors = useMemo(
     () => ({
       smsPhone: !!smsPhone && !PHONE_REGEX.test(smsPhone),
-      smsThreshold: thresholdInvalid(smsThreshold),
       senderEmail: !!senderEmail && !EMAIL_REGEX.test(senderEmail),
       recipientEmail: !!recipientEmail && !EMAIL_REGEX.test(recipientEmail),
-      emailThreshold: thresholdInvalid(emailThreshold),
       discordId: !!discordId && !DISCORD_ID_REGEX.test(discordId.trim()),
-      discordThreshold: thresholdInvalid(discordThreshold),
+      threshold: thresholdInvalid(threshold),
     }),
-    [
-      smsPhone,
-      smsThreshold,
-      senderEmail,
-      recipientEmail,
-      emailThreshold,
-      discordId,
-      discordThreshold,
-    ],
+    [smsPhone, senderEmail, recipientEmail, discordId, threshold],
   );
 
   // ── Empty-while-enabled blockers ───────────────────────────────────────────
@@ -216,12 +237,12 @@ export function useAlertsForm({
     ],
   );
 
-  // Threshold / format errors only matter when their channel is enabled.
+  // Format errors matter only on an enabled channel; the shared wait always does.
   const hasFormatError =
-    (smsEnabled && (errors.smsPhone || errors.smsThreshold)) ||
-    (emailEnabled &&
-      (errors.senderEmail || errors.recipientEmail || errors.emailThreshold)) ||
-    (discordEnabled && (errors.discordId || errors.discordThreshold));
+    errors.threshold ||
+    (smsEnabled && errors.smsPhone) ||
+    (emailEnabled && (errors.senderEmail || errors.recipientEmail)) ||
+    (discordEnabled && errors.discordId);
   const hasMissing =
     missing.smsPhone ||
     missing.senderEmail ||
@@ -246,15 +267,13 @@ export function useAlertsForm({
   const isDirty =
     smsEnabled !== sms.enabled ||
     smsPhone !== sms.recipient_phone ||
-    smsThreshold !== String(sms.threshold_minutes) ||
+    threshold !== currentWait ||
     emailEnabled !== email.enabled ||
     senderEmail !== email.sender_email ||
     recipientEmail !== email.recipient_email ||
-    emailThreshold !== String(email.threshold_minutes) ||
     appPassword.trim() !== "" ||
     discordEnabled !== discord.enabled ||
     discordId !== discord.owner_discord_id ||
-    discordThreshold !== String(discord.threshold_minutes) ||
     botToken.trim() !== "" ||
     routingDirty;
 
@@ -273,64 +292,71 @@ export function useAlertsForm({
       sms: {
         enabled: smsEnabled,
         recipient_phone: smsPhone.trim(),
-        threshold_minutes: parseInt(smsThreshold, 10),
       },
       email: {
         enabled: emailEnabled,
         sender_email: senderEmail.trim(),
         recipient_email: recipientEmail.trim(),
-        threshold_minutes: parseInt(emailThreshold, 10),
       },
       discord: {
         enabled: discordEnabled,
         owner_discord_id: discordId.trim(),
-        threshold_minutes: parseInt(discordThreshold, 10),
       },
       routing: { events },
     };
+    // Per-channel waits are never sent: omitted means current, so a stale form cannot write one back.
+    if (threshold.trim() !== currentWait)
+      payload.alert_after_min = parseInt(threshold, 10);
     if (appPassword.trim() !== "") payload.email.app_password = appPassword;
     if (botToken.trim() !== "") payload.discord.bot_token = botToken;
     return payload;
   }, [
     state.capabilities,
+    currentWait,
     routing,
     smsEnabled,
     smsPhone,
-    smsThreshold,
+    threshold,
     emailEnabled,
     senderEmail,
     recipientEmail,
-    emailThreshold,
     appPassword,
     discordEnabled,
     discordId,
-    discordThreshold,
     botToken,
   ]);
 
   const discard = useCallback(() => {
     setSmsEnabled(sms.enabled);
     setSmsPhone(sms.recipient_phone);
-    setSmsThreshold(String(sms.threshold_minutes));
+    setThreshold(currentWait);
     setEmailEnabled(email.enabled);
     setSenderEmail(email.sender_email);
     setRecipientEmail(email.recipient_email);
     setAppPassword("");
-    setEmailThreshold(String(email.threshold_minutes));
     setDiscordEnabled(discord.enabled);
     setDiscordId(discord.owner_discord_id);
     setBotToken("");
-    setDiscordThreshold(String(discord.threshold_minutes));
     setRouting(seedRouting());
-  }, [sms, email, discord, seedRouting]);
+  }, [sms, email, discord, currentWait, seedRouting]);
+
+  // ── Re-seed on server-truth change (render-phase, React-Compiler safe) ──────
+  // `discard` is the already-correct re-seed path (pure setState, no async, no
+  // toast), so reuse it rather than maintaining a parallel seeding path.
+  const signature = settingsSignature(state);
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (signature !== prevSignature) {
+    setPrevSignature(signature);
+    discard();
+  }
 
   return {
     smsEnabled,
     setSmsEnabled,
     smsPhone,
     setSmsPhone,
-    smsThreshold,
-    setSmsThreshold,
+    threshold,
+    setThreshold,
     emailEnabled,
     setEmailEnabled,
     senderEmail,
@@ -340,8 +366,6 @@ export function useAlertsForm({
     appPassword,
     setAppPassword,
     appPasswordSet: email.app_password_set,
-    emailThreshold,
-    setEmailThreshold,
     discordEnabled,
     setDiscordEnabled,
     discordId,
@@ -349,8 +373,6 @@ export function useAlertsForm({
     botToken,
     setBotToken,
     botTokenSet: discord.token_set,
-    discordThreshold,
-    setDiscordThreshold,
     getRoute,
     setRoute,
     errors,
@@ -362,5 +384,24 @@ export function useAlertsForm({
     markSaved,
     buildPayload,
     discard,
+  };
+}
+
+/** Which channels hold a field error. The shared wait belongs to no channel. */
+export function blockedChannelMap(
+  form: AlertsForm,
+): Record<AlertChannel, boolean> {
+  const { errors, missing } = form;
+  return {
+    sms: (form.smsEnabled && !!errors.smsPhone) || missing.smsPhone,
+    email:
+      (form.emailEnabled && (!!errors.senderEmail || !!errors.recipientEmail)) ||
+      missing.senderEmail ||
+      missing.recipientEmail ||
+      missing.appPassword,
+    discord:
+      (form.discordEnabled && !!errors.discordId) ||
+      missing.discordId ||
+      missing.botToken,
   };
 }

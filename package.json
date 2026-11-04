@@ -1,16 +1,19 @@
 {
   "name": "qmanager",
-  "version": "v0.1.13",
+  "version": "v0.1.19-draft",
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
+    "ui": "bun --bun next build && pwsh -NoProfile -File scripts-dev/deploy-ui.ps1",
     "lint": "eslint",
     "i18n:check": "bun run lib/i18n/check.ts",
     "lang": "bun run scripts-dev/lang.ts",
-    "package": "bash scripts/test/run-all.sh && bun --bun next build && bash build.sh",
-    "test:harness": "bash scripts/test/run-harnesses.sh"
+    "package": "bun run icons:check && bash build.sh",
+    "icons:subset": "bun run scripts-dev/subset-icons.ts",
+    "icons:check": "bun run scripts-dev/check-icons.ts",
+    "apn:update": "bun run scripts-dev/build-apn-presets.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,0 +1,85 @@
+#!/bin/sh
+# qmanager_lan_apply — Write the LAN gateway IP, netmask and DHCP range into
+# /etc/data/mobileap_cfg.xml. QCMAP reads that file at boot, so the change takes
+# effect after a reboot; this helper never reboots or restarts anything.
+# Called via: sudo -n /usr/bin/qmanager_lan_apply <ipaddr> <prefix>
+#
+# Exit codes:
+#   0  written (stdout: one JSON line with netmask, dhcp_start, dhcp_end)
+#   2  usage or validation failure (bad syntax, not RFC1918, prefix not 16-30,
+#      network/broadcast address)
+#   3  an OTA update is running (/tmp/qmanager_update.pid is alive)
+#   4  another apply holds the lock
+#   5  write failed (config unreadable, verification failed);
+#      the original file is untouched
+#
+# DHCP range rule: keep <gateway /24>.20-.170 when it fits the new subnet and
+# excludes the gateway, else the larger gap beside the gateway (qm_lan_dhcp_range).
+# Install location: /usr/bin/qmanager_lan_apply
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+LIB="/usr/lib/qmanager/lan_subnet.sh"
+LOCK="/etc/data/.qm_lan_apply.lock"
+UPDATE_PID_FILE="/tmp/qmanager_update.pid"
+
+fail() {
+    printf '{"success":false,"error":"%s","detail":"%s"}\n' "$2" "$3"
+    exit "$1"
+}
+
+[ $# -eq 2 ] || fail 2 "usage" "Usage: qmanager_lan_apply <ipaddr> <prefix>"
+ipaddr="$1"
+prefix="$2"
+
+# Charset gates before anything touches the values.
+case "$ipaddr" in
+    ''|*[!0-9.]*) fail 2 "invalid_ipaddr" "ipaddr must contain only digits and dots" ;;
+esac
+case "$prefix" in
+    ''|*[!0-9]*) fail 2 "invalid_prefix" "prefix must be digits only" ;;
+esac
+
+[ -r "$LIB" ] || fail 5 "lib_missing" "lan_subnet.sh is not installed"
+. "$LIB"
+QM_LAN_CFG="/etc/data/mobileap_cfg.xml"
+QM_LAN_MARKER="/usrdata/.qm_lan_subnet_set"
+
+qm_lan_split "$ipaddr" || fail 2 "invalid_ipaddr" "ipaddr must be four octets 0-255 without leading zeros"
+if [ "${#prefix}" -gt 2 ] || [ "$prefix" -lt 16 ] || [ "$prefix" -gt 30 ]; then
+    fail 2 "invalid_prefix" "prefix must be between 16 and 30"
+fi
+# RFC1918 only; with prefix >= 16 the whole subnet stays inside its private block.
+qm_lan_is_private "$ipaddr" || fail 2 "invalid_private_address" "ipaddr must be in 10/8, 172.16/12 or 192.168/16"
+qm_lan_host_ok "$ipaddr" "$prefix" || fail 2 "invalid_host_in_subnet" "ipaddr is the network or broadcast address"
+
+netmask=$(qm_lan_prefix_to_mask "$prefix") || fail 2 "invalid_prefix" "cannot derive netmask"
+range=$(qm_lan_dhcp_range "$ipaddr" "$prefix") || fail 2 "invalid_prefix" "cannot derive DHCP range"
+set -- $range
+dhcp_start="$1"
+dhcp_end="$2"
+
+# OTA guard: never edit the config under a running update (/proc check, not kill -0:
+# the update runs as root but a stale pid file could name any process).
+if [ -f "$UPDATE_PID_FILE" ]; then
+    update_pid=$(cat "$UPDATE_PID_FILE" 2>/dev/null)
+    case "$update_pid" in
+        ''|*[!0-9]*) ;;
+        *) [ -d "/proc/$update_pid" ] && fail 3 "update_in_progress" "A software update is running" ;;
+    esac
+fi
+
+# Serialise concurrent applies. BusyBox flock has no -w; -n fails fast.
+( : >> "$LOCK" ) 2>/dev/null || fail 5 "lock_failed" "Cannot create the lock file"
+exec 9>"$LOCK"
+flock -n 9 || fail 4 "lan_busy" "Another LAN change is in progress"
+
+qm_lan_write "$QM_LAN_CFG" "$ipaddr" "$netmask" "$dhcp_start" "$dhcp_end" \
+    || fail 5 "write_failed" "Could not update the LAN config"
+# A user's choice: future installs and OTAs must never normalize it.
+qm_lan_mark_set
+
+printf '{"success":true,"ipaddr":"%s","netmask":"%s","prefix":%s,"dhcp_start":"%s","dhcp_end":"%s"}\n' \
+    "$ipaddr" "$netmask" "$prefix" "$dhcp_start" "$dhcp_end"
+exit 0

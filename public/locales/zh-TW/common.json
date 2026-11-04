@@ -1,6 +1,10 @@
 {
   "actions": {
     "save": "儲存",
+    "save_settings": "儲存設定",
+    "save_and_apply": "儲存並套用",
+    "save_profile": "儲存設定檔",
+    "update": "更新",
     "saving": "儲存中…",
     "saved": "已儲存！",
     "cancel": "取消",
@@ -8,12 +12,21 @@
     "apply": "套用",
     "close": "關閉",
     "retry": "重試",
+    "dismiss": "關閉",
     "reboot": "重啟",
     "log_out": "登出",
     "reboot_device": "重啟裝置",
     "reconnect_modem": "重新連線調變解調器",
     "change_display_name": "變更顯示名稱",
-    "change_password": "變更密碼"
+    "change_password": "變更密碼",
+    "toggle_theme": "切換主題",
+    "discard": "捨棄"
+  },
+  "motion": {
+    "label": "動畫",
+    "system": "跟隨系統",
+    "full": "完整",
+    "reduced": "減弱"
   },
   "state": {
     "loading": "載入中…",
@@ -31,6 +44,121 @@
   "connection": {
     "reconnecting": "與裝置失去聯絡，正在重新連線…"
   },
+  "ethernet": {
+    "page": {
+      "title": "乙太網路狀態",
+      "description": "監控主機乙太網路鏈路並設定協商速度。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "strip": {
+      "label": "鏈路狀態",
+      "unresponsive": "無回應",
+      "unavailable_title": "無法讀取乙太網路連接埠",
+      "unavailable_body": "每 10 秒重試一次。未做任何變更。",
+      "absent_title": "無乙太網路控制器",
+      "absent_body": "此裝置沒有 eth0 連接埠，因此沒有可回報或設定的內容。"
+    },
+    "tiles": {
+      "link": {
+        "label": "鏈路狀態",
+        "value_up": "已連線",
+        "value_down": "已中斷",
+        "value_unknown": "未知",
+        "caption_up": "纜線已連接到主機連接埠",
+        "caption_down": "未在主機連接埠偵測到纜線",
+        "caption_unknown": "等待鏈路狀態"
+      },
+      "speed": {
+        "label": "協商速率",
+        "caption": "與對端協商決定",
+        "caption_ceiling": "連接埠最高支援 {{ceiling}}",
+        "caption_down": "需要作用中鏈路"
+      },
+      "duplex": {
+        "label": "雙工模式",
+        "caption": "同時收發",
+        "caption_down": "需要作用中鏈路",
+        "caption_half": "收發交替進行",
+        "value_full": "全雙工",
+        "value_half": "半雙工"
+      },
+      "negotiation": {
+        "label": "協商模式",
+        "value_auto": "自動",
+        "value_forced": "強制",
+        "value_unknown": "未知",
+        "caption_auto": "未設定速度限制",
+        "caption_limited": "限制為 {{speed}}"
+      }
+    },
+    "settings": {
+      "title": "鏈路速度限制",
+      "description": "將主機連接埠強制為固定速度，而不是讓它自行協商。",
+      "row_label": "速度限制",
+      "placeholder": "選擇速度",
+      "applying": "正在套用…",
+      "group_label": "速度限制",
+      "option_auto": "自動（最大）",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "consequence": "套用後鏈路會中斷約 8 秒，等待 PHY 重新協商。你正在使用該鏈路。",
+      "consequence_applying": "PHY 重新協商期間鏈路已中斷。本頁面會自行確認新速率。",
+      "consequence_unresponsive": "數據機已停止回應，因此在下一次成功讀取前鎖定此控制項。",
+      "consequence_unread": "數據機尚未回應，在首次讀取完成前沒有可變更的內容。",
+      "consequence_absent": "此裝置上沒有可設定的乙太網路連接埠。",
+      "toast_success": "鏈路速度已更新",
+      "toast_error": "設定鏈路速度失敗",
+      "toast_confirm_error": "無法確認新速度。請檢查鏈路。",
+      "apply": "套用",
+      "discard": "捨棄"
+    },
+    "lan_config": {
+      "card_title": "LAN 地址",
+      "card_description": "設定路由器的 LAN IP 地址（裝置所用的閘道器）以及本地網路的大小。",
+      "label_gateway": "閘道器 IP 地址",
+      "help_gateway": "路由器在 LAN 上的自身地址。裝置將其用作預設閘道器。",
+      "label_subnet": "子網掩碼",
+      "help_subnet": "以 CIDR 字首形式選擇 LAN 網路的大小。",
+      "action_apply": "套用更改",
+      "confirm_title": "更改 LAN 地址？",
+      "confirm_body": "LAN 將切換為 {{address}}（掩碼 {{netmask}}）。數據機將重新啟動以套用此更改，您當前的連線會中斷。",
+      "confirm_reconnect": "數據機重新啟動期間約 1–2 分鐘無法存取。使用 DHCP 的路由器或裝置會自動重新連線；使用靜態 IP 的裝置則需手動改到新子網。數據機恢復後，此頁面會開啟新地址。",
+      "confirm_action": "套用並重新啟動",
+      "applied_title": "LAN 地址正在更改",
+      "applied_body": "數據機正在重新啟動並切換到 {{address}}，但新地址尚未回應。重新啟動約需 {{seconds}} 秒。如有需要，請重新插拔 LAN 或乙太網路線纜，然後開啟新地址：",
+      "applied_body_auto": "數據機正在重新啟動並切換到 {{address}}，但新地址尚未回應。設定為 DHCP 的路由器應會在約 {{seconds}} 秒內自動重新連線並取得新閘道。若未自動連線，請重新插拔線纜，然後開啟新地址：",
+      "reconnecting_title": "正在重新啟動並切換到新地址…",
+      "reconnecting_auto_note": "數據機正在重新啟動，約需 1–2 分鐘。恢復後此頁面會開啟新地址。",
+      "reconnecting_opening": "正在開啟新地址…",
+      "toast_error_save": "套用 LAN 設定失敗",
+      "error_invalid_ipaddr": "請輸入有效的單播 IPv4 地址（例如 192.168.1.1）。",
+      "error_invalid_host_in_subnet": "這是所選子網的網路地址或廣播地址。請選擇可用的主機地址。",
+      "error_invalid_prefix": "請選擇 /16 到 /30 之間的子網字首。",
+      "errors": {
+        "fetch_failed": "載入 LAN 設定失敗",
+        "save_failed": "儲存 LAN 設定失敗",
+        "parse_failed": "無法讀取儲存回應"
+      },
+      "action_discard": "捨棄",
+      "toast_no_change": "LAN 地址已是該設定",
+      "error_invalid_private": "請使用私有地址：10.x.x.x、172.16–31.x.x 或 192.168.x.x。",
+      "server_errors": {
+        "no_body": "請求到達數據機時為空，請重試",
+        "invalid_ipaddr": "IP 地址無效",
+        "invalid_prefix": "子網字首超出範圍",
+        "invalid_host_in_subnet": "該地址不能用作所選子網中的主機",
+        "lan_read_failed": "無法讀取當前 LAN 設定",
+        "lan_save_failed": "無法儲存 LAN 設定",
+        "invalid_private_address": "地址必須位於私有地址範圍內（10.x、172.16–31.x 或 192.168.x）",
+        "update_in_progress": "正在進行軟體更新，請在更新完成後重試",
+        "lan_busy": "已有另一項 LAN 更改正在套用"
+      }
+    }
+  },
   "profile_override": {
     "banner": "{{controls}} 由自訂 SIM 設定檔 <strong>{{profile_name}}</strong> 管理。"
   },
@@ -47,33 +175,42 @@
   },
   "language": {
     "label": "語言",
-    "switch_aria": "切換語言",
-    "page_title": "語言",
-    "page_description": "選擇 QManager 的顯示語言。您的選擇將儲存在此裝置上。",
-    "active": "使用中",
-    "select_prompt": "選擇語言"
+    "switch_aria": "切換語言"
   },
   "login": {
-    "brand_label": "QManager 操作員控制台",
+    "ssh_sync_failed": "QManager 密碼已設定，但 SSH root 密碼未能更新。請在 系統設定 → 裝置存取 中設定。",
+    "brand_label": "QManager · Quectel 數據機管理",
     "welcome": "歡迎使用 QManager",
     "password_label": "密碼",
     "submit": "登入",
     "signing_in": "登入中…",
-    "locked": "已鎖定 ({{seconds}}秒)",
+    "locked": "已鎖定 ({{seconds}})",
+    "lockout_seconds": "{{seconds}} 秒",
     "show_password": "顯示密碼",
     "hide_password": "隱藏密碼",
-    "session_expired": "由於裝置長時間無法連線,您的會話已結束。",
+    "session_expired": "裝置長時間無法連線。請重新登入以繼續。",
     "signing_in_to": "正在登入到 {{hostname}}",
+    "sign_in_to_label": "登入到",
     "signing_in_as": "以 {{hostname}} 登入",
     "recovery": {
       "toggle": "無法登入?",
       "intro": "如果您忘記了管理員密碼,有兩種恢復方式:",
-      "option_reset": "通過 SSH 連線到裝置並執行 <code>qmanager_reset_password</code> 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)",
-      "option_backup": "如果您儲存了 .qmbackup 檔案,請重新刷寫裝置韌體,然後從該檔案中恢復。"
-    }
+      "option_reset": "通過 SSH 連線到裝置並執行 {{command}} 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)",
+      "option_backup": "如果您儲存了 .qmbackup 檔案,請重新刷寫裝置韌體,然後從該檔案中恢復。",
+      "option_reset_command": "通過 SSH 連線到裝置並執行 {{command}} 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)"
+    },
+    "session_expired_title": "工作階段已結束",
+    "locked_title": "嘗試次數過多",
+    "locked_body": "已鎖定 {{seconds}}，以保護裝置。",
+    "invalid_password": "密碼錯誤。",
+    "attempts_left_one": "密碼錯誤。還剩 {{count}} 次嘗試。",
+    "attempts_left_other": "密碼錯誤。還剩 {{count}} 次嘗試。",
+    "password_to_manage": "輸入密碼以管理 {{hostname}}。",
+    "password_to_manage_bare": "請輸入密碼。",
+    "locked_countdown": "已鎖定 ({{seconds}})"
   },
   "overview": {
-    "title": "QManager",
+    "title": "數據機概覽",
     "tagline": "即時數據機狀態",
     "login_button": "登入",
     "header": {
@@ -87,7 +224,7 @@
       "temperature": "溫度"
     },
     "actions": {
-      "login": "登入",
+      "login": "登入以管理",
       "theme_toggle_aria": "切換主題",
       "theme_light": "淺色",
       "theme_dark": "深色",
@@ -114,7 +251,9 @@
       "count_one": "{{count}} 個活躍",
       "count_other": "{{count}} 個活躍",
       "bandwidth": "{{bandwidth}} MHz",
-      "rsrp_unit": "{{rsrp}} dBm"
+      "rsrp_unit": "{{rsrp}} dBm",
+      "section_count_one": "載波",
+      "section_count_other": "載波"
     },
     "metrics": {
       "rsrp": "RSRP",
@@ -137,6 +276,7 @@
       "good": "良好",
       "fair": "一般",
       "poor": "較差",
+      "bad": "極弱",
       "none": "無訊號"
     },
     "connection": {
@@ -147,14 +287,14 @@
       "error": "錯誤",
       "disconnected": "未連線",
       "unknown": "未知",
-      "modem_unreachable": "無法連線到數據機"
+      "modem_unreachable": "離線"
     },
     "stale_indicator": "資料可能已過期",
     "redirecting_setup": "正在跳轉到初次設定…",
     "loading_status": "正在載入數據機狀態…",
     "empty": {
       "title": "數據機狀態不可用",
-      "subtitle": "登入以檢視診斷詳情。",
+      "subtitle": "數據機已有一分鐘未回報。它可能正在重新啟動 — 讀數將自動恢復。",
       "fetch_error": "無法連線到裝置。",
       "retry": "重試"
     },
@@ -163,6 +303,1211 @@
       "hours": "{{hours}}小時 {{minutes}}分鐘",
       "minutes": "{{minutes}}分鐘"
     },
-    "copyright": "© {{year}} QManager"
+    "copyright": "© {{year}} QManager",
+    "stale": {
+      "banner": "讀數已過去 <age>{{age}}</age>。裝置可能正忙。"
+    },
+    "footer": {
+      "updated_ago": "{{age}}前更新",
+      "retrying": "每 {{seconds}} 秒重試",
+      "signin_works": "仍可登入"
+    },
+    "loading_chip": "讀取中",
+    "unreachable": {
+      "banner": "數據機目前沒有回應。它可能正忙或正在重新啟動。"
+    }
+  },
+  "sim_swap": {
+    "title": "偵測到新 SIM 卡",
+    "carrier_unknown": "未知電信業者",
+    "no_phone_number": "未配發號碼",
+    "description_match": "設定檔 <strong>{{profile_name}}</strong> 與此 SIM 卡相符。",
+    "description_no_match": "沒有與此 SIM 卡相符的已儲存設定檔。",
+    "apply_profile": "套用設定檔",
+    "create_profile": "建立設定檔",
+    "dismiss_aria": "停止提醒此 SIM 卡",
+    "toast_dismissed": "已關閉此 SIM 卡的提醒",
+    "toast_dismissed_detail": "其他 SIM 卡仍會觸發新卡提醒。可在「系統設定 → 已追蹤的 SIM 卡」中重新開啟。",
+    "toast_dismiss_failed": "無法關閉此 SIM 卡的提醒",
+    "dismiss_dialog": {
+      "title": "停止提醒此 SIM 卡？",
+      "description": "QManager 將僅不再為這張 {{carrier}} SIM 卡顯示新卡提醒。其他 SIM 卡仍會提醒，您可隨時在「系統設定 → 已追蹤的 SIM 卡」中重新開啟。",
+      "sim_label": "此 SIM 卡（ICCID）",
+      "confirm": "停止提醒",
+      "dismissing": "正在關閉…"
+    }
+  },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL 與 MTU",
+      "description": "重寫數據機寫入行動網路介面的跳躍數與封包大小。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "strip": {
+      "label": "目前已生效",
+      "chip_custom": "自訂",
+      "chip_default": "電信商預設值",
+      "retry": "重試",
+      "unavailable_title": "無法讀取 TTL 或 MTU",
+      "unavailable_body": "數據機沒有回應。未做任何變更。",
+      "idle_title": "沒有生效的覆寫值",
+      "idle_body": "數據機完全依協商結果使用電信商的 TTL 與 MTU。在下方開啟其中一項即可變更。"
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "仍在讀取",
+        "caption_unread": "數據機沒有回應"
+      },
+      "ttl": {
+        "label": "TTL（IPv4）",
+        "caption_active": "對每個封包重寫",
+        "caption_idle": "不重寫"
+      },
+      "hl": {
+        "label": "跳躍限制（IPv6）",
+        "caption_active": "對每個封包重寫",
+        "caption_idle": "不重寫"
+      },
+      "mtu": {
+        "label": "MTU 大小",
+        "unit": "位元組",
+        "caption_active": "電信商預設值為 {{carrier}}",
+        "caption_idle": "由電信商協商決定"
+      }
+    },
+    "banner": {
+      "title": "TTL 與跳躍限制來自 {{profile}} 設定檔",
+      "body": "啟用該設定檔會同時寫入這兩個值，因此此卡片已鎖定，以免兩個寫入端互相覆蓋。請在該設定檔中修改，或啟用一個未設定 TTL 的設定檔。"
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL 與跳躍限制",
+        "description": "套用於行動網路介面上的外送封包。"
+      },
+      "mtu": {
+        "title": "最大傳輸單元",
+        "description": "行動網路介面在不分片的情況下能送出的最大封包。"
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "開啟重寫後才能設定數值。",
+        "consequence_unread": "數據機尚未回應，目前沒有可變更的內容。"
+      },
+      "rewrite": {
+        "label": "重寫跳躍數",
+        "consequence": "關閉後，數據機會原樣轉送用戶端送出的跳躍數。部分電信商會統計跳躍數來偵測網路共享。"
+      },
+      "ttl_value": {
+        "label": "TTL 數值",
+        "tag": "IPv4 封包",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}。位於數據機後一跳的裝置通常設為 64。"
+      },
+      "hl_value": {
+        "label": "跳躍限制數值",
+        "tag": "IPv6 封包",
+        "placeholder": "64",
+        "consequence": "IPv6 的對應設定。除非確定用戶端是單一堆疊，否則兩項都要設定。"
+      },
+      "mtu_toggle": {
+        "label": "覆寫 MTU",
+        "consequence": "關閉後，行動網路介面會回到預設值 1500。"
+      },
+      "mtu_value": {
+        "label": "MTU 值",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}。低於約 1400 時，可能讓丟棄 ICMP 的網站無法完成路徑 MTU 探索。",
+        "consequence_off": "開啟覆寫後才能設定數值。"
+      }
+    },
+    "values": {
+      "on": "開",
+      "off": "關"
+    },
+    "footer": {
+      "discard": "捨棄變更",
+      "unsaved": "{{count}} 項未儲存的變更"
+    },
+    "errors": {
+      "value_range": "TTL 與跳躍限制都必須介於 {{min}} 到 {{max}} 之間。",
+      "no_value": "請先填寫 TTL 或跳躍限制，再套用。",
+      "mtu_range": "MTU 必須介於 {{min}} 到 {{max}} 之間。"
+    },
+    "toast_ttl_applied": "已套用（TTL {{ttl}}，跳躍限制 {{hl}}）。",
+    "toast_ttl_cleared": "數據機已回到電信商自己的跳躍數。",
+    "toast_ttl_error": "無法套用 TTL 與跳躍限制。",
+    "toast_mtu_applied": "已將 MTU 設為 {{mtu}}。",
+    "toast_mtu_cleared": "MTU 已回到預設值 1500。",
+    "toast_mtu_error": "無法套用 MTU。",
+    "toast_mtu_disable_error": "無法關閉自訂 MTU。",
+    "mtu_load_error": "無法讀取 MTU 設定。",
+    "ttl_load_error": "無法讀取 TTL 設定。"
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "IP 直通",
+      "description": "將數據機的公網 IP 直接交給一台已連線的裝置，而不是為整個區域網路做路由。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "status": {
+      "label": "上次套用",
+      "mode_title": {
+        "disabled": "路由模式",
+        "eth": "乙太網路直通",
+        "usb": "USB 直通"
+      },
+      "blurb": {
+        "disabled": "數據機為區域網路做路由",
+        "eth": "設定為將 WAN IP 交給乙太網路裝置",
+        "usb": "設定為將 WAN IP 交給 USB 裝置"
+      },
+      "no_target": "未選擇裝置",
+      "gateway": "區域網路閘道",
+      "gateway_served": "提供服務",
+      "gateway_not_served": "不提供服務"
+    },
+    "card": {
+      "title": "直通設定",
+      "description": "套用會寫入所有設定並重啟數據機。",
+      "apply": "套用並重啟",
+      "discard": "捨棄變更",
+      "unsaved_one": "{{count}} 項未儲存的變更",
+      "unsaved_other": "{{count}} 項未儲存的變更",
+      "mac_label": "目標 MAC 位址",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "groups": {
+      "passthrough": "直通",
+      "network": "網路"
+    },
+    "rows": {
+      "mode": {
+        "label": "模式"
+      },
+      "target": {
+        "label": "目標裝置",
+        "pick_mode": "請先選擇模式。"
+      },
+      "nat": {
+        "label": "NAT 轉換",
+        "hint": "幾乎所有情境都適合啟用 NAT。",
+        "hint_label": "關於 NAT"
+      },
+      "usb": {
+        "label": "USB 連線"
+      },
+      "dns": {
+        "label": "DNS 代理",
+        "hint": "開啟後，由數據機為目標裝置回應 DHCP DNS。",
+        "hint_label": "關於 DNS 代理"
+      }
+    },
+    "options": {
+      "mode_disabled": "路由",
+      "mode_eth": "乙太網路",
+      "mode_usb": "USB",
+      "target_automatic": "自動",
+      "target_device": "從區域網路",
+      "target_manual": "依 MAC",
+      "nat_on": "啟用 NAT",
+      "nat_off": "不啟用 NAT",
+      "dns_off": "關閉",
+      "dns_on": "開啟"
+    },
+    "mode_note": {
+      "rest": "乙太網路或 USB 會把 WAN IP 交給一台裝置，數據機將不再於其區域網路閘道位址回應。請保留 Tailscale 或其他連入方式。",
+      "to_passthrough": "套用會重啟數據機，此分頁將與其斷線。之後區域網路閘道不再回應，請保留 Tailscale 或其他連入方式。",
+      "to_router": "套用會重啟數據機，此分頁將與其斷線。重啟後區域網路閘道會恢復回應。"
+    },
+    "dialog": {
+      "title": "現在套用並重啟？",
+      "body": "設定會寫入，數據機隨即重啟。本頁面會轉到重啟倒數並將您登出。",
+      "body_gateway": "直通生效後，數據機將不再於區域網路閘道位址上回應。請確認您有 Tailscale、直通裝置本身或序列主控台可以重新連入。",
+      "body_persist": "此設定會在後續重啟後繼續保留。",
+      "cancel": "取消",
+      "confirm": "套用並重啟"
+    },
+    "toast_apply_error": "無法套用 IP 直通設定",
+    "errors": {
+      "read_title": "無法讀取直通設定",
+      "read_body": "未做任何變更。請再試一次，或確認數據機是否有回應。",
+      "retry": "重試",
+      "card_unread": "數據機尚未回應，在首次讀取完成前沒有可變更的內容。",
+      "mac_invalid": "請輸入完整的 MAC 位址，即六組十六進位數字。",
+      "no_changes": "尚未有任何變更。",
+      "device_unpicked": "請先選擇一個已連線的裝置。"
+    },
+    "device": {
+      "label": "從已連線清單中選擇目標裝置",
+      "placeholder": "選擇裝置",
+      "scanning": "正在掃描已連線裝置…",
+      "error": "無法載入已連線裝置。",
+      "empty": "找不到已連線裝置。請將裝置連接至調變解調器，然後重新掃描。",
+      "retry": "重試",
+      "rescan": "重新掃描",
+      "rescan_label": "重新掃描已連線裝置",
+      "enter_manually": "手動輸入",
+      "unknown": "未知裝置"
+    }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "網路事件",
+      "description": "無線電與連線的變化，最新的在前。"
+    },
+    "actions": {
+      "refresh": "重新整理",
+      "updates_aria": "更新",
+      "live": "即時",
+      "paused": "已暫停"
+    },
+    "now": {
+      "title": "目前狀況",
+      "description": "仍在持續的問題，以及反覆出現的變化。",
+      "ongoing_one": "{{count}} 個問題持續中",
+      "ongoing_other": "{{count}} 個問題持續中",
+      "oldest_started": "最早的開始於 {{age}}",
+      "clear": "沒有持續中的問題",
+      "last_problem": "上次問題：{{age}}",
+      "no_problems": "沒有記錄到問題",
+      "no_events": "尚無事件記錄",
+      "repeating": "反覆出現",
+      "repeat_meta_one": "{{span}}內變化 {{count}} 次",
+      "repeat_meta_other": "{{span}}內變化 {{count}} 次",
+      "nothing_repeating": "沒有反覆出現的變化。"
+    },
+    "activity": {
+      "title": "活動",
+      "window_last_one": "最近 {{count}} 個事件，跨越 {{span}}。",
+      "window_last_other": "最近 {{count}} 個事件，跨越 {{span}}。",
+      "window_all_one": "數據機啟動以來的 {{count}} 個事件。",
+      "window_all_other": "數據機啟動以來的全部 {{count}} 個事件。",
+      "window_empty": "數據機啟動以來沒有事件。",
+      "chart_aria": "事件時間分布",
+      "column_one": "{{from}} 至 {{to}}：{{count}} 個事件",
+      "column_other": "{{from}} 至 {{to}}：{{count}} 個事件",
+      "now": "現在",
+      "problems": "問題",
+      "recoveries": "恢復",
+      "routine": "常規"
+    },
+    "span": {
+      "minutes_one": "{{count}} 分鐘",
+      "minutes_other": "{{count}} 分鐘",
+      "hours_one": "{{count}} 小時",
+      "hours_other": "{{count}} 小時"
+    },
+    "log": {
+      "title": "事件記錄",
+      "description_loading": "正在載入事件。",
+      "description_unreadable": "記錄無法讀取時不顯示計數。",
+      "description": "重複的事件已合併；展開即可查看每一筆。",
+      "scroll_aria": "事件"
+    },
+    "run": {
+      "title": "{{label}}反覆變化",
+      "meta_one": "{{span}}內 {{count}} 個事件",
+      "meta_other": "{{span}}內 {{count}} 個事件",
+      "show": "顯示 {{count}} 筆",
+      "hide": "收合"
+    },
+    "filters": {
+      "all": "全部",
+      "radio": "無線電",
+      "connectivity": "連線",
+      "mode": "模式"
+    },
+    "sort": {
+      "label": "排序",
+      "newest": "最新優先",
+      "oldest": "最早優先"
+    },
+    "row": {
+      "ongoing": "進行中"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天"
+    },
+    "empty": {
+      "title": "尚無事件",
+      "description": "數據機重新啟動後記錄會重新開始。事件發生時會顯示在這裡。",
+      "filtered_title": "此檢視中沒有內容",
+      "filtered_description": "目前記錄中沒有這類事件。"
+    },
+    "error": {
+      "title": "無法載入事件",
+      "description": "{{message}}",
+      "retry": "重試"
+    },
+    "notice": {
+      "stale": "顯示我們最後成功讀取到的事件。{{message}}"
+    }
+  },
+  "alerts": {
+    "activity": {
+      "cause": {
+        "planned": "計畫內",
+        "scheduled": "定時",
+        "unexpected": "非預期",
+        "watchdog": "看門狗"
+      },
+      "channel": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "day": {
+        "today": "今天",
+        "undated": "沒有記錄時間",
+        "yesterday": "昨天"
+      },
+      "description": "已傳送的提醒和重新啟動，最新的在前。",
+      "empty": {
+        "description": "管道傳送警示後會顯示在這裡，重新啟動也會自動記錄並附上原因。",
+        "title": "目前尚無記錄"
+      },
+      "error": {
+        "title": "無法載入活動記錄",
+        "description": "裝置沒有回應。請稍後再試。",
+        "retry": "重試"
+      },
+      "event": {
+        "reboot": "數據機已重新啟動"
+      },
+      "notice": {
+        "stale": "顯示我們最後成功讀取到的活動記錄。"
+      },
+      "sr": {
+        "failed": "警示傳送失敗",
+        "reboot": "已記錄重新啟動",
+        "sent": "警示已傳送"
+      },
+      "time": {
+        "days_one": "{{count}} 天前",
+        "days_other": "{{count}} 天前",
+        "hours_one": "{{count}} 小時前",
+        "hours_other": "{{count}} 小時前",
+        "just_now": "剛剛",
+        "minutes_one": "{{count}} 分鐘前",
+        "minutes_other": "{{count}} 分鐘前",
+        "unknown": "未知"
+      },
+      "title": "活動記錄",
+      "transcript_label": "警示與重新啟動記錄",
+      "trigger": {
+        "test": "測試提醒",
+        "alert": "提醒"
+      }
+    },
+    "channels": {
+      "description": "設定每種管道如何通知您。",
+      "discord": {
+        "id_error": "請輸入 15 到 25 位數字的 Discord 使用者 ID。",
+        "id_hint": "開啟開發者模式，在您的名稱上按右鍵，再選擇「複製使用者 ID」。",
+        "id_label": "擁有者 Discord ID",
+        "id_missing": "需要填寫擁有者 Discord ID。",
+        "test": "傳送測試訊息",
+        "token_hide": "隱藏機器人權杖",
+        "token_hint": "在 Discord 開發者入口網站建立機器人並複製其權杖。",
+        "token_keep": "留空以保留已儲存的權杖",
+        "token_label": "機器人權杖",
+        "token_link": "開啟 Discord 開發者入口網站",
+        "token_missing": "需要機器人權杖才能傳送 Discord 警示。",
+        "token_placeholder": "貼上您的機器人權杖",
+        "token_show": "顯示機器人權杖",
+        "title": "Discord 提醒",
+        "sub": "由你的機器人私訊傳送。",
+        "id_hint_label": "如何找到你的 Discord ID"
+      },
+      "email": {
+        "address_error": "請輸入有效的電子郵件地址。",
+        "mailer_install": "安裝 msmtp",
+        "mailer_installing": "安裝中",
+        "mailer_missing": "尚未安裝 msmtp 郵件程式，因此目前無法傳送 Email。SMS 與 Discord 仍可正常儲存。",
+        "mailer_recheck": "重新檢查",
+        "password_hide": "隱藏應用程式密碼",
+        "password_hint": "請在您的 Google 帳戶中為此裝置產生一組應用程式密碼。",
+        "password_keep": "留空以保留已儲存的密碼",
+        "password_label": "Gmail 應用程式密碼",
+        "password_link": "開啟 Google 應用程式密碼頁面",
+        "password_missing": "需要應用程式密碼才能傳送 Email。",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_show": "顯示應用程式密碼",
+        "recipient_hint": "警示會送達的地址。",
+        "recipient_label": "收件人 Email",
+        "recipient_missing": "需要填寫收件人地址。",
+        "sender_hint": "用來寄送警示的 Gmail 帳號。",
+        "sender_label": "寄件人 Email",
+        "sender_missing": "需要填寫寄件人地址。",
+        "test": "傳送測試 Email",
+        "title": "電子郵件提醒",
+        "sub": "連線恢復後透過 Gmail 傳送。"
+      },
+      "empty": {
+        "description": "此裝置未回傳任何警示管道，因此目前沒有可設定的項目。",
+        "title": "沒有回報任何管道"
+      },
+      "loading": "正在載入警示管道",
+      "name": {
+        "discord": "Discord",
+        "email": "Email",
+        "sms": "SMS"
+      },
+      "rail_label": "警示管道",
+      "save": {
+        "action": "儲存設定",
+        "blocked": "請修正標示的欄位",
+        "blocked_in": "請修正 {{channels}} 中的錯誤",
+        "clean": "所有變更已儲存",
+        "dirty": "未儲存的變更",
+        "discard": "捨棄",
+        "failed": "設定無法儲存。",
+        "succeeded": "警示設定已儲存",
+        "errors": {
+          "invalid_threshold": "請輸入 1 到 1440 分鐘的等待時間。",
+          "invalid_phone": "請輸入以國碼開頭的 7 到 15 位電話號碼。",
+          "invalid_email": "請輸入有效的寄件者和收件者電子郵件地址。",
+          "missing_app_password": "請輸入電子郵件應用程式密碼。",
+          "invalid_discord_id": "請輸入 15 到 25 位數字的 Discord 使用者 ID。",
+          "missing_bot_token": "請輸入 Discord 機器人權杖。",
+          "invalid_secret": "應用程式密碼或機器人權杖包含不允許的字元。",
+          "partial": "密碼或權杖已儲存，但設定未能完成更新，請再儲存一次。",
+          "service_restart_failed": "設定已儲存，但 Discord 機器人無法重新啟動。",
+          "service_enable_failed": "設定已儲存，但無法將 Discord 機器人設為開機自動啟動。"
+        }
+      },
+      "secret_saved": "已儲存",
+      "sms": {
+        "phone_error": "請輸入含國碼的號碼，例如 +14155551234。",
+        "phone_hint": "請加上國碼，並以加號開頭。",
+        "phone_label": "收件人電話",
+        "phone_missing": "需要填寫收件人電話號碼。",
+        "test": "傳送測試 SMS",
+        "title": "簡訊提醒",
+        "sub": "斷線期間也能送達。"
+      },
+      "status": {
+        "incomplete": "尚待設定",
+        "needs_fixing": "有未儲存的錯誤",
+        "off": "已關閉",
+        "ready": "已就緒",
+        "unused": "沒有已路由的事件"
+      },
+      "test": {
+        "blocked_busy": "另一項測試仍在執行中。",
+        "blocked_dirty": "請先儲存變更。測試會依照已儲存的設定執行。",
+        "blocked_incomplete": "請先完成此管道的設定並儲存，才能傳送測試。",
+        "blocked_mailer": "請安裝 msmtp 郵件程式才能傳送測試 Email。",
+        "blocked_off": "請先開啟此管道並儲存，才能傳送測試。",
+        "blocked_offline": "Discord 機器人尚未連線。",
+        "failed": "測試無法傳送。",
+        "sending": "傳送中",
+        "succeeded": "測試 {{channel}} 已傳送",
+        "errors": {
+          "library_missing": "此管道無法在這部裝置上傳送警示。",
+          "not_configured": "請先開啟此管道並完成設定，再傳送測試。",
+          "bot_not_running": "Discord 機器人目前離線，測試未傳送。",
+          "msmtp_missing": "郵件程式尚未安裝，測試郵件未傳送。",
+          "send_failed_sms": "測試簡訊未傳送，請檢查訊號、SIM 卡餘額和號碼。",
+          "send_failed_email": "測試郵件未傳送，請檢查電子郵件地址、應用程式密碼和網路連線。",
+          "send_failed_discord": "測試訊息未能送達 Discord 機器人，請再試一次。"
+        }
+      },
+      "threshold_error": "請輸入 1 到 1440 之間的整數分鐘。",
+      "threshold_hint": "較短的斷線只記錄，不傳送。",
+      "threshold_label": "警示前等待時間",
+      "threshold_unit": "分鐘",
+      "title": "管道",
+      "sends_for": "傳送事件",
+      "error": {
+        "title": "無法載入管道",
+        "description": "裝置沒有回應。請稍後再試。",
+        "retry": "重試"
+      }
+    },
+    "coverage": {
+      "description": "依已儲存的設定，哪些提醒會送達。",
+      "emptyDesc": "裝置未回報任何警示功能，因此這裡沒有可開啟的項目。",
+      "emptyTitle": "沒有可路由的項目",
+      "errorDesc": "裝置沒有回應，因此無法顯示會觸發的項目。",
+      "errorRetry": "重試",
+      "errorTitle": "無法載入涵蓋範圍",
+      "event": {
+        "connection_lost": {
+          "name": "連線中斷"
+        },
+        "connection_restored": {
+          "name": "連線已恢復"
+        },
+        "reboot": {
+          "name": "數據機已重新啟動"
+        }
+      },
+      "loading": "正在載入涵蓋範圍",
+      "reason": {
+        "discord_needs_internet": "需要網路連線",
+        "email_needs_internet": "需要網路連線",
+        "not_supported": "此管道無法傳送此事件"
+      },
+      "staleNotice": "顯示我們上次從裝置讀取到的設定。",
+      "title": "涵蓋範圍",
+      "verdict": {
+        "all": "全部涵蓋",
+        "outage": "斷線未涵蓋",
+        "partial": "已涵蓋 {{covered}}/{{total}}",
+        "none": "不會傳送任何提醒"
+      },
+      "needsSetup": "{{channel}} 需要設定",
+      "notSent": "不傳送"
+    },
+    "page": {
+      "description": "連線中斷、恢復或數據機重新啟動時，會通知哪些對象。",
+      "refresh": "重新整理",
+      "title": "警示",
+      "unreadable": "裝置沒有回應。"
+    }
+  },
+  "tailscale": {
+    "actions": {
+      "cancel": "取消",
+      "retry": "重試"
+    },
+    "page": {
+      "title": "Tailscale VPN",
+      "description": "您的 mesh VPN：這台數據機在 tailnet 上的狀態，以及還有誰在線上。",
+      "refresh": "重新整理",
+      "stale": "顯示我們最後成功讀取的狀態。{{message}}",
+      "unreadableTitle": "無法讀取 Tailscale 狀態",
+      "unreadable": "裝置沒有回應。"
+    },
+    "status": {
+      "aria": "Tailscale 狀態",
+      "running": "已連線",
+      "needsLogin": "需要登入",
+      "disconnected": "已斷線",
+      "serviceStopped": "服務已停止",
+      "notInstalled": "未安裝",
+      "unknown": "未知"
+    },
+    "band": {
+      "dash": "—",
+      "connectionEyebrow": "連線",
+      "version": "版本 {{version}}",
+      "versionUnknown": "版本未知",
+      "deviceEyebrow": "此裝置",
+      "deviceUnknown": "尚無 tailnet 位址",
+      "tailnetEyebrow": "Tailnet",
+      "magicDnsOn": "MagicDNS 已開啟",
+      "magicDnsOff": "MagicDNS 已關閉",
+      "peersEyebrow": "上線節點",
+      "exitNodes_one": "{{count}} 個出口節點",
+      "exitNodes_other": "{{count}} 個出口節點",
+      "noExitNode": "沒有出口節點"
+    },
+    "connection": {
+      "title": "連線",
+      "description": "此數據機是否加入 tailnet，以及加入後的行為方式。",
+      "connect": "連線",
+      "connecting": "連線中…",
+      "disconnect": "中斷連線",
+      "disconnecting": "中斷連線中…",
+      "startService": "啟動服務",
+      "starting": "啟動中…",
+      "stopService": "停止服務",
+      "stopping": "停止中…",
+      "logout": "登出",
+      "logoutDialogTitle": "登出 Tailscale？",
+      "logoutDialogDescription": "這會將此數據機從您的 tailnet 中移除。重新連線前需要再次登入。",
+      "authTitle": "登入以完成連線",
+      "authDescription": "開啟登入頁面並使用您的 Tailscale 帳號完成驗證。您核准後，數據機會立即加入 tailnet。",
+      "openLogin": "開啟登入頁面",
+      "authWaiting": "正在等待您登入",
+      "bootTitle": "開機自動啟動",
+      "bootDescription": "數據機重新啟動後自動啟動 Tailscale。",
+      "sshTitle": "Tailscale SSH",
+      "sshDescription": "允許 tailnet 成員透過 SSH 連線此數據機，實際權限依您管理後台的 ACL 而定。",
+      "sshPending": "待套用——將於數據機下次連線時生效。",
+      "sshLocked": "連線 Tailscale 後才能變更此設定。",
+      "sshDialogTitle": "開啟 Tailscale SSH？",
+      "sshDialogDescription": "tailnet 成員將能依您 Tailscale 管理後台的 ACL 透過 SSH 連線此數據機。請先檢查該政策，確保只有您允許的人能存取此裝置。",
+      "sshConfirm": "開啟 SSH",
+      "on": "開",
+      "off": "關",
+      "updating": "更新中…",
+      "updateAvailable": "有可用更新（{{version}}）",
+      "updateDialogTitle": "將 Tailscale 更新到 {{version}}？",
+      "updateDialogDescription": "新版本啟動期間，隧道會重新連線數秒。",
+      "update": "更新",
+      "updateLogTitle": "更新記錄"
+    },
+    "device": {
+      "title": "此裝置",
+      "description": "此數據機在 tailnet 上的識別方式。",
+      "hostname": "主機名稱",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "dnsName": "DNS 名稱",
+      "tailnet": "Tailnet",
+      "magicDns": "MagicDNS",
+      "relay": "DERP 中繼",
+      "emptyTitle": "尚未加入 tailnet",
+      "emptyDescription": "連線 Tailscale 後，此數據機的位址、DNS 名稱與中繼資訊會顯示在這裡。",
+      "version": "版本"
+    },
+    "peers": {
+      "title": "網路節點",
+      "description": "您 tailnet 上的其他裝置，以及是否可連線。",
+      "dash": "—",
+      "unnamed": "未命名裝置",
+      "exitNode": "出口節點",
+      "colDevice": "裝置",
+      "colAddress": "位址",
+      "colOs": "系統",
+      "colStatus": "狀態",
+      "colLastSeen": "最後上線",
+      "online": "上線",
+      "offline": "離線",
+      "seenNow": "現在",
+      "seenUnknown": "未知",
+      "seenJustNow": "剛剛",
+      "seenMinutes": "{{n}} 分鐘前",
+      "seenHours": "{{n}} 小時前",
+      "seenDays": "{{n}} 天前",
+      "countOnline": "{{online}} / {{total}} 上線",
+      "countExitNodes_one": "{{count}} 個出口節點",
+      "countExitNodes_other": "{{count}} 個出口節點",
+      "errorTitle": "無法載入節點清單",
+      "emptyTitle": "沒有其他裝置",
+      "emptyDescription": "此 tailnet 尚無其他裝置加入。從 Tailscale 管理後台新增裝置後，就會顯示在這裡。",
+      "offlineTitle": "未連線",
+      "offlineDescription": "連線 Tailscale 即可查看您 tailnet 上的其他裝置。"
+    },
+    "install": {
+      "title": "Tailscale",
+      "description": "免開放連接埠，即可從任何地方存取這台數據機的 mesh VPN。",
+      "conditionTitle": "尚未安裝 Tailscale",
+      "conditionDescription": "安裝會透過目前這條行動網路連線下載 Tailscale 安裝套件，因此會消耗您的流量，安裝期間連線也會變慢。",
+      "install": "安裝 Tailscale",
+      "installing": "安裝中…",
+      "checkAgain": "再次檢查",
+      "done": "Tailscale 已安裝。",
+      "failed": "安裝未完成。",
+      "manualLabel": "或透過命令列安裝",
+      "copyCommand": "複製安裝指令",
+      "logTitle": "安裝紀錄",
+      "logWaiting": "等待輸出…"
+    },
+    "danger": {
+      "title": "移除 Tailscale",
+      "description": "從此數據機解除安裝 Tailscale 套件及其防火牆規則。",
+      "uninstall": "解除安裝",
+      "removing": "移除中…",
+      "dialogTitle": "解除安裝 Tailscale？",
+      "dialogDescription": "這會從此數據機解除安裝 Tailscale 套件、其防火牆規則，以及所有連線狀態。之後重新啟動可清除殘留內容。",
+      "rebootTitle": "建議重新啟動",
+      "rebootDescription": "Tailscale 已移除。重新啟動可清除殘留的防火牆規則等內容。是否立即重新啟動？",
+      "rebootLater": "稍後重新啟動",
+      "rebootNow": "立即重新啟動",
+      "rebooting": "重新啟動中…"
+    },
+    "toast": {
+      "bootEnabled": "Tailscale 將於開機時啟動",
+      "bootDisabled": "Tailscale 將不會於開機時啟動",
+      "bootFailed": "無法變更開機啟動設定",
+      "sshEnabled": "Tailscale SSH 已開啟",
+      "sshEnableFailed": "無法開啟 Tailscale SSH",
+      "sshDisabled": "Tailscale SSH 已關閉",
+      "sshDisableFailed": "無法關閉 Tailscale SSH",
+      "connected": "正在連線 Tailscale",
+      "connectFailed": "無法建立連線",
+      "disconnected": "Tailscale 已中斷連線",
+      "disconnectFailed": "無法中斷連線",
+      "loggedOut": "已登出 Tailscale",
+      "logoutFailed": "無法登出",
+      "serviceStarted": "Tailscale 服務已啟動",
+      "serviceStartFailed": "無法啟動 Tailscale 服務",
+      "serviceStopped": "Tailscale 服務已停止",
+      "serviceStopFailed": "無法停止 Tailscale 服務",
+      "uninstalled": "Tailscale 已解除安裝",
+      "uninstallFailed": "無法解除安裝 Tailscale",
+      "copied": "指令已複製",
+      "copyFailed": "無法複製指令",
+      "installed": "Tailscale 已安裝",
+      "installFailed": "Tailscale 安裝未完成",
+      "updated": "Tailscale 已更新到 {{version}}",
+      "updateFailed": "無法更新 Tailscale"
+    }
+  },
+  "watchdog": {
+    "page": {
+      "title": "看門狗",
+      "description": "監控網際網路連線，在中斷時依恢復階梯逐步處理。",
+      "refresh": "重新整理",
+      "unreadableTitle": "無法讀取看門狗設定",
+      "unreadable": "數據機沒有回應。",
+      "retry": "重試"
+    },
+    "band": {
+      "checks": "失敗偵測",
+      "recoveries": "恢復",
+      "reboots": "重啟",
+      "absent": "未回報",
+      "checksCaption": "開始恢復前",
+      "cooldownCaption": "{{seconds}} 秒後重新偵測",
+      "recoveriesLast": "第 {{tier}} 步，{{ago}}",
+      "recoveriesNone": "尚無記錄",
+      "rebootsCaption": "過去一小時內",
+      "rebootsOff": "重啟步驟已關閉",
+      "aria": "看門狗狀態",
+      "cooldownStep": "第 {{tier}} 步已執行，{{seconds}} 秒後重新偵測。"
+    },
+    "phase": {
+      "off": {
+        "label": "已關閉",
+        "blurb": "看門狗未監控連線。"
+      },
+      "unknown": {
+        "label": "未知",
+        "blurb": "數據機沒有回應，因此無法得知看門狗目前的狀態。"
+      },
+      "starting": {
+        "label": "啟動中",
+        "blurb": "服務剛啟用，尚未回報狀態。"
+      },
+      "not_running": {
+        "label": "未回報",
+        "blurb": "已啟用，但服務自開機以來尚未回報。"
+      },
+      "auto_disabled": {
+        "label": "已自動關閉",
+        "blurb": "已達到重啟次數上限。待連線穩定後再重新開啟。"
+      },
+      "monitor": {
+        "label": "監控中",
+        "blurb": "連線狀況良好，正在監控是否發生斷線。"
+      },
+      "suspect": {
+        "label": "檢查中",
+        "blurb": "剛才有一次連線檢查失敗，正在確認後才會採取行動。"
+      },
+      "recovery": {
+        "label": "恢復中",
+        "blurb": "正在依序執行恢復步驟，以恢復連線。"
+      },
+      "cooldown": {
+        "label": "冷卻中",
+        "blurb": "正在等待上一個恢復步驟生效，然後再重新偵測。"
+      },
+      "locked": {
+        "label": "已暫停",
+        "blurb": "有維護作業正在進行，看門狗暫時不會採取行動。"
+      },
+      "disabled": {
+        "label": "已停用",
+        "blurb": "服務正在執行，但功能已關閉。"
+      },
+      "ssr_hold": {
+        "label": "等待中",
+        "blurb": "基頻正在自行重新啟動，復原作業會等待其恢復。"
+      }
+    },
+    "master": {
+      "aria": "啟用連線看門狗"
+    },
+    "ladder": {
+      "title": "恢復階梯",
+      "description": "按順序嘗試，從最溫和的方式開始。",
+      "aria": "恢復階梯",
+      "status": {
+        "blocked": "需要插槽",
+        "done": "已嘗試",
+        "running": "正在執行"
+      },
+      "tier1": {
+        "name": "重新註冊到網路",
+        "consequence": "連線會中斷幾秒鐘。"
+      },
+      "tier2": {
+        "name": "重新啟動無線電",
+        "consequence": "鎖定基地台時跳過。"
+      },
+      "tier3": {
+        "name": "切換到備用 SIM 卡",
+        "consequence": "將使用備用卡運作，直到您切回。",
+        "slotLabel": "備用 SIM 卡插槽",
+        "slot": "插槽 {{slot}}"
+      },
+      "tier4": {
+        "name": "重啟裝置",
+        "consequence": "離線約一分鐘。",
+        "capLabel": "每小時最大重啟次數",
+        "capLead": "最多",
+        "capUnit": "次/小時"
+      },
+      "tierAria": "啟用此恢復步驟：{{name}}",
+      "failback": {
+        "name": "切回主要 SIM 卡",
+        "consequence": "定期重試主要 SIM 卡，每次嘗試都會短暫斷線。",
+        "lead": "每",
+        "unit": "分鐘",
+        "intervalLabel": "主要 SIM 卡複查間隔"
+      }
+    },
+    "detection": {
+      "title": "偵測",
+      "description": "靜默連線多久後會被判定為斷線。",
+      "probe": {
+        "label": "探測間隔",
+        "short": "{{seconds}}秒"
+      },
+      "threshold": {
+        "label": "斷線判定",
+        "unit": "次探測失敗"
+      },
+      "cooldown": {
+        "label": "步驟間隔",
+        "unit": "秒"
+      },
+      "timeline": {
+        "eyebrow": "連線中斷時",
+        "declaredStep": "判定斷線，執行第 {{tier}} 步",
+        "declaredReboot": "判定斷線，執行第 4 步：重啟",
+        "step": "第 {{tier}} 步",
+        "reboot": "第 4 步：重啟",
+        "about": "約 {{time}}",
+        "seconds": "{{s}} 秒",
+        "minutes": "{{m}} 分鐘",
+        "minutesSeconds": "{{m}} 分 {{s}} 秒",
+        "off": "看門狗已關閉，不會執行任何步驟。",
+        "none": "沒有啟用任何步驟，不會執行任何操作。",
+        "invalid": "輸入有效的偵測數值即可預覽時間線。",
+        "stopped": "第 3 步沒有插槽，恢復流程將止步於此。"
+      },
+      "ssr": {
+        "label": "基頻重新啟動等待",
+        "unit": "秒",
+        "caption": "先等待模組自行重新啟動完成"
+      },
+      "quality": {
+        "label": "品質觸發",
+        "unit": "次",
+        "caption": "延遲超過 {{ms}} ms 或封包遺失超過 {{pct}}%",
+        "link": "臨界值"
+      }
+    },
+    "activity": {
+      "title": "恢復活動",
+      "description": "看門狗執行過的操作，最新優先。",
+      "tier4Reboot": "看門狗重新啟動了數據機",
+      "type": {
+        "recovery": "恢復",
+        "failover": "SIM 卡故障轉移"
+      },
+      "day": {
+        "today": "今天",
+        "yesterday": "昨天"
+      },
+      "time": {
+        "just_now": "剛剛",
+        "minutes_one": "{{count}} 分鐘前",
+        "minutes_other": "{{count}} 分鐘前",
+        "hours_one": "{{count}} 小時前",
+        "hours_other": "{{count}} 小時前",
+        "days_one": "{{count}} 天前",
+        "days_other": "{{count}} 天前"
+      },
+      "empty": {
+        "title": "尚無恢復活動",
+        "description": "當看門狗處理斷線時，恢復步驟和 SIM 卡切換會顯示在這裡。較早的活動會從數據機事件記錄中滾出。"
+      },
+      "error": {
+        "title": "無法載入恢復活動",
+        "retry": "重試"
+      },
+      "allEvents": "全部事件"
+    },
+    "save": {
+      "discard": "捨棄",
+      "action": "儲存",
+      "clean": "所有變更已儲存",
+      "dirty": "有未儲存的變更",
+      "blockedIn": "儲存前請檢查 {{fields}}",
+      "toastOk": "看門狗設定已儲存",
+      "toastFail": "無法儲存看門狗設定",
+      "confirmReboot": {
+        "title": "允許看門狗重啟數據機？",
+        "body": "儲存後，當所有更溫和的步驟都失敗時，看門狗可以自行重啟數據機。此頁面會消失約一分鐘，等待數據機恢復。",
+        "cap": "每小時最多重啟 {{cap}} 次。達到上限後，看門狗會自行關閉，直到您重新開啟。",
+        "cancel": "取消",
+        "action": "允許重啟"
+      }
+    },
+    "errors": {
+      "failThreshold": "必須介於 1 到 20 之間",
+      "probeInterval": "必須介於 1 到 60 秒之間",
+      "cooldown": "必須介於 10 到 300 秒之間",
+      "maxReboots": "必須介於 1 到 10 之間",
+      "backupSim": "選擇備用 SIM 卡插槽以啟用故障轉移",
+      "ssrGrace": "必須介於 10 到 120 秒之間",
+      "qualityConsecutive": "必須介於 1 到 60 之間",
+      "recheckInterval": "必須介於 5 到 1440 分鐘之間"
+    },
+    "failover": {
+      "title": "目前使用備用 SIM 卡",
+      "body": "已切換到插槽 {{current}}，{{since}}。原始 SIM 卡位於插槽 {{original}}。",
+      "recently": "最近",
+      "revert": "還原至原始 SIM 卡",
+      "reverting": "正在還原…",
+      "confirmTitle": "還原至原始 SIM 卡？",
+      "confirmBody": "這將切換回 SIM 卡插槽 {{original}}。數據機重新連線期間，網路會短暫中斷。",
+      "cancel": "取消",
+      "confirm": "還原 SIM 卡",
+      "requested": "已請求還原 SIM 卡。看門狗將盡快處理。",
+      "failed": "無法請求還原 SIM 卡"
+    },
+    "strip": {
+      "title": "探測",
+      "noReply": "{{n}} 次無回應",
+      "average": "平均 {{ms}} 毫秒",
+      "ago": "{{minutes}} 分鐘前",
+      "now": "現在",
+      "empty": "數據機沒有探測資料",
+      "aria": "{{total}} 次探測，{{missed}} 次無回應"
+    }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "關於裝置",
+      "description": "裝置識別資訊、位址，以及其上執行的軟體。"
+    },
+    "actions": {
+      "refresh": "重新整理",
+      "refreshing": "正在重新整理…",
+      "retry": "重試"
+    },
+    "band": {
+      "label": "識別資訊",
+      "not_responding": "無回應",
+      "unreachable": {
+        "title": "裝置未回應",
+        "detail": "來自 {{endpoint}} 的 {{reason}}。以下內容均未讀取。",
+        "no_reason": "無回應"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "型號"
+      },
+      "firmware": {
+        "eyebrow": "模組韌體",
+        "caption": "建置於 {{date}}"
+      },
+      "host": {
+        "eyebrow": "主機系統",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "網際網路",
+        "reachable": "可連線",
+        "not_reachable": "無法連線",
+        "caption_reachable": "公用 {{address}}",
+        "caption_unreachable": "{{probe}} 無回應"
+      }
+    },
+    "modem": {
+      "title": "模組",
+      "description": "硬體識別資訊，以及各制式無線電所實作的 3GPP 版本。"
+    },
+    "addresses": {
+      "title": "位址",
+      "description": "本裝置在區域網路與電信業者網路中的位置。",
+      "provenance": "公用位址透過 {{probe}} 解析。破折號代表裝置未回報任何位址。"
+    },
+    "groups": {
+      "three_gpp": "3GPP 版本",
+      "local": "本機",
+      "wwan": "WWAN",
+      "public": "公用"
+    },
+    "rows": {
+      "manufacturer": "製造商",
+      "model": "型號",
+      "firmware": "韌體",
+      "firmware_revision": "韌體修訂版",
+      "build_date": "建置日期",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "裝置 IP",
+      "lan_gateway": "區域網路閘道",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "未讀取到資料",
+      "modem": "這些數值來自裝置，而裝置未回應。",
+      "addresses": "位址由同一次請求讀取。"
+    },
+    "credits": {
+      "title": "致謝",
+      "description": "QManager 使用了一些外部服務與開放資料，感謝背後的每一位貢獻者。",
+      "roles": {
+        "apn": "電信業者 APN 預設",
+        "logos": "簡訊發送者與監控網站的品牌標誌",
+        "icons": "找不到標誌時使用的網站圖示"
+      }
+    },
+    "qmanager": {
+      "title": "關於 QManager",
+      "note": "你好！我是 Rus。QManager 是 QuecManager 的最新一代，採用比前代更新、更可靠的實作方式——同時仍將進階使用者的技術設定與新手適用的簡化介面結合在一起。特別感謝 iamromulan、clndwhr 與 Wutang Clan！",
+      "copyright": "© {{year}} QManager。保留一切權利。",
+      "repository": "GitHub 儲存庫",
+      "release_notes": "版本資訊",
+      "support": "支持本專案",
+      "credits": "致謝"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "支援",
+      "description": "回報問題、向社群提問，或聯絡維護者。"
+    },
+    "help": {
+      "title": "取得協助",
+      "description": "四種途徑，依最常需要的順序排列。",
+      "bug": {
+        "label": "回報問題"
+      },
+      "community": {
+        "label": "向社群提問"
+      },
+      "email": {
+        "label": "寄信給維護者"
+      },
+      "release_notes": {
+        "label": "查看版本資訊",
+        "dest": "最新：{{version}}"
+      }
+    },
+    "community": {
+      "title": "社群",
+      "description": "Discord 上的 Cellular Modem Talk/Development。",
+      "body": "使用者在這裡分享設定、一起排除問題，並討論行動網路話題。掃描或直接開啟邀請連結。",
+      "open_invite": "開啟邀請連結",
+      "qr_alt": "QManager Discord 伺服器邀請 QR 碼"
+    },
+    "opens_new_tab": "在新分頁中開啟"
+  },
+  "donate": {
+    "dialog": {
+      "title": "支持本專案",
+      "description": "讓 QManager 繼續走下去。",
+      "body": "你好，我是 Rus。QManager 是我利用業餘時間免費維護的專案。如果它對你有幫助，一點小小的支持意義重大，也讓我能繼續做下去。",
+      "thanks": "謝謝你，你真好。💙"
+    },
+    "links": {
+      "group_label": "贊助管道",
+      "opens_new_tab": "在新分頁中開啟"
+    },
+    "band": {
+      "title": "支持本專案",
+      "body": "QManager 是一個業餘維護、完全免費的專案。如果它對你的裝置有幫助，一點小小的支持就能讓它繼續走下去——無論如何都不會有付費牆。"
+    }
+  },
+  "not_found": {
+    "scene_label": "星空下劈啪作響的營火",
+    "title": "冒險者，你好像迷路了",
+    "description": "要回去繼續優化你的連線嗎？",
+    "home": "返回儀表板",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "請選擇圖片檔案。",
+    "photo_updated": "大頭貼已更新。",
+    "change_photo_aria": "更換大頭貼",
+    "name_placeholder": "你的名稱",
+    "name_saved": "顯示名稱已更新。",
+    "name_save_failed": "更新顯示名稱失敗。",
+    "reconnect_description": "這將使調變解調器中斷數秒，然後自動重新連線。",
+    "disconnecting_description": "正在將調變解調器從網路中斷…",
+    "reconnecting_description": "正在將調變解調器重新連線到網路…",
+    "reconnect_action": "重新連線",
+    "reconnect_complete": "調變解調器已重新連線。",
+    "reconnect_failed": "重新連線調變解調器失敗。",
+    "reboot_description": "裝置將重啟，在其重新上線之前所有網路連線都會中斷。",
+    "reboot_sent": "重啟指令已送出，你即將登出…",
+    "reboot_now": "立即重啟"
+  },
+  "pending_reboot": {
+    "title": "重新啟動以完成變更",
+    "reboot_now": "立即重新啟動",
+    "rebooting": "正在重新啟動…",
+    "dismiss": "忽略",
+    "reboot_failed_toast": "無法啟動重新啟動，請重試。",
+    "description": {
+      "config_restore": "還原的 IMEI 變更或 SIM 設定檔將在下次重新啟動後生效。",
+      "imei": "新的 IMEI 將在下次重新啟動後生效。",
+      "mbn": "新的電信業者設定檔會在數據機重新啟動後生效。",
+      "default": "部分變更將在下次重新啟動後生效。"
+    },
+    "dismiss_dialog": {
+      "title": "忽略重新啟動提醒？",
+      "description": "需要重新啟動的變更在數據機重新啟動前不會生效。僅在已重新啟動後才忽略。",
+      "keep": "保留提醒",
+      "confirm": "忽略"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "正在關機…",
+      "restarting": "正在重新啟動服務…",
+      "almost_ready": "即將就緒…",
+      "overtime": "耗時比平常更久…"
+    },
+    "subtitle": {
+      "normal": "裝置很快就會恢復上線",
+      "overtime": "裝置仍在重新啟動"
+    },
+    "timer_aria_one": "剩餘 {{count}} 秒",
+    "timer_aria_other": "剩餘 {{count}} 秒",
+    "timer_overtime_aria": "正在重新連線，耗時比平常更久",
+    "seconds_unit": "秒",
+    "escape": "裝置可能需要人工處理。前往登入"
+  },
+  "change_password": {
+    "title": "變更密碼",
+    "description": "變更密碼後您將被登出。",
+    "current_label": "目前密碼",
+    "new_label": "新密碼",
+    "confirm_label": "確認新密碼",
+    "match": "密碼一致",
+    "mismatch": "密碼不一致",
+    "error_weak": "新密碼至少需要 6 個字元。",
+    "error_weak_strong": "新密碼至少需要 6 個字元，並包含大寫字母、小寫字母和數字。",
+    "error_mismatch": "兩次輸入的新密碼不一致。",
+    "failed_toast": "無法變更密碼，請再試一次。",
+    "cancel": "取消",
+    "submit": "變更密碼",
+    "submitting": "正在變更…"
+  },
+  "password_rules": {
+    "requirements_label": "密碼要求",
+    "rule": {
+      "length": "至少 6 個字元",
+      "uppercase": "大寫字母",
+      "lowercase": "小寫字母",
+      "number": "數字"
+    },
+    "met": "（已符合）",
+    "not_met": "（未符合）",
+    "strong_label": "使用強密碼",
+    "strong_hint_label": "關於強密碼",
+    "strong_hint": "需要包含大寫字母、小寫字母和數字。"
   }
 }

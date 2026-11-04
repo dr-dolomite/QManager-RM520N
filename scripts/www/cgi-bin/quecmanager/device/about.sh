@@ -5,7 +5,7 @@
 # about.sh -- CGI Endpoint: About Device (GET-only)
 # =============================================================================
 # Gathers device identity, network addresses, 3GPP release info, public IPs,
-# and OpenWRT system info into a single JSON response.
+# and host system info into a single JSON response.
 #
 # Data sources:
 #   /tmp/qmanager_status.json       -> Poller cache (firmware, IMEI, WAN IPs,
@@ -13,7 +13,8 @@
 #   AT+QNWCFG="3gpp_rel"           -> 3GPP release versions (LTE, NR5G)
 #   https://api.ipify.org           -> Public IPv4 (3s timeout, non-blocking)
 #   https://api6.ipify.org          -> Public IPv6 (3s timeout, non-blocking)
-#   /etc/openwrt_release            -> OpenWRT version
+#   /etc/quectel-project-version    -> Modem firmware revision, read through
+#                                       hw_profile.sh (never parsed here)
 #   uname -r                       -> Linux kernel version
 #
 # Endpoint: GET /cgi-bin/quecmanager/device/about.sh
@@ -24,15 +25,36 @@ qlog_init "cgi_about"
 cgi_headers
 cgi_handle_options
 
+# Hardware identity library — the single tolerant parser for the Quectel vendor
+# version file. Sourced AFTER cgi_headers on purpose: hw_profile.sh emits
+# nothing at source time today (its top level is only `:` defaults, two
+# constants and function definitions), but a library that ever did would
+# corrupt the HTTP headers, and the ordering costs nothing.
+#
+# Guarded, and it logs on both arms — mirroring qmanager_poller:417-423. A
+# missing library is a partial install / mid-OTA / rollback window, not an
+# error worth failing the whole endpoint over: resolve_firmware_revision()
+# below degrades to an empty firmware string and every other field still
+# serves.
+if [ -f /usr/lib/qmanager/hw_profile.sh ]; then
+    . /usr/lib/qmanager/hw_profile.sh 2>/dev/null \
+        || qlog_error "hw_profile.sh failed to load; firmware revision reports empty"
+else
+    qlog_error "hw_profile.sh not found; firmware revision reports empty"
+fi
+
 CACHE_FILE="/tmp/qmanager_status.json"
 CMD_GAP=0.2
 PUB_IP_TIMEOUT=3
+PUB_IP_CACHE="/tmp/qmanager_public_ip"
+PUB_IP_TTL=300
 
 # --- Cleanup for temp files --------------------------------------------------
 pub4_file="/tmp/qmanager_pub_ipv4.$$"
 pub6_file="/tmp/qmanager_pub_ipv6.$$"
+pub_ip_tmp="/tmp/qmanager_public_ip.$$"
 cleanup() {
-    rm -f "$pub4_file" "$pub6_file"
+    rm -f "$pub4_file" "$pub6_file" "$pub_ip_tmp"
 }
 trap cleanup EXIT INT TERM
 
@@ -43,22 +65,7 @@ if [ "$REQUEST_METHOD" != "GET" ]; then
 fi
 
 # =============================================================================
-# 1. Fire off public IP fetches FIRST (background, non-blocking)
-#    These run in parallel while we do everything else.
-# =============================================================================
-if command -v curl >/dev/null 2>&1; then
-    # -L: follow redirects; -k: tolerate missing CA certs
-    ( curl -sLk --max-time "$PUB_IP_TIMEOUT" https://api.ipify.org > "$pub4_file" 2>/dev/null ) &
-    pid4=$!
-    ( curl -sLk --max-time "$PUB_IP_TIMEOUT" https://api6.ipify.org > "$pub6_file" 2>/dev/null ) &
-    pid6=$!
-else
-    pid4=""
-    pid6=""
-fi
-
-# =============================================================================
-# 2. Read poller cache (single jq call)
+# 1. Read poller cache (single jq call)
 # =============================================================================
 c_firmware=""
 c_build_date=""
@@ -85,10 +92,49 @@ if [ -f "$CACHE_FILE" ]; then
 fi
 
 # =============================================================================
+# 2. Public IPs: reuse the cache, else fire the fetches (background, parallel)
+# =============================================================================
+# Cache line "wan4|wan6|pub4|pub6|epoch" is reused only if it is ours, a plain
+# file, under PUB_IP_TTL old, and the WAN IPs it was fetched for still match.
+public_ipv4=""
+public_ipv6=""
+pub_cached=0
+pid4=""
+pid6=""
+if [ -O "$PUB_IP_CACHE" ] && [ -f "$PUB_IP_CACHE" ] && [ ! -L "$PUB_IP_CACHE" ]; then
+    IFS='|' read -r k_wan4 k_wan6 k_pub4 k_pub6 k_ts < "$PUB_IP_CACHE"
+    case "$k_ts" in
+        ''|*[!0-9]*) ;;
+        *)
+            k_age=$(( $(date +%s) - k_ts ))
+            if [ "$k_age" -ge 0 ] && [ "$k_age" -lt "$PUB_IP_TTL" ] \
+               && [ -n "$c_wan_ipv4" ] && [ "$k_wan4" = "$c_wan_ipv4" ] && [ "$k_wan6" = "$c_wan_ipv6" ]; then
+                public_ipv4="$k_pub4"
+                public_ipv6="$k_pub6"
+                pub_cached=1
+            fi
+            ;;
+    esac
+fi
+
+if [ "$pub_cached" = "0" ] && command -v curl >/dev/null 2>&1; then
+    # -L: follow redirects; -k: tolerate missing CA certs
+    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api.ipify.org > "$pub4_file" 2>/dev/null ) &
+    pid4=$!
+    ( curl -sL --max-time "$PUB_IP_TIMEOUT" https://api6.ipify.org > "$pub6_file" 2>/dev/null ) &
+    pid6=$!
+fi
+
+# =============================================================================
 # 3. AT commands for data not in the poller cache
 # =============================================================================
 # 3GPP release is the only live AT call here. LAN IP/gateway moved to the
 # poller's collect_boot_data() and is read from the cache above.
+#
+# AT+QNWCFG="3gpp_rel" does not exist on RG501Q-EU (SDX55): its own
+# AT+QNWCFG=? capability list has no "3gpp_rel" entry, confirmed on 3
+# retries. Expect a qcmd ERROR log line on every About-page load on that
+# device — the empty rel_lte/rel_nr5g fallback below is correct, not a bug.
 rel_lte=""
 rel_nr5g=""
 
@@ -102,40 +148,75 @@ if [ -n "$line" ]; then
 fi
 
 # =============================================================================
-# 4. OpenWRT system info
+# 4. Host system info
 # =============================================================================
+
+# resolve_firmware_revision -- the modem firmware build string, for the About
+# page's system.openwrt_version field. Display-only: nothing computes on it.
+#
+# Reads through hw_profile.sh's qm_hw_fw_fingerprint instead of hand-rolling a
+# second parser for the same five-line vendor file. This was the LAST such
+# parser in the tree; one straggler is the worst resting state, because the
+# next person to touch identity reads finds two idioms and picks the wrong one.
+#
+# TWO NORMALIZATIONS keep the wire format matching the pre-migration output:
+#
+#   1. The library returns its "unknown" sentinel where the old expression
+#      returned "" — deliberately, per hw_profile.sh:49-51, so that a caller
+#      cannot mistake "unreadable" for a value. That is right for the library
+#      and wrong for this field: `unknown` would render verbatim on the About
+#      page. Map it back.
+#   2. A missing library returns "" rather than aborting.
+#
+# RETURN, NEVER EXIT. cgi_headers has already run by this point, so an `exit`
+# here would leave lighttpd emitting headers and a zero-length body — killing
+# every field in the response, not just this one.
+#
+# NOT byte-identical to the old expression in every case, and better where it
+# differs: the library takes only the first match, anchors on ^Project,
+# requires a colon, strips to the first colon rather than the last, preserves
+# internal spaces, and drops a trailing tab. No vendor file produces an input
+# that tells them apart; the harness header enumerates all six.
+resolve_firmware_revision() {
+    local fw
+    command -v qm_hw_fw_fingerprint >/dev/null 2>&1 || { printf ''; return 0; }
+    fw=$(qm_hw_fw_fingerprint)
+    [ "$fw" = "${QM_HW_UNKNOWN:-unknown}" ] && fw=""
+    printf '%s' "$fw"
+    return 0
+}
+
 sys_hostname=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo "")
 sys_kernel=$(uname -r 2>/dev/null || echo "")
-sys_openwrt=""
-if [ -f /etc/openwrt_release ]; then
-    sys_openwrt=$(. /etc/openwrt_release && echo "$DISTRIB_RELEASE")
-elif [ -f /etc/quectel-project-version ]; then
-    sys_openwrt=$(grep 'Project Rev' /etc/quectel-project-version 2>/dev/null | sed 's/.*: *//' | tr -d ' \r')
-fi
+sys_openwrt=$(resolve_firmware_revision)
 
 # =============================================================================
 # 5. Collect public IP results (wait for background jobs, bounded by timeout)
 # =============================================================================
-public_ipv4=""
-public_ipv6=""
-
 [ -n "$pid4" ] && wait "$pid4" 2>/dev/null
 [ -n "$pid6" ] && wait "$pid6" 2>/dev/null
 
 # Read and validate (basic sanity: no HTML, no error pages)
-if [ -f "$pub4_file" ]; then
+if [ "$pub_cached" = "0" ] && [ -f "$pub4_file" ]; then
     raw=$(cat "$pub4_file" 2>/dev/null | tr -d '\n\r ')
     case "$raw" in
         *"<"*|"") ;;  # HTML or empty — skip
         *) public_ipv4="$raw" ;;
     esac
 fi
-if [ -f "$pub6_file" ]; then
+if [ "$pub_cached" = "0" ] && [ -f "$pub6_file" ]; then
     raw=$(cat "$pub6_file" 2>/dev/null | tr -d '\n\r ')
     case "$raw" in
         *"<"*|"") ;;
         *) public_ipv6="$raw" ;;
     esac
+fi
+
+# Cache a fresh result: never a failed v4; an empty v6 only when no WAN IPv6 exists.
+if [ "$pub_cached" = "0" ] && [ -n "$public_ipv4" ] && [ -n "$c_wan_ipv4" ] \
+   && { [ -n "$public_ipv6" ] || [ -z "$c_wan_ipv6" ]; }; then
+    printf '%s|%s|%s|%s|%s\n' "$c_wan_ipv4" "$c_wan_ipv6" "$public_ipv4" "$public_ipv6" "$(date +%s)" > "$pub_ip_tmp" 2>/dev/null \
+        && mv -f "$pub_ip_tmp" "$PUB_IP_CACHE" 2>/dev/null
 fi
 
 # =============================================================================

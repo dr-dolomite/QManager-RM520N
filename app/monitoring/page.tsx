@@ -1,10 +1,15 @@
-import NetworkEventsComponent from '@/components/monitoring/network-events'
-import React from 'react'
+"use client";
 
-const NetworkAnalysisPage = () => {
-  return (
-    <NetworkEventsComponent />
-  )
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// Network Events moved to /monitoring/events; this keeps old bookmarks working.
+export default function MonitoringRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/monitoring/events");
+  }, [router]);
+
+  return null;
 }
-
-export default NetworkAnalysisPage

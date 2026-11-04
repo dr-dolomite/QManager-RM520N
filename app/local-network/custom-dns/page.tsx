@@ -1,20 +1,14 @@
-import CustomDnsCard from "@/components/local-network/custom-dns/custom-dns-card";
+import CustomDnsComponent from "@/components/local-network/custom-dns/custom-dns";
 
+// The route file is deliberately thin. The page header, the live band, the write
+// card and the motion cascade all live in the shell, because this file is a
+// SERVER component and a cascade root has to be a client one — which is why the
+// header used to snap in while the rest of `/local-network/` faded.
+//
+// Same shape as the two sibling routes under `/local-network/`: page.tsx
+// re-exports a shell and holds no markup of its own.
 const CustomDnsPage = () => {
-  return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Custom DNS</h1>
-        <p className="text-muted-foreground">
-          Choose which DNS resolver the modem uses to answer LAN clients&apos;
-          queries.
-        </p>
-      </div>
-      <div className="grid gap-4 @4xl:grid-cols-2">
-        <CustomDnsCard />
-      </div>
-    </div>
-  );
+  return <CustomDnsComponent />;
 };
 
 export default CustomDnsPage;

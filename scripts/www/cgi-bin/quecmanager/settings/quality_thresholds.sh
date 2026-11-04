@@ -1,14 +1,16 @@
 #!/bin/sh
 # =============================================================================
-# quality_thresholds.sh — CGI Endpoint: Latency & Loss Thresholds (GET + POST)
+# quality_thresholds.sh — CGI Endpoint: Connection Quality thresholds (GET + POST)
 # =============================================================================
-# GET:  Returns current per-row preset selections + is_default flag.
-# POST: Saves preset selections (one of standard/tolerant/very-tolerant per row),
-#       writes /etc/qmanager/quality_thresholds.json atomically, pokes the
-#       events.sh reload flag at /tmp/qmanager_events_reload.
+# GET:  Returns the latency/loss presets with their resolved values, plus the
+#       single alert wait (alert_after_min), and an is_default flag.
+# POST: Saves any of latency.preset, loss.preset (standard/tolerant/very-tolerant/custom),
+#       latency.custom_ms (1-10000), loss.custom_pct (1-100), alert_after_min (1-1440 min)
+#       by MERGING into /etc/qmanager/quality_thresholds.json (unknown keys
+#       survive) and pokes the poller (/tmp/qmanager_events_reload) and watchdog reload flags.
 #
-# Threshold values themselves resolve in scripts/usr/lib/qmanager/events.sh
-# (single source of truth) — this CGI writes only preset names.
+# The preset table and the wait resolver live in conn_state.sh (single source
+# of truth) — this CGI writes only preset names and the wait.
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/settings/quality_thresholds.sh
 # Install location: /www/cgi-bin/quecmanager/settings/quality_thresholds.sh
@@ -16,21 +18,20 @@
 
 LIB_DIR="${QM_LIB_DIR:-/usr/lib/qmanager}"
 . "$LIB_DIR/cgi_base.sh"
+. "$LIB_DIR/conn_state.sh"
+. "$LIB_DIR/monitoring_validate.sh"
 
 qlog_init "cgi_quality_thresholds"
 cgi_headers
 cgi_handle_options
 
-CONFIG="${QUALITY_CONFIG:-/etc/qmanager/quality_thresholds.json}"
-RELOAD_FLAG="${QUALITY_RELOAD_FLAG:-/tmp/qmanager_events_reload}"
+CONFIG="$QUALITY_CONFIG"
 
-VALID_PRESETS='standard tolerant very-tolerant'
-
-is_valid_preset() {
-    case "$1" in
-        standard|tolerant|very-tolerant) return 0 ;;
-        *) return 1 ;;
-    esac
+# _num_key_int section key: the stored value when it is a JSON integer, else nothing.
+_num_key_int() {
+    jq -r --arg s "$1" --arg k "$2" \
+        '(try .[$s][$k] catch null) | if type == "number" and . == floor then tostring else "" end' \
+        "$CONFIG" 2>/dev/null </dev/null
 }
 
 # =============================================================================
@@ -43,18 +44,24 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     loss="tolerant"
     lat_ok=false
     loss_ok=false
+    lat_custom=""
+    loss_custom=""
 
     if [ -f "$CONFIG" ]; then
-        v_lat=$(jq -r '.latency.preset // empty' "$CONFIG" 2>/dev/null) || v_lat=""
-        v_loss=$(jq -r '.loss.preset // empty' "$CONFIG" 2>/dev/null) || v_loss=""
+        v_lat=$(jq -r '(try .latency.preset catch null) | if type == "string" then . else "" end' "$CONFIG" 2>/dev/null </dev/null) || v_lat=""
+        v_loss=$(jq -r '(try .loss.preset catch null) | if type == "string" then . else "" end' "$CONFIG" 2>/dev/null </dev/null) || v_loss=""
+        lat_custom=$(_num_key_int latency custom_ms)
+        loss_custom=$(_num_key_int loss custom_pct)
         case "$v_lat" in
             standard|tolerant|very-tolerant) lat="$v_lat"; lat_ok=true ;;
-            *) qlog_warn "quality_thresholds.json had unexpected latency preset '$v_lat', returning default" ;;
+            custom) cq_preset_latency custom "$lat_custom" && { lat="custom"; lat_ok=true; } ;;
         esac
         case "$v_loss" in
             standard|tolerant|very-tolerant) loss="$v_loss"; loss_ok=true ;;
-            *) qlog_warn "quality_thresholds.json had unexpected loss preset '$v_loss', returning default" ;;
+            custom) cq_preset_loss custom "$loss_custom" && { loss="custom"; loss_ok=true; } ;;
         esac
+        [ "$lat_ok" = "true" ] || qlog_warn "quality_thresholds.json had unusable latency preset '$v_lat', returning default"
+        [ "$loss_ok" = "true" ] || qlog_warn "quality_thresholds.json had unusable loss preset '$v_loss', returning default"
     fi
 
     if [ "$lat_ok" = "true" ] && [ "$loss_ok" = "true" ]; then
@@ -63,13 +70,27 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         is_default=true
     fi
 
+    cq_preset_latency "$lat" "$lat_custom"
+    cq_preset_loss "$loss" "$loss_custom"
+    cq_alert_after_min
+
     jq -n --arg lat "$lat" --arg loss "$loss" --argjson is_default "$is_default" \
-        '{success: true, settings: {latency: {preset: $lat}, loss: {preset: $loss}}, is_default: $is_default}'
+        --argjson lat_ms "$CQ_LAT_MS" --argjson lat_deb "$CQ_LAT_DEBOUNCE" \
+        --argjson loss_pct "$CQ_LOSS_PCT" --argjson loss_deb "$CQ_LOSS_DEBOUNCE" \
+        --argjson wait "$CQ_ALERT_AFTER_MIN" \
+        --argjson lat_custom "${lat_custom:-null}" --argjson loss_custom "${loss_custom:-null}" \
+        '{success: true,
+          settings: {
+            latency: {preset: $lat, value_ms: $lat_ms, debounce: $lat_deb, custom_ms: $lat_custom},
+            loss: {preset: $loss, value_pct: $loss_pct, debounce: $loss_deb, custom_pct: $loss_custom},
+            alert_after_min: $wait
+          },
+          is_default: $is_default}'
     exit 0
 fi
 
 # =============================================================================
-# POST — Save presets
+# POST — Save presets and/or the alert wait
 # =============================================================================
 if [ "$REQUEST_METHOD" = "POST" ]; then
     cgi_read_post
@@ -85,39 +106,54 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
-    new_lat=$(printf '%s' "$POST_DATA" | jq -r '.latency.preset // empty' 2>/dev/null)
-    if ! is_valid_preset "$new_lat"; then
-        cgi_error "invalid_latency_preset" "latency.preset must be one of: $VALID_PRESETS"
-        exit 0
+    # alert_after_min: absent = leave as is; present must be an integer 1-1440.
+    new_wait=$(printf '%s' "$POST_DATA" | jq -r 'if has("alert_after_min") then (.alert_after_min | tojson) else "" end' 2>/dev/null)
+    if [ -n "$new_wait" ]; then
+        if ! _r=$(mv_quality_check_wait "$new_wait"); then
+            cgi_error "invalid_alert_after_min" "$_r"
+            exit 0
+        fi
     fi
 
-    new_loss=$(printf '%s' "$POST_DATA" | jq -r '.loss.preset // empty' 2>/dev/null)
-    if ! is_valid_preset "$new_loss"; then
-        cgi_error "invalid_loss_preset" "loss.preset must be one of: $VALID_PRESETS"
-        exit 0
+    # Presets are required unless this POST carries only alert_after_min.
+    new_lat=$(printf '%s' "$POST_DATA" | jq -r '(.latency.preset // empty) | if type == "string" then . else "" end' 2>/dev/null)
+    if [ -n "$new_lat" ] || [ -z "$new_wait" ]; then
+        if ! _r=$(mv_check_preset latency.preset "$new_lat"); then
+            cgi_error "invalid_latency_preset" "$_r"
+            exit 0
+        fi
     fi
 
-    mkdir -p "$(dirname "$CONFIG")"
-
-    # Atomic write: jq into .tmp, then mv. Avoids zero-byte config on jq failure.
-    if ! jq -n --arg lat "$new_lat" --arg loss "$new_loss" \
-        '{latency: {preset: $lat}, loss: {preset: $loss}}' > "${CONFIG}.tmp"; then
-        rm -f "${CONFIG}.tmp"
-        cgi_error "write_failed" "Failed to generate config JSON"
-        exit 0
+    new_loss=$(printf '%s' "$POST_DATA" | jq -r '(.loss.preset // empty) | if type == "string" then . else "" end' 2>/dev/null)
+    if [ -n "$new_loss" ] || [ -z "$new_wait" ]; then
+        if ! _r=$(mv_check_preset loss.preset "$new_loss"); then
+            cgi_error "invalid_loss_preset" "$_r"
+            exit 0
+        fi
     fi
 
-    if ! mv "${CONFIG}.tmp" "$CONFIG"; then
-        rm -f "${CONFIG}.tmp"
+    # A custom preset needs its integer: latency 1-10000 ms, loss 1-100 %.
+    new_lat_custom=""
+    new_loss_custom=""
+    if [ "$new_lat" = "custom" ]; then
+        new_lat_custom=$(printf '%s' "$POST_DATA" | jq -r '.latency.custom_ms | if type == "number" and . == floor then tostring else "" end' 2>/dev/null)
+        if ! mv_quality_custom_ok latency "$new_lat_custom"; then
+            cgi_error "invalid_custom_latency" "latency.custom_ms must be a whole number between 1 and 10000"
+            exit 0
+        fi
+    fi
+    if [ "$new_loss" = "custom" ]; then
+        new_loss_custom=$(printf '%s' "$POST_DATA" | jq -r '.loss.custom_pct | if type == "number" and . == floor then tostring else "" end' 2>/dev/null)
+        if ! mv_quality_custom_ok loss "$new_loss_custom"; then
+            cgi_error "invalid_custom_loss" "loss.custom_pct must be a whole number between 1 and 100"
+            exit 0
+        fi
+    fi
+
+    # Merge: only the keys this POST carries are touched. A named preset keeps any stored custom number.
+    if ! mv_quality_save "$new_wait" "$new_lat" "$new_lat_custom" "$new_loss" "$new_loss_custom"; then
         cgi_error "write_failed" "Failed to write config file"
         exit 0
-    fi
-
-    qlog_info "Quality thresholds saved: latency=$new_lat loss=$new_loss"
-
-    # Poke events.sh reload (failure non-fatal; old config remains active).
-    if ! touch "$RELOAD_FLAG" 2>/dev/null; then
-        qlog_warn "Failed to touch reload flag at $RELOAD_FLAG (poller may not reload until restart)"
     fi
 
     cgi_success

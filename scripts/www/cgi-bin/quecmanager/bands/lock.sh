@@ -23,11 +23,8 @@ qlog_init "cgi_bands_lock"
 cgi_headers
 cgi_handle_options
 
-# --- Configuration -----------------------------------------------------------
-FAILOVER_ENABLED_FILE="/etc/qmanager/band_failover_enabled"
-FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
-FAILOVER_PID_FILE="/tmp/qmanager_band_failover.pid"
-FAILOVER_SCRIPT="/usr/bin/qmanager_band_failover"
+# --- Libraries ---------------------------------------------------------------
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -54,77 +51,41 @@ if [ -z "$BANDS" ]; then
 fi
 
 # Validate band_type is one of the allowed values
-AT_PARAM=""
-case "$BAND_TYPE" in
-    lte)        AT_PARAM="lte_band" ;;
-    nsa_nr5g)   AT_PARAM="nsa_nr5g_band" ;;
-    sa_nr5g)    AT_PARAM="nr5g_band" ;;
-    *)
-        cgi_error "invalid_band_type" "band_type must be lte, nsa_nr5g, or sa_nr5g"
-        exit 0
-        ;;
-esac
+if ! rv_band_type "$BAND_TYPE"; then
+    cgi_error "invalid_band_type" "band_type must be lte, nsa_nr5g, or sa_nr5g"
+    exit 0
+fi
+AT_PARAM="$RV_AT_PARAM"
 
 # Validate bands format: must be colon-delimited numbers only
-cleaned=$(echo "$BANDS" | tr -d '0-9:')
-if [ -n "$cleaned" ]; then
+if ! rv_bands_format "$BANDS"; then
     cgi_error "invalid_bands" "bands must be colon-delimited numbers (e.g. 1:3:7:28)"
+    exit 0
+fi
+
+# Reject bands the modem does not support (an unknown supported list passes).
+case "$BAND_TYPE" in
+    lte)      SUP_KEY="supported_lte_bands" ;;
+    nsa_nr5g) SUP_KEY="supported_nsa_nr5g_bands" ;;
+    *)        SUP_KEY="supported_sa_nr5g_bands" ;;
+esac
+SUPPORTED=$(jq -r ".device.$SUP_KEY // empty" /tmp/qmanager_status.json 2>/dev/null)
+if ! rv_bands_supported "$BANDS" "$SUPPORTED"; then
+    cgi_error "invalid_bands" "One or more bands are not supported by this modem"
     exit 0
 fi
 
 qlog_info "Band lock request: type=$BAND_TYPE param=$AT_PARAM bands=$BANDS"
 
 # --- Send AT command ---------------------------------------------------------
-AT_CMD="AT+QNWPREFCFG=\"${AT_PARAM}\",${BANDS}"
-
-result=$(qcmd "$AT_CMD" 2>/dev/null)
-rc=$?
-
-if [ $rc -ne 0 ] || [ -z "$result" ]; then
-    qlog_error "Band lock failed (rc=$rc): $AT_CMD"
+if ! bands_lock_write "$AT_PARAM" "$BANDS"; then
     cgi_error "modem_error" "Failed to send band lock command"
     exit 0
 fi
 
-case "$result" in
-    *ERROR*)
-        qlog_error "Band lock AT ERROR: $AT_CMD -> $result"
-        cgi_error "at_error" "Modem rejected band lock command"
-        exit 0
-        ;;
-esac
-
-qlog_info "Band lock applied: $AT_PARAM=$BANDS"
-
-# --- Clear failover activation flag (new lock supersedes previous failover) --
-rm -f "$FAILOVER_ACTIVATED_FLAG"
-
-# --- Spawn failover watcher if enabled ---------------------------------------
-failover_armed="false"
-
-failover_enabled="false"
-if [ -f "$FAILOVER_ENABLED_FILE" ]; then
-    val=$(cat "$FAILOVER_ENABLED_FILE" 2>/dev/null | tr -d ' \n\r')
-    [ "$val" = "1" ] && failover_enabled="true"
-fi
-
-if [ "$failover_enabled" = "true" ] && [ -x "$FAILOVER_SCRIPT" ]; then
-    # Kill any existing watcher (latest lock is the one we monitor)
-    if [ -f "$FAILOVER_PID_FILE" ]; then
-        old_pid=$(cat "$FAILOVER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
-        if pid_alive "$old_pid"; then
-            kill "$old_pid" 2>/dev/null
-            qlog_debug "Killed previous failover watcher (PID=$old_pid)"
-        fi
-        rm -f "$FAILOVER_PID_FILE"
-    fi
-
-    # Spawn new watcher (detached via double-fork to escape CGI process group)
-    # The & is INSIDE the outer (), making the script a grandchild reparented to init
-    ( "$FAILOVER_SCRIPT" </dev/null >/dev/null 2>&1 & )
-    qlog_info "Failover watcher spawned"
-    failover_armed="true"
-fi
+# --- Clear failover flag, respawn the watcher if failover is enabled ---------
+bands_arm_failover
+failover_armed="$BANDS_FAILOVER_ARMED"
 
 # --- Response ----------------------------------------------------------------
 jq -n --arg bt "$BAND_TYPE" --arg b "$BANDS" --argjson fa "$failover_armed" \

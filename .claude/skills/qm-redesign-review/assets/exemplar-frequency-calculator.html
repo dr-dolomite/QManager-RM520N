@@ -1,0 +1,1087 @@
+<meta charset="utf-8">
+<title>Frequency Calculator Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  QManager redesign review: the worked exemplar, on the Frequency Calculator as of commit 11b75e46.
+  Built from assets/template.html; tokens are app/globals.css verbatim (:root into :root, .dark into both dark blocks).
+  Check it with: python scripts/finalize.py assets/exemplar-frequency-calculator.html --check
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400..600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..500,0..1,0&display=block">
+<style>
+/* ── Tokens: light (app/globals.css :root, verbatim) ─────────── */
+:root {
+  --background: oklch(0.985 0.003 258);
+  --surface: oklch(1 0 258);
+  --surface-container: oklch(0.967 0.005 258);
+  --surface-container-high: oklch(0.938 0.007 258);
+  --on-surface: oklch(0.205 0.011 258);
+  --on-surface-variant: oklch(0.505 0.012 258);
+  --border: oklch(0.905 0.006 258);
+  --outline: oklch(0.868 0.008 258);
+  --input: oklch(0.868 0.008 258);
+  --ring: oklch(0.565 0.235 262);
+
+  --primary: oklch(0.565 0.235 262);
+  --primary-foreground: oklch(0.985 0.006 262);
+  --primary-on-surface: oklch(0.535 0.22 262);
+  --primary-container: oklch(0.89 0.052 262);
+  --on-primary-container: oklch(0.36 0.16 262);
+  --lte: oklch(0.51 0.24 296);
+  --lte-foreground: oklch(0.985 0.007 296);
+  --lte-on-surface: oklch(0.465 0.22 296);
+  --lte-container: oklch(0.85 0.082 296);
+  --on-lte-container: oklch(0.36 0.16 296);
+  --downlink: oklch(0.48 0.204 341);
+  --downlink-on-surface: oklch(0.45 0.191 341);
+  --uplink: oklch(0.545 0.091 200);
+  --uplink-on-surface: oklch(0.515 0.086 200);
+  --spatial: oklch(0.55 0.11 232);
+  --spatial-on-surface: oklch(0.515 0.103 232);
+
+  --success: oklch(0.54 0.15 149);
+  --success-foreground: oklch(0.985 0.012 149);
+  --success-on-surface: oklch(0.505 0.14 149);
+  --success-container: oklch(0.895 0.145 149);
+  --on-success-container: oklch(0.36 0.1 149);
+  --warning: oklch(0.56 0.118 72);
+  --warning-on-surface: oklch(0.525 0.11 72);
+  --warning-container: oklch(0.855 0.115 72);
+  --on-warning-container: oklch(0.36 0.075 72);
+  --destructive: oklch(0.48 0.192 27);
+  --destructive-foreground: oklch(0.985 0.007 27);
+  --destructive-on-surface: oklch(0.44 0.176 27);
+  --destructive-container: oklch(0.835 0.089 27);
+  --on-destructive-container: oklch(0.36 0.144 27);
+  --tone-destructive-1: oklch(0.945 0.027 27);
+
+  --quality-1: oklch(0.385 0.154 27);  --quality-1-bar: oklch(0.48 0.192 27);
+  --quality-2: oklch(0.415 0.116 45);  --quality-2-bar: oklch(0.51 0.143 45);
+  --quality-3: oklch(0.445 0.093 72);  --quality-3-bar: oklch(0.54 0.113 72);
+  --quality-4: oklch(0.475 0.106 115); --quality-4-bar: oklch(0.57 0.127 115);
+  --quality-5: oklch(0.505 0.14 149);  --quality-5-bar: oklch(0.6 0.166 149);
+
+  --tag-nr-text: oklch(0.535 0.22 262);       --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.465 0.22 296);      --tag-lte-border: oklch(0.545 0.19 296);
+  --tag-spatial-text: oklch(0.515 0.103 232); --tag-spatial-border: oklch(0.615 0.123 232);
+  --tag-neutral-text: oklch(0.505 0.012 258); --tag-neutral-border: oklch(0.62 0.012 258);
+
+  --shadow-whisper: 0 1px 2px oklch(0.205 0.011 258 / 6%);
+  --card-sheen: none;
+
+  /* Mock-only: components/ui/tabs.tsx active trigger (bg-background + shadow-sm in light). */
+  --seg-on: oklch(0.985 0.003 258);
+  --seg-shadow: 0 1px 2px oklch(0 0 0 / 0.1);
+
+  --font-sans: "Rethink Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --duration-quick: 360ms;
+  --duration-standard: 600ms;
+  --duration-emphasized: 800ms;
+}
+/* ── Tokens: dark (app/globals.css .dark, verbatim; OS preference unless the host forces light) ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: oklch(0.12 0.008 258);
+    --surface: oklch(0.17 0.009 258);
+    --surface-container: oklch(0.2 0.01 258);
+    --surface-container-high: oklch(0.235 0.012 258);
+    --on-surface: oklch(0.965 0.004 258);
+    --on-surface-variant: oklch(0.762 0.011 258);
+    --border: oklch(0.288 0.012 258);
+    --outline: oklch(0.33 0.013 258);
+    --input: oklch(0.33 0.013 258);
+    --ring: oklch(0.605 0.2 262);
+    --primary: oklch(0.605 0.2 262);
+    --primary-foreground: oklch(0.195 0.055 262);
+    --primary-on-surface: oklch(0.65 0.183 262);
+    --primary-container: oklch(0.375 0.145 262);
+    --on-primary-container: oklch(0.9 0.047 262);
+    --lte: oklch(0.7 0.175 296);
+    --lte-foreground: oklch(0.195 0.055 296);
+    --lte-on-surface: oklch(0.74 0.149 296);
+    --lte-container: oklch(0.27 0.145 296);
+    --on-lte-container: oklch(0.9 0.053 296);
+    --downlink: oklch(0.66 0.2 341);
+    --downlink-on-surface: oklch(0.7 0.2 341);
+    --uplink: oklch(0.82 0.137 200);
+    --uplink-on-surface: oklch(0.87 0.145 200);
+    --spatial: oklch(0.79 0.127 232);
+    --spatial-on-surface: oklch(0.82 0.108 232);
+    --success: oklch(0.74 0.2 149);
+    --success-foreground: oklch(0.195 0.054 149);
+    --success-on-surface: oklch(0.78 0.2 149);
+    --success-container: oklch(0.31 0.086 149);
+    --on-success-container: oklch(0.9 0.11 149);
+    --warning: oklch(0.79 0.166 72);
+    --warning-on-surface: oklch(0.815 0.151 72);
+    --warning-container: oklch(0.41 0.086 72);
+    --on-warning-container: oklch(0.9 0.077 72);
+    --destructive: oklch(0.64 0.2 27);
+    --destructive-foreground: oklch(0.195 0.055 27);
+    --destructive-on-surface: oklch(0.68 0.2 27);
+    --destructive-container: oklch(0.245 0.098 27);
+    --on-destructive-container: oklch(0.9 0.051 27);
+    --tone-destructive-1: oklch(0.22 0.045 27);
+    --quality-1: oklch(0.64 0.2 27);    --quality-1-bar: oklch(0.6 0.22 27);
+    --quality-2: oklch(0.665 0.187 45); --quality-2-bar: oklch(0.645 0.181 45);
+    --quality-3: oklch(0.71 0.149 72);  --quality-3-bar: oklch(0.69 0.145 72);
+    --quality-4: oklch(0.755 0.168 115);--quality-4-bar: oklch(0.735 0.164 115);
+    --quality-5: oklch(0.8 0.2 149);    --quality-5-bar: oklch(0.78 0.216 149);
+    --tag-nr-text: oklch(0.65 0.183 262);       --tag-nr-border: oklch(0.6 0.19 262);
+    --tag-lte-text: oklch(0.74 0.149 296);      --tag-lte-border: oklch(0.54 0.19 296);
+    --tag-spatial-text: oklch(0.82 0.108 232);  --tag-spatial-border: oklch(0.64 0.128 232);
+    --tag-neutral-text: oklch(0.762 0.011 258); --tag-neutral-border: oklch(0.52 0.012 258);
+    --shadow-whisper: 0 0 #0000;
+    --card-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, oklch(1 0 0 / 0) 42%, oklch(0 0 0 / 0.03) 100%);
+    /* Mock-only: tabs.tsx dark active trigger (bg-input/30 + border-input). */
+    --seg-on: oklch(0.33 0.013 258 / 0.3);
+    --seg-shadow: inset 0 0 0 1px oklch(0.33 0.013 258);
+  }
+}
+/* ── Tokens: dark (forced by the host or the Theme toggle); keep identical to the block above ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(0.12 0.008 258);
+  --surface: oklch(0.17 0.009 258);
+  --surface-container: oklch(0.2 0.01 258);
+  --surface-container-high: oklch(0.235 0.012 258);
+  --on-surface: oklch(0.965 0.004 258);
+  --on-surface-variant: oklch(0.762 0.011 258);
+  --border: oklch(0.288 0.012 258);
+  --outline: oklch(0.33 0.013 258);
+  --input: oklch(0.33 0.013 258);
+  --ring: oklch(0.605 0.2 262);
+  --primary: oklch(0.605 0.2 262);
+  --primary-foreground: oklch(0.195 0.055 262);
+  --primary-on-surface: oklch(0.65 0.183 262);
+  --primary-container: oklch(0.375 0.145 262);
+  --on-primary-container: oklch(0.9 0.047 262);
+  --lte: oklch(0.7 0.175 296);
+  --lte-foreground: oklch(0.195 0.055 296);
+  --lte-on-surface: oklch(0.74 0.149 296);
+  --lte-container: oklch(0.27 0.145 296);
+  --on-lte-container: oklch(0.9 0.053 296);
+  --downlink: oklch(0.66 0.2 341);
+  --downlink-on-surface: oklch(0.7 0.2 341);
+  --uplink: oklch(0.82 0.137 200);
+  --uplink-on-surface: oklch(0.87 0.145 200);
+  --spatial: oklch(0.79 0.127 232);
+  --spatial-on-surface: oklch(0.82 0.108 232);
+  --success: oklch(0.74 0.2 149);
+  --success-foreground: oklch(0.195 0.054 149);
+  --success-on-surface: oklch(0.78 0.2 149);
+  --success-container: oklch(0.31 0.086 149);
+  --on-success-container: oklch(0.9 0.11 149);
+  --warning: oklch(0.79 0.166 72);
+  --warning-on-surface: oklch(0.815 0.151 72);
+  --warning-container: oklch(0.41 0.086 72);
+  --on-warning-container: oklch(0.9 0.077 72);
+  --destructive: oklch(0.64 0.2 27);
+  --destructive-foreground: oklch(0.195 0.055 27);
+  --destructive-on-surface: oklch(0.68 0.2 27);
+  --destructive-container: oklch(0.245 0.098 27);
+  --on-destructive-container: oklch(0.9 0.051 27);
+  --tone-destructive-1: oklch(0.22 0.045 27);
+  --quality-1: oklch(0.64 0.2 27);    --quality-1-bar: oklch(0.6 0.22 27);
+  --quality-2: oklch(0.665 0.187 45); --quality-2-bar: oklch(0.645 0.181 45);
+  --quality-3: oklch(0.71 0.149 72);  --quality-3-bar: oklch(0.69 0.145 72);
+  --quality-4: oklch(0.755 0.168 115);--quality-4-bar: oklch(0.735 0.164 115);
+  --quality-5: oklch(0.8 0.2 149);    --quality-5-bar: oklch(0.78 0.216 149);
+  --tag-nr-text: oklch(0.65 0.183 262);       --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.74 0.149 296);      --tag-lte-border: oklch(0.54 0.19 296);
+  --tag-spatial-text: oklch(0.82 0.108 232);  --tag-spatial-border: oklch(0.64 0.128 232);
+  --tag-neutral-text: oklch(0.762 0.011 258); --tag-neutral-border: oklch(0.52 0.012 258);
+  --shadow-whisper: 0 0 #0000;
+  --card-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, oklch(1 0 0 / 0) 42%, oklch(0 0 0 / 0.03) 100%);
+  --seg-on: oklch(0.33 0.013 258 / 0.3);
+  --seg-shadow: inset 0 0 0 1px oklch(0.33 0.013 258);
+}
+
+/* ── Base ───────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--on-surface); font: 400 15px/1.55 var(--font-sans); -webkit-font-smoothing: antialiased; }
+.ms {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none;
+  display: inline-block; white-space: nowrap; direction: ltr; flex: none; user-select: none;
+  font-feature-settings: "liga"; -webkit-font-feature-settings: "liga";
+  font-variation-settings: "FILL" 0, "wght" 400, "opsz" 24;
+}
+.ms.f { font-variation-settings: "FILL" 1, "wght" 400, "opsz" 24; }
+.num { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }  /* every figure, incl. EARFCN/PCI/band */
+.mono { font-family: var(--font-mono); }  /* opaque strings: IMEI, ICCID, IP, MAC, paths, raw AT */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+button { font: inherit; color: inherit; }
+/* Focus: 3px ring at full strength over a 2px gap (DESIGN.md > Buttons). */
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* ── Document chrome (the review page itself, not QManager) ─── */
+.doc { max-width: 1280px; margin: 0 auto; padding: 40px 16px 72px; display: flex; flex-direction: column; gap: 56px; }
+@media (min-width: 720px) { .doc { padding-inline: 32px; } }
+.doc-head { display: flex; flex-direction: column; gap: 10px; max-width: 70ch; }
+.eyebrow { font: 500 12px/1 var(--font-mono); color: var(--on-surface-variant); letter-spacing: 0.02em; overflow-wrap: anywhere; }
+.doc-head h1 { margin: 0; font: 700 34px/1.1 var(--font-sans); letter-spacing: -0.02em; text-wrap: balance; }
+.doc-head p { margin: 0; color: var(--on-surface-variant); font-size: 16px; text-wrap: pretty; }
+.sec { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.sec > h2 { margin: 0; font: 600 21px/1.2 var(--font-sans); letter-spacing: -0.01em; }
+.sec > .lede { margin: -12px 0 0; color: var(--on-surface-variant); max-width: 70ch; text-wrap: pretty; }
+.doc code { font: 500 12.5px/1.4 var(--font-mono); background: var(--surface-container); padding: 2px 6px; border-radius: 6px; color: var(--on-surface); }
+
+/* 1. before: pinned screenshot + findings */
+.before { display: grid; gap: 24px; }
+@media (min-width: 1000px) { .before { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; } }
+.shots { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.shot { position: relative; margin: 0; border-radius: 14px; overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--border); }
+.shot img { display: block; width: 100%; height: auto; }
+.shot.phone-shot { max-width: 320px; }
+.pin {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center;
+  background: oklch(0.565 0.235 262); color: #fff; font: 700 13px/1 var(--font-sans); font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 3px oklch(0.12 0.008 258 / 0.85), 0 4px 12px oklch(0 0 0 / 0.4);
+}
+.shot figcaption { position: absolute; left: 12px; bottom: 12px; font: 500 12px/1 var(--font-sans); color: #fff; background: oklch(0 0 0 / 0.6); padding: 6px 10px; border-radius: 999px; }
+.findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.findings li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; }
+.findings .n { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; background: var(--primary-container); color: var(--on-primary-container); font: 700 13px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+.findings b { display: block; font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.findings span { color: var(--on-surface-variant); font-size: 14px; text-wrap: pretty; }
+
+/* 2. demo controls */
+.demo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.demo-bar .grp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.demo-bar .lbl { font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); letter-spacing: 0.04em; text-transform: uppercase; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--on-surface-variant); }
+.chip:hover { color: var(--on-surface); background: var(--surface-container); }
+.chip[aria-pressed="true"] { background: var(--on-surface); color: var(--background); border-color: var(--on-surface); }
+
+/* stage: shows the mock at its chosen width */
+.stage { border-radius: 22px; background: var(--surface-container-high); padding: 12px; }
+.frame { margin: 0 auto; max-width: 100%; transition: max-width var(--duration-standard) var(--ease-standard); }
+.frame.phone { max-width: 390px; }
+
+/* 3. before and after: one row or component, same width, twice */
+.ba { display: grid; gap: 16px; }
+@media (min-width: 900px) { .ba { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.ba-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ba-side .lbl { font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); letter-spacing: 0.04em; text-transform: uppercase; }
+.ba-plate { background: var(--surface); background-image: var(--card-sheen); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-whisper); min-width: 0; }
+.ba-side .cls { font: 500 12px/1.5 var(--font-mono); color: var(--on-surface-variant); overflow-wrap: anywhere; margin: 0; }
+
+/* 4–5. change table + kept / ask */
+.tbl-wrap { overflow-x: auto; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+table.changes { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
+.changes th { text-align: left; font: 500 12px/1 var(--font-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-surface-variant); padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.changes td { padding: 14px 16px; vertical-align: top; border-bottom: 1px solid var(--border); text-wrap: pretty; }
+.changes tr:last-child td { border-bottom: 0; }
+.changes td:first-child { font-weight: 600; width: 28%; }
+.changes td:nth-child(2) { color: var(--on-surface-variant); }
+.changes code, .keep code, .ask code { white-space: nowrap; }
+.new { display: inline-block; margin-left: 6px; font: 600 10.5px/1 var(--font-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-warning-container); background: var(--warning-container); padding: 4px 8px; border-radius: 999px; vertical-align: 2px; }
+.cols2 { display: grid; gap: 24px; }
+@media (min-width: 900px) { .cols2 { grid-template-columns: 1fr 1fr; } }
+.keep, .ask { margin: 0; padding: 0 0 0 20px; display: flex; flex-direction: column; gap: 10px; color: var(--on-surface-variant); font-size: 14px; }
+.keep b, .ask b { color: var(--on-surface); font-weight: 600; }
+.sub { margin: 0 0 12px; font: 600 16px/1.3 var(--font-sans); }
+
+/* ── The QManager mock: primitives mirroring components/ui/* ────────
+   Container steps (Tailwind v4): @xs 20rem · @sm 24rem · @md 28rem · @lg 32rem · @xl 36rem
+   @2xl 42rem · @3xl 48rem · @4xl 56rem · @5xl 64rem · @6xl 72rem. Use the step the real
+   component will use, so the mock and the build agree. Geometry: references/artifact-spec.md. */
+.qm { container: main / inline-size; background: var(--background); border-radius: 16px; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; font-size: 14px; line-height: 1.5; }
+.qm-head h1 { margin: 0 0 6px; font: 700 30px/1.15 var(--font-sans); letter-spacing: -0.02em; }
+.qm-head p { margin: 0; color: var(--on-surface-variant); font-size: 14px; }
+
+/* Card: rounded-card 16, px-6 py-6 gap-6, border-0, card-sheen in dark. Hero: rounded-hero 20, 28px. */
+.card { container: card / inline-size; min-width: 0; background-color: var(--surface); background-image: var(--card-sheen); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-whisper); display: flex; flex-direction: column; gap: 24px; }
+.card.hero { border-radius: 20px; }
+@container main (min-width: 40rem) { .card.hero { padding: 28px; } }
+
+/* CardHeader: title + one-line description left, CardAction on the right edge. No icons in the title. */
+.sh { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
+.sh-t { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 16rem; }
+.sh h2 { margin: 0; font: 600 18px/1.3 var(--font-sans); }
+.sh p { margin: 0; color: var(--on-surface-variant); font-size: 14px; max-width: 56ch; text-wrap: pretty; }
+.sh-m { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+
+/* Outline Tag: identity and metadata only. px-2 py-0.5 text-xs font-medium, 22px. */
+.tag { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--tag-neutral-border); color: var(--tag-neutral-text); font: 500 12px/1 var(--font-sans); white-space: nowrap; }
+.tag.nr { border-color: var(--tag-nr-border); color: var(--tag-nr-text); }
+.tag.lte { border-color: var(--tag-lte-border); color: var(--tag-lte-text); }
+.tag.spatial { border-color: var(--tag-spatial-border); color: var(--tag-spatial-text); }
+.tag.mono { font-family: var(--font-mono); font-size: 11.5px; }
+
+/* Filled status Badge: container + on-container ink + mandatory 12px glyph. Same 22px box as a tag. */
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 999px; font: 500 12px/1 var(--font-sans); white-space: nowrap; }
+.badge .ms { font-size: 12px; font-variation-settings: "FILL" 1, "wght" 400, "opsz" 20; }
+.badge.success { background: var(--success-container); color: var(--on-success-container); }
+.badge.warning { background: var(--warning-container); color: var(--on-warning-container); }
+.badge.destructive { background: var(--destructive-container); color: var(--on-destructive-container); }
+.badge.info { background: var(--primary-container); color: var(--on-primary-container); }
+.badge.muted { background: var(--surface-container-high); color: var(--on-surface-variant); }
+
+/* Buttons: pill, 42px (PILL_ACTION), 600. One primary per card. .sm = PILL_QUIET (36px). */
+.btn { height: 42px; padding: 0 20px; border-radius: 999px; border: 0; background: var(--primary); color: var(--primary-foreground); font-weight: 600; font-size: 14px; cursor: pointer; flex: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { filter: brightness(1.06); }
+.btn.tonal { background: var(--primary-container); color: var(--on-primary-container); }
+.btn.ghost { background: transparent; color: var(--on-surface-variant); }
+.btn.ghost:hover { background: var(--surface-container); filter: none; }
+.btn.destructive { background: var(--destructive); color: var(--destructive-foreground); }
+.btn.sm { height: 36px; padding: 0 14px; font-size: 12px; }
+.btn .ms { font-size: 18px; }
+
+/* Field: rounded-field 10, 42px, one tonal step above its host, no rest border */
+.inp { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 0; background: var(--surface-container); color: var(--on-surface); padding: 0 14px; font: 400 14px/1 var(--font-sans); outline: 3px solid transparent; outline-offset: 2px; transition: outline-color var(--duration-quick) ease-out; }
+.inp.num { font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+.inp::placeholder { font: 400 14px var(--font-sans); color: var(--on-surface-variant); }
+.inp:focus-visible { outline-color: var(--ring); }
+.inp[aria-invalid="true"] { outline: 2px solid var(--destructive-on-surface); outline-offset: 0; }
+.well .inp, .inp.on-container { background: var(--surface-container-high); }
+
+/* Segmented control (TabsList h-9 p-[3px]), sized to its content, never stretched */
+.seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 4.5rem; height: 36px; padding: 3px; border-radius: 999px; background: var(--surface-container); }
+.seg button { border: 0; border-radius: 999px; background: transparent; font-size: 13px; font-weight: 500; color: var(--on-surface-variant); cursor: pointer; transition: background var(--duration-quick) var(--ease-standard), color var(--duration-quick) var(--ease-standard); }
+.seg button[aria-checked="true"] { background: var(--seg-on); color: var(--on-surface); box-shadow: var(--seg-shadow); font-weight: 600; }
+
+/* Switch (44px touch floor applies on coarse pointers) */
+.switch { position: relative; width: 32px; height: 18px; border-radius: 999px; border: 0; background: var(--input); cursor: pointer; flex: none; transition: background var(--duration-quick) var(--ease-standard); }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: #fff; transition: transform var(--duration-standard) var(--ease-standard); }
+.switch::before { content: ""; position: absolute; inset: -13px -6px; }
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch[aria-checked="true"]::after { transform: translateX(14px); }
+
+/* The one inner container a card may have (One-Nest Rule): rounded-tile 12 */
+.well { background: var(--surface-container); border-radius: 12px; min-width: 0; }
+.well > .part { padding: 16px 20px; }
+.well > .part + .part { border-top: 1px solid var(--border); }
+.sec-label { margin: 0 0 6px; font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Receipt rows: key hard left, value hard right, 13px/600 on a 20px line box */
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rows li { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 13px; line-height: 20px; min-width: 0; }
+.rows .k { color: var(--on-surface-variant); min-width: 0; }
+.rows .v { font-weight: 600; text-align: right; min-width: 0; }
+.rows .v.quiet { color: var(--on-surface-variant); font-weight: 500; }  /* default value: quiet */
+.cols { display: grid; gap: 8px 32px; }
+@container card (min-width: 48rem) { .cols { grid-template-columns: 1fr 1fr; } }
+
+/* Glyph disc: 52px tile disc (TILE_SHAPE.DISC), 44px block, 40px row. Strong fill for identity. */
+.disc { width: 52px; height: 52px; border-radius: 999px; display: grid; place-items: center; flex: none; transition: background var(--duration-standard) var(--ease-standard), color var(--duration-standard) var(--ease-standard); }
+.disc.block { width: 44px; height: 44px; }
+.disc.row { width: 40px; height: 40px; }
+.disc .ms { font-size: 24px; }
+.disc.idle { background: var(--surface-container-high); color: var(--on-surface-variant); }
+.disc.nr { background: var(--primary); color: var(--primary-foreground); }
+.disc.lte { background: var(--lte); color: var(--lte-foreground); }
+.disc.bad { background: var(--tone-destructive-1); color: var(--destructive-on-surface); }
+
+/* Tile: pinned 104px, rounded-tile 12, neutral body, the disc carries the colour */
+.tile { height: 104px; border-radius: 12px; background: var(--surface-container); display: flex; align-items: center; gap: 14px; padding: 0 18px; min-width: 0; }
+
+/* Quality bar: 8px, full-round, length carries the value; 56px lane when inline */
+.bar { position: relative; height: 8px; border-radius: 999px; background: var(--surface-container-high); overflow: hidden; }
+.bar.lane { width: 56px; flex: none; }
+.bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--quality-4-bar); }
+
+/* Pair grid for two cards sharing a row (equal heights) */
+.pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@container main (min-width: 58rem) { .pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; } }
+
+/* Empty state: glyph + title + one line (+ one action) */
+.empty { min-height: 9rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center; }
+.empty > .ms { font-size: 22px; color: var(--on-surface-variant); width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; background: var(--surface-container-high); }
+.empty b { font-size: 14px; font-weight: 600; }
+.empty span { font-size: 12.5px; color: var(--on-surface-variant); max-width: 26rem; }
+
+/* Skeleton: mirrors the loaded geometry */
+.skel { background: var(--surface-container-high); border-radius: 8px; }
+
+.swap { animation: swapIn var(--duration-standard) var(--ease-standard) both; }
+@keyframes swapIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (hover: none) { .hover-only { opacity: 1 !important; } }
+
+/* ── Exemplar: Frequency Calculator mock styles, named after the constants they become ── */
+.sib { height: 36px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--on-surface); background: transparent; border: 0; cursor: pointer; }
+.sib:hover { background: var(--surface-container); }
+
+/* CALC_SPLIT: controls (question) left, answer right */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@container main (min-width: 46rem) { .split { grid-template-columns: minmax(0, 25rem) minmax(0, 1fr); align-items: stretch; } }
+.ctl { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; }
+.ctl-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.ctl-top label { font-size: 13px; font-weight: 500; }
+.split .seg { grid-template-columns: repeat(3, 4.5rem); grid-auto-flow: row; }
+.frow { display: flex; gap: 8px; }
+
+/* CALC_RAIL: the answer as a horizontal rail, RAIL geometry */
+.ans { border-radius: 12px; background: var(--surface-container); padding: 16px 20px; min-height: 6.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; min-width: 0; }
+.disc.lte-c { background: var(--lte-container); color: var(--on-lte-container); }
+.disc.nr-c { background: var(--primary-container); color: var(--on-primary-container); }
+.fig { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fig-v { display: flex; align-items: baseline; gap: 6px; }
+.fig-v .v { font: 600 44px/1 var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.fig-v .u { font: 600 14px/1 var(--font-sans); color: var(--on-surface-variant); }
+.fig-s { font: 500 13px/1.3 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--on-surface-variant); }
+.ident { margin-inline-start: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; }
+.ident-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ident-b { font: 600 15px/1.2 var(--font-sans); font-variant-numeric: tabular-nums; }
+.ident-n { font-size: 13px; color: var(--on-surface-variant); }
+.msg { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 12rem; }
+.msg b { font-size: 14px; font-weight: 600; }
+.msg span { font-size: 12.5px; color: var(--on-surface-variant); text-wrap: pretty; }
+
+/* Bands + History pair, 3fr / 2fr */
+.pair.calc { }
+@container main (min-width: 58rem) { .pair.calc { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.pair .card > .well { flex: 1; }
+
+/* BAND_TILE: one section of the well per band, a DL/UL table inside */
+.band { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.band + .band { border-top: 1px solid var(--border); }
+.band-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.band-h .b { font: 600 15px/1.2 var(--font-sans); font-variant-numeric: tabular-nums; }
+.band-h .bn { font-size: 13px; color: var(--on-surface-variant); }
+.band-h .tag { margin-inline-start: auto; align-self: center; }
+.dlul { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dlul th { font: 500 12px/1 var(--font-sans); color: var(--on-surface-variant); text-align: left; padding: 0 0 8px; white-space: nowrap; }
+.dlul th .ms { font-size: 14px; vertical-align: -2px; margin-right: 3px; }
+.dlul th:first-child, .dlul td:first-child { width: 7.5rem; padding-right: 12px; }
+.dlul td { padding: 6px 12px 6px 0; vertical-align: middle; border-top: 1px solid var(--border); line-height: 20px; }
+.dlul td:first-child { color: var(--on-surface-variant); }
+.dlul td.v { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+.dlul td.hit { font-weight: 600; }
+.dlul td.hit.lte { color: var(--lte-on-surface); }
+.dlul td.hit.nr { color: var(--primary-on-surface); }
+.dlul td.span { color: var(--on-surface-variant); font-size: 12.5px; vertical-align: top; text-wrap: pretty; }
+.dlul .of { color: var(--on-surface-variant); font-weight: 400; }
+@container main (max-width: 30rem) { .dlul th:first-child, .dlul td:first-child { width: 5.5rem; } .dlul .of { display: block; } }
+.pos { position: relative; height: 8px; border-radius: 999px; background: var(--surface-container-high); max-width: 12rem; }
+.pos i { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 999px; transform: translateY(-50%); box-shadow: 0 0 0 2px var(--surface-container); }
+.pos.lte i { background: var(--lte-on-surface); }
+.pos.nr i { background: var(--primary-on-surface); }
+.verdict { display: flex; align-items: flex-start; gap: 10px; border-radius: 10px; padding: 10px 14px; background: var(--surface-container); color: var(--on-surface-variant); font-size: 12.5px; margin: 0; }
+.verdict .ms { font-size: 18px; margin-top: 1px; }
+.pair .empty { height: 100%; }
+
+/* HISTORY_ROW: receipt rows inside one well */
+.hist { list-style: none; margin: 0; padding: 4px 0; }
+.hist li { display: flex; align-items: center; position: relative; }
+.hist li + li::before { content: ""; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: var(--border); }
+.recall { flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; cursor: pointer; padding: 11px 4px 11px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; border-radius: 10px; }
+.recall:hover { background: var(--surface-container-high); }
+.r1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.r1 .ch { font: 600 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.rf { font: 500 13px/20px var(--font-sans); font-variant-numeric: tabular-nums; text-align: right; }
+.r2 { font-size: 12px; color: var(--on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.rt { font: 400 12px/1.4 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--on-surface-variant); text-align: right; white-space: nowrap; }
+.del { width: 36px; height: 36px; margin: 0 6px 0 2px; border: 0; border-radius: 999px; background: transparent; color: var(--on-surface-variant); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity var(--duration-quick) ease-out, background var(--duration-quick) ease-out; }
+.del .ms { font-size: 16px; }
+.hist li:hover .del, .del:focus-visible { opacity: 1; }
+.del:hover { background: var(--surface-container-high); color: var(--on-surface); }
+@media (hover: none) { .del { opacity: 1; } }
+.ghost { height: 36px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; color: var(--on-surface-variant); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.ghost .ms { font-size: 16px; }
+.ghost:hover { background: var(--tone-destructive-1); color: var(--destructive-on-surface); }
+
+/* Before and after: today's HISTORY_ROW.ROOT tile, rebuilt from its class string */
+.old-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-radius: 12px; background: var(--surface-container); padding: 16px; }
+.old-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.old-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.old-ch { font: 600 13px/1.4 var(--font-mono); font-variant-numeric: tabular-nums; }
+.old-fig { font-size: 14px; font-weight: 500; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+.old-bands { font-size: 13px; line-height: 20px; }
+.old-bands .k { color: var(--on-surface-variant); }
+.old-bands .m { font: 13px var(--font-mono); }
+.old-time { font-size: 12px; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+.old-del { width: 36px; height: 36px; flex: none; border-radius: 999px; display: grid; place-items: center; color: var(--on-surface-variant); }
+.old-del .ms { font-size: 18px; }
+.ba .well .hist li .del { opacity: 1; }
+
+/* Diagnosis figure: a schematic of today's layout (a real review embeds the screenshot instead) */
+.sch { display: block; width: 100%; height: auto; font-family: var(--font-sans); }
+.sch .s-bg { fill: var(--background); }
+.sch .s-side { fill: var(--surface-container); }
+.sch .s-card { fill: var(--surface); }
+.sch .s-well { fill: var(--surface-container); }
+.sch .s-high { fill: var(--surface-container-high); }
+.sch .s-prim { fill: var(--primary); }
+.sch .s-band { fill: var(--primary-container); opacity: 0.35; }
+.sch .s-t1 { fill: var(--on-surface); font-weight: 700; font-size: 30px; }
+.sch .s-t2 { fill: var(--on-surface); font-weight: 600; font-size: 20px; }
+.sch .s-t3 { fill: var(--on-surface-variant); font-size: 15px; }
+.sch .s-fig { fill: var(--on-surface); font-weight: 600; font-size: 44px; }
+.sch .s-mono { fill: var(--on-surface-variant); font-family: var(--font-mono); font-size: 14px; }
+.sch .s-on-prim { fill: var(--primary-foreground); font-weight: 600; font-size: 15px; }
+.shot.schematic { background: var(--background); }
+.shot.schematic figcaption { background: oklch(0 0 0 / 0.6); }
+
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<main class="doc">
+  <header class="doc-head">
+    <span class="eyebrow">/cellular/cell-scanner/frequency-calculator</span>
+    <h1>Frequency Calculator, polished</h1>
+    <p>The page answers one question, what frequency is this channel, and today the answer sits before the question. The controls lead, the band detail reads as downlink against uplink, and bands and history share one row on wide screens.</p>
+  </header>
+
+  <!-- 1. DIAGNOSIS ─────────────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-now">
+    <h2 id="h-now">Where it reads rough today</h2>
+    <p class="lede">Pins mark a schematic of the page at 1920px with channel 150 calculated, drawn from the code at commit 11b75e46. A real review embeds the screenshot here.</p>
+    <div class="before">
+      <div class="shots">
+        <figure class="shot schematic">
+          <!-- This exemplar draws a schematic so it stands alone. A real review uses the template's img with the SHOT placeholder, filled by finalize.py. -->
+          <svg class="sch" viewBox="0 0 1920 1080" role="img" aria-label="Schematic of the current Frequency Calculator layout with channel 150 calculated">
+            <rect class="s-bg" x="0" y="0" width="1920" height="1080"/>
+            <rect class="s-side" x="0" y="0" width="272" height="1080"/>
+            <text class="s-t1" x="304" y="70">Frequency Calculator</text>
+            <text class="s-t3" x="304" y="104">Convert an EARFCN or NR-ARFCN into its frequency and operating band, for LTE and 5G NR.</text>
+
+            <rect class="s-card" x="304" y="136" width="1566" height="380" rx="20"/>
+            <text class="s-t2" x="336" y="184">E/ARFCN Calculator</text>
+            <text class="s-t3" x="336" y="212">Enter a channel number to get its frequency and band.</text>
+            <text class="s-t3" x="1838" y="184" text-anchor="end">Cell Scanner</text>
+            <rect class="s-well" x="336" y="248" width="304" height="240" rx="12"/>
+            <circle class="s-high" cx="488" cy="300" r="26"/>
+            <text class="s-fig" x="488" y="382" text-anchor="middle">2125.00</text>
+            <text class="s-t3" x="488" y="410" text-anchor="middle">MHz</text>
+            <text class="s-mono" x="488" y="440" text-anchor="middle">EARFCN 150</text>
+            <text class="s-mono" x="488" y="466" text-anchor="middle">Band 1</text>
+            <rect class="s-well" x="656" y="248" width="1182" height="42" rx="21"/>
+            <rect class="s-high" x="660" y="252" width="390" height="34" rx="17"/>
+            <text class="s-t3" x="855" y="275" text-anchor="middle">Auto</text>
+            <text class="s-t3" x="1247" y="275" text-anchor="middle">LTE</text>
+            <text class="s-t3" x="1641" y="275" text-anchor="middle">NR</text>
+            <rect class="s-well" x="656" y="306" width="1040" height="42" rx="10"/>
+            <text class="s-mono" x="672" y="333">150</text>
+            <rect class="s-prim" x="1708" y="306" width="130" height="42" rx="21"/>
+            <text class="s-on-prim" x="1773" y="333" text-anchor="middle">Calculate</text>
+            <rect class="s-well" x="656" y="438" width="1182" height="50" rx="10"/>
+            <text class="s-t3" x="680" y="468">Calculated per 3GPP TS 36.101 §5.7.</text>
+
+            <rect class="s-card" x="304" y="540" width="1566" height="290" rx="16"/>
+            <text class="s-t2" x="336" y="586">Possible operating bands</text>
+            <text class="s-t3" x="336" y="614">Every band whose channel range contains this number, with what each one implies for the uplink.</text>
+            <rect class="s-well" x="336" y="640" width="1502" height="166" rx="12"/>
+            <text class="s-t2" x="360" y="676">Band 1</text>
+            <text class="s-t3" x="440" y="676">IMT 2100</text>
+            <text class="s-t3" x="360" y="714">Duplex mode</text><text class="s-t3" x="512" y="714">FDD</text>
+            <text class="s-t3" x="1107" y="714">DL frequency</text><text class="s-t3" x="1259" y="714">2125.00 MHz</text>
+            <text class="s-t3" x="360" y="742">UL frequency</text><text class="s-t3" x="512" y="742">1935.00 MHz</text>
+            <text class="s-t3" x="1107" y="742">Downlink range</text><text class="s-t3" x="1259" y="742">2110 – 2170 MHz</text>
+            <text class="s-t3" x="360" y="770">Uplink range</text><text class="s-t3" x="512" y="770">1920 – 1980 MHz</text>
+            <text class="s-t3" x="1107" y="770">EARFCN range</text><text class="s-t3" x="1259" y="770">0 – 599</text>
+            <text class="s-t3" x="360" y="798">UL EARFCN</text><text class="s-t3" x="512" y="798">18150</text>
+
+            <rect class="s-card" x="304" y="854" width="1566" height="260" rx="16"/>
+            <text class="s-t2" x="336" y="900">Calculation History</text>
+            <text class="s-t3" x="336" y="928">Your last ten calculations, saved in this browser.</text>
+            <text class="s-t3" x="1838" y="900" text-anchor="end">Clear</text>
+            <rect class="s-well" x="336" y="952" width="1502" height="86" rx="12"/>
+            <text class="s-mono" x="356" y="982">150</text>
+            <text class="s-t3" x="400" y="982">LTE  2125.00 MHz</text>
+            <text class="s-t3" x="356" y="1006">Bands B1</text>
+            <text class="s-t3" x="356" y="1028">2 min ago</text>
+            <circle class="s-high" cx="1810" cy="974" r="18"/>
+            <rect class="s-well" x="336" y="1050" width="1502" height="86" rx="12"/>
+          </svg>
+          <span class="pin" style="left:25.4%;top:31.5%">1</span>
+          <span class="pin" style="left:60%;top:24.9%">2</span>
+          <span class="pin" style="left:80%;top:30.2%">3</span>
+          <span class="pin" style="left:65%;top:36.5%">4</span>
+          <span class="pin" style="left:57.7%;top:68.3%">5</span>
+          <span class="pin" style="left:94.3%;top:90.2%">6</span>
+          <figcaption>Schematic, not a screenshot</figcaption>
+        </figure>
+      </div>
+      <ol class="findings">
+        <li><span class="n">1</span><div><b>The answer sits before the question</b><span><code>HERO_SPLIT</code> puts the 19rem readout in the first column, so the eye lands on the result before anything is typed. Its centred stack also sets the row height the form can't fill (Two-Edge).</span></div></li>
+        <li><span class="n">2</span><div><b>A three-word control 1,180px wide</b><span><code>FORM.TABS</code> is <code>w-full grid-cols-3</code>, so Auto, LTE and NR get about 390px each and stop reading as one control (Row-Span).</span></div></li>
+        <li><span class="n">3</span><div><b>A 1,040px field for a six-digit number</b><span>Calculate floats far from where you type, and <code>type="number"</code> adds a spinner nobody uses.</span></div></li>
+        <li><span class="n">4</span><div><b>About 90px of nothing under the field</b><span><code>FORM.ROOT</code> is <code>h-full</code> and <code>FORM.NOTE</code> is <code>mt-auto</code>, so the gap is structural and shows in every state (Group-Before-You-Pad).</span></div></li>
+        <li><span class="n">5</span><div><b>Downlink and uplink pair up by accident</b><span><code>BAND_TILE.LIST</code> flows row by row across four columns: Duplex beside DL frequency, Uplink range beside EARFCN range. Downlink range and Uplink range end up about 750px apart.</span></div></li>
+        <li><span class="n">6</span><div><b>Every history row is its own tile</b><span><code>HISTORY_ROW.ROOT</code> is <code>rounded-tile bg-surface-container</code>, ten tiles in one card (One-Nest), and each delete sits about 1,450px from the value it deletes.</span></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 2. PROPOSAL ─────────────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-new">
+    <h2 id="h-new">Proposed layout</h2>
+    <p class="lede">This version works: type a channel, switch modes, click a history row to recall it. The band tables cover common EU and APAC bands only, and the history rows are examples.</p>
+
+    <div class="demo-bar">
+      <div class="grp">
+        <span class="lbl">State</span>
+        <div class="chips" id="states">
+          <button class="chip" data-demo="idle" aria-pressed="false">Idle</button>
+          <button class="chip" data-demo="150" aria-pressed="true">LTE 150</button>
+          <button class="chip" data-demo="627264" aria-pressed="false">NR 627264, two bands</button>
+          <button class="chip" data-demo="38950" aria-pressed="false">LTE TDD 38950</button>
+          <button class="chip" data-demo="90000" aria-pressed="false">Error</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="lbl">Width</span>
+        <div class="chips" id="widths">
+          <button class="chip" data-w="wide" aria-pressed="true">Wide</button>
+          <button class="chip" data-w="phone" aria-pressed="false">Phone</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="lbl">Theme</span>
+        <div class="chips" id="themes">
+          <button class="chip" data-t="auto" aria-pressed="true">Auto</button>
+          <button class="chip" data-t="light" aria-pressed="false">Light</button>
+          <button class="chip" data-t="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="frame" id="frame">
+        <div class="qm">
+          <header class="qm-head">
+            <h1>Frequency Calculator</h1>
+            <p>Convert an EARFCN or NR-ARFCN into its frequency and operating band, for LTE and 5G NR.</p>
+          </header>
+
+          <section class="card hero" aria-labelledby="c-calc">
+            <div class="sh">
+              <div class="sh-t">
+                <h2 id="c-calc">E/ARFCN Calculator</h2>
+                <p>Enter a channel number to get its frequency and band.</p>
+              </div>
+              <div class="sh-m">
+                <button class="sib" type="button"><span class="ms" style="font-size:16px">radar</span>Cell Scanner</button>
+              </div>
+            </div>
+
+            <div class="split">
+              <form class="ctl" id="form" novalidate>
+                <div class="ctl-top">
+                  <label for="ch" id="ch-label">E/ARFCN value</label>
+                  <div class="seg" role="radiogroup" aria-label="Radio" id="seg">
+                    <button type="button" role="radio" data-mode="auto" aria-checked="true">Auto</button>
+                    <button type="button" role="radio" data-mode="lte" aria-checked="false">LTE</button>
+                    <button type="button" role="radio" data-mode="nr" aria-checked="false">NR</button>
+                  </div>
+                </div>
+                <div class="frow">
+                  <input class="inp num" id="ch" name="ch" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]*" placeholder="e.g. 1350 or 627264" aria-describedby="ans">
+                  <button class="btn" type="submit">Calculate</button>
+                </div>
+              </form>
+
+              <div class="ans" id="ans" aria-live="polite"></div>
+            </div>
+          </section>
+
+          <div class="pair calc">
+            <section class="card" aria-labelledby="c-bands">
+              <div class="sh">
+                <div class="sh-t">
+                  <h2 id="c-bands">Possible operating bands</h2>
+                  <p>Every band whose channel range holds this number.</p>
+                </div>
+                <div class="sh-m" id="spec"></div>
+              </div>
+              <div class="well" id="bands"></div>
+              <div id="verdict"></div>
+            </section>
+
+            <section class="card" aria-labelledby="c-hist">
+              <div class="sh">
+                <div class="sh-t">
+                  <h2 id="c-hist">Calculation History</h2>
+                  <p>Your last ten calculations, saved in this browser.</p>
+                </div>
+                <div class="sh-m" id="clear-slot"></div>
+              </div>
+              <div class="well" id="hist"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. BEFORE AND AFTER ────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-ba">
+    <h2 id="h-ba">Before and after</h2>
+    <p class="lede">One history row, today's rebuilt from <code>HISTORY_ROW</code> at 11b75e46, beside the proposal.</p>
+    <div class="ba">
+      <div class="ba-side">
+        <span class="lbl">Today</span>
+        <div class="ba-plate">
+          <div class="old-row">
+            <div class="old-main">
+              <div class="old-head"><span class="old-ch">150</span><span class="tag lte">LTE</span><span class="old-fig">2125.00 MHz</span></div>
+              <span class="old-bands"><span class="k">Bands </span><span class="m">B1</span></span>
+              <span class="old-time">2 min ago</span>
+            </div>
+            <span class="old-del" aria-hidden="true"><span class="ms">close</span></span>
+          </div>
+        </div>
+        <p class="cls">HISTORY_ROW.ROOT: flex items-start justify-between gap-3 rounded-tile bg-surface-container p-4. CHANNEL: font-mono text-[13px] tabular-nums font-semibold</p>
+      </div>
+      <div class="ba-side">
+        <span class="lbl">Proposed</span>
+        <div class="ba-plate">
+          <div class="well">
+            <ul class="hist">
+              <li>
+                <span class="recall"><span class="r1"><span class="ch">150</span><span class="tag lte">LTE</span></span><span class="rf">2125.00 MHz</span><span class="r2">Band 1</span><span class="rt">2 min ago</span></span>
+                <span class="del" aria-hidden="true"><span class="ms">close</span></span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <p class="cls">HISTORY_ROW: one well, rows grid-cols-[minmax(0,1fr)_auto], channel and MHz in Rethink tabular-nums, delete on hover or focus</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. WHAT CHANGES ────────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="h-chg">
+    <h2 id="h-chg">What changes</h2>
+    <p class="lede">All scoped to the calculator. <code>HERO_SPLIT</code> is shared with <code>run-hero.tsx</code> and Band Locking's <code>live-band-hero.tsx</code>, and <code>POSTURE</code> with the sweep and neighbour routes, so the calculator gets its own shapes rather than editing those.</p>
+    <div class="tbl-wrap">
+      <table class="changes">
+        <thead><tr><th>Change</th><th>Why</th><th>Where</th></tr></thead>
+        <tbody>
+          <tr><td>Controls left, answer right</td><td>Reading order becomes question, then answer. The split is <code>minmax(0,25rem) 1fr</code>, so the answer gets the width.</td><td>new <code>CALC_SPLIT</code> in <code>shapes.ts</code>, <code>calculator.tsx</code></td></tr>
+          <tr><td>Answer as a horizontal rail</td><td>Same geometry as the scanner hero's <code>RAIL</code>: 6.5rem tall, disc and figure on the left edge, band identity on the right edge. The controls now set the row height, so the dead band goes. The <code>SwapLabel</code> figure swap is unchanged.</td><td><code>calc-readout.tsx</code>, <code>READOUT</code></td></tr>
+          <tr><td>Controls sized to their content</td><td>Auto, LTE and NR become a 13.5rem segmented control on the label row. The field switches to <code>type="text" inputMode="numeric"</code>, which drops the spinner, and the placeholder shows a real example.</td><td><code>FORM.TABS</code>, <code>FORM.INPUT</code></td></tr>
+          <tr><td>One place for the error</td><td>The failure text moves into the answer rail and the field keeps its red ring. Today one failure shows three times: the strip under the field, the readout and the bands card (Copy &amp; Help: say a message once).</td><td><code>calculator.tsx</code>, <code>FORM.ERROR</code> removed</td></tr>
+          <tr><td>Spec citation moves to the bands header</td><td>It cites the numbers in that card, so it sits there as a neutral outline tag. Removing the note strip removes a second inner container from the anchor.</td><td><code>FORM.NOTE</code> removed</td></tr>
+          <tr><td>Band detail as a downlink / uplink table</td><td>Rows: Frequency, Range, EARFCN, In band. Columns: Downlink and Uplink, each with its arrow. Duplex moves into the band header as a tag. For TDD and SDL the uplink column becomes one sentence.</td><td><code>band-tiles.tsx</code>, <code>BAND_TILE.LIST</code></td></tr>
+          <tr><td>Position-in-band track <span class="new">new</span></td><td>A small marker showing where the carrier sits inside its band, so an edge-of-band channel is obvious without doing sums.</td><td><code>band-tiles.tsx</code></td></tr>
+          <tr><td>Bands and History share a row</td><td>Split 3fr / 2fr from 58rem of main width, with equal card heights; each card's well absorbs the slack (Symmetric-Pair). Below that they stack in the current order. This is a card grid, not a narrowed page (Full-Width Page Rule).</td><td><code>calculator.tsx</code> wrapper</td></tr>
+          <tr><td>One inner container per card</td><td>Band tiles and history rows become sections of a single well, divided by hairlines (One-Nest).</td><td><code>BAND_TILE.ROOT</code>, <code>HISTORY_ROW</code></td></tr>
+          <tr><td>History rows read like a receipt</td><td>Channel and radio on the left, MHz on the right; bands on the left, relative time on the right (Two-Edge). Delete stays hidden until hover or focus and is always visible on touch. Clear becomes a quiet ghost button, because clearing local history isn't a risky action.</td><td><code>history-list.tsx</code></td></tr>
+          <tr><td>Channel and band in the interface voice</td><td>EARFCN, NR-ARFCN and band numbers are quantities you read, so they move from JetBrains Mono to Rethink <code>tabular-nums</code> (Machine-Voice Rule). The spec citation stays mono.</td><td><code>READOUT.CHANNEL</code>, <code>READOUT.BAND</code>, <code>BAND_TILE.BAND</code>, <code>HISTORY_ROW.CHANNEL</code>, <code>FORM.INPUT</code> (all via <code>IDENT</code>)</td></tr>
+          <tr><td>Click a row to recall it <span class="new">new</span></td><td>Puts the channel back in the field and recalculates without adding a duplicate row, through the existing <code>record</code> flag.</td><td><code>history-list.tsx</code>, <code>calculator.tsx</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 5. KEPT / YOUR CALL ────────────────────────────────────── -->
+  <section class="sec cols2" aria-label="Kept and open">
+    <div>
+      <h3 class="sub">Kept as is</h3>
+      <ul class="keep">
+        <li><b>The anchor shell.</b> <code>CALC_HERO</code> radius, padding and header, plus the Cell Scanner link in the meta slot.</li>
+        <li><b>Motion.</b> The <code>SwapLabel</code> figure swap, the <code>staggerItem</code> page entrance, the band row cascade, and the history exit on <code>quick</code>.</li>
+        <li><b>State.</b> The browser-saved history capped at <code>HISTORY_LIMIT</code>, and the <code>record</code> rule that a mode switch re-answers without recording.</li>
+        <li><b>Icons.</b> Every glyph is already in the Material subset, including <code>arrow_downward</code> and <code>arrow_upward</code>. No regeneration needed.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="sub">Your call before build</h3>
+      <ul class="ask">
+        <li><b>Overturning <code>FORM.ROOT</code>.</b> Its comment says <code>h-full</code> "is what lets NOTE sit on the bottom edge instead of leaving a void under the field". It moved the void rather than removing it. Remove the note and let the controls set the height?</li>
+        <li><b>Machine voice scope.</b> <code>IDENT</code> is shared with the scan tables and the lock-cell dialog. Retell only the calculator now, or the whole family in one pass?</li>
+        <li><b>Recall on click</b> is new behaviour. Keep it, or leave rows read-only?</li>
+        <li><b>The position track</b> is new content. Keep it, or ship the table without it?</li>
+        <li><b>Copy:</b> the readout's idle line, the bands description and the error lines get shorter, and lose their em dashes. All five locale packs move together.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const LTE = [
+    { b: 1,  name: "IMT 2100",             dup: "FDD", lo: 2110, off: 0,     hi: 599,   ul: { lo: 1920, off: 18000 } },
+    { b: 3,  name: "DCS 1800",             dup: "FDD", lo: 1805, off: 1200,  hi: 1949,  ul: { lo: 1710, off: 19200 } },
+    { b: 7,  name: "IMT-E 2600",           dup: "FDD", lo: 2620, off: 2750,  hi: 3449,  ul: { lo: 2500, off: 20750 } },
+    { b: 8,  name: "E-GSM 900",            dup: "FDD", lo: 925,  off: 3450,  hi: 3799,  ul: { lo: 880,  off: 21450 } },
+    { b: 20, name: "EU Digital Dividend",  dup: "FDD", lo: 791,  off: 6150,  hi: 6449,  ul: { lo: 832,  off: 24150 } },
+    { b: 28, name: "APT 700",              dup: "FDD", lo: 758,  off: 9210,  hi: 9659,  ul: { lo: 703,  off: 27210 } },
+    { b: 32, name: "L-band SDL 1500",      dup: "SDL", lo: 1452, off: 9920,  hi: 10359, ul: null },
+    { b: 38, name: "IMT-E TDD 2600",       dup: "TDD", lo: 2570, off: 37750, hi: 38249, ul: null },
+    { b: 40, name: "TDD 2300",             dup: "TDD", lo: 2300, off: 38650, hi: 39649, ul: null },
+    { b: 41, name: "TDD 2500",             dup: "TDD", lo: 2496, off: 39650, hi: 41589, ul: null },
+  ];
+  const NR = [
+    { b: "n1",  name: "IMT 2100",   dup: "FDD", dl: [422000, 434000], ul: [384000, 396000] },
+    { b: "n3",  name: "DCS 1800",   dup: "FDD", dl: [361000, 376000], ul: [342000, 357000] },
+    { b: "n5",  name: "CLR 850",    dup: "FDD", dl: [173800, 178800], ul: [164800, 169800] },
+    { b: "n7",  name: "IMT-E 2600", dup: "FDD", dl: [524000, 538000], ul: [500000, 514000] },
+    { b: "n8",  name: "E-GSM 900",  dup: "FDD", dl: [185000, 192000], ul: [176000, 183000] },
+    { b: "n20", name: "EU 800",     dup: "FDD", dl: [158200, 164200], ul: [166400, 172400] },
+    { b: "n28", name: "APT 700",    dup: "FDD", dl: [151600, 160600], ul: [140600, 149600] },
+    { b: "n38", name: "IMT-E TDD",  dup: "TDD", dl: [514000, 524000], ul: null },
+    { b: "n40", name: "TDD 2300",   dup: "TDD", dl: [460000, 480000], ul: null },
+    { b: "n41", name: "TDD 2500",   dup: "TDD", dl: [499200, 537999], ul: null },
+    { b: "n77", name: "C-band 3.7 GHz", dup: "TDD", dl: [620000, 680000], ul: null },
+    { b: "n78", name: "C-band 3.5 GHz", dup: "TDD", dl: [620000, 653333], ul: null },
+    { b: "n79", name: "TDD 4.7 GHz",    dup: "TDD", dl: [693334, 733333], ul: null },
+  ];
+  const MAX_LTE = Math.max(...LTE.map(b => b.hi));
+  const MIN_NR = Math.min(...NR.map(b => b.dl[0]));
+  const SPEC = { LTE: "3GPP TS 36.101 §5.7", NR: "3GPP TS 38.104 §5.4.2.1" };
+
+  const trim = x => String(+x.toFixed(3));
+  const nrF = n => n < 600000 ? 0.005 * n : 3000 + 0.015 * (n - 600000);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function calcLTE(n) {
+    const b = LTE.find(x => n >= x.off && n <= x.hi);
+    if (!b) return { code: "no_band", type: "LTE" };
+    const f = b.lo + 0.1 * (n - b.off);
+    const band = {
+      label: `Band ${b.b}`, short: `B${b.b}`, name: b.name, dup: b.dup,
+      dl: { f, lo: b.lo, hi: b.lo + 0.1 * (b.hi - b.off), ch: n, clo: b.off, chi: b.hi },
+      ul: b.ul ? {
+        f: b.ul.lo + 0.1 * (n - b.off), lo: b.ul.lo, hi: b.ul.lo + 0.1 * (b.hi - b.off),
+        ch: n - b.off + b.ul.off, clo: b.ul.off, chi: b.ul.off + (b.hi - b.off),
+      } : null,
+      pos: (n - b.off) / (b.hi - b.off),
+    };
+    return { type: "LTE", ch: n, f, bands: [band] };
+  }
+  function calcNR(n) {
+    const hits = NR.filter(x => n >= x.dl[0] && n <= x.dl[1]);
+    if (!hits.length) return { code: "no_band", type: "NR" };
+    const f = nrF(n);
+    const bands = hits.map(b => {
+      const ulCh = b.ul ? n - (b.dl[0] - b.ul[0]) : null;
+      return {
+        label: `Band ${b.b}`, short: b.b, name: b.name, dup: b.dup,
+        dl: { f, lo: nrF(b.dl[0]), hi: nrF(b.dl[1]), ch: n, clo: b.dl[0], chi: b.dl[1] },
+        ul: b.ul ? { f: nrF(ulCh), lo: nrF(b.ul[0]), hi: nrF(b.ul[1]), ch: ulCh, clo: b.ul[0], chi: b.ul[1] } : null,
+        pos: (n - b.dl[0]) / (b.dl[1] - b.dl[0]),
+      };
+    });
+    return { type: "NR", ch: n, f, bands };
+  }
+  function calculate(raw, mode) {
+    const s = String(raw).trim();
+    if (!s) return { code: "empty" };
+    if (!/^\d+$/.test(s)) return { code: "not_a_number" };
+    const n = Number(s);
+    if (mode === "lte") return calcLTE(n);
+    if (mode === "nr") return calcNR(n);
+    if (n <= MAX_LTE) return calcLTE(n);
+    if (n >= MIN_NR) return calcNR(n);
+    return { code: "auto_gap" };
+  }
+  function errorText(e, raw) {
+    switch (e.code) {
+      case "empty": return "Enter a channel number first.";
+      case "not_a_number": return "Channel numbers are whole numbers, like 1850.";
+      case "auto_gap": return `${raw} sits between the LTE and NR ranges. Pick LTE or NR to calculate it anyway.`;
+      default: return `No ${e.type} band uses channel ${raw}.`;
+    }
+  }
+
+  // ── state ───────────────────────────────────────────────────
+  const now = Date.now();
+  let mode = "auto";
+  let result = null;
+  let error = null;
+  let history = [
+    { id: 1, ch: 150,    type: "LTE", f: 2125,    bands: ["B1"],         t: now - 2 * 60e3 },
+    { id: 2, ch: 1350,   type: "LTE", f: 1820,    bands: ["B3"],         t: now - 64 * 60e3 },
+    { id: 3, ch: 627264, type: "NR",  f: 3408.96, bands: ["n77", "n78"], t: now - 26 * 3600e3 },
+    { id: 4, ch: 6300,   type: "LTE", f: 806,     bands: ["B20"],        t: now - 30 * 3600e3 },
+    { id: 5, ch: 38950,  type: "LTE", f: 2330,    bands: ["B40"],        t: now - 3 * 86400e3 },
+  ];
+  let nextId = 6;
+
+  const $ = id => document.getElementById(id);
+  const input = $("ch");
+
+  function ago(t) {
+    const m = Math.round((Date.now() - t) / 60e3);
+    if (m < 1) return "Just now";
+    if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h} h ago`;
+    const d = Math.round(h / 24);
+    return d === 1 ? "Yesterday" : `${d} days ago`;
+  }
+
+  function renderAnswer() {
+    const el = $("ans");
+    input.setAttribute("aria-invalid", error ? "true" : "false");
+    if (error) {
+      el.innerHTML = `<span class="disc bad"><span class="ms f">error</span></span>
+        <div class="msg swap"><b>No frequency</b><span>${esc(errorText(error, input.value.trim()))}</span></div>`;
+      return;
+    }
+    if (!result) {
+      el.innerHTML = `<span class="disc idle"><span class="ms">tune</span></span>
+        <div class="msg"><b>No channel yet</b><span>Its frequency and band appear here.</span></div>`;
+      return;
+    }
+    const tone = result.type === "NR" ? "nr" : "lte";
+    const single = result.bands.length === 1 ? result.bands[0] : null;
+    const chName = result.type === "NR" ? "NR-ARFCN" : "EARFCN";
+    el.innerHTML = `<span class="disc ${tone}-c"><span class="ms f">graphic_eq</span></span>
+      <div class="fig swap">
+        <div class="fig-v"><span class="v">${result.f.toFixed(2)}</span><span class="u">MHz</span></div>
+        <span class="fig-s">${chName} ${result.ch}, downlink</span>
+      </div>
+      <div class="ident swap">
+        <div class="ident-r"><span class="tag ${tone}">${result.type}</span><span class="ident-b">${single ? esc(single.label) : result.bands.map(b => b.short).join(", ")}</span></div>
+        <span class="ident-n">${single ? esc(single.name) : `${result.bands.length} bands carry this channel`}</span>
+      </div>`;
+  }
+
+  function side(d, tone, isDl) {
+    return {
+      f: `<td class="v ${isDl ? "hit " + tone : ""}">${d.f.toFixed(2)} MHz</td>`,
+      r: `<td class="v">${trim(d.lo)} – ${trim(d.hi)}</td>`,
+      c: `<td class="v">${d.ch} <span class="of">of ${d.clo} – ${d.chi}</span></td>`,
+    };
+  }
+
+  function renderBands() {
+    const well = $("bands"), spec = $("spec"), verdict = $("verdict");
+    if (!result) {
+      spec.innerHTML = "";
+      verdict.innerHTML = "";
+      well.innerHTML = `<div class="empty"><span class="ms">radar</span><b>No bands yet</b><span>Calculate a channel to list the bands that carry it.</span></div>`;
+      return;
+    }
+    const tone = result.type === "NR" ? "nr" : "lte";
+    const chName = result.type === "NR" ? "NR-ARFCN" : "EARFCN";
+    spec.innerHTML = `<span class="tag mono" title="Calculation method">${SPEC[result.type]}</span>`;
+    well.innerHTML = result.bands.map(b => {
+      const dl = side(b.dl, tone, true);
+      const ul = b.ul ? side(b.ul, tone, false) : null;
+      const ulNote = b.dup === "SDL" ? "Downlink only. This band carries no uplink." : "Uplink shares the downlink carrier (TDD).";
+      const pct = Math.max(0, Math.min(1, b.pos)) * 100;
+      return `<div class="band swap">
+        <div class="band-h"><span class="b">${esc(b.label)}</span><span class="bn">${esc(b.name)}</span><span class="tag">${b.dup}</span></div>
+        <table class="dlul">
+          <thead><tr><th scope="col"><span class="sr-only">Field</span></th>
+            <th scope="col"><span class="ms">arrow_downward</span>Downlink</th>
+            <th scope="col"><span class="ms">arrow_upward</span>Uplink</th></tr></thead>
+          <tbody>
+            <tr><td>Frequency</td>${dl.f}${ul ? ul.f : `<td class="span" rowspan="4">${ulNote}</td>`}</tr>
+            <tr><td>Range, MHz</td>${dl.r}${ul ? ul.r : ""}</tr>
+            <tr><td>${chName}</td>${dl.c}${ul ? ul.c : ""}</tr>
+            <tr><td>In band</td><td colspan="${ul ? 2 : 1}"><div class="pos ${tone}" role="img" aria-label="${Math.round(pct)}% of the way up the band"><i style="left:${pct}%"></i></div></td></tr>
+          </tbody>
+        </table>
+      </div>`;
+    }).join("");
+    verdict.innerHTML = result.bands.length > 1
+      ? `<p class="verdict"><span class="ms f">layers</span><span>${result.bands.length === 2 ? "Both bands" : `All ${result.bands.length} bands`} put this channel at the same frequency. Your operator's band plan decides which one it is.</span></p>`
+      : "";
+  }
+
+  function renderHistory() {
+    const well = $("hist"), slot = $("clear-slot");
+    slot.innerHTML = history.length
+      ? `<button class="ghost" type="button" id="clear"><span class="ms">delete</span>Clear</button>` : "";
+    if (!history.length) {
+      well.innerHTML = `<div class="empty"><span class="ms">tune</span><b>No calculations yet</b><span>Each channel you calculate is kept here.</span></div>`;
+      return;
+    }
+    well.innerHTML = `<ul class="hist">${history.map(h => `
+      <li>
+        <button class="recall" type="button" data-recall="${h.id}" aria-label="Recall ${h.ch}">
+          <span class="r1"><span class="ch">${h.ch}</span><span class="tag ${h.type === "NR" ? "nr" : "lte"}">${h.type}</span></span>
+          <span class="rf">${h.f.toFixed(2)} MHz</span>
+          <span class="r2">${h.bands.map(b => /^n/.test(b) ? b : "Band " + b.slice(1)).join(", ")}</span>
+          <span class="rt">${ago(h.t)}</span>
+        </button>
+        <button class="del" type="button" data-del="${h.id}" aria-label="Delete ${h.ch}"><span class="ms">close</span></button>
+      </li>`).join("")}</ul>`;
+  }
+
+  function renderAll() { renderAnswer(); renderBands(); renderHistory(); }
+
+  function run(record) {
+    const out = calculate(input.value, mode);
+    if (out.code) { error = out; result = null; }
+    else {
+      error = null; result = out;
+      if (record) {
+        history = [{ id: nextId++, ch: out.ch, type: out.type, f: out.f, bands: out.bands.map(b => b.short), t: Date.now() }, ...history].slice(0, 10);
+      }
+    }
+    renderAll();
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-checked", String(b.dataset.mode === m)));
+    $("ch-label").textContent = m === "lte" ? "EARFCN" : m === "nr" ? "NR-ARFCN" : "E/ARFCN value";
+  }
+
+  function press(groupId, attr, value) {
+    document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.setAttribute("aria-pressed", String(c.dataset[attr] === value)));
+  }
+
+  $("form").addEventListener("submit", e => { e.preventDefault(); run(true); press("states", "demo", null); });
+  input.addEventListener("input", () => { if (error) { error = null; renderAnswer(); } });
+  $("seg").addEventListener("click", e => {
+    const b = e.target.closest("button[data-mode]");
+    if (!b) return;
+    setMode(b.dataset.mode);
+    if (result || error) run(false);
+  });
+  $("hist").addEventListener("click", e => {
+    const r = e.target.closest("[data-recall]");
+    if (r) {
+      const h = history.find(x => x.id === +r.dataset.recall);
+      if (h) { input.value = h.ch; setMode("auto"); run(false); press("states", "demo", null); }
+      return;
+    }
+    const d = e.target.closest("[data-del]");
+    if (d) { history = history.filter(x => x.id !== +d.dataset.del); renderHistory(); }
+  });
+  $("clear-slot").addEventListener("click", e => {
+    if (e.target.closest("#clear")) { history = []; renderHistory(); }
+  });
+
+  $("states").addEventListener("click", e => {
+    const c = e.target.closest("[data-demo]");
+    if (!c) return;
+    press("states", "demo", c.dataset.demo);
+    setMode("auto");
+    if (c.dataset.demo === "idle") { input.value = ""; result = null; error = null; renderAll(); return; }
+    input.value = c.dataset.demo;
+    run(false);
+  });
+  $("widths").addEventListener("click", e => {
+    const c = e.target.closest("[data-w]");
+    if (!c) return;
+    press("widths", "w", c.dataset.w);
+    $("frame").classList.toggle("phone", c.dataset.w === "phone");
+  });
+  // Theme: Auto restores whatever the host set (it may own data-theme), Light/Dark force it.
+  const root = document.documentElement;
+  const hostTheme = root.getAttribute("data-theme");
+  $("themes").addEventListener("click", e => {
+    const c = e.target.closest("[data-t]");
+    if (!c) return;
+    press("themes", "t", c.dataset.t);
+    if (c.dataset.t === "auto") { hostTheme ? root.setAttribute("data-theme", hostTheme) : root.removeAttribute("data-theme"); }
+    else root.setAttribute("data-theme", c.dataset.t);
+  });
+
+  input.value = "150";
+  run(false);
+})();
+</script>

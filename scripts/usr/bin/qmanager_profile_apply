@@ -28,40 +28,128 @@
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
-. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
     qlog_init() { :; }
     qlog_debug() { :; }
     qlog_info() { :; }
     qlog_warn() { :; }
     qlog_error() { :; }
-}
+fi
 qlog_init "profile_apply"
 [ -f /usr/lib/qmanager/cgi_at.sh ] && . /usr/lib/qmanager/cgi_at.sh
 
 # --- Events (for append_event) -----------------------------------------------
 # Must define EVENTS_FILE and MAX_EVENTS before sourcing events.sh
 EVENTS_FILE="/tmp/qmanager_events.json"
-MAX_EVENTS=50
-. /usr/lib/qmanager/events.sh 2>/dev/null || {
+MAX_EVENTS=300
+if [ -f /usr/lib/qmanager/events.sh ]; then
+    . /usr/lib/qmanager/events.sh
+else
     append_event() { :; }
-}
+fi
 
 # --- Source profile manager library ------------------------------------------
 [ -f /usr/lib/qmanager/profile_mgr.sh ]   && . /usr/lib/qmanager/profile_mgr.sh
 [ -f /usr/lib/qmanager/platform.sh ]      && . /usr/lib/qmanager/platform.sh
 [ -f /usr/lib/qmanager/ttl_state.sh ]     && . /usr/lib/qmanager/ttl_state.sh
 [ -f /usr/lib/qmanager/scenario_mgr.sh ]  && . /usr/lib/qmanager/scenario_mgr.sh
+# apn_apply.sh depends on cgi_at.sh (already sourced above) and events.sh's
+# append_event (already sourced above, or shimmed to a no-op) being loaded
+# first — see that file's header for the full dependency contract.
+[ -f /usr/lib/qmanager/apn_apply.sh ]     && . /usr/lib/qmanager/apn_apply.sh
 
 # --- Configuration -----------------------------------------------------------
 STATE_FILE="/tmp/qmanager_profile_state.json"
+# WS6 single-APN sidecar (same file apn.sh's write_setting_json/read_setting_
+# json manage) — kept in sync here, best-effort, after a successful APN step
+# so /cellular/settings -> APN does not render stale after a profile apply.
+# Lives in /etc/qmanager (www-data-owned), NOT /usrdata/qmanager (0755
+# root:root). This binary is spawned WITHOUT sudo by profiles/apply.sh on the
+# UI path, so it runs as www-data there and could never create its temp file
+# under /usrdata/qmanager — the same silent no-op that affected apn.sh. Both
+# writers must stay on this one path or they diverge onto separate files.
+APN_SETTING_FILE="/etc/qmanager/apn_setting.json"
+# Recovery flag — SAME path watchcat (Tier 1/2/3), qmanager_ping
+# (during_recovery), alert_engine.sh, and events.sh already read/react to.
+#
+# This flag is genuinely MULTI-UID; an earlier version of this comment claimed
+# "only this root worker ever touches it" and that was simply wrong:
+#   - www-data  when spawned from the UI — profiles/apply.sh runs
+#               "$APPLY_BIN" with NO sudo, and this binary is not setuid and
+#               has no sudoers entry (same for cellular/settings.sh ->
+#               profile_mgr.sh's auto_apply_profile spawn).
+#   - root      when spawned by qmanager_poller (boot auto-apply) or
+#               qmanager_watchcat, neither of which sets User=.
+# So the SAME flag path is written by two different UIDs, and /tmp fights us
+# in two independent ways:
+#   - sticky bit (1777): only the file's owner — or root, via CAP_FOWNER —
+#     may UNLINK it. www-data can never rm a root-created flag.
+#   - fs.protected_regular=1: an O_CREAT open-for-write of a file in a
+#     world-writable sticky dir is refused unless the caller owns the file OR
+#     the file's owner is the DIRECTORY's owner. /tmp is root-owned, and this
+#     check has NO root override — so root cannot even overwrite a
+#     www-data-created flag.
+# Both denials are silent under `2>/dev/null`. Ownership is therefore never
+# assumed here: every claim WRITES and then READS BACK (see _apn_rf_claim),
+# and every clear checks the file is actually gone. Do NOT relocate this flag
+# to a persistent path — /tmp being tmpfs is what bounds a stuck flag to a
+# single uptime.
+APN_RECOVERY_FLAG="/tmp/qmanager_recovery_active"
+# Age ceiling for reclaiming a flag whose PID still LOOKS alive. pid_max is
+# 32768 and the churn was MEASURED on this device at ~100 PIDs/s (sampled from
+# /proc/loadavg's last field over 90s), so the PID space wraps in ~325s. A
+# /proc lookup on a flag older than that can match a completely unrelated
+# process, and nobody would ever reclaim it.
+#
+# 120, not 300. An earlier draft used 300 on the strength of a guessed 60-90
+# PIDs/s; at the measured rate that is 92% of a full wrap — no margin at all,
+# and PID *collisions* start well before a full lap because the allocator
+# skips live PIDs (birthday problem). 120s is ~37% of a wrap, and still an
+# order of magnitude above any legitimate bracket: a real APN bracket is
+# seconds (a few sleeps plus AT round-trips). Re-measure before raising this.
+# Deliberately NOT
+# REBOOT_TIMEOUT — that one bounds an AT+CFUN=1,1 wait and has no relation
+# to how long a bracket may hold suppression.
+APN_RECOVERY_FLAG_MAX_AGE=120
+# Upper sanity bound on a computed age. Anything above this is not "very old",
+# it is a CLOCK ARTEFACT, and must never be treated as evidence of staleness —
+# see _apn_rf_stale_by_age().
+APN_RECOVERY_FLAG_MAX_PLAUSIBLE_AGE=86400
+# Ownership marker for APN_RECOVERY_FLAG, read by the cleanup() trap below —
+# 1 only when THIS run created (or reclaimed) the flag; see apply_apn()'s
+# recovery-flag block for the full ownership rule. Initialized here (not
+# `local`) so it is a plain global, visible from both apply_apn() and the
+# cleanup() trap regardless of which function is executing when a signal
+# arrives.
+_apn_rf_owned=0
 # Pending re-apply marker: auto_apply_profile writes this when it finds THIS
 # worker holding the PID lock; we consume it on exit (after the lock is freed).
 PROFILE_PENDING_APPLY_FILE="/tmp/qmanager_profile_pending_apply"
+
+# Band failover watcher — same files/flag bands/lock.sh (the manual Band
+# Locking page) uses. Kept identical so both spawn paths are indistinguishable
+# to the watcher and to the UI's failover-activated flag.
+FAILOVER_ENABLED_FILE="/etc/qmanager/band_failover_enabled"
+FAILOVER_PID_FILE="/tmp/qmanager_band_failover.pid"
+FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
+FAILOVER_SCRIPT="/usr/bin/qmanager_band_failover"
 
 # Sip-don't-gulp gap between AT commands (seconds)
 CMD_GAP=0.3
 # Max seconds to wait for modem to come back after AT+CFUN=1,1
 REBOOT_TIMEOUT=60
+# Empty dir <prefix><target IMEI>.<boot_id> marks the last EGMR + CFUN=1,1 attempt; either user can rmdir it.
+IMEI_ATTEMPT_PREFIX="/etc/qmanager/profile_imei_attempt."
+_imei_attempt_clear() {
+    local d
+    for d in "${IMEI_ATTEMPT_PREFIX}"*; do
+        [ -d "$d" ] && [ ! -L "$d" ] && rmdir "$d" 2>/dev/null
+    done
+    return 0
+}
 
 # --- Validate arguments ------------------------------------------------------
 PROFILE_ID="$1"
@@ -154,11 +242,56 @@ if ! profile_acquire_lock; then
     exit 1
 fi
 
-# --- Cleanup trap: remove PID file, THEN consume any queued re-apply ----------
+# --- Cleanup trap: remove PID file, clear recovery flag (if OWNED), THEN
+# consume any queued re-apply --------------------------------------------------
 # Order is critical: the pending re-apply must run only after the PID lock is
 # gone, or the re-spawned auto_apply would busy-skip and drop the marker.
+# The recovery-flag clear is gated on `_apn_rf_owned`, which is set ONLY by a
+# verified read-back claim in _apn_rf_claim (see the APN_RECOVERY_FLAG comment
+# above for why a write here cannot be assumed to have landed). A flag we did
+# not verifiably claim — a foreign owner's, e.g. watchcat's — must NEVER be
+# deleted here. This is the belt-and-suspenders net for a signal arriving
+# mid-bracket, on top of apn_apply_on_bracket_end's own normal-path clear on
+# every return from apn_apply_write.
+#
+# PROFILE_APPLY_PID_FILE is TRUNCATED, never unlinked. An earlier draft used
+# `rm -f` here and reasoned that it was harmless because the lock decides on
+# CONTENT rather than existence (profile_check_lock: `[ -n "$pid" ] &&
+# [ -d /proc/$pid ]`, profile_mgr.sh:715-725). The content half is true; the
+# harmlessness is not.
+#
+# The unlink DESTROYS the seeded inode. qmanager_setup pre-creates this file
+# root:root 0666 precisely so both UIDs can write it — root from the poller and
+# watchcat, www-data from the UI (profiles/apply.sh spawns this binary with no
+# sudo). Unlink it once as root and the seed is gone for the rest of the boot;
+# whichever UID next runs creates it fresh at its own umask, and a root-created
+# 0644 file locks www-data out of the lock file entirely. Its `echo $$ >` then
+# fails silently, the lock is never recorded, and two applies can run
+# concurrently. Confirmed on hardware: the seeded file was simply ABSENT, and
+# the UI path had been running unlocked.
+#
+# `: >` truncates through the existing inode, so ownership and mode survive. It
+# is exactly equivalent to the unlink for the lock's purposes — an empty file
+# yields an empty $pid, which reads as unlocked — while keeping the shared
+# inode alive. Do not turn this back into `rm -f`.
+#
+# The redirect is guarded because as www-data it can still fail if the seed was
+# already lost on an earlier boot; failing to clear the lock is worth a warning,
+# not a crash.
 cleanup() {
-    rm -f "$PROFILE_APPLY_PID_FILE"
+    if ! : > "$PROFILE_APPLY_PID_FILE" 2>/dev/null; then
+        qlog_warn "cleanup: could not truncate $PROFILE_APPLY_PID_FILE as uid $(id -u) — the apply lock may read as held until it ages out"
+    fi
+    if [ "${_apn_rf_owned:-0}" = "1" ]; then
+        rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
+        # An unchecked rm here is how a permanently stuck flag stayed
+        # invisible: a cross-UID unlink in sticky /tmp returns 1 and changes
+        # nothing, and a stranded flag pins qmanager_ping's during_recovery,
+        # which freezes ALL alerts and suppresses every internet event until
+        # the next reboot. Make it findable.
+        [ -f "$APN_RECOVERY_FLAG" ] && \
+            qlog_warn "cleanup: failed to remove $APN_RECOVERY_FLAG (cross-UID unlink denied by /tmp's sticky bit) — alert suppression stays raised until reboot"
+    fi
     _consume_pending_apply
 }
 trap cleanup EXIT INT TERM
@@ -196,9 +329,31 @@ steps_done=0
 steps_failed=0
 steps_skipped=0
 
-# --- Write the state file (atomic mv) ----------------------------------------
+# --- Write the state file (build in a temp, then COPY — never rename) --------
+# The staging temp exists so a jq failure cannot truncate live state: the copy
+# below is GUARDED on the temp being non-empty, because `cat` of a zero-byte
+# temp would faithfully truncate the destination to zero bytes. (Without that
+# guard the temp buys nothing — it just moves the truncation one step later.)
+# When the temp is good it is copied BYTE-WISE into the target, never `mv`d
+# over it.
+#
+# THIS MUST NEVER BECOME `mv`. rename(2) swaps the INODE, which destroys the
+# shared file qmanager_setup pre-creates for exactly this cross-UID case: the
+# boot-time ROOT apply's mv replaced the seeded inode with a root-owned one at
+# umask 0022, after which every www-data UI Activate silently failed to record
+# progress and the dialog showed the STALE boot-run result. Writing through the
+# existing inode keeps whatever ownership/mode the seed established.
+#
+# The temp name is PID-qualified: a bare "${STATE_FILE}.tmp" is itself a
+# cross-UID trap — a run killed between jq and the copy leaves a temp owned by
+# one UID that the other UID can then never open for write (same
+# fs.protected_regular rule as the recovery flag).
+#
+# Trade accepted: we give up rename-atomicity, so a reader can briefly observe
+# a partially written file. That is fine for a progress file that is polled and
+# rewritten on every step, and the CGI reader is fail-soft.
 write_state() {
-    local tmp="${STATE_FILE}.tmp"
+    local tmp="${STATE_FILE}.tmp.$$"
     local err_val
     if [ "$apply_error" = "null" ]; then
         err_val="null"
@@ -239,7 +394,28 @@ write_state() {
             requires_reboot: $reboot,
             error: (if $err == "null" then null else $err end)
         }' > "$tmp"
-    mv "$tmp" "$STATE_FILE"
+
+    # Refuse to publish an empty render. jq's exit status above is discarded
+    # (it is the tail of a long heredoc-style invocation), so a jq failure is
+    # only visible as a zero-byte temp. Copying that would truncate the live
+    # state file — and a zero-byte state file with an old mtime is exactly the
+    # shape the CGI reader treats as a stale/unparseable apply, so the UI would
+    # report a phantom "failed" for an apply that is still running fine.
+    if [ ! -s "$tmp" ]; then
+        qlog_warn "jq produced no output for $STATE_FILE — leaving the previous state intact rather than truncating it"
+        rm -f "$tmp" 2>/dev/null
+        return 1
+    fi
+
+    if cat "$tmp" > "$STATE_FILE" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null
+    else
+        # Denied — the target inode belongs to the other UID (see the header
+        # above). Warn LOUDLY: silently swallowing this is what made the UI
+        # show a stale apply result with no trace anywhere.
+        qlog_warn "Failed to write $STATE_FILE (running as uid $(id -u); target owned by another UID under fs.protected_regular / mode) — apply progress will read STALE"
+        rm -f "$tmp" 2>/dev/null
+    fi
 }
 
 # --- Step lifecycle helpers ---------------------------------------------------
@@ -333,9 +509,219 @@ if ! _auto_sim_guard "pre-apply"; then
     apply_status="failed"
     apply_error="superseded_sim_changed"
     write_state
-    append_event "profile_failed" "Profile '$p_name' apply superseded — active SIM changed before apply" "warning"
+    append_event "profile_failed" "Profile '$p_name' superseded, SIM changed before apply" "warning"
     exit 0
 fi
+
+# apn_pdp_at_to_frontend <AT vocab> -> frontend vocab (ipv4/ipv6/ipv4v6)
+# Mirrors apn.sh's pdp_to_frontend — needed here only for the best-effort
+# apn_setting.json sidecar write below, which stores frontend vocabulary.
+apn_pdp_at_to_frontend() {
+    case "$1" in
+        IP|IPV4) echo "ipv4" ;;
+        IPV6)    echo "ipv6" ;;
+        *)       echo "ipv4v6" ;;
+    esac
+}
+
+# _apn_sidecar_converge <cid> <negotiated_apn> <pdp_at> — best-effort,
+# warn-only sync of the WS6 single-APN sidecar (/etc/qmanager/
+# apn_setting.json) after a successful profile apply. apn.sh is the only
+# other writer of this file; a failure here must NEVER fail the apply step
+# (mirrors apn.sh's own write_setting_json warn-only pattern). Writes the
+# NEGOTIATED apn, not the requested one (equal in the happy path).
+_apn_sidecar_converge() {
+    local _cid="$1"
+    local _apn="$2"
+    local _pdp_at="$3"
+    local _pdp_fe _dir _tmp
+    _pdp_fe=$(apn_pdp_at_to_frontend "$_pdp_at")
+    _dir=$(dirname "$APN_SETTING_FILE")
+    [ -d "$_dir" ] || mkdir -p "$_dir" 2>/dev/null
+    _tmp="${APN_SETTING_FILE}.tmp.$$"
+    if ! jq -n --arg apn "$_apn" --arg pdp_type "$_pdp_fe" --argjson cid "$_cid" \
+        '{apn: $apn, pdp_type: $pdp_type, cid: $cid, active: 1}' > "$_tmp" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        qlog_warn "apn sidecar converge: jq build failed for CID ${_cid}"
+        return 1
+    fi
+    chmod 644 "$_tmp" 2>/dev/null
+    if ! mv "$_tmp" "$APN_SETTING_FILE" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        qlog_warn "apn sidecar converge: mv failed for $APN_SETTING_FILE"
+        return 1
+    fi
+    chmod 644 "$APN_SETTING_FILE" 2>/dev/null
+    return 0
+}
+
+# =============================================================================
+# apn_apply_on_bracket_start / apn_apply_on_bracket_end — recovery-flag hooks
+# =============================================================================
+# apn_apply.sh feature-detects these two functions via `command -v` (the same
+# idiom this script already uses for scenario_install_schedule etc.) and, if
+# defined, calls apn_apply_on_bracket_start immediately after its bracket
+# lock is actually held — NOT while merely waiting on it — and
+# apn_apply_on_bracket_end on every return path that ran the start hook. This
+# is what moves APN_RECOVERY_FLAG ownership from "raised before the lock
+# wait even starts" (the bug: up to 30s of suppression for an apply that may
+# end in apn_busy, rc=7, having issued zero AT commands) to "raised only once
+# a bracket is actually about to touch the modem." apn_apply.sh itself learns
+# nothing about this flag — it only knows an optional callback might exist —
+# so the CGI callers (apn.sh, profiles/deactivate.sh), which never define
+# these functions, are completely unaffected.
+#
+# Ownership rule:
+#   flag absent          -> try to claim it (create + verify).
+#   flag present + EMPTY -> foreign owner. An OLD watchcat's bare `touch`
+#                           writes no PID at all, and during an OTA an old
+#                           watchcat can be running against this new binary,
+#                           so an empty file is still the NORMAL shape of a
+#                           live watchcat recovery. Leave it alone.
+#   flag present + LIVE PID (ours or foreign) -> leave it alone...
+#   ...UNLESS the flag is older than APN_RECOVERY_FLAG_MAX_AGE, in which case
+#                           the "live" PID is almost certainly a wrapped,
+#                           unrelated process (~6-minute PID wrap on this
+#                           device). Reclaim.
+#   flag present + DEAD PID -> genuinely stale (e.g. a SIGKILLed prior run of
+#                           THIS worker). Safe to reclaim.
+#
+# Ownership is CLAIMED BY VERIFICATION, never by assumption: both claim paths
+# go through _apn_rf_claim, which reads the file back. The previous version
+# set _apn_rf_owned=1 unconditionally after a `printf ... 2>/dev/null`, so a
+# www-data run writing over a root-owned flag "owned" a flag it had never
+# written — and then its rm -f silently no-op'd, stranding suppression (and
+# with it every alert and internet event) until the next reboot.
+#
+# Failing to claim is NOT fatal: suppression is best-effort, and an APN apply
+# that cannot suppress alerts is still a correct APN apply. We proceed
+# unsuppressed and say so in the log.
+#
+# _apn_rf_owned is the plain global declared near APN_RECOVERY_FLAG above —
+# NOT `local` here either — so cleanup()'s EXIT/INT/TERM trap can still read
+# it regardless of which function is executing when a signal arrives.
+
+# _apn_rf_claim — write our PID into the flag and PROVE it landed. Sets
+# _apn_rf_owned=1 only on a verified read-back; returns non-zero (and warns
+# with the PID that actually occupies the file) otherwise.
+_apn_rf_claim() {
+    local _rf_back
+    # Unlink FIRST, then create. Every caller has already decided the flag is
+    # ours to take (absent, dead PID, or aged out), so destroying it here is
+    # never destroying live state.
+    #
+    # This line is load-bearing in the root-reclaims-a-www-data-flag direction.
+    # A bare `printf > flag` against a flag owned by the OTHER uid is refused by
+    # fs.protected_regular (no root override), so the read-back below would
+    # mismatch, ownership would stay 0, and the stale flag would be left raised
+    # for the rest of the uptime — pinning during_recovery, freezing alerts and
+    # suppressing internet events. That is the exact failure this whole change
+    # exists to remove, reached from the mirror side. The unlink turns the write
+    # into an O_CREAT on a name that no longer exists, which protected_regular
+    # never refuses.
+    #
+    # Safe in the other direction too: www-data cannot unlink a root-owned file
+    # from sticky /tmp, so this no-ops there and the read-back still fails
+    # closed — we proceed WITHOUT suppression rather than falsely claiming.
+    rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
+    printf '%s\n' "$$" > "$APN_RECOVERY_FLAG" 2>/dev/null
+    _rf_back=$(cat "$APN_RECOVERY_FLAG" 2>/dev/null | tr -d ' \n\r')
+    if [ "$_rf_back" = "$$" ]; then
+        _apn_rf_owned=1
+        return 0
+    fi
+    _apn_rf_owned=0
+    qlog_warn "Could not claim $APN_RECOVERY_FLAG as uid $(id -u): flag holds '${_rf_back:-<empty>}', wanted $$ — proceeding WITHOUT alert suppression for this APN bracket"
+    return 1
+}
+
+# _apn_rf_stale_by_age — 0 (stale) only when the flag's mtime is provably
+# older than the ceiling. `stat -c %Y` is the established mtime idiom in this
+# codebase (qmanager_poller's LONG_FLAG check, qmanager_health_check's
+# freshness checks), so it is known-present on this device's BusyBox/coreutils
+# mix. Any unreadable or non-numeric result degrades to "NOT stale by age" —
+# the PID check alone then decides, which can only ever be too conservative,
+# never a wrong reclaim.
+#
+# THE CLOCK STEP IS THE HARD PART. This device has no battery-backed RTC: every
+# boot starts at Jan 1 1970 and ql_time_daemon steps the wall clock ~24s in. So
+# BOTH directions of `now - mtime` are corruptible, and only one of them is
+# obvious:
+#
+#   - mtime AFTER the step, `now` read BEFORE it -> negative age. Harmless: a
+#     negative number is never `-gt` the ceiling, so we report "not stale".
+#   - mtime BEFORE the step (e.g. the poller's boot-time auto_apply at ~10s
+#     uptime), `now` read AFTER it -> age computes to ~56 YEARS. That is
+#     `-gt 120`, so the naive check reports STALE and we reclaim a flag whose
+#     owner is alive and mid-bracket. We would then unlink their flag, and
+#     their cleanup would later delete OURS, collapsing suppression for both.
+#
+# The second case is the dangerous one and the non-numeric guard cannot catch
+# it — the arithmetic is perfectly valid, it just describes a bogus span. So an
+# implausible age is treated as NO EVIDENCE rather than as strong evidence:
+# fall back to the PID check, which is the conservative direction. A flag whose
+# mtime predates the step simply cannot be aged out during this boot, which is
+# correct — /tmp is tmpfs, so it cannot outlive the boot anyway.
+_apn_rf_stale_by_age() {
+    local _rf_mtime _rf_age
+    _rf_mtime=$(stat -c %Y "$APN_RECOVERY_FLAG" 2>/dev/null)
+    case "$_rf_mtime" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    _rf_age=$(( $(date +%s) - _rf_mtime ))
+    # Clock artefact, not age. Report "not stale" and let the PID check decide.
+    [ "$_rf_age" -gt "$APN_RECOVERY_FLAG_MAX_PLAUSIBLE_AGE" ] && return 1
+    [ "$_rf_age" -gt "$APN_RECOVERY_FLAG_MAX_AGE" ]
+}
+
+apn_apply_on_bracket_start() {
+    local _apn_rf_pid
+    _apn_rf_owned=0
+    if [ ! -f "$APN_RECOVERY_FLAG" ]; then
+        _apn_rf_claim
+    else
+        _apn_rf_pid=$(cat "$APN_RECOVERY_FLAG" 2>/dev/null | tr -d ' \n\r')
+        if [ -z "$_apn_rf_pid" ]; then
+            # Foreign (old watchcat) — untouched, and deliberately NOT aged
+            # out: an empty flag carries no owner to judge it by.
+            :
+        elif ! [ -d "/proc/$_apn_rf_pid" ]; then
+            qlog_warn "Reclaiming stale recovery flag (dead pid=$_apn_rf_pid)"
+            _apn_rf_claim
+        elif _apn_rf_stale_by_age; then
+            qlog_warn "Reclaiming stale recovery flag (pid=$_apn_rf_pid appears live, but the flag is older than ${APN_RECOVERY_FLAG_MAX_AGE}s and PIDs wrap in ~6min here)"
+            _apn_rf_claim
+        fi
+        # Live PID within the age ceiling -> _apn_rf_owned stays 0; the flag
+        # is left completely untouched.
+    fi
+}
+
+# Clear promptly ONLY if we own the flag — don't hold suppression for the
+# remaining ttl_hl/scenario/imei steps, which have nothing to do with this
+# WAN blip, but never delete a flag a foreign owner (watchcat) is still
+# using. cleanup()'s EXIT/INT/TERM trap (same ownership guard) remains the
+# net for an abnormal exit mid-bracket (e.g. a signal apn_apply.sh's own trap
+# handler cannot fully recover from).
+apn_apply_on_bracket_end() {
+    if [ "$_apn_rf_owned" = "1" ]; then
+        rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
+        # A cross-UID unlink in sticky /tmp returns 1 and removes nothing, so
+        # check rather than trust. A flag left behind here pins
+        # qmanager_ping's during_recovery=true, which pins conn_status
+        # "recovery", freezes every alert and suppresses every internet event
+        # for the rest of this uptime — worth a log line.
+        [ -f "$APN_RECOVERY_FLAG" ] && \
+            qlog_warn "Failed to clear $APN_RECOVERY_FLAG after the APN bracket (cross-UID unlink denied by /tmp's sticky bit) — alerts stay suppressed until reboot"
+        # Ownership ENDS here. Must reset, or this long-lived global stays
+        # "1" for the rest of the process — through apply_imei, which blocks
+        # up to REBOOT_TIMEOUT=60s on an AT+CFUN=1,1 reboot. Watchcat can
+        # legitimately raise its own recovery flag inside that window, and a
+        # stale _apn_rf_owned=1 would make cleanup() delete THAT flag on
+        # exit, ending a live recovery's alert suppression early.
+        _apn_rf_owned=0
+    fi
+}
 
 # =============================================================================
 # Step 1: APN
@@ -343,41 +729,131 @@ fi
 apply_apn() {
     mark_step_running "apn" "Checking APN configuration..."
 
-    # Read current APN for this CID
-    local cgdcont_resp
-    cgdcont_resp=$(run_at "AT+CGDCONT?")
-    if [ $? -ne 0 ]; then
-        mark_step_failed "apn" "Failed to read current APN"
-        return
-    fi
-
-    # Parse current APN for the target CID
-    # Response format: +CGDCONT: <cid>,"<pdp_type>","<apn>",...
-    # Using awk -F'"' — $2=pdp_type, $4=apn (same approach as current_settings.sh)
-    local current_apn
-    current_apn=$(printf '%s' "$cgdcont_resp" | grep "+CGDCONT: ${p_apn_cid}," | awk -F'"' '{print $4}' | head -1)
-
-    # Skip if APN hasn't changed
-    if [ "$current_apn" = "$p_apn_name" ]; then
-        mark_step_skipped "apn" "APN already set to ${p_apn_name} (CID ${p_apn_cid})"
-        return
-    fi
-
-    # Set APN
     local pdp="${p_pdp_type:-IPV4V6}"
-    local at_cmd="AT+CGDCONT=${p_apn_cid},\"${pdp}\",\"${p_apn_name}\""
-    mark_step_running "apn" "Setting APN to ${p_apn_name} (CID ${p_apn_cid})..."
 
-    local resp
-    resp=$(run_at "$at_cmd")
-    if [ $? -ne 0 ]; then
-        mark_step_failed "apn" "Failed to set APN"
+    # --- Empty-APN early-skip, BEFORE any AT call ---------------------------
+    # profile_mgr.sh validates only cid/pdp_type, not apn_name (:269-273 in
+    # profile_save) — an IMEI-only or TTL-only profile can legitimately carry
+    # no APN. Never bracket-cycle the modem for a profile with nothing to say.
+    if [ -z "$p_apn_name" ]; then
+        mark_step_skipped "apn" "No APN configured in this profile (CID ${p_apn_cid})"
         return
     fi
 
-    sleep "$CMD_GAP"
+    # --- Skip-check against the NEGOTIATED view, not the configured one -----
+    # The OLD check compared against AT+CGDCONT? (what was ASKED for), which
+    # is self-concealing: one bracket-less apply makes CGDCONT match even
+    # though the bearer is stale, so a SECOND apply would report "already
+    # set" and never actually fix anything. AT+CGCONTRDP=<cid> is the only
+    # view that reflects what the network actually granted. Cost: one extra
+    # AT round-trip per apply attempt (acceptable — this step already made
+    # several before this change).
+    #
+    # Case-fold ONLY for the comparison: APNs are DNS-style labels, case-
+    # insensitive per 3GPP. A live device negotiated "INTERNET.GLOBE.COM.PH"
+    # uppercase for a profile stored as "internet" — a byte-for-byte compare
+    # would never match, so every trigger (boot, SIM-slot switch, watchdog
+    # SIM failover, manual re-activate) would re-run the full detach/attach
+    # bracket even though the APN is already correct. The detail string
+    # below still reports the profile's ORIGINAL-case p_apn_name.
+    local rdp current_negotiated cgd
+    # A failed read is an unknown state: never run the COPS=2/0 cycle on it.
+    # A bare OK (rc 0, no +CGCONTRDP line) is a known no-bearer state: see the CGDCONT? check below.
+    if ! rdp=$(run_at "AT+CGCONTRDP=${p_apn_cid}"); then
+        qlog_warn "APN step skipped: AT+CGCONTRDP=${p_apn_cid} read failed"
+        mark_step_skipped "apn" "Could not read the current APN (CID ${p_apn_cid}); not changed"
+        return
+    fi
+    # run_at already dropped the echo and OK; any line left that isn't a full +CGCONTRDP record is unknown.
+    if printf '%s\n' "$rdp" | tr -d '\r' | awk '
+        /^[ \t]*$/ { next }
+        /^\+CGCONTRDP:/ { l = $0; sub(/^\+CGCONTRDP:[ \t]*/, "", l); if (split(l, f, ",") >= 3) next }
+        { bad = 1 }
+        END { exit !bad }'; then
+        qlog_warn "APN step skipped: unrecognised AT+CGCONTRDP=${p_apn_cid} reply"
+        mark_step_skipped "apn" "Could not read the current APN (CID ${p_apn_cid}); not changed"
+        return
+    fi
+    current_negotiated=$(parse_cgcontrdp_apn "$rdp")
 
-    mark_step_done "apn" "Set APN to ${p_apn_name} (CID ${p_apn_cid})"
+    if [ -n "$current_negotiated" ] && \
+       [ "$(printf '%s' "$current_negotiated" | tr 'A-Z' 'a-z')" = "$(printf '%s' "$p_apn_name" | tr 'A-Z' 'a-z')" ]; then
+        mark_step_skipped "apn" "APN already negotiated: ${p_apn_name} (CID ${p_apn_cid})"
+        return
+    fi
+
+    # No bearer (no record at all) but the context already holds this APN: the next attach
+    # uses it, so COPS=2/0 would only restart registration. A failed read falls through.
+    if printf '%s\n' "$rdp" | awk '/^\+CGCONTRDP:/ { f = 1 } END { exit f }' && \
+       cgd=$(run_at "AT+CGDCONT?"); then
+        local configured
+        configured=$(printf '%s\n' "$cgd" | tr -d '\r' | awk -F'"' -v cid="$p_apn_cid" '
+            /^\+CGDCONT:/ { c = $1; sub(/^\+CGDCONT:[ \t]*/, "", c); sub(/[ \t]*,.*$/, "", c)
+                            if (c == cid) { print $4; exit } }')
+        if [ -n "$configured" ] && \
+           [ "$(printf '%s' "$configured" | tr 'A-Z' 'a-z')" = "$(printf '%s' "$p_apn_name" | tr 'A-Z' 'a-z')" ]; then
+            mark_step_skipped "apn" "APN configured, waiting for bearer: ${p_apn_name} (CID ${p_apn_cid})"
+            return
+        fi
+    fi
+
+    # --- Fail closed if the shared primitive failed to load -----------------
+    # A defensive `[ -f ... ] && . ...` source (used above for the other
+    # libs) would let a broken install silently fall through here and apply
+    # the APN with NO bracket at all — reintroducing the exact bug this
+    # change fixes, as a new failure mode. Check the function actually
+    # exists and fail the step loudly instead.
+    if ! command -v apn_apply_write >/dev/null 2>&1; then
+        mark_step_failed "apn" "apn_apply.sh library missing or failed to load — APN NOT applied (no bracket attempted)"
+        return
+    fi
+
+    mark_step_running "apn" "Applying APN ${p_apn_name} (CID ${p_apn_cid})..."
+
+    # --- Recovery-flag suppression (best-effort, either UID) ----------------
+    # apn_apply_write calls apn_apply_on_bracket_start/_end (defined above)
+    # itself, at the right moments — once the bracket lock is actually held,
+    # not while merely waiting on it — so there is nothing to do here beyond
+    # calling in. See those two functions' header comment for the full
+    # ownership rule and why this moved out of this inline call site.
+    apn_apply_write "$p_apn_cid" "$pdp" "$p_apn_name"
+
+    # Re-assert our own process-wide trap immediately: apn_apply_write
+    # borrows INT/TERM for the duration of its bracket and releases them
+    # back to the shell's DEFAULT disposition on every return path (see
+    # apn_apply.sh's _apn_apply_trap_restore) — it does NOT know about, and
+    # cannot safely restore, `cleanup`. Unconditional and correct regardless
+    # of which return path fired; must land before the riskier ttl_hl /
+    # scenario / imei steps run, since apply_imei blocks up to
+    # REBOOT_TIMEOUT=60s waiting out an AT+CFUN=1,1 reboot and a SIGTERM in
+    # that window must still reach cleanup() (PID-file removal, recovery-
+    # flag clear, pending-requeue consumption).
+    trap cleanup EXIT INT TERM
+
+    case "$APN_APPLY_RC" in
+        0)
+            mark_step_done "apn" "$APN_APPLY_DETAIL"
+            # Best-effort sidecar convergence — never fails the step.
+            _apn_sidecar_converge "$p_apn_cid" "$APN_APPLY_NEGOTIATED_APN" "$pdp" || \
+                qlog_warn "Applied APN to modem but failed to converge $APN_SETTING_FILE"
+            ;;
+        7)
+            # apn_busy: another apn_apply_write bracket is in progress
+            # elsewhere (another process, or a concurrent CGI save). No AT
+            # commands were issued — modem unchanged. Not a "failure" of
+            # this apply's own logic, but the 4-step ledger has no distinct
+            # "retry" status, so it still reports as failed; the detail
+            # string carries the true, retryable nature of the condition.
+            mark_step_failed "apn" "$APN_APPLY_DETAIL"
+            ;;
+        *)
+            # Every other non-zero code (including rc=3, "modem may be
+            # deregistered") is reported as a failed step — the ledger has
+            # no slot for a distinct "critical" severity, so the severity
+            # rides entirely in the detail string.
+            mark_step_failed "apn" "$APN_APPLY_DETAIL"
+            ;;
+    esac
 }
 
 # =============================================================================
@@ -407,6 +883,55 @@ apply_ttl_hl() {
     else
         mark_step_failed "ttl_hl" "Failed to apply or persist TTL=$new_ttl, HL=$new_hl"
     fi
+}
+
+# --- Band failover watcher spawn ----------------------------------------------
+# Parity with bands/lock.sh (the manual Band Locking page): a bad band lock can
+# kill service, so lock.sh spawns qmanager_band_failover to poll AT+QCAINFO for
+# ~30s and revert to all supported bands if no carrier is found. The profile
+# apply pipeline sends the IDENTICAL AT+QNWPREFCFG band commands (via
+# scenario_apply) for a custom scenario's bands, but had no such safety net —
+# and once a profile binds a custom-* scenario, the gate matrix disables the
+# Band Locking page itself, blocking the user's manual recovery route too.
+# This closes that gap. Non-blocking, non-fatal: a spawn failure never affects
+# the "scenario" step's done/partial/failed status.
+_spawn_band_failover_if_needed() {
+    local _bf_lte="$1"
+    local _bf_nsa="$2"
+    local _bf_sa="$3"
+
+    # Never spawn for built-in scenarios or a custom scenario with no bands.
+    if [ -z "$_bf_lte" ] && [ -z "$_bf_nsa" ] && [ -z "$_bf_sa" ]; then
+        return 0
+    fi
+
+    local _bf_enabled="false"
+    if [ -f "$FAILOVER_ENABLED_FILE" ]; then
+        local _bf_val
+        _bf_val=$(cat "$FAILOVER_ENABLED_FILE" 2>/dev/null | tr -d ' \n\r')
+        [ "$_bf_val" = "1" ] && _bf_enabled="true"
+    fi
+    [ "$_bf_enabled" = "true" ] || return 0
+
+    [ -x "$FAILOVER_SCRIPT" ] || { qlog_warn "Band failover enabled but watcher missing: $FAILOVER_SCRIPT"; return 0; }
+
+    # Clear any previous activation flag — this lock supersedes it (same as lock.sh).
+    rm -f "$FAILOVER_ACTIVATED_FLAG"
+
+    # Kill any existing watcher (latest lock is the one we monitor)
+    if [ -f "$FAILOVER_PID_FILE" ]; then
+        local _bf_old_pid
+        _bf_old_pid=$(cat "$FAILOVER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
+        if pid_is "$_bf_old_pid" qmanager_band_failover; then
+            kill "$_bf_old_pid" 2>/dev/null
+            qlog_debug "Killed previous failover watcher (PID=$_bf_old_pid)"
+        fi
+        rm -f "$FAILOVER_PID_FILE"
+    fi
+
+    # Spawn new watcher (detached via double-fork, same idiom as bands/lock.sh)
+    ( "$FAILOVER_SCRIPT" </dev/null >/dev/null 2>&1 & )
+    qlog_info "Failover watcher spawned for profile-applied band lock"
 }
 
 # =============================================================================
@@ -462,6 +987,12 @@ apply_scenario() {
 
             mark_step_running "scenario" "Applying custom scenario: $p_scenario_id (mode=$sc_mode)..."
             if scenario_apply "$p_scenario_id" "$sc_mode" "$sc_lte" "$sc_nsa" "$sc_sa"; then
+                # mode_pref landed, meaning any band-lock AT commands below it
+                # were also sent (see scenario_apply) — arm the same safety net
+                # the manual Band Locking page uses, on success OR partial band
+                # failure alike, mirroring lock.sh which spawns unconditionally
+                # once its single AT command is accepted.
+                _spawn_band_failover_if_needed "$sc_lte" "$sc_nsa" "$sc_sa"
                 if [ -n "$_scenario_apply_failed" ]; then
                     scenario_set_active "$p_scenario_id"
                     mark_step_failed "scenario" "Partial: band lock failed for: $_scenario_apply_failed"
@@ -502,9 +1033,35 @@ apply_imei() {
     fi
     # Clean up the response (just the 15-digit IMEI)
     current_imei=$(printf '%s' "$current_imei" | grep -o '[0-9]\{15\}' | head -1)
+    if [ -z "$current_imei" ]; then
+        qlog_warn "IMEI step failed: AT+CGSN reply had no IMEI"
+        mark_step_failed "imei" "Failed to read current IMEI"
+        return
+    fi
 
     if [ "$current_imei" = "$p_imei" ]; then
+        _imei_attempt_clear
         mark_step_skipped "imei" "IMEI already set to $p_imei"
+        return
+    fi
+
+    # An attempt for this IMEI in an earlier boot that still didn't stick: give up, so CFUN=1,1 can't loop.
+    local boot_id attempt attempt_new
+    boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+    case "$p_imei" in *[!0-9]*) boot_id="" ;; esac
+    attempt_new="${IMEI_ATTEMPT_PREFIX}${p_imei}.${boot_id}"
+    for attempt in "${IMEI_ATTEMPT_PREFIX}${p_imei}".*; do
+        [ -d "$attempt" ] && [ ! -L "$attempt" ] && [ "$attempt" != "$attempt_new" ] || continue
+        qlog_warn "IMEI step gave up: change to $p_imei was already tried in boot ${attempt##*.} and did not stick"
+        mark_step_failed "imei" "IMEI change to $p_imei did not stick after a restart; not retrying"
+        return
+    done
+
+    # Marker is an empty dir: mkdir/rmdir never follow a planted link in this www-data-owned dir.
+    _imei_attempt_clear
+    if [ -z "$boot_id" ] || { ! mkdir "$attempt_new" 2>/dev/null && { [ ! -d "$attempt_new" ] || [ -L "$attempt_new" ]; }; }; then
+        qlog_warn "IMEI step failed: could not record the attempt marker"
+        mark_step_failed "imei" "Could not prepare the IMEI change; not applied"
         return
     fi
 
@@ -514,6 +1071,8 @@ apply_imei() {
     local resp
     resp=$(run_at "AT+EGMR=1,7,\"${p_imei}\"")
     if [ $? -ne 0 ]; then
+        # No restart happened, so this attempt must not count against the next boot.
+        _imei_attempt_clear
         mark_step_failed "imei" "Failed to write IMEI"
         return
     fi
@@ -562,6 +1121,7 @@ apply_imei() {
     verify_imei=$(printf '%s' "$verify_imei" | grep -o '[0-9]\{15\}' | head -1)
 
     if [ "$verify_imei" = "$p_imei" ]; then
+        _imei_attempt_clear
         mark_step_done "imei" "IMEI changed to $p_imei (modem rebooted)"
     else
         mark_step_failed "imei" "IMEI verify failed: expected $p_imei, got $verify_imei"
@@ -597,7 +1157,7 @@ if [ -n "$AUTO_MODE" ] && ! _auto_sim_guard "pre-finalize"; then
     apply_status="failed"
     apply_error="superseded_sim_changed"
     write_state
-    append_event "profile_failed" "Profile '$p_name' apply superseded — active SIM changed during apply" "warning"
+    append_event "profile_failed" "Profile '$p_name' superseded, SIM changed during apply" "warning"
     exit 0
 fi
 
@@ -632,11 +1192,11 @@ fi
 
 # --- Emit network event ------------------------------------------------------
 if [ "$apply_status" = "complete" ]; then
-    append_event "profile_applied" "Profile '$p_name' applied successfully" "info"
+    append_event "profile_applied" "Profile '$p_name' applied" "info"
 elif [ "$apply_status" = "partial" ]; then
-    append_event "profile_applied" "Profile '$p_name' partially applied ($steps_failed step(s) failed)" "warning"
+    append_event "profile_applied" "Profile '$p_name' partially applied ($steps_failed failed)" "warning"
 else
-    append_event "profile_failed" "Profile '$p_name' failed to apply ($steps_failed step(s) failed)" "error"
+    append_event "profile_failed" "Profile '$p_name' apply failed ($steps_failed failed)" "error"
 fi
 
 qlog_info "Profile apply finished: status=$apply_status (done=$steps_done, failed=$steps_failed, skipped=$steps_skipped)"

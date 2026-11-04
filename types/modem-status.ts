@@ -12,6 +12,8 @@
 export interface ModemStatus {
   /** Unix epoch (seconds) — updated every poll cycle */
   timestamp: number;
+  /** Modem uptime (s) when this snapshot was written; absent on older pollers */
+  mono?: number;
   /** Current system state */
   system_state: SystemState;
   /** Whether the modem responded to the last AT command */
@@ -38,8 +40,35 @@ export interface ModemStatus {
   sim_failover: SimFailoverStatus;
   /** SIM swap detection (physical SIM card change at boot) */
   sim_swap: SimSwapStatus;
-  /** Persistent data-usage counter (optional — absent on older firmware or before first poller write) */
-  data_used?: DataUsedBlock;
+  /** Persistent data-usage counter (optional — absent on older firmware or before first poller write). `stale` is added only by data_used.sh. */
+  data_used?: Omit<DataUsedBlock, "stale">;
+  /** System health block (optional — absent on older pollers); only the fields the UI reads are typed here */
+  system_health?: StatusSystemHealth;
+  /**
+   * SIM readiness snapshot (optional — a device OTA-upgraded from an older
+   * poller will not emit this block, so every consumer must tolerate `undefined`
+   * rather than assuming a card is present).
+   */
+  sim?: SimBlock;
+}
+
+/** The slice of `status.json.system_health` read straight from the status payload. */
+export interface StatusSystemHealth {
+  /** /usrdata partition usage from df -P; null when the mount is absent or df fails */
+  storage?: {
+    mount: string;
+    total_kb: number;
+    used_kb: number;
+    available_kb: number;
+  } | null;
+}
+
+/** SIM readiness block published by the poller from AT+CPIN?. */
+export interface SimBlock {
+  /** Classified readiness state */
+  status: SimStatus;
+  /** Whether a card is physically present (false when `status` is "not_inserted") */
+  inserted: boolean;
 }
 
 // --- Enums & Unions ----------------------------------------------------------
@@ -76,7 +105,49 @@ export type ConnectionState =
   | "unknown"
   | "error";
 
+/**
+ * Access technology the poller could positively identify.
+ *
+ * `""` means "not determined" — it is NOT a synonym for LTE. The poller used to
+ * fall back to `"LTE"` for any technology it could not parse (GSM, WCDMA, no
+ * service), which made an unparsed reading indistinguishable from a real 4G
+ * attach. That fallback is now `""`; treat it as unknown and render it as such.
+ */
 export type NetworkType = "LTE" | "5G-NSA" | "5G-SA" | "";
+
+/** Display label for a {@link NetworkType}. */
+export type NetworkTypeLabel = "LTE" | "5G NSA" | "5G SA" | "Unknown";
+
+/**
+ * Map an access technology to its display label.
+ *
+ * Never invents a technology: an empty/unrecognised value returns `"Unknown"`
+ * rather than guessing LTE.
+ */
+export function networkTypeLabel(type: NetworkType): NetworkTypeLabel {
+  switch (type) {
+    case "LTE":
+      return "LTE";
+    case "5G-NSA":
+      return "5G NSA";
+    case "5G-SA":
+      return "5G SA";
+    default:
+      return "Unknown";
+  }
+}
+
+/**
+ * SIM readiness from AT+CPIN? as classified by `parse_at.sh`.
+ * These are the exact strings the poller emits — do not add synonyms.
+ */
+export type SimStatus =
+  | "ready"
+  | "pin_required"
+  | "puk_required"
+  | "not_inserted"
+  | "error"
+  | "unknown";
 
 // --- Sub-Interfaces ----------------------------------------------------------
 
@@ -115,6 +186,22 @@ export interface NetworkStatus {
   secondary_dns: string;
   /** Per-carrier component details from AT+QCAINFO (PCC + all SCCs) */
   carrier_components: CarrierComponent[];
+  /** QMI WDS runtime settings of the bound data call; null when stale or unavailable */
+  wds?: WdsSettings | null;
+}
+
+/** QMI WDS 0x002D runtime settings; `mtu` is the network-provided PDN MTU. */
+export interface WdsSettings {
+  ip4: string | null;
+  gw4: string | null;
+  mask4: string | null;
+  dns4: string[];
+  mtu: number | null;
+  ip6: string | null;
+  ip6_prefix: number | null;
+  gw6: string | null;
+  dns6: string[];
+  read_mono: number;
 }
 
 /** A single carrier component from AT+QCAINFO (PCC or SCC) */
@@ -148,7 +235,13 @@ export interface LteStatus {
   band: string;
   /** E-UTRA Absolute Radio Frequency Channel Number */
   earfcn: number | null;
-  /** Downlink bandwidth in MHz */
+  /**
+   * Raw QENG downlink bandwidth ENUM, not MHz: 0-5 maps to 1.4/3/5/10/15/20 MHz.
+   * The poller stores field 12 of AT+QENG="servingcell" undecoded, so a 20 MHz
+   * channel arrives here as `5`. For a real MHz figure use
+   * `NetworkStatus.carrier_components[].bandwidth_mhz`, which AT+QCAINFO
+   * reports as resource blocks and the poller decodes.
+   */
   bandwidth: number | null;
   /** Physical Cell ID */
   pci: number | null;
@@ -170,6 +263,8 @@ export interface LteStatus {
   rssi: number | null;
   /** Timing Advance index (0–1282). Used for cell distance estimation. */
   ta: number | null;
+  /** Where rsrp/rsrq/rssi came from this write: QMI fills cycles without an AT read */
+  source?: "at" | "qmi";
 }
 
 export interface NrStatus {
@@ -240,6 +335,16 @@ export interface DeviceStatus {
   supported_nsa_nr5g_bands: string;
   /** Hardware-supported SA NR5G bands, colon-delimited (boot-only) */
   supported_sa_nr5g_bands: string;
+  /** Poller activity tier: AT reads slow down while no browser is polling; absent on older pollers */
+  poller_tier?: PollerTier;
+  /** Monotonic second of the QMI snapshot; null without the sidecar */
+  qmi_read_mono?: number | null;
+  /** QMI lane state ("up", ...); "" without the sidecar */
+  qmi_state?: string;
+  /** Modem subsystem restarts seen by the QMI lane */
+  qmi_ssr_count?: number | null;
+  /** Monotonic second of the last AT serving-cell read */
+  at_read_mono?: number | null;
 }
 
 /**
@@ -278,20 +383,106 @@ export interface DataUsedBlock {
 
 // --- Utility Types -----------------------------------------------------------
 
-/** Signal quality thresholds for UI indicators */
+/**
+ * Serving-cell / per-carrier metrics. The per-antenna arrays use `SignalMetric`
+ * below instead — that set has no RSSI, because AT+QRSRP/QRSRQ/QSINR report
+ * none.
+ */
+export type ServingMetric = "rsrp" | "rsrq" | "sinr" | "rssi";
+
+/**
+ * The 3GPP REPORTED range for each metric — the interval a real measurement can
+ * physically fall in. Anything outside it is not a bad reading, it is not a
+ * reading: an unavailable marker, a raw field in the wrong unit, or a parse
+ * that grabbed the wrong CSV column.
+ *
+ * WHY THIS EXISTS. `AT+QCAINFO`'s LTE line reports RSSNR in field 10 as a RAW
+ * value, and `AT+QENG="servingcell"` reports a raw 0..25 too (dB = 2X−20, which
+ * `parse_at.sh` now applies; the `lte.sinr` = 8 below predates that). The
+ * poller's NR branch rescales and rejects `-32768`; its LTE branch
+ * (`parse_at.sh:632`) takes the field verbatim. Live capture, one poll, one
+ * cell (B28 / EARFCN 9485 / PCI 407): `lte.sinr` = 8 while
+ * `carrier_components[0].sinr` = 251. RSRP and RSRQ agreed across the two
+ * sources to within 1; only SINR diverged — and 251 is outside RSSNR's reported
+ * range entirely, so it is not a scaled 8 either.
+ *
+ * That alone was survivable. What made it dangerous is that the ladder below
+ * used to have no CEILING: `value >= thresholds.excellent` scored 251 dB
+ * "excellent", so the page painted a full green bar and an Excellent chip next
+ * to a genuinely poor -115 dBm RSRP. On the surface a technician opens to
+ * diagnose exactly that, a fabricated healthy verdict is the worst available
+ * failure mode — strictly worse than showing nothing.
+ *
+ * Ranges are the reported ranges, not the comfortable ones: RSRP spans NR's
+ * extended -156…-31 because an NR carrier is read through the same path.
+ */
+export const METRIC_RANGES: Record<ServingMetric, { min: number; max: number }> = {
+  rsrp: { min: -156, max: -31 }, // 36.133 / 38.133 RSRP reporting range
+  rsrq: { min: -43, max: 20 },   // 36.133 extended RSRQ range
+  sinr: { min: -23, max: 40 },   // 36.133 RS-SINR reporting range
+  rssi: { min: -120, max: -25 },
+};
+
+/**
+ * The single read boundary for a serving-cell / per-carrier value, and the
+ * sibling of `normalizeSignalValue()` below (which does the same job for the
+ * per-antenna arrays, against a sentinel SET rather than a range).
+ *
+ * Returns `null` for anything outside the physical range, so the value, its
+ * bar and its quality verdict all resolve through the one already-correct
+ * "not reported" path instead of disagreeing with each other.
+ */
+export function normalizeMetricValue(
+  value: number | null | undefined,
+  metric: ServingMetric
+): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  const { min, max } = METRIC_RANGES[metric];
+  return value < min || value > max ? null : value;
+}
+
+/**
+ * Signal quality thresholds for UI indicators.
+ *
+ * Every named member except `floor` is a CUT: the lowest value that still
+ * earns that level. `floor` is not a cut — it is the bottom of the 0–100
+ * scale `signalToProgress()` maps into, and no value is ever classified by
+ * comparing against it.
+ *
+ * That distinction used to be invisible: the field now called `floor` was
+ * called `poor`, while `getSignalQuality()` never read it at all — `poor` was
+ * the fallthrough return. Adding a real `poor` cut beside a `poor` floor would
+ * have left two different meanings sharing one name, so the floor was renamed
+ * first. Keep them distinct if you add a metric.
+ */
 export interface SignalThresholds {
   excellent: number;
   good: number;
   fair: number;
   poor: number;
+  /** Bottom of the progress scale — NOT a classification cut. See above. */
+  floor: number;
+  /** Physical range for this metric — see METRIC_RANGES. */
+  range: { min: number; max: number };
 }
 
-/** RSRP thresholds (dBm) — higher (less negative) is better */
+/**
+ * RSRP thresholds (dBm) — higher (less negative) is better.
+ *
+ * The `poor` cut at −120 is a product call, not a measurement: −110 to −120 is
+ * cell edge, a weak link that aiming, a band lock or a different antenna can
+ * plausibly recover. Below −120 the cell is effectively not being received and
+ * the honest message is "not this cell", not "try a bit harder". That is the
+ * distinction the alignment meter exists to draw, and it could not draw it
+ * while everything under −110 shared one bucket.
+ */
 export const RSRP_THRESHOLDS: SignalThresholds = {
   excellent: -80,
   good: -100,
   fair: -110,
-  poor: -140,
+  poor: -120,
+  floor: -140,
+  range: METRIC_RANGES.rsrp,
 };
 
 /** RSRQ thresholds (dB) — higher (less negative) is better */
@@ -299,7 +490,9 @@ export const RSRQ_THRESHOLDS: SignalThresholds = {
   excellent: -5,
   good: -10,
   fair: -15,
-  poor: -20,
+  poor: -18,
+  floor: -20,
+  range: METRIC_RANGES.rsrq,
 };
 
 /** SINR thresholds (dB) — higher is better */
@@ -307,31 +500,44 @@ export const SINR_THRESHOLDS: SignalThresholds = {
   excellent: 20,
   good: 13,
   fair: 0,
-  poor: -20,
+  poor: -10,
+  floor: -20,
+  range: METRIC_RANGES.sinr,
 };
 
 /**
  * Categorizes a signal value into a quality level based on thresholds.
  * Works for any metric where higher = better.
+ *
+ * The range check is deliberately INSIDE this function rather than left to
+ * every caller. Carrying the range on the thresholds object means the twelve
+ * existing call sites are covered without touching any of them, and a future
+ * surface cannot opt out of it by forgetting to normalize first — which is the
+ * exact way the per-antenna sentinel policy fragmented before
+ * `normalizeSignalValue()` centralized it.
  */
 export function getSignalQuality(
   value: number | null,
   thresholds: SignalThresholds
-): "excellent" | "good" | "fair" | "poor" | "none" {
-  if (value === null || value === undefined) return "none";
+): "excellent" | "good" | "fair" | "poor" | "bad" | "none" {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "none";
+  // Out of physical range is "we have no reading", never the top of the ladder.
+  if (value < thresholds.range.min || value > thresholds.range.max) return "none";
   if (value >= thresholds.excellent) return "excellent";
   if (value >= thresholds.good) return "good";
   if (value >= thresholds.fair) return "fair";
-  return "poor";
+  if (value >= thresholds.poor) return "poor";
+  return "bad";
 }
 
 export type SignalQuality = ReturnType<typeof getSignalQuality>;
 
 const SIGNAL_QUALITY_RANK: Record<SignalQuality, number> = {
-  excellent: 4,
-  good: 3,
-  fair: 2,
-  poor: 1,
+  excellent: 5,
+  good: 4,
+  fair: 3,
+  poor: 2,
+  bad: 1,
   none: 0,
 };
 
@@ -350,26 +556,32 @@ export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality
   );
 }
 
-/** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field).
-    Post ICMP-port there is no "limited" (carrier-intercept) outcome — an ICMP ping either answers or it doesn't. */
-export type PingTriState = "connected" | "disconnected" | "unknown";
+/** The three fixed presets for high_latency / high_packet_loss event thresholds. */
+export type QualityNamedPreset = "standard" | "tolerant" | "very-tolerant";
 
-/** User-selectable preset for high_latency / high_packet_loss event thresholds. */
-export type QualityPreset = "standard" | "tolerant" | "very-tolerant";
+/** User-selectable preset: a named one, or `custom` with the user's own number. */
+export type QualityPreset = QualityNamedPreset | "custom";
 
 /** Display-order list of quality presets. */
 export const QUALITY_PRESETS: readonly QualityPreset[] = [
   "standard",
   "tolerant",
   "very-tolerant",
+  "custom",
 ] as const;
 
-/** Persisted shape of /etc/qmanager/quality_thresholds.json (also the GET response settings field). */
+/** Persisted shape of /etc/qmanager/quality_thresholds.json (also the GET response settings field).
+    `custom_ms` / `custom_pct` are the stored custom numbers; they are read only while the preset is `custom`. */
 export interface QualityThresholdsSettings {
-  latency: { preset: QualityPreset };
-  loss: { preset: QualityPreset };
+  latency: { preset: QualityPreset; custom_ms?: number | null };
+  loss: { preset: QualityPreset; custom_pct?: number | null };
 }
 
+/** The poller's derived connectivity verdict, computed in qmanager_poller from the
+    ICMP daemon's reachability plus the rolling packet-loss window. This is the only
+    connectivity verdict the UI reads: "degraded" means the probes answer but loss has
+    reached the configured threshold (`thresholds.loss_pct`), "recovery" means the watchdog is mid-restore, and
+    "unknown" means the probe itself is not reporting — which is not an outage. */
 export type ConnectivityState =
   | "connected"
   | "degraded"
@@ -390,45 +602,66 @@ export interface ConnectivityStatus {
   min_latency_ms: number | null;
   /** Maximum RTT in history window */
   max_latency_ms: number | null;
-  /** Average inter-packet RTT variation */
+  /**
+   * Average inter-packet RTT variation. null when the history window holds
+   * fewer than the poller's MIN_STAT_SAMPLES readings — a ratio needs a
+   * series, and the ping daemon truncates the window on every probe-winner
+   * change, so a short window is a recurring state and not a boot transient.
+   */
   jitter_ms: number | null;
-  /** Percentage of failed pings in history window (0-100) */
-  packet_loss_pct: number;
-  /** Currently active ping target IP */
+  /**
+   * Percentage of failed pings in the history window (0-100), or null when
+   * the window is too short to express one. NEVER read a null here as 0: the
+   * whole point of the null is that "not measured yet" and "measured, and
+   * perfect" were previously indistinguishable.
+   */
+  packet_loss_pct: number | null;
+  /**
+   * The probe leg that actually answered — sourced from the ping daemon's
+   * `last_target`, falling back to the first configured slot when nothing has
+   * answered yet. The four-leg chain short-circuits on the first success, so
+   * this is NOT necessarily the first target configured.
+   */
   ping_target: string;
   /** Ring buffer of last N RTT values. null entries = failed pings. */
   latency_history: (number | null)[];
   /** Seconds between history samples */
   history_interval_sec: number;
-  /** Maximum entries in history array */
+  /**
+   * Maximum entries the history array can hold — a fixed CAPACITY (60), not a
+   * count of what is in it. `latency_history.length` is the measurement.
+   *
+   * Never derive a timestamp from this: the ping daemon truncates its history
+   * on every probe-winner change, so the array is routinely shorter than the
+   * capacity, and treating the two as equal strands the newest sample up to
+   * `(60 - length) * history_interval_sec` seconds in the past.
+   */
   history_size: number;
   /** Whether watchcat recovery is currently active */
   during_recovery: boolean;
-  /** Phase 2 — daemon's tri-state connectivity outcome. null means the field is missing
-      from status.json (rolling-upgrade fallback). */
-  state: PingTriState | null;
-  /** Address family of the daemon's most recent successful probe. "ipv6" means the IPv4
-      leg failed and the fallback carried the connection. "none" when nothing answered.
-      null on a poller that predates the ICMP port (rolling-upgrade fallback). */
+  /** Address family of the most recent successful probe, derived by qmanager_poller
+      from the ICMP daemon's own state file. "ipv6" means the IPv4 leg failed and the
+      fallback carried the connection. "none" when nothing answered. null on a poller
+      that predates the ICMP port (rolling-upgrade fallback). */
   last_family: "ipv4" | "ipv6" | "none" | null;
-  /** Legacy HTTP-probe field. Always null post ICMP-port (kept typed for rolling-upgrade
-      safety so a status.json emitted by an older poller still parses). */
-  limited_reason: number | null;
-  /** When state == "disconnected", the failure reason: "timeout" | "refused"
-      | "reset" | "dns" | "malformed". null otherwise. */
-  down_reason: string | null;
-  /** Legacy HTTP-probe field. Always 0 post ICMP-port (kept typed for rolling-upgrade
-      safety so a status.json emitted by an older poller still parses). */
-  streak_limited: number;
   /** Daemon's runtime profile string. A named preset, "custom" (env-var override),
       or "unknown" (daemon dead/stale). Typed as string to admit all three. */
   profile: string;
-  /** Runtime fail-threshold in seconds (active in the daemon). 0 if daemon dead/stale. */
-  fail_secs: number;
-  /** Runtime recover-threshold in seconds. 0 if daemon dead/stale. */
-  recover_secs: number;
-  /** Runtime intercept-threshold in seconds. 0 if daemon dead/stale. */
-  intercept_secs: number;
+  /** Carrier-resolver lookup time in ms (10 ms steps). null when the last lookup
+      failed or the sample is stale — never a stale number. Absent on an older poller. */
+  dns_lookup_ms?: number | null;
+  /** Resolver the lookup was timed against. null when unknown. Absent on an older poller. */
+  dns_resolver?: string | null;
+  /** Alert thresholds the poller applies (Connection Quality settings). Absent on an older poller. */
+  thresholds?: { latency_ms: number; loss_pct: number };
+  /** Seconds the last outage cleared this boot lasted. null until one clears. Absent on an older poller. */
+  last_outage_s?: number | null;
+  /** Seconds since it cleared, on the monotonic clock. null alongside last_outage_s. */
+  last_outage_ago_s?: number | null;
+  /** WAN address held when it cleared (IPv4 preferred). null when unknown. */
+  last_outage_wan_ip?: string | null;
+  /** Whether that address differs from the one before the outage. null when either side is unknown. */
+  last_outage_wan_changed?: boolean | null;
 }
 
 // --- Watchcat State (from /tmp/qmanager_watchcat.json via poller) ------------
@@ -438,6 +671,8 @@ export type WatchcatState =
   | "suspect"
   | "recovery"
   | "cooldown"
+  /** Recovery held while the baseband restarts itself (SSR grace). */
+  | "ssr_hold"
   | "locked"
   | "disabled";
 
@@ -451,6 +686,28 @@ export interface WatchcatStatus {
   total_recoveries: number;
   cooldown_remaining: number;
   reboots_this_hour: number;
+  /** Seconds since the watchdog last wrote its state (uptime delta); null when unknown */
+  age_sec?: number | null;
+  /** The watchdog's own staleness limit (s); null when unknown */
+  stale_after?: number | null;
+  /** The ladder is held for a baseband restart (watchdog.sh status only, not the poller). */
+  ssr_hold?: boolean;
+  /** Seconds of SSR grace left while holding. */
+  ssr_hold_remaining?: number;
+  /** Seconds since the last baseband restart sign; null when none this run. */
+  last_ssr_ago?: number | null;
+  /** What started the running ladder; null outside recovery and cooldown. */
+  recovery_reason?: "unreachable" | "quality" | "recheck" | null;
+  /** Over-limit quality checks in a row so far. */
+  quality_breach_count?: number;
+  /** Seconds left in the pause after a quality recovery that did not help. */
+  quality_holdoff_remaining?: number;
+  /** A primary SIM recheck is settling on the primary now. */
+  primary_recheck_active?: boolean;
+  /** Failed rechecks since the last save or boot; the watchdog stops at 3. */
+  primary_recheck_failures?: number;
+  /** Seconds to the next recheck; null when none is pending. */
+  next_recheck_in?: number | null;
 }
 
 export interface SimFailoverStatus {
@@ -482,7 +739,12 @@ export const ANTENNA_PORTS = [
 /**
  * Per-antenna signal values from AT+QRSRP, AT+QRSRQ, AT+QSINR.
  * Each array has 4 elements [ant0, ant1, ant2, ant3].
- * null entries indicate inactive/unavailable antenna ports (sentinel -32768).
+ *
+ * A `null` entry means the poller recognised an inactive port. It does NOT mean
+ * every inactive port arrives as null — the poller only translates `-32768`, and
+ * the modem has two other ways of saying "not measured" that arrive as plain
+ * numbers. Read every value through `normalizeSignalValue()` rather than testing
+ * it against null directly; see SIGNAL_SENTINELS below.
  */
 export interface SignalPerAntenna {
   lte_rsrp: (number | null)[];
@@ -491,6 +753,88 @@ export interface SignalPerAntenna {
   nr_rsrp: (number | null)[];
   nr_rsrq: (number | null)[];
   nr_sinr: (number | null)[];
+}
+
+/** The three per-antenna metrics, used to select a sentinel set. */
+export type SignalMetric = "rsrp" | "rsrq" | "sinr";
+
+/**
+ * Values that mean "this port did not measure anything", per metric.
+ *
+ * These are NOT thresholds and they are NOT interchangeable across metrics — the
+ * set is deliberately different for each one, because the hazard is that a
+ * sentinel sits exactly on that metric's `poor` floor. `getSignalQuality()` then
+ * scores it "poor" and `signalToProgress()` returns 0, so an unused antenna
+ * renders as a legible, plausible, wrong reading — an empty red bar labelled
+ * "-140 dBm" — which is worse than a blank, because it looks like a signal
+ * problem the user should go and fix.
+ *
+ * Verified against 117 live samples on RM520NGLAAR03A03M4G_A0.303:
+ *
+ * - `-32768` is the documented sentinel and is handled by the poller
+ *   (`parse_at.sh:20-23`). It occurred ZERO times. It stays here for firmware
+ *   that does emit it, but it is not the case that bites.
+ * - `-140` (RSRP) is the 3GPP floor, and it lands in the same sample and the
+ *   same port index as `null` in that port's RSRQ and SINR — the modem saying
+ *   "port off" three ways at once, of which the poller understands one.
+ * - `-20` (SINR) appears WITHOUT a corroborating null, so it is the only signal
+ *   available that an NR chain is idle. A genuine -20 dB SINR is unusable by
+ *   definition (it is the bottom of the scale), so suppressing the real value
+ *   costs nothing a user could act on.
+ * - `-20` is NOT a sentinel for RSRQ even though it is RSRQ's `poor` floor: the
+ *   same capture contains a legitimate `-19` dB RSRQ, so that region of the
+ *   range is genuinely reachable by real data. Only `-32768` is suppressed there.
+ */
+const SIGNAL_SENTINELS: Record<SignalMetric, ReadonlySet<number>> = {
+  rsrp: new Set([-140, -32768]),
+  rsrq: new Set([-32768]),
+  sinr: new Set([-20, -32768]),
+};
+
+/**
+ * The single read boundary for a per-antenna value. Returns `null` for anything
+ * the radio did not actually measure, so downstream quality, progress and
+ * "is this port live" logic all agree.
+ *
+ * Every per-antenna surface goes through this. Two pages reading one field
+ * through two different sentinel policies is what let antenna-statistics call a
+ * dead chain "poor" while antenna-alignment called the same chain "—".
+ */
+export function normalizeSignalValue(
+  value: number | null | undefined,
+  metric: SignalMetric
+): number | null {
+  if (value === null || value === undefined) return null;
+  return SIGNAL_SENTINELS[metric].has(value) ? null : value;
+}
+
+/**
+ * Whether a given antenna port is reporting anything at all for one radio.
+ *
+ * Port liveness has to be asked per RAT, not per port: in EN-DC a chain can be
+ * carrying LTE while reporting nothing for NR, and the answer "is MIMO 3 live?"
+ * is then genuinely different for each leg.
+ */
+export function isPortReporting(
+  signal: SignalPerAntenna | undefined,
+  index: number,
+  prefix: "lte" | "nr"
+): boolean {
+  if (!signal) return false;
+  return (
+    normalizeSignalValue(signal[`${prefix}_rsrp`][index], "rsrp") !== null ||
+    normalizeSignalValue(signal[`${prefix}_rsrq`][index], "rsrq") !== null ||
+    normalizeSignalValue(signal[`${prefix}_sinr`][index], "sinr") !== null
+  );
+}
+
+/** Whether a radio has any reporting port at all. */
+export function hasAntennaData(
+  signal: SignalPerAntenna | undefined,
+  prefix: "lte" | "nr"
+): boolean {
+  if (!signal) return false;
+  return ANTENNA_PORTS.some((_, i) => isPortReporting(signal, i, prefix));
 }
 
 /**
@@ -524,8 +868,9 @@ export interface PingHistoryEntry {
   min: number | null;
   /** Maximum RTT in ms over ping daemon's history window */
   max: number | null;
-  /** Packet loss percentage (0-100) */
-  loss: number;
+  /** Packet loss percentage (0-100), or null when the poller's window was
+   *  too short to measure one at the moment this row was archived. */
+  loss: number | null;
   /** Jitter in ms, or null if insufficient data */
   jit: number | null;
 }
@@ -745,10 +1090,12 @@ export function signalToProgress(
   thresholds: SignalThresholds
 ): number {
   if (value === null || value === undefined) return 0;
-  // Map from [poor, excellent] → [0, 100]
-  const range = thresholds.excellent - thresholds.poor;
+  // Map from [floor, excellent] → [0, 100]. `floor`, never `poor`: `poor` is a
+  // classification cut partway up the ladder, and scaling from it would report
+  // 0% for every reading at or below cell edge.
+  const range = thresholds.excellent - thresholds.floor;
   if (range === 0) return 50;
-  const pct = ((value - thresholds.poor) / range) * 100;
+  const pct = ((value - thresholds.floor) / range) * 100;
   return Math.max(0, Math.min(100, pct));
 }
 
@@ -794,4 +1141,17 @@ export function formatUptime(seconds: number): string {
   parts.push(`${minutes}m`);
 
   return parts.join(" ");
+}
+
+/** Poller activity tier (docs/reference/adaptive-polling.md). */
+export type PollerTier = "active" | "idle" | "deep";
+
+/** qmanager.conf .poller, as the adaptive_polling CGI reports it. All times in seconds. */
+export interface AdaptivePollingSettings {
+  /** false pins the poller at full rate. */
+  enabled: boolean;
+  active_grace: number;
+  idle_interval: number;
+  idle_threshold: number;
+  deep_idle_interval: number;
 }

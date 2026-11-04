@@ -5,11 +5,87 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   Animations preference (System / Full / Reduced).
+
+   The OS media query is only the DEFAULT answer. A user who has made an
+   explicit choice in the sidebar gets `data-motion="full"` or
+   `data-motion="reduced"` stamped on <html> (pre-paint, by the boot script in
+   app/layout.tsx); "System" REMOVES the attribute, and its absence is what
+   lets the bare media query decide below.
+
+   Tailwind's stock `motion-reduce:` / `motion-safe:` variants compile to a bare
+   `@media (prefers-reduced-motion: …)` with no selector hook, so an attribute
+   on <html> physically cannot override them — the ~64 utilities across the
+   components would ignore the user's choice entirely. Redefining the two
+   variants here rewires all of them at once, at the source, instead of
+   rewriting 64 call sites onto a bespoke variant name.
+
+   Both definitions emit @slot twice — once media-gated and once attribute-
+   gated — which is the shape Tailwind v4's own `dark` example uses. The guards
+   are wrapped in `:where()` so they contribute ZERO specificity: a redefined
+   utility keeps the exact weight it had before, and cascade order is unchanged.
+
+   Note both variants can match simultaneously (OS says reduce AND the user
+   chose Reduced). Duplicate identical declarations are harmless.
+--------------------------------------------------------------------------- */
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    /* The OS asked for less motion — honour it unless the user overrode it. */
+    &:not(:where([data-motion="full"], [data-motion="full"] *)) {
+      @slot;
+    }
+  }
+  /* …and honour an explicit Reduced choice even when the OS says nothing. */
+  &:where([data-motion="reduced"], [data-motion="reduced"] *) {
+    @slot;
+  }
+}
+
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:not(:where([data-motion="reduced"], [data-motion="reduced"] *)) {
+      @slot;
+    }
+  }
+  &:where([data-motion="full"], [data-motion="full"] *) {
+    @slot;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Design system: the instrument palette, derived from the QManager mark
+   (public/qmanager-mark.svg). THIS FILE IS NORMATIVE — DESIGN.md's frontmatter
+   mirrors it, not the other way around. Retune a value here and retune the
+   DESIGN.md frontmatter (and lib/motion.ts, for the motion tokens) in the same
+   change.
+
+   Colour belongs to the DATA, not the furniture: a card is a neutral surface
+   and what is coloured is the reading — the numeral, the chart stroke, the
+   quality bar, the glyph in its disc. `--X-on-surface` is therefore the
+   primary mechanism, `--X` the compact-emphasis fill, and `--X-container` is
+   restricted to the functional roles. See DESIGN.md > Colors > The three
+   layers for why, with the measurements.
+
+   Where the canon is ahead of the components that consume it, the gap is
+   tracked in DESIGN.md > Migration Deltas.
+
+   Naming notes where the canon and shadcn's vocabulary collide:
+   - Carrier Violet (the 4G LTE identity) ships as the --lte-* family.
+     shadcn's --secondary is a NEUTRAL used for progress tracks and secondary
+     buttons, and identity hues must never act.
+   - Uplink Cyan ships as the --uplink-* family.
+   - The 8/10/12/16/20px shape scale ships as additive role radii
+     (--radius-inline/field/tile/card/hero/pill). The legacy --radius chain
+     stays live until components are retargeted; redefining rounded-md under
+     its existing call sites would be a regression, not a migration.
+--------------------------------------------------------------------------- */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-euclid);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-rethink-sans);
+  --font-mono: var(--font-jetbrains-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -24,20 +100,32 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-chart-nr: var(--chart-nr);
+  --color-chart-lte: var(--chart-lte);
+  --color-chart-threshold: var(--chart-threshold);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-outline: var(--outline);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-container: var(--destructive-container);
+  --color-on-destructive-container: var(--on-destructive-container);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-success-on-surface: var(--success-on-surface);
+  --color-success-container: var(--success-container);
+  --color-on-success-container: var(--on-success-container);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-on-surface: var(--warning-on-surface);
+  --color-warning-container: var(--warning-container);
+  --color-on-warning-container: var(--on-warning-container);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-on-surface: var(--info-on-surface);
+  --color-info-container: var(--info-container);
+  --color-on-info-container: var(--on-info-container);
   --color-destructive-on-surface: var(--destructive-on-surface);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -47,113 +135,507 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-lte: var(--lte);
+  --color-lte-foreground: var(--lte-foreground);
+  --color-lte-container: var(--lte-container);
+  --color-on-lte-container: var(--on-lte-container);
+  --color-uplink: var(--uplink);
+  --color-uplink-foreground: var(--uplink-foreground);
+  --color-uplink-on-surface: var(--uplink-on-surface);
+  --color-uplink-container: var(--uplink-container);
+  --color-on-uplink-container: var(--on-uplink-container);
+  --color-downlink: var(--downlink);
+  --color-downlink-foreground: var(--downlink-foreground);
+  --color-downlink-on-surface: var(--downlink-on-surface);
+  --color-downlink-container: var(--downlink-container);
+  --color-on-downlink-container: var(--on-downlink-container);
+  --color-spatial: var(--spatial);
+  --color-spatial-foreground: var(--spatial-foreground);
+  --color-spatial-on-surface: var(--spatial-on-surface);
+  --color-spatial-container: var(--spatial-container);
+  --color-on-spatial-container: var(--on-spatial-container);
+  --color-surface: var(--surface);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-tone-success-1: var(--tone-success-1);
+  --color-tone-success-2: var(--tone-success-2);
+  --color-tone-success-3: var(--tone-success-3);
+  --color-tone-warning-1: var(--tone-warning-1);
+  --color-tone-warning-2: var(--tone-warning-2);
+  --color-tone-warning-3: var(--tone-warning-3);
+  --color-tone-destructive-1: var(--tone-destructive-1);
+  --color-tone-destructive-2: var(--tone-destructive-2);
+  --color-tone-destructive-3: var(--tone-destructive-3);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
+  /* Ink tokens for the two identity roles. Every other role already had one;
+     these were the gap that forced identity to reach for a container fill.
+     DESIGN.md > The Three-Layer Rule: ink is the primary mechanism. */
+  --color-primary-on-surface: var(--primary-on-surface);
+  --color-lte-on-surface: var(--lte-on-surface);
+
+  /* Signal quality ramp. -N is the numeral ink, -N-bar the bar fill.
+     Always paired with bar LENGTH — adjacent stops sit below the
+     colour-blind separation floor by design. */
+  --color-quality-1: var(--quality-1);
+  --color-quality-2: var(--quality-2);
+  --color-quality-3: var(--quality-3);
+  --color-quality-4: var(--quality-4);
+  --color-quality-5: var(--quality-5);
+  --color-quality-1-bar: var(--quality-1-bar);
+  --color-quality-2-bar: var(--quality-2-bar);
+  --color-quality-3-bar: var(--quality-3-bar);
+  --color-quality-4-bar: var(--quality-4-bar);
+  --color-quality-5-bar: var(--quality-5-bar);
+
+  /* Outline tags: identity and metadata. Border + text, no fill. */
+  --color-tag-nr-text: var(--tag-nr-text);
+  --color-tag-nr-border: var(--tag-nr-border);
+  --color-tag-lte-text: var(--tag-lte-text);
+  --color-tag-lte-border: var(--tag-lte-border);
+  --color-tag-spatial-text: var(--tag-spatial-text);
+  --color-tag-spatial-border: var(--tag-spatial-border);
+  --color-tag-neutral-text: var(--tag-neutral-text);
+  --color-tag-neutral-border: var(--tag-neutral-border);
+
+  /* Legacy radius chain: consumed by 240+ existing rounded-{sm,md,lg,xl}
+     call sites. Retired in migration step 2, not before. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Shape scale (DESIGN.md > Shapes). Radius carries size hierarchy. */
+  --radius-inline: 0.5rem; /*  8px: small inline affordances, code, skeletons */
+  --radius-field: 0.625rem; /* 10px: inputs, selects, small popovers */
+  --radius-tile: 0.75rem; /*   12px: inner tiles, carrier tiles, alignment slots */
+  --radius-card: 1rem; /*      16px: standard cards, dialogs */
+  --radius-hero: 1.25rem; /*   20px: hero surfaces, aggregation strip */
+  --radius-pill: 9999px; /*    chips, buttons, nav items, metric rows, meters */
+
+  /* Motion curves (DESIGN.md > Motion). Expressive in curve, still settled.
+     Emits ease-emphasized / ease-standard. Durations are plain custom
+     properties below: Tailwind v4 has no --duration-* theme namespace, so
+     declaring them here would emit meaningless utilities. */
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-quick: ease-out;
+  --ease-ambient: ease-in-out;
+
   --breakpoint-desktop: 68.75rem;
+}
+
+/* One definition shared by Card and DialogContent. It rides on
+   background-image so a call-site bg-* override cannot defeat it. */
+@utility card-sheen {
+  background-image: var(--card-sheen);
 }
 
 :root {
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.97 0.014 254.604);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
+
+  /* Motion durations. Use as duration-[var(--duration-standard)] or in a
+     motion/react transition. The old 140-160ms floor is retired: at 140ms a
+     container color change reads as a flicker rather than a morph.
+
+     These are the Motion Guide's four tokens at 2x. The guide authors every
+     demo as `calc(<loop> * var(--sp))` and exposes a Playback control that sets
+     --sp to 1 / speed, purely so a 180ms token can be inspected at all. Watched
+     at its 0.5 setting — every duration doubled — the system read as deliberate
+     rather than snappy, and that is the pace the product ships at. The guide's
+     1x figures (400/300/180) are therefore the *inspection baseline*, not the
+     shipped scale; DESIGN.md > Motion carries the shipped one.
+
+     Ambient is deliberately NOT doubled. It is a continuous loop rather than a
+     transition, and it is the one animation that means "this is alive" — at 4s
+     a breathing ring reads as a stalled UI instead of a calm one. */
+  --duration-emphasized: 800ms;
+  --duration-standard: 600ms;
+  --duration-quick: 360ms;
+  /* The fourth token from the Motion Study: ambient loops. Pair with
+     --ease-ambient and `alternate`. Only where something is genuinely live. */
+  --duration-ambient: 2s;
+  /* Card cascade step. Wider and the last card feels late behind a slow poll. */
+  --stagger-step: 120ms;
+
+  /* ==========================================================================
+     COLOUR — the instrument palette, 2026-08-16
+     ==========================================================================
+     Rewritten wholesale against DESIGN.md > Colors. Three properties of this
+     set are load-bearing and none of them are taste:
+
+     1. EVERY VALUE IS INSIDE sRGB. Chroma is floored to 98.5% of the in-gamut
+        maximum for its lightness and hue. This is correctness, not polish:
+        Lightning CSS gamut-maps out-of-range oklch() at build time and its
+        mapping is NOT naive clipping, so an out-of-gamut token ships a colour
+        nobody authored — and any separation measured from the source value is
+        fiction. The previous palette had 87 such tokens. This one has zero, so
+        declared == shipped and the numbers below are checkable in a browser.
+
+     2. COLOUR LIVES ON INK. `--X-on-surface` is the primary mechanism: coloured
+        numerals, chart strokes, glyphs, on a NEUTRAL ground. Fills are for
+        compact emphasis (discs, bars, buttons). Containers are restricted to
+        the functional roles. Measured under Vienot deuteranopia/protanopia at a
+        0.05 OKLab floor: inks collapse in 0 of 28 pairs, fills 0 of 28, status
+        containers 0 of 10 — but light-mode IDENTITY containers collapse in 8 of
+        10 and cannot be fixed. The pale band in light mode is too narrow to
+        hold five identity hues plus surface-container-high; an optimiser proved
+        that infeasible, not merely hard. Hence: identity gets ink, outline and
+        a strong-fill disc, and never a large pale block.
+
+     3. THE QUALITY RAMP IS A LIGHTNESS STAIRCASE. Deuteranopia flattens hues
+        27/45/72/115/149 onto one yellow axis, so the ramp cannot separate by
+        hue at all for those users. Each ramp is monotone in lightness and BAR
+        LENGTH carries adjacent stops — which is why adjacent pairs sit below
+        the floor deliberately while every non-adjacent pair clears it.
+
+     WCAG: 0 failures across 166 measured pairs, both themes.
+     ========================================================================== */
+
+  /* --- Neutrals: a slight cool cast (258) without reading as blue --- */
+  --background: oklch(0.985 0.003 258);
+  --foreground: oklch(0.205 0.011 258);
+  --surface: oklch(1 0 258);
+  --surface-container: oklch(0.967 0.005 258);
+  --surface-container-high: oklch(0.938 0.007 258);
+  --on-surface: oklch(0.205 0.011 258);
+  --on-surface-variant: oklch(0.505 0.012 258);
+  --card: oklch(1 0 258);
+  --card-foreground: oklch(0.205 0.011 258);
+  --popover: oklch(1 0 258);
+  --popover-foreground: oklch(0.205 0.011 258);
+
+  /* --- Primary: the mark's blue. NR identity, brand, action, and info.
+         Those are one meaning wearing four hats, not four meanings. --- */
+  --primary: oklch(0.565 0.235 262);
+  --primary-foreground: oklch(0.985 0.006 262);
+  --primary-on-surface: oklch(0.535 0.22 262);
+  --primary-container: oklch(0.89 0.052 262);
+  --on-primary-container: oklch(0.36 0.16 262);
+
+  /* --- Identity: which radio. Never means healthy, never acts. --- */
+  --lte: oklch(0.51 0.24 296);
+  --lte-foreground: oklch(0.985 0.007 296);
+  --lte-on-surface: oklch(0.465 0.22 296);
+  --lte-container: oklch(0.85 0.082 296);
+  --on-lte-container: oklch(0.36 0.16 296);
+
+  /* --- Direction: which way the bytes go. ONLY that.
+         The previous system gave rose a second meaning ("and capacity") and
+         cyan a second ("and counts"), which made the axis untrue: a carrier
+         count wore upload cyan while reporting nothing about upload. A count
+         is neutral. --- */
+  --downlink: oklch(0.48 0.204 341);
+  --downlink-foreground: oklch(0.985 0.009 341);
+  --downlink-on-surface: oklch(0.45 0.191 341);
+  --downlink-container: oklch(0.875 0.087 341);
+  --on-downlink-container: oklch(0.36 0.153 341);
+  /* Light uplink chroma is 0.091 and that is the GAMUT CEILING, not caution:
+     cyan's sRGB cusp sits at high lightness, so 4.5:1 against a white card
+     forces L~0.52 where hue 200 has no more chroma to give. Dark uplink is
+     genuinely vivid (0.137). Do not "boldify" this value; it cannot move. */
+  --uplink: oklch(0.545 0.091 200);
+  --uplink-foreground: oklch(0.985 0.012 200);
+  --uplink-on-surface: oklch(0.515 0.086 200);
+  --uplink-container: oklch(0.915 0.105 200);
+  --on-uplink-container: oklch(0.36 0.06 200);
+
+  /* --- Spatial: antenna and spatial-stream readouts. A MIMO figure names
+         both radios in one string, so no identity hue is honest. --- */
+  --spatial: oklch(0.55 0.11 232);
+  --spatial-foreground: oklch(0.985 0.008 232);
+  --spatial-on-surface: oklch(0.515 0.103 232);
+  --spatial-container: oklch(0.855 0.085 232);
+  --on-spatial-container: oklch(0.36 0.072 232);
+
+  /* --- shadcn neutrals: NOT the canon's secondary/tertiary roles --- */
+  --secondary: oklch(0.967 0.005 258);
+  --secondary-foreground: oklch(0.205 0.011 258);
+  --muted: oklch(0.967 0.005 258);
+  --muted-foreground: oklch(0.505 0.012 258);
+  --accent: oklch(0.938 0.007 258);
+  --accent-foreground: oklch(0.205 0.011 258);
+
+  /* --- The functional three (+ info = brand). Only these report health.
+         Note the three inks sit at three DISTINCT lightnesses (0.44 / 0.525 /
+         0.505) rather than one: deuteranopia collapses 27/72/149 toward a
+         single axis, so lightness is what separates them, not hue. --- */
+  --success: oklch(0.54 0.15 149);
+  --success-foreground: oklch(0.985 0.012 149);
+  --success-on-surface: oklch(0.505 0.14 149);
+  --success-container: oklch(0.895 0.145 149);
+  --on-success-container: oklch(0.36 0.1 149);
+  /* 0.56/0.118 against a 0.985 foreground measures 4.56:1. The previous pair
+     measured 4.15:1 and FAILED AA — it was the only failing pair in the old
+     set and it shipped. Re-measure before touching either half. */
+  --warning: oklch(0.56 0.118 72);
+  --warning-foreground: oklch(0.985 0.011 72);
+  --warning-on-surface: oklch(0.525 0.11 72);
+  --warning-container: oklch(0.855 0.115 72);
+  --on-warning-container: oklch(0.36 0.075 72);
+  --destructive: oklch(0.48 0.192 27);
+  --destructive-foreground: oklch(0.985 0.007 27);
+  --destructive-on-surface: oklch(0.44 0.176 27);
+  --destructive-container: oklch(0.835 0.089 27);
+  --on-destructive-container: oklch(0.36 0.144 27);
+  /* Info resolves to the brand ramp. A saturated brand blue and a saturated
+     info blue cannot coexist without ambiguity; "in progress" differs from a
+     primary action by shape and glyph, not by hue. */
+  --info: oklch(0.565 0.235 262);
+  --info-foreground: oklch(0.985 0.006 262);
+  --info-on-surface: oklch(0.535 0.22 262);
+  --info-container: oklch(0.89 0.052 262);
+  --on-info-container: oklch(0.36 0.16 262);
+
+  /* --- Signal quality ramp: three hues across five stops (1-2 red, 3 gold, 4-5
+         green), NO identity hue; stops within a hue differ by glyph and bar length.
+         --quality-N is the NUMERAL ink; --quality-N-bar is the BAR fill. --- */
+  --quality-1: oklch(0.5 0.19 27);
+  --quality-2: oklch(0.5 0.19 27);
+  --quality-3: oklch(0.58 0.125 80);
+  --quality-4: oklch(0.505 0.14 149);
+  --quality-5: oklch(0.505 0.14 149);
+  --quality-1-bar: oklch(0.58 0.21 27);
+  --quality-2-bar: oklch(0.58 0.21 27);
+  --quality-3-bar: oklch(0.82 0.165 88);
+  --quality-4-bar: oklch(0.62 0.17 149);
+  --quality-5-bar: oklch(0.62 0.17 149);
+
+  /* --- Outline tags: identity and metadata. Border + text, no fill.
+         Text clears 4.5:1 on every card ground; borders clear 3:1. An outline
+         tag is NEVER a status indicator — it says what a thing IS. --- */
+  --tag-nr-text: oklch(0.535 0.22 262);
+  --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.465 0.22 296);
+  --tag-lte-border: oklch(0.545 0.19 296);
+  --tag-spatial-text: oklch(0.515 0.103 232);
+  --tag-spatial-border: oklch(0.615 0.123 232);
+  --tag-neutral-text: oklch(0.505 0.012 258);
+  --tag-neutral-border: oklch(0.62 0.012 258);
+
+  /* --- Signal-quality ring steps: explicit tones, never stacked alpha --- */
+  --tone-success-1: oklch(0.945 0.055 149);
+  --tone-success-2: oklch(0.915 0.1 149);
+  --tone-success-3: oklch(0.87 0.145 149);
+  --tone-warning-1: oklch(0.95 0.037 72);
+  --tone-warning-2: oklch(0.91 0.069 72);
+  --tone-warning-3: oklch(0.86 0.111 72);
+  --tone-destructive-1: oklch(0.945 0.027 27);
+  --tone-destructive-2: oklch(0.9 0.051 27);
+  --tone-destructive-3: oklch(0.85 0.081 27);
+
+  /* --- Strokes. --outline is the canon token (inputs, table rules, and the
+         outline tag, which is the one sanctioned border-over-no-fill). --- */
+  --outline: oklch(0.868 0.008 258);
+  --border: oklch(0.905 0.006 258);
+  --input: oklch(0.868 0.008 258);
+  --ring: oklch(0.565 0.235 262);
+
+  /* --- Charts: series colour comes from the INK tokens (DESIGN.md > Data
+         visualization). One hue per radio family. --- */
+  --chart-nr: oklch(0.535 0.22 262);
+  --chart-lte: oklch(0.465 0.22 296);
+  --chart-threshold: oklch(0.525 0.11 72);
+  /* LEGACY --chart-1..6. Do not use in new work: they are shadcn-starter
+     inheritance, they sit in one hue family, and 1/2/4/5 are byte-identical in
+     both themes so a chart built on them does not theme at all. The Latency
+     Monitor moved onto --primary / --destructive / --chart-threshold, so the
+     block now stands on ONE consumer: --chart-6, read by signal-storm-game.tsx.
+     --chart-3 has no caller left at all. Both keep their real dark values while
+     the block stands; delete it outright once that last caller moves. */
+  --chart-1: oklch(0.809 0.097 251.813);
+  --chart-2: oklch(0.623 0.201 259.815);
+  --chart-3: oklch(0.535 0.22 262);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  /* Orange for Chart 6 */
-  --chart-6: oklch(0.705 0.213 47.604);
-  --success: oklch(0.59 0.18 149);
-  --success-foreground: oklch(0.985 0 0);
-  /* On-surface text variant of --success: darker so text reads at WCAG AA 4.5:1
-     against a Pearl White card (L 1.0). Same hue/chroma as the fill token. */
-  --success-on-surface: oklch(0.48 0.16 149);
-  --warning: oklch(0.75 0.18 75);
-  --warning-foreground: oklch(0.21 0.006 285.885);
-  --warning-on-surface: oklch(0.50 0.15 65);
-  --info: oklch(0.62 0.19 255);
-  --info-foreground: oklch(0.985 0 0);
-  --info-on-surface: oklch(0.50 0.20 255);
-  --destructive-on-surface: oklch(0.50 0.22 27.325);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.546 0.245 262.881);
-  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.708 0 0);
+  --chart-6: oklch(0.51 0.143 45);
+
+  /* The rail sits one step off the canvas so it reads as chrome, not content.
+     Light recesses (rail 0.967 < canvas 0.985 < card 1.0); dark lifts
+     (canvas 0.120 < rail = card 0.170). Matching the rail to the canvas leaves
+     the hairline doing all the separating, which the No-Hairline-On-Fill Rule
+     retires. */
+  --sidebar: oklch(0.967 0.005 258);
+  --sidebar-foreground: oklch(0.205 0.011 258);
+  --sidebar-primary: oklch(0.565 0.235 262);
+  --sidebar-primary-foreground: oklch(0.985 0.006 262);
+  --sidebar-accent: oklch(0.938 0.007 258);
+  --sidebar-accent-foreground: oklch(0.205 0.011 258);
+  --sidebar-border: oklch(0.905 0.006 258);
+  --sidebar-ring: oklch(0.565 0.235 262);
+
+  /* Optional card lift. Never load-bearing. The canvas-to-card step in light
+     is 0.985 -> 1.000, deliberately narrow, and the whisper is what keeps that
+     edge legible without reaching for a hairline. */
+  --shadow-whisper: 0 1px 2px oklch(0.205 0.011 258 / 6%);
+
+  /* Deliberately flat in light: the whisper above already lifts the card. */
+  --card-sheen: none;
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.97 0.014 254.604);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
+  /* Near-black instrument panel, per DESIGN.md > Overview. The canvas is
+     0.120 and cards sit barely lifted at 0.170 — the reference language is a
+     panel you read data off, not a page with cards on it. Depth is tonal
+     because in near-black a shadow is invisible against the ground, so a
+     shadow-separated layout would have no dark theme at all. */
+  --background: oklch(0.12 0.008 258);
+  --foreground: oklch(0.965 0.004 258);
+  --surface: oklch(0.17 0.009 258);
+  --surface-container: oklch(0.2 0.01 258);
+  --surface-container-high: oklch(0.235 0.012 258);
+  --on-surface: oklch(0.965 0.004 258);
+  --on-surface-variant: oklch(0.762 0.011 258);
+  --card: oklch(0.17 0.009 258);
+  --card-foreground: oklch(0.965 0.004 258);
+  --popover: oklch(0.2 0.01 258);
+  --popover-foreground: oklch(0.965 0.004 258);
+
+  /* Dark chroma is bolder than the old set (primary 0.155 -> 0.200, success
+     0.17 -> 0.200, downlink 0.155 -> 0.200), which is the reference language's
+     saturation. --primary is capped at 0.200 by the gamut, not by restraint:
+     blue's sRGB cusp is at LOW lightness, so a bright dark-theme blue is
+     always chroma-poor. The dark lightness ladder is deliberately ordered
+     262 < 296 < 341 < 149 < 232 < 200 < 72 so each hue buys its colour-blind
+     separation on the axis where it can still afford chroma. An earlier
+     symmetric run put primary at L 0.810 and produced a pastel #a0c1fe; this
+     ordering is what recovered #3979f7. */
+  --primary: oklch(0.605 0.2 262);
+  --primary-foreground: oklch(0.195 0.055 262);
+  --primary-on-surface: oklch(0.65 0.183 262);
+  --primary-container: oklch(0.375 0.145 262);
+  --on-primary-container: oklch(0.9 0.047 262);
+
+  --lte: oklch(0.7 0.175 296);
+  --lte-foreground: oklch(0.195 0.055 296);
+  --lte-on-surface: oklch(0.74 0.149 296);
+  --lte-container: oklch(0.27 0.145 296);
+  --on-lte-container: oklch(0.9 0.053 296);
+
+  --downlink: oklch(0.66 0.2 341);
+  --downlink-foreground: oklch(0.195 0.055 341);
+  --downlink-on-surface: oklch(0.7 0.2 341);
+  --downlink-container: oklch(0.285 0.121 341);
+  --on-downlink-container: oklch(0.9 0.068 341);
+  --uplink: oklch(0.82 0.137 200);
+  --uplink-foreground: oklch(0.195 0.032 200);
+  --uplink-on-surface: oklch(0.87 0.145 200);
+  --uplink-container: oklch(0.345 0.057 200);
+  --on-uplink-container: oklch(0.9 0.11 200);
+
+  --spatial: oklch(0.79 0.127 232);
+  --spatial-foreground: oklch(0.195 0.039 232);
+  --spatial-on-surface: oklch(0.82 0.108 232);
+  --spatial-container: oklch(0.265 0.053 232);
+  --on-spatial-container: oklch(0.9 0.058 232);
+
+  --secondary: oklch(0.2 0.01 258);
+  --secondary-foreground: oklch(0.965 0.004 258);
+  --muted: oklch(0.2 0.01 258);
+  --muted-foreground: oklch(0.762 0.011 258);
+  --accent: oklch(0.235 0.012 258);
+  --accent-foreground: oklch(0.965 0.004 258);
+
+  /* Dark fills are light, so their ink flips dark. Fill and ink always move
+     together: a fill's -foreground is the only ink allowed on it. */
+  --success: oklch(0.74 0.2 149);
+  --success-foreground: oklch(0.195 0.054 149);
+  --success-on-surface: oklch(0.78 0.2 149);
+  --success-container: oklch(0.31 0.086 149);
+  --on-success-container: oklch(0.9 0.11 149);
+  --warning: oklch(0.79 0.166 72);
+  --warning-foreground: oklch(0.195 0.041 72);
+  --warning-on-surface: oklch(0.815 0.151 72);
+  --warning-container: oklch(0.41 0.086 72);
+  --on-warning-container: oklch(0.9 0.077 72);
+  --destructive: oklch(0.64 0.2 27);
+  --destructive-foreground: oklch(0.195 0.055 27);
+  --destructive-on-surface: oklch(0.68 0.2 27);
+  --destructive-container: oklch(0.245 0.098 27);
+  --on-destructive-container: oklch(0.9 0.051 27);
+  --info: oklch(0.605 0.2 262);
+  --info-foreground: oklch(0.195 0.055 262);
+  --info-on-surface: oklch(0.65 0.183 262);
+  --info-container: oklch(0.375 0.145 262);
+  --on-info-container: oklch(0.9 0.047 262);
+
+  /* Dark ramp: the same three hues, vivid on the dark ground. */
+  --quality-1: oklch(0.68 0.2 27);
+  --quality-2: oklch(0.68 0.2 27);
+  --quality-3: oklch(0.86 0.16 90);
+  --quality-4: oklch(0.8 0.2 149);
+  --quality-5: oklch(0.8 0.2 149);
+  --quality-1-bar: oklch(0.64 0.22 27);
+  --quality-2-bar: oklch(0.64 0.22 27);
+  --quality-3-bar: oklch(0.84 0.17 90);
+  --quality-4-bar: oklch(0.76 0.21 149);
+  --quality-5-bar: oklch(0.76 0.21 149);
+
+  --tag-nr-text: oklch(0.65 0.183 262);
+  --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.74 0.149 296);
+  --tag-lte-border: oklch(0.54 0.19 296);
+  --tag-spatial-text: oklch(0.82 0.108 232);
+  --tag-spatial-border: oklch(0.64 0.128 232);
+  --tag-neutral-text: oklch(0.762 0.011 258);
+  --tag-neutral-border: oklch(0.52 0.012 258);
+
+  --tone-success-1: oklch(0.245 0.04 149);
+  --tone-success-2: oklch(0.28 0.065 149);
+  --tone-success-3: oklch(0.32 0.09 149);
+  --tone-warning-1: oklch(0.27 0.04 72);
+  --tone-warning-2: oklch(0.335 0.065 72);
+  --tone-warning-3: oklch(0.41 0.086 72);
+  --tone-destructive-1: oklch(0.22 0.045 27);
+  --tone-destructive-2: oklch(0.25 0.075 27);
+  --tone-destructive-3: oklch(0.29 0.1 27);
+
+  /* Solid strokes, not an alpha. `oklch(1 0 0 / 10%)` renders a different
+     colour on a card than on a popover, because an alpha is a request to
+     whatever happens to be behind it rather than to the token. */
+  --outline: oklch(0.33 0.013 258);
+  --border: oklch(0.288 0.012 258);
+  --input: oklch(0.33 0.013 258);
+  --ring: oklch(0.605 0.2 262);
+
+  --chart-nr: oklch(0.65 0.183 262);
+  --chart-lte: oklch(0.74 0.149 296);
+  --chart-threshold: oklch(0.815 0.151 72);
+  /* See the light block: 1/2/4/5 are legacy and deliberately do not theme.
+     3 and 6 do, but only --chart-6 still has a caller (signal-storm-game.tsx). */
+  --chart-1: oklch(0.809 0.097 251.813);
+  --chart-2: oklch(0.623 0.201 259.815);
+  --chart-3: oklch(0.65 0.183 262);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --chart-6: oklch(0.705 0.213 47.604);
-  --success: oklch(0.65 0.17 149);
-  --success-foreground: oklch(0.985 0 0);
-  /* On-surface text variant for the dark Slate card (L 0.21): lighter so it
-     reads at AA 4.5:1+. Hue/chroma match the fill token. */
-  --success-on-surface: oklch(0.78 0.17 149);
-  --warning: oklch(0.80 0.16 75);
-  --warning-foreground: oklch(0.21 0.006 285.885);
-  --warning-on-surface: oklch(0.85 0.16 75);
-  --info: oklch(0.68 0.17 255);
-  --info-foreground: oklch(0.985 0 0);
-  --info-on-surface: oklch(0.78 0.18 255);
-  --destructive-on-surface: oklch(0.78 0.18 22.216);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.623 0.214 259.815);
-  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.439 0 0);
+  --chart-6: oklch(0.645 0.181 45);
+
+  --sidebar: oklch(0.17 0.009 258);
+  --sidebar-foreground: oklch(0.965 0.004 258);
+  --sidebar-primary: oklch(0.605 0.2 262);
+  --sidebar-primary-foreground: oklch(0.195 0.055 262);
+  --sidebar-accent: oklch(0.235 0.012 258);
+  --sidebar-accent-foreground: oklch(0.965 0.004 258);
+  --sidebar-border: oklch(0.288 0.012 258);
+  --sidebar-ring: oklch(0.605 0.2 262);
+
+  /* Tonal elevation only in dark: the whisper is absent. */
+  --shadow-whisper: 0 0 #0000;
+
+  /* The material cue standing in for the shadow dark mode cannot cast. */
+  --card-sheen: linear-gradient(
+    180deg,
+    oklch(1 0 0 / 0.045) 0%,
+    oklch(1 0 0 / 0) 42%,
+    oklch(0 0 0 / 0.03) 100%
+  );
 }
 
 @layer base {
@@ -165,11 +647,111 @@
   }
 }
 
-/* Pulsating circle animation */
+/* ---------------------------------------------------------------------------
+   Material Symbols Rounded — the shell's icon typeface (DESIGN.md >
+   Iconography). Scoped to the sidebar; the rest of the product stays on lucide.
+
+   These declarations are not decoration: the font substitutes the literal text
+   "cell_tower" for one glyph via a ligature, so `font-feature-settings: 'liga'`
+   is what makes an icon an icon, and the white-space / word-wrap rules stop a
+   narrow container from breaking that ligature apart mid-name.
+--------------------------------------------------------------------------- */
+.material-symbol {
+  font-family: var(--font-material-symbols), sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  flex: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  /* The FILL axis is animatable, so the active nav row's icon thickens into
+     place with its container instead of snapping. Motion Study spec 3. */
+  transition: font-variation-settings var(--duration-standard)
+    var(--ease-standard);
+}
+
+/* Written once and applied under BOTH gates — the OS media query and an
+   explicit `data-motion="reduced"` — via the redefined variant at the top of
+   this file. `:root` is only here to give `@variant` a `&` to attach to. */
+:root {
+  @variant motion-reduce {
+    & .material-symbol {
+      transition: none;
+    }
+  }
+}
+
+/* tw-animate-css entrances and exits under Reduced: movement goes, opacity stays.
+   Unlayered, so it outranks tw-animate's layered slide and zoom utilities without !important. */
+:root {
+  @variant motion-reduce {
+    & *,
+    & *::before,
+    & *::after {
+      --tw-enter-translate-x: 0;
+      --tw-enter-translate-y: 0;
+      --tw-exit-translate-x: 0;
+      --tw-exit-translate-y: 0;
+      --tw-enter-scale: 1;
+      --tw-exit-scale: 1;
+      --tw-enter-rotate: 0;
+      --tw-exit-rotate: 0;
+      --tw-enter-blur: 0;
+      --tw-exit-blur: 0;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Sidebar nav indicator (Motion Study spec 3 — "the single most Material-
+   feeling change in the sidebar"). The active pill slides between rows rather
+   than appearing. Implemented as a view-transition-free FLIP: the indicator is
+   one absolutely-positioned element per nav group whose transform is driven
+   from React, so only transform/opacity animate and nothing is load-bearing —
+   if the transition never runs, the pill is still in the right place.
+--------------------------------------------------------------------------- */
+.nav-indicator {
+  transition:
+    transform var(--duration-standard) var(--ease-standard),
+    height var(--duration-standard) var(--ease-standard),
+    opacity var(--duration-quick) ease-out;
+}
+
+/* First paint must not slide the pill in from y=0 — it should already be under
+   the active row. This class is removed one frame after mount. */
+.nav-indicator[data-settling="true"] {
+  transition: none;
+}
+
+:root {
+  @variant motion-reduce {
+    & .nav-indicator {
+      transition: opacity var(--duration-quick) ease-out;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Ambient loops (DESIGN.md > Motion). These two are the ONLY continuous
+   animations sanctioned in the product, and both are gated on something being
+   genuinely live — the One-Loop Rule. Both are written on the ambient token
+   pair rather than a literal `2s ease-in-out` so a future retune moves every
+   surface at once.
+--------------------------------------------------------------------------- */
+
+/* Service rings: three concentric discs, offset 0 / .3s / .6s, on the
+   tone-{role}-{1,2,3} steps. Values are the Motion Study's spec 7. */
 @keyframes pulse-ring {
   0% {
-    transform: scale(0.8);
-    opacity: 0.8;
+    transform: scale(0.82);
+    opacity: 0.85;
   }
   100% {
     transform: scale(1);
@@ -178,11 +760,419 @@
 }
 
 .animate-pulse-ring {
-  animation: pulse-ring 2s ease-in-out infinite alternate;
+  animation: pulse-ring var(--duration-ambient) var(--ease-ambient) infinite
+    alternate;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring {
-    animation: none;
+/* Live ping: a disc expands past its anchor and fades. Distinct from Tailwind's
+   built-in `animate-ping` (1s, scale 2, linear-ish) — this is the canon timing,
+   and it does not `alternate`: a radar sweep only travels outward. */
+@keyframes live-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-live-ping {
+  animation: live-ping var(--duration-ambient) var(--ease-ambient) infinite;
+}
+
+/* ---------------------------------------------------------------------------
+   Banner entrance (DESIGN.md > Banner System > Motion). A 6px rise plus fade on
+   `emphasized`. Enter only: there is deliberately no exit keyframe, because a
+   banner leaving means the condition cleared and that should feel immediate.
+--------------------------------------------------------------------------- */
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-banner-in {
+  animation: banner-in var(--duration-emphasized) var(--ease-emphasized);
+}
+
+/* Movement goes, opacity stays, nothing here is load-bearing. */
+:root {
+  @variant motion-reduce {
+    & .animate-pulse-ring,
+    & .animate-live-ping,
+    & .animate-banner-in {
+      animation: none;
+    }
+  }
+}
+
+/* 404 campfire (components/not-found): the sanctioned decorative loop. Stepped
+   sprite cadence, not the duration scale; Reduced shows the resting frame. */
+
+/* Three flame frames, each visible for a third of the cycle. */
+@keyframes campfire-frame {
+  0% {
+    opacity: 1;
+  }
+  33.333%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.campfire-frame {
+  animation: campfire-frame 540ms step-end infinite;
+}
+
+.campfire-frame-1 {
+  opacity: 0;
+  animation-delay: -360ms;
+}
+
+.campfire-frame-2 {
+  opacity: 0;
+  animation-delay: -180ms;
+}
+
+@keyframes campfire-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.campfire-glow {
+  animation: campfire-glow 900ms steps(3) infinite;
+}
+
+/* Embers rise 14 scene pixels in pixel-sized steps and fade out. */
+@keyframes campfire-ember {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--ember-dx, 0px), -14px);
+    opacity: 0;
+  }
+}
+
+.campfire-ember {
+  animation: campfire-ember var(--ember-dur, 2s) steps(14) var(--ember-delay, 0s)
+    infinite;
+}
+
+@keyframes campfire-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.campfire-star {
+  animation: campfire-twinkle 3.2s step-end infinite;
+}
+
+/* The way home: an amber pixel button with notched corners and a bevel. The
+   clip-path would clip a focus ring, so the ring sits on the frame around it. */
+.campfire-button-frame {
+  display: inline-flex;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+
+.campfire-button-frame:has(.campfire-button:focus-visible) {
+  outline-color: var(--campfire-amber-light);
+}
+
+.campfire-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding: 0 1.25rem 0.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--campfire-amber-ink);
+  background-color: var(--campfire-amber);
+  box-shadow:
+    inset 0 -4px 0 var(--campfire-amber-edge),
+    inset 0 4px 0 var(--campfire-amber-light);
+  clip-path: polygon(
+    0 4px,
+    4px 4px,
+    4px 0,
+    calc(100% - 4px) 0,
+    calc(100% - 4px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    4px calc(100% - 4px),
+    0 calc(100% - 4px)
+  );
+  outline: none;
+  transition:
+    background-color var(--duration-quick) var(--ease-quick),
+    transform var(--duration-quick) var(--ease-quick);
+}
+
+.campfire-button:hover {
+  background-color: var(--campfire-amber-hover);
+}
+
+.campfire-button:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -2px 0 var(--campfire-amber-edge),
+    inset 0 2px 0 var(--campfire-amber-light);
+}
+
+:root {
+  @variant motion-reduce {
+    & .campfire-frame,
+    & .campfire-glow,
+    & .campfire-ember,
+    & .campfire-star {
+      animation: none;
+    }
+
+    & .campfire-button:active {
+      transform: none;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Carrier Aggregation chain (DESIGN.md > Carrier Aggregation strip).
+
+   `width` is the single sanctioned width animation in the product: on this
+   surface the width IS the data, and a scaleX would distort the band and
+   bandwidth labels riding inside each segment. Everything else, including the
+   quality meters ten pixels below, animates transform only.
+
+   Re-proportioning is a container size change, so it takes `emphasized`.
+--------------------------------------------------------------------------- */
+.ca-segment {
+  transition:
+    width var(--duration-emphasized) var(--ease-emphasized),
+    background-color var(--duration-standard) var(--ease-standard),
+    color var(--duration-standard) var(--ease-standard);
+}
+
+/* A carrier the radio has just ADDED grows from nothing into its share, so the
+   chain reads as "something arrived" rather than "everything shuffled". The
+   keyframe is deliberately open-ended: with no `to`, it animates from width 0 up
+   to whatever the element's own inline width already is, so the final geometry
+   is computed by React and this rule only describes the journey.
+
+   Applied only to segments that appear AFTER the card has rendered content once.
+   First paint is the skeleton crossfade's moment (Motion Guide recipe 03); four
+   segments each animating `width` on arrival would be four simultaneous layout
+   passes to show a chain that was never not there. */
+@keyframes ca-segment-enter {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+.ca-segment-enter {
+  animation: ca-segment-enter var(--duration-emphasized)
+    var(--ease-emphasized);
+}
+
+/* Meter fill: transform, never width — otherwise every meter on the dashboard
+   triggers layout on each poll, on a CPU that is also carrying the user's
+   traffic. Two durations, not one: the arrival runs on `emphasized` and the poll
+   retarget on `standard` — see the note inside the rule for why. */
+.ca-meter {
+  /* Fills on first paint only. The tiles are keyed by carrier, so this runs
+     once per carrier lifetime: on arrival, and again for a carrier the radio
+     adds later. Subsequent polls move the scale through the `transition` below
+     instead of replaying from zero (Motion Guide recipe 07).
+
+     An animation rather than a mount-time state flip on purpose. The inline
+     `transform` is always the truth; the keyframe only overrides it while it
+     runs. So if this never executes — reduced motion, a backgrounded tab, a
+     paint that beat the animation — the meter is already at its correct scale.
+     That is the Non-Load-Bearing Rule, and a rAF-armed state flip would break
+     it: requestAnimationFrame does not fire in a background tab, which would
+     strand every meter at zero until the user came back to the page.
+
+     Two clocks, on purpose. The ARRIVAL travels 0 -> full and runs on
+     `emphasized`; the poll RETARGET moves a few percent and stays on
+     `standard`. Both were `standard` until now, which is why the fill read as a
+     snap: duration has to scale with distance, and this is the longest journey
+     a meter ever makes. Motion Guide recipe 07 draws the same distinction in
+     words ("fills animate on first paint only — subsequent polls transition the
+     scale value"); it just never got two durations.
+
+     `--meter-index` staggers the column so four carriers arrive as a cascade
+     rather than one simultaneous snap. `backwards` holds scaleX(0) through the
+     delay — without it a meter would paint at full scale, jump to zero when its
+     turn came, and fill from there. */
+  animation: ca-meter-fill var(--duration-emphasized) var(--ease-emphasized);
+  animation-delay: calc(var(--meter-index, 0) * var(--stagger-step));
+  animation-fill-mode: backwards;
+  transition: transform var(--duration-standard) var(--ease-standard);
+}
+
+@keyframes ca-meter-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Skeleton handoff (Motion Guide recipe 03): a pure crossfade on `quick`, with
+   no movement. The outgoing skeleton is an overlay ON TOP of the real content
+   rather than a sibling beside it, so the card is sized by its content from the
+   first frame and the crossfade itself contributes zero layout shift. Opacity-only,
+   so it runs unchanged under Reduced: movement goes, opacity stays. */
+.ca-skeleton-out {
+  animation: ca-skeleton-out var(--duration-quick) ease-out forwards;
+}
+
+@keyframes ca-skeleton-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.ca-content-in {
+  animation: ca-content-in var(--duration-quick) ease-out;
+}
+
+@keyframes ca-content-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Chart draw-in (Motion Guide recipe 16), the last recipe of the sixteen to be
+   built. The stroke draws itself on `standard` and the area fill follows just
+   behind it, so the chart reads as being plotted rather than pasted.
+
+   Applied by putting `.chart-draw` on the ChartContainer and letting these
+   selectors reach recharts' own emitted classes. That indirection is the whole
+   trick — but it also means this class CANNOT be left on a live-updating chart,
+   and that is the one rule every consumer has to honour.
+
+   Why: a CSS animation fires on element MOUNT, and recharts wraps an animated
+   series in `<Animate key={"area-" + animationId}>` where `animationId` is the
+   chart's `updateId`, bumped on every data change. A changed React key remounts
+   the subtree, so each poll hands these selectors a BRAND NEW path node and the
+   entrance replays — the line re-draws from zero and the fill flashes
+   transparent, on top of the poll's own morph.
+
+   So the recipe's hardest clause, "first paint only", is bought by making the
+   class TRANSIENT: `useChartDrawIn` (hooks/use-chart-motion.ts) returns
+   `chart-draw` for the length of the entrance and `""` afterwards. The remounts
+   still happen; there is simply no CSS left for them to fire. Never hardcode
+   `chart-draw` in a className — the class is correct only while it is
+   temporary.
+
+   The earlier answer here was to disable recharts' animation outright
+   (`isAnimationActive={false}`), which kept one stable path node across polls.
+   That did retire a real defect — the charts had been re-running recharts'
+   default 1500ms `ease`, 3.75x the Motion-Ceiling on a curve from no design
+   system, invisible to MotionConfig — but it also killed the poll-to-poll
+   morph, so the trace teleported to each new shape. Series now animate on the
+   project's own duration and curve; see the hook.
+
+   `pathLength: 1` on the series is what makes this exact. Normalising every
+   path to one user unit lets `stroke-dasharray: 1` be a single dash covering
+   the whole line whatever its real geometry, which matters because these cards
+   are container-responsive and real path length changes with the viewport. The
+   design mock hardcodes `stroke-dasharray: 2400` against paths ~400-700px long,
+   where visible length is min(L, D - offset): nothing appears until the offset
+   falls under ~1800, so the first 75% of its 300ms is dead time and the line
+   snaps in over the last 75ms. Faithfully copying that constant would have
+   shipped a snap and called it a draw.
+
+   Open-ended keyframes, `from` and no `to`, on the same construction as
+   `.ca-meter` above: resting `stroke-dashoffset` is 0 and resting opacity is 1,
+   so the chart is already correct if this never runs. Non-load-bearing by
+   construction rather than by promise. */
+.chart-draw .recharts-line-curve,
+.chart-draw .recharts-area-curve {
+  stroke-dasharray: 1;
+  animation: chart-draw var(--duration-standard) var(--ease-standard);
+}
+
+@keyframes chart-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* The fill trails the stroke so the line reads as leading and the area as
+   following it, rather than the two arriving as one block. `backwards` holds it
+   transparent through that delay; without it the fill paints, vanishes, then
+   fades back in.
+
+   The trail is a FRACTION of the stroke's own duration, not a fixed number of
+   milliseconds: it has to stay proportional or the lead-follow reads wrong at a
+   different scale. 80ms of a 300ms stroke was ~27%, so `/ 3.75` reproduces it
+   exactly and survives the next retune. `CHART_TRAIL_MS` in
+   hooks/use-chart-motion.ts is the same ratio on the JS side. */
+.chart-draw .recharts-area-area {
+  animation: chart-area var(--duration-standard) var(--ease-standard)
+    calc(var(--duration-standard) / 3.75) backwards;
+}
+
+@keyframes chart-area {
+  from {
+    opacity: 0;
+  }
+}
+
+/* With motion off the end state must already be correct: the segment still has
+   its final width and the meter its final scale, they simply arrive there
+   without travelling. The crossfade survives — movement goes, opacity stays,
+   and a crossfade is still legible information where a slide is not. */
+:root {
+  @variant motion-reduce {
+    & .ca-segment,
+    & .ca-meter {
+      transition: none;
+    }
+
+    & .ca-segment-enter,
+    & .ca-meter {
+      animation: none;
+    }
+
+    /* The line must not be left dashed: `stroke-dasharray` is the mechanism,
+       not the appearance, so it is cleared here rather than merely stopping the
+       keyframe. */
+    & .chart-draw .recharts-line-curve,
+    & .chart-draw .recharts-area-curve,
+    & .chart-draw .recharts-area-area {
+      animation: none;
+      stroke-dasharray: none;
+    }
   }
 }

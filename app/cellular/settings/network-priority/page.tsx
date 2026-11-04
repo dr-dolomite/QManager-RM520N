@@ -1,10 +1,7 @@
-import NetworkPrioritySettings from '@/components/cellular/settings/network-priority/network-priority'
-import React from 'react'
+import NetworkPrioritySettings from "@/components/cellular/settings/network-priority/network-priority";
 
 const NetworkPriorityPage = () => {
-  return (
-    <NetworkPrioritySettings />
-  )
-}
+  return <NetworkPrioritySettings />;
+};
 
-export default NetworkPriorityPage
+export default NetworkPriorityPage;

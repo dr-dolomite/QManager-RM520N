@@ -25,7 +25,7 @@
     "apn_management": "Gestione APN",
     "network_priority": "Priorità di rete",
     "imei_settings": "Impostazioni IMEI",
-    "fplmn_settings": "Impostazioni FPLMN",
+    "fplmn_settings": "Reti bloccate",
     "ethernet_status": "Stato Ethernet",
     "local_network_settings": "Impostazioni",
     "ip_passthrough": "IP Passthrough",
@@ -38,15 +38,48 @@
     "tailscale": "Tailscale VPN",
     "system_settings": "Impostazioni di sistema",
     "logs": "Log",
+    "config_backup": "Backup configurazione",
     "system_health_check": "Controllo dello stato del sistema",
     "connection_quality": "Qualità della connessione",
     "languages": "Lingue",
+    "device_access": "Accesso al dispositivo",
+    "adaptive_polling": "Polling Adattivo",
     "software_update": "Aggiornamento del software",
     "terminals": "Terminali",
     "at_terminal": "Terminale AT",
     "web_console": "Console Web",
     "about_device": "Informazioni sul dispositivo",
     "support": "Supporto",
-    "donate": "Dona al progetto"
-  }
+    "donate": "Dona al progetto",
+    "traffic_engine": "Motore di traffico",
+    "cellular_overview": "Panoramica",
+    "sms_inbox": "Posta in arrivo",
+    "band_locking_bands": "Blocco bande",
+    "cell_scanner_full_scan": "Scansione completa",
+    "cellular_settings_general": "Generali",
+    "connection_quality_overview": "Panoramica",
+    "system_settings_general": "Generali"
+  },
+  "header": {
+    "role": "Admin"
+  },
+  "user": {
+    "signed_in": "Connesso"
+  },
+  "actions": {
+    "toggle_section": "Apri o chiudi la sezione {{section}}",
+    "toggle_sidebar": "Mostra o nascondi la barra laterale",
+    "skip_to_content": "Vai al contenuto principale"
+  },
+  "status": {
+    "watchdog_acting": "in azione",
+    "watchdog_acting_detail": "Il watchdog sta ripristinando la connessione (livello {{tier}}).",
+    "watchdog_settling": "verifica",
+    "watchdog_settling_detail": "Il watchdog sta verificando che la connessione regga dopo il ripristino."
+  },
+  "mobile": {
+    "title": "Barra laterale",
+    "description": "Navigazione principale di QManager."
+  },
+  "breadcrumb": "Percorso di navigazione"
 }

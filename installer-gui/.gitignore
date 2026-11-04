@@ -1,0 +1,9 @@
+payload/
+vendor/adb/
+build/
+dist/
+.venv/
+__pycache__/
+*.pyc
+src/qmanager_installer/ui/tokens.css
+*.log

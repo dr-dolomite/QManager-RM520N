@@ -9,12 +9,13 @@
 # channel(s) fire for each of 3 events: connection_lost, connection_restored,
 # reboot.
 #
-# events.sh (Recent Activities) is NOT touched by this engine — it has its
-# own independent internet_lost/internet_restored detection. This engine
-# only decides alert DISPATCH (SMS/email/Discord), not event logging.
+# The link verdict comes from events.sh (ev_link_state, set by
+# detect_data_connection_events earlier in the same poll cycle): this engine
+# has no edge detector of its own and only decides alert DISPATCH. Degraded
+# (loss/latency) never reaches a channel.
 #
-# Signal source for downtime: conn_internet_available ONLY (never latency
-# or packet loss — those are quality signals, not connectivity signals).
+# One wait (alert_after_min, owned by Connection Quality, via conn_state.sh):
+# an outage sends nothing on any channel unless it lasted at least that long.
 # Timer source: /proc/uptime (monotonic) — NEVER date +%s for durations,
 # since NTP/NITZ can step the wall clock backward/forward mid-outage.
 #
@@ -33,7 +34,7 @@
 #     /proc/sys/kernel/random/boot_id  — compared against...
 #     /etc/qmanager/last_boot_id       — ...to detect a reboot happened
 #     /etc/qmanager/reboot_history.json — NDJSON {"epoch":N,"cause":"..."}, cap 10
-#     /etc/qmanager/crash.log          — read-only here (written by
+#     /usrdata/qmanager/crash.log      — read-only here (root-owned; written by
 #                                        qmanager_watchcat as root, or by
 #                                        the sudoers-gated root helper
 #                                        qmanager_crash_log_append for
@@ -52,13 +53,15 @@
 # Consumes from other libs (best-effort — degrades gracefully if any of
 # these are missing, since a broken alert channel must never crash the
 # poller):
-#   _ea_read_config, _ea_enabled, _ea_recipient, _ea_threshold_minutes,
+#   _ea_read_config, _ea_enabled, _ea_recipient,
 #     _ea_log_event, email_alert_send      (email_alerts.sh)
-#   _sa_read_config, _sa_enabled, _sa_recipient, _sa_threshold_minutes,
+#   _sa_read_config, _sa_enabled, _sa_recipient,
 #     _sa_log_event, sms_alert_send        (sms_alerts.sh)
+#   cq_alert_after_min, CQ_ALERT_AFTER_MIN (conn_state.sh)
 #   discord_dispatch_message, _DA_LOG      (discord_alerts.sh)
 #
-# Poller globals read: conn_internet_available, conn_during_recovery
+# Poller globals read: ev_link_state, conn_internet_available (reboot delivery
+# only), CQ_ALERT_AFTER_MIN
 #
 # Install location: /usr/lib/qmanager/alert_engine.sh
 # =============================================================================
@@ -73,10 +76,15 @@ _AE_DISCORD_CONFIG="/etc/qmanager/discord_bot.json"
 _AE_BOOT_ID_FILE="/proc/sys/kernel/random/boot_id"
 _AE_LAST_BOOT_ID_FILE="/etc/qmanager/last_boot_id"
 _AE_REBOOT_HISTORY_FILE="/etc/qmanager/reboot_history.json"
-_AE_CRASH_LOG="/etc/qmanager/crash.log"
+# Root-owned log (see crash_log.sh); fallback keeps the engine working without the lib.
+[ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
+_AE_CRASH_LOG="${QM_CRASH_LOG:-/usrdata/qmanager/crash.log}"
 _AE_MAX_REBOOT_HISTORY=10
 _AE_REBOOT_COALESCE_THRESHOLD=3
 _AE_REBOOT_CLASSIFY_WINDOW_SECS=600
+_AE_SANE_EPOCH=1700000000   # wall clock below this is the 1970 boot window (same floor as qmanager_sites)
+_AE_MAX_DISCORD_LOG=100     # same cap as the SMS and email logs
+_AE_DISCORD_TRIM_EVERY=150  # cycles between Discord-log size checks (~10 min at ~4 s/cycle)
 
 # Applied verbatim whenever alert_routing.json is missing or fails to parse.
 _AE_ROUTING_DEFAULT='{"connection_lost":{"sms":true,"email":false,"discord":false},"connection_restored":{"sms":true,"email":true,"discord":true},"reboot":{"sms":true,"email":true,"discord":true}}'
@@ -88,11 +96,29 @@ _ae_down=0            # 1 while an outage is being tracked
 _ae_down_start=0      # /proc/uptime seconds at the down transition
 _ae_lost_sent_sms=0   # connection_lost dispatched for this outage already?
 _ae_reboot_pending=0  # a reboot was detected this boot and not yet alerted
+_ae_boot_unresolved=""  # new boot_id held until the wall clock is sane (classify + ledger wait)
+_ae_cfg_pending=0     # 1 while init ran before jq was available (retried in check_alerts)
+_ae_discord_trim_tick=0
+
+# --- Last cleared outage (published as connectivity.last_outage_*) ----------
+# File "<secs> <end_uptime> <changed|-> <wan4|-> <wan6|->" in tmpfs on purpose:
+# a poller respawn reloads it, a reboot clears it with the uptime clock it uses.
+_AE_LAST_OUTAGE_FILE="/tmp/qmanager_last_outage"
+_ae_last_outage_s=""
+_ae_last_outage_end_up=""
+_ae_last_outage_wan4=""
+_ae_last_outage_wan6=""
+_ae_last_outage_wan_changed=""   # "true"/"false", "" when either side is unknown
+_AE_WAN_SEEN_EVERY=30            # seconds between up-time WAN address reads
+_ae_wan_seen4=""
+_ae_wan_seen6=""
+_ae_wan_seen_up=""
+_ae_pre_wan4=""
+_ae_pre_wan6=""
 
 # Discord config mirror (no _read_config equivalent exists in discord_alerts.sh)
 _ae_discord_enabled="false"
 _ae_discord_owner_id=""
-_ae_discord_threshold_minutes=5
 
 # --- Discord library (optional — poller does not source this on its own) ----
 . /usr/lib/qmanager/discord_alerts.sh 2>/dev/null || {
@@ -106,6 +132,116 @@ _ae_discord_threshold_minutes=5
 # =============================================================================
 _ae_uptime_secs() {
     awk '{ print int($1) }' /proc/uptime 2>/dev/null
+}
+
+# _ae_wan_read — the bearer's WAN addresses into _AE_WAN4/_AE_WAN6 (kernel only,
+# empty when absent or not address-shaped). The RM520N default route has no
+# `src`, so take its `dev` and read that device's global address instead.
+_ae_wan_read() {
+    local _l _dev
+    _AE_WAN4=""
+    _AE_WAN6=""
+    _l=$(ip -4 route show default 2>/dev/null | head -n 1)
+    case "$_l" in
+        *" dev "*)
+            _dev="${_l##* dev }"; _dev="${_dev%% *}"
+            _l=$(ip -4 -o addr show dev "$_dev" scope global 2>/dev/null | head -n 1)
+            case "$_l" in
+                *" inet "*) _AE_WAN4="${_l##* inet }"; _AE_WAN4="${_AE_WAN4%%[/ ]*}" ;;
+            esac
+            ;;
+    esac
+    case "$_AE_WAN4" in *[!0-9.]*|'') _AE_WAN4="" ;; esac
+    _l=$(ip -6 route show default 2>/dev/null | head -n 1)
+    case "$_l" in
+        *" dev "*)
+            _dev="${_l##* dev }"; _dev="${_dev%% *}"
+            _l=$(ip -6 -o addr show dev "$_dev" scope global 2>/dev/null | head -n 1)
+            case "$_l" in
+                *" inet6 "*) _AE_WAN6="${_l##* inet6 }"; _AE_WAN6="${_AE_WAN6%%[/ ]*}" ;;
+            esac
+            ;;
+    esac
+    case "$_AE_WAN6" in *[!0-9a-fA-F:]*|'') _AE_WAN6="" ;; esac
+    return 0
+}
+
+# _ae_wan_seen_refresh NOW_UP [force] — last-seen addresses while up, at most
+# every _AE_WAN_SEEN_EVERY s; an empty read never overwrites a known address.
+_ae_wan_seen_refresh() {
+    if [ "$2" != "force" ] && [ -n "$_ae_wan_seen_up" ] \
+        && [ $(($1 - _ae_wan_seen_up)) -lt "$_AE_WAN_SEEN_EVERY" ]; then
+        return 0
+    fi
+    _ae_wan_seen_up="$1"
+    _ae_wan_read
+    [ -n "$_AE_WAN4" ] && _ae_wan_seen4="$_AE_WAN4"
+    [ -n "$_AE_WAN6" ] && _ae_wan_seen6="$_AE_WAN6"
+    return 0
+}
+
+# _ae_wan_cmp OLD NEW — prints true/false, nothing when either side is empty.
+_ae_wan_cmp() {
+    [ -n "$1" ] && [ -n "$2" ] || return 0
+    if [ "$1" = "$2" ]; then echo false; else echo true; fi
+}
+
+# _ae_outage_begin — down edge: remember the pre-outage addresses, falling back
+# to the last seen up when the bearer already lost its address.
+_ae_outage_begin() {
+    _ae_wan_read
+    _ae_pre_wan4="${_AE_WAN4:-$_ae_wan_seen4}"
+    _ae_pre_wan6="${_AE_WAN6:-$_ae_wan_seen6}"
+}
+
+# _ae_outage_record SECS NOW_UP — restore edge: publish the cleared outage and
+# persist it (tmp + mv) so a poller respawn in the same boot reloads it.
+_ae_outage_record() {
+    local _tmp="$_AE_LAST_OUTAGE_FILE.tmp.$$"
+    _ae_wan_read
+    _ae_last_outage_s="$1"
+    _ae_last_outage_end_up="$2"
+    _ae_last_outage_wan4="$_AE_WAN4"
+    _ae_last_outage_wan6="$_AE_WAN6"
+    _ae_last_outage_wan_changed=$(_ae_wan_cmp "$_ae_pre_wan4" "$_AE_WAN4")
+    [ -z "$_ae_last_outage_wan_changed" ] && \
+        _ae_last_outage_wan_changed=$(_ae_wan_cmp "$_ae_pre_wan6" "$_AE_WAN6")
+    [ -n "$_AE_WAN4" ] && _ae_wan_seen4="$_AE_WAN4"
+    [ -n "$_AE_WAN6" ] && _ae_wan_seen6="$_AE_WAN6"
+    _ae_wan_seen_up="$2"
+    _ae_pre_wan4=""
+    _ae_pre_wan6=""
+    if printf '%s %s %s %s %s\n' "$1" "$2" "${_ae_last_outage_wan_changed:--}" \
+        "${_AE_WAN4:--}" "${_AE_WAN6:--}" > "$_tmp" 2>/dev/null; then
+        mv -f "$_tmp" "$_AE_LAST_OUTAGE_FILE" 2>/dev/null || rm -f "$_tmp"
+    else
+        rm -f "$_tmp" 2>/dev/null
+    fi
+    return 0
+}
+
+# _ae_last_outage_load — reload after a poller respawn. Every field is
+# validated; garbage, or an end stamp ahead of the current uptime, is ignored.
+_ae_last_outage_load() {
+    local _d _e _c _w4 _w6 _rest _now
+    [ -f "$_AE_LAST_OUTAGE_FILE" ] || return 0
+    { read -r _d _e _c _w4 _w6 _rest < "$_AE_LAST_OUTAGE_FILE"; } 2>/dev/null
+    # No leading zero (bash reads 09 as octal and aborts the poller) and at most 10 digits.
+    case "$_d" in ''|*[!0-9]*|0?*|???????????*) return 0 ;; esac
+    case "$_e" in ''|*[!0-9]*|0?*|???????????*) return 0 ;; esac
+    case "$_c" in true|false|-) ;; *) return 0 ;; esac
+    case "$_w4" in -) ;; ''|*[!0-9.]*) return 0 ;; esac
+    case "$_w6" in -) ;; ''|*[!0-9a-fA-F:]*) return 0 ;; esac
+    [ -z "$_rest" ] || return 0
+    _now=$(_ae_uptime_secs)
+    case "$_now" in ''|*[!0-9]*) return 0 ;; esac
+    [ "$_e" -le "$_now" ] || return 0
+    _ae_last_outage_s="$_d"
+    _ae_last_outage_end_up="$_e"
+    case "$_c" in true|false) _ae_last_outage_wan_changed="$_c" ;; esac
+    [ "$_w4" = "-" ] || _ae_last_outage_wan4="$_w4"
+    [ "$_w6" = "-" ] || _ae_last_outage_wan6="$_w6"
+    return 0
 }
 
 # =============================================================================
@@ -154,8 +290,20 @@ _ae_read_discord_config() {
     _ae_discord_enabled=$(jq -r '(.enabled) | if . == null then "false" else tostring end' "$_AE_DISCORD_CONFIG" 2>/dev/null)
     case "$_ae_discord_enabled" in true) ;; *) _ae_discord_enabled="false" ;; esac
     _ae_discord_owner_id=$(jq -r '.owner_discord_id // ""' "$_AE_DISCORD_CONFIG" 2>/dev/null)
-    _ae_discord_threshold_minutes=$(jq -r '.threshold_minutes // 5' "$_AE_DISCORD_CONFIG" 2>/dev/null)
-    case "$_ae_discord_threshold_minutes" in ''|*[!0-9]*) _ae_discord_threshold_minutes=5 ;; esac
+}
+
+# _ae_resolve_wait re-reads the single outage wait (CQ_ALERT_AFTER_MIN); called at outage
+# start, on restore and on any config reload. _ae_wait_secs prints it in seconds (default 300).
+_ae_resolve_wait() {
+    command -v cq_alert_after_min >/dev/null 2>&1 && cq_alert_after_min
+    return 0
+}
+
+_ae_wait_secs() {
+    case "${CQ_ALERT_AFTER_MIN:-}" in
+        ''|*[!0-9]*|0) printf '%s' 300 ;;
+        *) printf '%s' $((CQ_ALERT_AFTER_MIN * 60)) ;;
+    esac
 }
 
 # =============================================================================
@@ -233,13 +381,16 @@ _ae_append_reboot_history() {
 }
 
 # Classify the reboot that just happened by inspecting the newest crash.log
-# line. Sets _ae_reboot_cause to one of: watchdog | user | unplanned.
+# line. Sets _ae_reboot_cause to one of: watchdog | user | scheduled | unplanned.
 _ae_classify_reboot() {
     _ae_reboot_cause="unplanned"
+    command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
     [ -f "$_AE_CRASH_LOG" ] || return 0
 
     local last_line last_epoch last_tag now age
-    last_line=$(tail -n 1 "$_AE_CRASH_LOG" 2>/dev/null)
+    # Skip lines from the clock-step guard aren't reboots — take the newest
+    # line whose verb field is exactly "reboot", not just the last line.
+    last_line=$(grep '|reboot|' "$_AE_CRASH_LOG" 2>/dev/null | tail -n 1)
     [ -z "$last_line" ] && return 0
 
     last_epoch=$(printf '%s' "$last_line" | cut -d'|' -f1)
@@ -248,15 +399,36 @@ _ae_classify_reboot() {
 
     now=$(date +%s)
     age=$((now - last_epoch))
-    [ "$age" -lt 0 ] && age=0
+    # A breadcrumb from the future is untrusted, not "just now".
+    [ "$age" -lt 0 ] && return 0
 
     if [ "$age" -le "$_AE_REBOOT_CLASSIFY_WINDOW_SECS" ]; then
         case "$last_tag" in
             tier4_escalation) _ae_reboot_cause="watchdog" ;;
             user)             _ae_reboot_cause="user" ;;
+            scheduled)        _ae_reboot_cause="scheduled" ;;
             *)                _ae_reboot_cause="unplanned" ;;
         esac
     fi
+}
+
+# _ae_clock_sane — 0 iff the wall clock is past the 1970 boot window.
+_ae_clock_sane() {
+    local now
+    now=$(date +%s 2>/dev/null)
+    case "$now" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$now" -ge "$_AE_SANE_EPOCH" ]
+}
+
+# Classify + ledger + persist the new boot id. Only called once the clock is sane,
+# so a 1970 epoch never reaches reboot_history.json.
+_ae_record_reboot() {
+    local boot_id="$1"
+    _ae_classify_reboot
+    _ae_append_reboot_history "$(date +%s)" "$_ae_reboot_cause"
+    _ae_reboot_pending=1
+    printf '%s' "$boot_id" > "${_AE_LAST_BOOT_ID_FILE}.tmp" 2>/dev/null \
+        && mv "${_AE_LAST_BOOT_ID_FILE}.tmp" "$_AE_LAST_BOOT_ID_FILE" 2>/dev/null
 }
 
 # Detect a reboot by comparing /proc/sys/kernel/random/boot_id against the
@@ -282,13 +454,24 @@ _ae_init_boot_check() {
     local prev_boot_id
     prev_boot_id=$(cat "$_AE_LAST_BOOT_ID_FILE" 2>/dev/null)
     if [ "$cur_boot_id" != "$prev_boot_id" ]; then
-        qlog_info "alert_engine: boot_id changed — classifying reboot cause"
-        _ae_classify_reboot
-        _ae_append_reboot_history "$(date +%s)" "$_ae_reboot_cause"
-        _ae_reboot_pending=1
-        printf '%s' "$cur_boot_id" > "${_AE_LAST_BOOT_ID_FILE}.tmp" 2>/dev/null \
-            && mv "${_AE_LAST_BOOT_ID_FILE}.tmp" "$_AE_LAST_BOOT_ID_FILE" 2>/dev/null
+        if _ae_clock_sane; then
+            qlog_info "alert_engine: boot_id changed — classifying reboot cause"
+            _ae_record_reboot "$cur_boot_id"
+        else
+            # Boot id stays unpersisted so a poller restart in the window still sees the change.
+            qlog_info "alert_engine: boot_id changed, clock not set yet — holding classification"
+            _ae_boot_unresolved="$cur_boot_id"
+        fi
     fi
+}
+
+# Retry the held classification each cycle until the clock steps.
+_ae_resolve_held_reboot() {
+    [ -n "$_ae_boot_unresolved" ] || return 0
+    _ae_clock_sane || return 0
+    qlog_info "alert_engine: clock set — classifying held reboot"
+    _ae_record_reboot "$_ae_boot_unresolved"
+    _ae_boot_unresolved=""
 }
 
 # =============================================================================
@@ -315,6 +498,28 @@ _ae_log_discord_failed() {
         --arg ts "$ts" --arg trigger "$trigger" --arg recipient "$recipient" \
         '{timestamp: $ts, trigger: $trigger, status: "failed", recipient: $recipient}' \
         >> "$logfile" 2>/dev/null
+}
+
+# The Go daemon only appends to the Discord log, so the root engine trims it: a counter keeps
+# the size check to one wc every _AE_DISCORD_TRIM_EVERY cycles. Copy-through, never mv (seeded inode).
+_ae_trim_discord_log() {
+    local logfile count tmp
+    _ae_discord_trim_tick=$((_ae_discord_trim_tick + 1))
+    [ "$_ae_discord_trim_tick" -ge "$_AE_DISCORD_TRIM_EVERY" ] || return 0
+    _ae_discord_trim_tick=0
+
+    logfile="${_DA_LOG:-/tmp/qmanager_discord_log.json}"
+    # Root writes here: never through a symlink, never to a predictable temp name in /tmp.
+    [ -s "$logfile" ] && [ ! -L "$logfile" ] && [ -f "$logfile" ] || return 0
+    count=$(wc -l < "$logfile" 2>/dev/null)
+    case "$count" in ''|*[!0-9]*) return 0 ;; esac
+    [ "$count" -gt "$_AE_MAX_DISCORD_LOG" ] || return 0
+
+    tmp=$(mktemp "${logfile}.XXXXXX" 2>/dev/null) || return 0
+    if tail -n "$_AE_MAX_DISCORD_LOG" "$logfile" > "$tmp" 2>/dev/null; then
+        cat "$tmp" > "$logfile" 2>/dev/null
+    fi
+    rm -f "$tmp"
 }
 
 # _ae_dispatch <channel> <trigger> <message>
@@ -346,7 +551,7 @@ _ae_dispatch() {
         discord)
             recipient="discord:${_ae_discord_owner_id:-unknown}"
             if command -v discord_dispatch_message >/dev/null 2>&1; then
-                discord_dispatch_message "$message"
+                discord_dispatch_message "$message" "$trigger" "$recipient"
                 rc=$?
             fi
             [ "$rc" -ne 0 ] && _ae_log_discord_failed "$trigger" "$recipient"
@@ -371,9 +576,9 @@ _ae_deliver_reboot() {
         cause="unplanned"
     fi
 
-    # Coalescer: mirrors qmanager_watchcat's own trailing-hour crash count
-    # (same CRASH_LOG, same awk technique) so a flapping device doesn't send
-    # one message per reboot.
+    # Coalescer: every reboot row in the trailing hour (unlike watchcat's
+    # Tier-4-only budget) so a flapping device doesn't send one message per
+    # reboot. Only reached once the clock is sane (_ae_record_reboot).
     now=$(date +%s)
     cutoff=$((now - 3600))
     count=$(awk -v cutoff="$cutoff" -F'|' \
@@ -401,13 +606,11 @@ _ae_deliver_reboot() {
 # the single source of truth (adding a capable channel here is a one-line
 # change to _ae_capable, not a rewrite of this logic).
 _ae_check_connection_lost() {
-    local now_up="$1" elapsed thr_min thr_sec dur_text msg
+    local now_up="$1" elapsed thr_sec dur_text msg
 
     [ "$_ae_lost_sent_sms" = "1" ] && return 0
 
-    thr_min="$_sa_threshold_minutes"
-    case "$thr_min" in ''|*[!0-9]*) return 0 ;; esac
-    thr_sec=$((thr_min * 60))
+    thr_sec=$(_ae_wait_secs)
 
     elapsed=$((now_up - _ae_down_start))
     [ "$elapsed" -lt 0 ] && elapsed=0
@@ -421,21 +624,13 @@ _ae_check_connection_lost() {
     _ae_lost_sent_sms=1
 }
 
-# connection_restored: evaluated independently per channel — a channel fires
-# iff the TOTAL outage duration crossed *that channel's own* threshold, same
-# semantics as the three timers this engine replaces (each channel used to
-# track downtime and threshold independently).
+# connection_restored: a channel fires iff the TOTAL outage crossed the single
+# wait (same gate as connection_lost) and the channel is enabled + routed.
 _ae_maybe_restore() {
-    local channel="$1" elapsed="$2" thr_min thr_sec dur_text msg
+    local channel="$1" elapsed="$2" thr_sec dur_text msg
 
-    case "$channel" in
-        sms)     thr_min="$_sa_threshold_minutes" ;;
-        email)   thr_min="$_ea_threshold_minutes" ;;
-        discord) thr_min="$_ae_discord_threshold_minutes" ;;
-        *)       return 1 ;;
-    esac
-    case "$thr_min" in ''|*[!0-9]*) thr_min=5 ;; esac
-    thr_sec=$((thr_min * 60))
+    case "$channel" in sms|email|discord) ;; *) return 1 ;; esac
+    thr_sec=$(_ae_wait_secs)
 
     [ "$elapsed" -ge "$thr_sec" ] || return 0
     _ae_effective_send connection_restored "$channel" || return 0
@@ -451,9 +646,11 @@ _ae_handle_restore() {
     [ "$elapsed" -lt 0 ] && elapsed=0
     qlog_info "alert_engine: recovery detected — downtime=${elapsed}s"
 
-    _ae_maybe_restore sms     "$elapsed"
+    _ae_resolve_wait
+    _ae_maybe_restore sms    "$elapsed"
     _ae_maybe_restore email   "$elapsed"
     _ae_maybe_restore discord "$elapsed"
+    _ae_outage_record "$elapsed" "$now_up"
 
     if [ "$_ae_reboot_pending" = "1" ]; then
         _ae_deliver_reboot
@@ -469,13 +666,12 @@ check_alerts() {
     # No alerts during scheduled low power mode
     [ -f "/tmp/qmanager_low_power_active" ] && return 0
 
-    # Guardrail: freeze entirely during watchdog recovery — mirrors
-    # events.sh:339's detect_data_connection_events guard. Do not reset the
-    # timer, do not dispatch, do not even pick up config reloads, so a
-    # recovery action never gets misread as a real downtime edge.
-    if [ "$conn_during_recovery" = "true" ]; then
-        return 0
+    # Retry what init could not do yet: config reads (jq not mounted) and the held reboot.
+    if [ "$_ae_cfg_pending" = "1" ]; then
+        _ae_load_all_config || return 0
     fi
+    _ae_resolve_held_reboot
+    _ae_trim_discord_log
 
     # --- Reload flags (touched by the CGI on save) ---
     if [ -f "$_AE_ROUTING_RELOAD_FLAG" ]; then
@@ -486,16 +682,19 @@ check_alerts() {
     if [ -f "$_EA_RELOAD_FLAG" ]; then
         rm -f "$_EA_RELOAD_FLAG"
         _ae_refresh_email
+        _ae_resolve_wait
         qlog_info "alert_engine: email config reloaded"
     fi
     if [ -f "$_SA_RELOAD_FLAG" ]; then
         rm -f "$_SA_RELOAD_FLAG"
         _ae_refresh_sms
+        _ae_resolve_wait
         qlog_info "alert_engine: sms config reloaded"
     fi
     if [ -f "$_DA_RELOAD_FLAG" ]; then
         rm -f "$_DA_RELOAD_FLAG"
         _ae_read_discord_config
+        _ae_resolve_wait
         qlog_info "alert_engine: discord config reloaded"
     fi
 
@@ -510,19 +709,18 @@ check_alerts() {
 
     local did_restore=0
 
-    if [ "$conn_internet_available" = "null" ] || [ -z "$conn_internet_available" ]; then
-        # Stale/null ping data: if we're not already tracking an outage, do
-        # nothing (don't guess). If we ARE tracking one, leave the timer
-        # running untouched — the poller may just be stuck on AT I/O.
-        :
-    elif [ "$conn_internet_available" = "false" ]; then
+    # Follow the detector's link state (events.sh). "" = stale/unknown: a running
+    # timer is left untouched, nothing new starts.
+    if [ "$ev_link_state" = "down" ]; then
         if [ "$_ae_down" != "1" ]; then
             _ae_down=1
             _ae_down_start="$now_up"
             _ae_lost_sent_sms=0
+            _ae_outage_begin
+            _ae_resolve_wait
             qlog_debug "alert_engine: downtime tracking started at uptime=${now_up}s"
         fi
-    elif [ "$conn_internet_available" = "true" ] && [ "$_ae_down" = "1" ]; then
+    elif [ "$ev_link_state" = "up" ] && [ "$_ae_down" = "1" ]; then
         _ae_handle_restore "$now_up"
         _ae_down=0
         _ae_down_start=0
@@ -530,8 +728,12 @@ check_alerts() {
         did_restore=1
     fi
 
-    # While an outage is ongoing, see if the SMS connection_lost threshold
-    # has now been crossed.
+    # Keep the last-seen WAN address fresh while up (throttled inside).
+    if [ "$_ae_down" != "1" ] && [ "$ev_link_state" = "up" ]; then
+        _ae_wan_seen_refresh "$now_up"
+    fi
+
+    # While an outage is ongoing, send connection_lost once it passes the configured wait.
     if [ "$_ae_down" = "1" ]; then
         _ae_check_connection_lost "$now_up"
     fi
@@ -549,19 +751,38 @@ check_alerts() {
 # =============================================================================
 # alert_engine_init — called once at poller startup
 # =============================================================================
+# Read routing + every channel config + the wait. rc 1 (and pending) while jq is not
+# available: /usr/bin/jq dangles until /opt mounts ~30 s into boot, so early reads are defaults.
+_ae_load_all_config() {
+    if ! command -v jq >/dev/null 2>&1; then
+        if [ "$_ae_cfg_pending" != "1" ]; then
+            qlog_warn "alert_engine: jq not available yet, config load deferred"
+        fi
+        _ae_cfg_pending=1
+        return 1
+    fi
+    _ae_cfg_pending=0
+    _ae_load_routing
+    _ae_refresh_email
+    _ae_refresh_sms
+    _ae_read_discord_config
+    _ae_resolve_wait
+    return 0
+}
+
 alert_engine_init() {
     _ae_reboot_pending=0
+    _ae_boot_unresolved=""
     _ae_down=0
     _ae_down_start=0
     _ae_lost_sent_sms=0
 
     mkdir -p /etc/qmanager 2>/dev/null
 
+    _ae_last_outage_load
+    _ae_wan_seen_refresh "$(_ae_uptime_secs)" force
     _ae_init_boot_check
-    _ae_load_routing
-    _ae_refresh_email
-    _ae_refresh_sms
-    _ae_read_discord_config
+    _ae_load_all_config
 
-    qlog_info "alert_engine: initialized (reboot_pending=$_ae_reboot_pending)"
+    qlog_info "alert_engine: initialized (reboot_pending=$_ae_reboot_pending cfg_pending=$_ae_cfg_pending wait=${CQ_ALERT_AFTER_MIN:-5}m)"
 }

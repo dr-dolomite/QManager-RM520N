@@ -2,6 +2,20 @@
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/config.sh
 . /usr/lib/qmanager/platform.sh
+. /usr/lib/qmanager/conn_state.sh
+[ -f /usr/lib/qmanager/crash_log.sh ] && . /usr/lib/qmanager/crash_log.sh
+# Guarded: a partial install leaves the page working without the P5 keys.
+if [ -f /usr/lib/qmanager/wd_common.sh ]; then
+    . /usr/lib/qmanager/wd_common.sh
+else
+    WD_KEYS=""; wd_key_spec() { return 1; }; wd_key_valid() { return 1; }; wd_key_get() { return 1; }
+fi
+if [ -f /usr/lib/qmanager/wd_quality.sh ]; then
+    . /usr/lib/qmanager/wd_quality.sh
+else
+    q_lat_limit=250; q_loss_limit=30; wd_quality_limits() { :; }
+fi
+. /usr/lib/qmanager/monitoring_validate.sh
 # =============================================================================
 # watchdog.sh — CGI Endpoint: Watchdog Settings & Status (GET + POST)
 # =============================================================================
@@ -11,16 +25,9 @@
 # Config: /etc/qmanager/qmanager.conf [watchcat] section
 # State:  /tmp/qmanager_watchcat.json (read-only, written by daemon)
 #
-# --- Split-ownership (fail cadence vs. probe targets) -----------------------
-# The Watchdog owns BOTH the fail_threshold (consecutive failed probes before
-# recovery — read by qmanager_watchcat against /tmp/qmanager_ping.json's raw
-# .streak_fail) AND the probe_interval (probe cadence). It is the SOLE writer
-# of probe_interval, which it propagates into /etc/qmanager/ping_profile.json's
-# `interval_sec` (an atomic key-merge, never a whole-file overwrite — that file
-# is also written independently by settings/ping_profile.sh for target_1/
-# target_2/profile, and must never clobber the other writer's key). The
-# Connectivity Sensitivity card (settings/ping_profile.sh) owns only the probe
-# targets and no longer has any say over interval or fail cadence.
+# --- Ownership -----------------------------------------------------------
+# Connection Quality owns the cadence; down = fail_threshold x interval_sec of failure.
+# probe_interval mirrors interval_sec; a changed POSTed value writes that one key.
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/monitoring/watchdog.sh
 # Install location: /www/cgi-bin/quecmanager/monitoring/watchdog.sh
@@ -33,56 +40,10 @@ cgi_handle_options
 WATCHCAT_STATE="/tmp/qmanager_watchcat.json"
 SIM_SWAP_FLAG="/tmp/qmanager_sim_swap_detected"
 SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
-RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
-PING_RELOAD_FLAG="/tmp/qmanager_ping_reload"
 PING_PROFILE_CONFIG="/etc/qmanager/ping_profile.json"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
-
-# validate_int: unsigned-integer-only range check (rejects "", leading +/-,
-# non-digits, and out-of-range values).
-validate_int() {
-    local val="$1" min="$2" max="$3"
-    case "$val" in ''|*[!0-9]*) return 1 ;; esac
-    [ "$val" -ge "$min" ] 2>/dev/null && [ "$val" -le "$max" ] 2>/dev/null
-}
-
-# Defensive runtime migration: if a legacy watchcat.max_failures value exists
-# and watchcat.fail_threshold is unset, copy it across once and delete the old
-# key. Idempotent (returns immediately once fail_threshold is present). Covers
-# a device that hits this CGI before the installer's own migration runs.
-migrate_fail_threshold() {
-    local current legacy
-    current=$(qm_config_get watchcat fail_threshold "")
-    [ -n "$current" ] && return
-    legacy=$(qm_config_get watchcat max_failures "")
-    if [ -n "$legacy" ]; then
-        qm_config_set watchcat fail_threshold "$legacy"
-        qm_config_delete watchcat max_failures
-        qlog_info "Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
-    fi
-}
-
-# Propagate the Watchdog-owned probe interval into ping_profile.json's
-# interval_sec via an atomic key-merge (read existing JSON, set only
-# .interval_sec, temp-file + mv). NEVER overwrites the whole file — that would
-# clobber target_1/target_2/profile, which settings/ping_profile.sh owns
-# independently in the same file. Best-effort: logs and continues on failure,
-# matching the non-fatal reload-flag pattern used elsewhere in this endpoint —
-# the watchcat.probe_interval config value is already saved regardless.
-propagate_probe_interval() {
-    local interval="$1"
-    local existing='{}'
-    [ -f "$PING_PROFILE_CONFIG" ] && existing=$(cat "$PING_PROFILE_CONFIG" 2>/dev/null)
-    [ -z "$existing" ] && existing='{}'
-    mkdir -p "$(dirname "$PING_PROFILE_CONFIG")"
-    if printf '%s' "$existing" | jq --argjson v "$interval" '.interval_sec = $v' > "${PING_PROFILE_CONFIG}.tmp" 2>/dev/null; then
-        mv "${PING_PROFILE_CONFIG}.tmp" "$PING_PROFILE_CONFIG"
-    else
-        rm -f "${PING_PROFILE_CONFIG}.tmp"
-        qlog_error "Failed to propagate probe_interval into $PING_PROFILE_CONFIG"
-    fi
-}
+CRASH_LOG="${QM_CRASH_LOG:-/usrdata/qmanager/crash.log}"
 
 # reject_field: emit a structured validation error and exit. Used only
 # during PASS 1 (validation) — never after any qm_config_set write.
@@ -106,7 +67,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     enabled=$(qm_config_get watchcat enabled 0)
     fail_threshold=$(qm_config_get watchcat fail_threshold 5)
-    probe_interval=$(qm_config_get watchcat probe_interval 5)
+    # Read-only: the current ping_profile cadence (Connection Quality owns it).
+    conn_state_cadence "$PING_PROFILE_CONFIG"
+    probe_interval="$CQ_CFG_INTERVAL_SEC"
     check_interval=$(qm_config_get watchcat check_interval 10)
     cooldown=$(qm_config_get watchcat cooldown 60)
     tier1=$(qm_config_get watchcat tier1_enabled 1)
@@ -134,9 +97,21 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         sim_swap_json=$(cat "$SIM_SWAP_FLAG" 2>/dev/null)
     fi
 
+    # Recent Tier-4 reboots: epoch ints, newest first, at most 5. crash.log also
+    # holds scheduled/user reboots and skips; only the watchdog's own count here.
+    recent_reboots_json='[]'
+    if [ -f "$CRASH_LOG" ]; then
+        recent_reboots_json=$(awk -F'|' '$2 == "reboot" && $3 == "tier4_escalation" && $1 ~ /^[0-9]+$/ && $1 + 0 >= 1600000000 { print $1 }' \
+            "$CRASH_LOG" 2>/dev/null | tail -n 5 | jq -Rsc '[split("\n")[] | select(length > 0) | tonumber] | reverse' 2>/dev/null)
+    fi
+    [ -n "$recent_reboots_json" ] || recent_reboots_json='[]'
+
     # Check if watchcat was auto-disabled
     auto_disabled="false"
     [ -f "$DISABLED_FLAG" ] && auto_disabled="true"
+    wd_settings=$(mv_wd_keys_json)
+    # The limits the quality trigger really uses: Connection Quality's presets raised to the floors.
+    wd_quality_limits
 
     jq -n \
         --argjson enabled "$enabled" \
@@ -154,9 +129,12 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson sim_failover "$sim_failover_json" \
         --argjson sim_swap "$sim_swap_json" \
         --argjson auto_disabled "$auto_disabled" \
+        --argjson recent_reboots "$recent_reboots_json" \
+        --argjson wd_settings "$wd_settings" \
+        --argjson q_lat "$q_lat_limit" --argjson q_loss "$q_loss_limit" \
         '{
             success: true,
-            settings: {
+            settings: ({
                 enabled: ($enabled == 1),
                 fail_threshold: $fail_threshold,
                 probe_interval: $probe_interval,
@@ -168,11 +146,13 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 tier4_enabled: ($tier4 == 1),
                 backup_sim_slot: (if $backup_sim == "" then null else ($backup_sim | tonumber) end),
                 max_reboots_per_hour: $max_reboots
-            },
+            } + $wd_settings),
             status: $status,
             sim_failover: $sim_failover,
             sim_swap: $sim_swap,
-            auto_disabled: $auto_disabled
+            auto_disabled: $auto_disabled,
+            recent_reboots: $recent_reboots,
+            quality_limits: {latency_ms: $q_lat, loss_pct: $q_loss}
         }'
     exit 0
 fi
@@ -207,22 +187,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         f_fail_threshold=$(printf '%s' "$POST_DATA" | jq -r '.fail_threshold // empty')
         if [ -n "$f_fail_threshold" ]; then
-            validate_int "$f_fail_threshold" 1 20 || reject_field "fail_threshold" "must be an integer between 1 and 20"
+            _r=$(mv_wd_check fail_threshold "$f_fail_threshold") || reject_field "fail_threshold" "$_r"
         fi
 
+        # probe_interval is Connection Quality's interval_sec; only a changed value is written.
         f_probe_interval=$(printf '%s' "$POST_DATA" | jq -r '.probe_interval // empty')
         if [ -n "$f_probe_interval" ]; then
-            validate_int "$f_probe_interval" 1 60 || reject_field "probe_interval" "must be an integer between 1 and 60"
+            _r=$(mv_wd_check probe_interval "$f_probe_interval") || reject_field "probe_interval" "$_r"
+            conn_state_cadence "$PING_PROFILE_CONFIG"
+            [ "$f_probe_interval" = "$CQ_CFG_INTERVAL_SEC" ] && f_probe_interval=""
         fi
 
         f_check_interval=$(printf '%s' "$POST_DATA" | jq -r '.check_interval // empty')
         if [ -n "$f_check_interval" ]; then
-            validate_int "$f_check_interval" 5 60 || reject_field "check_interval" "must be an integer between 5 and 60"
+            _r=$(mv_wd_check check_interval "$f_check_interval") || reject_field "check_interval" "$_r"
         fi
 
         f_cooldown=$(printf '%s' "$POST_DATA" | jq -r '.cooldown // empty')
         if [ -n "$f_cooldown" ]; then
-            validate_int "$f_cooldown" 10 300 || reject_field "cooldown" "must be an integer between 10 and 300"
+            _r=$(mv_wd_check cooldown "$f_cooldown") || reject_field "cooldown" "$_r"
         fi
 
         # Tier enable/disable booleans: legacy parity — anything other than
@@ -235,101 +218,37 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         f_backup_sim_slot=$(printf '%s' "$POST_DATA" | jq -r '.backup_sim_slot // empty')
         if [ -n "$f_backup_sim_slot" ] && [ "$f_backup_sim_slot" != "null" ]; then
-            case "$f_backup_sim_slot" in
-                1|2) ;;
-                *) reject_field "backup_sim_slot" "must be 1 or 2" ;;
-            esac
+            _r=$(mv_wd_check backup_sim_slot "$f_backup_sim_slot") || reject_field "backup_sim_slot" "$_r"
         fi
 
         f_max_reboots=$(printf '%s' "$POST_DATA" | jq -r '.max_reboots_per_hour // empty')
         if [ -n "$f_max_reboots" ]; then
-            validate_int "$f_max_reboots" 1 10 || reject_field "max_reboots_per_hour" "must be an integer between 1 and 10"
+            _r=$(mv_wd_check max_reboots_per_hour "$f_max_reboots") || reject_field "max_reboots_per_hour" "$_r"
         fi
+
+        # wd_common.sh keys: booleans take true/false, the rest their table range.
+        wd_writes=""
+        for _k in $WD_KEYS; do
+            _v=$(printf '%s' "$POST_DATA" | jq -r --arg k "$_k" '.[$k] | if . == null then empty else tostring end')
+            [ -n "$_v" ] || continue
+            _v=$(mv_wd_key_normalize "$_k" "$_v") || reject_field "$_k" "$_v"
+            wd_writes="$wd_writes $_k=$_v"
+        done
 
         # ---------------------------------------------------------------
         # PASS 2 — apply. Only reached if every field above validated cleanly.
         # ---------------------------------------------------------------
-        qm_config_init
-        migrate_fail_threshold
-
-        if [ -n "$f_enabled" ]; then
-            case "$f_enabled" in
-                true)  qm_config_set watchcat enabled 1 ;;
-                false) qm_config_set watchcat enabled 0 ;;
-            esac
-        fi
-
-        [ -n "$f_fail_threshold" ] && qm_config_set watchcat fail_threshold "$f_fail_threshold"
-
-        # probe_interval: Watchdog is the SOLE writer. Save to qmanager.conf
-        # AND propagate into ping_profile.json's interval_sec (atomic merge —
-        # never touches target_1/target_2/profile, which ping_profile.sh owns).
-        if [ -n "$f_probe_interval" ]; then
-            qm_config_set watchcat probe_interval "$f_probe_interval"
-            propagate_probe_interval "$f_probe_interval"
-            touch "$PING_RELOAD_FLAG"
-        fi
-
-        [ -n "$f_check_interval" ] && qm_config_set watchcat check_interval "$f_check_interval"
-        [ -n "$f_cooldown" ] && qm_config_set watchcat cooldown "$f_cooldown"
-
-        if [ -n "$f_tier1" ]; then
-            case "$f_tier1" in true) qm_config_set watchcat tier1_enabled 1 ;; false) qm_config_set watchcat tier1_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_tier2" ]; then
-            case "$f_tier2" in true) qm_config_set watchcat tier2_enabled 1 ;; false) qm_config_set watchcat tier2_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_tier3" ]; then
-            case "$f_tier3" in true) qm_config_set watchcat tier3_enabled 1 ;; false) qm_config_set watchcat tier3_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_tier4" ]; then
-            case "$f_tier4" in true) qm_config_set watchcat tier4_enabled 1 ;; false) qm_config_set watchcat tier4_enabled 0 ;; esac
-        fi
-
-        if [ -n "$f_backup_sim_slot" ] && [ "$f_backup_sim_slot" != "null" ]; then
-            qm_config_set watchcat backup_sim_slot "$f_backup_sim_slot"
-        else
-            qm_config_set watchcat backup_sim_slot ""
-        fi
-
-        [ -n "$f_max_reboots" ] && qm_config_set watchcat max_reboots_per_hour "$f_max_reboots"
-
-        # Signal running watchcat daemon to reload config (if it's already running)
-        touch "$RELOAD_FLAG"
-
-        # Clear auto-disabled flag if user is re-enabling
-        new_enabled=""
-        new_enabled=$(qm_config_get watchcat enabled 0)
-        if [ "$new_enabled" = "1" ]; then
-            rm -f "$DISABLED_FLAG"
-            # Enable and start the watchcat service
-            svc_enable qmanager_watchcat
-            ( svc_restart qmanager_watchcat & )
-            qlog_info "Watchdog settings saved, watchcat enabled and started"
-        else
-            # Stop and disable the watchcat service
-            svc_stop qmanager_watchcat
-            svc_disable qmanager_watchcat
-            qlog_info "Watchdog settings saved, watchcat stopped and disabled"
-        fi
-        echo '{"success":true}'
-        exit 0
-    fi
-
-    # -------------------------------------------------------------------------
-    # action: dismiss_sim_swap
-    # -------------------------------------------------------------------------
-    if [ "$ACTION" = "dismiss_sim_swap" ]; then
-        qlog_info "Dismissing SIM swap notification"
-        if [ -f "$SIM_SWAP_FLAG" ]; then
-            tmp_json=$(jq -c '.dismissed = true' "$SIM_SWAP_FLAG" 2>/dev/null)
-            if [ -n "$tmp_json" ]; then
-                printf '%s\n' "$tmp_json" > "$SIM_SWAP_FLAG"
-            fi
-        fi
+        mv_wd_commit
+        case $? in
+            10)
+                cgi_error "service_enable_failed" "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)"
+                exit 0
+                ;;
+            11)
+                cgi_error "service_disable_failed" "Watchdog settings were saved, but the watchcat service could not be disabled on boot (rootfs may be read-only)"
+                exit 0
+                ;;
+        esac
         echo '{"success":true}'
         exit 0
     fi

@@ -39,7 +39,7 @@ LP_INPUT_FILE="/tmp/qmanager_language_install_input.json"
 # own copy of the fd. The kernel releases the lock automatically if the
 # holder dies, so there is no PID file, no staleness heuristic, and no
 # TOCTOU window to reason about — matches the flock_wait pattern already
-# used by scripts/usr/bin/qcmd and scripts/usr/lib/qmanager/sms_alerts.sh
+# used by scripts/usr/lib/qmanager/sms_alerts.sh
 # (BusyBox flock has no -w, hence -x -n; here we want a single non-blocking
 # attempt — 409 immediately if busy — rather than that pattern's poll loop).
 LP_LOCK_FILE="/tmp/qmanager_language_install.lock"
@@ -146,7 +146,13 @@ lp_list_installed() {
 lp_manifest_url_is_safe() {
     _u="$1"
     [ -z "$_u" ] && return 1
+    # curl collapses "../" (and decodes %2e) before sending, so a prefix match
+    # alone would let a URL escape this repo's release feed.
     case "$_u" in
+        *..*|*%*|*'?'*|*'#'*|*'\'*|*[[:space:]]*) return 1 ;;
+    esac
+    case "$_u" in
+        "$LP_MANIFEST_URL_PREFIX"*//*) return 1 ;;
         "$LP_MANIFEST_URL_PREFIX"*) return 0 ;;
         *) return 1 ;;
     esac

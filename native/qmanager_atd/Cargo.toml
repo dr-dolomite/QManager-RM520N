@@ -1,0 +1,16 @@
+[package]
+name = "qmanager_atd"
+version = "0.7.7"
+edition = "2021"
+description = "QManager AT broker: owns /dev/smd11, serialises AT commands, and is the qcmd client"
+publish = false
+
+[dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

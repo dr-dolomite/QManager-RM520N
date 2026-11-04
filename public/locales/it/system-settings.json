@@ -1,16 +1,1236 @@
 {
   "known_sims": {
-    "row_label": "SIM note",
-    "info_aria": "Info SIM note",
-    "tooltip": "QManager ricorda le SIM già viste, così ti avvisa solo quando viene inserita una SIM davvero nuova. La cancellazione dimentica tutte le SIM tranne quella attualmente inserita.",
-    "remembered_count_one": "{{count}} SIM",
-    "remembered_count_other": "{{count}} SIM",
+    "section": "SIM registrate",
+    "rows": {
+      "count": {
+        "consequence": "QManager ricorda le SIM già viste, così ti avvisa solo quando viene inserita una SIM davvero nuova. La cancellazione dimentica tutte le SIM tranne quella attualmente inserita.",
+        "label": "SIM ricordate"
+      }
+    },
+    "states": {
+      "empty_title": "Nessuna SIM registrata",
+      "empty_description": "QManager registra ogni SIM al primo inserimento. Inserisci una SIM per iniziare l'elenco.",
+      "error_title": "Impossibile leggere le SIM registrate",
+      "error_description": "Il dispositivo non ha risposto. Non è stato dimenticato nulla: è un errore di lettura e il conteggio è ancora sul modem."
+    },
     "clear_button": "Cancella",
     "clear_dialog_title": "Cancellare le SIM note?",
     "clear_dialog_description": "Verranno dimenticate tutte le SIM viste da QManager, tranne quella attualmente inserita, così la tua SIM attiva non verrà segnalata come nuova. Le SIM già usate verranno segnalate di nuovo al prossimo inserimento.",
     "clear_dialog_confirm": "Cancella",
     "clear_dialog_clearing": "Cancellazione…",
     "toast_cleared": "SIM note cancellate",
-    "toast_clear_failed": "Impossibile cancellare le SIM note"
+    "toast_clear_failed": "Impossibile cancellare le SIM note",
+    "toast_cleared_partial": "SIM note cancellate, ma non del tutto",
+    "toast_cleared_partial_detail": "Il dispositivo ha dimenticato le SIM ma non è riuscito ad aggiornare i dati delle singole SIM. Ricarica la pagina per verificare."
+  },
+  "page": {
+    "title": "Impostazioni di sistema",
+    "description": "Come questo dispositivo tiene l'ora, quando si riavvia e quali SIM ricorda.",
+    "refresh": "Aggiorna"
+  },
+  "band": {
+    "head": "Attivo in questo momento",
+    "unreachable": "Irraggiungibile",
+    "clock": {
+      "eyebrow": "Orologio del dispositivo",
+      "caption_applied": "{{zone}}, applicato",
+      "caption_drifted": "{{zone}} salvato — l'orologio non si è spostato",
+      "caption_unread": "Impossibile leggere l'orologio",
+      "caption_unreported": "{{zone}} salvato, orologio del dispositivo sconosciuto"
+    },
+    "reboot": {
+      "eyebrow": "Prossimo riavvio",
+      "off": "Disattivato",
+      "day_separator": ", ",
+      "caption_repeats": "Si ripete: {{days}}",
+      "caption_off": "Nessun riavvio automatico",
+      "caption_no_day": "Attivo, ma non è selezionato nessun giorno",
+      "caption_unread": "Impossibile leggere la pianificazione",
+      "never": "Mai"
+    },
+    "sims": {
+      "eyebrow": "SIM registrate",
+      "caption_none": "Ancora nessuna registrazione",
+      "caption_known": "Solo una SIM nuova genera un avviso",
+      "caption_unread": "Impossibile leggere il conteggio"
+    },
+    "stale": "Ultima lettura confermata"
+  },
+  "preferences": {
+    "section": "Ora e unità",
+    "card": {
+      "title": "Dispositivo e unità",
+      "description": "Come questo modem tiene l'ora, le unità usate dalle letture e le SIM che ricorda.",
+      "save": "Salva preferenze"
+    },
+    "rows": {
+      "unsaved": "Non salvato",
+      "timezone": {
+        "label": "Fuso orario",
+        "consequence": "Il modem non ha un orologio a batteria. È il riferimento di ogni riga di log, di ogni evento e di ogni pianificazione.",
+        "placeholder": "Seleziona un fuso orario",
+        "search": "Cerca fusi orari…",
+        "empty": "Nessun fuso orario corrisponde."
+      },
+      "temperature": {
+        "label": "Temperatura",
+        "consequence": "Vale per ogni lettura di temperatura in QManager.",
+        "celsius": "Celsius (°C)",
+        "fahrenheit": "Fahrenheit (°F)"
+      },
+      "distance": {
+        "label": "Distanza",
+        "consequence": "Vale per la distanza dalla cella nelle pagine dello scanner delle celle e delle antenne.",
+        "km": "Chilometri (km)",
+        "miles": "Miglia (mi)"
+      }
+    },
+    "states": {
+      "error_title": "Impossibile leggere le tue preferenze",
+      "error_body": "QManager non è riuscito a leggere le preferenze di questo dispositivo. Non è stato modificato nulla: il fuso orario e le unità già salvate restano attivi sul modem.",
+      "error_body_detail": "QManager non è riuscito a leggere le preferenze di questo dispositivo. Non è stato modificato nulla: il fuso orario e le unità già salvate restano attivi sul modem. Il dispositivo ha risposto: {{detail}}",
+      "stale": "Il modem non ha risposto all'ultima richiesta. Quello che vedi è l'ultimo stato che ha confermato.",
+      "tz_not_applied_chip": "Orologio non aggiornato",
+      "tz_not_applied_body": "Salvato come {{zone}}, ma l'orologio del dispositivo è ancora su {{offset}}. Potrebbe allinearsi a breve, oppure questo firmware non ha i dati di quel fuso."
+    },
+    "toast": {
+      "saved": "Preferenze salvate",
+      "failed": "Impossibile salvare le preferenze",
+      "tz_not_applied": "Preferenze salvate, ma il fuso orario non è ancora arrivato all'orologio del dispositivo"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "Riavvio pianificato",
+      "description": "Riavvia automaticamente il modem secondo una pianificazione settimanale fissa."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Riavvio automatico",
+        "armed": "Attivo",
+        "off": "Disattivato",
+        "consequence": "Il modem si riavvia secondo questa pianificazione. La tua sessione cade per circa novanta secondi e torna da sola.",
+        "no_day": "Non si attiva mai"
+      },
+      "time": {
+        "label": "Ora",
+        "consequence": "Ora locale del dispositivo, non quella del browser."
+      },
+      "days": {
+        "label": "Ripeti il",
+        "consequence": "Senza nessun giorno selezionato la pianificazione non parte mai.",
+        "rail": "Giorni della settimana del riavvio"
+      },
+      "clock": {
+        "label": "Ora del modem",
+        "consequence": "La data e l'ora su cui si basa la pianificazione, nel fuso orario impostato in Dispositivo e unità.",
+        "unsynced": "Non ancora impostata",
+        "unsynced_consequence": "Il modem non ha ancora preso l'ora dalla rete, quindi il riavvio pianificato non può partire finché non lo fa."
+      }
+    },
+    "days": {
+      "sun": "Dom",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Gio",
+      "fri": "Ven",
+      "sat": "Sab"
+    },
+    "states": {
+      "error": {
+        "title": "Impossibile leggere la pianificazione dei riavvii",
+        "description": "QManager non è riuscito a caricare la pianificazione dei riavvii di questo dispositivo. Una pianificazione già salvata resta attiva sul modem: questo è un errore di lettura, non una disattivazione."
+      },
+      "stale": "QManager ha perso il contatto durante l'aggiornamento. Questi sono gli ultimi valori letti dal dispositivo.",
+      "autosave": "Salva automaticamente",
+      "saving": "Salvataggio…"
+    },
+    "toast": {
+      "enabled": "Riavvio pianificato attivato",
+      "disabled": "Riavvio pianificato disattivato",
+      "saved": "Pianificazione dei riavvii salvata",
+      "save_failed": "Impossibile salvare la pianificazione dei riavvii",
+      "update_failed": "Impossibile aggiornare la pianificazione dei riavvii",
+      "unsaved": "Modifica alla pianificazione dei riavvii non salvata: hai lasciato la pagina prima che potesse essere salvata.",
+      "not_armed": "Pianificazione dei riavvii salvata, ma non è stato possibile attivarla su questo dispositivo — {{detail}}",
+      "reason_unknown": "motivo sconosciuto",
+      "reasons": {
+        "unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo: aggiorna all'ultimo firmware per abilitarlo",
+        "no_schedule": "nessuna pianificazione è configurata per l'attivazione"
+      },
+      "rejected": {
+        "no_days": "Seleziona almeno un giorno, oppure disattiva la pianificazione.",
+        "invalid_time": "L'ora non è valida. Usa un orario in formato 24 ore HH:MM.",
+        "network": "Impossibile raggiungere il dispositivo per salvare. Controlla la connessione e riprova.",
+        "invalid_day": "Uno dei giorni selezionati non è valido. Scegli i giorni da domenica a sabato.",
+        "missing_enabled": "Il dispositivo non ha ricevuto l'impostazione attivo/disattivo. Riprova."
+      }
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "Log di sistema",
+      "description": "QManager conserva il log in memoria sul modem, quindi ricomincia vuoto dopo ogni riavvio e non consuma la flash. Filtralo qui per vedere cosa ha fatto ciascun componente.",
+      "refresh": "Aggiorna",
+      "clear": "Cancella log",
+      "copy": "Copia"
+    },
+    "band": {
+      "head": "Stato del log",
+      "severity": {
+        "eyebrow": "Gravità",
+        "errors_one": "{{count}} errore",
+        "errors_other": "{{count}} errori",
+        "warnings_one": "{{count}} avviso",
+        "warnings_other": "{{count}} avvisi",
+        "clean": "Pulito",
+        "caption_unread": "Ancora nessuna lettura",
+        "caption_errors_one": "{{count}} avviso in {{lines}} righe lette",
+        "caption_errors_other": "{{count}} avvisi in {{lines}} righe lette",
+        "caption_warnings_one": "Nessun errore in {{count}} riga letta",
+        "caption_warnings_other": "Nessun errore in {{count}} righe lette",
+        "caption_clean_one": "Nessun avviso in {{count}} riga letta",
+        "caption_clean_other": "Nessun avviso in {{count}} righe lette"
+      },
+      "feed": {
+        "eyebrow": "Flusso",
+        "live": "In tempo reale",
+        "paused": "In pausa",
+        "stopped": "Interrotto",
+        "caption_unread": "In attesa della prima lettura",
+        "caption_live": "Aggiornato {{age}}, ogni 10 secondi",
+        "caption_paused": "Aggiornamento automatico in pausa, letto {{age}}",
+        "caption_stopped": "Ultima lettura non riuscita, {{age}}"
+      },
+      "file": {
+        "eyebrow": "File di log",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} riga, {{rotated}} archiviati",
+        "caption_other": "{{count}} righe, {{rotated}} archiviati",
+        "caption_unread": "Dimensione non disponibile"
+      }
+    },
+    "card": {
+      "title": "Trascrizione",
+      "description": "Vengono mostrate {{shown}} righe. Il log in tempo reale ne contiene {{held}}.",
+      "description_loading": "Lettura del log…",
+      "description_unreadable": "QManager non è riuscito a leggere il log."
+    },
+    "rail": {
+      "label": "Filtra per livello",
+      "all": "Tutti",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Error"
+    },
+    "filters": {
+      "search_label": "Cerca nel log",
+      "search_placeholder": "Cerca nei messaggi",
+      "component_label": "Filtra per componente",
+      "component_all": "Tutti i componenti",
+      "lines_label": "Righe da leggere",
+      "lines_option": "{{lines}} righe",
+      "archived": "Includi gli archiviati"
+    },
+    "day": {
+      "today": "Oggi",
+      "yesterday": "Ieri",
+      "unknown": "Senza data"
+    },
+    "time": {
+      "now": "proprio ora",
+      "seconds": "{{value}}s fa",
+      "minutes": "{{value}}m fa",
+      "hours": "{{value}}h fa",
+      "days": "{{value}}g fa"
+    },
+    "severity": {
+      "DEBUG": "Debug",
+      "INFO": "Informazione",
+      "WARN": "Avviso",
+      "ERROR": "Errore"
+    },
+    "notice": {
+      "stale": "QManager ha perso il contatto durante l'aggiornamento. Queste sono le ultime righe lette dal dispositivo."
+    },
+    "empty": {
+      "title": "Il log è vuoto",
+      "description": "QManager conserva il log in memoria e lo svuota a ogni riavvio, quindi non è stato scritto nulla da quando questo dispositivo si è avviato l'ultima volta."
+    },
+    "empty_filtered": {
+      "title": "Nessuna corrispondenza con questi filtri",
+      "description": "Il log contiene delle righe, ma nessuna corrisponde al livello, al componente o alla ricerca scelti.",
+      "action": "Cancella i filtri"
+    },
+    "error": {
+      "title": "Impossibile leggere il log",
+      "description": "QManager non è riuscito a raggiungere il lettore di log su questo dispositivo. Il log stesso non è stato toccato: è un errore di lettura, non una perdita di dati.",
+      "retry": "Riprova"
+    },
+    "clear_dialog": {
+      "title": "Cancellare il log di sistema?",
+      "description": "Questa azione svuota il log in tempo reale ed elimina entrambi i file archiviati. Tutto ciò che è già stato scritto viene perso per sempre, e le nuove righe iniziano ad arrivare immediatamente.",
+      "cancel": "Annulla",
+      "confirm": "Cancella log",
+      "clearing": "Cancellazione…"
+    },
+    "toast": {
+      "cleared": "Log di sistema cancellato",
+      "clear_failed": "Impossibile cancellare il log di sistema",
+      "refresh_failed": "Impossibile leggere il log di sistema",
+      "copied": "Log copiato negli appunti",
+      "copy_failed": "Impossibile copiare il log"
+    }
+  },
+  "languages": {
+    "page": {
+      "title": "Lingue",
+      "description": "Scegli la lingua in cui viene mostrata l'interfaccia di QManager e installa i pacchetti di traduzione della community pubblicati per questo dispositivo."
+    },
+    "actions": {
+      "refresh": "Aggiorna",
+      "refreshing": "Aggiornamento…",
+      "refresh_aria": "Aggiorna le lingue installate e il catalogo della community",
+      "check_again": "Controlla di nuovo",
+      "install": "Installa",
+      "update": "Aggiorna",
+      "cancel": "Annulla",
+      "install_aria": "Installa {{language}}",
+      "update_aria": "Aggiorna {{language}}",
+      "cancel_aria": "Annulla l'installazione di {{language}}",
+      "remove_aria": "Rimuovi il pacchetto {{language}}",
+      "copy_command": "Copia il comando di installazione manuale"
+    },
+    "band": {
+      "head": "Su questo dispositivo",
+      "display": {
+        "eyebrow": "Lingua dell'interfaccia",
+        "caption_built_in": "Integrata, {{code}}",
+        "caption_downloaded": "Scaricata, {{code}}",
+        "caption_unknown": "Non presente nel catalogo di questo dispositivo"
+      },
+      "ready": {
+        "eyebrow": "Pronte all'uso",
+        "caption_built_in_one": "{{count}} integrata",
+        "caption_built_in_other": "{{count}} integrate",
+        "caption_with_downloaded_one": "{{builtIn}} integrate, {{count}} scaricata",
+        "caption_with_downloaded_other": "{{builtIn}} integrate, {{count}} scaricate",
+        "caption_unknown": "Impossibile leggere l'elenco"
+      },
+      "catalog": {
+        "eyebrow": "Catalogo della community",
+        "value_unreachable": "Irraggiungibile",
+        "caption_unreachable": "Impossibile raggiungere GitHub",
+        "caption_none": "Ancora nessuna pubblicazione",
+        "caption_available": "Pronto per l'installazione",
+        "caption_updates_one": "Aggiornamento disponibile",
+        "caption_updates_other": "{{count}} aggiornamenti disponibili"
+      }
+    },
+    "display": {
+      "title": "Lingua dell'interfaccia",
+      "description": "Scegli la lingua in cui è scritta l'interfaccia di QManager. La modifica ha effetto immediato e vale solo su questo dispositivo.",
+      "group_aria": "Lingua dell'interfaccia",
+      "built_in": "Integrata",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "Rimuovere {{language}}?",
+      "description": "Questa operazione elimina da questo dispositivo il pacchetto {{language}} scaricato. Puoi installarlo di nuovo in qualsiasi momento.",
+      "description_active": "{{language}} è la lingua che stai leggendo in questo momento. Rimuoverla riporta QManager all'inglese.",
+      "cancel": "Mantienilo",
+      "confirm": "Rimuovi",
+      "removing": "Rimozione…"
+    },
+    "community": {
+      "title": "Pacchetti della community",
+      "description": "Pacchetti di traduzione pubblicati per QManager dalla community. Installandone uno viene aggiunto all'elenco qui sopra.",
+      "list_aria": "Pacchetti lingua della community",
+      "completeness": "{{pct}}% tradotto",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} traduttore",
+      "contributors_other": "{{count}} traduttori",
+      "contributors_none": "Community",
+      "incompatible": "Richiede una versione più recente di QManager"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "Installazione di {{language}}"
+    },
+    "steps": {
+      "pending": "In coda",
+      "downloading": "Download in corso",
+      "verifying": "Verifica del checksum",
+      "extracting": "Estrazione",
+      "validating": "Convalida",
+      "installing": "Installazione",
+      "cancelling": "Annullamento",
+      "working": "Elaborazione"
+    },
+    "failure": {
+      "manual": "Nulla è stato modificato sul dispositivo. Puoi installare questo pacchetto a mano tramite SSH:"
+    },
+    "states": {
+      "unreachable": {
+        "title": "Impossibile raggiungere il catalogo dei pacchetti",
+        "description": "Il dispositivo non è riuscito a caricare da GitHub l'elenco dei pacchetti della community. Le lingue installate non sono state toccate — si tratta di una lettura fallita e nulla è cambiato sul modem."
+      },
+      "none": {
+        "title": "Ancora nessun pacchetto della community",
+        "description": "Nessuno ha ancora pubblicato un pacchetto di traduzione scaricabile per QManager. Le lingue qui sopra sono integrate nel firmware e sono sempre disponibili."
+      }
+    },
+    "loading": {
+      "status": "Caricamento delle lingue"
+    },
+    "toast": {
+      "switched": "Passato a {{language}}",
+      "switch_failed": "Impossibile caricare il pacchetto {{language}}",
+      "switch_failed_detail": "Potrebbe essere necessario installarlo di nuovo.",
+      "installing": "Installazione di {{language}}…",
+      "installed": "{{language}} installata",
+      "install_failed": "Impossibile installare {{language}}",
+      "install_failed_generic": "L'installazione del pacchetto lingua non è riuscita",
+      "use_now": "Usa ora",
+      "install_cancelled": "Installazione annullata",
+      "removed": "{{language}} rimossa",
+      "removed_active": "{{language}} rimossa, si torna all'inglese",
+      "remove_failed": "Impossibile rimuovere {{language}}",
+      "copied": "Comando di installazione copiato",
+      "copy_failed": "Impossibile copiare il comando di installazione"
+    },
+    "errors": {
+      "generic": "Non è stato possibile installare il pacchetto lingua.",
+      "checksum_mismatch": "Il download non ha superato il controllo di integrità ed è stato scartato.",
+      "sha256_mismatch": "Il download non ha superato il controllo di integrità ed è stato scartato.",
+      "insufficient_space": "Sul dispositivo non c'è spazio libero sufficiente per installare questo pacchetto.",
+      "download_failed": "Il dispositivo non è riuscito a scaricare il pacchetto. Controlla la sua connessione e riprova.",
+      "manifest_fetch_failed": "Il dispositivo non è riuscito a raggiungere il catalogo dei pacchetti su GitHub.",
+      "incompatible": "Questo pacchetto richiede una versione più recente di QManager.",
+      "bundled_immutable": "Le lingue integrate non possono essere rimosse.",
+      "extract_failed": "Non è stato possibile decomprimere l'archivio del pacchetto.",
+      "validate_failed": "Il pacchetto non ha superato la convalida ed è stato scartato.",
+      "pack_not_found": "Quel pacchetto non è più presente nel catalogo.",
+      "install_in_progress": "È già in corso l'installazione di un altro pacchetto lingua."
+    }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "Qualità della connessione",
+      "description": "Gli endpoint a cui il modem invia ping e i limiti che trasformano una connessione lenta in un evento."
+    },
+    "targets": {
+      "title": "Destinazioni delle sonde",
+      "description": "Interrogati in ordine finché uno risponde, per capire se internet è raggiungibile.",
+      "restore": "Ripristina i valori predefiniti",
+      "unsaved": "Non salvato",
+      "save": "Salva le destinazioni",
+      "save_failed": "Impossibile salvare le destinazioni delle sonde",
+      "cadence_clear_failed": "Impossibile reimpostare l'intervallo delle sonde",
+      "leg": {
+        "host_1": "Tratta con nome host 1",
+        "host_2": "Tratta con nome host 2",
+        "ip_1": "Tratta IPv4 1",
+        "ip_2": "Tratta IPv4 2"
+      },
+      "error": {
+        "title": "Impossibile leggere le destinazioni delle sonde",
+        "body": "Restano in uso le destinazioni salvate.",
+        "retry": "Riprova"
+      },
+      "empty": {
+        "title": "Nessuna catena di sonde salvata",
+        "body": "Questo dispositivo non ha ancora nessuna destinazione registrata. Ripristina i valori predefiniti per dargli una catena da sondare.",
+        "action": "Ripristina i valori predefiniti"
+      },
+      "toast": {
+        "saved": "Destinazioni delle sonde salvate",
+        "cadence_cleared": "L'intervallo delle sonde segue ora il profilo"
+      },
+      "validation": {
+        "empty": "Inserisci una destinazione.",
+        "too_long": "Usa al massimo {{max}} caratteri.",
+        "spaces": "Gli spazi non sono ammessi.",
+        "disallowed": "Contiene caratteri non ammessi.",
+        "host_invalid": "Non è un nome host valido.",
+        "ipv4_required": "Questo campo richiede un indirizzo IPv4. Qui un nome host non è accettato.",
+        "ipv4_invalid": "Non è un indirizzo IPv4 valido."
+      },
+      "verdict": {
+        "answering": "Tratta {{n}} risponde",
+        "fallback": "DNS non risolve",
+        "none": "Nessuna risposta",
+        "unknown": "Nessun dato"
+      },
+      "group": {
+        "hostnames": "Nomi host",
+        "fallback": "Riserva IPv4",
+        "sensitivity": "Sensibilità"
+      },
+      "fallback_hint": "Non serve il DNS, quindi un guasto del resolver non viene scambiato per un'interruzione.",
+      "fallback_hint_label": "Informazioni sulla riserva IPv4",
+      "interval": {
+        "label": "Intervallo delle sonde",
+        "value": "Ogni {{seconds}} s",
+        "override": "Ogni {{seconds}} s (Watchdog)",
+        "use_profile": "Usa l'intervallo del profilo"
+      },
+      "failed": "Salvataggio non riuscito",
+      "profile": {
+        "sensitive": "Sensibile",
+        "regular": "Normale",
+        "relaxed": "Rilassato",
+        "quiet": "Silenzioso"
+      }
+    },
+    "thresholds": {
+      "title": "Soglie di qualità",
+      "description": "Quando una connessione lenta o con perdite viene registrata come evento di rete.",
+      "latency": {
+        "title": "Latenza"
+      },
+      "loss": {
+        "title": "Perdita pacchetti"
+      },
+      "preset": {
+        "standard": "Standard",
+        "tolerant": "Tollerante",
+        "very_tolerant": "Molto tollerante",
+        "custom": "Personalizzato"
+      },
+      "unsaved": "Non salvato",
+      "save": "Salva le soglie",
+      "save_failed": "Impossibile salvare le soglie",
+      "error": {
+        "title": "Impossibile leggere le soglie di qualità",
+        "body": "Restano in uso i limiti salvati.",
+        "retry": "Riprova"
+      },
+      "toast": {
+        "saved": "Soglie di qualità salvate"
+      },
+      "row": {
+        "flags": "Segnala dopo",
+        "now": "Adesso",
+        "limit": "Limite"
+      },
+      "flags": {
+        "latency_one": "{{count}} campione oltre {{ms}} ms",
+        "latency_other": "{{count}} campioni oltre {{ms}} ms",
+        "loss_one": "{{count}} campione al {{pct}}% o più",
+        "loss_other": "{{count}} campioni al {{pct}}% o più",
+        "pending": "Inserisci un limite"
+      },
+      "now": {
+        "latency": "{{ms}} ms",
+        "loss": "{{pct}}%",
+        "no_reply": "Nessuna risposta",
+        "collecting": "Raccolta in corso",
+        "over_latency": "Oltre il limite di {{ms}} ms",
+        "over_loss": "Oltre il limite del {{pct}}%"
+      },
+      "default_chip": "Valori predefiniti",
+      "failed": "Salvataggio non riuscito",
+      "unit": {
+        "latency": "ms",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "Inserisci un numero intero da {{min}} a {{max}}."
+      }
+    }
+  },
+  "software_update": {
+    "page": {
+      "title": "Aggiornamento software",
+      "description": "QManager controlla su GitHub se esiste una release più recente e la installa sul modem stesso. L'installazione sostituisce l'app e riavvia il dispositivo, quindi la sessione in cui stai leggendo cadrà e tornerà da sola."
+    },
+    "actions": {
+      "check": "Controlla aggiornamenti",
+      "checking": "Controllo…",
+      "check_again": "Controlla di nuovo",
+      "download": "Scarica {{version}}",
+      "downloading": "Download in corso…",
+      "install": "Installa {{version}}",
+      "installing": "Installazione…",
+      "try_again": "Riprova",
+      "retry": "Riprova",
+      "read_full_notes": "Leggi le note complete",
+      "rebooting": "Riavvio…",
+      "verifying": "Verifica…",
+      "retry_download": "Riprova il download",
+      "reboot_now": "Riavvia ora"
+    },
+    "band": {
+      "head": "Stato dell'aggiornamento",
+      "chip_offline": "Offline",
+      "chip_in_progress": "In corso",
+      "installed": {
+        "eyebrow": "Installata",
+        "caption_stable": "Canale stabile",
+        "caption_prerelease": "Canale versioni preliminari",
+        "caption_interrupted": "L'installazione potrebbe essere incompleta"
+      },
+      "latest": {
+        "eyebrow": "Ultima release",
+        "caption_checked": "Controllato {{ago}}",
+        "caption_downloading": "Download di {{size}} in corso…",
+        "caption_verified": "Scaricata e verificata",
+        "caption_installing": "Passo {{step}} di 4 — non spegnere",
+        "caption_failed": "Impossibile raggiungere GitHub",
+        "caption_never": "Mai controllato",
+        "value_none_label": "Nessuna informazione sulla release",
+        "caption_downloading_plain": "Download del pacchetto in corso…",
+        "caption_verifying": "Controllo del pacchetto…",
+        "caption_failed_download": "Il download non è stato completato",
+        "caption_failed_install": "L'installazione non è stata completata"
+      },
+      "auto": {
+        "eyebrow": "Aggiornamenti automatici",
+        "value_on": "Attivi",
+        "value_off": "Disattivati",
+        "caption_on": "Controllo giornaliero a un orario casuale",
+        "caption_off": "Solo aggiornamenti manuali"
+      },
+      "chip_failed": "Non riuscito"
+    },
+    "card": {
+      "loading": {
+        "title": "Controllo degli aggiornamenti",
+        "description": "Lettura dell'elenco delle release da GitHub."
+      },
+      "unreachable": {
+        "title": "Servizio di aggiornamento non disponibile",
+        "description": "QManager non riesce a raggiungere l'endpoint di aggiornamento su questo modem, quindi non può dire cosa è installato né cosa è disponibile."
+      },
+      "check_failed": {
+        "title": "Il controllo degli aggiornamenti non è riuscito",
+        "description": "La build su questo modem è intatta. QManager semplicemente non è riuscito a leggere l'elenco delle release questa volta."
+      },
+      "download_failed": {
+        "title": "Il download non è stato completato",
+        "description": "Non è stato sostituito nulla. La build già presente su questo modem è intatta, quindi si può riprovare il download senza rischi."
+      },
+      "install_failed": {
+        "title": "L'installazione non è stata completata",
+        "description": "Il modem potrebbe avere file misti. Installare di nuovo lo riporta su una build nota."
+      },
+      "up_to_date": {
+        "title": "Sei sull'ultima build",
+        "description": "Non c'è nulla da installare. I quattro passi qui sotto sono ciò che fa un aggiornamento quando ne arriva uno."
+      },
+      "available": {
+        "title": "Aggiornamento disponibile",
+        "description": "Scaricare e installare richiede qualche minuto e termina con un riavvio. Ecco esattamente cosa succede."
+      },
+      "downloading": {
+        "title": "Download dell'aggiornamento",
+        "description": "Il pacchetto viene scaricato da GitHub. Non è stato ancora sostituito nulla e il modem continua a funzionare."
+      },
+      "verifying": {
+        "title": "Verifica del download",
+        "description": "QManager sta controllando il pacchetto con il suo SHA-256 prima che venga sostituito qualcosa."
+      },
+      "staged": {
+        "title": "Pronto per l'installazione",
+        "description": "Il pacchetto è scaricato e verificato. L'installazione sostituisce QManager e riavvia il modem."
+      },
+      "installing": {
+        "title": "Installazione dell'aggiornamento",
+        "description": "L'app, i suoi servizi e gli script CGI vengono sostituiti. Non spegnere il modem."
+      },
+      "rebooting": {
+        "title": "Riavvio del modem",
+        "description": "L'installazione è terminata. Il modem si sta riavviando e questa sessione cade finché non torna."
+      },
+      "chip": {
+        "loading": "Controllo",
+        "unreachable": "Non raggiungibile",
+        "check_failed": "Controllo fallito",
+        "download_failed": "Download fallito",
+        "install_failed": "Installazione fallita",
+        "up_to_date": "Aggiornato",
+        "available": "Disponibile",
+        "downloading": "In download",
+        "verifying": "Verifica",
+        "staged": "Pronto",
+        "installing": "Installazione",
+        "rebooting": "Riavvio"
+      }
+    },
+    "delta": {
+      "installed": "Installata",
+      "available": "Disponibile",
+      "channel_stable": "Stabile",
+      "channel_prerelease": "Preliminare"
+    },
+    "steps": {
+      "aria_label": "Passi dell'aggiornamento",
+      "download": {
+        "label": "Scaricamento",
+        "detail": "Scarica qmanager.tar.gz da GitHub"
+      },
+      "verify": {
+        "label": "Verifica",
+        "detail": "Controlla il pacchetto con il suo SHA-256"
+      },
+      "install": {
+        "label": "Installazione",
+        "detail": "Sostituisce l'app, i servizi e gli script CGI"
+      },
+      "reboot": {
+        "label": "Riavvio",
+        "detail": "Il modem si riavvia. La tua sessione cadrà."
+      },
+      "state": {
+        "done": "Fatto",
+        "active": "In corso"
+      }
+    },
+    "notice": {
+      "rest": "L'installazione riavvia il modem, e questo fa cadere questa sessione e ogni connessione che passa da qui per circa un minuto.",
+      "staged": "L'installazione sostituisce QManager e riavvia il modem. Questa sessione cade e torna da sola.",
+      "running": "Non spegnere il modem.",
+      "failed_check": "QManager non è riuscito a leggere l'elenco delle release. La build su questo modem è intatta: è un errore di lettura, non una perdita.",
+      "failed_download": "Il download non è stato completato, quindi non è stato installato nulla. La build già presente sul modem è intatta.",
+      "versions": "Ogni opzione qui riavvia il modem, e una build più vecchia può annullare impostazioni introdotte da una più recente.",
+      "failed_install": "L'installazione non è stata completata, quindi il modem potrebbe avere file misti. Installare di nuovo lo riporta su una build nota.",
+      "stalled": "L'installazione non dà segni di vita da due minuti. Se non riparte, riavvia il modem per completarla o annullarla."
+    },
+    "notes": {
+      "title": "Cosa è cambiato",
+      "description": "Le note di rilascio pubblicate con {{version}}.",
+      "empty_title": "Nessuna nota di rilascio",
+      "empty_description": "GitHub non ha restituito alcun changelog per questa release, quindi qui non c'è nulla da mostrare.",
+      "dialog_title": "Note di rilascio di {{version}}",
+      "region_label": "Note di rilascio"
+    },
+    "preferences": {
+      "title": "Preferenze di aggiornamento",
+      "description": "Come questo modem decide quando aggiornarsi.",
+      "auto": {
+        "label": "Aggiornamenti automatici",
+        "description": "Controlla una volta al giorno a un orario casuale e installa quello che trova. Il modem si riavvia per completare.",
+        "error": "Impossibile salvare l'impostazione degli aggiornamenti automatici"
+      },
+      "prerelease": {
+        "label": "Includi le versioni preliminari",
+        "description": "Propone le build marcate come preliminari su GitHub. Arrivano prima e sono state testate di meno.",
+        "error": "Impossibile salvare l'impostazione delle pre-release"
+      }
+    },
+    "versions": {
+      "title": "Gestione delle versioni",
+      "description": "Installa, reinstalla o torna a qualsiasi build pubblicata.",
+      "select_label": "Seleziona una versione da installare",
+      "select_placeholder": "Scegli una versione",
+      "install": "Installa",
+      "current": "Attuale",
+      "no_binary": "Nessun pacchetto",
+      "dialog": {
+        "title_install": "Installare {{version}}?",
+        "title_reinstall": "Reinstallare {{version}}?",
+        "description_install": "Questa operazione installa {{version}} al posto di {{current}}. Il modem si riavvia al termine.",
+        "description_reinstall": "Questa operazione reinstalla {{version}} sopra la copia già presente sul modem, per ripararla. Il modem si riavvia al termine.",
+        "size": "Dimensione del download: {{size}}.",
+        "warning": "Non spegnere il modem mentre sta installando.",
+        "cancel": "Annulla",
+        "confirm_install": "Installa ora",
+        "confirm_reinstall": "Reinstalla ora"
+      },
+      "empty_title": "Nessuna versione tra cui scegliere",
+      "empty_description": "GitHub non ha restituito release con un pacchetto installabile, quindi qui non c'è nulla da installare o a cui tornare."
+    },
+    "banner": {
+      "title": "L'ultimo aggiornamento non è stato completato",
+      "description": "Un marcatore in sospeso per {{pending}} è sopravvissuto a un riavvio mentre è in esecuzione {{version}}, quindi i file installati potrebbero essere misti. Reinstallare {{pending}} riporta questo modem su una build nota.",
+      "action": "Completa l'installazione",
+      "description_unknown": "Un'installazione non è stata completata mentre è in esecuzione {{version}}, quindi i file installati potrebbero essere misti. Reinstallare riporta questo modem su una build nota."
+    },
+    "states": {
+      "loading": {
+        "status": "Controllo degli aggiornamenti",
+        "notes": "Caricamento delle note di rilascio"
+      },
+      "unreachable": {
+        "title": "Impossibile raggiungere il servizio di aggiornamento",
+        "description": "QManager non è riuscito a raggiungere l'endpoint di aggiornamento su questo modem. La build installata è intatta: è un errore di lettura, non una perdita."
+      }
+    },
+    "time": {
+      "just_now": "proprio ora",
+      "minutes": "{{value}} minuti fa",
+      "minutes_one": "un minuto fa",
+      "hours": "{{value}} ore fa",
+      "hours_one": "un'ora fa",
+      "days": "{{value}} giorni fa",
+      "days_one": "un giorno fa"
+    },
+    "toast": {
+      "prerelease_on": "Aggiornamenti preliminari attivati",
+      "prerelease_off": "Aggiornamenti preliminari disattivati",
+      "auto_on": "Aggiornamenti automatici attivati",
+      "auto_off": "Aggiornamenti automatici disattivati",
+      "save_failed": "Impossibile salvare questa preferenza"
+    },
+    "stall_dialog": {
+      "title": "Riavviare il modem ora?",
+      "description": "L'installazione sembra bloccata. Il riavvio la interrompe e chiude questa sessione; il modem torna da solo.",
+      "cancel": "Continua ad aspettare",
+      "confirm": "Riavvia ora"
+    }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "Terminale AT",
+      "description": "Invia comandi AT direttamente al modem e leggi le risposte esattamente come arrivano. I comandi che spegnerebbero la radio vengono prima trattenuti per una conferma, e alcuni vengono rifiutati del tutto."
+    },
+    "card": {
+      "title": "Console",
+      "description": "Le risposte sono mostrate grezze, nelle parole del modem stesso. Gli ultimi 100 comandi restano in questo browser finché non li cancelli."
+    },
+    "actions": {
+      "clear": "Cancella",
+      "export": "Esporta"
+    },
+    "game": {
+      "playing": "Signal Storm in corso"
+    },
+    "empty": {
+      "title": "Ancora nessun comando inviato",
+      "description": "Scrivi un comando AT nel prompt qui sotto, oppure apri Comandi per sceglierne uno già pronto."
+    },
+    "transcript": {
+      "label": "Trascrizione dei comandi",
+      "copy": "Copia questo comando e la sua risposta",
+      "copied": "Copiato",
+      "status": {
+        "success": "Riuscito",
+        "error": "Non riuscito",
+        "blocked": "Bloccato"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "Premi Tab per completare questo comando dalla cronologia, o Maiusc+Tab per uscire dal campo."
+    },
+    "gate": {
+      "title": "Questo comando può interrompere la tua connessione",
+      "confirm": "Invia comunque",
+      "cancel": "Annulla"
+    },
+    "rules": {
+      "not_at": "Qui si possono inviare solo comandi AT. Inizia la riga con AT, per esempio AT+CSQ.",
+      "qscanfreq": "Le scansioni di frequenza sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
+      "qscan": "Le scansioni di rete sono rifiutate qui. Tengono la radio spenta per minuti senza mostrare nulla mentre sono in corso: usa la pagina Scanner celle, che riporta l'avanzamento e può essere interrotta.",
+      "resetfactory": "Il ripristino di fabbrica è rifiutato qui. Azzera in un colpo solo ogni impostazione del modem, comprese quelle che servono a QManager per raggiungerlo, e nulla in questa pagina può annullarlo.",
+      "reboot": "Questo comando riavvia il modem. Ogni connessione che passa da qui cade, questa pagina compresa, e tutto ciò che è in corso va perso: serve circa un minuto perché torni disponibile, con l'orologio a gennaio 1970 finché la rete non lo aggiorna.",
+      "radio_off": "Questo comando spegne la radio del modem. Se hai raggiunto questa pagina attraverso la connessione del modem stesso, Tailscale compreso, la perdi finché la radio non viene riaccesa dal dispositivo."
+    },
+    "input": {
+      "label": "Comando AT",
+      "placeholder": "AT+COPS?",
+      "send": "Invia"
+    },
+    "responses": {
+      "failed": "Il comando non è riuscito e il modem non ha dato una ragione.",
+      "unexpected": "Non è stato possibile inviare questo comando. Controlla i Log di sistema per vedere cosa ha riportato il backend.",
+      "unreachable": "Impossibile raggiungere il backend di QManager sul modem. Verifica che il dispositivo sia ancora raggiungibile, poi invia di nuovo.",
+      "game": "Avvio di Signal Storm…"
+    },
+    "commands": {
+      "trigger": "Comandi",
+      "search_placeholder": "Cerca fra i comandi",
+      "empty": "Nessun comando corrisponde alla ricerca.",
+      "count_one": "{{count}} comando",
+      "count_other": "{{count}} comandi",
+      "manage": "Gestisci i comandi",
+      "groups": {
+        "modem": "Modem",
+        "network": "Modalità di rete",
+        "sim": "Slot SIM",
+        "apn": "APN",
+        "bands": "Bande",
+        "passthrough": "IP passthrough",
+        "custom": "Personalizzati"
+      },
+      "presets": {
+        "reboot": "Riavvia il modem",
+        "disconnect": "Spegni la radio",
+        "connect": "Accendi la radio",
+        "signal_info": "Info segnale (serving cell)",
+        "ca_info": "Info carrier aggregation",
+        "imei_show": "Mostra l'IMEI",
+        "mode_show": "Mostra la modalità di rete",
+        "mode_auto": "Imposta la modalità di rete su automatica",
+        "mode_nr_lte": "Imposta la modalità di rete su 5G NR e LTE",
+        "mode_nr": "Imposta la modalità di rete su solo 5G NR",
+        "mode_lte": "Imposta la modalità di rete su solo LTE",
+        "nr5g_disable_status": "Mostra quali fra SA e NSA sono attive",
+        "nr5g_enable_both": "Attiva sia SA sia NSA",
+        "nr5g_disable_sa": "Disattiva solo SA",
+        "nr5g_disable_nsa": "Disattiva solo NSA",
+        "sim_slot_get": "Mostra lo slot SIM attivo",
+        "sim_slot_1": "Passa allo slot SIM 1",
+        "sim_slot_2": "Passa allo slot SIM 2",
+        "apn_list": "Mostra l'elenco degli APN",
+        "apn_nrbroadband": "Imposta l'APN su NRBROADBAND",
+        "bands_nr_sa": "Mostra le bande 5G NR SA attive",
+        "bands_nr_nsa": "Mostra le bande 5G NR NSA attive",
+        "bands_lte": "Mostra le bande LTE attive",
+        "ippt_addresses": "Mostra gli indirizzi IP assegnati",
+        "ippt_enable": "Attiva l'IP passthrough",
+        "ippt_disable": "Disattiva l'IP passthrough"
+      },
+      "errors": {
+        "required": "Servono sia un nome sia un comando.",
+        "must_start_at": "Il comando deve iniziare con AT.",
+        "duplicate_command": "Quel comando è già nell'elenco.",
+        "duplicate_label": "Un altro comando usa già quel nome."
+      },
+      "manage_dialog": {
+        "title": "Gestisci i comandi personalizzati",
+        "description": "I comandi che aggiungi qui vengono salvati in questo browser e compaiono sotto Personalizzati nell'elenco.",
+        "empty": "Non hai ancora aggiunto nessun comando personalizzato.",
+        "label_field": "Nome del comando",
+        "label_placeholder": "Nome del comando",
+        "command_field": "Comando AT",
+        "command_placeholder": "AT+…",
+        "add": "Aggiungi",
+        "delete": "Elimina {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "Console Web",
+      "description": "Una shell di root sul modem, aperta nel tuo browser. Tutto ciò che scrivi qui viene eseguito come root sul dispositivo che serve questa pagina: non c'è nessuna conferma e nulla si può annullare."
+    },
+    "card": {
+      "title": "Terminale",
+      "description": "La sessione parte al caricamento della pagina e finisce quando scrivi exit o lasci la pagina."
+    },
+    "chip": {
+      "connecting": "Connessione…",
+      "reconnecting": "Riconnessione…",
+      "connected": "Connesso",
+      "unreachable": "Non in esecuzione",
+      "refused": "Rifiutata",
+      "dropped": "Collegamento perso",
+      "ended": "Sessione terminata"
+    },
+    "hints": {
+      "copy": "Copia",
+      "paste": "Incolla",
+      "leave": "Esci da schermo intero"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "Pulisci",
+      "fullscreen": "Schermo intero",
+      "exit_fullscreen": "Esci da schermo intero",
+      "reconnect": "Riconnetti",
+      "retry": "Riprova",
+      "start_session": "Avvia una nuova sessione"
+    },
+    "terminal": {
+      "label": "Shell di root sul modem"
+    },
+    "states": {
+      "close": {
+        "code": "Codice di chiusura {{code}}",
+        "reason": "Codice di chiusura {{code}} — {{reason}}",
+        "none": "La connessione si è chiusa senza riportare alcun codice."
+      },
+      "unreachable": {
+        "title": "Il servizio della console non è in esecuzione",
+        "description": "QManager non è riuscito a raggiungere ttyd, il piccolo programma che serve questo terminale dal modem. È una parte opzionale dell'installazione, quindi potrebbe non essere mai stata scaricata, oppure il suo servizio si è fermato. Reinstallare o aggiornare QManager lo rimette a posto."
+      },
+      "refused": {
+        "title": "Il modem ha rifiutato questa sessione",
+        "description": "ttyd ha risposto e poi ha chiuso la connessione con uno stato deciso da lui. Di solito sta già servendo un altro terminale, oppure si è fermato a metà dell'handshake. Chiudi le altre console aperte, poi riprova."
+      },
+      "dropped": {
+        "title": "La connessione al modem è caduta",
+        "description": "La console era in funzione e poi il collegamento è venuto a mancare. Un passaggio di rete Wi-Fi, una VPN o un riavvio del modem lo provocano tutti. Verifica di riuscire ancora a raggiungere il dispositivo, poi riconnettiti."
+      },
+      "ended": {
+        "title": "Sessione terminata",
+        "description": "La shell sul modem è uscita, quindi questo terminale è chiuso. Non è andato perso nulla: avvia una nuova sessione quando ti serve."
+      }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "Password",
+      "description": "Cambia la password con cui accedi a QManager o la password root per SSH. Ognuna richiede prima la sua password attuale."
+    },
+    "tabs": {
+      "aria": "Password da cambiare",
+      "web": "Password web",
+      "ssh": "Password SSH"
+    },
+    "web": {
+      "label": "Password web attuale",
+      "consequence": "La password con cui accedi a QManager.",
+      "dialog_title": "Cambia la password web",
+      "dialog_description": "Dopo la modifica verrai disconnesso."
+    },
+    "ssh": {
+      "label": "Password SSH attuale",
+      "consequence": "La password root per le sessioni SSH su questo modem.",
+      "dialog_title": "Cambia la password SSH",
+      "dialog_description": "Ha effetto immediato: le sessioni SSH già aperte restano attive.",
+      "toast_saved": "Password SSH aggiornata correttamente."
+    },
+    "continue": "Continua",
+    "toggle": {
+      "show": "Mostra password",
+      "hide": "Nascondi password"
+    },
+    "dialog": {
+      "new_label": "Nuova password",
+      "confirm_label": "Conferma la nuova password",
+      "match": "Le password coincidono",
+      "mismatch": "Le password non coincidono",
+      "cancel": "Annulla",
+      "save": "Salva password"
+    },
+    "errors": {
+      "too_short": "La password deve avere almeno {{min}} caratteri.",
+      "weak": "La password deve contenere almeno {{min}} caratteri e includere lettere maiuscole, minuscole e un numero.",
+      "verify_failed": "Impossibile verificare la password. Riprova.",
+      "change_failed": "Impossibile cambiare la password. Riprova.",
+      "invalid_password_one": "Password errata. {{count}} tentativo rimasto prima che l'accesso venga bloccato per un po'.",
+      "invalid_password_other": "Password errata. {{count}} tentativi rimasti prima che l'accesso venga bloccato per un po'.",
+      "rate_limited_one": "Troppi tentativi errati. Riprova tra {{count}} secondo.",
+      "rate_limited_other": "Troppi tentativi errati. Riprova tra {{count}} secondi."
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "Accesso al dispositivo",
+      "description": "La password e le porte usate per raggiungere questo modem."
+    }
+  },
+  "config_backup": {
+    "page_title": "Backup configurazione",
+    "page_description": "Salva le impostazioni di QManager in un file cifrato o ripristinale da un file.",
+    "excluded": "Password, token, porta web, cronologia SIM, log e contatori di utilizzo non vengono mai inclusi.",
+    "not_supported_here": "Non supportato qui",
+    "mutex_parent_on": "Impostato da {{parent}}, che è selezionato.",
+    "mutex_member_on": "Deseleziona {{members}} per includerlo.",
+    "group_count": "{{on}} di {{total}}",
+    "reboot_failed_toast": "Impossibile avviare il riavvio. È ancora in attesa nel banner.",
+    "reboot_now_button": "Riavvia ora",
+    "groups": {
+      "connection": "Connessione",
+      "local_network": "Rete locale",
+      "monitoring": "Monitoraggio e avvisi",
+      "system": "Sistema"
+    },
+    "sections": {
+      "network_mode": "Modalità di rete",
+      "bands": "Bande LTE/5G",
+      "apn": "APN",
+      "tower_lock": "Blocco cella",
+      "ttl_mtu": "TTL e MTU",
+      "imei": "IMEI",
+      "profiles": "Profili SIM personalizzati",
+      "scenarios": "Scenari di connessione",
+      "ip_passthrough": "IP Passthrough",
+      "sms": "Impostazioni SMS",
+      "lan": "LAN e DHCP",
+      "custom_dns": "DNS personalizzato",
+      "ethernet": "Ethernet",
+      "traffic_engine": "Motore di traffico",
+      "watchdog": "Watchdog",
+      "quality": "Qualità della connessione",
+      "sites": "Siti di monitoraggio latenza",
+      "alerts": "Avvisi",
+      "adaptive_polling": "Polling adattivo",
+      "system": "Impostazioni di sistema"
+    },
+    "create": {
+      "card_title": "Crea backup",
+      "card_description": "Scegli cosa salvare. Il file viene cifrato nel browser.",
+      "group_encryption": "Cifratura",
+      "passphrase_label": "Passphrase",
+      "warning": "Almeno {{min}} caratteri. Senza di essa il backup non può essere ripristinato.",
+      "passphrase_too_short": "Usa almeno {{min}} caratteri.",
+      "confirm_label": "Conferma passphrase",
+      "confirm_match": "Le passphrase coincidono",
+      "confirm_mismatch": "Le passphrase non coincidono",
+      "passphrase_show_aria": "Mostra passphrase",
+      "passphrase_hide_aria": "Nascondi passphrase",
+      "selected_count_one": "{{count}} sezione selezionata",
+      "selected_count_other": "{{count}} sezioni selezionate",
+      "stage_collecting": "Lettura impostazioni…",
+      "stage_encrypting": "Cifratura…",
+      "stage_downloading": "Salvataggio file…",
+      "button_default": "Scarica backup",
+      "toast_success": "Backup scaricato.",
+      "toast_unavailable_one": "Backup scaricato, ma {{count}} sezione non è stata letta.",
+      "toast_unavailable_other": "Backup scaricato, ma {{count}} sezioni non sono state lette.",
+      "toast_failed": "Impossibile creare il backup.",
+      "load_failed_title": "Impossibile caricare le opzioni di backup",
+      "load_failed_description": "Il modem non ha indicato quali impostazioni può salvare.",
+      "empty_title": "Niente da salvare",
+      "empty_description": "Questa build di QManager non ha impostazioni da salvare."
+    },
+    "restore": {
+      "card_title": "Ripristina da file",
+      "card_description": "Apri un file di backup e scegli cosa ripristinare.",
+      "idle_title": "Nessun backup aperto",
+      "reading_title": "Lettura file…",
+      "idle_description": "Scegli un file .qmbackup. Ti servirà la passphrase con cui è stato salvato.",
+      "upload_button": "Scegli file",
+      "button_choose_another": "Scegli un altro file",
+      "read_failed": "Impossibile leggere questo file.",
+      "receipt_model": "Creato su",
+      "receipt_created": "Data",
+      "passphrase_label": "Passphrase",
+      "passphrase_consequence": "La passphrase impostata quando è stato creato il backup.",
+      "password_incorrect": "Passphrase errata, oppure il file è stato modificato.",
+      "button_unlock": "Sblocca",
+      "model_warning": "Questo backup proviene da {{from}} e questo modem è {{to}}. Le impostazioni non utilizzabili vengono saltate.",
+      "backup_first": "Il ripristino sostituisce le impostazioni attuali. Scaricane prima un backup.",
+      "backup_first_action": "Fai prima un backup",
+      "overwrite_label": "Sostituisce le impostazioni attuali",
+      "note_reboot": "Richiede un riavvio.",
+      "note_lan": "Può cambiare l'indirizzo con cui raggiungi QManager. Richiede un riavvio.",
+      "note_profiles_imei": "Richiede un riavvio. I profili con un IMEI diverso da quello di questo modem lo perdono, a meno che tu non lo mantenga qui sotto.",
+      "profiles_imei_confirm_one": "{{count}} profilo imposta un IMEI diverso quando viene attivato. Mantienilo.",
+      "profiles_imei_confirm_other": "{{count}} profili impostano un IMEI diverso quando vengono attivati. Mantienili.",
+      "imei_confirm": "Scrivi l'IMEI {{backup}} al posto di {{current}} di questo modem.",
+      "selected_count_one": "{{count}} sezione da ripristinare",
+      "selected_count_other": "{{count}} sezioni da ripristinare",
+      "button_apply": "Ripristina",
+      "toast_success": "Impostazioni ripristinate.",
+      "toast_partial_one": "Ripristino terminato, ma {{count}} sezione non è riuscita.",
+      "toast_partial_other": "Ripristino terminato, ma {{count}} sezioni non sono riuscite.",
+      "toast_cancelled_one": "Ripristino interrotto dopo {{count}} sezione.",
+      "toast_cancelled_other": "Ripristino interrotto dopo {{count}} sezioni.",
+      "toast_crashed": "Il ripristino si è interrotto inaspettatamente.",
+      "toast_failed": "Impossibile avviare il ripristino.",
+      "toast_stop_failed": "Impossibile interrompere il ripristino.",
+      "reboot_dialog_title": "Riavviare per completare il ripristino?",
+      "reboot_dialog_description": "Alcune impostazioni ripristinate hanno effetto dopo un riavvio. La connessione si interrompe per circa un minuto.",
+      "reboot_later_button": "Più tardi"
+    },
+    "pipeline": {
+      "title": "Ripristino impostazioni",
+      "description": "Dal backup creato su {{model}}.",
+      "preparing": "Preparazione…",
+      "stopping": "Interruzione dopo questa sezione…",
+      "step_progress": "Sezione {{current}} di {{total}}",
+      "done_headline": "Ripristino completato",
+      "done_sub_one": "{{count}} sezione ripristinata.",
+      "done_sub_other": "{{count}} sezioni ripristinate.",
+      "partial_headline": "Ripristino terminato con problemi",
+      "partial_sub": "{{restored}} di {{total}} sezioni ripristinate.",
+      "cancelled_sub": "Interrotto prima di ripristinare tutte le sezioni.",
+      "failed_headline": "Ripristino non riuscito",
+      "failed_sub": "Non è stato ripristinato nulla.",
+      "crashed_sub": "Il ripristino si è interrotto inaspettatamente.",
+      "detail_incompatible": "Non compatibile",
+      "detail_not_supported": "Non supportato qui",
+      "detail_sim_mismatch": "SIM diversa",
+      "detail_unchanged": "Saltato",
+      "detail_retrying": "Tentativo {{n}}",
+      "detail_failed": "Non riuscito",
+      "note_ignored_one": "{{count}} impostazione non supportata qui",
+      "note_ignored_other": "{{count}} impostazioni non supportate qui",
+      "note_dropped_one": "{{count}} voce saltata (non valida)",
+      "note_dropped_other": "{{count}} voci saltate (non valide)",
+      "state_done": "Fatto",
+      "state_running": "In corso",
+      "state_retrying": "Nuovo tentativo",
+      "state_failed": "Non riuscito",
+      "state_skipped": "Saltato",
+      "state_pending": "In attesa",
+      "progress_aria": "Avanzamento del ripristino",
+      "ledger_aria": "Sezioni",
+      "reboot_notice": "Serve un riavvio per completare. Potrai scegliere quando dopo aver chiuso questa finestra.",
+      "failed_hint": "Le sezioni non riuscite mantengono le impostazioni attuali. Puoi ripetere il ripristino.",
+      "close": "Chiudi",
+      "stop": "Interrompi"
+    }
+  },
+  "adaptive_polling": {
+    "page_title": "Polling adattivo",
+    "page_description": "Interroga il modem meno spesso quando nessuno ha QManager aperto.",
+    "card_title": "Polling adattivo",
+    "card_description": "Lo stato si aggiorna a piena velocità mentre una pagina è aperta, poi rallenta.",
+    "tier": {
+      "active": "Piena velocità",
+      "idle": "Inattivo (rallentato)",
+      "deep": "Inattività profonda (minimo)"
+    },
+    "tier_aria": "Polling attuale: {{tier}}",
+    "enabled": {
+      "label": "Rallenta quando inattivo",
+      "on": "Il polling rallenta dopo il periodo di tolleranza indicato sotto.",
+      "off": "Lo stato si aggiorna sempre a piena velocità.",
+      "hint_label": "Cosa continua a funzionare",
+      "hint": "Gli avvisi e il watchdog di connessione continuano a funzionare a ogni velocità. Rallenta solo l'aggiornamento dello stato."
+    },
+    "fields": {
+      "active_grace": {
+        "label": "Periodo di tolleranza",
+        "consequence": "La piena velocità continua per questo tempo dopo la chiusura dell'ultima pagina ({{min}} - {{max}} s)."
+      },
+      "idle_interval": {
+        "label": "Intervallo di inattività",
+        "consequence": "Tempo tra gli aggiornamenti in inattività ({{min}} - {{max}} s)."
+      },
+      "idle_threshold": {
+        "label": "Inattività profonda dopo",
+        "consequence": "Tempo di inattività prima che gli aggiornamenti rallentino ulteriormente ({{min}} - {{max}} s)."
+      },
+      "deep_idle_interval": {
+        "label": "Intervallo di inattività profonda",
+        "consequence": "Tempo tra gli aggiornamenti in inattività profonda ({{min}} - {{max}} s)."
+      }
+    },
+    "unit_seconds": "s",
+    "error_title": "Impossibile caricare il polling adattivo",
+    "error_description": "Le impostazioni non sono state caricate. Riprova tra un attimo.",
+    "save_failed_status": "Non salvato",
+    "default_status": "Tempi predefiniti",
+    "toast_saved": "Polling adattivo salvato.",
+    "toast_failed": "Impossibile salvare il polling adattivo."
+  },
+  "web_port": {
+    "card_title": "Porta web",
+    "card_description": "Le porte su cui risponde questa interfaccia.",
+    "http_label": "Porta HTTP",
+    "http_consequence": "L'HTTP in chiaro reindirizza soltanto alla porta HTTPS.",
+    "https_label": "Porta HTTPS",
+    "https_consequence": "La porta cifrata su cui viene servita questa interfaccia.",
+    "pending": "Si aprirà su {{origin}} dopo l'applicazione.",
+    "moving": "Spostamento su {{origin}}… Se il browser lo chiede, accetta il certificato per la nuova porta.",
+    "invalid": "Usa un numero intero da 1 a 65535.",
+    "same": "HTTP e HTTPS richiedono porte diverse.",
+    "confirm_title": "Cambiare la porta web?",
+    "confirm_description": "QManager si riavvia sulla nuova porta e questa pagina passa a {{origin}}. Se la nuova porta non si avvia, torna da sola quella precedente.",
+    "confirm_action": "Cambia porta",
+    "toast_failed": "Impossibile cambiare la porta web.",
+    "toast_unchanged": "Porta web salvata.",
+    "toast_unreachable": "La nuova porta non ha risposto, quindi QManager è rimasto su quella precedente.",
+    "toast_back_on": "La nuova porta non si è avviata, quindi QManager è tornato su {{origin}}.",
+    "toast_timeout": "Il cambio di porta non è ancora terminato, quindi ricarica la pagina tra poco.",
+    "open_origin": "Apri",
+    "error_title": "Impossibile leggere la porta web",
+    "error_description": "Le porte non si sono caricate. Riprova tra un attimo."
   }
 }

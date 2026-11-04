@@ -1,5 +1,15 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function LocalNetworkPage() {
-  redirect("/local-network/ttl-settings");
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// Ethernet is the Local Network landing page; this keeps old bookmarks working.
+export default function LocalNetworkRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/local-network/ethernet");
+  }, [router]);
+
+  return null;
 }

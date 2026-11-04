@@ -40,7 +40,7 @@ qcmd 'AT+QRSRP;+QRSRQ;+QSINR' 2>/dev/null
 separator "TIER 2 — AT+QCAINFO (enable + query)"
 qcmd 'AT+QCAINFO=1' >/dev/null 2>&1
 sleep 1
-qcmd_exec 'AT+QCAINFO' 2>/dev/null
+qcmd 'AT+QCAINFO' 2>/dev/null
 
 separator "TIER 2 — Group 1: AT+CGCONTRDP;+QMAP=\"WWAN\" (APN + WAN IPs)"
 qcmd 'AT+CGCONTRDP;+QMAP="WWAN"' 2>/dev/null
@@ -71,7 +71,7 @@ separator "BOOT — AT+CVERSION;+CGMM;+CGSN;+CIMI;+QCCID;+CNUM;+QGETCAPABILITY"
 qcmd 'AT+CVERSION;+CGMM;+CGSN;+CIMI;+QCCID;+CNUM;+QGETCAPABILITY' 2>/dev/null
 
 separator "BOOT — AT+QNWPREFCFG=\"policy_band\" (locked bands)"
-qcmd_exec 'AT+QNWPREFCFG="policy_band"' 2>/dev/null
+qcmd 'AT+QNWPREFCFG="policy_band"' 2>/dev/null
 
 separator "BOOT — AT+CFUN? (radio function mode)"
 qcmd 'AT+CFUN?' 2>/dev/null

@@ -129,7 +129,7 @@ The Ethernet-status feature was removed from `dev-rm520`, but if reintroduced th
 | Operator / PLMN name | Same. |
 | IMEI / IMSI / ICCID, SIM PIN status | Same. |
 | Locked-band, network-mode preferences | NV items in modem firmware. AT or QMI only. |
-| SMS | sms_tool (own bundled binary) on `/dev/smd11`. |
+| SMS | sms_tool (own bundled binary) on `/dev/smd11` at the time; since T5.1 `qsms` over QMI WMS. |
 
 These are the same wall the original QMI investigation hit at the **information level** — sysfs cannot give us this data. **However, the QMI feasibility assessment itself is reversed once we look at the right places on this platform.** See the next section.
 
@@ -188,7 +188,7 @@ Every QMI service QManager would want is **already advertised by the modem at bo
 | **1** | Wireless Data Service (WDS) | 3 | 68 | data session state, IPv4/IPv6, byte counters |
 | **2** | Device Management Service (DMS) | 3 | 79 | `ATI`, IMEI, firmware, model, serial |
 | **3** | Network Access Service (NAS) | 3 | 63 | `AT+QENG`, `AT+QCAINFO`, RSRP/RSRQ/SINR, cell ID, TAC, PLMN, registration |
-| **5** | Wireless Messaging Service (WMS) | 3 | 77 | `sms_tool` send/recv |
+| **5** | Wireless Messaging Service (WMS) | 3 | 77 | `sms_tool` send/recv at the time; since T5.1 `qsms` uses WMS directly |
 | **8** | AT service | 3 | 71 | (AT-over-QMI proxy) |
 | **9** | Voice service | 3 | 62 | voice (unused today) |
 | **10** | Card Application Toolkit (CAT v2) | 3 | 64 | SIM toolkit |
@@ -265,7 +265,7 @@ Pre-built tool already on device. Pipe commands at it, parse text output.
 
 ### What we should NOT migrate to QMI even if it works
 
-- **SMS** — `sms_tool` already handles multi-part reassembly and works reliably. WMS via QMI duplicates it without obvious benefit.
+- **SMS** — `sms_tool` already handles multi-part reassembly and works reliably. WMS via QMI duplicates it without obvious benefit. (Superseded: T5.1 moved SMS to WMS and retired `sms_tool`.)
 - **Band locking / network mode preferences** — `AT+QNWPREFCFG` is well-trodden in the codebase. QMI equivalents exist but the reward for swapping a working path is low.
 - **Modem reboot / shutdown** — `qmi_shutdown_modem` exists but `AT+CFUN=1,1` is fine.
 
@@ -303,7 +303,7 @@ Lowest-risk, highest-leverage migration for the poller:
 2. Move `AT+QGDCNT` → read `/proc/net/dev`. Drop one AT call per poll, gain per-interface granularity.
 3. Add a new "Modem Subsystem" health indicator using `subsys0/state` + `subsys0/crash_count`. Costs nothing; catches silent modem reboots that AT polling misses. **(Done — shipped as the "System Health" card; collected by the poller's `update_system_health()` and exposed via `/system/modem-subsys.sh`.)**
 
-Both AT removals free up `/tmp/qmanager_at.lock` for the genuinely modem-firmware-bound queries (signal, cell, registration), where AT serialization actually matters.
+Both AT removals free up `/run/qmanager_at/at.lock` for the genuinely modem-firmware-bound queries (signal, cell, registration), where AT serialization actually matters.
 
 ## Open questions for the QMI re-visit
 

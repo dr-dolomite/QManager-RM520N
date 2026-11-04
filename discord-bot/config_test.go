@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -11,7 +13,7 @@ func TestLoadConfig_ValidFile(t *testing.T) {
 	defer os.Remove(f.Name())
 	json.NewEncoder(f).Encode(Config{
 		Enabled:          true,
-		BotToken:         "tok",
+		TokenSet:         true,
 		OwnerDiscordID:   "123",
 		ThresholdMinutes: 10,
 	})
@@ -21,8 +23,11 @@ func TestLoadConfig_ValidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.BotToken != "tok" {
-		t.Errorf("got BotToken %q, want %q", cfg.BotToken, "tok")
+	if !cfg.TokenSet {
+		t.Error("expected TokenSet=true")
+	}
+	if cfg.OwnerDiscordID != "123" {
+		t.Errorf("got OwnerDiscordID %q, want %q", cfg.OwnerDiscordID, "123")
 	}
 	if cfg.ThresholdMinutes != 10 {
 		t.Errorf("got ThresholdMinutes %d, want 10", cfg.ThresholdMinutes)
@@ -32,7 +37,7 @@ func TestLoadConfig_ValidFile(t *testing.T) {
 func TestLoadConfig_DefaultThreshold(t *testing.T) {
 	f, _ := os.CreateTemp("", "discord_cfg*.json")
 	defer os.Remove(f.Name())
-	f.WriteString(`{"enabled":true,"bot_token":"x","owner_discord_id":"1"}`)
+	f.WriteString(`{"enabled":true,"token_set":true,"owner_discord_id":"1"}`)
 	f.Close()
 
 	cfg, err := loadConfig(f.Name())
@@ -48,6 +53,82 @@ func TestLoadConfig_MissingFile(t *testing.T) {
 	_, err := loadConfig("/nonexistent/path.json")
 	if err == nil {
 		t.Fatal("expected error for missing file, got nil")
+	}
+}
+
+// A legacy config that still carries the plaintext bot_token must not be able
+// to surface it — the struct has no field for it, so it decodes and is dropped.
+func TestLoadConfig_LegacyBotTokenIsIgnored(t *testing.T) {
+	f, _ := os.CreateTemp("", "discord_cfg*.json")
+	defer os.Remove(f.Name())
+	f.WriteString(`{"enabled":true,"bot_token":"leaked","owner_discord_id":"1"}`)
+	f.Close()
+
+	cfg, err := loadConfig(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	round, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(round), "leaked") {
+		t.Errorf("legacy bot_token survived into the Config struct: %s", round)
+	}
+}
+
+func TestLoadBotToken_ReadsSecretFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "discord_bot_token")
+	if err := os.WriteFile(path, []byte("MTIz.abc.def"), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	tok, err := loadBotToken(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tok != "MTIz.abc.def" {
+		t.Errorf("got token %q, want %q", tok, "MTIz.abc.def")
+	}
+}
+
+func TestLoadBotToken_TrimsTrailingNewline(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "discord_bot_token")
+	if err := os.WriteFile(path, []byte("MTIz.abc.def\n"), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	tok, err := loadBotToken(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tok != "MTIz.abc.def" {
+		t.Errorf("got token %q, want the trailing newline trimmed", tok)
+	}
+}
+
+func TestLoadBotToken_MissingFile(t *testing.T) {
+	_, err := loadBotToken(filepath.Join(t.TempDir(), "absent"))
+	if err == nil {
+		t.Fatal("expected an error for a missing token file, got nil")
+	}
+	// The message has to be actionable — the daemon runs as root, so this is
+	// always "nobody saved a token", never a permission problem.
+	if !strings.Contains(err.Error(), "no bot token stored") {
+		t.Errorf("error is not actionable: %v", err)
+	}
+}
+
+func TestLoadBotToken_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "discord_bot_token")
+	if err := os.WriteFile(path, []byte("   \n"), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := loadBotToken(path); err == nil {
+		t.Fatal("expected an error for a whitespace-only token file, got nil")
 	}
 }
 

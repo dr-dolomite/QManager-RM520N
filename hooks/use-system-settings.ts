@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
+  DeviceClock,
+  DeviceClockReading,
   SystemSettings,
   ScheduleConfig,
   SystemSettingsResponse,
@@ -67,38 +70,77 @@ interface SaveResponse {
   timezone_apply_status?: TimezoneApplyStatus;
 }
 
+/**
+ * What a preferences save returns. Callers toast from this and never from the
+ * hook's `error`, which describes the last READ only.
+ */
+export interface SaveResult {
+  success: boolean;
+  /** The device's reason, translated through `resolveErrorMessage`. Absent when none was given. */
+  message?: string;
+  /** The zone was saved but did not reach the live clock (partial success). */
+  timezoneNotApplied?: boolean;
+}
+
 // Internal outcome returned by postAction — carries the raw success plus the
 // arm status so saveScheduledReboot can surface an honest toast.
 interface PostActionResult {
   success: boolean;
   armed?: boolean;
   reason?: string;
+  rejection?: string;
+  rejectionDetail?: string;
+  timezoneNotApplied?: boolean;
 }
 
 export interface UseSystemSettingsReturn {
   settings: SystemSettings | null;
   scheduledReboot: ScheduleConfig | null;
+  /** The modem's clock as of the last read; null before one or on an old backend. */
+  deviceClock: DeviceClockReading | null;
   isLoading: boolean;
   isSaving: boolean;
+  /** Last READ failed: a localized sentence, never raw transport text. */
   error: string | null;
-  saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
+  /** The device's own reason for that failure, when it gave one. */
+  errorDetail: string | null;
+  saveSettings: (payload: SaveSettingsPayload) => Promise<SaveResult>;
   saveScheduledReboot: (
     payload: SaveScheduledRebootPayload,
   ) => Promise<ScheduledRebootSaveResult>;
-  refresh: () => void;
+  refresh: (silent?: boolean) => Promise<void>;
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
+/** A clock reading the UI can tick from; an epoch of 0 means the device could not read it. */
+function toClockReading(clock: DeviceClock | undefined): DeviceClockReading | null {
+  if (!clock || !(clock.epoch > 0) || typeof clock.local !== "string") return null;
+  return { ...clock, receivedAt: Date.now() };
+}
+
 export function useSystemSettings(): UseSystemSettingsReturn {
+  const { t } = useTranslation("errors");
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [scheduledReboot, setScheduledReboot] =
     useState<ScheduleConfig | null>(null);
+  const [deviceClock, setDeviceClock] = useState<DeviceClockReading | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  // Held in a ref so a language switch does not rebuild fetchSettings and refetch.
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // Responses settle out of order, so every request claims a sequence at ISSUE
+  // time and a late one that lost the race is dropped instead of applied.
+  const reqSeqRef = useRef(0);
+  const appliedSeqRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -111,31 +153,43 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   // Fetch current settings
   // ---------------------------------------------------------------------------
   const fetchSettings = useCallback(async (silent = false) => {
+    const seq = ++reqSeqRef.current;
     if (!silent) setIsLoading(true);
     setError(null);
+    setErrorDetail(null);
 
     try {
       const resp = await authFetch(CGI_ENDPOINT);
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
+      if (!resp.ok) throw new Error();
 
-      const json: SystemSettingsResponse = await resp.json();
+      const json = (await resp.json()) as SystemSettingsResponse & {
+        error?: string;
+        detail?: string;
+      };
       if (!mountedRef.current) return;
+      // A newer answer already landed, so this one is stale by definition.
+      if (seq <= appliedSeqRef.current) return;
+      appliedSeqRef.current = seq;
 
       if (!json.success) {
-        setError("Failed to fetch system settings");
+        const reason = resolveErrorMessage(tRef.current, json.error, json.detail, "").trim();
+        setError(reason || tRef.current("unknown"));
+        setErrorDetail(reason || null);
         return;
       }
 
       setSettings(json.settings);
       setScheduledReboot(json.scheduled_reboot);
-    } catch (err) {
+      setDeviceClock(toClockReading(json.device_clock));
+    } catch {
       if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch system settings",
-      );
+      if (seq <= appliedSeqRef.current) return;
+      appliedSeqRef.current = seq;
+      // Transport failures carry no device reason; HTTP/network text stays out of the UI.
+      setError(tRef.current("unknown"));
     } finally {
+      // Deliberately unsequenced: gating this would strand the spinner whenever
+      // a silent refetch supersedes a visible one and never clears it.
       if (mountedRef.current && !silent) {
         setIsLoading(false);
       }
@@ -155,7 +209,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         | SaveSettingsPayload
         | SaveScheduledRebootPayload,
     ): Promise<PostActionResult> => {
-      setError(null);
+      const seq = ++reqSeqRef.current;
       setIsSaving(true);
 
       try {
@@ -165,21 +219,23 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           body: JSON.stringify(payload),
         });
 
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-        }
+        if (!resp.ok) throw new Error();
 
         const json: SaveResponse = await resp.json();
         if (!mountedRef.current) return { success: false };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save settings");
-          return { success: false };
+          return {
+            success: false,
+            rejection: json.error,
+            rejectionDetail: json.detail,
+          };
         }
 
         // Use response data directly when available (avoids re-fetch race),
         // fall back to silent re-fetch for actions that don't return full state.
-        if (json.scheduled_reboot) {
+        if (json.scheduled_reboot && seq > appliedSeqRef.current) {
+          appliedSeqRef.current = seq;
           setScheduledReboot(json.scheduled_reboot);
         }
 
@@ -188,25 +244,21 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         // The silent re-fetch also pulls the fresh timezone ground-truth fields
         // (effective_offset / timezone_applied) so the card can render its badge.
         if (payload.action === "save_settings") {
-          // Config saved, but the zone did not reach the live clock. Warn the
-          // user honestly (partial success); the settings themselves persisted.
-          if (json.timezone_apply_status === "failed") {
-            toast.warning(
-              "Timezone saved, but couldn't apply to the device clock — check again in a moment",
-            );
-          }
           await fetchSettings(true);
         }
 
-        // Thread through the arm status so save_scheduled_reboot can warn the
-        // user when the schedule persisted but no live timer was installed.
-        return { success: true, armed: json.armed, reason: json.reason };
-      } catch (err) {
+        // Arm status lets the reboot card warn on an unarmed schedule; the zone
+        // flag lets the preferences card warn instead of claiming success.
+        return {
+          success: true,
+          armed: json.armed,
+          reason: json.reason,
+          timezoneNotApplied: json.timezone_apply_status === "failed",
+        };
+      } catch {
         if (!mountedRef.current) return { success: false };
-        setError(
-          err instanceof Error ? err.message : "Failed to save settings",
-        );
-        return { success: false };
+        // No device reason on a transport failure; the "network" token has its own copy.
+        return { success: false, rejection: "network" };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);
@@ -220,9 +272,22 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   // Per-action save wrappers
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    async (payload: SaveSettingsPayload) =>
-      (await postAction(payload)).success,
-    [postAction],
+    async (payload: SaveSettingsPayload): Promise<SaveResult> => {
+      const result = await postAction(payload);
+      if (result.success) {
+        return { success: true, timezoneNotApplied: result.timezoneNotApplied };
+      }
+      // A transport failure has no device reason; the caller's generic line covers it.
+      if (result.rejection === "network") return { success: false };
+      const message = resolveErrorMessage(
+        t,
+        result.rejection,
+        result.rejectionDetail,
+        "",
+      );
+      return { success: false, message: message || undefined };
+    },
+    [postAction, t],
   );
 
   const saveScheduledReboot = useCallback(
@@ -234,9 +299,11 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   return {
     settings,
     scheduledReboot,
+    deviceClock,
     isLoading,
     isSaving,
     error,
+    errorDetail,
     saveSettings,
     saveScheduledReboot,
     refresh: fetchSettings,

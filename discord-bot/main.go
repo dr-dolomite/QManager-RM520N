@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -42,28 +41,30 @@ func main() {
 		log.Println("Discord bot is disabled in config. Exiting.")
 		os.Exit(0)
 	}
-	if cfg.BotToken == "" || cfg.OwnerDiscordID == "" {
-		log.Fatal("bot_token and owner_discord_id must be set in config")
+	if cfg.OwnerDiscordID == "" {
+		log.Fatal("owner_discord_id must be set in config")
 	}
 
-	appID := appIDFromToken(cfg.BotToken)
+	// The token is NOT in the config JSON — it is read from the root-only
+	// secret file so the www-data-owned config directory never holds it.
+	botToken, err := loadBotToken(secretTokenPath)
+	if err != nil {
+		writeStatus(statusPath, BotStatus{Connected: false, Error: "missing_token"})
+		log.Fatalf("failed to load bot token: %v", err)
+	}
+
+	appID := appIDFromToken(botToken)
 
 	writeStatus(statusPath, BotStatus{Connected: false, Error: "starting", AppID: appID})
 
-	s, err := newSession(cfg.BotToken)
-	if err != nil {
-		writeStatus(statusPath, BotStatus{Connected: false, Error: "session_error", AppID: appID})
-		log.Fatalf("failed to create Discord session: %v", err)
-	}
+	sc := make(chan os.Signal, 1)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
 
-	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Discord bot ready: %s#%s", r.User.Username, r.User.Discriminator)
-		writeStatus(statusPath, BotStatus{Connected: true, LatencyMs: int(s.HeartbeatLatency().Milliseconds()), AppID: appID})
-	})
-
-	if err := s.Open(); err != nil {
-		writeStatus(statusPath, BotStatus{Connected: false, Error: "invalid_token", AppID: appID})
-		log.Fatalf("failed to open Discord session: %v", err)
+	s := connectWithRetry(botToken, appID, sc)
+	if s == nil {
+		writeStatus(statusPath, BotStatus{Connected: false, Error: "", AppID: appID})
+		log.Println("Discord bot stopped before connecting.")
+		return
 	}
 	defer s.Close()
 
@@ -100,6 +101,11 @@ func main() {
 	// MESSAGE_CREATE Gateway events to user-installed apps (applications.commands scope
 	// only), but InteractionCreate IS delivered and carries the invoking ChannelID.
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		// Single owner gate for every command and component; nothing below runs for others.
+		if !isOwner(i, cfg.OwnerDiscordID) {
+			rejectNonOwner(s, i)
+			return
+		}
 		captureDMFromInteraction(i, dmCh, cfg.OwnerDiscordID)
 		handleInteraction(s, i)
 	})
@@ -124,15 +130,15 @@ func main() {
 
 	// Autonomous downtime notifier — the daemon's own timer. Off by default:
 	// the shell alert engine (alert_engine.sh) now owns all alert timing and
-	// drives the daemon via cmdPath. Only start it when explicitly opted in,
+	// drives the daemon via spoolDir. Only start it when explicitly opted in,
 	// so an OTA-upgraded device with an old config has no double-send window.
 	stopNotifier := make(chan struct{})
 	if cfg.AutonomousNotify {
 		go RunNotifier(s, dmCh, cfg, stopNotifier)
 	}
 
-	// Command watcher — shell alert engine writes cmdPath to have the daemon
-	// deliver a DM. This makes the daemon a pure DM transport.
+	// Command watcher — shell alert engine spools DMs into spoolDir for the
+	// daemon to deliver. This makes the daemon a pure DM transport.
 	stopCmdWatcher := make(chan struct{})
 	go runCmdWatcher(s, dmCh, cfg, stopCmdWatcher)
 
@@ -157,8 +163,6 @@ func main() {
 	}()
 
 	log.Println("Discord bot running. Press Ctrl+C to stop.")
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
 	<-sc
 
 	close(stopNotifier)
@@ -221,90 +225,6 @@ func runTestDMWatcher(s *discordgo.Session, ownerID string, dmCh *dmChannelHolde
 				continue
 			}
 			writeTestResult(true, "")
-		}
-	}
-}
-
-// discordCmd is the payload the shell alert engine (alert_engine.sh) writes to
-// cmdPath: {"message":"..."}. The daemon delivers Message as an owner DM.
-type discordCmd struct {
-	Message string `json:"message"`
-}
-
-// appendDiscordLog appends one NDJSON result line to logPath, matching the
-// timestamp format the shell logs use ("YYYY-MM-DD HH:MM:SS"). O_APPEND is used
-// deliberately: a single sub-4KB line is written atomically on POSIX, so the
-// daemon and any shell-side writer interleave cleanly without a lock.
-func appendDiscordLog(trigger, status, recipient string) {
-	line := fmt.Sprintf("{\"timestamp\":%q,\"trigger\":%q,\"status\":%q,\"recipient\":%q}\n",
-		time.Now().Format("2006-01-02 15:04:05"), trigger, status, recipient)
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Printf("cmd watcher: failed to open log %s: %v", logPath, err)
-		return
-	}
-	defer f.Close()
-	if _, err := f.WriteString(line); err != nil {
-		log.Printf("cmd watcher: failed to append log: %v", err)
-	}
-}
-
-// runCmdWatcher polls cmdPath for DM-send commands written by the shell alert
-// engine. Structurally identical to runTestDMWatcher (1s ticker, stat/read/
-// remove), but the payload carries the message to deliver. This is the daemon's
-// pure-transport path: the shell state machine owns alert timing, the daemon
-// just delivers the DM and records the result to the NDJSON log.
-func runCmdWatcher(s *discordgo.Session, dmCh *dmChannelHolder, cfg *Config, stopCh <-chan struct{}) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-stopCh:
-			return
-		case <-ticker.C:
-			if _, err := os.Stat(cmdPath); err != nil {
-				continue
-			}
-			data, readErr := os.ReadFile(cmdPath)
-			os.Remove(cmdPath)
-			if readErr != nil {
-				log.Printf("cmd watcher: failed to read command file: %v", readErr)
-				continue
-			}
-
-			var cmd discordCmd
-			if err := json.Unmarshal(data, &cmd); err != nil {
-				log.Printf("cmd watcher: malformed command payload, skipping: %v", err)
-				continue
-			}
-			if cmd.Message == "" {
-				log.Printf("cmd watcher: empty message, skipping")
-				continue
-			}
-
-			ch := dmCh.get()
-			if ch == "" {
-				// Fallback: resolve the channel — may succeed if the owner has
-				// since authorized the bot after startup.
-				id, err := openDMChannel(s, cfg.OwnerDiscordID)
-				if err != nil {
-					log.Printf("cmd watcher: no DM channel available, dropping alert: %v", err)
-					appendDiscordLog("alert", "failed", "discord")
-					continue
-				}
-				dmCh.set(id)
-				if err := saveDMChannelID(dmChannelPath, id); err != nil {
-					log.Printf("warning: failed to persist DM channel: %v", err)
-				}
-				ch = id
-			}
-
-			if _, err := s.ChannelMessageSend(ch, cmd.Message); err != nil {
-				log.Printf("cmd watcher: failed to send alert DM: %v", err)
-				appendDiscordLog("alert", "failed", "discord")
-				continue
-			}
-			appendDiscordLog("alert", "sent", "discord")
 		}
 	}
 }

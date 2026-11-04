@@ -12,8 +12,11 @@
 # problem and is intentionally NOT reused here — see the arm helpers' headers
 # for why duplicating that algorithm would be over-fitting a one-line need).
 #
-# Sourced by root helpers only (qmanager_scheduled_reboot_arm,
-# qmanager_tower_schedule_arm) — never by a CGI script directly. Those
+# Sourced by the arm helpers (validation/generation) AND by the fire workers
+# (fire guard) — qmanager_scheduled_reboot_arm, qmanager_tower_schedule_arm
+# for validation/generation, and qmanager_scheduled_reboot,
+# qmanager_tower_schedule, qmanager_scenario_schedule, qmanager_auto_update
+# for the fire guard below. Never sourced by a CGI script directly. The arm
 # helpers are sudo-reachable from www-data, so every value passed to
 # _qm_oncalendar_line MUST be validated with _qm_validate_hhmm /
 # _qm_validate_days FIRST — this library does not re-validate internally.
@@ -33,15 +36,14 @@ _SCHEDULE_TIMER_LOADED=1
 #      line looks like "04:00" but carries a smuggled newline + extra
 #      OnCalendar=/ExecStart=/etc. directive on a second line is still
 #      caught — an anchored regex (`grep -Eq '^...$'`) would not catch it.
-#   2. Shape check: strict HH:MM, hour 00-29 range then minute 00-59 (the
-#      loose "[0-2][0-9]" shape matches the CGI-side check this mirrors).
+#   2. Shape check: strict HH:MM, hour 00-23 then minute 00-59.
 # Returns 0 (valid) or 1 (reject).
 _qm_validate_hhmm() {
     case "$1" in
         ''|*[!0-9:]*) return 1 ;;
     esac
     case "$1" in
-        [0-2][0-9]:[0-5][0-9]) return 0 ;;
+        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -97,4 +99,97 @@ _qm_oncalendar_line() {
     done
     [ -z "$names" ] && return 0
     printf 'OnCalendar=%s %s:%s:00\n' "$names" "$hh" "$mm"
+}
+
+# --- Fire guard (issue #9: 1970 clock-step spurious fire) --------------------
+# See docs/reference/scheduled-timers.md ("The 1970 boot window"). Test hooks:
+# QM_TIMER_GUARD_BYPASS, QM_TEST_YEAR, QM_TEST_UPTIME, QM_TEST_NOW_HHMM, QM_TEST_DOW.
+
+# _qm_clock_sane
+# 0 iff the wall-clock year is numeric and >= 2025; fails closed otherwise.
+_qm_clock_sane() {
+    local y
+    if [ -n "$QM_TEST_YEAR" ]; then
+        y="$QM_TEST_YEAR"
+    else
+        y=$(date +%Y)
+    fi
+    case "$y" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$y" -ge 2025 ]
+}
+
+# _qm_boot_settled
+# 0 iff uptime >= ${QM_TIMER_SETTLE_SECS:-300}s — past the ~24-29s misfire window.
+_qm_boot_settled() {
+    local up
+    if [ -n "$QM_TEST_UPTIME" ]; then
+        up="$QM_TEST_UPTIME"
+    else
+        up=$(awk '{print int($1)}' /proc/uptime)
+    fi
+    case "$up" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$up" -ge "${QM_TIMER_SETTLE_SECS:-300}" ]
+}
+
+# _qm_today_in_days <days_csv> (0=Sun..6=Sat, honours QM_TEST_DOW)
+# Fails closed on a non-numeric/missing "today".
+_qm_today_in_days() {
+    local days="$1" today d
+    if [ -n "$QM_TEST_DOW" ]; then today="$QM_TEST_DOW"; else today=$(date +%w); fi
+    case "$today" in ''|*[!0-9]*) return 1 ;; esac
+    for d in $(printf '%s' "$days" | tr ',' ' '); do
+        [ "$d" = "$today" ] && return 0
+    done
+    return 1
+}
+
+# _qm_now_matches_hhmm <HH:MM> [tolerance-min]
+# 0 iff now is within tolerance (default 10min) of HH:MM, wrapping midnight;
+# uses awk (not $(( )) — zero-padded HH:MM parses as octal in ash).
+_qm_now_matches_hhmm() {
+    local sched="$1" tol="${2:-10}" now sched_min now_min d
+    case "$sched" in
+        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
+        *) return 1 ;;
+    esac
+    if [ -n "$QM_TEST_NOW_HHMM" ]; then
+        now="$QM_TEST_NOW_HHMM"
+    else
+        now=$(date +%H:%M)
+    fi
+    case "$now" in
+        [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
+        *) return 1 ;;
+    esac
+    sched_min=$(printf '%s' "$sched" | awk -F: '{print $1*60+$2}')
+    now_min=$(printf '%s' "$now" | awk -F: '{print $1*60+$2}')
+    case "$sched_min" in ''|*[!0-9]*) return 1 ;; esac
+    case "$now_min" in ''|*[!0-9]*) return 1 ;; esac
+    d=$((now_min - sched_min))
+    [ "$d" -lt 0 ] && d=$((-d))
+    [ "$d" -gt 720 ] && d=$((1440 - d))
+    [ "$d" -le "$tol" ]
+}
+
+# _qm_timer_fire_allowed <HH:MM-or-empty> [days_csv]
+# Allowed iff clock is sane AND uptime has settled AND (no schedule minute
+# given, or now matches it) AND (no day mask given, or today is in it). An
+# empty sched still passes — scenario/auto-update legitimately have none.
+# QM_TIMER_GUARD_BYPASS=1 short-circuits to allow (test/manual only).
+_qm_timer_fire_allowed() {
+    local sched="$1" days="$2"
+    [ "$QM_TIMER_GUARD_BYPASS" = "1" ] && return 0
+    _qm_clock_sane || return 1
+    _qm_boot_settled || return 1
+    if [ -n "$days" ]; then
+        _qm_today_in_days "$days" || return 1
+    fi
+    if [ -z "$sched" ]; then
+        return 0
+    fi
+    _qm_now_matches_hhmm "$sched"
 }

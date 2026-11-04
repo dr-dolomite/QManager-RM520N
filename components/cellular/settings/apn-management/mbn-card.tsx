@@ -1,22 +1,10 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import * as React from "react";
+import { motion } from "motion/react";
 import { toast } from "sonner";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,279 +16,455 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, RotateCcwIcon } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { CardFoot } from "@/components/ui/card-foot";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import type { MbnProfile, MbnSaveRequest } from "@/types/mbn-settings";
+import { SEGMENTED, SegmentedField } from "@/components/ui/segmented-field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TonalBanner } from "@/components/ui/tonal-banner";
+import { ConditionScreen } from "@/components/cellular/condition-screen";
+import { requestRebootLater } from "@/lib/reboot";
+import { staggerRowItem, staggerRows } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import type {
+  MbnActionResult,
+  MbnProfile,
+  MbnSaveRequest,
+} from "@/types/mbn-settings";
 
-interface MBNCardProps {
+import { ApplyFootSkeleton } from "../apply-foot";
+import SettingRow from "../setting-row";
+import {
+  BANNER_ACTION,
+  EMPTY_BLOCK,
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  CHOICE_ROW,
+  ROW_GROUP,
+  SETTING_ROW,
+} from "../shapes";
+
+// Carrier Profile (MBN). A save never reboots: the dialog offers it, and any
+// other close defers it to the app-wide pending-reboot banner.
+
+const K = "core_settings.apn.mbn";
+
+export interface MBNCardProps {
   profiles: MbnProfile[] | null;
   autoSel: number | null;
   isLoading: boolean;
   isSaving: boolean;
-  onSave: (request: MbnSaveRequest) => Promise<boolean>;
+  /** Why the last read failed (translated), or null. */
+  loadError: string | null;
+  onRetry: () => void;
+  onSave: (request: MbnSaveRequest) => Promise<MbnActionResult>;
+  /** Fires the reboot and enters the /reboot/ flow; false if it was not accepted. */
+  onReboot: () => Promise<boolean>;
 }
 
-const MBNCard = ({
+function MbnCardHeader() {
+  const { t } = useTranslation("cellular");
+  return (
+    <CardHeader className={CARD_PAD}>
+      <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
+      <CardDescription>{t(`${K}.description`)}</CardDescription>
+    </CardHeader>
+  );
+}
+
+export function MBNCard({
   profiles,
   autoSel,
   isLoading,
   isSaving,
+  loadError,
+  onRetry,
   onSave,
-}: MBNCardProps) => {
-  // Form state
+  onReboot,
+}: MBNCardProps) {
+  const { t } = useTranslation("cellular");
   const { saved, markSaved } = useSaveFlash();
-  const [localAutoSel, setLocalAutoSel] = useState<string>("");
-  const [selectedProfile, setSelectedProfile] = useState<string>("");
 
-  // Reboot dialog
-  const [showRebootDialog, setShowRebootDialog] = useState(false);
-  const [isRebooting, setIsRebooting] = useState(false);
+  const liveSelected = profiles?.find((profile) => profile.selected) ?? null;
+  const liveSelectedName = liveSelected?.name ?? "";
 
-  // Sync form state from fetched data
-  useEffect(() => {
-    if (autoSel !== null) {
-      setLocalAutoSel(String(autoSel));
-    }
-    if (profiles) {
-      const active = profiles.find((p) => p.selected);
-      setSelectedProfile(active?.name ?? "");
-    }
-  }, [profiles, autoSel]);
+  // Re-seed the draft whenever the baseline changes, so a refetch after apply lands the new truth.
+  const baselineKey =
+    autoSel !== null ? `${autoSel} ${liveSelectedName}` : null;
 
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!profiles) return;
+  const [syncedKey, setSyncedKey] = React.useState<string | null>(null);
+  const [autoOn, setAutoOn] = React.useState(false);
+  const [selectedName, setSelectedName] = React.useState("");
 
-    const currentAutoSel = autoSel !== null ? String(autoSel) : "";
-    const currentProfile = profiles.find((p) => p.selected);
+  if (baselineKey !== null && baselineKey !== syncedKey) {
+    setSyncedKey(baselineKey);
+    setAutoOn(autoSel === 1);
+    setSelectedName(liveSelectedName);
+  }
 
-    // Case 1: Auto-select changed to enabled
-    if (localAutoSel === "1" && currentAutoSel !== "1") {
-      const success = await onSave({ action: "auto_sel", auto_sel: 1 });
-      if (success) {
-        markSaved();
-        toast.success("Auto-select enabled — reboot required");
-        setShowRebootDialog(true);
-      } else {
-        toast.error("Failed to enable auto-select");
-      }
-      return;
-    }
+  const [showRebootDialog, setShowRebootDialog] = React.useState(false);
+  const [isRebooting, setIsRebooting] = React.useState(false);
 
-    // Case 2: Auto-select changed to disabled (without profile change)
-    if (localAutoSel === "0" && currentAutoSel !== "0" && selectedProfile === currentProfile?.name) {
-      const success = await onSave({ action: "auto_sel", auto_sel: 0 });
-      if (success) {
-        markSaved();
-        toast.success("Auto-select disabled — reboot required");
-        setShowRebootDialog(true);
-      } else {
-        toast.error("Failed to disable auto-select");
-      }
-      return;
-    }
-
-    // Case 3: Profile changed (auto-sel is off or being turned off)
-    if (localAutoSel === "0" && selectedProfile && selectedProfile !== currentProfile?.name) {
-      const success = await onSave({
-        action: "apply_profile",
-        profile_name: selectedProfile,
-      });
-      if (success) {
-        markSaved();
-        toast.success("Carrier profile applied — reboot required");
-        setShowRebootDialog(true);
-      } else {
-        toast.error("Failed to apply carrier profile");
-      }
-      return;
-    }
-
-    toast.info("No changes to save");
-  };
-
-  const handleReset = () => {
-    if (autoSel !== null) {
-      setLocalAutoSel(String(autoSel));
-    }
-    if (profiles) {
-      const active = profiles.find((p) => p.selected);
-      setSelectedProfile(active?.name ?? "");
-    }
-  };
-
-  const handleReboot = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsRebooting(true);
-
-    // Prepare session state for the countdown page
-    sessionStorage.setItem("qm_rebooting", "1");
-    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-
-    // Fire-and-forget: keepalive ensures the request survives page navigation.
-    fetch("/cgi-bin/quecmanager/cellular/mbn.sh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reboot" }),
-      keepalive: true,
-    }).catch(() => {});
-
-    // Navigate to countdown page immediately
-    window.location.href = "/reboot/";
-  };
+  // Roving tabindex refs; declared above the early returns (hooks cannot branch).
+  const rowRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
 
   if (isLoading) {
     return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Carrier Profile</CardTitle>
-          <CardDescription>
-            Select which carrier firmware profile is active on the modem. A reboot is required after changes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <div className="space-y-2 ">
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-9 w-full" />
-            </div>
-            <div className="space-y-2 ">
-              <Skeleton className="h-4 w-44" />
-              <Skeleton className="h-9 w-full" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-9 w-28" />
-              <Skeleton className="h-9 w-9" />
-            </div>
+      <Card className={cn(CARD_SHELL)}>
+        <MbnCardHeader />
+        <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+          <div className={ROW_GROUP.ROOT}>
+            <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
           </div>
+          <div className="flex flex-col gap-1">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton
+                key={index}
+                className={cn(CHOICE_ROW.HEIGHT, "rounded-field")}
+              />
+            ))}
+          </div>
+        </CardContent>
+        <ApplyFootSkeleton />
+      </Card>
+    );
+  }
+
+  // Only the never-read case; a failed re-read keeps the last snapshot under a banner.
+  if (loadError && profiles === null) {
+    return (
+      <Card className={cn(CARD_SHELL)}>
+        <MbnCardHeader />
+        <CardContent className={cn(CARD_PAD, "flex flex-1 flex-col")}>
+          <ConditionScreen
+            tone="destructive"
+            glyph="error"
+            ariaRole="alert"
+            title={t(`${K}.error_title`)}
+            description={loadError}
+            onRetry={onRetry}
+            retryLabel={t("actions.retry", { ns: "common" })}
+            className="flex-1 rounded-tile py-10"
+          />
         </CardContent>
       </Card>
     );
   }
 
-  return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardTitle>Carrier Profile</CardTitle>
-        <CardDescription>
-          Select which carrier firmware profile is active on the modem. A reboot is required after changes.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid gap-4" onSubmit={handleSave}>
-          <div className="w-full">
-            <FieldSet>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="mbn-auto-select">Auto-Select Profile</FieldLabel>
-                  <Select
-                    value={
-                      localAutoSel ||
-                      (autoSel !== null ? String(autoSel) : "")
-                    }
-                    onValueChange={setLocalAutoSel}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger id="mbn-auto-select" aria-label="Auto-Select Profile">
-                      <SelectValue placeholder="Choose Auto-Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Enabled</SelectItem>
-                      <SelectItem value="0">Disabled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
+  const autoDirty = autoSel !== null && autoOn !== (autoSel === 1);
+  const profileDirty = !autoOn && !!selectedName && selectedName !== liveSelectedName;
+  const changeCount = (autoDirty ? 1 : 0) + (profileDirty ? 1 : 0);
 
-                <Field>
-                  <FieldLabel htmlFor="mbn-carrier-config">Carrier Configuration</FieldLabel>
-                  <Select
-                    value={
-                      selectedProfile ||
-                      (profiles
-                        ? profiles.find((p) => p.selected)?.name ?? ""
-                        : "")
-                    }
-                    onValueChange={setSelectedProfile}
-                    disabled={isSaving || localAutoSel === "1"}
-                  >
-                    <SelectTrigger id="mbn-carrier-config" aria-label="Carrier Configuration">
-                      <SelectValue placeholder="Choose Carrier Configuration" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles?.map((p) => (
-                        <SelectItem key={p.index} value={p.name}>
-                          {p.name}
-                          {p.selected && p.activated ? " (Active)" : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </FieldGroup>
-            </FieldSet>
+  const bundles = profiles ?? [];
+
+  // APG radio group: one tab stop (the chosen row, else the first); arrows move focus and selection.
+  const activeIndex = Math.max(
+    0,
+    bundles.findIndex((bundle) => bundle.name === selectedName),
+  );
+
+  const listDisabled = isSaving || autoOn;
+
+  const focusBundle = (index: number) => {
+    const bundle = bundles[index];
+    if (!bundle) return;
+    setSelectedName(bundle.name);
+    rowRefs.current[index]?.focus();
+  };
+
+  const handleListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (listDisabled || bundles.length === 0) return;
+
+    const step =
+      event.key === "ArrowDown" || event.key === "ArrowRight"
+        ? 1
+        : event.key === "ArrowUp" || event.key === "ArrowLeft"
+          ? -1
+          : 0;
+
+    if (step !== 0) {
+      event.preventDefault();
+      focusBundle((activeIndex + step + bundles.length) % bundles.length);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusBundle(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusBundle(bundles.length - 1);
+    }
+  };
+
+  const discard = () => {
+    setAutoOn(autoSel === 1);
+    setSelectedName(liveSelectedName);
+  };
+
+  const handleSave = async () => {
+    // Auto-select must be off before a pinned bundle means anything, so it is written first.
+    let result: MbnActionResult = { ok: true };
+    let successKey: string | null = null;
+
+    if (autoDirty) {
+      result = await onSave({ action: "auto_sel", auto_sel: autoOn ? 1 : 0 });
+      if (result.ok) {
+        successKey = autoOn ? `${K}.toast.auto_enabled` : `${K}.toast.auto_disabled`;
+      }
+    }
+    if (result.ok && profileDirty) {
+      result = await onSave({
+        action: "apply_profile",
+        profile_name: selectedName,
+      });
+      if (result.ok) successKey = `${K}.toast.profile_applied`;
+    }
+
+    if (!result.ok) {
+      // A first write that landed still needs its reboot.
+      if (successKey) requestRebootLater("mbn");
+      toast.error(t(`${K}.toast.error`), { description: result.error });
+      return;
+    }
+
+    markSaved();
+    if (successKey) toast.success(t(successKey));
+    setShowRebootDialog(true);
+  };
+
+  const handleRebootLater = () => {
+    requestRebootLater("mbn");
+    setShowRebootDialog(false);
+  };
+
+  const handleReboot = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    setIsRebooting(true);
+    // The /reboot/ hand-off is the success signal; only a failure toasts.
+    const sent = await onReboot();
+    if (!sent) {
+      toast.error(t(`${K}.toast.reboot_error`));
+      setIsRebooting(false);
+    }
+  };
+
+  return (
+    <Card className={cn(CARD_SHELL)}>
+      <MbnCardHeader />
+
+      <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+        {loadError ? (
+          <TonalBanner
+            tone="destructive"
+            icon="error"
+            title={t(`${K}.error_title`)}
+          >
+            <span className="flex flex-wrap items-center gap-2">
+              {loadError}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onRetry}
+                className={BANNER_ACTION}
+              >
+                {t("actions.retry", { ns: "common" })}
+              </Button>
+            </span>
+          </TonalBanner>
+        ) : null}
+
+        <div className={ROW_GROUP.ROOT}>
+          <SettingRow
+            labelId="mbn-auto-label"
+            label={t(`${K}.auto.label`)}
+            consequence={t(`${K}.auto.consequence`)}
+            dirty={autoDirty}
+            control={
+              <SegmentedField
+                value={autoOn ? "on" : "off"}
+                onValueChange={(next) => setAutoOn(next === "on")}
+                options={[
+                  { value: "on", label: t("state.on", { ns: "common" }) },
+                  { value: "off", label: t("state.off", { ns: "common" }) },
+                ]}
+                ariaLabel={t(`${K}.auto.label`)}
+                disabled={isSaving}
+                breakpoint="never"
+                glyph={(className) => (
+                  <MaterialSymbol
+                    name="check"
+                    filled
+                    size={SEGMENTED.GLYPH}
+                    aria-hidden="true"
+                    className={className}
+                  />
+                )}
+              />
+            }
+          />
+        </div>
+
+        {/* Empty copy is only true of a successful read that returned nothing. */}
+        {profiles !== null && bundles.length === 0 ? (
+          <div className={EMPTY_BLOCK.ROOT}>
+            <MaterialSymbol
+              name="sim_card"
+              size={EMPTY_BLOCK.GLYPH}
+              className="text-on-surface-variant"
+            />
+            <span className={EMPTY_BLOCK.TITLE}>{t(`${K}.empty.title`)}</span>
+            <span className={EMPTY_BLOCK.BODY}>{t(`${K}.empty.body`)}</span>
           </div>
-          <div className="flex items-center gap-x-2">
+        ) : bundles.length === 0 ? null : (
+          <div className="flex flex-col gap-2">
+            <span className={SETTING_ROW.CONSEQUENCE}>
+              {t(`${K}.list_label`)}
+            </span>
+            <motion.div
+              role="radiogroup"
+              aria-label={t(`${K}.list_label`)}
+              className={cn(CHOICE_ROW.SCROLL_CAP, "flex flex-col gap-1")}
+              variants={staggerRows}
+              initial="hidden"
+              animate="visible"
+              onKeyDown={handleListKeyDown}
+            >
+              {bundles.map((bundle, index) => {
+                const chosen = bundle.name === selectedName;
+                return (
+                  <motion.button
+                    key={`${bundle.index}-${bundle.name}`}
+                    ref={(node) => {
+                      rowRefs.current[index] = node;
+                    }}
+                    type="button"
+                    role="radio"
+                    aria-checked={chosen}
+                    tabIndex={index === activeIndex ? 0 : -1}
+                    variants={staggerRowItem}
+                    disabled={listDisabled}
+                    onClick={() => setSelectedName(bundle.name)}
+                    className={cn(
+                      CHOICE_ROW.ROOT,
+                      chosen ? CHOICE_ROW.SELECTED : CHOICE_ROW.REST,
+                      listDisabled && "cursor-not-allowed opacity-60",
+                    )}
+                  >
+                    <span className={CHOICE_ROW.TEXT}>
+                      <span className={CHOICE_ROW.NAME}>{bundle.name}</span>
+                      {/* The modem's live selection, not the draft: a bundle runs only after boot. */}
+                      {bundle.selected && bundle.activated ? (
+                        <span className={CHOICE_ROW.CAPTION}>
+                          {t(`${K}.selected_caption`)}
+                        </span>
+                      ) : null}
+                    </span>
+                    {chosen ? (
+                      <MaterialSymbol
+                        name="check_circle"
+                        filled
+                        size={CHOICE_ROW.GLYPH}
+                      />
+                    ) : null}
+                  </motion.button>
+                );
+              })}
+            </motion.div>
+          </div>
+        )}
+      </CardContent>
+
+      {/* Persistent; the reboot note shows only while a change is pending. */}
+      <CardFoot
+        className={CARD_PAD}
+        status={
+          changeCount > 0 ? (
+            <>
+              <span className="text-foreground font-semibold tabular-nums">
+                {t("core_settings.basic.save_bar.count", { count: changeCount })}
+              </span>
+              <span className="text-pretty">{t(`${K}.pending_note`)}</span>
+            </>
+          ) : null
+        }
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={discard}
+              disabled={isSaving || changeCount === 0}
+              size="action" className="gap-0"
+            >
+              {t("core_settings.basic.save_bar.discard")}
+            </Button>
             <SaveButton
-              type="submit"
+              type="button"
+              onClick={handleSave}
               isSaving={isSaving}
               saved={saved}
-              label="Save Settings"
+              label={t(`${K}.save`)}
+              disabled={changeCount === 0}
+              size="action"
             />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleReset}
-                  disabled={isSaving}
-                  aria-label="Reset to saved values"
-                >
-                  <RotateCcwIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Reset to saved values</TooltipContent>
-            </Tooltip>
-          </div>
-        </form>
+          </>
+        }
+      />
 
-        {/* Reboot confirmation dialog */}
-        <AlertDialog open={showRebootDialog} onOpenChange={(open) => {
-          if (!isRebooting) setShowRebootDialog(open);
-        }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reboot Required</AlertDialogTitle>
-              <AlertDialogDescription>
-                Carrier profile changes require a device reboot to take effect.
-                Would you like to reboot now?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isRebooting}>
-                Reboot Later
-              </AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                disabled={isRebooting}
-                onClick={handleReboot}
-              >
-                {isRebooting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Rebooting...
-                  </>
-                ) : (
-                  "Reboot Now"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardContent>
+      {/* Opened only after a successful write; any close but Reboot now defers to the banner. */}
+      <AlertDialog
+        open={showRebootDialog}
+        onOpenChange={(open) => {
+          if (isRebooting) return;
+          if (!open) handleRebootLater();
+          else setShowRebootDialog(true);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(`${K}.reboot.title`)}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(`${K}.reboot.description`)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRebooting}>
+              {t(`${K}.reboot.later`)}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={isRebooting}
+              onClick={handleReboot}
+            >
+              {isRebooting ? (
+                <>
+                  <MaterialSymbol
+                    name="progress_activity"
+                    size={16}
+                    className="motion-safe:animate-spin"
+                  />
+                  {t(`${K}.reboot.rebooting`)}
+                </>
+              ) : (
+                t(`${K}.reboot.now`)
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
-};
+}
 
 export default MBNCard;

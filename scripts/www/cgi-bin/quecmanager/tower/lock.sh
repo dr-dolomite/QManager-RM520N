@@ -29,6 +29,7 @@ cgi_handle_options
 
 # --- Load library ------------------------------------------------------------
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -70,21 +71,9 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         c3_earfcn=$(printf '%s' "$POST_DATA" | jq -r '(.cells[2].earfcn) | if . == null then empty else tostring end' 2>/dev/null)
         c3_pci=$(printf '%s' "$POST_DATA" | jq -r '(.cells[2].pci) | if . == null then empty else tostring end' 2>/dev/null)
 
-        # Count valid cells
-        num_cells=0
-        at_args=""
-        if [ -n "$c1_earfcn" ] && [ -n "$c1_pci" ]; then
-            num_cells=$((num_cells + 1))
-            at_args="$c1_earfcn $c1_pci"
-        fi
-        if [ -n "$c2_earfcn" ] && [ -n "$c2_pci" ]; then
-            num_cells=$((num_cells + 1))
-            at_args="$at_args $c2_earfcn $c2_pci"
-        fi
-        if [ -n "$c3_earfcn" ] && [ -n "$c3_pci" ]; then
-            num_cells=$((num_cells + 1))
-            at_args="$at_args $c3_earfcn $c3_pci"
-        fi
+        tower_lte_cell_args "$c1_earfcn" "$c1_pci" "$c2_earfcn" "$c2_pci" "$c3_earfcn" "$c3_pci"
+        num_cells="$TW_NUM_CELLS"
+        at_args="$TW_AT_ARGS"
 
         if [ "$num_cells" -eq 0 ]; then
             cgi_error "no_cells" "At least one EARFCN+PCI pair is required"
@@ -92,105 +81,33 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         fi
 
         # Validate ranges
-        for val in $c1_earfcn $c2_earfcn $c3_earfcn; do
-            [ -z "$val" ] && continue
-            case "$val" in
-                *[!0-9]*) cgi_error "invalid_earfcn" "EARFCN must be numeric"; exit 0 ;;
-            esac
-        done
-        for val in $c1_pci $c2_pci $c3_pci; do
-            [ -z "$val" ] && continue
-            case "$val" in
-                *[!0-9]*) cgi_error "invalid_pci" "PCI must be numeric"; exit 0 ;;
-            esac
-            if [ "$val" -gt 503 ]; then
-                cgi_error "invalid_pci" "PCI must be 0-503"
-                exit 0
-            fi
-        done
+        if ! rv_tower_lte_cells "$c1_earfcn $c2_earfcn $c3_earfcn" "$c1_pci $c2_pci $c3_pci"; then
+            cgi_error "$RV_CODE" "$RV_DETAIL"
+            exit 0
+        fi
 
         qlog_info "LTE tower lock: $num_cells cell(s) — $at_args"
 
-        # Send AT command
-        result=$(tower_lock_lte "$num_cells" $at_args)
-        rc=$?
-
-        if [ $rc -ne 0 ] || [ -z "$result" ]; then
-            qlog_error "LTE tower lock failed (rc=$rc)"
-            cgi_error "modem_error" "Failed to send tower lock command"
+        if ! tower_do_lte_lock "$c1_earfcn" "$c1_pci" "$c2_earfcn" "$c2_pci" "$c3_earfcn" "$c3_pci"; then
+            cgi_error "$TW_ERR_CODE" "$TW_ERR_DETAIL"
             exit 0
         fi
-
-        case "$result" in
-            *ERROR*)
-                qlog_error "LTE tower lock AT ERROR: $result"
-                cgi_error "at_error" "Modem rejected tower lock command"
-                exit 0
-                ;;
-        esac
-
-        qlog_info "LTE tower lock applied successfully"
-
-        # Re-apply custom MTU after interface bounce
-        mtu_reapply_after_bounce
-
-        # Update config file. Failover stays at whatever the user set in
-        # Tower Settings — locking does not implicitly enable it.
-        tower_config_update_lte "true" "$c1_earfcn" "$c1_pci" "$c2_earfcn" "$c2_pci" "$c3_earfcn" "$c3_pci"
-
-        # Spawn failover watcher (no-op if failover.enabled is false)
-        failover_armed=$(tower_spawn_failover_watcher)
+        failover_armed="$TW_FAILOVER_ARMED"
+        _fa_persist_failed="$TW_PERSIST_FAILED"
 
         jq -n --argjson nc "$num_cells" --argjson fa "$failover_armed" \
-            '{"success":true,"type":"lte","action":"lock","num_cells":$nc,"failover_armed":$fa}'
+            --argjson pf "$_fa_persist_failed" \
+            '{"success":true,"type":"lte","action":"lock","num_cells":$nc,"failover_armed":$fa,"service_enable_failed":$pf}'
 
     elif [ "$ACTION" = "unlock" ]; then
-        # Kill failover watcher BEFORE sending unlock AT command.
-        # During the 3-5s modem disconnect from unlock, the daemon could
-        # misdetect "no signal" and clear ALL locks (including NR if active).
-        fo_was_enabled=$(tower_config_get ".failover.enabled")
-        tower_kill_failover_watcher
-        rm -f "$TOWER_FAILOVER_FLAG"
-
-        result=$(tower_unlock_lte)
-        rc=$?
-
-        if [ $rc -ne 0 ] || [ -z "$result" ]; then
-            qlog_error "LTE tower unlock failed (rc=$rc)"
-            cgi_error "modem_error" "Failed to clear tower lock"
+        if ! tower_do_lte_unlock; then
+            cgi_error "$TW_ERR_CODE" "$TW_ERR_DETAIL"
             exit 0
         fi
+        svc_disable_failed="$TW_SVC_DISABLE_FAILED"
 
-        case "$result" in
-            *ERROR*)
-                qlog_error "LTE tower unlock AT ERROR: $result"
-                cgi_error "at_error" "Modem rejected unlock command"
-                exit 0
-                ;;
-        esac
-
-        qlog_info "LTE tower lock cleared"
-
-        # Re-apply custom MTU after interface bounce
-        mtu_reapply_after_bounce
-
-        # Update config — preserve ALL cell data, just set enabled=false
-        tower_config_update '.lte.enabled = false'
-
-        # Check if other lock remains active
-        nr_active=$(tower_config_get ".nr_sa.enabled")
-        if [ "$nr_active" = "true" ] && [ "$fo_was_enabled" = "true" ]; then
-            # NR lock still active with failover — respawn watcher for it
-            tower_spawn_failover_watcher >/dev/null
-            qlog_info "NR lock still active — failover watcher respawned"
-        else
-            # No other lock — disable failover fully
-            tower_config_update '.failover.enabled = false'
-            svc_disable qmanager_tower_failover
-            qlog_info "No active locks — failover stopped and disabled"
-        fi
-
-        jq -n '{"success":true,"type":"lte","action":"unlock"}'
+        jq -n --argjson sdf "$svc_disable_failed" \
+            '{"success":true,"type":"lte","action":"unlock","service_disable_failed":$sdf}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
         exit 0
@@ -213,96 +130,39 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
             exit 0
         fi
 
+        # Non-negative integers only (jq tostring yields "-1" / "1.5" for those)
+        if ! rv_tower_nr_fields "$nr_pci" "$nr_arfcn" "$nr_band"; then
+            cgi_error "$RV_CODE" "$RV_DETAIL"
+            exit 0
+        fi
+
         # Validate SCS value
-        case "$nr_scs" in
-            15|30|60|120|240) ;;  # Valid SCS kHz values
-            *)
-                cgi_error "invalid_scs" "SCS must be 15, 30, 60, 120, or 240 kHz"
-                exit 0
-                ;;
-        esac
+        if ! rv_tower_scs "$nr_scs"; then
+            cgi_error "$RV_CODE" "$RV_DETAIL"
+            exit 0
+        fi
 
         qlog_info "NR-SA tower lock: PCI=$nr_pci ARFCN=$nr_arfcn SCS=$nr_scs Band=$nr_band"
 
-        result=$(tower_lock_nr "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band")
-        rc=$?
-
-        if [ $rc -ne 0 ] || [ -z "$result" ]; then
-            qlog_error "NR-SA tower lock failed (rc=$rc)"
-            cgi_error "modem_error" "Failed to send NR tower lock command"
+        if ! tower_do_nr_lock "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band"; then
+            cgi_error "$TW_ERR_CODE" "$TW_ERR_DETAIL"
             exit 0
         fi
+        failover_armed="$TW_FAILOVER_ARMED"
+        _fa_persist_failed="$TW_PERSIST_FAILED"
 
-        case "$result" in
-            *ERROR*)
-                qlog_error "NR-SA tower lock AT ERROR: $result"
-                cgi_error "at_error" "Modem rejected NR tower lock command"
-                exit 0
-                ;;
-        esac
-
-        qlog_info "NR-SA tower lock applied successfully"
-
-        # Re-apply custom MTU after interface bounce
-        mtu_reapply_after_bounce
-
-        # Update config. Failover stays at whatever the user set in
-        # Tower Settings — locking does not implicitly enable it.
-        tower_config_update_nr "true" "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band"
-
-        # Spawn failover watcher (no-op if failover.enabled is false)
-        failover_armed=$(tower_spawn_failover_watcher)
-
-        jq -n --argjson fa "$failover_armed" \
-            '{"success":true,"type":"nr_sa","action":"lock","failover_armed":$fa}'
+        jq -n --argjson fa "$failover_armed" --argjson pf "$_fa_persist_failed" \
+            '{"success":true,"type":"nr_sa","action":"lock","failover_armed":$fa,"service_enable_failed":$pf}'
 
     elif [ "$ACTION" = "unlock" ]; then
-        # Kill failover watcher BEFORE sending unlock AT command.
-        # During the 3-5s modem disconnect from unlock, the daemon could
-        # misdetect "no signal" and clear ALL locks (including LTE if active).
-        fo_was_enabled=$(tower_config_get ".failover.enabled")
-        tower_kill_failover_watcher
-        rm -f "$TOWER_FAILOVER_FLAG"
-
-        result=$(tower_unlock_nr)
-        rc=$?
-
-        if [ $rc -ne 0 ] || [ -z "$result" ]; then
-            qlog_error "NR-SA tower unlock failed (rc=$rc)"
-            cgi_error "modem_error" "Failed to clear NR tower lock"
+        if ! tower_do_nr_unlock; then
+            cgi_error "$TW_ERR_CODE" "$TW_ERR_DETAIL"
             exit 0
         fi
+        svc_disable_failed="$TW_SVC_DISABLE_FAILED"
 
-        case "$result" in
-            *ERROR*)
-                qlog_error "NR-SA tower unlock AT ERROR: $result"
-                cgi_error "at_error" "Modem rejected NR unlock command"
-                exit 0
-                ;;
-        esac
-
-        qlog_info "NR-SA tower lock cleared"
-
-        # Re-apply custom MTU after interface bounce
-        mtu_reapply_after_bounce
-
-        # Update config — preserve ALL NR params, just set enabled=false
-        tower_config_update '.nr_sa.enabled = false'
-
-        # Check if other lock remains active
-        lte_active=$(tower_config_get ".lte.enabled")
-        if [ "$lte_active" = "true" ] && [ "$fo_was_enabled" = "true" ]; then
-            # LTE lock still active with failover — respawn watcher for it
-            tower_spawn_failover_watcher >/dev/null
-            qlog_info "LTE lock still active — failover watcher respawned"
-        else
-            # No other lock — disable failover fully
-            tower_config_update '.failover.enabled = false'
-            svc_disable qmanager_tower_failover
-            qlog_info "No active locks — failover stopped and disabled"
-        fi
-
-        jq -n '{"success":true,"type":"nr_sa","action":"unlock"}'
+        jq -n --argjson sdf "$svc_disable_failed" \
+            '{"success":true,"type":"nr_sa","action":"unlock","service_disable_failed":$sdf}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
         exit 0

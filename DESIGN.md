@@ -1,518 +1,1120 @@
 ---
 name: QManager
-description: Modern web GUI for managing the Quectel RM520N-GL modem. The Operator's Console, running on the modem it manages.
+description: Web GUI for the Quectel RM520N-GL modem. An instrument console — colour on the data, not on the furniture — running on the modem it manages.
 colors:
-  signal-indigo: "oklch(0.488 0.243 264.376)"
-  sidebar-indigo-light: "oklch(0.546 0.245 262.881)"
-  sidebar-indigo-dark: "oklch(0.623 0.214 259.815)"
-  secondary-light: "oklch(0.967 0.001 286.375)"
-  secondary-dark: "oklch(0.274 0.006 286.033)"
-  uplink-green: "oklch(0.59 0.18 149)"
-  uplink-green-dark: "oklch(0.65 0.17 149)"
-  caution-amber: "oklch(0.75 0.18 75)"
-  caution-amber-dark: "oklch(0.80 0.16 75)"
-  telemetry-blue: "oklch(0.62 0.19 255)"
-  telemetry-blue-dark: "oklch(0.68 0.17 255)"
-  fault-red: "oklch(0.577 0.245 27.325)"
-  fault-red-dark: "oklch(0.704 0.191 22.216)"
-  neutral-bg-light: "oklch(1 0 0)"
-  neutral-bg-dark: "oklch(0.141 0.005 285.823)"
-  neutral-fg-light: "oklch(0.141 0.005 285.823)"
-  neutral-fg-dark: "oklch(0.985 0 0)"
-  surface-card-light: "oklch(1 0 0)"
-  surface-card-dark: "oklch(0.21 0.006 285.885)"
-  surface-sidebar-light: "oklch(0.985 0 0)"
-  surface-sidebar-dark: "oklch(0.21 0.006 285.885)"
-  surface-muted-light: "oklch(0.967 0.001 286.375)"
-  surface-muted-dark: "oklch(0.274 0.006 286.033)"
-  muted-fg-light: "oklch(0.552 0.016 285.938)"
-  muted-fg-dark: "oklch(0.705 0.015 286.067)"
-  border-light: "oklch(0.92 0.004 286.32)"
-  border-dark: "oklch(1 0 0 / 0.10)"
-  ring-light: "oklch(0.708 0 0)"
-  ring-dark: "oklch(0.556 0 0)"
-  chart-1: "oklch(0.809 0.105 251.813)"
-  chart-2: "oklch(0.623 0.214 259.815)"
-  chart-3: "oklch(0.546 0.245 262.881)"
-  chart-4: "oklch(0.488 0.243 264.376)"
-  chart-5: "oklch(0.424 0.199 265.638)"
-  chart-6: "oklch(0.705 0.213 47.604)"
+  # Keys mirror the names that resolve in app/globals.css, which is NORMATIVE.
+  # Where the Material vocabulary and shadcn's collide, the shipped name wins:
+  # Carrier Violet is `lte-*` (not `secondary-*`); shadcn's own --secondary is a
+  # NEUTRAL in this codebase.
+  #
+  # EVERY value below is inside the sRGB gamut by construction (chroma floored
+  # to 98.5% of the in-gamut maximum for its lightness and hue). That is a
+  # correctness property, not a nicety: Lightning CSS gamut-maps out-of-range
+  # oklch() at build time, so an out-of-gamut token ships a colour nobody
+  # authored. Here declared == shipped. See The In-Gamut Rule.
+  #
+  # --- The mark: the source pair every other hue derives from ---
+  mark-ring: "oklch(0.623 0.214 259.815)"
+
+  # --- Neutrals: the ground everything else sits on ---
+  background-light: "oklch(0.985 0.003 258)"
+  background-dark: "oklch(0.120 0.008 258)"
+  foreground-light: "oklch(0.205 0.011 258)"
+  foreground-dark: "oklch(0.965 0.004 258)"
+  surface-light: "oklch(1.000 0.000 258)"
+  surface-dark: "oklch(0.170 0.009 258)"
+  card-light: "oklch(1.000 0.000 258)"
+  card-dark: "oklch(0.170 0.009 258)"
+  surface-container-light: "oklch(0.967 0.005 258)"
+  surface-container-dark: "oklch(0.200 0.010 258)"
+  surface-container-high-light: "oklch(0.938 0.007 258)"
+  surface-container-high-dark: "oklch(0.235 0.012 258)"
+  on-surface-light: "oklch(0.205 0.011 258)"
+  on-surface-dark: "oklch(0.965 0.004 258)"
+  on-surface-variant-light: "oklch(0.505 0.012 258)"
+  on-surface-variant-dark: "oklch(0.762 0.011 258)"
+  border-light: "oklch(0.905 0.006 258)"
+  border-dark: "oklch(0.288 0.012 258)"
+  input-light: "oklch(0.868 0.008 258)"
+  input-dark: "oklch(0.330 0.013 258)"
+
+  # --- Primary / NR / info / action: the mark's blue. The only hue that acts. ---
+  primary-light: "oklch(0.565 0.235 262)"
+  primary-dark: "oklch(0.605 0.200 262)"
+  primary-foreground-light: "oklch(0.985 0.006 262)"
+  primary-foreground-dark: "oklch(0.195 0.055 262)"
+  primary-on-surface-light: "oklch(0.535 0.220 262)"
+  primary-on-surface-dark: "oklch(0.650 0.183 262)"
+  primary-container-light: "oklch(0.890 0.052 262)"
+  primary-container-dark: "oklch(0.375 0.145 262)"
+  on-primary-container-light: "oklch(0.360 0.160 262)"
+  on-primary-container-dark: "oklch(0.900 0.047 262)"
+
+  # --- Carrier Violet (`--lte-*`): the 4G LTE identity. Never acts. ---
+  lte-light: "oklch(0.510 0.240 296)"
+  lte-dark: "oklch(0.700 0.175 296)"
+  lte-foreground-light: "oklch(0.985 0.007 296)"
+  lte-foreground-dark: "oklch(0.195 0.055 296)"
+  lte-on-surface-light: "oklch(0.465 0.220 296)"
+  lte-on-surface-dark: "oklch(0.740 0.149 296)"
+  lte-container-light: "oklch(0.850 0.082 296)"
+  lte-container-dark: "oklch(0.270 0.145 296)"
+  on-lte-container-light: "oklch(0.360 0.160 296)"
+  on-lte-container-dark: "oklch(0.900 0.053 296)"
+
+  # --- Downlink Rose (`--downlink-*`): the download direction. Only that. ---
+  downlink-light: "oklch(0.480 0.204 341)"
+  downlink-dark: "oklch(0.660 0.200 341)"
+  downlink-foreground-light: "oklch(0.985 0.009 341)"
+  downlink-foreground-dark: "oklch(0.195 0.055 341)"
+  downlink-on-surface-light: "oklch(0.450 0.191 341)"
+  downlink-on-surface-dark: "oklch(0.700 0.200 341)"
+  downlink-container-light: "oklch(0.875 0.087 341)"
+  downlink-container-dark: "oklch(0.285 0.121 341)"
+  on-downlink-container-light: "oklch(0.360 0.153 341)"
+  on-downlink-container-dark: "oklch(0.900 0.068 341)"
+
+  # --- Uplink Cyan (`--uplink-*`): the upload direction. Only that. ---
+  uplink-light: "oklch(0.545 0.091 200)"
+  uplink-dark: "oklch(0.820 0.137 200)"
+  uplink-foreground-light: "oklch(0.985 0.012 200)"
+  uplink-foreground-dark: "oklch(0.195 0.032 200)"
+  uplink-on-surface-light: "oklch(0.515 0.086 200)"
+  uplink-on-surface-dark: "oklch(0.870 0.145 200)"
+  uplink-container-light: "oklch(0.915 0.105 200)"
+  uplink-container-dark: "oklch(0.345 0.057 200)"
+  on-uplink-container-light: "oklch(0.360 0.060 200)"
+  on-uplink-container-dark: "oklch(0.900 0.110 200)"
+
+  # --- Spatial Azure (`--spatial-*`): antenna and spatial-stream readouts. ---
+  spatial-light: "oklch(0.550 0.110 232)"
+  spatial-dark: "oklch(0.790 0.127 232)"
+  spatial-foreground-light: "oklch(0.985 0.008 232)"
+  spatial-foreground-dark: "oklch(0.195 0.039 232)"
+  spatial-on-surface-light: "oklch(0.515 0.103 232)"
+  spatial-on-surface-dark: "oklch(0.820 0.108 232)"
+  spatial-container-light: "oklch(0.855 0.085 232)"
+  spatial-container-dark: "oklch(0.265 0.053 232)"
+  on-spatial-container-light: "oklch(0.360 0.072 232)"
+  on-spatial-container-dark: "oklch(0.900 0.058 232)"
+
+  # --- The functional three ---
+  destructive-light: "oklch(0.480 0.192 27)"
+  destructive-dark: "oklch(0.640 0.200 27)"
+  destructive-foreground-light: "oklch(0.985 0.007 27)"
+  destructive-foreground-dark: "oklch(0.195 0.055 27)"
+  destructive-on-surface-light: "oklch(0.440 0.176 27)"
+  destructive-on-surface-dark: "oklch(0.680 0.200 27)"
+  destructive-container-light: "oklch(0.835 0.089 27)"
+  destructive-container-dark: "oklch(0.245 0.098 27)"
+  on-destructive-container-light: "oklch(0.360 0.144 27)"
+  on-destructive-container-dark: "oklch(0.900 0.051 27)"
+  warning-light: "oklch(0.560 0.118 72)"
+  warning-dark: "oklch(0.790 0.166 72)"
+  warning-foreground-light: "oklch(0.985 0.011 72)"
+  warning-foreground-dark: "oklch(0.195 0.041 72)"
+  warning-on-surface-light: "oklch(0.525 0.110 72)"
+  warning-on-surface-dark: "oklch(0.815 0.151 72)"
+  warning-container-light: "oklch(0.855 0.115 72)"
+  warning-container-dark: "oklch(0.410 0.086 72)"
+  on-warning-container-light: "oklch(0.360 0.075 72)"
+  on-warning-container-dark: "oklch(0.900 0.077 72)"
+  success-light: "oklch(0.540 0.150 149)"
+  success-dark: "oklch(0.740 0.200 149)"
+  success-foreground-light: "oklch(0.985 0.012 149)"
+  success-foreground-dark: "oklch(0.195 0.054 149)"
+  success-on-surface-light: "oklch(0.505 0.140 149)"
+  success-on-surface-dark: "oklch(0.780 0.200 149)"
+  success-container-light: "oklch(0.895 0.145 149)"
+  success-container-dark: "oklch(0.310 0.086 149)"
+  on-success-container-light: "oklch(0.360 0.100 149)"
+  on-success-container-dark: "oklch(0.900 0.110 149)"
+
+  # --- Signal quality ramp: three plain hues (red / yellow / green) over five stops ---
+  quality-1-light: "oklch(0.500 0.190 27)"
+  quality-1-dark: "oklch(0.680 0.200 27)"
+  quality-2-light: "oklch(0.500 0.190 27)"
+  quality-2-dark: "oklch(0.680 0.200 27)"
+  quality-3-light: "oklch(0.580 0.125 80)"
+  quality-3-dark: "oklch(0.860 0.160 90)"
+  quality-4-light: "oklch(0.505 0.140 149)"
+  quality-4-dark: "oklch(0.800 0.200 149)"
+  quality-5-light: "oklch(0.505 0.140 149)"
+  quality-5-dark: "oklch(0.800 0.200 149)"
+  quality-1-bar-light: "oklch(0.580 0.210 27)"
+  quality-1-bar-dark: "oklch(0.640 0.220 27)"
+  quality-2-bar-light: "oklch(0.580 0.210 27)"
+  quality-2-bar-dark: "oklch(0.640 0.220 27)"
+  quality-3-bar-light: "oklch(0.820 0.165 88)"
+  quality-3-bar-dark: "oklch(0.840 0.170 90)"
+  quality-4-bar-light: "oklch(0.620 0.170 149)"
+  quality-4-bar-dark: "oklch(0.760 0.210 149)"
+  quality-5-bar-light: "oklch(0.620 0.170 149)"
+  quality-5-bar-dark: "oklch(0.760 0.210 149)"
+
+  # --- Outline tags: identity and metadata, border + text, no fill ---
+  tag-nr-text-light: "oklch(0.535 0.220 262)"
+  tag-nr-text-dark: "oklch(0.650 0.183 262)"
+  tag-nr-border-light: "oklch(0.600 0.190 262)"
+  tag-nr-border-dark: "oklch(0.600 0.190 262)"
+  tag-lte-text-light: "oklch(0.465 0.220 296)"
+  tag-lte-text-dark: "oklch(0.740 0.149 296)"
+  tag-lte-border-light: "oklch(0.545 0.190 296)"
+  tag-lte-border-dark: "oklch(0.540 0.190 296)"
+  tag-spatial-text-light: "oklch(0.515 0.103 232)"
+  tag-spatial-text-dark: "oklch(0.820 0.108 232)"
+  tag-spatial-border-light: "oklch(0.615 0.123 232)"
+  tag-spatial-border-dark: "oklch(0.640 0.128 232)"
+  tag-neutral-text-light: "oklch(0.505 0.012 258)"
+  tag-neutral-text-dark: "oklch(0.762 0.011 258)"
+  tag-neutral-border-light: "oklch(0.620 0.012 258)"
+  tag-neutral-border-dark: "oklch(0.520 0.012 258)"
+
 typography:
-  display:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
-    fontSize: "1.875rem"
-    fontWeight: 700
-    lineHeight: "1.2"
-  headline:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
-    fontSize: "1.25rem"
-    fontWeight: 600
-    lineHeight: "1.25"
-  title:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
-    fontSize: "1rem"
-    fontWeight: 600
-    lineHeight: "1"
-  body:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 400
-    lineHeight: "1.5"
-  label:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
-    fontSize: "0.75rem"
-    fontWeight: 500
-    lineHeight: "1"
-  numeric:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
-    fontWeight: 600
-    fontFeature: "'tnum' 1"
-  mono:
-    fontFamily: "var(--font-geist-mono), ui-monospace, monospace"
-    scope: "AT terminal, logs, copyable commands, technical identifiers"
+  sans: "Rethink Sans (--font-sans, WOFF2 variable, next/font/local)"
+  mono: "JetBrains Mono (--font-jetbrains-mono → font-mono, vendored, next/font/local)"
+  icons: "Material Symbols Rounded (shell, /dashboard, pre-auth, all of /cellular/) · lucide-react (everywhere else)"
+  weights: "400 body · 500 labels · 600 titles and numerics · 700 page titles only"
+  display: "700 / 1.875rem / -0.02em"
+  headline: "600 / 1.25rem / -0.01em"
+  title: "600 / 1.125rem"
+  body: "400 / 0.875rem"
+  row: "600 / 0.8125rem on a 20px line box"
+  label: "500 / 0.75rem"
+  numeric: "600 tabular-nums in --font-sans, sized by its slot"
+
 rounded:
-  sm: "calc(0.65rem - 4px)"
-  md: "calc(0.65rem - 2px)"
-  lg: "0.65rem"
-  xl: "calc(0.65rem + 4px)"
+  inline: "0.5rem"
+  field: "0.625rem"
+  tile: "0.75rem"
+  card: "1rem"
+  hero: "1.25rem"
   pill: "9999px"
+
 spacing:
-  xs: "0.25rem"
-  sm: "0.5rem"
-  md: "1rem"
-  lg: "1.5rem"
-  xl: "2rem"
+  page-gutter: "16px → 24px"
+  card-grid-gap: "16-24px"
+  tile-grid-gap: "14px"
+  in-card-row-gap: "6px"
+  inline-gap: "8-10px"
+  card-padding: "24px standard · 28px hero"
+
 components:
-  button-primary:
-    backgroundColor: "{colors.signal-indigo}"
-    textColor: "oklch(0.97 0.014 254.604)"
-    rounded: "{rounded.md}"
-    padding: "0.5rem 1rem"
-    height: "2.25rem"
-  button-destructive:
-    backgroundColor: "{colors.fault-red}"
-    textColor: "white"
-    rounded: "{rounded.md}"
-    height: "2.25rem"
-  button-outline:
-    backgroundColor: "{colors.neutral-bg-light}"
-    textColor: "{colors.neutral-fg-light}"
-    rounded: "{rounded.md}"
-    height: "2.25rem"
-  badge-outline-status:
-    pattern: "variant=outline + bg-{role}/15 text-{role} hover:bg-{role}/20 border-{role}/30 + size-3 icon"
-    rounded: "{rounded.pill}"
-    padding: "0.125rem 0.5rem"
-    typography: "{typography.label}"
-  card:
-    backgroundColor: "{colors.surface-card-light}"
-    textColor: "{colors.neutral-fg-light}"
-    rounded: "{rounded.xl}"
-    padding: "1.5rem"
-  input:
-    backgroundColor: "transparent (light) / input/30 (dark)"
-    rounded: "{rounded.md}"
-    padding: "0.25rem 0.75rem"
-    height: "2.25rem"
+  button: "full-round pill at every size · default 36px (44px on a coarse pointer) · page action: 42px tall, 20px horizontal, 600, via size=\"action\""
+  status-chip: "filled role container + on- ink, no border, pill, mandatory 12px glyph"
+  outline-tag: "1px role border + role text, transparent fill, pill, no glyph required"
+  card: "16px radius in a grid, 20px for an anchor; border-0; surface fill; card-sheen in dark"
+  card-foot: "borderless row on the card's bottom edge, min 64px; status left, Discard then SaveButton right"
+  tile: "12px radius, 104px pinned height, 52px glyph disc + text column"
+  metric-row: "40px pill on surface-container, 16px horizontal"
+  input: "10px radius, 42px tall, no rest border, fill one step above the host via the host prop (surface-container default, surface-container-high on a container)"
+  quality-bar: "full-round track, 8px tall everywhere, ramp-coloured fill, length carries the value"
 ---
 
 # Design System: QManager (RM520N-GL)
 
-## 1. Overview
+## Overview
 
-**Creative North Star: "The Operator's Console"**
+QManager is an **instrument console**. It reports what a cellular modem is doing, on the modem itself, to someone who understands modems. The design language follows from three facts about that job.
 
-QManager is the calm, expert console an operator trusts when something matters. It is served by the modem it manages (lighttpd + CGI on the RM520N-GL itself), so it earns its restraint twice: once as a stylistic principle (Linear and Vercel polish, no flash), and again as a safety principle (the routine 90% should feel effortless, the risky 10% should feel deliberate). The system rejects the engineer-default ugliness of classic router admin panels, the marketing-slick oversimplification of consumer router apps, and the AI-slop hero-metric template that has flattened every SaaS dashboard into the same product.
+**Colour belongs to the data, not to the furniture.** A card is a neutral surface. What is coloured is the reading: the numeral, the chart stroke, the quality bar, the glyph in its disc. This is the single largest change from the previous system, which spent its colour on large tonal container fills and left the live diagnostic values grey. That inversion was measured and it was backwards — on the surface built to showcase the colour system, four tinted tiles carried restated facts while RSRP and SINR sat in neutral text below them.
 
-The aesthetic is **restrained at rest, responsive in interaction, quiet in motion, dense in data**. Surfaces are calm until a user reaches for them. Charts and signal readouts are allowed to be dense (this is a modem GUI; density is the job) but the density is earned with hierarchy, not dumped on the page. The interface is a peer to the technically literate user it serves: never patronizing, never showing off.
+It is also the accessible answer, which is not a coincidence. Across this palette, **ink colours separate in 0 of 28 pairs under deuteranopia and protanopia simulation. So do fills. Pale identity containers separate in 2 of 10.** Colour on ink works; colour on large pale surfaces does not. The design direction and the measurement agree, so the system commits to the layer that survives.
 
-The dominant visual references, per project canon:
+**Density is the product, and hierarchy is how it stays readable.** A modem console shows a lot at once. The answer is never to show less; it is to rank what is shown. Neutral surfaces, one coloured thing per row, and a consistent card grid are what let forty routes feel like one product. Inside a card, edges, grouping and quiet defaults do the ranking (Layout > The Scanning Rules).
 
-- **Apple System Preferences** for clarity and hierarchy: every feature page is a page header plus a uniform card layout, never a bespoke per-screen composition.
-- **Vercel / Linear** for typography, motion restraint, and whitespace.
-- **Grafana / Datadog** for data-visualization density done with discipline.
-- **UniFi** for network-management UX patterns and inline status density. UniFi is a density reference, not a layout reference.
+**Every hue owns exactly one meaning.** A colour a user learns on the dashboard means the same thing on the cell scanner. Where a figure has no honest hue, it stays neutral rather than being given a decorative one.
 
-Anti-references: raw terminal aesthetics, cluttered legacy network tools, overly playful consumer styling. Never sacrifice clarity for visual flair.
+**Reference language:** WiFiman (Ubiquiti) and Firewalla — near-black canvas, saturated data strokes, coloured numerals, thin quality bars, outline metadata tags. **Structural reference:** the grouped-card, consistent-shape page from macOS System Settings and the Apple pro-app inspectors. **Not** a consumer router app, not a generic SaaS dashboard, not a terminal utility.
 
-**Key Characteristics:**
+Both themes are first-class and each is authored. Dark is a near-black instrument panel; light is a white-card console. Neither is a desaturated copy of the other, and every value in both was measured rather than derived by inversion.
 
-- Quiet by default, expressive in the moments that matter (destructive actions, recovery feedback, signal events).
-- OKLCH-only color system. `#000` and `#fff` are forbidden as literals; every neutral is tinted toward the brand hue.
-- **Euclid Circular B** is the interface voice; hierarchy comes from weight + scale. The mono voice (`font-mono`) is reserved for machine output and technical identifiers.
-- Depth from tonal surfaces and hairline borders; shadows stay at `shadow-sm` or below at rest.
-- Short, settled motion (140-250ms ease-out) with a single global reduced-motion switch (`MotionConfig reducedMotion="user"`).
-- **Dense pill-and-tag status patterns** (UniFi heritage): outline badges with tinted washes, never solid badge fills.
-- **Feature pages compose as a page header plus a uniform card grid**, responsive via container queries (`@container/main`), the way macOS System Settings panes are.
-- **Build on shadcn/ui first.** When a surface needs a primitive (tabs, dialog, popover, tooltip, select, dropdown), use the shadcn component. Only build custom when shadcn genuinely does not provide one.
-- Live-updating values tick smoothly via tabular numbers + short color transitions; never via layout shifts or fade-flashes.
-- Dark and light themes are first-class equals. Neither is "the default." (`next-themes`, class strategy, `defaultTheme="system"`.)
+## Migration Deltas (tracked)
 
-## 2. Colors
+**This document is ahead of the code in the rows still marked Open.** The token set above has landed in `app/globals.css`; what remains is component work. This list is the implementation backlog, and a delta is removed only when the code matches.
 
-A muted neutral foundation tinted toward the brand indigo, with four named functional colors that each own a specific operational meaning. The palette stays restrained: the product UI runs on tinted neutrals plus one true action accent at well under 10% of any given screen.
+| Delta | Where | Status |
+| --- | --- | --- |
+| ~~Token set not yet written~~ | `app/globals.css` — both themes, plus `@theme inline` | **Landed** 2026-08-16 |
+| ~~`--*-on-surface` ink tokens missing~~ | `primary` and `lte` were the gap | **Landed** |
+| ~~Quality ramp tokens do not exist~~ | `--quality-{1..5}` / `--quality-{1..5}-bar` | **Landed** |
+| ~~Outline-tag tokens do not exist~~ | `--tag-*-text` / `--tag-*-border` | **Landed** |
+| ~~`getSignalQuality()` returns four levels~~ | `types/modem-status.ts` — the ladder returns five (`bad` below `poor`), `SIGNAL_QUALITY_RANK` ranks all six members, and `SignalThresholds.poor` was renamed to `floor` so the progress-scale bottom and the new classification cut no longer share a name | **Landed** 2026-08-17 |
+| ~~Quality "Good" still maps to the brand blue~~ | every consumer of the quality scale now reads `components/cellular/signal-quality-display.ts`; the four rival maps were deleted and `--primary` appears nowhere on the scale | **Landed** 2026-08-17 |
+| ~~Identity chips are filled containers~~ | `components/ui/tag.tsx` is the outline-tag primitive (`nr` / `lte` / `spatial` / `neutral`); all 11 identity sites migrated, and `nr` / `lte` / `downlink` / `uplink` / `spatial` were deleted from `components/ui/badge.tsx` | **Landed** 2026-08-17 |
+| ~~Radio summary tiles are four tinted containers~~ | `components/cellular/radio/summary-tiles.tsx` — all four bodies are neutral; colour survives only on the 52px disc, and `Tile` no longer accepts a `tone` prop | **Landed** 2026-08-17 |
+| ~~Quality bars are not built~~ | `components/ui/metric-bar.tsx` carries `quality-1`…`quality-5` in its static `TONE_CLASS`, and `value={null}` renders an empty track with no fill element. Ten surfaces consume the ramp; `bg-quality-*-bar` also appears in `public/overview/tone.ts`, whose band meter is a hand-built 7px `motion.div` rather than a `MetricBar` but takes its tone from the same `qualityMeterTone()` | **Landed** 2026-08-17 |
+| ~~`--primary` used as a health state~~ | `components/public/overview/tone.ts` and `fplmn-settings/fplmn-card.tsx:114` both moved to `success` (`ConditionTone` gained a `success` member to make the second one possible) | **Landed** 2026-08-17 |
+| ~~`.impeccable/design.json` sidecar is stale~~ | Regenerated from `app/globals.css` by script rather than by hand, so every `canonical` is a verbatim source string. 155 entries as `<token>-light` / `<token>-dark` pairs. The 8-step `tonalRamp` arrays were **dropped, not refreshed**: they were an artifact of the retired Material-3 derivation, and the shipped world authors exactly two values per token — inventing ramps would have recorded values the build does not contain | **Landed** 2026-08-17 |
+| `--chart-threshold` is an orphan | `app/globals.css:448` / `:612` define it in both themes (it tracks `--warning-on-surface`), but **no component consumes it**, and Data Visualization above still specifies threshold guides as dashed `--border` at low opacity. Two answers to one question. Either the token is deleted or the rule adopts it — not decided here | Open |
+| Legacy `--chart-1..6` still present | `app/globals.css` — **blocked**: `--chart-3` and `--chart-6` have live consumers in `latency-monitoring-card.tsx` and `signal-storm-game.tsx`. Both are retargeted onto the new palette and given real dark values so those surfaces theme; the block is deletable only once both callers move to `--chart-nr` / a quality stop | Blocked |
+| Identity `Tag` on a `primary-container` row | `components/cellular/antenna-alignment/recorder-card.tsx` — the winning position row is a `primary-container` block (Highlight-by-Container) and still carries its `nr` / `lte` outline tag, so a role border sits on another role's surface. Legible in both recorded captures; left standing because the alternatives are dropping identity from the one row that matters, or weakening a compiler-enforced split for one row's harmony | Open (accepted) |
+| Positions header order inverts on a phone | same file — below `@2xl/main` the header reads title → controls → description. The description takes the full width so it does not wrap to five lines in the ~220px it had beside the controls on desktop; the cost is that a phone reads the controls before the sentence explaining them. An order swap, not a restructure | Open |
+| ~~`condition-screen.tsx` is off the One-Scale spelling~~ | **Withdrawn — the row was wrong on both halves, and `components/cellular/condition-screen.tsx:146` is correct as shipped.** It reads `transition-colors duration-[var(--duration-quick)] ease-out`. (a) The bracket form is what The One-Scale Rule *itself* prescribes verbatim below ("Every transition reads `duration-[var(--duration-standard)]`…"), and it is the majority spelling in the tree; the parenthesis form `duration-(--duration-quick)` is Tailwind v4's CSS-variable shorthand for exactly the same declaration, so the two are interchangeable and neither is drift. What genuinely compiles to **nothing** is a bare `duration-standard`, because Tailwind v4 has no `--duration-*` theme namespace — which is why `--duration-*` are plain custom properties in `globals.css` while `--ease-*` are theme entries and *do* emit bare `ease-standard` utilities. (b) `ease-out` on a `quick` transition is not a substitute for `ease-standard`; Motion below states that `quick` **is** a plain `ease-out`, deliberately, "at the short end of the scale a bespoke cubic is indistinguishable from the built-in". Recorded rather than deleted because a delta row that fails an audit is worth more as a correction than as a gap | **Withdrawn** 2026-08-20 |
+| `/monitoring/alerts` is the largest unmigrated surface | `components/monitoring/alerts/**` (6 files) — surveyed 2026-08-20 during the SMS conformance pass and **deliberately not fixed there**, because it is a different feature. The icon library is correct (lucide, per the route boundary) and its motion is on-scale, but the colour and shape layers are pre-migration: **opacity washes on role colours** (`bg-success/15 text-success border-success/30`, `bg-primary/5`, `bg-warning/5` — the pattern the No-Hairline-On-Fill and "don't compensate with an alpha" rules retire), **`variant="outline"` used as a status chip** in `alerts-status-card.tsx` and `alerts-log-card.tsx`, a **tone map keyed onto class strings** rather than `BadgeVariant`, **legacy radii** (`rounded-lg` / `-md` / `-xl` / `-sm`) throughout, `text-muted-foreground` ×24 plus `/70` and `/40` alpha steps, and borders on tonal containers. This is where `/monitoring/sms-alerts` now redirects, so it is the successor to a surface users still bookmark. **Closed 2026-09-05** by a full re-authoring: a per-family `shapes.ts` and a single `derive.ts` now own all geometry, tone and derived state; the routing grid became a hero matrix reporting resolved effective-send instead of the three inputs behind it; the activity table became the `/monitoring` 52px event row; four tabs became a three-pill channel rail; every opacity wash, both `variant="outline"` status chips, both class-string tone maps, all 27 legacy radii and every `text-muted-foreground` are gone; the four restated skeletons now import the loaded views' own constants; and 174 strings were lifted into `alerts.*` across all five packs, the surface having previously had zero `useTranslation` | **Landed** 2026-09-05 |
+| ~~`/monitoring/alerts` predates the compact bento premise~~ | `components/monitoring/alerts/**` — re-authored a second time on 2026-10-12, onto the bento used by Latency Monitor, Watchdog and Network Events, overturning the 2026-09-05 hero matrix above. The three-tile status band and the editable 3×3 coverage matrix are retired (`alerts-status-card.tsx`, `alert-routing-grid.tsx`, `coverage-model.ts`, `coverage-labels.tsx` deleted); **Coverage** is three saved-truth receipt rows under one verdict `Badge` and never previews a draft; routing moved into each channel's panel as **Sends for** ticks beside its On/Off pill and fields, committed from one `CardFoot`; the three repeated wait fields became one; Activity sits beside both and scrolls inside its card past `LOG_SCROLL`. Feature doc: `docs/reference/alerts.md` > Frontend anatomy | **Landed** 2026-10-12 |
+| `/monitoring/sms-alerts` redirects client-side | `app/monitoring/sms-alerts/page.tsx` — a legacy-bookmark forwarder that runs `router.replace` in an effect, so it hydrates before redirecting and flashes one hardcoded, unkeyed English string (`"Redirecting to Alerts…"`, the surface's only such string). It has no page shell, no card, and no failure branch. A server-side `redirect()` or a `next.config` `redirects()` entry retires all four problems at once. **Neither is available**: this app is `output: "export"`, so there is no server to run a redirect and `redirects()` is not applied. A server component returning `<meta httpEquiv="refresh">` also fails, and fails *silently* — the tag lands in the RSC flight payload, never in the emitted `<head>`, so the forward still waits for hydration. **Closed 2026-09-05** by deleting both app routes and serving real static files from `public/monitoring/{sms,email}-alerts/index.html`: 232 bytes each, meta refresh plus a canonical link and a bare anchor fallback, zero JavaScript, no framework. Verify a static-export redirect in `out/`, never in the source | **Landed** 2026-09-05 |
+| ~~Cell Scanner's tile triad inherited the retired SMS tinting~~ | `components/cellular/cell-scanner/shapes.ts:347` — `SUMMARY_TILE_TONE` rotates a fill/container/**`uplink-container`** triad and its comment (`:333`–`:346`) cites `components/cellular/sms/summary-tiles.tsx` as the source of that pattern, along with its reasoning that "`uplink-container` is the system's spare identity hue for exactly this 'counts and supporting readouts' role". Both halves are now dead: the SMS strip is neutral-bodied as of 2026-08-20 and contains no such pattern, and the reasoning is the one `radio/summary-tiles.tsx` names and rejects ("A count is not a direction"). So a live cross-reference points at a deleted pattern, and the third tone re-spends an identity hue on a count. The triad, `summaryTileTone()` and the three compensating `opacity-85` ink washes were **deleted** on 2026-08-24: tile bodies are now `bg-surface-container` on every tile and the hue moved to a 52px disc keyed on the group's best measured signal tier, each tier carrying its own glyph. That also answers the underlying problem the row named (every tile on the identical `surface-container-high`, so nine peer findings read as one grey block) — the tiles differentiate again, but on a fact rather than on array position | **Landed** 2026-08-24 |
+| ~~Field primitives are pre-migration, so shape and fill live at the call site~~ | `components/ui/input.tsx`, `select.tsx`, `textarea.tsx` — all three still ship `rounded-md` + `border` + `bg-transparent` + `dark:bg-input/30`, and `select.tsx` adds `data-[size=default]:h-9` and `dark:hover:bg-input/50`. So every surface that wants the canonical 10px/42px field restates the geometry, and every explicit fill has to out-specify the primitive's own `dark:` rule (see The Field-Step Rule under Inputs / Fields). Tower Locking carries the worked example in `components/cellular/tower-locking/shapes.ts` (`FIELD_SHAPE` / `FIELD_CONTROL` / `FIELD_CONTROL_ON_CONTAINER`). Migrating the primitives retires the restatement **and** the specificity fight at once. **Closed 2026-10-06:** `Input`, `SelectTrigger`, `Textarea` and `InputGroup` share `fieldVariants` from `components/ui/input.tsx` — 42px, `rounded-field`, transparent border at rest, no shadow, no `dark:bg-input/30`, fill chosen by the `host` prop. `SelectTrigger` is a plain `h-[2.625rem]`, so the `h-9` trap is gone. 40 `host="container"` sites in 26 files replaced the `-high` fills and their `dark:…!` markers; `FIELD_SHAPE` and `FIELD_CONTROL_ON_CONTAINER` were deleted | **Landed** 2026-10-06 |
+| Antenna Alignment ceiling items left open | `components/cellular/antenna-alignment/**` — no representation of **time** on a page whose whole gesture is watching a number climb; the anchor console carries the same `--shadow-whisper` as its peer cards rather than reading as the thing in front; one 52px composite numeral serves both a 1440 desktop and a phone held at arm's length outdoors. Named here so they are not rediscovered as bugs | Open |
+| ~~The pre-auth pair never took the adoption pass~~ | `components/public/overview-card.tsx` + `components/public/overview/**` — the splash at `/` was the last surface still built on the Material-3 tonal language this document replaced on 2026-08-16, and it had **no delta row at all**: every other feature center got one, so the one surface that had not migrated was also the one nobody was tracking. Its own feature doc said so in prose. Closed in the same pass on 2026-08-30 — status tile bodies are `bg-surface-container` with colour surviving only on a 40px strong-fill disc, the `TILE_CLASSES` role-container map is deleted, the `opacity-80` eyebrow wash resolves to a real `on-surface-variant` ink once the body is neutral, and the two pre-auth cards now share one type scale (`components/pre-auth-type.ts`) instead of disagreeing about their own h1 by 5px. Three defects went with it: a third entrance stagger step (a local 40 ms literal in `band-rows.tsx`, against the canon's two), an unqueried `grid-cols-3`, and a `shadow-sm` outside the shadow scale. **`/login/` completed the pair the same day** — see the row below | **Landed** 2026-08-30 |
+| ~~`/login/` still greets instead of identifying~~ | `components/auth/login-component.tsx` + `login-device-name.tsx` — the second half of the pre-auth pair, and the last surface on the retired tonal language. Beyond the migration it carried one composition defect: the card spent its loudest step and its only colour on the constant string "Welcome to QManager", and 14px muted, folded mid-sentence, on the **hostname** — the one fact on the screen that varies, and the thing `login-device-name.tsx`'s own header comment names as its entire job. Closed 2026-08-30 by inverting it: the hostname is the `h1` under a `sign_in_to_label` eyebrow, `LoginDeviceName` gained a `title` variant and lost `sentence`, and the card went from three zones to four. Five defects went with it — the `primary-container` mark plate (measured **1.53:1** ring-on-fill in dark; both pre-auth discs deleted together), a bare `text-destructive` ink on a `--card` surface, two **untokenized** state changes (the submit's role morph and the field-group dim both snapped while the banner announcing the same condition eased over 800 ms), a hardcoded English `s` unit inside `formatLockout`, and zero container instrumentation on the most phone-first surface in the product. It also retired the `login.recovery.*` orphan: four fully-translated leaves that had never had a call site | **Landed** 2026-08-30 |
+| ~~`/cellular/settings` leads with a `bg-primary` full-width rail~~ | `components/cellular/settings/modem-hero-card.tsx` — an 826-line anchor card carrying **two data clocks** (a poller-fed rail, settings-GET rate columns that never tick) behind one freshness chip, and a `HERO_FOOTNOTE` whose own JSDoc admitted the mismatch. Its `HERO_RAIL_TONE.NR` painted `bg-primary text-primary-foreground` across a full-width block — the generation `radio/summary-tiles.tsx` had already deleted twice (its Gen 2 note measured that shape at 623×212 = 132,033 px² carrying 9,526 px² of ink, 7.2 %, and called it "a large empty purple slab"; Gen 5 removed body tint outright), and the hero's own JSDoc cited that file as its precedent. Closed 2026-08-30: the card is **deleted** and replaced by two files with one clock each — `live-state-strip.tsx` (poller) and `rate-ceiling-disclosure.tsx` (settings GET, with its own provenance line). Every tile body is `bg-surface-container` via the shared `TILE_SHAPE`, colour survives only on the 52 px disc, and an unidentified radio (`network.type === ""`) takes the neutral disc rather than claiming the 5G blue. Nine `HERO_*` exports and the consumerless `PAGE_TITLE` / `PAGE_DESCRIPTION` went with it | **Landed** 2026-08-30 |
+| ~~`SETTING_ROW`'s `min-h` floor did not reserve the delta chip's line~~ | `components/cellular/settings/shapes.ts` — the floor was `4.75rem` (76 px) and the constant's own comment claimed it "already accounts for the chip's line". It did not, and could not: the chip rendered only while dirty, and the **clean** row already measured 98.1 px at the widths where the chip wrapped, so the floor was inert. Promoting a row grew it exactly **30 px**; the row is `@2xl/card:items-center` so its control dropped 15 px, and Framer does not project a layout change it was not asked about (at rest thumb y 679.8; first frame y 694.8 with a transform y component of `0px`) — the reported "highlight arriving from lower-left". Closed 2026-08-30 by rendering the chip unconditionally, `invisible` when clean, and re-deriving the floor honestly: **4.75rem → 6.125rem** (label 20 + gap 3 + chip 22 + gap 3 + consequence 18 = 66, plus `py-4` ×2). `SETTING_ROW.HEIGHT` mirrors it. Re-measured clean → dirty at six widths: thumb ΔY = 0 at every one. **Reserve, don't animate** — the same trade as `SaveButton`'s width lock | **Landed** 2026-08-30 |
+| `nr5g_mode`'s consequence still wraps to three lines in the 672–740 px card band | `components/cellular/settings/cellular-settings-card.tsx` — the same squeeze the `mode_pref` row was fixed for, at smaller magnitude. Above `SETTING_ROW.ROOT`'s `@2xl/card` (672 px) flip a three-segment 309 px track shares one line with the text column, and the consequence wraps to 3 lines in a **143.4 px** row from 672 through 740 px, settling to 2 lines by 800 px and 1 line by 1100 px. Measured identically before and after the 2026-08-30 change, so this is pre-existing and was not worsened by it. Left alone deliberately: it is a 40 px overshoot rather than the 249.4 px balloon with a 0 px text column that `mode_pref` produced, and demoting the two- and three-segment rows to a `Select` at desktop widths would spend the pill group on rows that do not have the problem | Open (accepted) |
+| `Empty` primitive carries a viewport breakpoint | `components/ui/empty.tsx:10` — the base class string ends `text-balance md:p-12`, so a content-level primitive rendered *inside cards* re-pads itself against the browser window rather than against the column it occupies. That is the Container-Query Rule inverted, and every consumer inherits it. Found during the 2026-08-24 Cell Scanner pass and **deliberately scoped out there**: the fix touches every `Empty` call site product-wide, which is not a Cell Scanner change. Note also that `EMPTY_PANEL`-style callers pair `rounded-tile` against this file's own `rounded-lg`, and `cn()` (bare tailwind-merge) cannot dedupe this repo's custom radius names — the intended radius currently wins on compiled declaration order alone, not on argument order | Open |
+| ~~The shared toggle primitive leaked off the motion scale~~ | `components/ui/toggle.tsx` — the `cva` behind `Toggle` / `ToggleGroup` / `ToggleGroupItem` ended its base string with `transition-[color,box-shadow]` and **no `duration-*` and no `ease-*`**. `app/globals.css` does not override `--default-transition-duration`, so every ink and focus-ring change on all four consumers ran at Tailwind's **150 ms** — off the 360/600/800 scale, and immune to a retune of `lib/motion.ts` plus the `--duration-*` properties. Closed 2026-08-30 with `badge.tsx`'s two-clock longhand, for the same property pair and the same reason: `color` on `standard`/`ease-standard`, matching `transitionStandard` on the `layoutId` thumb in `segmented-field.tsx` and `signal-history.tsx` so the label finishes changing colour as the pill lands; `box-shadow` on `quick`/`ease-quick`, because it is the `focus-visible` ring and badge records that a ring on the long clock lags visibly while tabbing a settings form. Measured on all 15 toggle nodes across the four consumer shapes: `transitionDuration` `0.6s, 0.36s` (pre-fix, `0.15s`). Note only **two** of the four consumers have a travelling fill — `recorder-card.tsx:544` is `variant="outline"` with no `layoutId` at all. `background-color` and the file's `rounded-md` / `hover:bg-muted` / `data-[state=on]:bg-primary/10` alpha wash / `text-accent-foreground` were scoped out at the approval gate and must stay **untouched**. Nothing enforces that boundary now, so a drive-by tone migration on this primitive is a review catch rather than a red run. The raw `fill-blue-500` / `stroke-blue-500` in `scheduled-operations-card.tsx:293` went with it (`fill-primary` / `stroke-primary`; `--primary` measures identical in both themes, so this buys role-tracking, not a dark-mode repair) | **Landed** 2026-08-30 |
+| The same One-Scale leak is product-wide in `components/ui/**` | **15 bare `transition-*` utilities across 13 primitives**, censused 2026-08-30 while fixing `toggle.tsx` and deliberately left there — the fix above is one file with a gated design decision, and this is a sweep that needs its own approval. Five ship the *identical* string `toggle.tsx` did: `input.tsx:11`, `select.tsx:40`, `textarea.tsx:10`, `tabs.tsx:45`, `input-group.tsx:17`. The rest: `banner.tsx:160` + `:341`, `breadcrumb.tsx:46`, `checkbox.tsx:25`, `copyable-command.tsx:30`, `dialog.tsx:85`, `sheet.tsx:85`, `sidebar.tsx:446`, `switch.tsx:24`, `table.tsx:60`. Every one runs at Tailwind's 150 ms and will not retune. (`checkbox.tsx:32` is `transition-none` and is correctly *not* a leak.) The first four overlap the field-primitive row above, so a field migration and this sweep probably want to move together. | Open |
+| ~~The role radius scale reads as a lozenge at card size~~ | `app/globals.css` `@theme inline` — every step moved down one: inline 12 → **8px**, field 20 → **10px**, tile 28 → **12px**, card 36 → **16px**, hero 40 → **20px**; `rounded-pill` unchanged. All 1,036 `rounded-{role}` call sites follow the tokens, so the retune landed with **no call-site edits** — the single exception is `components/public/overview/states.tsx:62` and `:82`, which were on hardcoded `rounded-[0.375rem]` / `rounded-[0.5rem]` and moved onto `rounded-inline` in the same change. The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` is untouched and still backs unconverted call sites. The figures were also corrected everywhere they are restated rather than resolved: 93 JSDoc and inline comment lines across 28 files under `components/**` (`shapes.ts` most of all, which `CLAUDE.md` names a reference implementation), this document's own body text, 12 `docs/reference/*.md`, and `.impeccable/design.json` — its five radius token entries, four `css` snippets carrying a `border-radius`, and six prose fields. A comment narrating a past defect keeps the figure it was measured at | **Landed** 2026-09-13 |
+| ~~Dark mode has no separation cue beneath the tonal step~~ | `--card-sheen` in `app/globals.css` (`none` in `:root`, a `180deg` gradient in `.dark`), exposed as the file’s first `@utility card-sheen` → `background-image`, and applied to the `Card` root (`components/ui/card.tsx`) and `DialogContent` (`components/ui/dialog.tsx`) only. Inner tiles do not take it, so nested surfaces never stack sheens. Two things it does **not** close: the field-primitives row above stays open — `components/ui/input.tsx` / `select.tsx` / `textarea.tsx` are still pre-migration — and the legacy `--radius` chain is untouched here as well | **Landed** 2026-09-13 |
+| ~~`DialogContent` is sheened, its three sibling overlays are not~~ | `components/ui/alert-dialog.tsx`, `sheet.tsx` and `drawer.tsx` all paint `bg-surface` and none carried `card-sheen`. That matched the ported scope exactly — the sibling repo stops at `Card` and `DialogContent` — so it was in spec rather than an oversight, and the cost was only that an alert dialog read a shade flatter in dark than a dialog opening beside it. **Widened deliberately on 2026-09-14**, not as a consistency fix: the rule's own logic is that the sheen stands in for the shadow dark mode never gets, and all four are floating surfaces over a scrim. All three now carry `card-sheen`, and `drawer.tsx` — which carried no shadow at all, making it the surface the rule exists for — also gained the `shadow-lg` fallback its siblings already had. `drawer` still has zero consumers; it is styled so the primitive is correct the day it gains one | **Landed** 2026-09-14 |
+| ~~Dirty settings rows promoted to a full `primary-container` fill~~ | `components/cellular/settings/{shapes,setting-row,segmented-field}.tsx` and every one of the family's five write cards — a row holding an unsaved edit painted its whole body `bg-primary-container`, restating the same fact the `DELTA_CHIP` ("SIM 1 → SIM 2", already `bg-primary`) was sitting right there to say. User-flagged on `/cellular/settings`'s SIM Slot row as redundant against the chip; closed 2026-08-30 product-wide rather than as a one-page exception, to keep the family's shared `SETTING_ROW` contract consistent (Product Principle 4). `SETTING_ROW_DIRTY.ROOT` is deleted, and every control twin it required goes with it — `SEGMENTED.SEGMENT_ON_FILL` / `.TRACK_ON_FILL`, `SELECT_TRIGGER_ON_FILL`, `FIELD_SHELL_ON_FILL`, and `SegmentedField`'s `onFill` prop — none of them had a reason to exist once no row can promote. `SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL` survives: it turned out to also back a permanent (non-dirty) `primary-container` accent cell in `imei-tools-card.tsx`'s check-digit breakdown, unrelated to row promotion | **Landed** 2026-08-30 |
+| ~~APN Management buried live truth and reported it from the wrong source~~ | `components/cellular/settings/apn-management/**` + `hooks/use-apn-settings.ts` — the page ran the family's grammar backwards (header → write card and MBN side by side → "What the network granted" **last**), so the only band that can answer "is my connection actually dialling the APN I think it is" sat behind the heaviest card on the surface. Worse, the page-header chip that claimed to report it **compared configuration against configuration**: it read `cids[].apn`, which `apn.sh` derives from the `AT+CGDCONT?` loop with no extra AT calls — the *configured* view, which "matches even when the bearer is stale" — and rendered a green `success` **Active** over the result. Closed 2026-08-31 by reordering to Band A live / Band B writable / Band C MBN and repointing the chip at `status.network.apn`, the poller's `+CGCONTRDP`-derived negotiated value, with **no backend change**: the page already fetched it. Band A gained the configured-vs-granted **comparison pair** (tint on the granted side only, since "what you asked for" has no verdict attached; a glyph and a word so the fill is never the only channel; neutral with no mark when either half is missing) and the poller's `isStale`, rendered as the **warning half only**. `PAGE_GRID`'s inherited `1.35fr / 1fr` went with it — its JSDoc justified the ratio by a right column that no longer exists — per *split a page by cadence, not by symmetry*; the export stays for `imei-settings.tsx`. Six honesty defects went too: a never-read card rendering **IPv4v6 and CID 1 as confirmed-looking selections** (now `CARD_NOTICE`), a deactivate button gated on `active !== 0` and therefore **armed on `null`**, an IMS/SOS guard that switched itself off exactly when `cids[]` was empty, an MBN empty state contradicting the error banner directly above it, an **unconditional** `warning` `TonalBanner` on MBN (a warning with no off state is wallpaper), and a save that reported the attach cycle's expected ~4 s `eth0` drop as a refusal — `save`/`deactivate` now return `ApnSaveOutcome` and the page holds its verdict across `isReconciling`. MBN also left the override `<fieldset>`, which was locking a control no SIM profile manages | **Landed** 2026-08-31 |
 
-**Governing rule: Indigo acts, functional colors report, neutrals carry everything else.**
+| ~~`/local-network/ethernet` renders the CGI payload, in tinted tiles that never animate~~ | `components/local-network/ethernet-card.tsx` + `ethernet-status.tsx` — the page gave one tile to each field of `ethernet.sh`'s JSON, with **three of four bodies** as role containers (`success-container`, `downlink-container` whose comment cited *“Downlink Rose's second meaning”*, a rule this document retired on 2026-08-16, and `primary-container`) plus **four compensating `opacity-85` washes**. The tile labelled *Negotiation* printed `speed_limit`, the **saved setting**, while the PHY's live `auto_negotiation` was fetched, typed and rendered nowhere; a failed refresh was swallowed once `hasDataRef.current` was true, so a dead 10 s poll and a healthy one rendered identically forever; the tile was a `min-h-[5.75rem]` **floor** mirrored by a fixed skeleton at the pre-correction 92 px number; and both cards were `rounded-hero` on `shadow-sm`. Its two tone transitions were the **last two bare-var arbitrary values in the tree** (the custom property written directly in the duration brackets with no `var()` wrapper), compiling to a declaration whose value is the property *name*, which the browser discards — the page's only animation never ran. Closed 2026-08-31: the family moved to `components/local-network/ethernet/` behind its **first `shapes.ts`**, as one live band (neutral bodies, colour on the 52 px disc only, live autoneg surfaced, the PHY ceiling as the rate caption) above one peer write card with a required consequence sentence naming the ~8 s link drop. All five states ship, including a **no-controller** state made reachable by the one backward-compatible CGI field this change added (`interface_present`, absent ⇒ true). Two collisions were caught by **measuring the rendered node** rather than reading class strings: the Select rendered **36 px** against a 42 px call site (`select.tsx`'s `data-[size=default]:h-9` at (0,2,0)), and `CARD_SHELL` rendered Tailwind's `shadow-sm` because `tailwind-merge` reads an arbitrary shadow value as a shadow *colour* and the tie went to name sort — the same alphabetical trap `lib/utils.ts` documents for radii. Contract in [`docs/reference/ethernet.md`](docs/reference/ethernet.md), upheld by review rather than by any check — note both collisions above were caught by **measuring the rendered node**, which is what a class-string grep could never have found | **Landed** 2026-08-31 |
+| ~~`/local-network/ttl-settings` implies its state through pre-filled inputs, and had no motion at all~~ | `components/local-network/ttl-mtu-settings/**` — a form wearing a page: no band, no `shapes.ts`, and **no `staggerContainer`** anywhere, so the route snapped in while the rest of `/local-network/` faded. `autostart` was fetched, typed and rendered nowhere; both hooks exported `refresh` and **neither card destructured it**, so a failed GET was a permanent skeleton with no way out; and `ttl-settings-card.tsx:175` held a silent no-op (`if (isEnabled && ttl === 0 && hl === 0) return;`) — the form dirty, the button live, the click doing nothing. Closed 2026-08-31 onto the band grammar behind the family's own `shapes.ts`: three neutral-bodied tiles at the canon pin with colour only on the 52 px disc, over two peer write cards whose every row carries a required consequence sentence. Two measurements decided the shape. **`autostart` is a compile-time constant** — `ttl.sh:48-51` reads `svc_is_enabled`, which is `[ -L "$_WANTS_DIR/$unit" ]` (`platform.sh:130-133`), and `install_rm520n.sh:3106-3161` globs every `qmanager-*.service` with `qmanager-ttl` in neither the skip list nor `UCI_GATED_SERVICES` (`:118`), so the field is `true` on every device forever; the proposed "ON REBOOT → Reapplied" tile would also have read *Reapplied* on a fresh device with nothing set, because the unit's `ConditionPathExists=/etc/qmanager/ttl_state` names a file `ttl_state_write_persisted` (`ttl_state.sh:119-122`) **deletes** when both values are 0. The tile was dropped and rendering it is **banned**, so the band is three tiles. **`mtu.sh:96-97` does `current_mtu=${current_mtu:-1500}`**, so a failed interface read and a genuine 1500 arrive identically — the MTU tile therefore draws no figure unless the endpoint answered, and captions provenance rather than claiming a measurement. Two endpoints that fail independently means two pending flags, never one page-level `isLoading`. **The `autostart` ban is upheld by review, not by any check** — the reasoning a reviewer needs is in [`docs/reference/ttl-mtu.md`](docs/reference/ttl-mtu.md) | **Landed** 2026-08-31 |
+| ~~`/local-network/custom-dns` buried the live upstream below the enable switch, on a private motion scale~~ | `components/local-network/custom-dns/**` + `hooks/use-custom-dns.ts` — the one fact the page exists to report (which resolver is in use *right now*) sat in a `MetaPanel` **beneath** the form, and the page ran its own `REVEAL_EASE` / `REVEAL_DURATION = 0.2` instead of `lib/motion.ts`. It had **no client shell at all**: the header lived in the server `page.tsx`, which cannot own a motion cascade, which is why the header snapped in while the rest of the route faded. Three backend capabilities crossed the wire and died — `blockCorrupt` (declared, its JSDoc promising a recovery action, read by nothing, so a malformed dnsmasq block rendered identically to a healthy one), `fieldError` (destructured at `custom-dns-card.tsx:89` and never rendered, so the user got a generic band where dnsmasq had supplied the reason), and `passthroughBypass`, which *was* rendered at `:403` and is a stub returning literal `"false"` (`custom_dns.sh:70-75`) — making that notice **unreachable dead code that had never once displayed**. Closed 2026-08-31 onto the band grammar behind the family's own `shapes.ts`, with a new client shell computing one derived `DnsState` that every child reads. Two proposed features were **inverted by measurement** rather than built. A "Rebuild the block" button wired to `clearSettings` would have *destroyed* the config it promised not to touch: `custom_dns.sh:280-284` maps `action=clear` onto save-with-`enabled=false`, whose `strip_sentinel_block` (`:139-151`) raises its in-block flag on BEGIN and lowers it only on END, and `blockCorrupt` **is** one sentinel without the other (`:132-133`), so every later line (`listen-address`, `dhcp-authoritative`, `conf-dir`) is dropped — past a `dnsmasq --test` (`:405`) the truncated file still passes, then installed by `sudo /bin/mv` (`:417`) and made live by `killall -HUP` (`:427`), on a device reached over that LAN. And a "switch DNS mode on the IP Passthrough page" link would have led to a page with no such control: exactly one file in the tree mentions `mobileap_cfg`, and it only ever **reads** `<DNSMode>`. Both are now **bans**, and `blockCorrupt` renders as a non-blocking lucide `Banner` that does **not** enter `formDisabled` — because `parse_sentinel_block` (`:116-134`) reads with `while IFS= read -r`, whose body never runs for a final line with no trailing newline, so a healthy file ending at the END marker returns 2 and a false positive must not lock anyone out of their own DNS settings. ⚠️ **Nothing enforces either ban** — no automated check stands between a plausible "Rebuild the block" button and a truncated `/etc/data/dnsmasq.conf` on a device reached over that LAN. Both are review rules, and the reasoning a reviewer needs is in [`docs/reference/custom-dns.md`](docs/reference/custom-dns.md) | **Landed** 2026-08-31 |
+| ~~`/local-network/ip-passthrough` showed no state at all and spoke only English~~ | `components/local-network/ip-passthrough/**` — the surface with the highest lockout risk in the product opened directly on its write fields and reported **nothing** about what was in force. `ip-passthrough-card.tsx` imported `useTranslation` **zero** times (47 hardcoded literals; its `SaveButton` took no `label` prop at all), and the riskiest sentence on the page — *"the device's local gateway will no longer be reachable"* — existed only **inside** the confirm dialog at `:491`, visible after Apply had been pressed. All five `Select` triggers rendered at **36 px** against a 42 px system (`select.tsx:40`'s `data-[size=default]:h-9` at (0,2,0) beating a bare `h-[2.625rem]` at (0,1,0)); measured at **42 px** after. Closed 2026-08-31 onto the band grammar behind the family's own `shapes.ts` (**superseded 2026-10-12**, row below). Two things are deliberately unchanged and both are recorded as such: the confirm dialog **stays** — a reboot is a deliberate act, and what moved is that the consequence is readable *before* deciding, on the Mode row — and the band says **"Last applied", never "In force"**, because `ip_passthrough.sh:64-78` reads our own POST's `/etc/qmanager/ippt_config.json` and falls back to poller fields captured once at boot, issuing **no AT command on GET**; making it genuinely live needs an `AT+QMAP="MPDN_RULE"` read, which is a backend change. The three-line reboot handoff (`sessionStorage` `qm_rebooting`, clearing the `qm_logged_in` cookie, `window.location.href = "/reboot/"`) is pinned token-by-token, because `cgi_base.sh:216-235` returns `{"success":true}` immediately and then waits in a backgrounded subshell for `/tmp/qmanager_reboot_ack` — so dropping any one line yields a dead page, a stale login cookie, or a reboot delayed to `QM_REBOOT_ACK_TIMEOUT`, all silently. **The three tokens are a review rule, not a checked one** — read the handoff against the per-line table in [`docs/reference/ip-passthrough.md`](docs/reference/ip-passthrough.md) before approving any change to that file | **Landed** 2026-08-31 |
+| ~~`/local-network/ip-passthrough` predates the compact bento premise~~ | `components/local-network/ip-passthrough/**` — re-authored a second time on 2026-10-12, onto the bento used by Watchdog and Latency Monitor, overturning the 2026-08-31 band above. The four 104px tiles and the band's state chip are retired (`ippt-strip.tsx` deleted); a **Last applied** strip (`status-strip.tsx`, `rounded-hero`) holds the mode disc, title and blurb beside five figures (Target device, NAT, USB connection, DNS proxy, and a new **LAN gateway** Served / Not served derived from the saved mode) that become 42px receipt pills below a 40rem card. The five `Select`s became `SegmentedField`s with no check glyph (USB falls back to a `Select` below a 32rem card), in two groups, Passthrough and Network, side by side from a 56rem card. Both page `Banner`s (`active`, `reboot`) are retired: the Mode note is always on the control and promotes in place to `destructive-container`, with copy that depends on the direction, while Mode is dirty, so changing Mode no longer pushes the card down. The delta chip became a 7px dirty dot. Unchanged on purpose: the `AlertDialog`, the three-line reboot handoff, "Last applied", never "In force". Feature doc: `docs/reference/ip-passthrough.md` > Page anatomy | **Landed** 2026-10-12 |
+| `CardDescription` hardcodes a retired ink into the primitive | `components/ui/card.tsx:51` — the base string is `cn("text-muted-foreground text-sm", className)`, and the system's ink for that role is `on-surface-variant`. The **reference implementation uses the primitive bare**: `components/local-network/ethernet/speed-limit-card.tsx:137` is `<CardDescription>{…}</CardDescription>` with no `className`, so the surface this document points at as canonical renders a retired ink on every card description. Of the three families re-authored on 2026-08-31, only **one** overrides it at the call site — `ip-passthrough-card.tsx:337` passes `CARD_DESC` (`text-on-surface-variant text-sm`, `shapes.ts:47`); `ttl-settings-card.tsx:330` and `mtu-settings-card.tsx:276` follow the reference and take it bare, and each family's `shapes.ts` records "CardDescription takes no className" as a deliberate match to it. Fixing the primitive touches every `Card` call site product-wide, which is why this is a delta rather than part of that change. ⚠️ **A check scoped to a family's own source cannot see this.** Grepping the retired class against the *family* files comes back clean, because the class lives in the shared primitive — so "the family's sources are clean" must **not** be read as "no `text-muted-foreground` renders on this page". Any rule about rendered ink has to be checked at the primitive as well as the call site. The same blind spot covers the `Empty` primitive's `md:p-12` (row above), which these three pages inherit wherever they render an `Empty` | Open |
+| The quality bar ships two thicknesses, and the split was a default nobody chose | `components/ui/metric-bar.tsx` — `SIZE_CLASS` is `{ sm: "h-1", md: "h-2" }` and `size` **defaults to `sm`** (`:76`), so the product's 20 `MetricBar` call sites divide **11 at 4px against 9 at 8px** across 12 files in 6 route families — not as a considered pair of forms, but as the sites that inherited the default versus the sites that opted out. Quality bars above now specifies **one thickness, 8px**, so this row is the code catching up. The reasoning is in that section: this document rests the entire ramp on length (adjacent stops sit deliberately below the 0.05 CVD floor *because* bar length carries the fine distinctions), and it was asking a 4px hairline — the thinnest mark on its card — to carry the one channel the ramp may not lose. The 11 that move: `dashboard/signal-status-card`, `antenna-alignment/live-aim` ×2, `antenna-alignment/port-strip`, `antenna-statistics/tech-card`, `band-locking/band-status-card`, `tower-locking/live-strip`, `system-settings/modem-subsystem-card` ×4 — five passing the small size explicitly and six inheriting it. ⚠️ An earlier draft of this row also named `dashboard/signal-history`, which contains **no `MetricBar` at all**: its `size="sm"` is on a `SelectTrigger` (`:327`), so the list was built by grepping for the prop rather than for the component and named twelve sites for a count of eleven. Approved 2026-09-01 to run as **its own commit, ahead of the dashboard pass**, so those steps build against the final thickness rather than converting twice, and so a change reaching 6 route families does not hide inside a step labelled for one card. Three parts: flip the default to `md` and **delete `sm` from `SIZE_CLASS` rather than deprecating it** (a size nobody should pick is a trap, and the `rampFloor` branch at `:216` — `size === "md" ? "min-w-2" : "min-w-1"` — collapses with it); amend this document in the same commit; then **fit-check all 11 by measuring the rendered node**, not by reading class strings. Closed 2026-09-01. **Ten of the eleven changed no height**: each sits in an `items-center` row or a `flex-1` cell, and an 8px track centres in the same line box a 4px one did — `signal-status-card`'s row measures 40px before and after, with its `h-10` skeleton mirror intact. **The eleventh did**: `modem-subsystem-card`'s four bars are full-width block children of a `flex flex-col gap-1.5` column, so that card grows ~16px, and its four `Skeleton` slivers — which mirrored the bars at the 4px number **literally** — moved with them in the same commit. **Two boxes carried the 4px number and appear on no list built from the prop**, because neither is a `MetricBar` call site: those four skeleton slivers, and `antenna-alignment/shapes.ts`'s `PORT.LANE`, a **pinned** `flex h-1 items-center` band whose own comment says it exists so a bar, a caption and a not-reported line share one band — an 8px bar inside it overflows exactly that band. Both moved to 8px. The `size` prop survives with one legal value and **no call site passes it**: all 20 were stripped, because a redundant prop is how the split comes back. **This rule is compiler-enforced, and needs no reviewer:** `SIZE_CLASS` holds `md` alone and the prop is typed `size?: keyof typeof SIZE_CLASS` (`metric-bar.tsx:82`/`:141`), so reintroducing a 4px track is a build error, not a convention. ⚠️ `.impeccable/design.json`'s `quality-bar` entry described the 4px track and was deliberately left for the close of the dashboard pass rather than edited here. **Done 2026-09-02**: its `description` now states the one-thickness rule and why `sm` was deleted rather than deprecated, and its `css` is `height:.5rem`. Nothing else in the sidecar moved — the pass changed no token in `app/globals.css`, so the 155 colour entries are unaffected. One line of that entry's prose is separately **suspect and left alone**: it says the two Antenna Alignment call sites on a lighter ground pass `track="muted"`, but only one still does (`live-aim.tsx:624`), and that rationale did not survive measurement — `muted` is a no-op in dark and 0.048 WORSE in light. That is an Antenna Alignment matter, not a dashboard one | **Landed** 2026-09-01 |
+| `/dashboard` has no token drift and nothing but grammar drift | `components/dashboard/**` (13 files, ~6,300 lines) — **this document was written from this surface**, and then the canon it seeded moved on without it. A token scan comes back nearly clean: no opacity washes on role colours, no `variant="outline"` status chip, no legacy `rounded-{sm,md,lg,xl}` chain, no `--chart-1..6` consumer. A **grammar** scan returns seventeen findings. It is the **only feature route in the product with no page header**, and compensates by inflating `network-status.tsx:558` to `text-[30px]` — the Display step this document reserves for the page `h1`, "one per route" — with `device-status.tsx:87`/`:112` and `signal-history.tsx:282` at `text-2xl @[250px]/card:text-3xl` behind it, so one screen carries **three page-title-sized headings and no page title**, and **zero** `CardDescription`. That one absence explains the rest: with no page header there is nowhere for page-level facts to live, so the Radio / Internet / Stale rail was parked inside the hero card; with no `shapes.ts` there is nowhere for shared geometry to live, so the card shell is retyped in **five** files — `carrier-aggregation.tsx:101` and `signal-history.tsx:57` at `px-7` against `device-metrics.tsx:64`, `live-latency.tsx:104` and `recent-activities.tsx:320` at `px-6`, **for cards that are peers in one grid row** — plus two more inlined at `signal-status-card.tsx:123`/`:156` and `device-status.tsx:85`/`:110`, and `CLOCK_TICK_MS = 30_000` declared twice; and with no shared constant the skeletons guess (`device-status.tsx:97` `h-[41px]`, `:101` `h-[62px]`, `signal-status-card.tsx:139` `h-[30px]`), which is the Skeleton-Mirror Rule failing by construction. Four colour/state findings: a **188 px `bg-primary-container` slab** behind a decorative modem photo (`device-status.tsx:142`, 35,344 px² encoding nothing — the shape `radio/summary-tiles.tsx` deleted in Gen 2 *and* Gen 5, then `modem-hero-card.tsx` again); the **SIM orb on the pale container** rather than the strong fill (`network-status.tsx:709-710`, against The Glyph-Disc Rule); a `success-container` uptime tile with **no glyph** beside an identically-shaped neutral one (`device-status.tsx:229`, colour as sole channel); and `bg-white/45` as a progress track in **two** files (`live-latency.tsx:870`, `speedtest-dialog.tsx:695`) with an `opacity-75` wash beside it. 25 `rounded-full`, one surviving `text-muted-foreground` (`live-latency.tsx:660`), and `speedtest-dialog.tsx` off the One-Scale with `duration-500` + a bare `transition-all`. ⚠️ One finding was **withdrawn on review**: a claimed pair of "`min-h-` floors where Tiles says pin" at `live-latency.tsx:141`/`:83`. `CHART_BOX = "min-h-[150px] flex-1"` is **correct as shipped** and its own JSDoc carries the counter-evidence — `ChartContainer`'s base class is `aspect-video`, so an unpinned chart's height is a function of the card's *width* and reflows with the grid, and recharts' `ResponsiveContainer` renders nothing until it has measured its parent, so a zero-height parent on the first frame makes the card pop; the floor guarantees a frame-one measurement and the `flex-1` absorbs the slack from the taller row-mate. **A floor standing in for a mirror is a defect; a floor guaranteeing a first-frame measurement is not**, and neither failure shows in a screenshot. **Six cards ship no error branch at all** — they draw `"-"` and `0` in the same slots as real readings while the page banner says the modem is unreachable, so the card and the banner disagree. And `home-component.tsx` mounts **five** independent `initial="hidden" animate="visible"` containers, each starting its own clock at t=0; its own comment concedes this and declines the mock's 240 ms offset *because* of it. Approved 2026-09-01 as ten steps, one per widget, behind the product-wide bar-thickness pre-step in the row above, with three vetoable calls all approved: the page header lands, the chip rail moves to it, and the 188 px disc goes neutral. Three further user directions landed at the gate and are binding: **Device Metrics' layout does not change** (a draft promoting its Data Used row to two 104 px tiles was vetoed — *placement encodes confidence*, and a cumulative `AT+QGDCNT` counter with known accuracy problems cannot hold the loudest slot on its card); **its four `size="md"` / `h-2` meters are not thinned to 56 px lanes** (this document's own Quality bars section says a bar "spans the row where the row is the bar's own line", which is exactly what they are — the lane is for a bar sharing a row with its figure, as on the signal cards, and the surface ships both forms on purpose); and **Live Latency's 88 px speedtest tile becomes a 40 px `PillRow`** in the identical form as Data Used, since both are down/up pairs and rendering the product's only two such pairs in two different shapes is Product Principle 4 inverted — the full result stays in `speedtest-dialog.tsx`, where progressive disclosure puts it. Three re-authorings were approved alongside them. **Recent Activity's list stops clipping at five rows** — `recent-activities.tsx:543` pins `maxHeight: LIST_MAX_H` (332 px) under `overflow-hidden`, and the trio is `h-full`-locked with Device Metrics' seven rows setting the height and Live Latency absorbing its slack through the chart's `flex-1`, so that card is the only one that *cannot* absorb and every pixel past 332 became a hole in it; `VISIBLE_ROWS` becomes container-query-driven and `LIST_MAX_H` / `RENDER_COUNT` / `ROW_ADVANCE` already derive from it, so the clip edge and the push animation stay correct with no second number to sync. **`nr-status.tsx` (78 lines) and `lte-status.tsx` (74) collapse into one `signal-rows.ts` builder** — neither renders anything; each maps a poller block to `SignalStatusRow[]` and forwards six props, so the no-reading state would otherwise be written twice. **The three 152 px orbs scale to ~92 px 3-across below a card container query**, because stacked on a phone they are ~600 px before the user reaches anything else, on the surface built for a thirty-second glance beside the modem — a responsive step, not a recomposition, so the preserved circular treatment is intact. The bento grid, the three orbs, the ring stack and the motion character are **preserved by explicit user request** (`PRODUCT.md` > Brand Commitments) and unchanged. Contract in [`docs/reference/dashboard.md`](docs/reference/dashboard.md). **Closed 2026-09-02** across 21 commits (`572d461`..`82f9a43`), each step's harness section committed RED before its fix — that being how the pass was run at the time; the harnesses were retired repo-wide the next day in `9cdb945`, so nothing below is checked automatically any more. What moved: `shapes.ts` and `page-header.tsx` were minted and the chip rail moved onto the header, so the surface has ONE 30px string again and the seven restated card shells collapsed to two constants split peer/hero (`px-6`/`px-7`); nine cards gained a `CardDescription`, each with an explicit ink because the primitive hardcodes a retired one; the five entrance containers became one, tail at 480ms; `nr-status.tsx` and `lte-status.tsx` collapsed into `signal-rows.ts`; the four surviving no-error cards gained an `unreachable` branch; the 188px device slab went neutral; the SIM orb moved onto the strong fill; the orbs became `min(92px,28cqw)` three-across below `@lg/card`; Live Latency's 88px speedtest tile became a 40px `PillRow`; and the last hardcoded whites, the last `text-muted-foreground` and all 25 `rounded-full` are gone. **Four prescriptions were overturned by measurement and are recorded in the contract doc**, because each is a reasoning error that would otherwise recur. (1) R1's "make `VISIBLE_ROWS` container-query-driven" was wrong: the trio's dead space measured **30.8-76.3px** against a `ROW_ADVANCE` of 68px, so a sixth row OVERSHOOTS — verified in the live DOM at 1280px, the trio grew 486 → 500.3px and the hole moved onto Device Metrics, which is the driver and can absorb nothing. The `CardDescription` closed it; `VISIBLE_ROWS` stays 5. (2) Finding 17's "bare `transition-all`" in `speedtest-dialog.tsx` **does not exist** — the string appears once, inside the comment explaining why `TrackBar` is local INSTEAD of `components/ui/progress.tsx`, which is the file that ships it. The audit read the explanation as the offence and this row repeated it — the durable lesson being that any search for a class string must run against **comment-stripped** source, because prose explaining a defect reads exactly like the defect. (3) `duration-500` on that meter was not a value to normalise onto the 360/600/800 scale — no step of the scale is correct for a bar bridging samples on a 500ms poll, and `standard` would leave the fill travelling when the next sample landed. The defect was that `500` was written twice; `LIVE_INTERVAL_MS` is now exported from `hooks/use-speedtest.ts` and applied as an inline `transitionDuration`. (4) The Modal-Exit Rule **already held**: `data-[state=closed]:duration-...` is an attribute selector at (0,2,0) against the call site's bare (0,1,0), so the closed clock measured **0.36s before and after** qualifying it. What that closes is a latent trap, not a live bug — an unqualified duration parked behind a rule that outranks it springs the moment the two tie, where name sort decides. One substitution is worth keeping as evidence for the no-alpha rule: `speedtest-dialog.tsx`'s `bg-white/45` progress track composited over `downlink-container` in **dark** resolves to L* **53.78** against a fill at **57.47** — 3.7 apart, a progress bar with no readable boundary between done and remaining. `surface-container-high` reads 11.20 there, 46.3 clear. A fixed white cannot track a theme, so the one theme anybody checked looked fine. The contract linked above is now the only record of these rules, and review is the only thing upholding them | **Landed** 2026-09-02 |
+| ~~`/system-settings` was the last route entirely on the pre-canon language~~ | `components/system-settings/**` — the one feature centre with **no feature doc and no routing row**, which is why nobody was tracking that it had not migrated: every other unmigrated route had a delta row saying so. The drift was total rather than partial. A grep across its five active component files for `on-surface`, `surface-container` and the whole `rounded-{card,hero,tile,field,pill}` scale returned **zero** matches; `text-muted-foreground` returned **fifteen**; every card measured 14.4px radius with a 1px hairline and `shadow-sm`, every field 36px on an 8.4px radius, and the reboot time input **32px**, under the documented 44px coarse-pointer floor on the one control that arms a reboot. Sixteen `<Separator />` did the work of one tonal `ROW_GROUP`; the page header was a bare `h1` with no description, no tracking, no actions and no motion, matching neither shipped pattern; there was no page-level cascade at all, so four cards each started their own `staggerContainer` clock inside their own `CardContent` and none of them staggered against each other. Four of five files imported `react-i18next` **zero** times (~65 hardcoded strings against a namespace of 34 leaves, all 34 consumed by one card), and `scheduled-operations-card.tsx:35` carried a comment instructing future authors **not** to translate it. Closed 2026-09-05: `shapes.ts` (the 18th) and `derive.ts` minted, a page header and a 3-tile status band added above the approved 2×2 grid, one cascade root, `ConditionScreen`-shaped states, and 131 i18n leaves across all five packs. **The defect cluster the pass itself created is the part worth carrying forward**, because every member is the same shape — a surface turning an *incomplete* backend answer into a *confident* one. A truthiness guard (`if (scheduledReboot && …)`) meant `null` never reset local state, so a `200 {"success":true}` with no `scheduled_reboot` key left the previous read on screen behind a green **Armed** chip, over a hardcoded `days:[0..6]` seed that the switch would then POST — arming a nightly reboot the user never configured, from a failed read, on the page where a wrong default costs the user their connection. Both cards gated their error branch on `error && !data`, so a refresh that failed over stale data surfaced nothing, and an empty envelope rendered `?? "UTC"` / `?? "celsius"` as though the device had reported them. `useKnownSims` swallowed a failed GET and left `count` at `0`, rendering "0 SIMs remembered" above a list of three. And the clock tile painted `success` with an **empty** figure because `formatOffset` returns `string | undefined` while its consumer tested `!== null` — always true, so the `unreported` face and its five locale leaves were unreachable while tsc, eslint and the build all stayed green. The fixes are identity comparisons, `!data` guards, `number | null`, and one state union per tile read through a `Record`-typed face map instead of three independent ternaries that could each answer the same question differently. Contract in [`docs/reference/system-settings.md`](docs/reference/system-settings.md). The seven sub-routes have **not** taken the pass | **Landed** 2026-09-05 |
+| `/monitoring/watchdog` is the last unmigrated `/monitoring/` surface, and it draws its ladder twice | `components/monitoring/watchdog/**` (6 files, ~1,700 lines) — the surface predated this document and the gap was **structural, not chromatic**. The recovery ladder existed in two places on one screen: a read-only four-dot stepper in the status card and an editable switch list behind the settings card's Recovery tab, which could never be seen together — and the tier names were hardcoded **twice**, already free to drift. One atomic Save sat inside one of two tabs, so a user committed fields the tab was hiding, and the save bar had to apologise for it (`Fix errors in Detection, Recovery`). Beneath that: no page header (an inline `text-3xl` `h1` with a `text-muted-foreground` description), no `shapes.ts`, **no `staggerContainer` at all** so the route snapped in while the rest of `/monitoring/` faded, four skeletons guessing geometry (`h-20 w-full rounded-xl`) with an `items-start` grid, 20 opacity washes on role colours (`bg-success/15 text-success border-success/30`, the exact pattern No-Hairline-On-Fill retires), 18 legacy radii, 23 `text-muted-foreground`, `bg-secondary` standing in for a state, four `react-icons` glyphs on a lucide route, a raw `{ duration: 0.2 }` state swap, stock `animate-pulse`/`animate-ping`, and a bordered `Table` + pager rendering **the same event feed** the dashboard and Alerts render as 52px rows. And **~90 hardcoded English strings with no `watchdog` namespace in any of the five packs** — the page called `t()` exactly once, for the Save label. Three honesty defects went with it. `daemonReporting = watchcat?.enabled` could not tell a daemon that crashed from one that started 200ms ago, so a dead watchdog read `Starting Up — it will begin monitoring shortly` **forever**; the poller's `isStale` already distinguished them and the sidebar indicator already used it. The `locked` blurb said "paused after hitting the reboot limit" — `locked` is a **maintenance lock**; the reboot limit is `disabled`, so the two were effectively swapped. And three CGI payloads (`status`, `sim_failover`, `sim_swap`) crossed the wire fetched, typed and read by nothing. Approved 2026-09-05 from a published before/after Artifact, as ten steps with three vetoable calls all approved: the ladder merges into one hero card, the save bar goes page-level and non-sticky (**superseded 2026-10-06** by The Card-Foot Apply Rule: that decision is retired, not an exception; the bar is deleted and the single apply now sits on the Ladder card — see the Landed Card-Foot row at the foot of this table), and Detection pairs with Activity. **Closed 2026-09-05.** **One approved call was overturned by measurement**: the Detection/Activity pair was costed at 1280px and, with an empty feed, both cards resolve to 491px and look correct — but at 25 events Activity drives the `COLS` track to 1614px and strands **1123px** of dead space in Detection, which is three fixed-height fields and a notice and has nothing to fill with, and *which card drives the height flips with the event count*. That is this document's own Radio Information failure — a split by symmetry, where symmetry is not a property either card has — so both became full-width bands and `COLS` / `CARD_FILL` / `CARD_FILL_REGION` were **deleted rather than left unused**, with the measurement recorded in `shapes.ts`. Three further defects surfaced only in the browser and none was visible in source: the activity log rendered **oldest-first under a heading promising "newest first"**, because `useRecentActivities` only *reverses* the file and on this platform **file order is not timestamp order** — a SIM-less boot starts at Jan 1970, so rows appended after it pre-date rows already in the ring (a `THU, JAN 1` group rendered above `TODAY`); the page **scrolled horizontally at 375px** (`scrollWidth` 391 vs 375) because `Tag` ships `whitespace-nowrap shrink-0` and tier 3's `AT+CFUN=0 → AT+QUIMSLOT=N → AT+CFUN=1` could not wrap; and the blocked-save focus jump was **dead code**, since `SaveButton.handleClick` calls `preventDefault()` + `stopPropagation()` and returns whenever `blockedReason` is set, so the `onClick` branch calling `focusFirstBlocked()` never ran (fixed locally in the capture phase; the swallow is repo-wide and untouched). Two state-honesty bugs went too: `runningTier` was passed ungated, so the hero promoted a rung while the band said `Unknown`; and `deriveRungs` never saw the master switch, so three green **On** chips sat under a **State: Off** tile. ⚠️ One critique finding was **rejected on measurement**: a claim that `opacity-85` ink on `primary-container` measures ≈3.9:1 in light. Composited in **sRGB**, where alpha compositing actually happens, it reads **5.84:1 light / 6.07:1 dark** — the estimate had composited in OKLCH lightness. No change made. Redesigned again 2026-10-11 to the bento / Card-Foot / `SegmentedField` canon: one `rounded-hero` status card with a probe strip, Ladder and Detection paired at one height (Detection pairs with the fixed-height Ladder, never with Activity), a `CardFoot` on each, and Activity cut to the newest five rows. Contract in [`docs/reference/connection-watchdog.md`](docs/reference/connection-watchdog.md) | **Landed** 2026-09-05 |
+| ~~`/monitoring/tailscale` was missed by the row above, and shipped the product's only raw palette colours~~ | `components/monitoring/tailscale/**` (4 files, ~1,300 lines) — the watchdog row above calls itself "the last unmigrated `/monitoring/` surface". **It was not.** Tailscale was the other one, and it was missed because it is the only `/monitoring/` route with no feature doc and no routing row, so nothing pointed at it. The gap was structural: no `shapes.ts`, no `MonitoringPageHeader` (an inline `text-3xl` `h1` with a `text-muted-foreground` description and no tracking), **no `staggerContainer` at all** so the route snapped in while its siblings faded, and **zero `useTranslation` in the entire family** — verified at `e91806f`, the page called `t()` not once across ~70 user-visible strings while five packs shipped. Beneath that, `install-log-viewer.tsx` was — again verified repo-wide at `e91806f` — **the only component file in the product hardcoding raw Tailwind palette colours** (`zinc-950` / `-800` / `-500` / `-400` / `-200`), which made the install transcript a fixed black box in light mode that matched nothing else on screen. The connected card stacked **ten `Separator`s at 2px apart** inside a `grid gap-2`, so the surface's densest card read as a ruled ledger rather than a console, and its label and value were **both** `text-sm font-semibold`, leaving no row with an answer. Seven states each restated the same `CardHeader` verbatim and two had already drifted, dropping the version. Then the familiar pre-canon set: `Badge variant="outline"` standing in for a capability tag on the exit-node chip (the Identity-Chip Rule), opacity washes on role colours (`bg-success/5 border-success/30`, plus `opacity-80` on an alert detail), hand-written role classes on an `AlertDialogAction` where the variant exists, `rounded-md` off the role scale in two places, `h-4 w-4` / `size-4` / `size-3.5` / `h-3 w-3` mixed across one file, and a stock `animate-pulse` running on a **sentence** — pulsing the copy the user is trying to read. Two honesty defects went with it: the peers card reported a failed load with **no retry at all**, and `formatLastSeen` did raw date arithmetic on a device that boots at Jan 1970, so before the clock steps every offline peer read as tens of thousands of days stale. Approved 2026-09-05 from a published before/after Artifact, with the information architecture **preserved** — connection state plus its settings, and the peer list — and the six views regrouped into three page shapes. **Closed 2026-09-05.** What moved: a `shapes.ts` and a `deriveView` now own all geometry and the single view every child reads; the 974-line connection card split into Connection / This device / Remove, the ten separators became six 44px pill rows, the two settings became tonal switch tiles, the version left the card description for a neutral `Tag`, the peers table took full width (which is what finally un-hid its OS and Last-seen columns), empty and error became condition blocks and the error gained its Retry, and 137 keys were minted across all five packs. **Two prescriptions were overturned by measurement, and both are the same error in different clothes — a number asserted from a sibling rather than taken from the browser.** (1) `TABLE.ROW_HEIGHT` shipped pinned at `h-11` while every row rendered **52px**: the device cell is a 20px name over a 16px DNS name inside 16px of cell padding, so the pin was **inert** and the Skeleton-Mirror Rule was failing silently — the values matched nothing and nothing looked wrong. Pinned at 52px, with both line boxes now explicit so the height is arithmetic rather than the sum of two default leadings, and the placeholder stack takes the table's own **zero** row gap plus each row's hairline, a gapped stack being taller than the table it stands in for. (2) The band's tile floor and figure size were restated from the Latency sibling unchanged, where neither fits: a tile's text column is its width minus 106px of disc, gap and padding, so the sibling's 190px floor left **84px** for a 15-character address, and this band carries *word* verdicts where that one carries two-digit numerals — Italian's "Richiede accesso" measures 167px at the sibling's 22px. 248px and 18px, with the arithmetic recorded in `shapes.ts`. A third defect was caught by blind verification and is worth keeping as evidence: two skeletons **restated** `h-[2.625rem]` and `h-9` instead of importing them. The values were correct, so nothing rendered wrong — the failure mode is drift on a future retune, which is precisely why the rule says import rather than match. ⚠️ One critique finding was **rejected as out of scope, not as wrong**: that `Log out` renders a solid destructive pill beside a neutral `Disconnect`, giving the heavier action the louder chrome and putting two solid reds on one page. It is a real observation, but the action rail was in the approved comp and re-deciding it during a polish pass is how an approved design quietly becomes a different one. Recorded, not changed. Contract in [`docs/reference/tailscale.md`](docs/reference/tailscale.md) | **Landed** 2026-09-05 |
+| ~~A tag chip's stroke on a tonal row is drawn under the 3:1 border floor~~ | `components/monitoring/{watchdog,alerts,network-events}/shapes.ts` + `components/system-settings/logs/shapes.ts` — each family restates `META_CHIP_ON_TONAL` as a `border-current` alpha, which swaps `tag.tsx`'s contrast-audited `--tag-*-border` token for the container's own ink and so leaves the audit that guarantees the floor. At `border-current/45` the stroke measures **2.13:1** on `warning-container`, 2.22:1 on `success-container`, and 2.32:1 on both `destructive-container` and `primary-container` in light — and it fails in dark on `warning` (2.64:1) and `primary` (2.81:1) too, so **six of the eight** reachable (role, theme) pairs sit under the 3:1 this document sets in **The three layers**. `border-current/65` clears every pair in both themes (light 3.19 / 3.41 / 3.54 / 3.62; dark 3.81 / 5.09 / 5.65 / 4.23). Light `warning` is the binding figure at **0.19** of headroom, so a retune of `--warning-container` or `--on-warning-container` reopens this with nothing left to catch it. Logs was corrected in its 2026-09-06 canon pass; watchdog (2 sites), alerts, and network-events followed, so all five copies now match at 65% | **Landed** 2026-09-06 |
+| ~~`/monitoring/connection-quality` carried total token drift and built a radio group out of tab semantics~~ | `components/monitoring/connection-quality/**` — the drift was total rather than partial: a grep across the three component files for `on-surface`, `surface-container` and the whole `rounded-{card,hero,tile,field,pill}` scale returned **zero** matches while `text-muted-foreground` returned six. Every measured radius was off the role scale (cards 14.4px with a 1px hairline and `shadow-sm`, fields and both buttons 8.4px, the tab strip 10.4px, `MetaPanel` 8.4px) and **every control measured 36px** against a 44px coarse floor, on a page opened from a phone beside the modem. Both preset selectors were `Tabs`/`TabsList`/`TabsTrigger` with **no `TabsContent` rendered anywhere on the page** — a tab widget announcing a panel that does not exist, where arrow keys mutated the saved value instead of moving focus. `MetaPanel` put a 1px border over `bg-muted/50`. There was no `shapes.ts`, no page-level cascade (each card started its own `staggerContainer` clock inside its own body), zero `duration-`/`transition-`/`ease-` in all three files, **zero `useTranslation`** and no keys in any of the five packs, and **no retry on either failure** — neither hook exposed a refresh, so a failed GET was terminal until a browser reload behind a bare `Alert` printing `HTTP 404` at the user. Meanwhile the page fetched the poller's whole `connectivity` block and read three of its fourteen fields. Approved 2026-09-06 from a published before/after Artifact with all five vetoable calls approved; the two-card information architecture was **preserved**. Closed 2026-09-06: this family's `shapes.ts` (importing the page shell, band and card grammar from `components/system-settings/shapes.ts`), a four-tile status band, the four-leg probe chain drawn as a numbered chain with the answering leg promoted by container, a real `role="radiogroup"` of 42px chips with one fill on a shared `layoutId`, condition screens with working Retry behind a new `refresh()` on each hook, and 137 i18n lines per pack across all five. **Two things were verified against the producer rather than assumed**, and both are the durable lesson: `PRESET_LIMIT` mirrors `_qt_apply_lat`/`_qt_apply_loss` in `events.sh` **including the comparison direction** — latency flags strictly above the cut (`$1 > t`) and loss flags at or above it (`-ge`) — so the band's chip cannot disagree with the alert that fires; and `legState()` requires `internet_available === true` on top of a `ping_target` match, because `ping_target` **falls back to `targets[0]` when nothing has answered**, so a match alone would paint leg 1 as the answering leg on a dead link. ⚠️ **One prescription was overturned by measurement.** The critique was briefed that the headroom bar's `track="muted"` measured 1.006:1 against its `surface-container-high` host and should be resolved by the Field-Step corollary. All three halves were wrong: the ratio is **1.085 light / 1.086 dark**; `--muted` and `--surface-container` are **byte-identical** in both themes, so `muted` already *is* a one-rung step; and stepping the readout down to `surface-container` would have made it identical to its own `ROW_GROUP` parent at **1.000:1**, as does `MetricBar`'s only other track role. `muted` is the better of the two available values and was left alone. Contract in [`docs/reference/connection-quality.md`](docs/reference/connection-quality.md) | **Landed** 2026-09-06 |
+| `MetricBar` has no track that is darker than its ground in both themes | `components/ui/metric-bar.tsx` — `TRACK_CLASS` offers exactly two roles, `muted` (byte-identical to `surface-container`) and `surface-container-high`. Measured L\*, light: surface 100 · background 98.25 · container 96.16 · high 92.79 · border 88.96 · input 84.67. Dark: background 1.55 · surface 4.42 · container 7.19 · high 11.22 · border 17.37 · input 22.24. **The neutral ramp runs opposite ways in the two themes**, so no single token is darker than its ground in both — on a `surface-container-high` host the track is the *lighter* of the pair in light mode, which is the "second, paler segment continuing past the end of the fill" this document names under Quality bars. The shipped default (a `-high` track on a `bg-card` host) reaches CR 1.24 / 1.20 at ΔL\* ≈ 7, which is the real bar of visibility; Connection Quality's readout reaches only 1.085 / 1.086. The consequence is that a `value={null}` empty track and a measured 0% are close to pixel-identical there, and only the `—` and the absent chip separate them. The fix is a theme-split track (light `bg-input`, dark `bg-surface`) as a third `TRACK_CLASS` entry, which touches the shared primitive's 20 call sites and stales this document's Quality bars section — **not attempted during a single route's pass** | Open |
+| One P1 finding still open from the Connection Quality pass; the other two landed | ~~(1) **The focus ring failed the non-text contrast floor.**~~ **Landed.** The product-wide ring was one decision written 53 times, byte-identical, and it carried a half-strength alpha: **1.968:1** at its worst ground and **2.006:1** at its best, under SC 1.4.11's 3:1. Dropping the alpha modifier takes the same ring to **4.004:1** worst / **5.083:1** best in the two themes — 85% was rejected at **3.270:1** worst, 0.27 of headroom, the same thin margin the retired border row was bitten by. A second half was needed and was found by looking rather than by measuring: `--ring` is byte-identical to `--primary`, so on a brand-filled control a ring with no gap is the same colour as the fill and the button simply grows 3px. All 53 sites now carry a 2px page-coloured gap under the ring, the idiom the repo already used in 17 other places. ⚠️ A contrast check alone would have passed the unoffset ring — the outer edge still measures 4.6:1 against the page. (2) **The preset rail's transit is illegible for 600ms.** Chips wear `PRESET.OFF` while a `layoutId` thumb travels on `standard`; mid-flight the incoming chip is partly uncovered with `ON_INK` on the rest fill, endpoints measuring **1.144:1**. The fix is the two-layer label so ink travels with the fill, which is a change to approved motion. ⚠️ The Browser pane freezes CSS transitions as well as rAF, so a mid-transition `getComputedStyle` returns the **start** value — the transit itself could not be measured, only its endpoints. ~~(3) **The fallback-leg diagnosis is `sr-only`.**~~ **Landed.** When the chain falls through to an IPv4 literal the tile now spends its one 18px meta line on the CAUSE rather than on the probe target, in `warning-on-surface` ink (**5.014:1** light, **9.958:1** dark on `surface-container`). The target was the cheaper thing to lose: the probe chain card one card down promotes the answering leg and shows it. The tile is still pinned at 104px and the full sentence still reaches assistive technology through `srNote`. Only (2) is still open, and it stays open on purpose — a polish pass may not re-decide an approved design | Open |
+| Numeric device labels still render in `font-mono` under the retired Machine-Voice tell | The 2026-09-26 tell (Typography > The Machine-Voice Rule) moves EARFCN, NR-ARFCN, PCI, band, TAC and decimal cell ID to `font-sans tabular-nums`. Censused the same day from `grep -rn font-mono components/` (line numbers as of that census), deliberately not swept. **Fixed in this run:** the Frequency Calculator (`components/cellular/cell-scanner/freq-calculator/**`, on its own `CALC_IDENT` in `cell-scanner/shapes.ts`). **Fixed 2026-10-06:** the Cell Scanner and Neighbour Cells tables and the lock dialog — `IDENT` in `cell-scanner/shapes.ts` (and `TABLE.IDENT`, which aliases it) is now `text-[13px] tabular-nums`, and `DETAIL_IDENT` was deleted with the summary tiles; mono stays only on the modem's error string and a `<mcc>/<mnc>` provider name. **Fixed 2026-11-01:** the dashboard carrier-aggregation and signal cards and the radio page (`active-bands-card.tsx`, `cellular-information-card.tsx`; RM551E v0.1.34 parity). **Open — the class is set in 7 files under `components/`:** `cellular/band-locking/shapes.ts:454,478,575`; `cellular/tower-locking/lte-tower-card.tsx:881,902,971,1015,1038`; `cellular/tower-locking/nr-sa-tower-card.tsx:270,1060,1106,1354`; `cellular/tower-locking/shapes.ts:496,642,645`; `cellular/frequency-locking/shapes.ts:271,273,298,308,387`; `cellular/custom-profiles/shapes.ts:133` `MACHINE_VALUE`, which is mixed — band tags at `active-profile-hero.tsx:597,602` and the band rows of `connection-scenarios/active-config-card.tsx` share it with ICCID and APN consumers that stay mono, so the constant splits; `public/overview/band-rows.tsx:222`. Measurements in mono fall to the same tell: `band-locking/shapes.ts:475` (bandwidth). Most of these sites carry a comment citing the old tell; correct it in the same change | Open |
+| ~~Editable cards do not yet commit from a card footer (The Card-Foot Apply Rule)~~ — supersedes the page-level save bar approved for Connection Watchdog on 2026-09-05 | Censused at base `0fbd9ee5`: **23** `<SaveButton` sites in five placements — stock shadcn `CardFooter`, a local footer `<div>` with Save first and no status slot, inline rows, in-card tonal bars (`SAVE_BAR` in MBN, `SAVEBAR` in Alerts), and two page-level bars under a card grid (`cellular/settings/pending-save-bar.tsx`, `monitoring/watchdog/save-bar.tsx`). All **21** non-exempt sites now commit from `CardFoot` or `CARD_FOOT` + `CARD_FOOT_ACTIONS`, status left, `SaveButton` last: band, LTE/NR frequency and LTE/NR-SA tower locking; TTL, MTU, Custom DNS, IP Passthrough; System Settings, SSH password, probe targets, quality thresholds; Alerts; IMEI, Backup IMEI, APN, MBN (persistent now, was a conditional tonal bar), Network Priority, SMS Forwarding. Both page-level bars are **deleted**, with `SAVE_BAR` and `SAVEBAR`, and each apply moved to the card it belongs to most: Watchdog's single apply spanned Ladder and Detection and sat on the **Ladder** card (`monitoring/watchdog/watchdog-foot.tsx`; **superseded 2026-10-11**: each card now commits only its own fields from its own `CardFoot`), and Cellular Settings' single POST spans the SIM and Network cards and sits on the **Network** card (`cellular/settings/apply-foot.tsx`, `ApplyFoot` / `ApplyFootSkeleton`, also used by Network Priority; field counts tie 3/3, Network is last in reading order; the page's separate Re-read row is now a ghost action in that footer, always shown, disabled while saving). Discard, where a card has one, is ghost and text-only, always rendered, disabled when clean. Still exempt: `cellular/tower-locking/automation-tiles.tsx` (per-row) and `cellular/custom-profiles/profile-input.tsx` (wizard). Untouched, with no `SaveButton`: autosave in `system-settings/scheduled-operations-card.tsx` and apply-on-select in `local-network/ethernet/speed-limit-card.tsx` | **Landed** 2026-10-06 |
+| ~~Secondary actions beside a Save still carry a stroke~~ | At base `0fbd9ee5`, `SaveButton` and a `variant="outline"` button co-occurred in 7 files. The six Save-adjacent ones moved to `tonal-neutral` and dropped their glyphs: Restore all (`band-locking/band-grid-card.tsx`), Clear LTE/NR lock (`frequency-locking/{lte,nr}-freq-card.tsx`), Remove Lock (`tower-locking/{lte-tower,nr-sa-tower}-card.tsx`) and Add (`custom-dns/custom-dns-card.tsx`, retired by P4). Footer secondary actions and Discard are text-only across the sweep. `custom-profiles/profile-input.tsx` (a wizard, exempt) is now the only file pairing `SaveButton` with `outline`; the shared `outline` variant is unchanged | **Landed** 2026-10-06 |
+| ~~`Button` primitive is not the pill the canon names~~ | `components/ui/button.tsx` — the base class is `rounded-md` (8.4px), `default` is `h-9` (36px) `px-4`, and `xs` / `sm` / `lg` / `icon-xs` restate `rounded-md` while `icon`, `icon-sm` and `icon-lg` inherit it. This document used to describe the 42px pill as *the* Button; that recipe is actually reached at each call site through a per-family `PILL_ACTION` constant (declared in 25 files, e.g. `about-device/shapes.ts`, `cellular/band-locking/shapes.ts`, `cellular/antenna-alignment/shapes.ts`), and a plain `<Button>` without one renders the legacy radius. The canon is the pill as the primitive's shape at every size with `default` staying 36px and `PILL_ACTION` staying the separate 42px page-action recipe. **The primitive was deliberately left untouched in this port** (user instruction, 2026-10-06). Moving it: swap the base `rounded-md` for `rounded-pill`, delete the explicit `rounded-md` on `xs` / `sm` / `lg` / `icon-xs`, then drop the now-redundant `rounded-pill` overrides at call sites (for example `className="ms-auto rounded-pill"` in `frequency-locking/freq-lock-hero.tsx`) and re-check the icon sizes. **Closed 2026-10-06:** the base class is `rounded-pill` with no per-size radius, `default` grows to 44px on a coarse pointer and `icon` keeps its painted size behind a centred 44px hit area, and the new `size="action"` (`h-[2.625rem] px-5 font-semibold`) replaced `PILL_ACTION` / `PILL_ACTION_PLAIN` / `PILL_ACTION_SM` / `PILL_HEIGHT` — 32 declarations in 25 files, all deleted; `size="action"` now appears 182 times in 91 files. Monitoring page actions moved from 36px to 42px with it | **Landed** 2026-10-06 |
+| Confirmation Toasts are only partly hygienic (The Toast-Confirms Rule) | Censused at base `0fbd9ee5`: `toast.success(` 88 sites and `toast.error(` 98 sites, in the 64 files that import `sonner`, plain `sonner`, fired in handlers — the shape is right. The 7 stale-closure failure toasts are fixed (they read `MutationResult.error`, 2026-10-06). Open: **10** hard-coded English toast strings (8 in `components/nav-user.tsx`, 3 success and 5 error, plus 2 in `components/ui/copyable-command.tsx`) — the `nav-user.tsx` sites (lines 145, 153, 175, 180, 182, 223, 225, 228), which breaks five-catalog parity. **9** files call `navigator.clipboard` directly (`cellular/radio/{cellular-information-card,page-header}.tsx`, `cellular/settings/imei-settings/{imei-settings,imei-tools}-card.tsx`, `cellular/sms/message-dialog.tsx`, `monitoring/tailscale/install-card.tsx`, `system-settings/at-terminal/transcript-row.tsx`, `system-settings/languages/pack-row.tsx`, `ui/copyable-command.tsx`); `lib/clipboard.ts` (`copyText`) is introduced with this port and each site moves to it. The five fading status-line "Saved" labels (alerts, watchdog save bar, scheduled operations, ethernet speed limit, cellular settings) were measured and retired 2026-10-06; `cellular/settings/cellular-settings.tsx` also gained its missing success and failure toasts. `useSaveFlash` / `markSaved` (26 files import the hook, 27 call `markSaved`) is `SaveButton`'s own Saved! flash driver, which stays — it is **not** part of this sweep. There is no `resolveErrorMessage` and no `errors` catalog, so the failure reason is the call's returned result with a `t()` fallback | Open |
+| `HintIcon` has no call sites | `components/ui/hint-icon.tsx` is rewritten to the final contract (Copy & Help > Info tips: `label`, `children`, optional `tone`; 300ms hover dwell, click pins, one tip open app-wide). `grep -rl HintIcon app components hooks` finds no consumer other than the primitive at base `0fbd9ee5`, so dropping its old `variant` / `size` props broke nothing. Adopt it where a surface carries a domain term or a non-obvious, non-dangerous caveat (about one per settings group; no tip is the default). The 136 over-long `en` strings noted under Copy & Help are the likely first candidates | Open |
+| On/off and short exclusive choices still use `Switch` and ad-hoc toggles | `<Switch` appears at **3 sites in 2 files** (`grep -rE "<Switch" app components --include=*.tsx`, recounted 2026-11-02 after P5 moved `tailscale/connection-card` to `SegmentedField`; 5 in 3 after P4 removed `traffic-engine/force-tcp-card`'s switch; 6 in 4 at 2026-11-01; 12 in 9 at 2026-10-11, 13 in 10 at `62287c50`, 24 in 19 at `0fbd9ee5`). Band failover, the tower-locking switches, `custom-profiles/profile-input` and the scheduled-operations switch are SegmentedFields now, so `/cellular` has none left. Remaining: `/monitoring` none, `/system-settings` 2 (`software-update/update-preferences-card`, 2 sites; `logs/transcript-card`). Three `ToggleGroup` pills (`antenna-alignment/recorder-card.tsx`, `dashboard/signal-history.tsx`, `monitoring/latency-monitoring/round-trip-card.tsx`) are separate implementations of the same pill. The shared control is `components/ui/segmented-field.tsx`, promoted from `components/cellular/settings/segmented-field.tsx` with this port. **Target rule, not a sweep**: convert a surface's switches when that surface is built or redesigned, never opportunistically | Open (target) |
+| ~~A fact worth knowing is still drawn grey (The Fact-Is-Info Rule)~~ | Frequency Locking's **"No automatic recovery"** chip, `cellular/frequency-locking/freq-lock-hero.tsx:364` (`verdict.no_recovery`), is now `<Badge variant="info">`; the pair on the amber locked verdict panel was measured 2026-10-06 (OKLab dE against the panel: info 17.0 light / 23.3 dark vs muted 14.8 / 20.1; ink on chip 8.1:1 / 7.8:1; separation holds under deuteranopia) | **Landed** 2026-10-06 |
+| Area fills sit over self-normalising axes (The Area-Fill Rule) | The 0.35 cap holds everywhere: every fill gradient in `dashboard/signal-history.tsx`, `dashboard/live-latency.tsx` and `monitoring/latency-monitoring/round-trip-card.tsx` starts at `stopOpacity={0.32}`. The scale condition does not: `signal-history.tsx:512` uses a data-relative domain (`dataMin - 5` to `dataMax + 5`), and `live-latency.tsx` declares no `YAxis` or `domain` at all (recharts' default 0-to-data-max). `round-trip-card.tsx` appears to qualify — its loss axis is fixed `[0, 100]` and its latency axis carries a `GOOD_CEILING_MS` `ReferenceLine` with `ifOverflow="extendDomain"`, which holds the ceiling at or above the "good" threshold — but that was read from source, not measured in the browser. On the first two: floor the scale or drop the fill | Open |
+| Direction hues are spent on things that are not directions | Censused at base `0fbd9ee5` (grep `(bg\|text)-(uplink\|downlink)` over `components app`): `BANDWIDTH_DISC` in `components/cellular/radio/summary-tiles.tsx` wears `bg-downlink` for aggregate channel width, `DISC_RATE` in `components/cellular/settings/shapes.ts` reuses a direction disc, and `components/nav-section.tsx` paints the Donate glyph `text-uplink`. A direction hue means upload or download and nothing else (see `docs/reference/color-system.md`); recolour each to a neutral or a role that is true, then delete this row | Open |
+| ~~Charts do not follow the in-app animations preference~~ | `hooks/use-chart-motion.ts` — `useChartSeriesMotion`, used by `dashboard/live-latency.tsx`, `dashboard/signal-history.tsx` and `monitoring/latency-monitoring/round-trip-card.tsx`, read motion/react's OS-only `useReducedMotion()`, so **Full** / **Reduced** never reached a chart. Closed 2026-10-11: it now reads `useMotionReduced()`, the one resolver under Motion. The two proposed hooks were not built — `useChartReducedMotion` would duplicate the resolver, and no `<Bar>` chart exists to need `useChartBarMotion` | **Landed** 2026-10-11 |
 
-All values below are transcribed from `app/globals.css` and are the source of truth for both themes.
+**The token layer is in and the component layer is complete: both halves — identity and quality — have landed.** Every surface renders the new neutrals, inks and fills automatically, because components resolve `bg-surface`, `text-on-surface-variant`, `bg-primary` and so on. On top of that, the shapes that were wrong rather than merely mis-coloured have been rebuilt on the identity axis — identity and metadata now render as outline tags through `components/ui/tag.tsx`, the radio summary strip is neutral-bodied with colour only on its discs, and `--primary` no longer stands in for a health state anywhere.
 
-### Primary
+Removing `nr` / `lte` / `spatial` (and the two unused direction variants) from `badge.tsx` means `BadgeVariant` no longer contains an identity or direction member at all, so **the Two-Form Rule is now enforced by the compiler rather than by reviewer discipline**: a status tone map cannot key onto an identity name, and a `variant="nr"` on a `Badge` fails the build.
 
-- **Signal Indigo** (`oklch(0.488 0.243 264.376)`, identical in light and dark): the one true action accent. Primary buttons, links, the active sidebar selection, text selection highlight, primary action affordances. Never decorative. If a screen has more than two patches of Signal Indigo, one of them is wrong.
-- **Primary foreground** (`oklch(0.97 0.014 254.604)`): text on indigo surfaces.
-- **Sidebar Indigo** (`oklch(0.546 0.245 262.881)` light / `oklch(0.623 0.214 259.815)` dark): the sidebar's own primary steps, slightly lighter than the action accent so active nav reads as related but distinct.
+The quality half landed on 2026-08-17. `getSignalQuality()` returns five levels above `none`, the `--quality-{1..5}` ramp has real consumers on ten surfaces, and no surface of the scale routes its colour through `success` / `warning` / `destructive` any more. The generated sidecar was regenerated the same day. What is left in the table above is the `--chart-*` block and the orphaned `--chart-threshold` — token-layer bookkeeping, not component work.
 
-### Secondary (Neutral Control Surface)
+Two facts from that migration are worth carrying forward, because they are the ones a future change can undo by accident.
 
-Unlike some sibling builds, this project's `--secondary` is **achromatic-neutral, not an indigo tint**. It shares its value with `--muted` and `--accent`:
+> ℹ️ NOTE: **there is exactly one quality→colour map, and re-forking it is the failure mode.** `components/cellular/signal-quality-display.ts` owns `QUALITY_GLYPH`, `qualityBadgeVariant()`, `qualityMeterTone()` and `qualityInkClass()`. Four rival copies used to exist — in `antenna-statistics/tech-card.tsx`, `radio/active-bands-card.tsx`, `public/overview/tone.ts` and `dashboard/signal-card-utils.ts` — and they were deleted, not merely aligned. One of them had already drifted: its `meterTone()` sent `none` through a `default:` arm to `success`, so **an antenna with no reading painted green**. That is why `qualityMeterTone()` returns `null` rather than a colour for `none`, and why `MetricBar` accepts `value={null}` — the absence is a value the caller must handle, not a case it can fall through.
+>
+> `components/cellular/cell-scanner/shapes.ts` carries a deliberately separate **3-tier** scale for scan results. A scan row compares candidate cells to each other; a serving-cell readout compares one cell to physics. It is not a fifth copy of this map and must **not** be unified with it.
 
-- Light: `oklch(0.967 0.001 286.375)` with `--secondary-foreground: oklch(0.21 0.006 285.885)`
-- Dark: `oklch(0.274 0.006 286.033)` with `--secondary-foreground: oklch(0.985 0 0)`
+> ℹ️ NOTE: the ramp is a **scale**, and status chips are **categories** — the two axes did not merge. `BadgeVariant` still has only the five status roles, so `bad` and `poor` both key onto `destructive` and are separated by their glyphs (`signal_cellular_0_bar` vs `signal_cellular_1_bar`). Giving chips a fifth failure step would mean minting a `--quality-N-container` / `--on-quality-N-container` pair for every stop — a token-layer change with its own CVD and contrast work, deliberately not attempted here. Until someone does that work, the glyph is the channel, which is what the Every-Chip-Has-A-Glyph Rule is for.
 
-Secondary buttons and muted washes are therefore quiet gray surfaces. There is no second brand color and no identity palette; do not introduce one.
+### Canon versus code
 
-### Functional / Operational Colors
+The layer-level view of the table above. RM520N is the build this canon was written on, so most layers match; the rows say where the code still differs and what binds in the meantime. RM551E (QManager on OpenWrt) keeps a twin of this table for its own tree; the two are kept in step by parity passes, the latest being P0a (RM551E v0.1.34: shell, primitives and the quality ramp).
 
-The four colors below are **functional**: each one signals a specific operational state. They never appear decoratively.
+| Layer | Canon says | Code today |
+| --- | --- | --- |
+| Tokens | Role triads (`-container`, `on-*`, `-on-surface`), `surface-container-*`, role radii, `--card-sheen`, `--quality-N`, `--tag-X`, direction and spatial roles, `--duration-*` / `--ease-*` | All in `app/globals.css`, both themes. Open: the orphaned `--chart-threshold` and the blocked `--chart-1..6` (rows above) |
+| Primitives | `card-foot.tsx`, `segmented-field.tsx`, `tag.tsx`, `material-symbol.tsx` + `material-symbol-names.ts`, `banner.tsx`, `tonal-banner.tsx`, `metric-bar.tsx`, `tick-group.tsx`, `ticking-value.tsx`, `swap-label.tsx`, `hint-icon.tsx`, all under `components/ui/` | All exist. P0a added `expand-button.tsx`, `reveal-button.tsx` (Material glyph), `reveal-label-button.tsx` (lucide glyph), `SaveButton`'s `savingLabel`, `SegmentedField`'s `sm` breakpoint and `Alert variant="warning"`; none has a consumer yet. `Alert variant="warning"` is drawn as `bg-warning/10` with a `border-warning/30` stroke, an opacity wash the Banners rule forbids, so a warning that states a condition still uses `Banner` or `TonalBanner`. `<Switch` remains at 3 sites in 2 files; convert one only when its card is reworked |
+| Motion | `lib/motion.ts` on `quick` / `standard` / `emphasized`, the Animations preference, no spring, no raw duration | Matches; see [`docs/reference/motion-preference.md`](docs/reference/motion-preference.md). The bare `transition-*` sweep across `components/ui/**` is still open (row above) |
+| Status chips | Filled tonal `Badge` variants with a `size-3` glyph; identity and metadata are `Tag`s | Matches, compiler-enforced through `BadgeVariant` |
+| Signal quality | One five-stop ramp in three hues, one quality-to-colour map in `components/cellular/signal-quality-display.ts`, `MetricBar value={null}` for a missing reading | Matches. The three-hue values landed in P0a (Colors > The signal quality ramp) |
+| App shell | sidebar-07 icon rail with flyouts, nav-tree breadcrumbs, a brand header, the global banners | Landed in P0a (Components > Navigation, Components > Banners) |
+| Apply placement | Every non-exempt editable card commits from `CardFoot` | Matches since the 2026-10-06 sweep |
+| Confirmations | One toast per finished action; no fading Saved chip | Partly: the open toast-hygiene row above. Backend error codes now resolve through `resolveErrorMessage()` in `lib/i18n/resolve-error.ts` and the `errors` namespace |
+| Icons | Material Symbols on the sidebar, `/dashboard`, `/`, `/login/` and `/cellular/**`; lucide elsewhere; never both on one screen | Matches; the pinned-lucide exceptions are `Banner`, `SaveButton`, `sonner` and the reconnecting banner, which mount on every route. See [`docs/reference/icon-system.md`](docs/reference/icon-system.md) |
 
-| Role | Light | Dark | Meaning | Icon pairing |
-|------|-------|------|---------|--------------|
-| **Uplink Green** (`--success`) | `oklch(0.59 0.18 149)` | `oklch(0.65 0.17 149)` | Healthy: connected, active service, successful save, profile applied | `CheckCircle2Icon` |
-| **Caution Amber** (`--warning`) | `oklch(0.75 0.18 75)` | `oklch(0.80 0.16 75)` | Warning: degraded signal, searching, limited service, partial success | `TriangleAlertIcon` |
-| **Telemetry Blue** (`--info`) | `oklch(0.62 0.19 255)` | `oklch(0.68 0.17 255)` | Informational: in-progress steps, notices that report rather than alarm | context-specific (`DownloadIcon`, `ClockIcon`, spinner) |
-| **Fault Red** (`--destructive`) | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` | Destructive or failed: reboot dialogs, failed applies, disconnected link | `XCircleIcon` or `AlertCircleIcon` |
+### Superseded conventions
 
-Dark-mode functional colors are deliberately brighter for contrast against the dark canvas.
+Earlier RM520N rules that are retired, not kept as exceptions. If you meet one in code, it is debt for its delta row, not precedent.
 
-### Neutral
+| Retired | Replaced by |
+| --- | --- |
+| The five-hue lightness-staircase quality ramp (hues 27 / 45 / 72 / 115 / 149) | Three plain hues over five stops, separated within a hue by glyph and bar length (Colors > The signal quality ramp) |
+| A four-level quality scale whose "Good" was `--primary` | Five stops (`bad` below `poor`) with no identity hue |
+| Identity as filled `Badge` chips (`variant="nr"` / `"lte"` / `"spatial"`) | Outline `Tag`s for identity and metadata; filled chips only for state (The Two-Form Rule) |
+| The 40-Degree Rule (hue arithmetic as evidence) | The Measured-Separation Rule |
+| A page-level or sticky save bar | The Card-Foot Apply Rule |
+| A fading "Applied" / "Saved" chip | One `sonner` toast (The Toast-Confirms Rule); `SaveButton`'s own Saved flash stays |
+| A bare `Switch` for a boolean preference | `SegmentedField`, on new and reworked surfaces |
+| An expanded-only sidebar whose parent rows were links with a separate chevron, and URL-segment breadcrumbs (`hooks/use-breadcrumbs.ts`, deleted) | Parents as expanders with a first sub-row, the icon rail, and crumbs from the nav tree (Components > Navigation) |
+| The "No route acquired" 404 with a static signal-bar tile | The pixel campfire 404 (below) |
 
-- **Pearl White** (`oklch(1 0 0)`): light-theme background, card, and popover surface. The only place pure white appears, and only via token.
-- **Graphite** (`oklch(0.141 0.005 285.823)`): dark-theme background and light-theme foreground text. Tinted toward indigo (chroma 0.005) so it never reads as dead `#000`.
-- **Slate** (`oklch(0.21 0.006 285.885)`): dark-theme card, popover, and sidebar surface.
-- **Mist** (`oklch(0.967 0.001 286.375)` light / `oklch(0.274 0.006 286.033)` dark): muted surfaces, secondary buttons, accent hover washes.
-- **Muted foreground** (`oklch(0.552 0.016 285.938)` light / `oklch(0.705 0.015 286.067)` dark): secondary text, descriptions, labels.
-- **Hairline** (`oklch(0.92 0.004 286.32)` light / `oklch(1 0 0 / 10%)` dark): borders, dividers, input strokes. Dark inputs use a slightly stronger `oklch(1 0 0 / 15%)`.
-- **Focus ring** (`oklch(0.708 0 0)` light / `oklch(0.556 0 0)` dark): the focus ring is a neutral gray in this build, rendered at 50% opacity and 3px width by the shadcn primitives. Destructive fields swap to a `ring-destructive/20` tint.
+### Surfaces ported from RM551E
 
-### Data Visualization (Chart Ramp)
+Surfaces RM520N took from RM551E rather than authored here. Each is an ordinary surface under every rule in this document; what follows is only what has no RM520N precedent.
 
-- Five steps of indigo-blue (`chart-1` through `chart-5`, lightness 0.81 → 0.42, hue 251-266) for monochromatic series, consumed by the Recharts wrapper at `components/ui/chart.tsx`.
-- One contrast accent (`chart-6` = `oklch(0.705 0.213 47.604)`, warm orange) for highlighting the "current" or "active" data point in a series.
-- Any added chart color must remain readable under deuteranopia and protanopia simulation before merge.
+- **The app-shell banners.** The reconnecting banner and the pending-reboot banner (Components > Banners). The mechanism, including what was deliberately not ported, is in [`docs/reference/reboot-banners.md`](docs/reference/reboot-banners.md).
+- **The campfire 404** (`app/not-found.tsx`, `components/not-found/campfire-scene.tsx`). A 96 × 60 pixel scene of SVG rects in its own fixed palette (`CAMPFIRE_PALETTE`), always night in both themes: the hex values are scoped to the scene through `--campfire-*` custom properties set on the card, and never become tokens. Its flame, glow, embers and stars are the One-Loop Rule's one sanctioned decorative loop, stepped sprite timing rather than the duration scale, and they stop on a still frame under Reduced. The return action carries a lucide glyph.
 
-### Signal Quality Ramp
+## Colors
 
-Signal metrics map to functional colors through one shared ramp (`getSignalQuality()` in `types/modem-status.ts`), used identically on the dashboard, antenna statistics, and the alignment meter:
+### The three layers
 
-| Quality | Color | RSRP (dBm) | RSRQ (dB) | SINR (dB) |
-|---------|-------|------------|-----------|-----------|
-| Excellent | `text-success` | >= -80 | >= -5 | >= 20 |
-| Good | `text-info` | >= -100 | >= -10 | >= 13 |
-| Fair | `text-warning` | >= -110 | >= -15 | >= 0 |
-| Poor | `text-destructive` | < -110 | < -15 | < 0 |
+Every role in this system exists in up to three layers, and **each layer has one job**. Choosing the wrong layer is the standard failure, so the layers are named and their jobs are exclusive.
+
+| Layer | Tokens | Job | Measured |
+| --- | --- | --- | --- |
+| **Ink** | `--X-on-surface` | Coloured text, numerals, chart strokes, bare glyphs, table values — on a **neutral** ground. **This is the primary mechanism.** | 0 of 28 pairs collapse, both themes |
+| **Fill** | `--X` + `--X-foreground` | Compact emphasis: glyph discs, quality-bar fills, primary buttons, the active nav pill, meter fills. Small and saturated. | 0 of 28 pairs collapse, both themes |
+| **Container** | `--X-container` + `--on-X-container` | Large tinted blocks. **Restricted to status chips, banners, condition screens, and resolved-state cells** — the functional roles only. | Status subset: 0 of 10. Identity: 8 of 10 collapse in light |
+
+The restriction on containers is not taste. In light mode the usable pale-tint band (L 0.83–0.96 at low chroma) is too narrow to hold five identity hues plus `surface-container-high` above the 0.05 separation floor; an optimiser proved it infeasible rather than merely difficult. The functional roles fit because there are fewer of them and they are permitted to differ in lightness as well as hue. **So identity gets ink and outline, and never a large tinted block.**
+
+### The ground
+
+Neutrals carry a slight cool cast (hue 258, chroma ≤ 0.012) so they sit in the mark's family without reading as blue.
+
+| Step | Light | Dark | Owns |
+| --- | --- | --- | --- |
+| `--background` | 0.985 | **0.120** | The page canvas |
+| `--surface` / `--card` | 1.000 | 0.170 | Cards, the primary content plane |
+| `--surface-container` | 0.967 | 0.200 | Metric-row pills, inputs, recessed blocks |
+| `--surface-container-high` | 0.938 | 0.235 | One step further in: hover, stripes, muted chips |
+
+Dark mode is genuinely near-black (`#040608`) with cards barely lifted off it (`#0d1013`), per the reference language. Light mode inverts the relationship rather than the values: the canvas is a soft grey and cards are pure white, so a card still reads as the thing in front.
+
+### Identity — which radio
+
+- **Primary / NR Blue** (`--primary-*`), hue **262**. The mark's blue, and the only hue in the system that *acts*. It is simultaneously the brand, the action accent, the `info` role, and the identity of the 5G NR leg. Those are one meaning wearing four hats, not four meanings — see The Info-Is-Brand Rule.
+- **Carrier Violet** (`--lte-*`), hue **296**. The 4G LTE leg. It never acts and never means healthy.
+
+Identity renders as **ink** (a coloured value, a chart stroke) or as an **outline tag**. It does not render as a large tinted block. On a glyph disc it uses the **fill**, never the pale container — light-mode identity containers collapse under simulation and the fills do not.
+
+### Direction — which way the bytes go
+
+- **Downlink Rose** (`--downlink-*`), hue **341**. The download direction.
+- **Uplink Cyan** (`--uplink-*`), hue **200**. The upload direction.
+
+**These mean direction and nothing else.** The previous system gave rose a second meaning ("and capacity") and cyan a second meaning ("and counts"), which made the axis untrue: a carrier-count tile wore upload cyan while reporting nothing about upload, two clicks from a latency card where the same cyan meant upload beside an up-arrow. A count is not a direction. A count is neutral.
+
+Direction is primarily a **chart-stroke and numeral** pair now, so both carry vivid `-on-surface` inks. They always pair with an arrow glyph; hue alone never says which way.
+
+### Spatial — how many antennas
+
+**Spatial Azure** (`--spatial-*`), hue **232**. Antenna and spatial-stream readouts: MIMO layer counts, per-antenna chains, alignment surfaces. A MIMO figure routinely names both radios in one string (`LTE 1x2 | NR 2x4`), so no identity hue is honest, and layers are neither a direction nor a state.
+
+### State — the functional three
+
+`success` (149), `warning` (72), `destructive` (27). `info` resolves to the brand ramp rather than owning a fourth hue.
+
+**Only these report health.** An identity hue never means "fine"; a direction hue never means "degraded". This is the rule the previous system broke in its own canon, where the quality scale mapped "Good" to the brand blue — so an LTE-only user saw good signal rendered in the 5G identity colour, on every surface that read the scale.
+
+`muted` (`surface-container-high` + `on-surface-variant`) is the fourth chip role and means **deliberately inactive** — Stopped, Disabled, Offline peer. It never carries live data. A live figure on a muted ground reads as switched off.
+
+### The signal quality ramp
+
+A **five-stop continuous scale** for measured signal quality — RSRP, RSRQ, SINR, aim score. It is a separate axis from the functional three, and it is the only place in the system where colour is read as a position on a scale rather than as a category.
+
+| Stop | Hue | Level | Replaces |
+| --- | --- | --- | --- |
+| `--quality-1` | 27 (red) | **bad** | *new — see below* |
+| `--quality-2` | 27 (red) | poor | `destructive` |
+| `--quality-3` | 80–90 (yellow) | fair | `warning` |
+| `--quality-4` | 149 (green) | good | **`primary`** — the defect this fixes |
+| `--quality-5` | 149 (green) | excellent | `success` |
+
+Two things changed and both are substantive.
+
+**A fifth level exists.** `getSignalQuality()` used to return four, so everything below −110 dBm RSRP landed in one `poor` bucket: −111 and −140 rendered identically, when the first means nudge the antenna and the second means it is pointing at a wall. On an alignment meter that is the difference between a task and a dead end. The cut sits at RSRP −120, RSRQ −18, SINR −10 — a product call, not a measurement: −110 to −120 is cell edge, a link that aiming or a band lock can plausibly recover, and below that the honest message is "not this cell".
+
+`SignalThresholds` names every member except `floor` as a **cut** (the lowest value that still earns that level). `floor` is the bottom of `signalToProgress()`'s 0–100 scale and classifies nothing. Keep the two distinct: the field now called `floor` was called `poor` while `getSignalQuality()` never read it, and adding a real `poor` cut beside it would have left a cut and a floor sharing one name.
+
+**The ramp contains no identity hue.** Removing brand blue from the middle of a health scale is the whole reason the ramp is worth minting.
+
+**The ramp is three plain hues: red, yellow, green.** Stops 1–2 are red (hue 27), stop 3 is yellow (hue 80 to 90), stops 4–5 are green (hue 149). Stops that share a hue share one value exactly, in ink and in bar, so `bad` and `poor` are the same red and `good` and `excellent` the same green. **Colour says which third of the scale a reading is in; the glyph says which stop.** `QUALITY_GLYPH`'s wedge ladder separates stops that share a hue and bar length carries magnitude, so both stay mandatory channels. Under deuteranopia red and green still converge, which is the same reason.
+
+This replaced a five-hue lightness staircase (hues 27 / 45 / 72 / 115 / 149, one per stop). RM551E retired it first (its commit `806b3f77`, in v0.1.33) because users could not tell good (olive) from fair (brown), and RM520N took the same values in the v0.1.34 parity pass. Do not restore the staircase to win back per-stop colour: three hues everyone already knows beat a fine scale nobody can read, and the glyph already carries the stop.
+
+`--quality-N` is the **numeral** ink; `--quality-N-bar` is the **bar fill**, and at every stop the bar carries more chroma than the ink. The light-mode yellow is the one stop where ink and bar sit far apart: the ink is a dark gold (L 0.58) so a numeral stays legible on a near-white ground, while the bar stays a true yellow (L 0.82). **Never use a `-bar` value as ink** — the light yellow bar is too pale for text. Two inks equal a functional-role ink exactly: light-mode green is `--success-on-surface`, and dark-mode red is `--destructive-on-surface`. Dark mode uses the same three hues, lifted for the dark ground.
+
+### Outline tags
+
+Identity and metadata render as **outline-and-tint**: a 1px role border, role text, transparent fill, pill radius.
+
+| Tag | Border | Text |
+| --- | --- | --- |
+| NR / 5G | `--tag-nr-border` | `--tag-nr-text` |
+| LTE / 4G | `--tag-lte-border` | `--tag-lte-text` |
+| Spatial | `--tag-spatial-border` | `--tag-spatial-text` |
+| Neutral metadata | `--tag-neutral-border` | `--tag-neutral-text` |
+
+Text clears 4.5:1 against every card ground; borders clear 3:1. Borders separate from each other in 0 of 6 pairs collapsed, both themes.
+
+An outline tag is **never a status indicator**. It labels *what a thing is* — a band number, a radio family, a channel width, a capability. Status is always a filled chip with a glyph. The two forms exist precisely so that "which radio" and "is it healthy" cannot be confused at a glance, which is the failure the previous single-form system kept producing.
+
+### Data visualization
+
+Series colour comes from the **ink** tokens directly — `--primary-on-surface` for NR, `--lte-on-surface` for LTE, `--downlink-on-surface` / `--uplink-on-surface` for a directional pair. One hue per family, so a colour learned on one card holds on the next.
+
+- **Strokes are saturated and 2px.** A chart line is the boldest thing on its card; the card is neutral so it can be.
+- **Area fills** are a gradient of the series ink, 0.32 alpha falling to 0 (The Area-Fill Rule, below). Monotone curves, horizontal gridlines only.
+- **Threshold guides** are dashed, `--border`, low opacity.
+- **Legends** use a filled dot in the series ink beside the label, never a colour-only key.
+- Any added series is measured against every existing one under both simulations before merge.
+
+**The Area-Fill Rule.** An area chart may wash the region under its stroke with that stroke's own ink, as a `linearGradient` fading to zero at the far edge. This is **ink, not a container** — the Don't list's "give identity or direction a large container block" governs tinted *surfaces* a reader looks at, and a fill bounded by a data path is a reader looking at the data. Two conditions make it so, and both are load-bearing:
+
+- **Capped at 0.35 opacity at the stroke.** Past that the wash stops reading as the stroke's own shadow and starts reading as a filled block in a direction hue, which is the thing the Don't forbids. `signal-history.tsx`, `live-latency.tsx` and `round-trip-card.tsx` all start at 0.32, under the cap.
+- **A fixed or floored scale.** The wash encodes one thing — how close a point sits to the plot's ceiling — so a ceiling that re-derives itself every poll makes it encode nothing: the same reading draws a different intensity depending on what else happened to be in the window. A fixed axis qualifies by construction; a self-normalising series qualifies only once its divisor is floored at a meaningful value. **A fill over a freely renormalising axis is not permitted** — floor the scale or drop the fill. *(RM520N: two charts are still over a data-relative axis; tracked in Migration Deltas.)*
+
+A fill is never the only channel: the stroke carries the series and the glyph-paired legend carries which direction it is (The Glyph-Carries-The-State Rule).
+
+**Never use the numbered `--chart-1..6`.** They are shadcn-starter inheritance with two disqualifying properties: their values are byte-identical in the light and dark blocks, so a chart built on them does not theme at all; and `--chart-1..5` sit in one hue family, so LTE and NR would be separated by lightness alone.
 
 ### Named Rules
 
-**The Signal-Indigo Reserve.** Signal Indigo is rationed. Reserve it for the single most-important action affordance on a screen. If a Save button, a primary CTA, and a highlighted recommendation all appear on the same page, two of them must use a quieter variant. Rarity is what makes it read as "primary".
+**The Data-Ink Rule.** Colour belongs to the reading, not to the container holding it. A card is neutral; the numeral, stroke, bar, and glyph disc on it are coloured. Before tinting a surface, ask what fact the tint encodes — if the answer is "it looked plain", the surface stays neutral. Large tinted blocks are reserved for the functional roles, where the tint *is* the state.
 
-**The Functional-Color Promise.** A user who learns that Uplink Green means "healthy" on the dashboard must find the same green meaning the same thing in Watchdog, in Profile Apply, and in the alert logs. Functional colors are a contract; never decorate with them.
+**The Three-Layer Rule.** Ink for values and strokes on neutral ground; fill for compact emphasis; container for functional-role blocks only. Identity and direction have no container job. Never cross a pair: a fill takes its own `-foreground`, a container takes its own `on-` ink, and a neutral-ramp ink (`on-surface-variant`) on a tinted surface is always a bug.
 
-**The One-Accent Rule.** QManager has a single action accent: Signal Indigo. `--secondary` is a neutral control surface, not a brand color. Any attempt to introduce a second accent or identity color violates the restrained principle.
+**The In-Gamut Rule.** Every token is inside sRGB by construction. This is correctness, not polish: Lightning CSS gamut-maps out-of-range `oklch()` at build time and its mapping is not naive clipping, so an out-of-gamut token ships a colour nobody authored and measured separation computed from the source value is fiction. The previous palette had 87 such tokens; this one has zero, which is what makes "declared equals shipped" true. Any new value is checked for gamut before it is checked for anything else.
 
-**The Semantic-Token Rule.** Always reach for semantic classes (`text-info`, `bg-success/15`, `text-muted-foreground`), never raw Tailwind palette colors (`text-blue-500`, `bg-green-500`). The theme switch depends on it.
+**The Measured-Separation Rule.** Colour decisions are measured, never reasoned from hue arithmetic. This replaces the old 40-Degree Rule, which was a proxy for a measurement and behaved like one: it permitted pairs that collapsed and forbade pairs that were fine, and it needed an exception every time it met real data. Simulate deuteranopia and protanopia, compute OKLab ΔE, and hold the **0.05 floor** — on the layer the colour will actually ship on. Degrees of hue separation are not evidence.
 
-**The OKLCH-Only Rule.** No hex literals. No `#000`, no `#fff`. New colors enter the system in OKLCH form in `globals.css`; conversion is the author's job, not the consumer's.
+**The Identity-Never-Acts Rule.** `nr` and `lte` say which radio. They never mean healthy, never tint a control, and never appear in a quality scale. Where a surface carries identity *and* reports quality, the quality is encoded non-chromatically — the signal cards use the Material glyph's bar count.
 
-## 3. Typography
+**The Info-Is-Brand Rule.** An informational state resolves to the brand ramp. It does not get its own hue. An info chip and a primary button differ by shape and glyph, not by owning two different blues.
 
-QManager's interface voice is **Euclid Circular B**, a clean geometric sans loaded locally as WOFF2 files in `app/layout.tsx` via `next/font/local` and applied to `<body>`. It maps to `font-sans` through `--font-sans: var(--font-euclid)` in `globals.css`.
+**The Fact-Is-Info Rule.** A fact worth knowing that is neither a fault nor health uses the `info` role: the brand blue, as a filled `Badge variant="info"` with a glyph. A grey outline reads as disabled or unavailable, amber as a problem, green as healthy, so none of them can honestly say "this is how it is, and it matters". The RM520N case is Frequency Locking's **"No automatic recovery"** chip on the locked verdict (`components/cellular/frequency-locking/freq-lock-hero.tsx`, `verdict.no_recovery`): frequency locking has no failover watcher, so unlike band and tower locking nothing restores service on its own — a fact the user needs while a lock is in force, neither a fault in the device nor a sign of health. It is drawn `info` on the amber locked panel, measured 2026-10-06 (OKLab dE against the panel: info 17.0 light / 23.3 dark vs muted 14.8 / 20.1; ink on chip 8.1:1 / 7.8:1; separation holds under deuteranopia). The rule follows The Info-Is-Brand Rule (info is the brand ramp, not a hue of its own) and The Quiet-Default Rule (the chip is shown only while the fact applies; the exception wears the fill).
 
-**Loaded weights:**
+**The Direction-Is-Not-A-Radio Rule.** Rose and cyan say which way the bytes are going, on either radio. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other. Neither carries a second meaning: counts and capacities are neutral.
 
-| Weight | File | Usage |
-|--------|------|-------|
-| 300 (Light) | `EuclidCircularB-Light.woff2` | Decorative / oversized numerals only |
-| 400 (Regular) | `EuclidCircularB-Regular.woff2` | Body text, inputs, descriptions |
-| 400 (Italic) | `EuclidCircularB-Italic.woff2` | Rare emphasis |
-| 500 (Medium) | `EuclidCircularB-Medium.woff2` | Labels, buttons, badges, table headers |
-| 600 (SemiBold) | `EuclidCircularB-SemiBold.woff2` | Card titles, section headings, numeric readouts |
-| 700 (Bold) | `EuclidCircularB-Bold.woff2` | Page titles (`h1`) |
+**The Glyph-Carries-The-State Rule.** Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. This is load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, so colour is never the only channel there. The bar carries magnitude within the scale, and `QUALITY_GLYPH` carries the stop itself.
 
-**No secondary UI typeface.** Manrope was once loaded as a designated secondary face but was never bound to a variable or class, so no surface ever rendered in it; the dead import has been removed from `app/layout.tsx`. If a genuine secondary-face need ever appears, load it deliberately and bind it via a font variable in the same change — never hand-wire a font into components.
+**The Neutral-Default Rule.** A figure with no honest hue stays neutral. Adding a colour because a block looked plain is the failure mode this whole system exists to prevent, and it is the one that recurs.
 
-**Mono: Geist Mono (the machine voice).** Loaded via `next/font/google` (`Geist_Mono`) in `app/layout.tsx`, bound to `--font-geist-mono`, which `globals.css` maps to `--font-mono` (the `font-mono` utility). Self-hosted at build time — no runtime font fetch from the modem. `font-mono` is used across roughly two dozen surfaces: the AT terminal, system and alert logs, `CopyableCommand`, IMEI tools, cell data readouts, and dense signal values in the alignment meter. When adding machine-output surfaces, mark them `font-mono` — the semantic boundary is as important as the glyphs.
+## Typography
+
+**Interface font:** Rethink Sans (`--font-sans`, WOFF2 variable font via `next/font/local`), with `system-ui, sans-serif` fallback.
+**Machine font:** JetBrains Mono (`--font-jetbrains-mono` → `font-mono`), vendored under `app/fonts/` and loaded through `next/font/local`.
+**Icon typefaces:** Material Symbols Rounded on the shell and converted routes; lucide elsewhere. An icon font is not a voice and does not count against the Two-Voice Rule.
+
+**Character:** Rethink Sans's rounder terminals and open counters read as warmer than geometric humanist forms, while keeping enough weight contrast to stay legible in dense label stacks at 12px. JetBrains Mono is the machine's voice: opaque identifiers and raw strings the device emits verbatim. The pairing is the product's thesis in two fonts — a human interface reporting machine truth.
+
+**Loaded weights:** 400 body, inputs, descriptions · 500 labels, chips, buttons, table headers · 600 card titles, section headings, numeric readouts · 700 page titles only. Rethink Sans is a true variable font (wght 400–800), so it self-hosts as two files — normal and italic — rather than a static cut per weight.
+
+> ⚠️ WARNING: Do not move any face back to `next/font/google`. That loader self-hosts its *output* but still fetches from fonts.googleapis.com on every cold build, so a slow or absent link fails the production build outright (`Failed to fetch 'JetBrains Mono' from Google Fonts`). This app is built to be served **by the modem**, often from a field machine, so every face — Rethink Sans (normal and italic), JetBrains Mono and the Material Symbols subset — resolves to a local file under `app/fonts/` and the build has no third-party network dependency. The vendored JetBrains Mono file is Google's own `/* latin */` cut of the variable font, byte-for-byte, with its `weight` range and `unicode-range` copied from the same stylesheet so the declaration the browser sees is unchanged. Re-vendoring means re-fetching that family's `css2?family=…:wght@…` stylesheet and taking its `/* latin */` block.
 
 ### Hierarchy
 
-- **Display / Page Title** (Euclid 700, `text-3xl` / 30px): the `h1` at the top of every feature page, followed by a `text-muted-foreground` description.
-- **Headline** (Euclid 600, `text-xl` / 20px): large card titles and state labels (e.g. dashboard status card titles use `text-lg font-semibold`).
-- **Title** (Euclid 600, 1rem / 16px, `leading-none`): the `CardTitle` default. Tight leading so titles align cleanly with adjacent metadata.
-- **Body** (Euclid 400, `text-sm` / 14px): default UI text, descriptions, table cells.
-- **Label** (Euclid 500, `text-xs` / 12px): badges, table headers, button text, form labels, tiny uppercase section labels (`uppercase tracking-wider`).
-- **Numeric** (Euclid 600, sized to slot, `tabular-nums`): live signal values, counters, timers. Always tabular so values do not jitter as they update.
-- **Mono** (`font-mono`, usually `text-xs` / `text-sm`): AT terminal streams, log viewers, copyable commands, IMEI/ICCID identifiers, and compact signal readouts where column stability matters.
+- **Display** (700, 1.875rem / 30px, -0.02em): the `h1` at the top of every feature page, followed by an `on-surface-variant` description. One per route.
+- **Headline** (600, 1.25rem / 20px, -0.01em): large tile values, state-screen labels, section headings inside a hero card.
+- **Title** (600, 1.125rem / 18px): the card title. `CardTitle` itself ships only `leading-none font-semibold` and takes its size from the call site.
+- **Body** (400, 0.875rem / 14px): descriptions, prose, card copy, table cells. `leading-relaxed` and `text-pretty` on any paragraph over one line.
+- **Row** (600, 0.8125rem / 13px on a **20px** line box): metric-row keys and values on a glance card. **The explicit leading is not optional** — 13px is an arbitrary Tailwind size, so it would otherwise inherit whatever leading the card sits in; pinning the line box is what holds the row at exactly 40px and keeps its skeleton's `h-10` mirroring it. Do not reach for 13px outside a dense metric row.
+- **Label** (500, 0.75rem / 12px): chips, tags, table headers, button text, form labels, tile eyebrows. Tiny uppercase section labels run 11px with `tracking-wider` in the sidebar.
+- **Numeric** (600, `tabular-nums`): any figure the interface reports — a live measurement or a short numeric label such as an EARFCN or PCI (The Machine-Voice Rule). **This is the one step deliberately not on a fixed ramp** — a numeral is read at the distance its container implies, so its size derives from the slot holding it, and a literal `text-[Npx]` on a `tabular-nums` numeral is correct by construction. It renders in `--font-sans`, not `font-mono`. A numeral *not* sized to a slot still takes the ramp, and prose never qualifies.
+
+### The banner-scoped step
+
+A page-level `Banner` title is **15px / 600** with `tracking-[-0.005em]`; its description is 13px. 15px is deliberately **the only sanctioned literal outside the pre-auth scale**: a banner title has to out-weigh the copy beneath it without competing with the card heading above it, on a surface that mounts at any width on any route, and both 14px and 18px fail one of those two jobs.
+
+### The pre-auth card exception (`/` and `/login/`)
+
+The two pre-auth surfaces run a **denser five-step scale of their own**. It applies only to the Overview splash and the login page.
+
+| Step | Size | Role |
+|------|------|------|
+| Card title | 600, 19px, -0.01em | the card's own `h1` |
+| Section title | 600, 17px | the empty-state headline |
+| Emphasis | 600, 15px | the 48px pill CTA label, status-tile values |
+| Body | 400/500/600, 13px | subcopy, field labels, inline errors, banner body |
+| Eyebrow | 600, 11px, `tracking-[0.11em] uppercase` | the label above every tile and section |
+
+**Why.** Every other screen sits inside the app shell, where the sidebar, page title, and card grid establish scale before a card says anything. These two are the only screens that are a single card on an empty canvas, so the card must build five levels of hierarchy from nothing inside roughly 400px. 11px is the floor. **Both surfaces must agree:** when one of these steps changes, it changes on both in the same commit.
+
+The scale itself lives in `components/pre-auth-type.ts` and is **type-only by design**. The two cards genuinely differ in width (544 vs 404), inner spacing and gutter, so a shared *geometry* module would be mostly non-shared and would invite the second card to inherit a measurement that was only ever right for the first. What they share is the voice, not the box.
+
+**The pre-auth control height is 48px, not the canon's 42px.** This was undocumented drift until 2026-08-30; it is written down here rather than "fixed" because it is right. The Field-ergonomics rule below already sets a 44px floor for coarse pointers, and these are the two most phone-first surfaces in the product — the login card in particular is often the first thing touched on a handset, outdoors, one-handed. Both the password field and the pill CTA are 48px. Do not "correct" them to 42px to match the app scale: a surface-scoped exception that clears a documented accessibility floor is not drift once it is stated, and the app scale's 42px applies behind the login, where a pointer is usually a mouse.
 
 ### Named Rules
 
-**The Two-Voice Rule.** Euclid Circular B speaks for the interface; Geist Mono (`font-mono`) speaks for the machine and for dense technical identifiers. There is no third voice. Pairing Euclid with another UI sans is forbidden.
+**The Two-Voice Rule.** Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden.
 
-**The Machine-Voice Rule.** `font-mono` (token target: Geist Mono) is scoped to device output and technical data: the AT terminal (input + output), raw log viewers, `CopyableCommand`, inline `<code>` for AT command strings, and identifier/value readouts (IMEI, ICCID, dBm values in compact meters). It is never reached for as decoration on headings, buttons, or prose.
+**The Machine-Voice Rule.** `font-mono` is scoped to strings whose *character grid carries meaning*: content the user compares character by character or would paste into a terminal. That is raw AT responses and the AT terminal itself, log lines, copyable commands, file paths, IPv4/IPv6/MAC addresses, interface names, hostnames, APN strings, MCC-MNC codes, hex values and bitmasks (the `0x` TAC pill, a band bitmask), and long opaque identifiers — ICCID, IMEI, IMSI — which stay mono *even though they are all digits*, because they are compared, not read as a quantity. A human-authored label never wears it.
 
-**The Tabular-Number Rule.** Any number that updates live (signal values, latency, byte counters, countdowns, step counters) must use `tabular-nums`. This is already the observed convention across the dashboard, latency monitor, reboot countdown, and apply dialog; keep it universal. Non-tabular updates cause perceptible jitter in dense readouts.
+Everything the interface reports as a **figure** takes `font-sans` + `tabular-nums`: measurements (RSRP, RSRQ, SINR, throughput, latency, temperature, percentages, counts, durations, data volumes, bandwidth and frequency in MHz) **and short numeric device labels** — EARFCN, NR-ARFCN, PCI, band number (`B3`, `n78`), TAC, decimal cell ID and the eNodeB / sector IDs derived from it, channel and slot numbers.
 
-**The Weight-Discipline Rule.** 400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only. Hierarchy comes from weight contrast and scale, not from font mixing.
+The tell: **is this a quantity you read, or an opaque string you compare?** A quantity, however static, is `font-sans tabular-nums`. An opaque string, however numeric, is `font-mono`. Rethink Sans's tabular numerals give the column alignment mono used to be borrowed for, so a short numeric label loses nothing by moving.
 
-## 4. Elevation
+> ⚠️ The tell changed on 2026-09-26. It used to be *"does the value change while the user watches?"*, which put band, EARFCN and PCI in mono. The code has not been swept to the new tell, and many `shapes.ts` comments still cite the old one; the open sites are listed in Migration Deltas. Move a site when you next touch its surface, and correct its comment in the same change.
 
-QManager uses **tonal layering plus hairline borders** as the load-bearing depth signal. Shadows are quiet and mostly static; nothing about the layout breaks if they disappear.
+**The Weight-Discipline Rule.** 400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only.
 
-- **Light theme:** Background (`Pearl White`) → Card (`Pearl White`) is intentionally flat; depth comes from the 1px Hairline border plus the card's `shadow-sm`. The sidebar is `oklch(0.985 0 0)`, one step off the canvas.
-- **Dark theme:** Background (`Graphite`) → Card (`Slate`) is a tonal step lighter, so cards lift without needing shadow. The sidebar matches card tonality. Borders thin to `oklch(1 0 0 / 10%)`.
+**The Tabular-Number Rule.** Any figure that can change while on screen is `tabular-nums`, in whichever voice it is already in. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving.
 
-### Shadow Vocabulary (as shipped)
+**The Truncation-Pair Rule.** Where two cards sit side by side as a pair, every text node in their headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at one breaks the paired baseline. Italian is the locale that trips it.
 
-- **Whisper** (`shadow-xs`): inputs and outline buttons at rest. So subtle it is almost subliminal.
-- **Resting** (`shadow-sm`): the `Card` primitive's built-in shadow (`rounded-xl border py-6 shadow-sm`). The only persistent shadow in the system.
-- **Popover Float** (`shadow-lg` and up, via shadcn defaults): dialogs, dropdowns, popovers, the skip-to-content pill. The "this is not part of the page flow" signal.
+## Layout
+
+**Every feature page is the same shape:** a page header (display title plus a muted one-line description, with optional pill actions right-aligned) followed by a uniform grid of self-contained cards. There is no bespoke per-screen composition. A user who learns one page has learned them all.
+
+**Responsive behavior is container-driven.** The content column declares `@container/main` and cards respond with `@3xl/main:`, `@4xl/main:`, `@5xl/main:`. A card that declares its own `@container/card` uses `@sm/card:` and `@md/card:` inside itself. Mixing viewport `sm:` with container `@sm/card:` in one card breaks on tablets and expanded sidebars. Viewport breakpoints stay for page-level concerns only: the gutter (`px-4 lg:px-6`) and the sidebar's own collapse.
+
+**The grids that ship.** The dashboard is a 5-column container grid (`@4xl/main:grid-cols-5`) with a 3-column left stack and a 2-column right rail, then full-width rows beneath. Radio Information is a **single-column stack of full-width cards ordered by cadence** — what moves every poll above what moves on handover — under a 4-up tile strip. Both collapse to a single column with no special-casing.
+
+> Radio Information was once a symmetric 2-up with both cards `h-full`-locked to each other. That is a split by **symmetry**, and symmetry is not a property either card has: the lock forced a static reference card and a live telemetry card to one height, stranding ~200px of dead space in whichever had less to say — and which one that was flipped with the carrier count. **Split a page by cadence, not by symmetry.** The fix there was to stop pairing those two cards at all, not to let a desktop row run ragged: a card that cannot fill its share of a row belongs in a full-width band of its own.
+
+**Spacing rhythm.** Page gutter 16px rising to 24px. Card grid gap 16-24px; tile grid gap 14px; in-card row gap 6px; inline element gap 8-10px. Card padding is 24px (`px-6`) standard and 28px (`px-7`) on hero cards, with 24-26px vertical.
+
+**Equal heights are not optional.** Cards that sit side by side on a desktop-width row share one height, and a bento group resolves to one symmetrical height across the group. A grid row uses `items-stretch` with `h-full *:data-[slot=card]:h-full` on each cell; `items-start` in a multi-card row is a bug. The lock is only honest when every card in the row has a state built to *fill* the slack, with exactly one region nominated to absorb it (`flex-1` over a `min-h-0`), and that holds for the loading, empty and error states too, not just the loaded one. A card with nothing to fill with does not belong in a symmetric row: promote it to a full-width band rather than leave the row ragged.
+
+**Field ergonomics.** Touch targets are a minimum 44px on coarse pointers; icon-only tab lists bump `TabsList` height rather than shrinking triggers. Toolbars `flex-wrap`. Tables wrap prose columns and treat horizontal scroll as a fallback.
+
+### The pinned console
+
+A surface whose primary reading must never leave the screen splits into a **sticky anchor column and a scrolling work column**, with any full-width strip below both rather than inside either. Antenna Alignment is the first instance: at `@4xl/main` a 12-column grid gives the console 5 and the work column 7, and Receive Chains spans the full width beneath the split.
+
+Three facts about it are load-bearing, and all three live in `components/cellular/antenna-alignment/shapes.ts`:
+
+- **The console column must stretch.** A sticky child travels inside its own containing block, so its slack is the parent's height minus its own. An `items-start` tidy-up shrinks the column to the console's own height, the slack goes to zero, and the pane never pins — while looking perfectly correct in a static screenshot. The grid's default `stretch` is the feature, not an oversight.
+- **A full-width strip is a different card from a column card.** In the work column the diagnostic "footnote" was the tallest card on the page, and the columns ran 929px against 403px — half a desktop viewport of empty canvas, growing with content because that gap *is* the sticky travel. Below the split the two columns close to within ~20px and the strip earns its 4-up step.
+- **Mobile order is question order** — console, positions, chains — and moving a card between a column and a full-width row must not disturb it.
+
+**A per-family `shapes.ts`.** `components/cellular/antenna-alignment/shapes.ts` is the seventh of these modules under `components/cellular/**`, on the same conventions as `settings/shapes.ts` and `cell-scanner/shapes.ts`: one module per route family owning geometry, control heights, glyph sizes and tone maps, imported by the loaded views *and* by their skeletons. Geometry is restated across sibling families, never imported from one; anything genuinely family-wide is promoted to `components/cellular/` instead (`tile-shape.ts`, `signal-quality-display.ts`). Without one, this surface had accumulated four byte-identical card-shell strings across three files, three control heights inside one card, five glyph sizes, and two letter-spacings for a single label role — none of it visible in any one file, which is why it survived.
+
+`components/cellular/sms/shapes.ts` is the eighth, added 2026-08-20, and it is the strongest evidence for the rule: SMS was the last `/cellular/` family without a module, and it had the same failure set — four byte-identical copies of one pill action across three files, three unrelated control heights in one card, an alias to nothing (`DIALOG_TONAL = DIALOG_ACTION`), a component exporting the *page grid* that lays that component out, and skeletons that had drifted into guessing (a 44px tab strip against a real 38px one, five rows against a real ten). None of it was visible in any single file. See [`docs/reference/sms.md`](docs/reference/sms.md).
 
 ### Named Rules
 
-**The Tonal-First Rule.** Depth is communicated by surface tone and border before any shadow is considered. If two surfaces are at different conceptual elevations, their colors differ by at least one tonal step; in dark mode this is the *only* signal (Graphite canvas, Slate card).
+**The Consistent-Layout Rule.** Page header plus a uniform card grid, on every feature page. A bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the default.
 
-**The Border-Carries-Structure Rule.** Every card, input, bordered row, and sub-tile draws a 1px Hairline border. Inner groupings use bordered rounded rows (`rounded-lg border p-4`) or muted washes (`bg-muted/30`), never heavier shadows. If a surface looks "popped out" without the user touching it, the shadow is too strong.
+**The Card-Wrapped Surface Rule.** The unit of composition is the **card that wraps a settings group**, not the page. The card owns its whole content; the page only arranges cards. A feature that scatters loose fragments across the viewport has skipped the card.
 
-**The Highlight-by-Tint Rule.** Emphasis states tint border and background together with the relevant token at low opacity: the recommended alignment slot uses `border-primary/30 bg-primary/5` plus `ring-2 ring-primary`; a running pipeline step tints `bg-info/5`; an error banner sits on `bg-destructive/10`. Emphasis is a wash, not a lift.
+**The Full-Width Page Rule (hard rule).** A feature page's content column spans the full width of the shell's content area — `@container/main mx-auto flex flex-col gap-5 p-2`, the shape every feature page shares (`PAGE_ROOT` in `components/about-device/shapes.ts`, `PAGE_SHELL` in `components/cellular/antenna-alignment/shapes.ts`). **Never cap the page column with a `max-w-*` container**, however few cards the page has: a narrow centred column reads as a different app beside its full-width siblings and breaks the Consistent-Layout Rule. Full width is not a licence to stretch. A card whose layout was drawn for a phone column must **recompose itself on a wide card** through a step on its own `@container/card` (`@3xl/card:`, `@5xl/card:`): put side by side what was stacked, and show at once what was hidden. `segmentedBreakpoint()` in `components/ui/segmented-field.tsx` is the pattern — a select on a narrow card, every option visible as a segmented group on a wide one. A column count is a proposal, not a reflex; a single column recomposed inside its cards often reads better than a two-up grid. Readability limits belong *inside* a card or header (the `max-w-[41rem]` description column in `components/cellular/page-header.tsx`, a capped paragraph), never on the page. The pre-auth pair and the onboarding flow run their own single-card shells and are not feature pages.
 
-## 4a. Motion System
+**The Card-Foot Apply Rule (adopted 2026-10-06; supersedes the page-level save bar approved for Connection Watchdog on 2026-09-05).** A card that edits a draft commits it from a **footer row on the card's own bottom edge, with no border line** — `CardFoot` (`components/ui/card-foot.tsx`; constants `CARD_FOOT` / `CARD_FOOT_STATUS` / `CARD_FOOT_ACTIONS`). The row carries no `border-t`, only `pt-4` of air, pinned with `mt-auto`, one fixed `min-h-16` slot so the card never jumps between idle, dirty, applying and failed. **Status holds the left edge** (change count, the consequence of applying, a running stepper, what failed); **actions hold the right edge** — `Discard` (ghost) and any secondary action first (ghost or `tonal-neutral`, never a stroked `outline` button), the `SaveButton` **last**. The row is persistent: an idle card shows Apply disabled with its reason, it does not mount a bar when something changes. Never an Apply floating mid-card, a save bar under the card grid, or a `SaveButton` beside a field. Use a plain element, not shadcn `CardFooter` (its `[.border-t]:pt-6` fights `pt-4`), never wrap the `SaveButton` in `AnimatePresence`, and pass copy and glyphs in as props so the primitive stays route- and icon-neutral. A footer with no status may use the constants directly (`CARD_FOOT` + `CARD_FOOT_ACTIONS`) so an empty `min-w-[13rem]` status slot doesn't force the actions onto a second row on a phone; a footer with custom status structure uses the constants around its own markup. Field errors stay with their field, not in the footer. **Exempt:** dialogs and wizards (their own `DialogFooter`), per-row and inline actions, and operational actions that are not a draft commit (start a scan, send a message, download a profile). A page whose one apply spans several cards puts its footer on the card the apply belongs to most. *(RM520N)* Editable cards here used to commit from five different places — a stock footer, a local footer, an inline row, an in-card tonal bar and a page-level bar — and the user asked for one grammar; this is a **sweep rule** for apply placement, unlike the Scanning Rules. The sweep landed 2026-10-06 (Migration Deltas): every non-exempt `SaveButton` commits from a card footer, and new or reworked editable cards use it, full stop. The multi-card apply sits on the Network card (Cellular Settings); Watchdog split its apply into one per card on 2026-10-11.
 
-Motion in QManager is quiet, short, and centrally governed. There is deliberately less motion machinery here than in sibling builds; what exists is consistent and must stay that way.
+**The Container-Query Rule.** New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter or the shell itself.
 
-### The global switch
+**The Sticky-Slack Rule.** A sticky pane's travel is its parent's height minus its own, so the column holding it stretches. When a "pinned" element never moves, check the column's alignment before the offsets.
 
-`components/motion-provider.tsx` wraps the app in `<MotionConfig reducedMotion="user">`. Every `motion/react` animation automatically honors `prefers-reduced-motion`: transform movement collapses to instant while opacity is preserved. Keep shared variants pure transform + opacity so this one switch is all that is ever needed. Raw CSS keyframes (like `pulse-ring` in `globals.css`) carry their own `@media (prefers-reduced-motion: reduce)` off-switch, as `globals.css` already demonstrates.
+**The Symmetric-Pair Rule.** Two or more cards on one desktop-width row, and every card in a bento group, resolve to a single height. Reach for `items-stretch`, never `items-start`. The obligation that creates is on the content: each card nominates exactly one region to absorb the slack, in every one of its three states. Where a card has nothing to fill with, the row is the wrong container, and the answer is to promote it to a full-width band rather than accept ragged heights.
 
-### The vocabulary (as implemented)
+**The Grid-Step-Costing Rule.** Cost a responsive grid step against the narrowest cell it produces **in the column it actually lives in**, never against the page width. A 4-up step that is safe full-width at `@3xl` collapses the bar lane to nothing inside a 7-of-12 column at the same breakpoint — which is the named bug of ramp ink on a numeral with no bar beside it.
 
-- **Page entrance** (`components/app-layout.tsx`): the route content, keyed on `pathname`, rises 6px and fades in over 0.2s `easeOut`. Enter-only; there is no exit animation. This is the most-felt animation in the product; do not embellish it.
-- **Staggered card entrance** (`lib/motion-presets.ts`): `staggerContainer` + `staggerItem`, a 60ms cascade where each child rises 8px and fades in over 250ms `easeOut`. The dashboard grid is the reference consumer. New surfaces should import these presets rather than re-declaring local copies (the dashboard's inline duplicate is legacy to be converged, not a pattern to follow).
-- **Value and label swaps**: `AnimatePresence mode="wait"` with 140-180ms fades and small 6px travel, as in `SaveButton`'s Saving / Saved / idle label swap.
-- **Determinate fills**: small meter bars animate `scaleX` only, origin left, on a well-damped spring (`stiffness ~180, damping ~24`, no visible overshoot), as in the alignment meter's `MiniSignalBar`.
-- **Confirmation pops**: the `SaveButton` "Saved!" check scales in on a tight spring (`stiffness 400, damping 22`). This is the sanctioned scale of springiness: a settle, never a wobble.
-- **Ambient pulse**: `animate-pulse-ring` (2s ease-in-out alternate) for live/active dots, defined in `globals.css` with a reduced-motion kill switch.
-- **Utility transitions**: `tw-animate-css` powers shadcn's built-in dialog/popover enter-exit transitions; `transition-colors` / `transition-all` handle hover and state tints at default speed.
+### The Scanning Rules
+
+PRODUCT.md Principle 8 says a surface is scanned, not read: the user arrives with one question and hunts for its answer. These rules are how a card makes that hunt short. A receipt is the model. Item names run hard against the left edge and prices hard against the right, with no dividers and almost no whitespace, and two edges hold the whole thing together. Nearly every "why does this card feel off" has one of four causes: a missing edge, an undifferentiated run, a glyph that has to be decoded, or a default value dressed as loudly as a changed one. Awkward whitespace is a symptom of one of them, so before proposing padding, find what sets the empty region's size — a sibling's `min-h`, an `mt-auto` note, an `h-full` stretch, an equal-height row with one sparse card, a phone-width control on a wide card — and fix that.
+
+> ℹ️ NOTE: **Target rules, adopted from QManager-the101 on 2026-09-26** together with the Full-Width Page Rule, Copy & Help and the amended Machine-Voice tell. Most shipped surfaces predate them. Apply them when you build or rework a surface; don't sweep untouched pages to enforce them.
+
+**The Two-Edge Rule.** Every element aligns to at least two edges. An edge is a card edge, a column edge, or the edge of the row above it. Content that gets read aligns to an edge: a row's key sits on the left edge and its value on the right, like a receipt. Centre only what stands alone and isn't scanned as part of a set: a meter's readout inside its dial, an empty state, a dialog's lead glyph. Once two edges are holding, separators mostly become unnecessary; reach for a `Separator` only between groups that alignment and a section label can't split on their own.
+
+**The Manufactured-Edge Rule.** When a region has nothing to align to — actions floating somewhere between the title and the body — don't scatter them. Create an edge: put the actions in `CardAction` on the header's right edge, sharing the title's line, or in a footer row on the card's bottom edge (for an editable card, The Card-Foot Apply Rule fixes what that footer holds). Moving secondary actions into a `⋯` menu doesn't fix a loose card, because hiding an element isn't aligning it. Collapse into an overflow menu only after the one or two primary actions already hold an edge, and only when what's left is genuinely occasional.
+
+**The Stack-Height Rule.** A leading element (a glyph disc, logo plate or avatar) is only as tall as the text stack beside it. A 32px disc next to a single line of text leaves its bottom edge hanging. Either give it a two-line stack (a label plus a meta line) so disc and text share a top and bottom edge, or drop to an inline glyph at text size. The 52px tile disc beside its eyebrow → value → caption stack is the shape done right; don't vertically centre a tall disc against one short line and call that aligned.
+
+**The Row-Span Rule.** The distance between a row's left and right edges has a ceiling. Stretch a key/value row across a 1400px card and every edge is still technically there, but the key and its value no longer read as a pair, because the eye can't carry across the gap. This is the in-card half of the Full-Width Page Rule. Once a row gets wide enough that its pair starts to separate (about 600px of row is the working limit), **recompose the card**: split the rows into two or three columns on a card step (`GRID` in `components/local-network/traffic-engine/shapes.ts` steps `@xl/card:grid-cols-2 @3xl/card:grid-cols-3`). Don't let the gap keep growing, and never answer it by capping the page.
+
+**The Group-Before-You-Pad Rule.** When a dense list or settings group is hard to read, the problem is undifferentiated content, not too much content. Fix it in this order:
+1. **Group it** with a section label (Label style, `on-surface-variant`) over each run. Five related rows under a label are one glance; fifteen unlabelled rows are fifteen reads.
+2. **Vary it** with a glyph, a tag or a coloured numeral that carries a real fact, so rows are told apart by shape before they're read.
+3. Only then consider spacing.
+
+Adding whitespace first makes the surface longer without making the answer easier to find. Density is still the product (Overview); this rule is how density stays scannable.
+
+**The Recognition Rule.** A visual replaces text only when it's recognised without help. A universal glyph (trash, pencil, copy, a direction arrow), a bar whose length is the value, a status chip whose glyph is the state and a band `Tag` all qualify. An icon-only control whose meaning you learn from its tooltip hasn't replaced text; it has hidden it behind a hover a touchscreen can't do. Give that control a visible label. The Convention-First Rule governs words; this rule governs glyphs. `aria-label` stays mandatory either way.
+
+**The Quiet-Default Rule.** Emphasis isn't something an element has; it's the difference between the element and its neighbours. So a value in its default or expected state renders **quiet** (`on-surface-variant` ink, no fill, no role colour), and a value that differs from it stands out without any extra treatment. A checkbox is the model: off is a thin outline and nothing else, and the fill is the signal that something changed. Nobody ships a checkbox that's blue when it's off.
+
+- **Settings summaries and read-only rows.** A setting still at its factory default is muted. One the user changed takes normal ink, and a role colour where the value genuinely carries one.
+- **Lists where the expected state dominates.** Say eight services are Running and one is Stopped. The exception keeps its filled chip; the expected rows may drop to glyph plus plain ink without the container. The glyph stays (The Every-Chip-Has-A-Glyph Rule), but the fill is saved for the row that needs finding. A status-first hero's single state chip is the page's first answer and stays filled.
+- **To make one thing stand out, quiet its neighbours.** Don't turn it up with bolder weight, a bigger size or more saturation. If everything is emphasised, nothing is. That is why each card gets one primary-filled action at most, and why `--primary` is the only hue that acts.
+
+**The One-Nest Rule.** Inside a card there is at most one level of inner container: a `surface-container` tile at `rounded-tile`. A group inside a card is set apart by a section label and spacing along the card's own column edge, not by another box. A card holding a tile holding a bordered box stacks three tones and three radii, and none of them help. When the one inner level is warranted, its radius steps down with it (The Radius-Follows-Size Rule) so the corners read as concentric rather than competing.
+
+## Elevation & Depth
+
+**Depth is tonal, not cast.** A surface separates from its parent by sitting one step along the neutral ramp — canvas, then surface, then surface-container, then surface-container-high. `--card-sheen` does not qualify that: it is a treatment printed on a card’s own fill, not light cast onto the page behind it.
+
+The reason is now structural rather than environmental. The previous justification was sunlight legibility, and that requirement has been retired. What remains is stronger: **this system has no colour to spare for chrome.** Colour is spent on data, so a shadow would be the only other separation mechanism — and in near-black dark mode a shadow is invisible against the ground, which means a shadow-separated layout has no dark theme at all. The tonal step works identically in both themes. A shadow does not.
+
+### Shadow Vocabulary
+
+- **Whisper** (`0 1px 2px oklch(0.205 0.011 258 / 6%)` in light, resolving to `0 0 #0000` in dark): an optional card lift. Light mode's canvas-to-card step is 0.985 → 1.000, a deliberately narrow gap, and the whisper is what keeps that edge legible without a hairline. Never load-bearing.
+- **Popover Float** (`shadow-lg` and up, via shadcn defaults): dialogs, dropdowns, popovers, the skip-to-content pill. The "not part of the page flow" signal, and the one place a shadow carries real meaning.
+- **Sheen** (`--card-sheen`, reaching the DOM through the `card-sheen` `@utility` in `app/globals.css`): `none` in light; in dark a `180deg` gradient running `oklch(1 0 0 / 0.045)` at 0% → `oklch(1 0 0 / 0)` at 42% → `oklch(0 0 0 / 0.03)` at 100%. Five consumers: the `Card` root (`components/ui/card.tsx`) and the four floating surfaces — `DialogContent` (`components/ui/dialog.tsx`), `AlertDialogContent` (`alert-dialog.tsx`), `SheetContent` (`sheet.tsx`) and `DrawerContent` (`drawer.tsx`). It casts nothing, so it is not a shadow — it is listed here because it does the job a shadow would.
 
 ### Named Rules
 
-**The Settled-Motion Rule.** Every transition ends at rest with no visible overshoot. `easeOut` is the default curve; springs are permitted only when heavily damped and only for small confirmations and fills. Bouncy, elastic, and Material decelerate-and-bounce motion is banned. If a transition wobbles at the end, the parameters are wrong.
+**The Tonal-Elevation Rule.** Two surfaces at different conceptual elevations differ by at least one container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong step of the ramp.
 
-**The Short-Duration Rule.** The observed duration scale is 140-160ms (label swaps), 200ms (page entrance, color tints), 250ms (card entrances). Nothing in the UI should animate longer than ~500ms except deliberately ambient loops (pulse rings, spinners).
+**The No-Hairline-On-Fill Rule.** A tonal container never also carries a border. Cards ship `border-0` explicitly, because a hairline over a fill reads as chrome around the colour rather than as the edge of a block. **The outline tag is the one deliberate exception in the system** — there the border *is* the component, because there is no fill for it to sit on top of. `--border` is otherwise for input strokes and genuine table rules only.
 
-**The Loader-and-Dots Rule (project canon).** Step and sample progress renders as a `Loader2Icon` spinner plus discrete dot indicators (see the alignment meter's "Sample 3 of 5" row). Fill/progress bars are reserved for *data visualization* (signal strength, quality meters), never for step progress. This is a hard convention from CLAUDE.md.
+**The Highlight-by-Container Rule.** Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a `primary-container` block; a running pipeline step becomes a `primary-container` row.
 
-**The Transform-Only Rule.** Animations touch `opacity` and `transform` (and `color` via CSS transitions) only. Never animate layout properties; never let a layout depend on a transition completing.
+**The Card-Sheen Rule.** In dark mode `--shadow-whisper` resolves to `0 0 #0000` and cards ship `border-0`, so a card’s entire separation from the canvas is one 0.05-lightness tonal step (0.120 → 0.170). `--card-sheen` is the material cue standing in for the shadow dark mode never gets: brightest at the top edge, transparent by 42%, settling into a hair of shade at the foot. **Light stays flat on purpose** — `--shadow-whisper` already carries that theme’s separation, and a gradient over a white card reads as a smudge. It rides on `background-image`, a deliberately different property from `background-color`, so a call-site `bg-surface` or `bg-card` cannot defeat it. It is scoped to the `Card` root and to every floating surface that opens over a scrim — `DialogContent`, `AlertDialogContent`, `SheetContent`, `DrawerContent` — and goes no further: an inner tile that also took it would stack a second sheen inside the first. The same property choice that makes it undefeatable makes it a hazard where a nested `Card` is *meant* to be neutralised — `bg-transparent` clears only `background-color`, so such a call site needs `bg-none` beside it. `components/cellular/custom-profiles/profile-form-dialog.tsx` is the one site in the tree that neutralises a `Card` inside a `DialogContent`, and it carries both.
 
-## 5. Components
+## Shapes
 
-Every component follows the **calm and confident** philosophy: surfaces are quiet at rest and respond clearly to interaction. All primitives are shadcn/ui (new-york style, lucide icons); the custom layer is thin and listed below.
+Radius carries size hierarchy: the bigger and more important the surface, the softer its corners.
+
+| Step | Value | Owns |
+|------|-------|------|
+| `rounded-inline` | 0.5rem (8px) | Small inline affordances, code blocks, skeleton slivers |
+| `rounded-field` | 0.625rem (10px) | Inputs, selects, small popovers, banners |
+| `rounded-tile` | 0.75rem (12px) | Inner tiles, carrier tiles, alignment slots |
+| `rounded-card` | 1rem (16px) | Standard cards in a grid, dialogs |
+| `rounded-hero` | 1.25rem (20px) | The anchor card on a surface, the aggregation strip, state screens |
+| `rounded-pill` | 9999px | Chips, tags, buttons, nav items, metric rows, meters, glyph discs, quality bars |
+
+The distinction between `card` and `hero` is real and used: a grid of peer cards takes `card`; the one card that anchors a surface takes `hero`.
+
+The silhouette this produces is deliberate: **restrained, near-rectangular containers set against full-round elements**. The contrast is the point — a container that barely softens its corners is what makes the pill beside it read as unmistakably round. Fills over strokes, round caps on every meter and progress track, no side-stripe accent borders. Nothing has a square corner except a table rule and a chart gridline. The mark is built the same way — two shapes, two tones, one hue, no gradient, no shadow **in its own construction** — and UI shapes read as members of that family in geometry and fill. The family parts in exactly one place: a card in dark mode carries `--card-sheen`, a vertical gradient the mark never has, because a card has to separate from the ground it sits on and a mark does not. That is a surface treatment, not a second visual language — see Elevation & Depth.
+
+**Why the scale was retuned down.** The first scale ran 12/20/28/36/40px. At 36px on a card roughly 180px tall the corner consumed about 40% of each vertical edge, so the shape read as a lozenge rather than a panel; the reference proportions are Apple’s Fitness and System Settings, not a general softening. The retune also closes a two-systems seam: `components/ui/card.tsx:10` ships `rounded-xl` (14.4px) and `components/ui/dialog.tsx:76` ships `rounded-lg` (10.4px) off the legacy chain, so a migrated 36px card sitting beside an unmigrated one read as two products. At 16px the card gap closes to 1.6px.
+
+### Named Rules
+
+**The Radius-Follows-Size Rule.** A surface's radius is a function of its size and role, not of taste. A 12px tile never sits inside a 10px field, and a banner never out-rounds the card it sits on.
+
+**The Fill-Over-Stroke Rule.** When a shape needs to be distinguished from its neighbour, change its fill, not its border. The outline tag is the sanctioned exception, and it is a *component*, not a technique to generalise.
+
+**The Role-Radius Rule.** New work uses the role scale above. The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` still resolves for unconverted call sites and keeps its old values, but it is never the correct choice in a new component.
+
+## Motion
+
+**Character: expressive in duration and curve, and still settled.** The expressiveness is in the easing, never in overshoot — which is what keeps it compatible with a tool whose job is holding a connection alive. `lib/motion.ts` is the JS source of truth and mirrors the CSS custom properties in `globals.css`; retune one layer and you retune the other in the same change.
+
+**Durations.** `quick` 360ms (label swaps, value ticks, hover tints, focus rings) · `standard` 600ms (the default for a state change — card entrance, nav indicator, chip morph, meter retarget) · `emphasized` 800ms (container size and shape, aggregation re-proportioning, banner arrival, meter first-fill) · `ambient` 2s (the two sanctioned loops only).
+
+**Why these are double the Motion Guide's printed figures.** The guide's token table reads 400/300/180ms, and those are the numbers it *renders at 1x* — but every demo in it is authored as `calc(<loop> * var(--sp))`, driven by a Playback control that sets `--sp` to `1 / speed`. Playback exists because, in the guide's own words, half or quarter speed "is the only way to actually inspect a 180ms token". Reviewed at that 0.5 setting — exactly this scale — the system reads as deliberate rather than snappy. **The guide's figures are the inspection baseline; the figures above are the shipped scale, and this document wins.** The *ratios* are untouched (3 : 5 : 6.67), which is what keeps every composed gesture in shape.
+
+`ambient` is deliberately **not** doubled. A loop is not a transition, and it is the one animation that means "this is alive" — at 4s a breathing ring reads as a stalled UI rather than a calm one.
+
+**Curves.** `emphasized` `cubic-bezier(0.05, 0.7, 0.1, 1)` — a deliberate departure and a long settle. `standard` `cubic-bezier(0.2, 0, 0, 1)` — the everyday state change. `quick` is a plain `ease-out`, deliberately: at the short end of the scale a bespoke cubic is indistinguishable from the built-in. **These two curves and `ease-out` are the whole vocabulary** — an arbitrary `cubic-bezier()` in an `ease-` utility is a violation, not a variant, and so is a bare `ease-linear` outside a data-driven progress bar. In a className, prefer the theme utilities `ease-standard` / `ease-emphasized` (from `@theme inline` in `globals.css`); `ease-[var(--ease-standard)]` compiles to the same declaration and is legal. In a `motion/react` transition, `EASE_STANDARD` / `EASE_EMPHASIZED` / `EASE_QUICK`.
+
+**Entrances.** Two stagger steps, and only two. Cards cascade at **120ms** with a 10px rise (`staggerContainer` / `staggerItem`); rows inside one card cascade at **80ms** with a 5px rise (`staggerRows` / `staggerRowItem`). A list cascade bounded by row count uses `rowCascadeDelay(index)`, which derives both the step and its ten-row cap from `STAGGER_STEP_ROWS`. Rows sit ~6px apart, so a 10px lift would move each row past its neighbour's resting position and read as the card reflowing rather than as content arriving. Nested containers inherit `visible` from their parent and must **not** declare their own `initial`/`animate`, or they detach from the parent's clock — **unless they mount later than the parent.** A child that arrives in an `AnimatePresence` swap, a keyed remount, or after data loads behind a skeleton has missed the one cascade it would inherit, so it declares `initial="hidden" animate="visible"` itself; a variants-only child there stays at opacity 0 at full height, with no error. Cascade children must be block boxes — a bare `span` silently drops the rise.
+
+**The live value tick.** A poll-driven figure dips to 0.35 opacity and returns, asymmetrically — 600ms down, 800ms up — so the dip is the event and the return is the settle. Figures within one `TickGroup` stagger 200ms apart by live DOM position, not by map index. **This is the tightest thing in the system against the poll:** a full seven-figure cascade runs 1.4s of lead plus a 1.4s dip, and the measured poll cadence is ~3.7-4.0s (not the ~2s the Motion Guide assumes — the poller's `sleep 2` runs *after* the cycle body). ~900ms of headroom. Re-check that arithmetic before raising the scale again or making the poller faster. Only *measurements* tick; identifiers take the container morph instead, because dipping a value that holds steady for minutes invents an event. A value that moves again mid-dip retargets rather than queueing.
+
+**Reduced motion has one resolver.** "Should motion be reduced right now?" is answered only by `useMotionReduced()` (`components/motion-preference.tsx`, live — re-renders on a preference change or an OS toggle) or `isMotionReduced()` (`lib/motion-preference.ts`, a plain read for callbacks and non-React code). The in-app preference outranks the OS query in both directions; System defers to the OS query. motion/react's `useReducedMotion` and a raw `matchMedia("(prefers-reduced-motion…")` read the OS query only, and both are ESLint errors outside the resolver (`eslint.config.mjs`). Two paths need no call: a motion component under `MotionConfig` (`components/motion-provider.tsx`), and the redefined `motion-reduce:` / `motion-safe:` variants — raw CSS keyframes put their reduced rules in an `@variant motion-reduce` block beside them. Contract and traps: `docs/reference/motion-preference.md`.
+
+**Movement goes, opacity stays.** A crossfade is still legible information where a slide is not, which is why every shared variant is pure transform and opacity, and why opacity-only keyframes (`.ca-skeleton-out`, `.ca-content-in`) run unchanged under Reduced. Radix surfaces animated by tw-animate get this globally: one unlayered rule in `globals.css` zeroes the `--tw-enter-*` / `--tw-exit-*` translate, rotate and blur and holds scale at 1 under `motion-reduce`, so a dialog or popover keeps only its fade.
+
+**Loading loops stop under Reduced, in one spelling:** `motion-safe:animate-spin` and `motion-safe:animate-pulse`. The static glyph beside its label still reads as loading. Never `animate-spin motion-reduce:animate-none` — the same result in a second spelling that every audit then has to match.
+
+### The animations preference
+
+The sidebar account dropdown carries an **Animations** row cycling System / Full / Reduced, beside the theme row. The whole contract is one attribute on `<html>`:
+
+| Choice | Attribute | `MotionConfig reducedMotion` |
+| ------ | --------- | ---------------------------- |
+| System (default) | **absent** | `"user"` |
+| Full | `data-motion="full"` | `"never"` |
+| Reduced | `data-motion="reduced"` | `"always"` |
+
+**The absence of the attribute is load-bearing.** "System" *removes* it rather than writing `data-motion="system"`, and that absence is what lets the bare media query decide. The key, the type and the pre-paint boot script live together in `lib/motion-preference.ts`; `app/layout.tsx` injects the boot script render-blocking, because an attribute landing in a mount effect arrives *after* first paint — a user on Reduced would see one frame of every entrance animation, precisely the frame they asked not to see.
+
+**A motion element reads `reducedMotion` once, when it mounts.** So `MotionProvider` derives it from the pre-paint attribute, not the context, and the first render is already right. A mid-session switch reaches CSS, charts and `useMotionReduced()` at once, and motion components as they next mount; remounting the app to force it would discard unsaved drafts.
+
+**The load-bearing part is the CSS half.** Tailwind's stock `motion-reduce:` compiles to a bare media query with no selector hook, so an attribute on `<html>` *physically cannot* override it. Both variants are therefore redefined as `@custom-variant`s at the top of `globals.css`, each emitting `@slot` twice — once media-gated with the opposing attribute excluded, once attribute-gated.
+
+> ⚠️ **`motion-safe` needs the same treatment, and this is the half that is easy to skip.** Without it, a user on OS-reduce who explicitly picks **Full** gets every `motion-safe:` spinner frozen — the exact inverse of what they asked for. Redefine both or neither.
+
+Both guards are wrapped in `:where()` so they contribute **zero** specificity. The two variants can match simultaneously; duplicate identical declarations are harmless.
+
+**Charts follow the same switch.** recharts animates through react-smooth, which `MotionConfig` cannot reach, so `useChartSeriesMotion()` (`hooks/use-chart-motion.ts`, for `<Area>` / `<Line>`) reads `useMotionReduced()`. A new chart spreads it rather than setting `isAnimationActive` by hand. No `<Bar>` chart exists, so there is no bar hook; the first one adds a sibling built on `useMotionReduced()`.
+
+### Named Rules
+
+**The Motion-Ceiling Rule.** Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as *the token*, never as the number.
+
+**The One-Scale Rule.** A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration (silently inheriting Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo, and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine. **The `var()` wrapper inside the brackets is not optional** — the custom property written naked there compiles to a declaration carrying the property *name*, which the browser discards, so it ships as no transition at all while `tsc`, `eslint` and the build all stay green. Tailwind v4's parenthesis shorthand for a custom property is the same declaration and equally valid. See `docs/reference/tailwind-prose-hazard.md`.
+
+**The Non-Load-Bearing Rule.** If a transition never runs — reduced motion, a backgrounded tab, a paint that beat the animation — the UI must already be correct. Every entrance keyframe is written open-ended (`from` with no `to`): the resting value is the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip breaks this rule, because rAF does not fire in a background tab.
+
+**The Transform-Only Rule.** Animate `transform` and `opacity`. Meters animate `scaleX`, never `width`, on first paint; a value retarget on an existing bar uses `width` deliberately (see `components/ui/metric-bar.tsx`'s own comment) because a transform would squash the pill cap at low percentages, and it changes only when a poll retargets the fill, never per frame. The two other sanctioned `width` animations are the carrier-aggregation segment, where the width *is* the data and a `scaleX` would distort the band labels riding inside it, and the onboarding step dots (0.5rem → 1.5rem), where a `scaleX` would distort the pill caps. Any other progress fill is `scaleX` on `origin-left` (the speedtest track, the language-pack meter). On a CPU also carrying the user's traffic a per-frame layout pass per meter is not free, so nothing else animates `width`.
+
+**The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot. A decorative loop is never one of them, with one sanctioned exception: the 404 page's pixel campfire (a user request on RM551E, ported in the P0a parity pass), a stepped sprite loop in `app/globals.css` (`campfire-*`) that rests on a complete still frame under Reduced. A loading indicator is not an ambient loop — it stops under Reduced, above.
+
+**The No-Overshoot Rule.** Never springy, never elastic, never rubber-banding — and no springs at all: `type: "spring"`, `stiffness`, `damping` and `bounce` appear nowhere, and every `motion/react` transition is a `DUR` / `EASE_*` tween. The one sanctioned overshoot is the save-confirmation check at 1.03 scale — and it is a **number**, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. Anything that wants the pop imports the constant. A ceiling enforced only by prose is not a ceiling — this rule once cited the save check as the sanctioned exception while the button underneath ran an underdamped spring whose peak was bounded by nothing.
+
+**The Enter-Only Rule.** Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one.
+
+**The Modal-Exit Rule.** A modal's exit duration is an **input-latency budget**, not a taste call, and every modal surface writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both.
+
+The reason is mechanical. Radix sets `pointer-events: none` on `<body>` for as long as a modal layer is mounted, and `<Presence>` holds that layer mounted until `animationend` fires on the content node. So **the entire page is click-dead for exactly the length of the exit animation.** An unqualified `emphasized` buys 800ms of dead clicks every time a dialog closes; a scrim with no duration leaves the backdrop on tw-animate's off-scale 150ms default, so the page *looks* live for the final 650ms of the lockout. On a dialog-dense surface that reads as the app dropping input.
+
+- **The scrim shares the content's clock in both directions.** They are one object arriving and leaving; an overlay with no duration is a One-Scale violation *and* the thing that turns a slow exit into an apparently broken one.
+- **`quick` is the ceiling for a modal exit, not a suggestion.** Distance does not buy budget: a sheet travels a full viewport edge and still exits on `quick`.
+- **The drawer is a modal.** vaul injects unlayered CSS (`animation-duration: .5s`) that outranks any layered utility, so `drawer.tsx`'s timing classes carry Tailwind's `!` written inside the class literal itself.
+- **Floating surfaces that are not dialogs** — popover, dropdown, select, tooltip, hover-card, context-menu — do not split their clocks: they run `quick` with `ease-standard` in both directions.
+
+## Components
 
 ### Buttons
 
-- **Shape:** `rounded-md` (`0.65rem - 2px` ≈ 8.4px), `text-sm font-medium`, gap-2 icon spacing.
-- **Default (Primary):** Signal Indigo background, light foreground, `h-9` (36px), `px-4`. Hover dims to `bg-primary/90`. Focus: 3px neutral ring at 50% opacity. **Primary actions (Record, Save, Apply) use this default variant, never outline.** (Project canon.)
-- **Destructive:** Fault Red background, white text; dark mode runs `bg-destructive/60` for comfort. Used only for irreversible actions (reboot, delete, factory-level operations).
-- **Outline:** Hairline border, `bg-background` (dark: `bg-input/30`), `shadow-xs` at rest, accent-tint hover. Tertiary actions: Cancel, Reset, Check again.
-- **Secondary:** Mist background. Low-priority but meaningful actions.
-- **Ghost:** no background at rest; accent tint on hover. Icon buttons, table-row actions. Icon-only buttons always carry `aria-label`.
-- **Link:** Signal Indigo text, underline on hover, inline within text only.
-- **Sizes:** `xs` (h-6), `sm` (h-8), `default` (h-9), `lg` (h-10), plus square `icon-xs` / `icon-sm` / `icon` / `icon-lg` variants.
-- **Save actions always use `SaveButton`** (`components/ui/save-button.tsx`): a min-width 120px primary button that swaps its label between idle, "Saving…" (spinner), and a "Saved!" check flash driven by the `useSaveFlash` hook (1.8s). Recreating save UI inline is forbidden.
+- **Shape:** full-round pill (`rounded-pill`) at every size — the pill is the `Button` primitive's own shape, never re-added per call site and never overridden with a smaller radius (`components/ui/button.tsx` sets it in the base class). Height comes from the size scale below. The **page action** — 42px (`h-[2.625rem]`), 20px padding, 600 weight — is `size="action"`, never a per-family constant or a hand-written height.
+- **Primary:** brand fill with its own `-foreground` ink. The default for main actions — Record, Save, Apply — never `outline`.
+- **Tonal:** `primary-container` with `on-primary-container`. Secondary actions of equal standing.
+- **Destructive:** destructive fill with `destructive-foreground`. Never `text-white` hardcoded — dark-mode destructive is a *light* fill.
+- **Ghost / outline:** transparent or hairline, `on-surface-variant` ink, `surface-container` hover. **Secondary actions beside a Save/Apply** (Discard, Restore all, Cancel, Restore defaults) carry no stroke (user, 2026-10-05): ghost, or `tonal-neutral` (`surface-container` fill, `on-surface` ink) when they need a visible shape; never `variant="outline"`.
+- **Focus:** a 3px `--ring` ring at **full strength** over a 2px page-coloured gap, on the `quick` clock. Both halves are measured, not taste. **The alpha is a floor:** at half strength the ring composites to **1.968:1** against its worst ground and at 85% to **3.270:1**, where SC 1.4.11 asks 3:1 — full strength measures **4.004:1** at its worst and **5.083:1** at its best, so it is the only value with a point of headroom. **The gap is load-bearing:** `--ring` is byte-identical to `--primary`, so on a brand-filled control an unoffset ring is the same colour as the fill and the button reads as having grown 3px rather than as having gained an indicator. Do not soften either half. **The gap takes the colour of the ground the control sits on, which is not always the page.** `FOCUS_RING` spells it `ring-offset-background` because the family it serves sits on one; a control inside a card takes `ring-offset-card` and one inside a menu takes `ring-offset-popover`. Pasting the page spelling onto a card- or popover-hosted control draws a gap 1.06:1 / 1.12:1 off its own ground in dark — a visible halo, and a defect introduced by the fix. Read the host, then pick the token; the ring itself clears 3:1 on all three grounds in both themes.
+- Use `SaveButton` for save actions. It owns all three states (idle label → spinner + "Saving…" → check + "Saved!"), the 1.03 check, and the **width lock**: the three layers share one grid cell and stay mounted, so the pill sizes to the widest of them per locale and a toolbar never reflows mid-save. Never `AnimatePresence` around them. Pass a **translated** `label`. On a card it sits last on the right edge of the card footer (The Card-Foot Apply Rule, `components/ui/card-foot.tsx`).
+- **Sizes:** `default` (36px), `action` (42px, the page action), `xs` (24px) / `sm` (32px) / `lg` (40px), and `icon` (36px) / `icon-xs` / `icon-sm` / `icon-lg`. On a coarse pointer `default` grows to 44px (`pointer-coarse:h-11`) and `icon` keeps its painted size behind a centred 44px `after:` hit area, so an explicitly small icon button never swells inside a dense row; `action` carries no floor because 42px plus its 2px ring gap already clears it.
 
-### Status Badges
+### Chips and tags
 
-The signature pattern of QManager, kept exactly consistent with CLAUDE.md. **All status badges use `variant="outline"`** plus semantic color classes and a `size-3` lucide icon. Solid `success` / `warning` / `destructive` / `info` variants exist in `components/ui/badge.tsx` but are **forbidden for status indicators**; the outline-plus-tint pattern is the rule.
+**Two forms with two jobs, and the split is the point.** The previous system had one form doing both, which is how "which radio" and "is it healthy" kept getting confused.
 
-| State | Classes | Icon |
-| ----- | ------- | ---- |
-| Success / Active | `bg-success/15 text-success hover:bg-success/20 border-success/30` | `CheckCircle2Icon` |
-| Warning | `bg-warning/15 text-warning hover:bg-warning/20 border-warning/30` | `TriangleAlertIcon` |
-| Destructive / Error | `bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30` | `XCircleIcon` or `AlertCircleIcon` |
-| Info | `bg-info/15 text-info hover:bg-info/20 border-info/30` | Context-specific (`DownloadIcon`, `ClockIcon`, spinner) |
-| Muted / Disabled | `bg-muted/50 text-muted-foreground border-muted-foreground/30` | `MinusCircleIcon` |
+**Status chips — filled.** The five status roles in `components/ui/badge.tsx`: `success`, `warning`, `destructive`, `info`, `muted`. A role container fill, that container's `on-` ink, no border, pill radius, and a **mandatory** 12px glyph. The variant is the whole API: never hand-write the classes. Fill and ink transition on `standard`, the focus ring on `quick`. Hover is `[a&]:`-scoped, so a static chip never advertises a click target that does not exist.
 
 ```tsx
-<Badge variant="outline" className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+<Badge variant="success">
   <CheckCircle2Icon className="size-3" />
   Active
 </Badge>
 ```
 
-**Choose Muted for deliberately inactive states** (Stopped, Offline peer, Disabled-by-config); **reserve Destructive for failure or error** (Disconnected link, Failed email). No shared badge wrapper component exists in the tree; the pattern is composed inline today. If a reusable wrapper is ever extracted, migrate inline copies to it and update CLAUDE.md in the same change.
+**Outline tags — identity and metadata.** `nr`, `lte`, `spatial`, `neutral`. A 1px role border, role text, transparent fill, pill radius. A glyph is optional here, because an outline tag reports *what a thing is* rather than whether it is well — there is no second state for a glyph to disambiguate.
+
+```tsx
+<Tag variant="nr">5G NR</Tag>
+<Tag variant="neutral">n78</Tag>
+```
+
+The forms are not interchangeable. **An outline tag is never a status indicator, and a filled chip never carries identity.** `muted` covers deliberately-inactive states (Stopped, Disabled, Offline peer); failure is `destructive`.
+
+Tone maps key onto the exported `BadgeVariant` / `TagVariant` types, never onto a class string, so a new tone without a matching role fails the build.
+
+A filled `info` chip is also how a **fact** is shown when it is neither a fault nor health (The Fact-Is-Info Rule), rendered only while the fact applies: `components/system-settings/sim-registry-card.tsx`'s "Alerts on" chip is `<Badge variant="info">` with a glyph.
 
 ### Cards / Containers
 
-- **Shape:** `rounded-xl` (`0.65rem + 4px` ≈ 14.4px), the largest radius in the system.
-- **Surface:** `bg-card` (Pearl White / Slate), 1px Hairline border always present, `shadow-sm`. Borders carry the depth, not shadows.
-- **Padding:** `py-6` with `px-6` on header/content/footer; `gap-6` between card sections (built into the primitive).
-- **CardHeader contract (project canon):** plain `CardTitle` + `CardDescription`, **no icons in headers**. Icons belong in badges or the `CardAction` slot (the header grid reserves a column for it). A refresh icon button in `CardAction` is the sanctioned header action.
-- Inner groupings use bordered rounded rows (`rounded-lg border p-4`) and muted washes (`rounded-lg border bg-muted/30 p-3`), the alignment meter's "Live Signal" preview being the reference.
+- **Corner:** 16px in a grid of peers, 20px for the anchor card on a surface.
+- **Background:** `surface`, with `border-0` explicit and `--shadow-whisper` optional in light.
+- **Padding:** 24px standard, 28px on hero cards.
+- **Header:** plain `CardTitle` plus `CardDescription`. **Never an icon in the card header** — icons belong in glyph discs, tags, or a separate action area.
+- **Footer:** an editable card ends in `CardFoot` — a borderless row, status left, actions right (The Card-Foot Apply Rule). Not shadcn `CardFooter`.
+
+### Tiles
+
+The inner unit of a glance surface: a 12px-radius block at a **pinned** 104px height, holding a 52px full-round glyph disc beside a text column of eyebrow → value → caption.
+
+**A tile body is neutral. The disc carries the colour.** This is The Data-Ink Rule at tile scale, and it is what the previous four-tinted-tile composition got wrong: four pale bodies at near-identical container lightness encode category without encoding importance, so the strip flattens to equal weight and the eye has nowhere to land. A neutral body with a saturated disc gives the tile a focal point at 1/8th the tinted area.
+
+**The height is pinned, not floored.** A `min-h-` made the skeleton a lie: measured live, tiles resolved to 118 / 98 / 95px against a 92px skeleton, a 26px jump at the handoff. A floor cannot be a mirror; only a pin can. Geometry lives in `components/cellular/tile-shape.ts` so a strip and its skeleton cannot drift.
+
+### Metric rows
+
+Two answers, and this is the one place the system deliberately has two.
+
+- **Glance surfaces** use full-round pills on `surface-container`: 40px tall, 16px horizontal padding, a 13px/600 `on-surface-variant` key against a 13px value — `font-mono` when that value is an opaque string (ICCID, IMEI, an address), `font-sans tabular-nums` when it is a figure, whether a live measurement or a numeric label like an EARFCN or PCI. No dividers. **A value that carries quality takes its ramp ink here**, which is the row-level equivalent of WiFiman's coloured dBm figure.
+- **Genuine data tables** (cell scanner results, SMS inbox, log views) keep hairline rows on `--border`, because density survives there where pills would not.
+
+### Quality bars
+
+The row-level data graphic, and the non-chromatic half of the quality ramp.
+
+- A full-round track on `surface-container`, **8px tall — one thickness, everywhere**. What varies is **width**, never height: the bar spans the row where the row is the bar's own line, and narrows to a **56px lane** where it has to sit inline beside the figure it belongs to (the dashboard signal rows, the tower-locking carrier tiles). A lane is the right answer when a full-width bar under the last line would read as a coloured bottom border rather than as a gauge.
+
+  > **The single thickness is load-bearing, not tidiness.** This section rests the whole ramp on length: stops that share a hue share one colour exactly, on the explicit understanding that **bar length and the glyph carry the fine distinctions**. A 4px hairline is the thinnest mark on its card, and asking it to carry the channel the ramp is not allowed to lose was the contradiction. Thickening it strengthens the encoding the accessibility argument depends on.
+  >
+  > The height was `MetricBar`'s `size` prop, which **defaulted to `sm`** — so the split was never a considered pair of forms, it was 11 call sites inheriting a default against 9 that had opted out of it. `sm` is deleted rather than deprecated: a size nobody should pick is a trap. Two forms of *width* remain and they are chosen by slot, which is what the paragraph above describes.
+  >
+  > ⚠️ A taller bar changes nothing about row height where the bar sits in an `items-center` flex row — an 8px track centres in the same line box a 4px one did. **Verify that per call site by measuring the rendered node**, never by reading the class string.
+- The fill is `--quality-N-bar`, its **length** proportional to the value within the metric's **quality window** — `signalToProgress()` maps `[floor, excellent]` → `[0, 100]`, which is *not* the physical range: RSRP's window is `[-140, -80]` while `METRIC_RANGES.rsrp` is `[-156, -31]`. **The window saturates at the top on purpose.** Every reading in the `excellent` stop draws a full bar, because the question a bar answers is "where in the usable range is this", and past the top cut the honest answer is "as good as this scale measures". Fine-grained discrimination above that cut is the *score* scale's job, not the bar's — see `components/cellular/antenna-alignment/utils.ts`, which keeps a separate full-range map for exactly that reason.
+- Length is the primary encoding and colour is the reinforcement. **Ramp ink on a numeral without a bar beside it is a bug**, and so is a ramp tone on a fill whose length does not encode the value. What length actually carries is *magnitude within the scale*; what separates one **stop** from the next is the **glyph** — `QUALITY_GLYPH`'s monotonic wedge ladder, which survives greyscale and every CVD type. Do not claim length separates adjacent stops: at any cut a continuous map draws both sides nearly the same (-80 dBm is 100%, -81 dBm is 98.3%), and that is correct, because two readings 1 dB apart *are* nearly the same signal. Widening the map does not change this; it reproduces it at every cut while shortening every bar.
+- A missing reading renders an empty track, never a zero-length red fill: an unused antenna drawn as an empty red bar labelled "−140 dBm" reads as a signal problem the user should go and fix. In code that is `MetricBar value={null}`, which omits the fill element entirely — and `qualityMeterTone()` returning `null` rather than a colour, so no caller can `??` a fallback in.
+- **A track is invisible chrome only while it is darker than its ground.** The default `surface-container-high` track is right on `surface` and on `surface-container`; on a lighter ground it renders *lighter* than what it sits on and reads as a second, paler segment continuing past the end of the fill. `MetricBar` takes `track="muted"` there — needed on Antenna Alignment's winning `primary-container` row, where the false extra length landed on the one row that answers "which position won", and inside its `surface-container-high` pinned readout.
+- The **entrance** is `scaleX` (compositor-only, once, on mount). The **value retarget** is layout `width`, not `scaleX`: a transform scales the whole box including its `border-radius`, so at low percentages a `scaleX`-only fill squashed its own pill cap into a near-flat ellipse. Width changes only on a poll retarget, not per frame, so the usual objection to animating width does not apply here. See the comment in `components/ui/metric-bar.tsx` before changing this back.
 
 ### Inputs / Fields
 
-- **Shape:** `rounded-md`, `h-9` (36px), `px-3`.
-- **Background:** transparent in light, `bg-input/30` in dark. Hairline (`border-input`) border in both themes, `shadow-xs` at rest.
-- **Focus:** 3px neutral ring (`ring-ring/50`) + `border-ring`, transitioned on `color, box-shadow`.
-- **Error:** `aria-invalid` drives `border-destructive` + `ring-destructive/20` (40% in dark).
-- **Disabled:** `opacity-50`, `pointer-events-none`, not-allowed cursor.
-- Supporting field primitives: `field.tsx` (label + value display), `input-group.tsx` (prefix/suffix), `kbd.tsx`, `copyable-command.tsx` (mono command with copy affordance).
+- **Shape:** 10px radius (`rounded-field`), 42px tall, no visible border at rest. `Input`, `SelectTrigger`, `Textarea` and `InputGroup` all build on `fieldVariants` in `components/ui/input.tsx`, so a call site never restates the geometry. `SelectTrigger size="sm"` is 32px.
+- **Fill:** one tonal step above the field's **host**, set by the primitive's `host` prop — `"surface"` (default, `bg-surface-container`) or `"container"` (`bg-surface-container-high`). See The Field-Step Rule below.
+- **Focus:** the one ring from Buttons above — 3px `--ring` at full strength over a 2px gap in the host's own ground colour, measured floor and all; the fill does not change.
+- **Invalid:** destructive ring plus destructive border, driven by `aria-invalid`.
+- **Target:** the 44px coarse-pointer floor applies to a `Switch` too. The primitive paints 18x32px; reach the floor with a pseudo-element overlay (`SWITCH_TARGET` in `components/cellular/tower-locking/shapes.ts`) rather than a layout box, so the row's label keeps its baseline.
 
-### Sidebar Navigation
+**The Field-Step Rule.** A field's resting fill is one tonal step **above its host**, never a fixed token.
 
-- shadcn sidebar, **inset variant**: header (logo + product name), grouped nav sections (`NavMain`, `NavCellular`, `NavLocalNetwork`, `NavMonitoring`, `NavSystem`, `NavSecondary`), `NavUser` footer.
-- **Surface:** `--sidebar` (one step off canvas in light, equal to card in dark). Active items use the Sidebar Indigo steps; hover uses the Mist accent wash.
-- Collapsible groups for dense sections (Cellular, Monitoring); flat lists elsewhere. On mobile the sidebar collapses to a sheet.
-- The header bar above content carries the `SidebarTrigger`, a hairline separator, and breadcrumbs (parents hidden below the `desktop` breakpoint, 68.75rem).
+| Host | Field |
+| ---- | ----- |
+| `surface` / `card` | `surface-container` |
+| `surface-container` | `surface-container-high` |
 
-### Dialogs / Confirmation
+A field has no border at rest, so **the fill is the entire affordance** — there is nothing else on screen saying where the box is. A fixed fill token is therefore only *accidentally* correct: it works on the one host that happens to sit a step below it, and renders at **1.00:1** — a field with no edge at all — on every other. This is the Tonal-Elevation Rule that already governs surfaces, extended to the controls sitting on them. It is not a hypothetical: six controls on Tower Locking painted their host's exact colour, because the shared constant they imported described a host none of them had.
 
-- **Shape:** `rounded-xl` on card surface with popover-level shadow; standard shadcn overlay dimming.
-- **Destructive dialogs:** consequences spelled out in `DialogDescription`, destructive-variant CTA ("Reboot Now"), outline "Later" escape. Reboot-required operations surface this dialog rather than rebooting mid-request.
-- **Persistent banners:** app-level warnings that must outlive a page render as a banner above the content area; `SimSwapBanner` (rendered in `AppLayout`) is the reference.
-- **Toasts:** `sonner` for action feedback (`toast.success` / `toast.error` with description). Toasts confirm; they never carry the only copy of an error a user must act on.
+**Corollary: `-high` is the top rung, so the host steps down.** A field can never be hosted by a `surface-container-high` block. When that would happen, the **host** drops to `surface-container` and the field takes `-high`. Never solve it with a border — an outlined field beside three unbordered ones reads as a different *kind* of control, not as the same control on a different background.
 
-### Apply Progress Dialog (Signature Component)
+**Two legal resolutions, one per card.** **STEP** is the table above: the control takes host + 1, written as `host="container"` when the host is `surface-container`. **SHELL** is the alternative: the control is transparent and the *host* carries both the fill and the focus ring (`focus-within:ring`), which is what the NR leg card's `FIELD_TILE` does. Pick one per card and never mix them within a card. The bug is only ever the third state — a control painting its host's own colour.
 
-The canonical shape for **async, multi-step apply pipelines**, implemented at `components/cellular/custom-profiles/apply-progress-dialog.tsx` for the profile-apply pipeline (APN → TTL/HL → Connection Scenario → IMEI). It is one of the rare sanctioned modals: profile activation is an irreversible, connection-affecting operation whose progress genuinely is the content.
+**The primitive owns the fill.** A call site picks `host` and never writes a fill class or a `dark:…!` marker; there is no `dark:bg-input/30` left to out-specify. A SHELL composite still sets `bg-transparent` on its inner control (as `InputGroupInput` and the NR leg card's tiles do).
 
-Anatomy, as shipped:
+### Segmented pills
 
-- **Header:** `DialogTitle` ("Applying Profile") with the live status rendered as a standard outline badge beside it: Applying… (info + spinner), Complete (success), Partial (warning), Failed (destructive). `DialogDescription` carries the profile name and a tabular-nums "Step N of M" counter while running.
-- **Step ledger:** a compact list of per-step rows: status icon + step label + truncated detail. `pending` (muted clock), `running` (info spinner, row tints `bg-info/5`), `done` (success check), `failed` (destructive X), `skipped` (muted check, detail reads **"Unchanged"** because the value already matched; the muted check reads as "nothing to do" both transiently and at completion).
-- **Honest pre-poll state:** in the short window before the backend's first status poll, the dialog renders a single "Preparing…" row instead of a fabricated placeholder list (the real step count is not yet known).
-- **Reboot heartbeat:** when a step requires a modem restart, a calm info notice appears ("Modem is restarting… This usually takes 30-60 seconds. The dashboard will reconnect automatically."). The dialog never triggers an inline reboot beyond what the pipeline itself requires, and it sets expectations with copy plus a spinner rather than a fake timer.
-- **Terminal resolution:** the dialog cannot be dismissed until the pipeline reaches a terminal state (`complete` / `partial` / `failed`), so a half-finished apply is never abandoned by an accidental click. Partial and failed states reveal Retry (when a handler is provided) and Close.
+**On/off and short mutually-exclusive choices use the shared `SegmentedField` pill (primary thumb + check glyph in a rounded track), never a bare `Switch`.** User decision (2026-09-26, taken on QManager-the101 and adopted here 2026-10-06). Applies to new and redesigned surfaces going forward — this is **not** a sweep instruction; an existing page still on `Switch` for this kind of choice is not thereby wrong, per the Scanning Rules' "target rules only" spirit (Layout > The Scanning Rules). Don't convert an untouched page's switches opportunistically; Migration Deltas counts the current `Switch` sites.
 
-Config restore and similar pipelines should adopt this shape rather than inventing their own progress UI.
+`SegmentedField` lives at `components/ui/segmented-field.tsx` — promoted from `components/cellular/settings/segmented-field.tsx` so a lucide-owned route (`/local-network/**`, `/monitoring/**`, `/system-settings/**`) and a Material Symbols route (`/cellular/**`) can share one control without either crossing the icon boundary. The shared file imports **neither** icon set: the caller supplies the check glyph via a required `glyph` prop, rendered from its own route's icon set (lucide's `CheckIcon`, or `MaterialSymbol name="check"` on the Material side). The control itself falls back to a `Select` below a caller-chosen container breakpoint (`segmentedBreakpoint()`); `breakpoint="never"` keeps the pill group at every width, for a row of 2-3 short options that always fit (On/Off, Low/Normal/High).
 
-### Alignment Recorder (Signature Component)
+### Navigation
 
-The antenna-alignment surface (`components/cellular/antenna-alignment/alignment-meter.tsx`) is QManager's signature measure-and-compare instrument: record three antenna angles (directional) or placements (omni), average five samples per recording, and get a recommendation.
+The sidebar rail sits one step off the canvas so it reads as chrome, not content. Nav rows are full-round, 16px horizontal padding, `text-sm`.
 
-- **Live preview:** a muted-wash inset (`rounded-lg border bg-muted/30`) with compact mono signal values over slim quality-tinted fill bars (the one sanctioned use of fill bars: data visualization).
-- **Three slot cards:** bordered rounded regions with an editable label input. Recording state shows the `Loader2Icon` spinner + "Sample N of 5" + a row of discrete dots that fill as samples land (the Loader-and-Dots Rule in action). The winning slot gains `ring-2 ring-primary` and a floating "Best" badge with a trophy icon.
-- **Recommendation panel:** an `AnimatePresence` fade-rise inset on `border-primary/30 bg-primary/5` naming the winning angle/position in primary color, with honest copy when slots remain unrecorded.
-- State persists to `localStorage` (versioned), and every slot carries a `role="region"` label describing its status for screen readers.
+The active row is the system's signature motion: **one** `primary-container` pill per group, absolutely positioned, whose transform is driven from React so it *slides* between rows rather than appearing. The row goes transparent and takes `on-primary-container` ink at 600 weight, and its Material glyph animates its `FILL` axis from 0 to 1. That FILL change is an accessibility affordance, not polish: it is what makes the active state survive grayscale. The pill's first paint is non-animated (`data-settling`), so it starts under the active row rather than sliding up from zero.
 
-### Dashboard Status Cards (Signature Surface)
+**The sidebar-07 structure** (ported from RM551E v0.1.34 in the P0a parity pass) organises the rows; the pill, the fill axis and the motion above are unchanged. The data lives in `components/app-sidebar.tsx`, the tree logic in `lib/nav-tree.ts`, the group renderer in `components/nav-section.tsx`, and the primitive in `components/ui/sidebar.tsx`.
 
-The dashboard (`components/dashboard/home-component.tsx`) is the product's one sanctioned glance surface: a two-column composition (3/5 status + 2/5 device panel at `@4xl/main`) of self-contained status cards (Network, LTE/NR carriers, SCC, Device, signal history chart, live latency, recent activities), entering with the staggered fade-up cascade.
+- **Parents are expanders.** A row with sub-items links nowhere. Its whole surface is the `Collapsible` trigger, and a `chevron_right` rides inside it, rotating 90° on `standard`. The page the parent used to open is its **first sub-row**: same URL, its own label (`FIRST_SUB_T_KEY` in `lib/nav-tree.ts`, e.g. Cellular Information › Overview, System Settings › General). The first sub-row is current only on an exact URL match, so the parent's URL never claims its siblings' routes. The group holding the current route opens itself, and the parent carries the group's pill. Leaf rows stay links.
+- **Sub-rows hang off a rail.** A 1px `sidebar-border` line drops from under the parent's glyph, and the sub-row pills sit beside it. It is structure on the sidebar ground, not a hairline on a fill. The current sub-row takes the neutral `surface-container-high` pill: only one row per group wears `primary-container`.
+- **It collapses to an icon rail.** `<Sidebar collapsible="icon">`, toggled from the header trigger, the `SidebarRail` edge strip or Ctrl/Cmd+B. Rows become 40px circles (44px on a coarse pointer) in a 56px (60px) rail, and the pill follows them as a circle. Group labels fade out, and each row's label stays in the accessibility tree as `sr-only`, so an icon-only row keeps its name. A leaf shows a tooltip; a parent opens its sub-rows as a right-hand **flyout** (a `DropdownMenu` headed by the parent's label), because the inline list has nowhere to go. The rail scrolls with its scrollbar hidden.
+- **Collapse state and motion.** The state persists in the `sidebar_state` cookie, read client-side, and the rail's width transition is armed only after the restored state has painted (`data-ready`), so a reload never animates the collapse. Only the fixed rail animates its width: the in-flow gap snaps once and `SidebarInset` slides the content into place on a transform, because a width transition on the gap re-lays-out the whole page every frame.
+- **On a phone** the sidebar is always the full sheet, and it closes when a row takes the user somewhere or opens a dialog (an expander toggling does not close it).
+- **Header.** `components/sidebar-brand.tsx`: the QManager mark, **QManager** and the app version (`APP_VERSION`), as one plain link to `/dashboard` that shrinks to the mark on the icon rail. RM551E puts an app switcher in this slot to reach LuCI; RM520N has no LuCI, so the slot is a link, not a menu.
+- **Breadcrumb.** The inset header's crumbs come from the nav tree, not URL segments (`resolveNavCrumbs` in `lib/nav-tree.ts`; the URL-segment `hooks/use-breadcrumbs.ts` is deleted): group › parent › page, in the sidebar's own translated labels. The longest matching nav URL wins, so a route below a page resolves to that page. A single-row group and the footer add no crumb, and group and parent crumbs are text, since neither has a page. Below `desktop` only the page shows.
 
-- **Values are tabular, colored by the signal-quality ramp** via `getSignalQuality()`; connection state maps to functional colors (Connected green, Searching/Limited amber, Disconnected red, Inactive muted).
-- **Skeletons mirror the loaded geometry** (same row counts, same icon slot), so the page does not reflow when data lands.
-- **Poll cadence follows the backend:** the poll interval derives from the ping daemon's write interval plus a small buffer; the UI never pretends to be more live than its data source.
-- A stale-data condition surfaces as an honest full-width `role="alert"` wash ("Unable to reach the modem. Data shown may be outdated."), never a silent freeze.
+### Banners
 
-### Reboot Countdown Ring
+Two primitives, split by where they mount. **`Banner`** is page-level: named system roles, a CTA slot, a dismiss slot, a 36px disc, lucide glyphs (it mounts on every route, so the Icon-Boundary Rule pins it to lucide). **`TonalBanner`** is card-scoped: three tones, no CTA, no dismiss, a 32px disc, Material glyphs.
 
-`components/reboot/reboot-countdown.tsx` renders the one radial gauge in the system: an SVG stroke-dashoffset ring counting down a reboot with a tabular-nums center. Radial meters are reserved for genuinely bounded, time-or-fraction readings like this; they are not a general dashboard decoration.
+Both share the rules. A banner is `bg-{role}-container` with `text-on-{role}-container` — never a wash, because a 10% alpha over a tinted surface collapses in dark mode. Its icon always sits in a filled disc on the role's **strong** fill. Radius is 10px, so it never out-rounds its host. Informational banners use `primary-container`. A figure that ticks inside banner copy is `tabular-nums` in the interface font. Entrance is `.animate-banner-in` (`emphasized`, 6px rise plus fade); there is no exit.
 
-### Activity Log Cards
+Banners are one of the four sanctioned container uses, and the reason is that a banner *is* its state — the tint is the message, not decoration on top of one.
 
-Watchdog, Email Alerts, and SMS Alerts each pair a status card and a settings card with a log card (`email-alerts-log-card.tsx`, `sms-alerts-log-card.tsx`): a paginated table of recent events, newest first, timestamps in `font-mono text-xs` per the machine-output allowance, statuses as outline badges. Empty states live inside the table so the card shape does not jump when the first row arrives.
+**Three banners mount in the app shell**, in `components/app-layout.tsx` between the header and the page, in this order, so each shows on every authenticated route whichever page raised it:
 
-### The Three-State Pattern
+1. **SIM swap** (`components/monitoring/watchdog/sim-swap-banner.tsx`).
+2. **Reconnecting** (`components/reboot/reconnecting-banner.tsx`): a compact `warning-container` strip with a spinning lucide glyph and `role="status"`, shown while the session check cannot reach the modem. It is not a `Banner`: it has no title, CTA or dismiss, and it leaves on its own the moment contact returns, with `animate-banner-in` on entry and no exit (The Enter-Only Rule).
+3. **Pending reboot** (`components/reboot/pending-reboot-banner.tsx`): `Banner role="deferred-reboot"`, with **Reboot now** and a **Dismiss** behind a confirm dialog. The Dismiss is an accepted exception to The Dismiss-Only-Notices Rule (RM551E decision U4.11.2): the flag lives in browser storage, and a reboot done some other way (power cycle, watchdog, the user menu) cannot clear it, so a banner without Dismiss could outlive its condition. A page that defers a reboot only sets the flag; it never renders its own copy of this banner.
 
-Every data-driven component handles loading, error, and empty deliberately:
+Storage keys, events and who sets and clears each flag are in [`docs/reference/reboot-banners.md`](docs/reference/reboot-banners.md).
 
-- **Loading:** `Skeleton` blocks mirroring the final layout.
-- **Error:** a destructive `Alert` (or inline destructive wash for page-level failures) with the actual message.
-- **Empty:** the `Empty` primitive (icon, title, one-line description pointing at the action that produces data).
+### Signature surfaces
 
-Never a blank card, never a spinner in a void.
+- **Carrier Aggregation strip** — a full-width 20px-radius hero whose segments are proportional to each carrier's bandwidth. Segment width animates on `emphasized`; a newly-added carrier grows from zero so the chain reads as "something arrived" rather than "everything shuffled". A released carrier stays visible and **explicitly marked** rather than silently disappearing, and the list **freezes** while data is stale rather than announcing releases that never happened.
 
-### Layout & Responsiveness
+  > A released carrier must not be distinguished from an active LTE carrier by tone alone. Measured, `lte-container` and `surface-container-high` were **identical** under deuteranopia — 0.0000 separation — so "dropped" and "live LTE" were one swatch. The distinction is now carried by a glyph or a strikethrough, with tone as reinforcement.
 
-- **Page anatomy (the Consistent-Layout Rule, Apple heritage):** every feature page is a thin wrapper: `@container/main` scope, an `h1` (`text-3xl font-bold`) plus muted description, then a uniform grid of self-contained cards with container-query columns (`grid gap-4 @3xl/main:grid-cols-2`, `@4xl:grid-cols-2`). See `app/local-network/custom-dns/page.tsx` and `components/local-network/ethernet-status.tsx` for the reference shape. A user who learns one page has learned them all.
-- **The Card-Wrapped Surface Rule:** the card component owns its whole content (`CardHeader` + `CardContent` with every control); the page only arranges cards. `CustomDnsCard`, `EthernetStatusCard`, and the Custom Profiles cards are the reference units. The page is never the layout canvas with cards demoted to fragments.
-- **Container queries over viewport queries inside cards:** a card that declares `@container/card` must use `@sm/card:` / `@md/card:` for everything inside it. Mixing viewport `sm:` with container `@sm/card:` in one card breaks on tablets and expanded sidebars. Viewport breakpoints stay for page-level concerns (padding, heading scale).
-- **Toolbars flex-wrap** so action clusters fall to a second row instead of overflowing; **tables wrap prose columns** (`whitespace-normal break-words` with container-stepped `max-w`) and treat horizontal scroll as a fallback only.
-- **Touch targets:** minimum 44px on coarse pointers; icon-only tab lists bump `TabsList` height rather than shrinking triggers.
-- **Page padding:** `px-4 lg:px-6` is the target rhythm (the dashboard already follows it); legacy `mx-auto p-2` wrappers are being phased out, do not add new ones.
+- **Signal status cards** — the paired NR / LTE cards. An identity-tagged card whose **glyph bar count** carries quality (five wedge glyphs, monotonically decreasing — the `signal_cellular_{1..4}_bar` family, never the `alt` family, whose 1-bar mark is a 2×4px speck and which has no 0-bar at all), then a stack of metric row pills with **ramp-inked values and quality bars**. Every tinted value carries an `sr-only` quality word.
+
+- **The radio summary strip** — the four-tile grid above Radio Information's cards. Four 104px tiles at `rounded-tile`, one per track at `@xl` and four across at `@5xl`. Neutral bodies; each disc carries its axis colour — identity fill for Network, downlink for Bandwidth, neutral for Carriers (a count is not a direction), spatial for Active MIMO. The same `TILE_SHAPE` backs the Antenna Statistics context tiles and the SMS Center strip, so all three are dimensionally identical and each skeleton is a real mirror.
+
+- **The pinned aim readout** — the phone-width counterpart to a sticky anchor card, and the pattern for any surface whose live reading has to survive scrolling. A **zero-height** sticky wrapper placed first in the page column: it pins for the page's entire scroll range and contributes no layout, so the resting page is not 64px taller for a readout nobody has summoned, and the 64px pill overflows downward out of it. It is a *separate element*, never the anchor card collapsing — a collapse animates height, and this system's motion is transform and opacity — so the two crossfade on **opacity alone**, driven by an `IntersectionObserver` sentinel that defaults to hidden if the observer never fires. Behind the pill sits an **opaque shade spanning the page gutter and the gap above it**, carrying the same crossfade: without it the page scrolls through the transparent band over the bar's head, and a button sliding across the top of the viewport reads as a z-index bug rather than as a pinned element. The pill sits one tonal step above the rows it pins over (`surface-container-high` against their `surface-container`) and keeps a key label, because at equal tone and identical geometry — same height, same pill radius, same numeral-plus-meter anatomy — a floating instrument reads as a slot that has come loose.
+
+- **Comparison rows on a shared scale** — where a surface exists to answer *which of these won*, the candidates are 64px pill rows at every width rather than a grid of tiles, and their `MetricBar` lengths share **one** 0–100 composite, so the answer is read by length instead of by comparing three numerals against each other. The winner is a `primary-container` row per Highlight-by-Container, and its numeral drops the ramp ink for `on-primary-container`: the ramp is computed for 4.5:1 against a card ground, and quality is still carried by bar length plus an `sr-only` verdict, which is the non-chromatic channel the rule actually asks for. **Two absences are distinguished, deliberately.** A row that was never recorded draws **no track at all** — nothing was measured, so there is no scale to show, and three empty rules across a desktop card would be pure chrome. A row that was recorded but cannot be ranked keeps `MetricBar value={null}` and its **empty track**, because there the track is the honest report of a measurement that came back with nothing.
+
+- **Condition state screens** — non-registered modes *replace* the body rather than render it empty. A 20px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an optional retry pill drawn from the container's **own** ink at 10-15% — never a white wash, which is invisible on a light container. Tone is chosen per condition: no-SIM is `warning` (a real fault the user can fix in situ), no-service is `destructive` (the link is down), searching is `info` (transient), unknown is neutral. Only `searching` spins — a spinner on a standing condition advertises work that is not happening. No two states in one slot may share a glyph.
+
+  This is the third sanctioned container use, for the same reason as banners: the whole block *is* the state.
+
+- **Resolved-state cells** — the fourth, and the narrowest. A cell in a decision matrix may take a role container when the tint reports a **resolved outcome** rather than an input, and then only for the single affirmative state: every other state in the matrix stays on `surface-container`, so the tinted area is proportional to the number of things actually true. The Coverage matrix on `/monitoring/alerts` is the first instance and the reason the use exists, because that page's whole thesis is that the resolved answer, not the three inputs behind it, is the page. This does **not** license tinting a block because it belongs to a category: that is the "large empty purple slab" the Radio Information and Cellular Settings rows below already deleted twice. The tint must be a fact the device would act on, the glyph and the word must carry the same state without it, and no two states in the slot may share a glyph.
 
 ### Icons
 
-- **Lucide** is the primary library: `size-3` in badges, `size-4` inline, `size-5` in buttons, `size-8+` in empty states.
-- **Tabler** (`@tabler/icons-react`) is the sanctioned secondary for glyphs lucide lacks. Some legacy surfaces import from `react-icons` (Md/Fa6/Tb); do not extend that dependency in new work.
-- Icon-only buttons always include `aria-label`.
+Two libraries, and the boundary is **per route**, never per directory.
+
+| Library | Owns |
+|---------|------|
+| **Material Symbols Rounded** | The sidebar, `/dashboard`, the two pre-auth routes, and the **entire `/cellular/` family** — index plus all 17 sub-routes |
+| **lucide-react** | Every other route: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding — plus every route-agnostic primitive wherever it mounts, `HintIcon` excepted (below) |
+
+Mixing two icon sets inside one screen is precisely what the rule prevents, so a lucide glyph on an unconverted route is *correct code*, not a defect — and a route-agnostic component stays on lucide even when it mounts inside a Material route, because it cannot know where it will appear. Convert a whole route or none of it.
+
+`MaterialSymbol` sets `fontSize` as an inline style, which outranks any utility — so a parent's auto-sizing rule for lucide children (`[&>svg]:size-3`) cannot reach it. **Pass `size` explicitly at every Material call site.** The typeface is ligature-driven, which is why these spans are always `aria-hidden` beside a real text label, and why the glyph list is a single source of truth shared with the font-subsetting script. A glyph name the type permits but the shipped subset lacks does **not** fail the build — it renders the literal ligature text (`"cell_tower"`) on a device that may have no internet to fall back on; `bun run icons:check` is what catches it (`docs/reference/icon-system.md`). A Material glyph that must animate `transform` goes inside a wrapper span that carries the transition: the unlayered `.material-symbol` rule in `app/globals.css` sets its own `transition` and beats `transition-*` utilities on the glyph itself.
+
+Three deliberate exceptions survive on the dashboard's Network Status card: the SIM orb keeps lucide `CardSimIcon`/`Plane`, and the RAT marks keep `react-icons/md`, because "5G", "4G+" and "3G" are typographic marks Material Symbols has no equivalent for.
+
+**One exception runs the other way: `HintIcon` is Material on every route, lucide routes included.** `HintIcon` (`components/ui/hint-icon.tsx`) is a route-agnostic primitive, yet its info/warning glyph is a `MaterialSymbol` wherever it mounts — so on `/local-network/`, `/monitoring/` and `/system-settings/` it is the one Material glyph on a lucide screen. That is deliberate: a single glyph for "there is more to know here" everywhere beats one that changes shape between routes. It does not widen the boundary above, and it is not a precedent for any other primitive. Don't make `HintIcon` route-aware, and don't convert it to lucide.
+
+### The three-state pattern
+
+Every data surface ships **loading**, **empty**, and **error** — never a blank panel.
+
+Skeletons mirror the loaded geometry *exactly*, and by shared constant rather than by estimate. Sizes are the loaded element's **line box**, not its font size — a skeleton sized to the glyph reflows the moment real text lands. The handoff is a pure crossfade on `quick` with the outgoing skeleton overlaid *on top of* real content, so the card is sized by its content from the first frame and the crossfade contributes zero layout shift.
+
+### Copy & Help
+
+Convention carries the interface; copy explains only what a convention cannot (PRODUCT.md, Principle 7). A clear label and a sensible default beat a sentence of helper text, and a paragraph on the surface is a design failure, not thoroughness.
+
+**Length budgets** (English; ceilings, not targets — translations run longer, which is one more reason to start short):
+
+| Surface | Budget |
+|---------|--------|
+| Page description (`h1` subtitle) | One sentence, ~100 chars |
+| `CardDescription` | One sentence, ~80 chars. Optional — omit it when the title says it all |
+| Field / row hint | One line, ~60 chars. Omit it if it restates the label |
+| Dialog description | At most two short sentences: what happens, and whether it can be undone |
+| Empty state | Title + one line + one action |
+| Toast | One sentence |
+| Info tip body | At most two sentences |
+
+Say a message once. The same error shown in a banner, a field hint and a toast is three reads of one fact; pick the slot nearest the cause.
+
+**Info tips** — the `HintIcon` primitive (`components/ui/hint-icon.tsx`), a small ⓘ beside a label or value — hold the explanation the surface doesn't need to carry.
+
+**The default is no tip.** Most settings need none; a clear label is enough. A tip is an exception justified for one specific control, never a slot every row fills for consistency, and a settings group where most rows carry no tip is the expected shape.
+
+- **Use one for** a domain term the user may not know (TTL/HL, EN-DC, DPI, IP Passthrough, PCI), or a caveat that is non-obvious but not dangerous ("resets on reboot").
+- **Never use one for** restating the label, explaining a standard pattern (what a switch or Save does), or hiding a risk. Anything that can drop the connection stays visible on the surface (PRODUCT.md, Principle 6).
+- **Sparingly.** Roughly one per settings group at most. If every row wants a tip, the labels are wrong.
+- **Never the only home of required information.** If the user cannot act correctly without reading it, it is not a tip.
+- **Must open on tap.** A hover-only tooltip is unreachable on a touchscreen.
+
+**`HintIcon` is a popover that hover can preview** (final contract, ported from QManager-the101 on 2026-10-06). It stays a toggletip built on `Popover`, because tap must work. Don't build it on `Tooltip`: a Radix Tooltip never opens on tap.
+
+| Input | Result |
+|-------|--------|
+| Mouse rests on the ⓘ | Opens after 300ms (`HOVER_OPEN_MS`) |
+| Mouse leaves the ⓘ and the tip | An unpinned tip closes after 120ms (`HOVER_CLOSE_MS`). The tip itself is hoverable |
+| Click or tap | Pins it open. A hover-opened tip becomes pinned and stays when the mouse leaves |
+| Click again, tap outside, or Esc | Closes |
+| Enter or Space | Toggles it. Focus stays on the trigger |
+| Focus alone | Opens nothing. A screen reader reads the tip as the trigger's description |
+| Another tip opens | This one closes. One tip is open at a time, app-wide |
+
+**Trigger.** A 16px outline `info` glyph in a 20px round button. It is `on-surface-variant` at rest and turns `primary-on-surface` on hover, focus and open, filling while open (colour and fill both ease on `quick`). On coarse pointers its hit area grows to 44px without moving layout. It always trails its label with a 6px gap (`gap-1.5`). The API is `label` (the accessible name) and `children` (the tip body), plus an optional `tone`; there are no sizes and no other variants, because a caution belongs on the surface (the Tip-Is-Optional Rule).
+
+**Warning tone (`tone="warning"`).** The same popover, wearing the Material `warning` glyph in `warning-on-surface` ink at rest (no hover recolour). It is for a fact whose consequence is a reading you cannot fully trust. It never replaces stating the consequence in words on the surface, and it is not a status chip or a way to flag danger: anything that can drop the connection still stays visible on the surface. The default remains `info`; do not reach for the warning tone to make a tip look more important.
+
+**Tip.** The app's own floating surface, never an inverted plate: `bg-popover` with a hairline border, `rounded-field`, 14 × 10px padding, Rethink Sans at 13/20, at most `18rem` wide (or the space available, whichever is smaller), 8px above the trigger with no arrow, and the Popover Float shadow. It enters with a fade, a 0.96 scale and a 4px rise toward the trigger on `quick` with `ease-standard`, and closes instantly (Enter-Only Rule). Reduced motion keeps only the fade. It renders straight on the Radix primitives rather than the shared `PopoverContent`, so it carries no exit animation and never restyles other popovers. The glyph is Material on every route (see Icons, above).
+
+> ℹ️ NOTE: most shipped copy predates these budgets — 136 of 4,088 `en` strings exceed 120 characters (measured 2026-09-26). Trim a surface when you next touch it rather than copying its length.
+
+**Before / after** — the shape of a trim:
+
+| Before | After |
+|--------|-------|
+| A page description listing every sub-feature and its edge cases | One sentence naming what the page is for |
+| A row hint explaining when a setting applies, why, and what resets it | A short hint for the one fact that changes behaviour; the rest behind a tip |
+| A confirm dialog narrating the backend (rebinding, leases, where to browse next) | "Your connection will drop briefly." plus the one thing the user must do |
+
+### Confirmation Toasts
+
+**Every user-initiated mutation that finishes is confirmed by a toast** (user rule, taken on QManager-the101 on 2026-10-05 and adopted here 2026-10-06). Save, Apply, a switch that persists, add, delete, reset, restart, install, copy: success is `toast.success`, failure is `toast.error`, both plain `sonner` (`import { toast } from "sonner"`), no wrapper. `components/cellular/band-locking/band-grid-card.tsx` is the reference. This replaces any earlier per-surface choice where a card confirmed itself with an "Applied" chip and never a toast.
+
+| Do | Don't |
+|----|-------|
+| One toast per outcome, fired in the component handler that owns the action, at the terminal moment (request resolved, read-back matched, stepper settled) | Fire from a presentational footer, or from a hook two cards share with different copy |
+| Past tense naming the thing: "MTU applied.", "Band lock applied." One sentence (Copy & Help budget) | A generic "Success", or a second sentence that restates the control |
+| Take the failure reason from the call's own returned result (its `error` / `detail`, or the mutator's return value), with a `t()` fallback; a backend error code goes through `resolveErrorMessage` (`lib/i18n/resolve-error.ts`, `errors` namespace) | Read `error` state after an `await`: it still holds the previous attempt's error |
+| Give an effect-based toast a deterministic sonner `id` (`${runId}:${state}`) and fire it only for a transition seen in this session | Toast a result that was merely loaded on mount or by a poll |
+| Copy through `copyText` (`lib/clipboard.ts`), and toast success only when it returns true | Raw `navigator.clipboard`: it is undefined outside a secure context, which the modem's own address may not be |
+| Put every toast string through `t()` and into all five locale catalogs *(RM520N: full parity, `bun run i18n:check` gates it)* | Hard-code English in a `toast.*` call |
+
+- **The toast is the only confirmation message.** A fading "Applied" chip, a `*_saved_flash` text or any other transient success label is retired: the toast already said it. `SaveButton`'s own Saving…/Saved! flash is the control's state, not a message, and stays (it is driven by `useSaveFlash`), as do persistent states (Locked, Active, a drift or warning line, a failure line that stays with its context).
+- **A failure may also leave a persistent line** beside the field it concerns; the toast announces the event, the line keeps the context. Avoid double screen-reader announcements by keeping the same text out of an `aria-live` region.
+- **Partial failure is one error toast.** TTL saved and MTU failed is a single error naming MTU, never a success then an error.
+- **Never toast** polling and background work, draft-only edits (a pill, an input, a select), Discard, tab or filter state, and diagnostics whose result is a persistent inline panel.
+- **The one exception: a mutation that ends in navigation.** Applying IP Passthrough (and every other path that ends in the `/reboot/` handoff) leaves the page, which destroys any toast. The handoff is its success signal; its failures and no-ops still toast. A new surface that ends in a navigation or reload documents itself here rather than inventing a chip.
+- **Wizard steps are the same exception.** A step of the setup or onboarding wizard advances to the next step on success, and the advance is its confirmation; a failed write still toasts. This is the dialog/wizard exemption the Card-Foot Apply Rule already makes for save controls.
+- **Hook mutators return their result** (`{ ok, error, detail }` or a boolean plus the message) so the caller toasts from it. A mutator that only calls `setError` and returns `void` invites a success toast after a failure; Migration Deltas lists the sites that still read hook `error` state.
 
 ### Named Rules
 
-**The Outline-Badge Rule.** All status badges in feature surfaces use `variant="outline"` + semantic tint classes + `size-3` icon. Solid badge variants are forbidden for status. If a badge needs to feel louder, the answer is a banner or an alert, not a solid badge.
+**The Toast-Confirms Rule.** A finished user action is confirmed by one toast, success or failure, and by nothing that fades. If a surface seems to need its own "Saved" chip, the toast is missing or wrong.
 
-**The No-Header-Icon Rule.** `CardHeader` is `CardTitle` + `CardDescription` only. Icons live in badges or in the `CardAction` slot. Once one card grows a header icon, every card grows one.
+**The Two-Form Rule.** Status is a filled chip with a glyph. Identity and metadata are an outline tag. Neither form ever does the other's job, and a component that needs both renders both.
 
-**The Save-Button Singleton.** All save actions use `SaveButton` + `useSaveFlash`. It carries the loading spinner and success flash; extend it rather than fork it.
+**The Every-Chip-Has-A-Glyph Rule.** Status containers are close by construction — the functional roles share a narrow tint band, and `success-container` against `warning-container` has measured as low as **1.03:1**. The glyph is what separates healthy from degraded. Two states in the same slot must never share a glyph either.
 
-**The Consistent-Layout Rule (Apple heritage).** Feature pages compose as a page header plus a uniform container-query grid of self-contained cards. A bespoke asymmetric layout unique to one screen is almost always wrong; the dashboard is the one sanctioned glance surface, and even it is built from the same self-contained cards.
+**The Identity-Chip Rule.** Where a surface carries identity *and* reports quality, the quality is encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count; on a metric row it is the quality bar's length.
 
-**The Loader-and-Dots Rule.** Step and sample progress is a `Loader2Icon` spinner plus discrete dots. Fill bars are data visualization only (signal strength, quality meters, countdown rings).
+**The Glyph-Disc Rule.** A state or category icon sits in a filled circle on the role's **strong** fill, never on the pale container. In light mode the identity containers collapse under simulation and the fills do not, so the disc is the only place identity colour is reliably legible.
 
-**The Skeleton-Mirror Rule.** Loading skeletons reproduce the geometry of the loaded state; the page must not reflow when real data arrives. A centered spinner where a card's content will be is a violation.
+**The Field-Step Rule.** A field's resting fill is one tonal step above **its host**, never a fixed token — the fill is the whole affordance, so a fixed token renders at 1.00:1 on the wrong host. `-high` is the top rung, so a `-high` host steps down rather than the field growing a border. The primitive's `host` prop sets the fill; a call site never writes one. See Components > Inputs / Fields.
 
-**The Saved-State Honesty Rule.** Surfaces describing live behavior tell the truth: status cards render saved settings and actual daemon state, the dashboard flags stale data instead of freezing silently, and the apply dialog renders "Preparing…" rather than a fabricated step list before the first poll.
+**The Skeleton-Mirror Rule.** A skeleton mirrors the loaded geometry by importing the same shape constant, never by restating numbers. A `min-h-` is not a mirror.
 
-**The Muted-vs-Destructive Rule.** Muted styling means "deliberately off" (Stopped, Disabled, Offline peer). Destructive styling means "failed" (Disconnected link, Failed email). Confusing the two erodes the functional-color contract.
+**The Loader-and-Dots Rule.** Step or sample progress is a `Loader2Icon` spinner plus dot indicators. Fill and progress bars are reserved for data visualization — signal strength, quality meters, bandwidth share.
 
-**The Deferred-Reboot Rule.** Nothing reboots the modem as a side effect. Reboot-requiring changes surface an explicit dialog (destructive CTA + "Later" escape) or an in-pipeline heartbeat notice; persistent conditions get a banner (`SimSwapBanner` pattern).
+**The Age-Gated Tone Rule.** On a surface listing *history*, two independent axes decide how a row is drawn. **Tone** is what kind of thing happened; it is a fact about the event, never expires, and is carried by a filled icon disc in the solid role colour for as long as the row exists. **Weight** is how much the row still deserves attention, and it does expire: a row keeps its tonal container while it is fresh (one hour) **or** unresolved, then settles onto `surface-container` with its disc at full strength. The disc never consults the age gate. Note that `severity: "info"` here means *routine*, not *good*.
 
-### Aspirational / Not Yet Built
+**The Dismiss-Only-Notices Rule.** A banner gets an X only when it is a *notification*. A standing condition has no dismiss, because dismissing it would hide a fact that is still true.
 
-Documented for direction only; none of these exist in this tree today. Do not reference them as if they ship.
+**The State-Honesty Rule.** A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live.
 
-- **Circular signal meter** (Nokia FastMile-style 240° arc) for signal/antenna pages; the current alignment surface uses linear mini-bars.
-- **Topology / neighbor-cell map** (UniFi-style pannable canvas); cell scanning currently renders as dense tables.
-- **Sticky save bar** with per-tab error dots for long tabbed settings forms; current forms keep the `SaveButton` in the card footer.
-- **Shared `ServiceStatusBadge` wrapper**; the outline-badge pattern is composed inline until it lands.
+**The No-Dot-Separator Rule.** A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a `·` glue character. Give the facts room instead of punctuating between them.
 
-## 6. Do's and Don'ts
+**The One-Sentence Rule.** Every piece of surface copy fits its budget in Copy & Help. A second paragraph is a signal to move content into an info tip or the docs, never to shrink the type.
+
+**The Convention-First Rule.** Don't explain a pattern the user already knows. When a control seems to need explaining, fix the control — label, default, grouping — before adding words.
+
+**The Consequence-Not-Mechanism Rule.** Dialogs and warnings say what will happen to the user, not how the backend does it.
+
+**The Tip-Is-Optional Rule.** An info tip can be skipped without harm. Anything the user must read to act correctly lives on the surface.
+
+**The No-Default-Tip Rule.** Not every option earns a `HintIcon`. A setting gets no tip unless its term or side effect genuinely needs one; adding tips to every row "so it looks consistent" is the failure this rule names.
+
+## Do's and Don'ts
 
 ### Do:
 
-- **Do** use `oklch()` for every color, entered as tokens in `globals.css`. Never reach for hex.
-- **Do** reserve Signal Indigo for the single most-important affordance on a screen (Save, Apply, active nav, the "Best" recommendation). Less than 10% of any screen.
-- **Do** use the **outline status badge** pattern (`variant="outline"` + `bg-{role}/15 text-{role} hover:bg-{role}/20 border-{role}/30` + `size-3` icon) for every status indicator, exactly as CLAUDE.md specifies.
-- **Do** keep `CardHeader` to `CardTitle` + `CardDescription`. Put icons in badges or in `CardAction`.
-- **Do** use `tabular-nums` for any live-updating numeric readout, and color it by the shared `getSignalQuality()` ramp when it is a signal metric.
-- **Do** use semantic tokens (`text-info`, `bg-success/15`) instead of raw Tailwind palette colors; test every new surface in both themes.
-- **Do** animate with short ease-out transitions (140-250ms) and well-damped springs only; import `staggerContainer` / `staggerItem` from `lib/motion-presets.ts` for card entrances instead of re-declaring variants.
-- **Do** respect reduced motion everywhere: `motion/react` work is covered by the global `MotionConfig`; raw CSS keyframes need their own `@media (prefers-reduced-motion: reduce)` block.
-- **Do** compose feature pages as a page header plus a uniform container-query card grid, and author each card as a self-contained component the page arranges (`CustomDnsCard`, `EthernetStatusCard` are the reference shape).
-- **Do** build on shadcn/ui first; when a surface needs tabs, a dialog, a popover, a select, use the shadcn primitive and style it with the tokens here.
-- **Do** use container queries (`@sm/card:` etc.) for all responsive logic inside a card that declares `@container/card`; keep viewport breakpoints for page-level decisions.
-- **Do** render step/sample progress as `Loader2Icon` + dot indicators; keep fill bars for data visualization only.
-- **Do** use `SaveButton` for every save action and default-variant buttons for every primary action (Record, Apply, Confirm).
-- **Do** make skeletons mirror the loaded layout, put table empty states inside the table, and surface stale data with an honest alert wash.
-- **Do** use Muted badge styling for deliberately inactive states and reserve Destructive for actual failures.
-- **Do** defer reboots behind explicit dialogs or in-pipeline notices with honest time expectations; use a persistent banner (`SimSwapBanner` pattern) for conditions that must outlive a page.
-- **Do** mark machine output and technical identifiers with `font-mono` (AT terminal, logs, commands, IMEI/ICCID, dense signal values), and nowhere else.
-- **Do** include `aria-label` on icon-only buttons, `role="status"` / `aria-live` on polling surfaces, and `role="alert"` on failure washes; the codebase already does, keep the bar.
+- **Do** put the colour on the reading — the numeral, the stroke, the bar, the disc — and leave the card neutral.
+- **Do** pick a **layer** before a colour: ink for values on neutral ground, fill for compact emphasis, container for a functional-role block.
+- **Do** pick a **pair** — a fill with its own `-foreground`, or a container with its own `on-` ink.
+- **Do** give every status chip a glyph, and give two states in the same slot two different glyphs.
+- **Do** use an outline tag for identity and metadata, and a filled chip for state.
+- **Do** show a fact worth knowing that is neither a fault nor health as a filled `info` chip with a glyph, only while it applies (The Fact-Is-Info Rule).
+- **Do** pair the quality ramp with bar length, always.
+- **Do** measure a new colour — gamut first, then contrast, then deuteranopia and protanopia against the layer it will ship on.
+- **Do** reach for the role radii (`rounded-tile` / `card` / `hero` / `pill`) in new work.
+- **Do** ship `border-0` on a card and let the tone step carry the separation.
+- **Do** write responsive behavior as a container query against `@container/main`.
+- **Do** wrap a settings group in a card and let the page arrange cards.
+- **Do** let every feature page's content column span the full width; never wrap the page in a `max-w-*` container (Full-Width Page Rule).
+- **Do** put `min-w-0 truncate` on every text node in a paired card's header.
+- **Do** set every figure — measurements and numeric labels such as EARFCN, PCI, band and TAC — `tabular-nums` in `font-sans`, and reserve `font-mono` for opaque strings you compare (ICCID, IMEI, MAC, IP, paths, raw AT output).
+- **Do** mirror a skeleton's geometry from the same exported shape constant the loaded view uses.
+- **Do** build the loading, empty, and error state in the same change as the loaded one.
+- **Do** commit an editable card from its own footer row: status on the left, `Discard` then `SaveButton` on the right (The Card-Foot Apply Rule).
+- **Do** confirm every finished user action with one success or error toast, and retire any fading "Applied"/"Saved" chip (Confirmation Toasts, The Toast-Confirms Rule).
+- **Do** use the shared `SegmentedField` for an on/off or short exclusive choice in new and redesigned surfaces, rather than a bare `Switch`.
+- **Do** pass `size` explicitly at every `MaterialSymbol` call site.
+- **Do** keep interactive targets at 44px on coarse pointers, and let toolbars wrap.
+- **Do** make a status surface report *saved* state, and make an incapable control explain itself.
+- **Do** defer anything that reboots the modem behind a dialog plus a persistent banner.
+- **Do** key every new user-visible string across all five locales; `bun run i18n:check` gates it.
+- **Do** trust conventions — label controls so they need no hint.
+- **Do** put jargon definitions and non-dangerous caveats in an info tip, about one per settings group at most.
+- **Do** hang every element on at least two edges: keys on the left edge, values on the right, actions on the header's right edge or the card's bottom edge (The Scanning Rules).
+- **Do** fix a hard-to-scan list by grouping it under section labels and varying it with a glyph or tag before you add spacing.
+- **Do** render a default or expected value quiet, so the one that differs finds the eye on its own.
+- **Do** recompose a card into columns when its rows get too wide for a key and its value to read as a pair.
 
 ### Don't:
 
-- **Don't** use `#000` or `#fff` literals. They are forbidden in this codebase; the white and near-black that exist are tokens.
-- **Don't** use solid `success` / `warning` / `destructive` / `info` badge variants for status indicators. They exist in `badge.tsx` for completeness; outline-and-tint is the only correct status badge.
-- **Don't** add icons to `CardHeader`. They drift into hero-metric SaaS template territory.
-- **Don't** introduce a second UI typeface. Euclid Circular B is the interface voice; Inter, Geist Sans, IBM Plex, and Roboto are forbidden as UI fonts. `font-mono` (Geist Mono) is scoped by the Machine-Voice Rule, never decoration.
-- **Don't** hand-wire fonts into components with `font-family` styles or ad-hoc classes; fonts enter through `next/font` variables and the `@theme` mapping in `globals.css`.
-- **Don't** use side-stripe borders (`border-left: 3px solid`) on cards or callouts; emphasis is a full tinted wash (`border-primary/30 bg-primary/5`), consistent with the Hairline discipline.
-- **Don't** use `background-clip: text` gradient text. Solid color only; emphasis through weight or size.
-- **Don't** ship the hero-metric SaaS template (giant gradient number + three supporting stats). The dashboard's status cards are the anti-template: tabular values, quality-coded color, contained in the normal card layout.
-- **Don't** invent a bespoke hero layout for a single feature page when the uniform card grid serves better; and don't build grids of decorative icon-plus-heading cards that carry no real controls.
-- **Don't** hand-roll a component shadcn/ui already provides (tabs, accordion, dialog, popover, tooltip, select, dropdown). Custom components are for the gaps shadcn does not cover.
-- **Don't** add bouncy, springy, or elastic motion with visible overshoot. The two shipped springs (meter fill, saved-check pop) are heavily damped settles; that is the ceiling, not the floor.
-- **Don't** animate value changes via fade-out-then-fade-in or layout shifts. Tabular-nums plus a short color transition is the sanctioned pattern for live values.
-- **Don't** use progress/fill bars for step progress; that is the Loader-and-Dots Rule's territory. (Fill bars belong to signal meters and data viz.)
-- **Don't** mix viewport breakpoints and container queries inside the same card; one breakpoint authority per card.
-- **Don't** make modals the first thought. Inline disclosure, destructive buttons with clear descriptions, and deferred banners cover most confirmations. Modals are for the genuinely irreversible or genuinely blocking (reboot, profile apply pipeline).
-- **Don't** document or reference removed features (NetBird VPN, DPI/Traffic Engine, Low Power Mode daemons) as design surfaces; they no longer exist on this branch.
-- **Don't** let a UI claim liveness it doesn't have: no fake timers, no placeholder step lists, no frozen values without a stale-data notice.
-- **Don't** use em dashes in documentation. Use commas, colons, semicolons, periods, or parentheses. (UI copy follows its own rules; this convention is for docs and code comments.)
+- **Don't** tint a large surface because it looked plain — that is the failure this system exists to prevent.
+- **Don't** give identity or direction a large container block; they are ink, outline, and disc only. (A chart's area fill under its own stroke is ink, not a block — see The Area-Fill Rule for the two conditions that keep it so.)
+- **Don't** put ink from one role on another role's surface, or a neutral-ramp ink on a tinted one.
+- **Don't** hardcode `text-white` on a destructive fill — in dark mode that fill is *light*.
+- **Don't** compensate for a mismatched pair with an alpha (`bg-destructive/60`); fix the pair.
+- **Don't** use an outline tag as a status indicator, or a filled chip as an identity label.
+- **Don't** show a fact worth knowing as a grey outline (reads as disabled) or in amber (reads as a problem).
+- **Don't** use `nr` or `lte` to mean "healthy", or put an identity hue anywhere in a quality scale.
+- **Don't** ship an out-of-gamut `oklch()` — the build will map it and you will not have authored what ships.
+- **Don't** argue a colour decision from degrees of hue separation; measure it.
+- **Don't** use the numbered `--chart-1..6`; they do not theme.
+- **Don't** put a border on a tonal container, or use `--border` as a card edge.
+- **Don't** distinguish two states by tone alone when one of them is a released, disabled, or absent thing.
+- **Don't** animate `width` on first paint (the `MetricBar` value retarget and the carrier-aggregation segment are the two exceptions) or exceed `emphasized`.
+- **Don't** write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration.
+- **Don't** add a third stagger step, a fifth duration, or a spring.
+- **Don't** add an exit animation to a banner or a route transition.
+- **Don't** give a modal one unqualified `duration-*` for both directions, or leave its scrim without one.
+- **Don't** loop an animation where nothing is genuinely live.
+- **Don't** put an icon in a `CardHeader`.
+- **Don't** write a hint that restates its label, a `CardDescription` longer than one line, or an empty state that lectures.
+- **Don't** confirm a finished action with a fading chip or label alone ("Applied", "Saved"), toast a result that was only loaded on mount, or read `error` state after an `await` to build a failure toast.
+- **Don't** float an Apply mid-card or under the card grid, or stroke a secondary action beside a Save with `variant="outline"` (The Card-Foot Apply Rule).
+- **Don't** hide a connection-affecting consequence inside an info tip.
+- **Don't** invent a bespoke hero-driven layout for one screen.
+- **Don't** mix Material Symbols and lucide inside a single route (`HintIcon` is the one sanctioned exception).
+- **Don't** cap a feature page with a `max-w-*` wrapper; recompose the cards instead.
+- **Don't** fix a hard-to-scan card with padding or more words; find the missing edge or the ungrouped run.
+- **Don't** give every setting a `HintIcon`, or build an info tip on `Tooltip`.
+- **Don't** centre text that gets scanned as part of a set, or float actions mid-card with no edge under them.
+- **Don't** tidy a crowded card by hiding its actions in a `⋯` menu; give the primary ones an edge first.
+- **Don't** ship an icon-only control whose meaning is only learnable from its tooltip.
+- **Don't** make one thing stand out by turning it up; quiet its neighbours. Don't dress a default value as loudly as a changed one.
+- **Don't** nest more than one inner container inside a card, or stack borders and radii to mark a sub-group a section label could mark.
+- **Don't** introduce a third typeface, or set a human-authored label in mono.
+- **Don't** load a face through `next/font/google`; vendor it under `app/fonts/` and load it with `next/font/local`.
+- **Don't** reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and `/login/`.

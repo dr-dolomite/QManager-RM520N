@@ -22,13 +22,15 @@
 # Usage: qmanager_scenario_schedule --now
 # =============================================================================
 
-. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
     qlog_init() { :; }
     qlog_info() { logger -t scenario_schedule "$1"; }
     qlog_warn() { logger -t scenario_schedule "WARN: $1"; }
-}
+fi
 
-[ -f /usr/lib/qmanager/profile_mgr.sh ] && . /usr/lib/qmanager/profile_mgr.sh
 [ -f /usr/lib/qmanager/scenario_mgr.sh ] && . /usr/lib/qmanager/scenario_mgr.sh
 
 qlog_init "scenario_schedule"
@@ -37,6 +39,26 @@ if [ "$1" != "--now" ]; then
     printf 'usage: %s --now\n' "$0" >&2
     exit 1
 fi
+
+# --- Clock-step fire guard (issue #9) ---------------------------------------
+# Pass "" — a scenario schedule is a multi-block timeline, not a fixed HH:MM,
+# so this degrades to uptime-only. A deny here is a plain skip, NOT an orphan:
+# do not fall through to the teardown branches below (those are for a
+# deleted/disabled active profile, a different condition entirely).
+[ -f /usr/lib/qmanager/schedule_timer.sh ] && . /usr/lib/qmanager/schedule_timer.sh 2>/dev/null
+if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
+    if ! _qm_timer_fire_allowed ""; then
+        qlog_warn "Scenario schedule skipped: fire outside boot-settle window (clock-step guard, issue #9)"
+        exit 0
+    fi
+else
+    qlog_warn "Scenario schedule skipped: guard library unavailable, failing closed (issue #9)"
+    exit 0
+fi
+
+# profile_mgr.sh runs a top-level `mkdir -p "$PROFILE_DIR"` at source time —
+# load it only after the guard has allowed this fire.
+[ -f /usr/lib/qmanager/profile_mgr.sh ] && . /usr/lib/qmanager/profile_mgr.sh
 
 if ! command -v get_active_profile >/dev/null 2>&1 || ! command -v scenario_block_for_now >/dev/null 2>&1; then
     qlog_warn "required libraries unavailable — nothing to do"

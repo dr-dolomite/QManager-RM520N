@@ -17,27 +17,89 @@
 # could be recycled by an unrelated process; checking /proc/<pid> existence
 # is what platform.sh's pid_alive does and is safe across the root/root
 # boundary here regardless.
+#
+# CLOCK-STEP GUARD (issue #9): a schedule read that comes back empty during
+# the boot window (jq resolves through the /opt symlink, which isn't mounted
+# yet) must be treated as "unreadable", not "no schedule by design" — so this
+# worker validates its own schedule before ever calling the shared guard. See
+# schedule_timer.sh and docs/reference/scheduled-timers.md ("The 1970 boot
+# window").
 # Install location: /usr/bin/qmanager_scheduled_reboot
 # =============================================================================
 
-. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
     qlog_init() { :; }
     qlog_info() { logger -t scheduled_reboot "$1"; }
     qlog_warn() { logger -t scheduled_reboot "$1"; }
-}
+fi
 [ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh 2>/dev/null
 command -v pid_alive >/dev/null 2>&1 || pid_alive() { [ -n "$1" ] && [ -d "/proc/$1" ]; }
 
 qlog_init "scheduled_reboot"
+
+# crash.log lives in the root-owned /usrdata/qmanager (see crash_log.sh).
+CRASH_LOG="/usrdata/qmanager/crash.log"
+if [ -f /usr/lib/qmanager/crash_log.sh ]; then
+    . /usr/lib/qmanager/crash_log.sh
+    CRASH_LOG="$QM_CRASH_LOG"
+fi
+
+# Trims crash.log before an append so it never grows unbounded on flash.
+# Never lets a trim failure block the append — the reboot path must not stall.
+_qm_crash_log_append() {
+    local count
+    command -v qm_crash_log_prepare >/dev/null 2>&1 && qm_crash_log_prepare
+    if [ -f "$CRASH_LOG" ] && [ ! -L "$CRASH_LOG" ]; then
+        count=$(wc -l < "$CRASH_LOG" 2>/dev/null || echo 0)
+        if [ "$count" -gt 200 ]; then
+            tail -n 100 "$CRASH_LOG" > "${CRASH_LOG}.sched.tmp" 2>/dev/null && mv "${CRASH_LOG}.sched.tmp" "$CRASH_LOG" 2>/dev/null
+        fi
+    fi
+    [ -L "$CRASH_LOG" ] && return 0
+    echo "$(date +%s)|$1" >> "$CRASH_LOG" 2>/dev/null
+}
+
+[ -f /usr/lib/qmanager/config.sh ] && . /usr/lib/qmanager/config.sh
+[ -f /usr/lib/qmanager/schedule_timer.sh ] && . /usr/lib/qmanager/schedule_timer.sh
+
+if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
+    sched_time=$(qm_config_get settings sched_reboot_time "" 2>/dev/null)
+    sched_days=$(qm_config_get settings sched_reboot_days "" 2>/dev/null)
+    # An empty/invalid schedule here means "unreadable" (e.g. /opt not yet
+    # mounted), not "no schedule by design" — deny ourselves before the guard
+    # ever sees it, since an empty sched otherwise passes the guard on purpose.
+    if ! _qm_validate_hhmm "$sched_time"; then
+        qlog_warn "Scheduled reboot skipped: schedule time unreadable/invalid (issue #9)"
+        _qm_crash_log_append "skip|no_schedule"
+        exit 0
+    fi
+    if ! _qm_timer_fire_allowed "$sched_time" "$sched_days"; then
+        qlog_warn "Scheduled reboot skipped: fire outside schedule window (clock-step guard, issue #9)"
+        _qm_crash_log_append "skip|clock_step_guard"
+        exit 0
+    fi
+else
+    # No guard library, no schedule match capability — a reboot payload must
+    # never fire unguarded. A missed scheduled reboot is recoverable, a boot
+    # loop is not.
+    qlog_warn "Scheduled reboot skipped: guard library unavailable, failing closed (issue #9)"
+    _qm_crash_log_append "skip|lib_missing"
+    exit 0
+fi
 
 UPDATE_PID_FILE="/tmp/qmanager_update.pid"
 if [ -f "$UPDATE_PID_FILE" ]; then
     update_pid=$(cat "$UPDATE_PID_FILE" 2>/dev/null)
     if pid_alive "$update_pid"; then
         qlog_warn "Scheduled reboot skipped: qmanager_update in progress (pid $update_pid)"
+        _qm_crash_log_append "skip|update_in_progress"
         exit 0
     fi
 fi
 
 qlog_info "Scheduled system reboot triggered"
+_qm_crash_log_append "reboot|scheduled"
 reboot

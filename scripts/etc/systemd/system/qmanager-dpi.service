@@ -1,0 +1,39 @@
+# /lib/systemd/system/qmanager-dpi.service
+# Traffic Engine (tpws DPI bypass) — the engine process itself.
+#
+# Config-gated INSIDE the runner (qmanager_dpi_run exits 0 when disabled, so
+# the unit goes cleanly inactive instead of showing failed), with
+# ConditionPathExists on the binary so a not-yet-provisioned engine is
+# "inactive (condition)" rather than restart-looping. Once the binary lands
+# (qmanager_dpi_install), the qmanager-dpi-ensure.timer's periodic check
+# starts the unit on its own — no reboot or manual start needed.
+#
+# Restart policy: tpws is the only process in this unit (exec'd, so systemd
+# tracks it directly). A crash retries every 5s, and StartLimitIntervalSec
+# backs off for an hour after 5 rapid failures — a misconfigured engine
+# cannot burn the CPU forever.
+#
+# The REDIRECT rule's lifetime is bound to the PROCESS, not to config intent.
+# ExecStartPost installs it only after tpws is proven to be listening, and
+# ExecStopPost drains it on every stop — crash and start-limit failure included.
+# Before that, a dead engine left the rule in place and every LAN client's
+# tcp/80 and tcp/443 was redirected at a port with nothing on it, including
+# traffic to the modem's own UI. Both hooks always exit 0 by design: a failing
+# ExecStartPost would kill a healthy engine and burn the start limit.
+[Unit]
+Description=QManager Traffic Engine (tpws DPI bypass)
+After=network.target qmanager-setup.service
+ConditionPathExists=/usrdata/qmanager/bin/tpws
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qmanager_dpi_run
+ExecStartPost=/usr/bin/qmanager_dpi_run --rule-up
+ExecStopPost=/usr/bin/qmanager_dpi_run --rule-down
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

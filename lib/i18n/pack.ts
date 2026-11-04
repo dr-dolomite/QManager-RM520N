@@ -108,6 +108,28 @@ export function cldrCategories(langCode: string): Set<PluralCategory> {
   return cats;
 }
 
+const _oneIsWiderCache = new Map<string, boolean>();
+
+/**
+ * Whether CLDR `one` covers numbers other than 1 (ru/uk/be: 21, 31…; fr: 0),
+ * so a `_one` translation needs `{{count}}` where English writes "1 domain".
+ */
+export function oneCategoryIsWider(langCode: string): boolean {
+  const cached = _oneIsWiderCache.get(langCode);
+  if (cached !== undefined) return cached;
+  let wider = false;
+  try {
+    const rules = new Intl.PluralRules(langCode);
+    for (let n = 0; n <= 200 && !wider; n++) {
+      if (n !== 1 && rules.select(n) === "one") wider = true;
+    }
+  } catch {
+    wider = false;
+  }
+  _oneIsWiderCache.set(langCode, wider);
+  return wider;
+}
+
 // ---------------------------------------------------------------------------
 // Placeholder + HTML integrity
 // ---------------------------------------------------------------------------
@@ -393,10 +415,14 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
     for (const [k, enVal] of baseKeys) {
       const has = targetKeys.has(k);
       const val = targetKeys.get(k) ?? "";
-      const translated = has && (!emptyIsMissing || val.trim() !== "");
+      // An English source string that is itself empty (e.g. an accessibility-only
+      // table header) can never be "untranslated" — an empty value there is the
+      // correct translation, so `emptyIsMissing` must not fire on it.
+      const enIsEmpty = enVal.trim() === "";
+      const translated = has && (!emptyIsMissing || enIsEmpty || val.trim() !== "");
       if (translated) report.translatedKeys++;
 
-      if (!has || (emptyIsMissing && val.trim() === "")) {
+      if (!has || (emptyIsMissing && !enIsEmpty && val.trim() === "")) {
         const issue: Issue = {
           lang,
           ns,
@@ -413,6 +439,16 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
 
       // Placeholder integrity — a missing/invented {{var}} renders broken text.
       const phDiff = multisetDiff(placeholders(enVal), placeholders(val));
+      // i18next always passes `count` to plural keys, so an added {{count}} in `_one` is safe.
+      if (
+        phDiff.missing.length === 0 &&
+        phDiff.extra.length > 0 &&
+        phDiff.extra.every((v) => v === "count") &&
+        splitPlural(k)?.category === "one" &&
+        oneCategoryIsWider(lang)
+      ) {
+        phDiff.extra = [];
+      }
       if (phDiff.missing.length || phDiff.extra.length) {
         const parts: string[] = [];
         if (phDiff.missing.length) parts.push(`missing ${phDiff.missing.map((v) => `{{${v}}}`).join(", ")}`);
@@ -466,7 +502,31 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
         // fail) — a genuinely useful form we didn't anticipate shouldn't block.
         const enCats = baseBases.get(p.base)!;
         if (enCats.has(p.category) || allowedPlural.has(p.category)) {
-          report.translatedKeys++; // it's a real translated plural form
+          // Extra form (ru `_few`/`_many`): not counted, since totalKeys is English-only.
+          // Its placeholders are checked against English `_other`, the form it stands in for.
+          const enOther = baseKeys.get(`${p.base}_other`);
+          const val = targetKeys.get(k) ?? "";
+          if (enOther !== undefined && val.trim() !== "") {
+            const phDiff = multisetDiff(placeholders(enOther), placeholders(val));
+            if (phDiff.missing.length || phDiff.extra.length) {
+              const parts: string[] = [];
+              if (phDiff.missing.length) parts.push(`missing ${phDiff.missing.map((v) => `{{${v}}}`).join(", ")}`);
+              if (phDiff.extra.length) parts.push(`unexpected ${phDiff.extra.map((v) => `{{${v}}}`).join(", ")}`);
+              const issue: Issue = {
+                lang,
+                ns,
+                key: k,
+                kind: "placeholder",
+                hard: true,
+                message: `placeholder mismatch — ${parts.join("; ")}. Copy every {{…}} from the English "_other" form exactly; the app fills them with live values`,
+                enValue: enOther,
+                value: val,
+                line: findKeyLine(loaded.raw, k),
+              };
+              report.issues.push(issue);
+              flatIssues.push(issue);
+            }
+          }
           continue;
         }
         const issue: Issue = {

@@ -1,5 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/connection_validate.sh
+. /usr/lib/qmanager/connection_store.sh
 # =============================================================================
 # sms_forwarding.sh — CGI Endpoint: SMS Forwarding Settings (GET + POST)
 # =============================================================================
@@ -29,74 +31,8 @@ qlog_init "cgi_sms_forwarding"
 cgi_headers
 cgi_handle_options
 
-CONFIG="/etc/qmanager/sms_forwarding.json"
-RELOAD_FLAG="/tmp/qmanager_sms_forward_reload"
+CONFIG="$SMS_FWD_CONFIG"
 FAILURES_FILE="/tmp/qmanager_sms_forward_failures.json"
-
-# Shared AT lock — the SAME lock qcmd holds (/tmp/qmanager_at.lock), so
-# sms_tool here is serialized against qcmd, the poller, the SMS Center CGI,
-# and the forwarding daemon itself.
-LOCK_FILE="/tmp/qmanager_at.lock"
-SMS_TOOL="/usr/bin/sms_tool"
-
-# --- Validation: E.164-ish — optional +, first digit 1-9, 7-15 digits. -------
-# Reused verbatim from monitoring/sms_alerts.sh / cellular/sms.sh conventions.
-_validate_phone() {
-    _vp=$(printf '%s' "$1" | sed 's/^+//')
-    case "$_vp" in
-        ''|*[!0-9]*) return 1 ;;
-    esac
-    _vp_len=${#_vp}
-    if [ "$_vp_len" -lt 7 ] || [ "$_vp_len" -gt 15 ]; then
-        return 1
-    fi
-    _vp_first=$(printf '%s' "$_vp" | cut -c1)
-    [ "$_vp_first" = "0" ] && return 1
-    return 0
-}
-
-# --- BusyBox-compatible flock with timeout (polling loop) --------------------
-# BusyBox flock lacks -w (timeout). Polls with -n (non-blocking) in a loop.
-flock_wait() {
-    _fd="$1"; _wait="$2"; _elapsed=0
-    while [ "$_elapsed" -lt "$_wait" ]; do
-        if flock -x -n "$_fd" 2>/dev/null; then return 0; fi
-        sleep 1
-        _elapsed=$((_elapsed + 1))
-    done
-    flock -x -n "$_fd" 2>/dev/null
-}
-
-# --- Locked sms_tool wrapper (mirrors cellular/sms.sh:sms_locked) -----------
-# Runs sms_tool under the same /tmp/qmanager_at.lock flock qcmd uses. We do NOT
-# use 2>/dev/null (would hide real sms_tool errors, leaving send_test with an
-# empty error detail) or 2>&1 (a merged stream can interleave stray bytes into
-# a JSON payload). Instead: capture stderr to a per-call temp file, then on
-# failure return the cleaned stderr (harmless tcgetattr/tcsetattr smd-device
-# noise stripped — only emitted by the unpatched binary; the patched build is
-# silent) so the caller gets a meaningful error string.
-sms_locked() {
-    _sms_err="/tmp/qmanager_sms_forward_err.$$"
-    (
-        flock_wait 9 10 || exit 2
-        _sms_out=$("$SMS_TOOL" "$@" 2>"$_sms_err")
-        _sms_rc=$?
-
-        if [ "$_sms_rc" -eq 0 ]; then
-            printf '%s' "$_sms_out"
-        else
-            _sms_err_clean=$(grep -v -e '^tcgetattr(' -e '^tcsetattr(' -e 'Inappropriate ioctl for device$' < "$_sms_err" 2>/dev/null)
-            if [ -n "$_sms_err_clean" ]; then
-                printf '%s' "$_sms_err_clean"
-            else
-                printf '%s' "$_sms_out"
-            fi
-        fi
-
-        rm -f "$_sms_err"
-        exit "$_sms_rc"
-    ) 9<"$LOCK_FILE"
-}
 
 # =============================================================================
 # GET — Fetch settings + failures
@@ -164,39 +100,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # When enabling, the target must be valid. When disabling, an empty
         # or bad number is tolerated (the daemon idles regardless).
         if [ "$ENABLED" = "true" ]; then
-            if ! _validate_phone "$TARGET"; then
+            if ! conn_validate_phone "$TARGET"; then
                 cgi_error "invalid_phone" "target_phone is not a valid phone number"
                 exit 0
             fi
         fi
 
-        mkdir -p "$(dirname "$CONFIG")" 2>/dev/null
-
-        TMP="${CONFIG}.tmp"
-        jq -n \
-            --argjson enabled "$ENABLED" \
-            --arg target_phone "$TARGET" \
-            '{enabled: $enabled, target_phone: $target_phone}' > "$TMP" \
-            && mv "$TMP" "$CONFIG"
-
-        # Signal the running daemon to re-read config within one cycle.
-        touch "$RELOAD_FLAG" 2>/dev/null
-
-        # Drive service state to match the saved `enabled` flag — mirrors
-        # monitoring/discord_bot/configure.sh's save_settings exactly.
-        # svc_restart (not svc_start) is used on enable because a config
-        # change (freshly-set target_phone) needs the daemon to notice; the
-        # reload flag already covers that mid-cycle, but restart also starts
-        # a stopped unit, so it cleanly covers "was disabled" -> "now enabled"
-        # in one call. NEVER call systemctl directly — always svc_*.
-        if [ "$ENABLED" = "true" ]; then
-            svc_enable qmanager_sms_forward
-            svc_restart qmanager_sms_forward
-            qlog_info "SMS forwarding enabled, daemon enabled and restarted"
-        else
-            svc_stop qmanager_sms_forward
-            svc_disable qmanager_sms_forward
-            qlog_info "SMS forwarding disabled, daemon stopped and disabled"
+        # Service control, config and reload flag: shared with config restore.
+        if ! conn_sms_fwd_save "$ENABLED" "$TARGET"; then
+            cgi_error "$SMS_ERR_CODE" "$SMS_ERR_DETAIL"
+            exit 0
         fi
 
         jq -n \
@@ -228,7 +141,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         TARGET=""
         [ -f "$CONFIG" ] && TARGET=$(jq -r '.target_phone // ""' "$CONFIG" 2>/dev/null)
 
-        if ! _validate_phone "$TARGET"; then
+        if ! conn_validate_phone "$TARGET"; then
             cgi_error "invalid_phone" "no valid target_phone configured"
             exit 0
         fi
@@ -237,12 +150,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         BODY="From QManager: SMS forwarding test"
 
         qlog_info "SMS forwarding test send to $PHONE"
-        result=$(sms_locked send "$PHONE" "$BODY")
+        result=$(/usr/bin/qsms send "$PHONE" "$BODY" 2>/dev/null)
         rc=$?
 
         if [ "$rc" -ne 0 ]; then
-            qlog_error "SMS forwarding test send failed (rc=$rc): $result"
-            cgi_error "send_failed" "$result"
+            # Show qsms's plain-language .detail, never the raw JSON envelope.
+            detail=$(printf '%s' "$result" | jq -r '.detail // .error // ""' 2>/dev/null)
+            [ -n "$detail" ] || detail="No reply from the SMS service."
+            qlog_error "SMS forwarding test send failed (rc=$rc): $detail"
+            cgi_error "send_failed" "$detail"
             exit 0
         fi
 

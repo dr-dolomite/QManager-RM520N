@@ -1,6 +1,9 @@
 # Overview Splash
 
-> The **Overview** splash is the public, unauthenticated landing page served at `/`. Instead of dropping an anonymous visitor straight onto a login form, QManager greets them with a live status card — device name, carrier, network type, aggregate bandwidth, per-band signal, and an Overall/Internet/Temperature verdict trio — all refreshed every 5 seconds *before* anyone logs in. A **Sign in** button takes them to `/login/`, and a deliberate logout now lands the user back here rather than on the bare login screen.
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
+> The **Overview** splash is the public, unauthenticated landing page served at `/`. Instead of dropping an anonymous visitor straight onto a login form, QManager greets them with a live status card — an Internet/Temperature verdict pair, per-carrier signal, then device name, carrier, network type and aggregate bandwidth — all refreshed every 5 seconds *before* anyone logs in. A **Sign in** button takes them to `/login/`, and a deliberate logout now lands the user back here rather than on the bare login screen.
 
 Short version: `/` used to render the login form directly. It now renders a client-side gate that decides between three outcomes — show the public splash, confirm an existing session and forward to the dashboard, or (on a fresh device) bounce to `/setup/`. The splash reads three brand-new **public CGI endpoints** that expose a deliberately narrow, allowlisted slice of the poller cache. Nothing sensitive (IMEI, ICCID, IMSI, phone number, WAN/LAN IPs) is ever in the anonymous payload.
 
@@ -13,8 +16,13 @@ This feature was ported from the sibling RM551E/OpenWRT project. The one RM551E 
 | Item | Value |
 |------|-------|
 | Public route | `/` (`app/page.tsx`) |
-| Splash component | `components/public/overview-card.tsx` |
-| Supporting components | `components/public/mode-toggle.tsx`, `components/auth/login-device-name.tsx` |
+| Login route | `/login/` (`app/login/page.tsx`) |
+| Splash component | `components/public/overview-card.tsx` (the shell + `resolveBodyMode`) |
+| Splash sub-components | `components/public/overview/{tone.ts,tiles.tsx,band-rows.tsx,states.tsx}` |
+| Login component | `components/auth/login-component.tsx` |
+| Shared in-card notice | `components/ui/tonal-banner.tsx` |
+| Supporting components | `components/public/mode-toggle.tsx`, `components/auth/login-device-name.tsx`, `components/auth/login-language-picker.tsx` |
+| Icon library on both routes | **Material Symbols** — the Icon-Boundary Rule covers `/` and `/login/` |
 | Hooks | `hooks/use-public-overview.ts` (5s poll), `hooks/use-device-hostname.ts`, `hooks/use-public-unit-preferences.ts` |
 | Types | `types/public-overview.ts`, `types/device-hostname.ts`; `SignalQuality` + `worstSignalQuality` in `types/modem-status.ts` |
 | Presentation helpers | `lib/public-overview/format.ts` (`deriveConnectionLabel`), `lib/motion.ts` (`DUR`, `EASE_OUT_EXPO`) |
@@ -24,7 +32,8 @@ This feature was ported from the sibling RM551E/OpenWRT project. The one RM551E 
 | Indicator cookie | `qm_logged_in=1` (optimistic hint, not proof of session) |
 | Session-authority endpoint | `GET /cgi-bin/quecmanager/auth/check.sh` → `{authenticated:bool}` |
 | New CSS tokens | `-on-surface` OKLCH pairs (success/warning/info/destructive, light+dark) in `app/globals.css` |
-| i18n namespace/keys | `common` → `overview.*`, `login.signing_in_*` (already bundled in all 5 languages) |
+| i18n namespace/keys | `common` → `overview.*`, `login.*` (bundled in all 5 languages) |
+| Type scale | `DESIGN.md` > Typography > Hierarchy > **pre-auth card exception** — 19 / 17 / 15 / 13 / 11 px, mirrored in `.impeccable/design.json` as `pre-auth-card` |
 
 > ℹ️ NOTE: Jargon glossary. **CGI** = a shell script lighttpd runs per HTTP request as `www-data`. **Poller** = the background daemon that queries the modem over AT and writes a JSON snapshot to `/tmp/qmanager_status.json`. **Allowlist projection** = the endpoint copies out only a named set of fields and drops everything else, so a new sensitive field in the cache can never leak by default. **RSRP / RSRQ / SINR** = the three cellular signal-quality metrics (received power, quality, and signal-to-noise). **NSA / SA** = 5G Non-Standalone (LTE anchor + NR) vs. Standalone (NR only).
 
@@ -62,6 +71,8 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 
 **Fast path:** if there's no indicator cookie at all, the gate initializes straight to `public` and skips the network round-trip entirely — no flash, no wait for the logged-out majority.
 
+> ⚠️ WARNING — `check.sh` now returns **additive rate-limit fields** on its unauthenticated branch (`rate_limited`, `retry_after`, `attempts_remaining`), which `/login/` uses to restore a lockout countdown across a page reload. Because `app/page.tsx` calls `check.sh` on **every** load of the public splash, that endpoint must call only the **read-only** limiter accessor `qm_get_rate_limit_status` — never the mutating `qm_check_rate_limit`, or refreshing this page would extend the visitor's own lockout. This was pinned by a regression test (`scripts/test/auth-lockout-ladder.sh`, section 8), which no longer exists — `scripts/test/` was deleted 2026-09-03. See `docs/reference/auth-rate-limiting.md` for how to verify it by hand.
+
 > ℹ️ NOTE: A fresh-install device (no password set) is handled one layer deeper. The splash's own `overview.sh` returns `{state:"setup_required"}`, and `OverviewCard` redirects to `/setup/` when it sees that state. The `/` gate itself only distinguishes public/checking/redirecting.
 
 ---
@@ -70,6 +81,58 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 
 `components/public/overview-card.tsx` is the splash body. It is a single shadcn `Card` laid out as: header (logo + product title + device-name line + theme toggle), body (the live status), and footer (Sign-in button + copyright).
 
+> ℹ️ NOTE — both pre-auth surfaces were **retargeted to the Material-3 tonal system** against the `Login and Overview.dc.html` comp. The structure below is unchanged; what changed is the visual vocabulary (tonal containers instead of washes, pill controls, role radii), the glyph library (Material Symbols), the motion (Motion Guide recipes), and the file layout. See *The retarget* below.
+
+### File layout after the retarget
+
+`overview-card.tsx` went from 841 to 557 lines and four sibling modules were extracted under `components/public/overview/`:
+
+| File | Holds |
+|------|-------|
+| `tone.ts` | The whole tone vocabulary — `qualityValueClass()` / `qualityBarClass()` / `RAMP_BAR_CLASS`, `TILE_CLASSES`, `OVERALL_TILE` / `CONNECTION_TILE` / `TEMPERATURE_TILE` verdict maps, `temperatureBand`, `BAND_METRIC_THRESHOLDS`, `EYEBROW_CLASS`, `TILE_SHAPE`, `formatAge`, `isNrBand` |
+| `tiles.tsx` | `TonalTile`, `StatusTile` — the status-trio cells |
+| `band-rows.tsx` | `BandRow`, `AggregateBandRow`, `SegmentedMetricToggle`, plus the shared `BAND_ROW_SHAPE` / `ROW_GAP` / `ROW_STACK_GAP` geometry constants |
+| `states.tsx` | `ReadingChip`, `SkeletonBody`, `UnreachableState` |
+
+Total across the five files is roughly 1235 lines — **more** than before. The extraction was not a line-count exercise; the retarget genuinely adds surface (tonal maps, a segmented toggle, a real skeleton that mirrors the loaded geometry), and the split is what keeps the shell readable.
+
+Every map in `tone.ts` is keyed on a **union type**, never on a raw class string, so a new state without a matching role fails the build rather than rendering untinted.
+
+#### The quality half of that vocabulary is not declared here
+
+`tone.ts` used to own a private `Tone` union with its own `qualityTone()` and `TONE_CLASSES` — one of five rival quality→colour maps in the tree. All three were **deleted**. The canonical map now lives in `components/cellular/signal-quality-display.ts`, and `tone.ts` keeps only two thin wrappers that fold in this surface's extra **`reachable`** axis before delegating:
+
+| Export | Delegates to | Extra behaviour |
+| ------ | ------------ | --------------- |
+| `qualityValueClass(quality, reachable)` | `qualityInkClass()` | An unreachable modem returns `text-on-surface-variant`, never a ramp stop |
+| `qualityBarClass(quality, reachable)` | `qualityMeterTone()` → `RAMP_BAR_CLASS` | Returns `null` — the empty-track signal — when unreachable, or when the tone is `null` |
+
+The `reachable` axis is the point of the wrappers, and it is a real distinction: **an unreachable modem is not a bad reading, it is NO reading.** Painting it the bottom of the scale would tell a visitor their signal is terrible when in fact nothing was measured.
+
+`RAMP_BAR_CLASS` is the one place the ramp's `bg-quality-N-bar` classes are restated outside `metric-bar.tsx`, because this surface's band meter is a hand-built 7px `motion.div` (first-paint-only `scaleX`, staggered 40ms), not a `MetricBar` — swapping it for one would change both its geometry and its entrance. The restatement is kept safe by keying on `MetricBarTone` rather than on `SignalQuality`: the *source* of the tone is still `qualityMeterTone()`, so a sixth ramp stop cannot be added on one side only.
+
+> ⚠️ WARNING: `qualityBarClass()` returning `null` means **draw no fill element**, not "draw a zero-length one". A 0%-wide bar in the ramp's darkest ink beside a "−140 dBm" label reads as a fault the visitor should go and fix. A caller that `??`-es a fallback colour in re-creates exactly the bug this migration removed on `active-bands-card.tsx`, where `none` fell through to `success` and an unread antenna painted green.
+
+`OVERALL_TILE` stays a `Record<SignalQuality, TileVerdict>` on the **container** axis, which is a different axis from the ramp: filled tonal tiles run on the functional roles, and those have no fifth failure step. So `bad` shares `destructive` with `poor` and is separated only by its glyph — `signal_cellular_0_bar`, the same glyph the canonical `QUALITY_GLYPH` gives it, so the tile and the band rows name the state the same way. `priority_high` stays `poor`'s alone.
+
+### `resolveBodyMode()` — one decision, two consumers
+
+The old `renderBody` carried a seven-branch `if` chain. The order was correct and load-bearing (re-ordering it changes what a flapping modem shows), so it was preserved verbatim but **extracted into a pure function returning a `BodyMode` union**:
+
+```ts
+type BodyMode =
+  | "skeleton"           // 1. first paint, no data yet
+  | "redirecting"        // 2. setup_required → /setup/
+  | "empty_fetch"        // 3 & 4. fetch error, with or without prior data
+  | "empty_unavailable"  // 5. the poller itself reports unavailable
+  | "bare_skeleton"      // 6. no usable payload, but no error either
+  | "live";              // 7. the real thing
+```
+
+The reason it had to move out of the render function is that the **footer caption must agree with the body about which state the card is in** — the footer suffix reads "updated 4 s ago" / "retrying every 8 s" / "signing in still works" depending on the mode. With the chain inlined in `renderBody`, the footer had to re-derive the same conditions independently, and the two could drift. Now there is one call site and both read `mode`.
+
+`FAILURE_EMPTY_STATE_THRESHOLD = 3` is the consecutive-failure count that promotes a still-rendering stale card to the empty state.
+
 **Header:**
 - QManager logo (decorative, `alt=""`) + `CardTitle` (`overview.title`).
 - `<LoginDeviceName/>` in the `CardDescription` slot — the device-identity line (see below).
@@ -77,14 +140,52 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 
 **Body — three stacked zones (`renderBody`):**
 
-1. **Header trio** — Carrier · Network · Bandwidth. The third cell shows *aggregate* channel bandwidth summed across carrier components (e.g. "95 MHz"); the joined band list ("B1, N41") survives as that cell's hover tooltip. (The i18n key is still `overview.header.bands` — kept, not renamed to `.bandwidth`, so installed language packs that mirror the id keep their translation.)
-2. **Signal section** — one dense row per aggregated carrier: band label · fill bar · signal value. A small **RSRP ↔ SINR** segmented toggle (`MetricToggle`) in the section header flips every band row (and its threshold tinting) between the two metrics. RSRQ is intentionally *not* a per-band view — it still feeds the Overall verdict but keeps the toggle binary. When no carrier components are reported (e.g. attach in progress), the section falls back to a single aggregate `SignalBar` for the selected metric rather than dropping it.
-3. **Status trio** — Overall · Internet · Temperature.
-   - **Overall** = the *worst* of RSRP/RSRQ/SINR (`worstSignalQuality`). RSRP alone would mask a strong-signal / poor-SINR scene (an interference-bound link).
-   - **Internet** = a single connection label reduced from the LTE and NR states by `deriveConnectionLabel` (priority: connected > searching > limited > inactive > error > disconnected > unknown). When the modem is unreachable it reads `modem_unreachable`.
-   - **Temperature** = the SoC temperature, formatted in the visitor's preferred unit, with a tinted `TriangleAlertIcon` at ≥60 °C (warn) / ≥75 °C (danger). The digits stay neutral; the icon carries the state, so the meaning survives for colour-blind users (WCAG 1.4.1).
+The reading order is **status → evidence → identity**, and it inverted in the 2026-08-30 design-language adoption pass. It used to run identity first: a visitor arriving at this card is asking *"is it working"*, and the answer was the third thing on the page, underneath the carrier's name and a list of band numbers.
 
-**States the body can render:** loading skeleton (mirrors the final layout so there's no layout shift on data arrival), `setup_required` (spinner while redirecting to `/setup/`), `unavailable` / repeated-fetch-failure EmptyState (amber warning, not destructive — this surface is degraded/recoverable, with a Retry button), and the live `ok` layout above. A **stale** badge appears above the header trio when the cache timestamp is older than 15 s.
+1. **Status pair** — Internet · Temperature. A **pair**, not a trio (see *The retired Overall tile* below).
+   - **Internet** = a single connection label reduced from the LTE and NR states by `deriveConnectionLabel` (priority: connected > searching > limited > inactive > error > disconnected > unknown). When the modem is unreachable it reads `modem_unreachable`.
+   - **Temperature** = the SoC temperature, formatted in the visitor's preferred unit. Four bands, four tones, four glyphs, none shared: `unknown` neutral `help`, `normal` success `thermostat`, `warn` (≥60 °C) warning `warning`, `danger` (≥75 °C) destructive `priority_high`.
+     - **`normal` reports the good news.** Temperature previously only spoke when something was wrong, so `unknown` and `normal` were *both* `{ tone: "neutral" }` with no icon at all — a modem at a healthy 47 °C and a modem reporting nothing rendered identically.
+     - **`unknown` stays neutral, and that is not negotiable.** A null temperature is *no reading*; painting it green is the same class of defect as an antenna rendering green with nothing measured.
+   - The tile **body is neutral and the disc carries the colour**, so the digits keep their own ink. The doc used to claim "the digits stay neutral; the icon carries the state" — true as written, but the shipped code stopped doing it on 2026-07-29, when the tone moved to the tile root and the digits started inheriting `on-warning-container`. The neutral body makes the sentence true again. It also named a `TriangleAlertIcon`; these have been `MaterialSymbol` glyphs since the retarget.
+2. **Carriers** — one dense row per aggregated carrier: band tag, fill bar, signal value. A small **RSRP ↔ SINR** segmented toggle in the section header flips every band row (and its ramp tinting) between the two metrics. When no carrier components are reported (e.g. attach in progress), the section falls back to a single aggregate row for the selected metric rather than dropping it.
+3. **Identity trio** — Carrier · Network · Bandwidth. The third cell shows *aggregate* channel bandwidth summed across carrier components (e.g. "95 MHz"); the joined band list ("B1, N41") survives as that cell's hover tooltip. (The i18n key is still `overview.header.bands` — kept, not renamed to `.bandwidth`, so installed language packs that mirror the id keep their translation.)
+
+### The retired Overall tile
+
+The status trio's third member was **Overall** = the worst of RSRP/RSRQ/SINR (`worstSignalQuality`). It was **deleted, not restyled**, on 2026-08-30:
+
+- The Carriers rows already answer "how is the signal", on the ramp, *per carrier*, with a toggle to switch axis — strictly more than one word in a tile could say. The tile was a caption for the list beneath it, and it cost a full row on a card that must hold five carriers.
+- It shipped `signal_cellular_alt` on **both** `excellent` and `good`. Two states in one slot sharing a glyph is the one thing the status vocabulary forbids, because `success-container` and `warning-container` measure ~1.03:1 apart and are identical under deuteranopia.
+
+**Accepted cost, on the record:** with Overall gone, `signal.rsrq` is polled every 5 s and rendered *nowhere*, which widens the "polled but never rendered" finding rather than fixing it. That is accepted because the scene it guarded — strong RSRP, poor SINR, an interference-bound link — is still reachable through the metric toggle, per carrier, where it is more actionable than a summed verdict. **If the trade later looks wrong, the fix is to surface RSRQ in the rows, not to bring the tile back.**
+
+The i18n keys `overview.status.overall` and the `overview.quality.*` subtree were **kept**: `quality.*` still feeds the band rows' sr-only ramp words, and `status.overall` is left in place per this repo's practice of not breaking installed language packs.
+
+### The measured container cliff
+
+Both grids go multi-column at **`@[22rem]`** (352px of content box), and that number is measured rather than derived. The content box is roughly *viewport − 96px* (the page's 16px gutter plus the card's 32px padding, each side), so:
+
+| Viewport | Content box | At `@[18rem]` (288px) |
+| --- | --- | --- |
+| 375px | 279px | stacks |
+| 390px | 294px | goes 2-up — clears the cliff by 6px |
+
+At 2-up on a 390px phone the status column is 143px, and after 30px of tile padding, the 40px disc and its 12px gap that leaves **61px of eyebrow — where English "Temperature" needs 88px.** The clipping is new because the disc is new: the tinted tile it replaced gave its label the whole column. `22rem` is the first step where every eyebrow fits in every shipped locale (172px column, 90px of eyebrow, against Italian's 89px "Temperatura").
+
+One label fits in no 3-up at any width: Italian's "Larghezza di banda" wants 136px, and the card caps at 544px — a 144px column, 114px of eyebrow. It truncates on purpose, with the full string on the tile's `title`.
+
+**States the body can render:** loading skeleton (`SkeletonBody`, mirrors the final layout so there's no layout shift on data arrival — the title, CTA and footer caption are real text and are never skeletonised, because the card's identity is known before its reading is), `setup_required` (spinner while redirecting to `/setup/`), `unavailable` / repeated-fetch-failure (`UnreachableState`), and the live `ok` layout above.
+
+While the first read is in flight a `ReadingChip` replaces the theme toggle at the same 36 px height, so the header does not reflow when it swaps back. Its spinner is the only loop permitted on this surface.
+
+**Staleness** is now a `TonalBanner` (`tone="warning"`, `size="compact"`, `role="status"`) rather than the old chip — "Readings are 42s old. The device may be busy." The chip's key `overview.stale_indicator` is now unreferenced but was **left in place** so installed language packs that already translate it do not error.
+
+**The modem-unreachable empty state is `warning`, not `destructive`**, and its footer says *"signing in still works"*. The distinction is the whole point of the state: the status feed is gone, the login is not, and a red card would tell a visitor the device is broken when it is merely quiet. `overview.empty.subtitle` was rewritten to name cause and recovery ("The modem has not reported in for a minute. It may be rebooting — the reading resumes on its own.") instead of the old "Log in for diagnostic details.", which offered a next step that does not help.
+
+**Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip says which radio the row belongs to, while the meter and the value carry the **five-stop quality ramp**, which contains no identity hue at all. That is the point of the ramp here: these two channels used to run through a four-tone functional map whose healthy end resolved to `--primary` — i.e. to 5G NR's own identity colour — so an LTE-only visitor was shown "all good" in the 5G blue. As of 2026-08-17 it renders as an outline `Tag variant="nr" | "lte"` (`components/ui/tag.tsx`) rather than a hand-rolled container fill — identity never takes a large tinted block. `AggregateBandRow`'s summary pill became `<Tag variant="neutral">` in the same change.
+
+> ⚠️ WARNING — the comp calls the LTE role `--sc` (secondary-container). **Do not use `secondary-container` here.** This repo ships Carrier Violet under the non-canon name `--lte-*` specifically to avoid colliding with the shadcn neutral secondary. See `DESIGN.md` > Colors > Secondary.
 
 **Accessibility:** a single `sr-only` `aria-live` region announces only *verdict transitions* (a change in signal quality, connection state, or temperature band), gated by comparing the current verdict against the previous one — so the 5 s poll doesn't re-announce the whole status trio on every tick.
 
@@ -92,7 +193,162 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 
 ### `LoginDeviceName` — "which modem am I signing into?"
 
-`components/auth/login-device-name.tsx` renders a quiet muted-text line answering which device the visitor is about to log into. It owns its own hostname fetch (`useDeviceHostname`) and all three states (loading skeleton → resolved name → nothing). Its contract is **silent omission**: older firmware without the CGI, or an unnamed device, resolves to `null` and the line simply doesn't render — the title block closes up around it. Per DESIGN.md's Machine-Voice Rule the hostname renders in the UI sans typeface, not the mono machine voice (mono is scoped to the AT terminal). It is used by both the splash and the login screen.
+`components/auth/login-device-name.tsx` answers which device the visitor is about to log into. It owns its own hostname fetch (`useDeviceHostname`) and all three states (loading skeleton → resolved name → nothing). Its contract is **silent omission**: older firmware without the CGI, or an unnamed device, resolves to `null` and no placeholder is ever invented — a fake device name on a login screen is a lie about which modem you are about to configure. Per DESIGN.md's Machine-Voice Rule the hostname renders in the UI sans typeface, not the mono machine voice (mono is scoped to the AT terminal).
+
+**Two variants, one per pre-auth surface** (2026-08-30):
+
+| Variant | Mounted by | Renders | With no hostname |
+|---------|-----------|---------|------------------|
+| `signin` (default) | the splash at `/` | the standalone line, "Sign in as sdxlemur" | renders nothing; the title block closes up |
+| `title` | `/login/` | the card's `h1` **is** the hostname, under a `login.sign_in_to_label` eyebrow | **no eyebrow**, and the `h1` falls back to `login.welcome` |
+
+A third variant, `sentence` ("Enter your password to manage sdxlemur."), was **deleted** when `title` landed — once the hostname is the `h1`, folding it into the password instruction states the same fact twice on a card holding three text elements. Its keys `login.password_to_manage` and `password_to_manage_bare` are **kept** in all five locales; this repo does not remove keys that installed language packs may still carry.
+
+Two accessibility details in the `title` variant are load-bearing and easy to undo:
+
+- **The `h1` stays in the a11y tree.** It is the login page's only heading, so it is not `aria-hidden`. The full sentence lives inside it as `sr-only` text and the visible hostname is the `aria-hidden` layer — one heading, announced once, as "Signing in to sdxlemur".
+- **The eyebrow is `aria-hidden`.** It is half a sentence whose other half is the `h1`; announced alone it arrives as a fragment before the name it introduces.
+
+The eyebrow is also what retires the long-standing `signing_in_as` / `signing_in_to` disagreement **structurally** rather than by picking a winner: the visible copy now reads "Sign in to / sdxlemur" and the screen-reader line reads "Signing in to sdxlemur". They finally agree.
+
+---
+
+## The `/login/` screen
+
+`app/login/page.tsx` and `components/auth/login-component.tsx` were both rewritten in the same retarget, because the two surfaces are one experience: a visitor moves from `/` to `/login/` in a single click, and the 48 px pill CTA is the same role appearing on two consecutive screens. That is why the pre-auth type scale is defined once and applied to both (`DESIGN.md` > Typography > Hierarchy > pre-auth card exception; five steps 19 / 17 / 15 / 13 / 11 px — the comp draws the eyebrow at 10 px, but 11 px is the floor already set by the sidebar exception).
+
+`app/login/page.tsx` now mounts `ModeToggle`, which the route had never carried. It sits beside `LoginLanguagePicker` at `icon-sm`, and both use `rounded-pill`.
+
+The login form renders two `TonalBanner`s:
+
+| Condition | Tone | Copy keys |
+|-----------|------|-----------|
+| Session ended (device was unreachable) | `destructive` | `login.session_expired_title` + `login.session_expired` |
+| Rate limited | **`warning`** | `login.locked_title` + `login.locked_body` |
+
+> ℹ️ NOTE — **the rate-limit banner is amber, not red, on purpose.** Being rate-limited is degraded-but-recoverable: the device is working, it is deliberately pausing you, and the pause ends by itself. Red would read as a fault. The copy names the *reason* ("Locked for 4:32 to protect the device.") rather than only the consequence, which is what turns a punishment into an explanation.
+
+The countdown is formatted by `formatLockout(totalSeconds, t)` — `28s` under a minute, `4:32` above it — which is why the i18n template lost its baked-in unit. **The sub-minute unit is itself translated** (`login.lockout_seconds`, added 2026-08-30): it used to be a literal `s` welded into the template string, sitting directly beside the mm:ss branch, which was already locale-neutral — so the formatter disagreed with itself about whether it was translatable. The colon form needs no key; mm:ss is a numeric convention, not a word. See `docs/reference/auth-rate-limiting.md` for the ladder, the response shapes, and the `attempts_remaining: 0` gotcha the form has to render around.
+
+### The four zones (2026-08-30)
+
+`/login/` took its design-language adoption pass on 2026-08-30, the second half of the pre-auth pair. Beyond the migration it carried one composition decision:
+
+> **The card used to greet, then ask. It now identifies, then asks.** It spent its loudest step and its only colour on the constant string "Welcome to QManager", and 14 px muted, folded mid-sentence, on the hostname — the one fact on the screen that varies, and the thing `LoginDeviceName` exists to report. The device is the title; the action is its eyebrow.
+
+```
+div  bg-background grid min-h-svh place-items-center  p-4 sm:p-7
+  ├─ corner chrome  LoginLanguagePicker + ModeToggle
+  └─ div  @container/login  w-full max-w-[404px]        ← owns the width cap
+       motion.div  bg-card rounded-hero py-9  px-6 @[25rem]/login:px-[34px]
+                   gap-6 | gap-5 when a notice shows
+       ├─ TonalBanner ×2 (unstaggered direct children)
+       ├─ ZONE 1  IDENTITY   bare 48px mark + <LoginDeviceName variant="title"/>
+       ├─ ZONE 2  FIELD      label / Input / eye / inline error
+       ├─ ZONE 3  SUBMIT     48px pill, three labels in one grid cell
+       └─ ZONE 4  RECOVERY   "Can't sign in?" disclosure
+```
+
+**Four stagger children, not three** — the cascade is the 120 ms card step, so the last zone lands at 360 + 600 = 960 ms.
+
+**The mark ships bare.** It sat in a 76 px `primary-container` disc, defended as "the one place where pure brand expression costs nothing operationally". Measured, it cost **1.53:1** between the mark's ring and that fill in dark mode — the brand's own logo was the least legible element on the screen. Deleting the plate raises it to 2.79:1 (ring) and 5.07:1 (tail); light mode improves too, 4.92 → 6.83. The splash's identical disc went in the **same commit**, because DESIGN.md requires the pre-auth pair to move together.
+
+**Zone 4 replaces a brand footer** that restated the product name three inches under the mark, glued with a `·` the No-Dot-Separator Rule forbids, and answered nothing a visitor could be stuck on. `login.recovery.*` had been fully translated in all five locales **with no call site** — the answer to the only question this screen can strand someone with was already written and never rendered. `login.brand_label` keeps its key and loses its caller.
+
+The disclosure's `option_reset` embeds a copyable command. It reaches the component through `interpolation-slot.tsx` (`SLOT` / `withSlot`, see below) as a `{{command}}` placeholder, **not** as markup — the string used to carry a literal `<code>` tag, and this repo does not render markup from locale files. That chip is the **one legal `font-mono`** on the surface (Machine-Voice Rule: a string the reader retypes into a shell); it takes `surface-container-high` because its host is `surface-container`, the Field-Step Rule applied to a code chip. The glyph beside it is `restart_alt`, not `settings_backup_restore` — QManager does not carry the latter, and `material-symbol-names.ts` is the single source of truth for the woff2 subset, so adding one name means regenerating a binary font every route loads.
+
+**The measured container cliff.** `@[25rem]/login` is 400 px, and the `@container/login` element is `w-full max-w-[404px]` inside the page gutter. Measured on the dev server rather than derived:
+
+| Viewport | Container | Step |
+|---------:|----------:|------|
+| 375 px | 343 px | `px-6` |
+| 390 px | 358 px | `px-6` |
+| 430 px | 398 px | `px-6` |
+| **432 px** | **400 px** | **`px-[34px]`** ← the cliff |
+| 436 px + | 404 px (capped) | `px-[34px]` |
+
+**Two motion repairs.** The submit's locked/unlocked role morph and the field-group dim were the surface's only untokenized state changes — both snapped instantly while the banner announcing the *same condition* eased in over 800 ms, so the card reported one event at two speeds. Both now carry `transition-* duration-[var(--duration-standard)] ease-[var(--ease-standard)]`.
+
+**The recovery disclosure needs its own reduced-motion guard.** It animates `grid-template-rows` 0fr → 1fr, which is neither transform nor opacity, so the global `MotionConfig` switch does not cover it; it reads `useMotionReduced()` directly. The 0fr → 1fr collapse is height-agnostic on purpose — no measured pixel height, so a locale whose copy wraps to four lines animates correctly with no JS and no `ResizeObserver`.
+
+### `TonalBanner` — the card-scoped notice
+
+`components/ui/tonal-banner.tsx` is a **new shared primitive**, and the sibling of `components/ui/banner.tsx` rather than a replacement for it. The two split on *where they mount*, and everything else follows:
+
+| | `Banner` | `TonalBanner` |
+|---|---|---|
+| Mounts | Page level, any route | Inside a single card, pre-auth surfaces |
+| Roles | Eight named system roles | Three tones: `warning`, `destructive`, `info` |
+| Slots | CTA + dismiss | Neither |
+| Disc | 36 px | 32 px |
+| Glyphs | lucide (route-agnostic) | Material Symbols (`/` and `/login/` are Material end to end) |
+
+```tsx
+<TonalBanner tone="warning" icon="schedule" size="compact" role="status">
+  …
+</TonalBanner>
+```
+
+Props: `tone`, `icon: MaterialSymbolName`, `title?: ReactNode`, `children`, `size?: "default" | "compact"`, `role?: "alert" | "status"`, `className?`.
+
+It exists because a page-level `Banner` dropped inside a 404 px login card is the wrong instrument — its CTA lane, dismiss lane and 300 px text basis all assume a full content column, and its role vocabulary (`sim-swap-matched`, `deferred-reboot`) describes conditions a signed-out visitor cannot act on.
+
+What it **keeps** from the page-level primitive, because these are rules rather than geometry:
+
+- **Solid-Container Rule** — `bg-{role}-container` + `text-on-{role}-container`, never a wash. The pattern it retires from `/login/` was `border-warning/30 bg-warning/10`; a 10 % alpha over a tinted surface is not a stable colour — it collapses in dark mode and washes out first in sunlight.
+- **Glyph-Disc Rule** — the icon always sits in a filled circle on the role's *strong* fill. The disc is what survives when the container fill washes out; a bare icon on the container does not.
+- **Info-Is-Brand** — the informational tone uses `primary-container`. There is no separate info hue.
+- **Field radius** — 10 px (`rounded-field`): a banner must not out-round the surface it sits on. The comp draws 24/22 px, which is not a step on this repo's shape scale (8 / 10 / 12 / 16 / 20).
+
+Motion is enter-only (`.animate-banner-in`, 400 ms emphasized, 6 px rise + fade, already reduced-motion-guarded in `globals.css`). A banner *leaving* means the condition cleared, and that should feel immediate.
+
+### Motion on the pre-auth surfaces
+
+| Recipe | Where |
+|--------|-------|
+| 01 — card entrance | `standard` easing, `y: 10`. Replaced `y: 12, ease: "easeOut"`, a token mixture the system does not produce |
+| 02 — zone cascade | **120 ms** (`STAGGER_STEP`), on a `display: contents` container wrapping the three body zones. This row previously read "60 ms stagger" — a step that **was never built and is not a legal value**: the canon permits exactly two entrance steps, 120 ms for cards and 80 ms for rows. It was rebuilt at 120 ms on 2026-08-30. The banners sit outside the cascade deliberately: a banner is an arrival, not a member of the sequence, and the element announcing an unreachable modem must not wait two zones for its turn |
+| 07 — meter growth | `scaleX`, **first paint only**: a `metersPainted` flag flips one frame after the first live render, so rows added mid-poll settle in without re-growing and the 5 s poll never replays the entrance. Its stagger is `rowCascadeDelay()` (80 ms, `STAGGER_STEP_ROWS`); it was a local `0.04` literal, i.e. a third stagger step, until 2026-08-30 |
+| 15 — submit button | No width change across idle / submitting / locked states |
+
+> ⚠️ WARNING — **there is deliberately no shake on a wrong password.** The Motion Guide prohibits rubber-band motion. The error is carried by ring colour, glyph, and copy. Do not add one back.
+
+Two pre-existing motion bugs were fixed in passing: `SignalBar` in `overview-card.tsx` used `ease: [0.16, 1, 0.3, 1]` (easeOutExpo — not a system curve), and several retired `duration-200` values were moved onto the token scale.
+
+### `hooks/use-auth.ts` changes
+
+`useLogin()` now also returns `lockout: LockoutState`, seeded from `check.sh` so a page reload during a lockout restores the countdown instead of showing an enabled button that would just earn another 429. `LoginError`, `LoginResult` and `LockoutState` are exported. A pre-existing bug was fixed here — the old `error: data.detail || data.error` overwrote the machine sentinel with human text, making `rate_limited` indistinguishable from any other failure at the call site. Full detail in `docs/reference/auth-rate-limiting.md`.
+
+### i18n
+
+`common.json` is at 889/889 keys across all five locales, 0 warnings.
+
+**8 new `login.*` keys:** `session_expired_title`, `locked_title`, `locked_body`, `invalid_password`, `attempts_left_one`, `attempts_left_other`, `password_to_manage`, `password_to_manage_bare`.
+
+**7 new `overview.*` keys:** `stale.banner`, `footer.updated_ago`, `footer.retrying`, `footer.signin_works`, `loading_chip`, `bands.section_count_one`, `bands.section_count_other`.
+
+Copy changes worth knowing about:
+
+| Key | Change | Why |
+|-----|--------|-----|
+| `login.locked` | `"Locked ({{seconds}}s)"` → `"Locked ({{seconds}})"`, all 5 locales | The unit was baked into the template. Once the ladder reached 900 s the UI needed to render `4:32`, and `4:32s` is wrong. The formatter owns the unit now |
+| `overview.actions.login` | "Sign in" → "Sign in to manage" | Names what the button gets you, not just where it goes |
+| `overview.empty.subtitle` | Now states cause + recovery | The old "Log in for diagnostic details." offered a step that does not help |
+| `overview.stale_indicator` | **Unreferenced**, kept in place | The `TonalBanner` replaced the chip; the key stays so installed language packs keep resolving |
+
+#### `interpolation-slot.tsx` — styling one value inside a translated sentence
+
+`components/auth/interpolation-slot.tsx` is a small new helper for the case where a *value* inside a translated sentence needs different treatment from the prose around it — mono digits in "Locked for 4:32", a bolder hostname in "Enter your password to manage sdxlemur."
+
+i18next interpolation returns a flat string, so the value cannot be styled after the fact. The three ways out, and why this one:
+
+| Approach | Why not |
+|----------|---------|
+| Split into two keys | Breaks in zh-CN / zh-TW / it, where the value does not sit at that position in the sentence. The translator loses word order — the one thing a translator must keep |
+| `<Trans>` with markup | Puts `<0>` tags in the JSON. Translators must preserve markup they cannot see rendered, and a dropped tag is a runtime error rather than a typo |
+| **Interpolate a sentinel** ✅ | ONE key, ordinary `{{value}}` syntax, translator keeps full control of word order, and the slice happens *after* i18next has done its job |
+
+The sentinel exported as `SLOT` is **U+0000**. It cannot occur in real copy, no keyboard or CAT tool emits it, and — unlike a visible marker like `%%` or `{0}` — a translator will never "helpfully" correct it.
 
 ---
 
@@ -212,6 +468,8 @@ The point of the splash is that a **deliberate** logout lands you on it. In `hoo
 
 ## Related docs
 
+- Login lockout ladder, `check.sh`'s rate-limit fields, `useLogin().lockout` — `docs/reference/auth-rate-limiting.md`
+- Glyphs on `/` and `/login/`, the extended Icon-Boundary Rule, the `/setup/` caveat — `docs/reference/icon-system.md`
 - Auth model, session cookies, `cgi_base.sh` `require_auth` / `_SKIP_AUTH` — `docs/reference/qmanager-independence.md`
 - Poller cache (`/tmp/qmanager_status.json`) field sourcing — `docs/BACKEND.md`, `docs/ARCHITECTURE.md`
 - i18n bundle and `overview.*` keys — `docs/reference/i18n.md`

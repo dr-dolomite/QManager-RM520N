@@ -1,10 +1,7 @@
-import APNSettingsComponent from '@/components/cellular/settings/apn-management/apn-settings'
-import React from 'react'
+import APNSettingsComponent from "@/components/cellular/settings/apn-management/apn-settings";
 
 const APNManagementPage = () => {
-  return (
-    <APNSettingsComponent />
-  )
-}
+  return <APNSettingsComponent />;
+};
 
-export default APNManagementPage
+export default APNManagementPage;

@@ -3,6 +3,9 @@
 # copying the resolved TZif file over /etc/localtime. COPY (not symlink):
 # /opt is Entware's late-boot bind-mount, so a symlink would dangle in early boot.
 # Called via: sudo -n /usr/bin/qmanager_timezone_apply <zonename>
+# Pin PATH: sudo passes the caller's PATH to this root helper.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+
 LOCALTIME="/etc/localtime"
 zn="$1"
 

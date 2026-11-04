@@ -6,7 +6,6 @@ const CHECK_ENDPOINT = "/cgi-bin/quecmanager/auth/check.sh";
 const LOGIN_ENDPOINT = "/cgi-bin/quecmanager/auth/login.sh";
 const LOGOUT_ENDPOINT = "/cgi-bin/quecmanager/auth/logout.sh";
 const PASSWORD_ENDPOINT = "/cgi-bin/quecmanager/auth/password.sh";
-const SSH_PASSWORD_ENDPOINT = "/cgi-bin/quecmanager/auth/ssh_password.sh";
 
 // ---------------------------------------------------------------------------
 // Cookie helpers
@@ -27,8 +26,59 @@ function clearIndicatorCookie() {
 
 export type LoginStatus = "loading" | "ready" | "setup_required";
 
+/**
+ * Machine-readable failure sentinels emitted by auth/login.sh. The UI branches
+ * on these and supplies its own translated copy; `detail` is the backend's
+ * English fallback, not something to render when a locale string exists.
+ */
+export type LoginError =
+  | "invalid_password"
+  | "rate_limited"
+  | "setup_required"
+  | "network";
+
+export interface LoginResult {
+  success: boolean;
+  error?: LoginError;
+  /** Backend's English detail. Diagnostic fallback only. */
+  detail?: string;
+  /** Seconds until the lockout lifts. Present when error is "rate_limited". */
+  retry_after?: number;
+  /**
+   * Free attempts left before the ladder engages. Present on both
+   * "invalid_password" and "rate_limited".
+   *
+   * NOTE: this reaches 0 while the form is still USABLE — once a user is on
+   * the lockout ladder, the backend's count stays at the maximum until either
+   * a successful login or an hour of quiet. Zero here means "the next wrong
+   * password re-locks immediately", not "you cannot try". Callers must not
+   * render it as a countdown at 0.
+   */
+  attempts_remaining?: number;
+}
+
+export interface LockoutState {
+  active: boolean;
+  retryAfter: number;
+  attemptsRemaining: number;
+}
+
+/**
+ * Mirrors MAX_ATTEMPTS in scripts/usr/lib/qmanager/cgi_auth.sh. Only used as an
+ * optimistic pre-flight value before check.sh answers; every real number the UI
+ * shows comes from the backend, so a drift here cannot mislead a user mid-flow.
+ */
+const DEFAULT_MAX_ATTEMPTS = 5;
+
+const NO_LOCKOUT: LockoutState = {
+  active: false,
+  retryAfter: 0,
+  attemptsRemaining: DEFAULT_MAX_ATTEMPTS,
+};
+
 export function useLogin() {
   const [status, setStatus] = useState<LoginStatus>("loading");
+  const [lockout, setLockout] = useState<LockoutState>(NO_LOCKOUT);
 
   useEffect(() => {
     // If already logged in, redirect to dashboard
@@ -37,24 +87,40 @@ export function useLogin() {
       return;
     }
 
-    // Check if first-time setup is needed
-    fetch(CHECK_ENDPOINT)
+    // Check if first-time setup is needed. `no-store` matters here: the
+    // response now carries live lockout state, and a cached copy would show an
+    // enabled button during a lockout the server is still enforcing.
+    fetch(CHECK_ENDPOINT, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         setStatus(data.setup_required ? "setup_required" : "ready");
+
+        // Seeding from check.sh is what makes a lockout survive a page reload.
+        // The countdown itself is component state; without this the button
+        // would re-enable on refresh and simply earn another 429.
+        if (data.rate_limited) {
+          setLockout({
+            active: true,
+            retryAfter: Number(data.retry_after) || 0,
+            attemptsRemaining: 0,
+          });
+        } else {
+          setLockout({
+            active: false,
+            retryAfter: 0,
+            attemptsRemaining:
+              typeof data.attempts_remaining === "number"
+                ? data.attempts_remaining
+                : DEFAULT_MAX_ATTEMPTS,
+          });
+        }
       })
-      .catch(() => {
-        // Backend unreachable on a fresh install likely means setup hasn't
-        // completed yet (e.g. lighttpd started before qmanager-setup).
-        // Default to setup_required so onboarding isn't silently skipped.
-        setStatus("setup_required");
-      });
+      // Unreachable backend: stay on the login form; /setup does its own retries.
+      .catch(() => setStatus("ready"));
   }, []);
 
   const login = useCallback(
-    async (
-      password: string
-    ): Promise<{ success: boolean; error?: string; retry_after?: number }> => {
+    async (password: string): Promise<LoginResult> => {
       try {
         const resp = await fetch(LOGIN_ENDPOINT, {
           method: "POST",
@@ -74,13 +140,38 @@ export function useLogin() {
           return { success: false, error: "setup_required" };
         }
 
+        const attemptsRemaining =
+          typeof data.attempts_remaining === "number"
+            ? data.attempts_remaining
+            : undefined;
+
+        if (data.error === "rate_limited") {
+          const retryAfter = Number(data.retry_after) || 0;
+          setLockout({ active: true, retryAfter, attemptsRemaining: 0 });
+          return {
+            success: false,
+            error: "rate_limited",
+            detail: data.detail,
+            retry_after: retryAfter,
+            attempts_remaining: 0,
+          };
+        }
+
+        if (attemptsRemaining !== undefined) {
+          setLockout((prev) => ({ ...prev, attemptsRemaining }));
+        }
+
+        // The sentinel is preserved in `error` rather than being overwritten
+        // by `detail`. Collapsing the two used to make "rate_limited"
+        // indistinguishable from any other failure at the call site.
         return {
           success: false,
-          error: data.detail || data.error || "Invalid password",
-          retry_after: data.retry_after,
+          error: "invalid_password",
+          detail: data.detail || data.error,
+          attempts_remaining: attemptsRemaining,
         };
       } catch {
-        return { success: false, error: "Connection failed" };
+        return { success: false, error: "network", detail: "Connection failed" };
       }
     },
     []
@@ -89,13 +180,14 @@ export function useLogin() {
   const setup = useCallback(
     async (
       password: string,
-      confirm: string
+      confirm: string,
+      enforceStrong: boolean = true
     ): Promise<{ success: boolean; error?: string }> => {
       try {
         const resp = await fetch(LOGIN_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password, confirm }),
+          body: JSON.stringify({ password, confirm, enforce_strong: enforceStrong }),
         });
         const data = await resp.json();
 
@@ -115,7 +207,7 @@ export function useLogin() {
     []
   );
 
-  return { status, login, setup };
+  return { status, login, setup, lockout };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,26 +221,26 @@ export function useLogin() {
  */
 export async function setupPassword(
   password: string,
-  confirm: string
-): Promise<{ success: boolean; error?: string }> {
+  confirm: string,
+  enforceStrong: boolean = true
+): Promise<{ success: boolean; error?: string; detail?: string; sshSynced?: boolean }> {
   try {
     const resp = await fetch(LOGIN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password, confirm }),
+      body: JSON.stringify({ password, confirm, enforce_strong: enforceStrong }),
     });
     const data = await resp.json();
 
     if (data.success) {
-      return { success: true };
+      // Older backends omit ssh_synced; treat only an explicit false as failure.
+      return { success: true, sshSynced: data.ssh_synced !== false };
     }
 
-    return {
-      success: false,
-      error: data.detail || data.error || "Setup failed",
-    };
+    // `error` is the errors.json code, `detail` its English fallback.
+    return { success: false, error: data.error, detail: data.detail };
   } catch {
-    return { success: false, error: "Connection failed" };
+    return { success: false };
   }
 }
 
@@ -167,10 +259,48 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** A failed password call: the backend code, its English detail, and lockout seconds. */
+export interface PasswordCallResult {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  /** Present with `rate_limited`: seconds until the lockout lifts. */
+  retry_after?: number;
+  /** Present with `invalid_password`: wrong guesses left before the lockout. */
+  attempts_remaining?: number;
+}
+
+/**
+ * Check the current web password without changing it (`verify_only`). A wrong
+ * password counts toward the sign-in lockout, so a locked-out caller gets `rate_limited`.
+ */
+export async function verifyPassword(current: string): Promise<PasswordCallResult> {
+  try {
+    const resp = await fetch(PASSWORD_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: current, verify_only: true }),
+    });
+    const data = await resp.json();
+    if (data.success) return { success: true };
+    return {
+      success: false,
+      error: data.error,
+      detail: data.detail,
+      retry_after: typeof data.retry_after === "number" ? data.retry_after : undefined,
+      attempts_remaining:
+        typeof data.attempts_remaining === "number" ? data.attempts_remaining : undefined,
+    };
+  } catch {
+    return { success: false };
+  }
+}
+
 export async function changePassword(
   current: string,
-  newPassword: string
-): Promise<{ success: boolean; error?: string }> {
+  newPassword: string,
+  enforceStrong: boolean = true
+): Promise<PasswordCallResult> {
   try {
     const resp = await fetch(PASSWORD_ENDPOINT, {
       method: "POST",
@@ -178,6 +308,7 @@ export async function changePassword(
       body: JSON.stringify({
         current_password: current,
         new_password: newPassword,
+        enforce_strong: enforceStrong,
       }),
     });
     const data = await resp.json();
@@ -188,45 +319,16 @@ export async function changePassword(
       return { success: true };
     }
 
+    // `error` is the errors.json code, `detail` its English fallback.
     return {
       success: false,
-      error: data.detail || data.error || "Password change failed",
+      error: data.error,
+      detail: data.detail,
+      retry_after: typeof data.retry_after === "number" ? data.retry_after : undefined,
+      attempts_remaining:
+        typeof data.attempts_remaining === "number" ? data.attempts_remaining : undefined,
     };
   } catch {
-    return { success: false, error: "Connection failed" };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SSH password management
-// ---------------------------------------------------------------------------
-
-export async function changeSSHPassword(
-  currentPassword: string,
-  newPassword: string,
-  confirmPassword: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const resp = await fetch(SSH_PASSWORD_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
-      }),
-    });
-    const data = await resp.json();
-
-    if (data.success) {
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      error: data.detail || data.error || "SSH password change failed",
-    };
-  } catch {
-    return { success: false, error: "Connection failed" };
+    return { success: false };
   }
 }

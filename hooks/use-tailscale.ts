@@ -1,22 +1,36 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 
-interface InstallResult {
+export interface InstallResult {
   success: boolean;
   status: "idle" | "running" | "complete" | "error";
   message?: string;
-  detail?: string;
   log?: string;
+  /** Which job the shared install_status file describes. */
+  op?: "install" | "update" | "uninstall";
+}
+
+/** One mutation's outcome; `reason` is translated, "" when the backend gave none. */
+export interface TailscaleActionResult {
+  ok: boolean;
+  reason: string;
+  /** The version the device reports after a finished update. */
+  version?: string;
 }
 
 // =============================================================================
 // useTailscale — Fetch & Action Hook for Tailscale VPN Management
 // =============================================================================
 // Fetches Tailscale status on mount (tiered: not installed → stopped → full).
-// Provides action methods for connect, disconnect, logout, service, boot toggle.
-// Adaptive polling: 10s normal, 3s during auth wait.
+// Provides action methods for connect, disconnect, logout, service, boot toggle,
+// install and update. Adaptive polling: 10s normal, 3s during auth wait.
+//
+// Install, update and uninstall return their outcome, so a toast after an `await` never
+// reads stale hook state. `runUpdate` tolerates failed polls while tailscaled restarts.
 //
 // Backend: GET/POST /cgi-bin/quecmanager/vpn/tailscale.sh
 // =============================================================================
@@ -25,6 +39,15 @@ const CGI_ENDPOINT = "/cgi-bin/quecmanager/vpn/tailscale.sh";
 
 const POLL_NORMAL_MS = 10_000;
 const POLL_AUTH_MS = 3_000;
+const INSTALL_POLL_MS = 2_000;
+/** Failed progress reads this long in a row mean the update is not coming back. */
+const UPDATE_FAIL_TOLERANCE_MS = 20_000;
+/** Upper bound on one update, download over cellular included. */
+const UPDATE_MAX_MS = 10 * 60_000;
+/** The helper must have written this run's first status by then. */
+const UPDATE_START_MS = 15_000;
+/** Upper bound on one uninstall; measured under 15 s. */
+const UNINSTALL_MAX_MS = 60_000;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -68,6 +91,11 @@ export interface TailscaleStatus {
   health?: string[];
   install_hint?: string;
   error_detail?: string;
+  /** Newest stable version, "" when it could not be determined. */
+  latest_version?: string;
+  update_available?: boolean;
+  /** An update holds the install lock; the other fields may be absent. */
+  busy?: "update";
 }
 
 export interface UseTailscaleReturn {
@@ -78,6 +106,7 @@ export interface UseTailscaleReturn {
   isTogglingService: boolean;
   isTogglingSsh: boolean;
   isUninstalling: boolean;
+  isUpdating: boolean;
   installResult: InstallResult;
   error: string | null;
   connect: () => Promise<boolean>;
@@ -87,14 +116,36 @@ export interface UseTailscaleReturn {
   stopService: () => Promise<boolean>;
   setBootEnabled: (enabled: boolean) => Promise<boolean>;
   setSshEnabled: (enabled: boolean) => Promise<boolean>;
-  uninstall: () => Promise<boolean>;
+  uninstall: () => Promise<TailscaleActionResult>;
   runInstall: () => Promise<void>;
+  checkUpdate: (force?: boolean) => Promise<TailscaleActionResult>;
+  runUpdate: () => Promise<TailscaleActionResult>;
   refresh: () => void;
 }
+
+interface PostResponse {
+  success: boolean;
+  error?: string;
+  detail?: string;
+}
+
+interface InstallStatusResponse extends PostResponse {
+  status?: InstallResult["status"];
+  message?: string;
+  log?: string;
+  op?: "install" | "update" | "uninstall";
+  run?: string;
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const OK: TailscaleActionResult = { ok: true, reason: "" };
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 export function useTailscale(): UseTailscaleReturn {
+  const { t } = useTranslation("errors");
   const [status, setStatus] = useState<TailscaleStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -102,6 +153,7 @@ export function useTailscale(): UseTailscaleReturn {
   const [isTogglingService, setIsTogglingService] = useState(false);
   const [isTogglingSsh, setIsTogglingSsh] = useState(false);
   const [isUninstalling, setIsUninstalling] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [installResult, setInstallResult] = useState<InstallResult>({
     success: true,
     status: "idle",
@@ -110,6 +162,9 @@ export function useTailscale(): UseTailscaleReturn {
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  const updatingRef = useRef(false);
+  const latestStatusRef = useRef<TailscaleStatus | null>(null);
+  const updateCheckedRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -141,6 +196,17 @@ export function useTailscale(): UseTailscaleReturn {
         return;
       }
 
+      // An update holds the lock and the CGI answers with a bare
+      // `{installed, busy}`; layered over a good payload it keeps the page on
+      // screen instead of reading as "service stopped".
+      if (json.busy) {
+        setStatus((prev) =>
+          prev?.installed ? { ...prev, busy: json.busy } : json,
+        );
+        return;
+      }
+
+      latestStatusRef.current = json;
       setStatus(json);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -178,12 +244,9 @@ export function useTailscale(): UseTailscaleReturn {
   // POST helper
   // ---------------------------------------------------------------------------
   const postAction = useCallback(
-    async (body: Record<string, unknown>): Promise<{
-      success: boolean;
+    async (body: Record<string, unknown>): Promise<PostResponse & {
       auth_url?: string;
       already_authenticated?: boolean;
-      error?: string;
-      detail?: string;
     }> => {
       const resp = await authFetch(CGI_ENDPOINT, {
         method: "POST",
@@ -392,12 +455,36 @@ export function useTailscale(): UseTailscaleReturn {
     }
   }, []);
 
+  /** One install_status read; a failure is always a translated sentence, never the tool's English. */
+  const toInstallResult = useCallback(
+    (r: InstallStatusResponse): InstallResult => ({
+      success: r.success,
+      status: r.status ?? "idle",
+      message:
+        r.status === "error"
+          ? resolveErrorMessage(
+              t,
+              r.error || (r.op === "update" ? "update_failed" : "install_failed"),
+              undefined,
+              "",
+            )
+          : r.message,
+      log: r.log,
+      op: r.op,
+    }),
+    [t],
+  );
+
   const pollInstallStatus = useCallback(async () => {
     try {
-      const json = await postAction({ action: "install_status" });
+      const json = (await postAction({
+        action: "install_status",
+      })) as InstallStatusResponse;
       if (!mountedRef.current) return;
-      setInstallResult(json as unknown as InstallResult);
-      const r = json as unknown as InstallResult;
+      // The file may still hold the last uninstall's result until the helper writes.
+      if (json.op === "uninstall") return;
+      const r = toInstallResult(json);
+      setInstallResult(r);
       if (r.status === "complete" || r.status === "error") {
         stopInstallPolling();
         await fetchStatus(true);
@@ -405,50 +492,210 @@ export function useTailscale(): UseTailscaleReturn {
     } catch {
       // Silently retry on next poll
     }
-  }, [postAction, stopInstallPolling, fetchStatus]);
+  }, [postAction, toInstallResult, stopInstallPolling, fetchStatus]);
 
   const runInstall = useCallback(async () => {
-    setInstallResult({ success: true, status: "running", message: "Starting installation..." });
+    stopInstallPolling();
+    setInstallResult({
+      success: true,
+      status: "running",
+      op: "install",
+      message: "Starting installation...",
+    });
     try {
-      await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "install" }),
-      });
-      installPollRef.current = setInterval(pollInstallStatus, 2000);
-    } catch (err) {
+      const json = await postAction({ action: "install" });
+      if (!mountedRef.current) return;
+      if (!json.success) {
+        // Refused up front (already running, already installed): no job to poll.
+        setInstallResult({
+          success: false,
+          status: "error",
+          message: resolveErrorMessage(t, json.error || "install_failed", undefined, ""),
+        });
+        return;
+      }
+      installPollRef.current = setInterval(pollInstallStatus, INSTALL_POLL_MS);
+    } catch {
       if (mountedRef.current) {
         setInstallResult({
           success: false,
           status: "error",
-          message: err instanceof Error ? err.message : "Failed to start installation",
+          message: resolveErrorMessage(t, "install_failed", undefined, ""),
         });
       }
     }
-  }, [pollInstallStatus]);
+  }, [postAction, pollInstallStatus, stopInstallPolling, t]);
 
-  const uninstall = useCallback(async (): Promise<boolean> => {
-    setIsUninstalling(true);
-    try {
-      const json = await postAction({ action: "uninstall" });
-      if (!mountedRef.current) return false;
-      if (!json.success) {
-        setError(json.detail || "Failed to uninstall");
-        return false;
+  /** Ask for the newest version; merged into `status` so the page does not refetch. */
+  const checkUpdate = useCallback(
+    async (force = false): Promise<TailscaleActionResult> => {
+      try {
+        const json = (await postAction({
+          action: "check_update",
+          ...(force ? { force: true } : {}),
+        })) as PostResponse & { latest_version?: string; update_available?: boolean };
+        if (!json.success) {
+          return {
+            ok: false,
+            reason: resolveErrorMessage(t, json.error, json.detail, ""),
+          };
+        }
+        if (mountedRef.current) {
+          setStatus((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  latest_version: json.latest_version ?? prev.latest_version,
+                  update_available:
+                    json.update_available ?? prev.update_available,
+                }
+              : prev,
+          );
+        }
+        return OK;
+      } catch (err) {
+        return {
+          ok: false,
+          reason: err instanceof Error ? err.message : "",
+        };
       }
-      await fetchStatus(true);
-      return true;
-    } catch (err) {
+    },
+    [postAction, t],
+  );
+
+  // One background check per visit once Tailscale is known to be installed. The
+  // CGI caches the answer; a failure just leaves the page without an update offer.
+  const shouldCheckUpdate = !!status?.installed && !status.busy;
+  useEffect(() => {
+    if (!shouldCheckUpdate || updateCheckedRef.current) return;
+    updateCheckedRef.current = true;
+    void checkUpdate();
+  }, [shouldCheckUpdate, checkUpdate]);
+
+  /** Follow this update run to the end; the loop outlives the component so the toast still lands. */
+  const runUpdate = useCallback(async (): Promise<TailscaleActionResult> => {
+    if (updatingRef.current) return { ok: false, reason: "" };
+    updatingRef.current = true;
+    setIsUpdating(true);
+    setInstallResult({ success: true, status: "running", op: "update" });
+
+    const fail = (reason: string): TailscaleActionResult => {
       if (mountedRef.current) {
-        setError(
-          err instanceof Error ? err.message : "Failed to uninstall",
+        setInstallResult({
+          success: false,
+          status: "error",
+          message: reason,
+          op: "update",
+        });
+      }
+      return { ok: false, reason };
+    };
+
+    try {
+      const started = (await postAction({
+        action: "update",
+      })) as PostResponse & { run?: string };
+      if (!started.success) {
+        return fail(
+          resolveErrorMessage(t, started.error || "update_failed", undefined, ""),
         );
       }
-      return false;
+      const run = started.run;
+      let seen = false;
+
+      const startedAt = Date.now();
+      let failingSince: number | null = null;
+      while (Date.now() - startedAt < UPDATE_MAX_MS) {
+        await sleep(INSTALL_POLL_MS);
+        try {
+          const json = (await postAction({
+            action: "install_status",
+          })) as InstallStatusResponse;
+          failingSince = null;
+          // Only this run's status counts; the file may hold an older install's result.
+          if (json.op !== "update" || (run && json.run !== run)) {
+            if (!seen && Date.now() - startedAt > UPDATE_START_MS) {
+              return fail(resolveErrorMessage(t, "update_failed", undefined, ""));
+            }
+            continue;
+          }
+          seen = true;
+          const r = toInstallResult(json);
+          if (mountedRef.current) setInstallResult(r);
+          if (r.status === "complete") {
+            await fetchStatus(true);
+            return { ok: true, reason: "", version: latestStatusRef.current?.version };
+          }
+          if (r.status === "error") {
+            await fetchStatus(true);
+            return { ok: false, reason: r.message ?? "" };
+          }
+        } catch {
+          failingSince ??= Date.now();
+          if (Date.now() - failingSince > UPDATE_FAIL_TOLERANCE_MS) {
+            return fail("");
+          }
+        }
+      }
+      return fail("");
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : "");
+    } finally {
+      updatingRef.current = false;
+      if (mountedRef.current) setIsUpdating(false);
+    }
+  }, [postAction, toInstallResult, fetchStatus, t]);
+
+  /** Follow this uninstall run to its terminal status; the reason is translated. */
+  const uninstall = useCallback(async (): Promise<TailscaleActionResult> => {
+    setIsUninstalling(true);
+    try {
+      const started = (await postAction({
+        action: "uninstall",
+      })) as PostResponse & { run?: string };
+      if (!started.success) {
+        return {
+          ok: false,
+          reason: resolveErrorMessage(t, started.error, started.detail, ""),
+        };
+      }
+      const run = started.run;
+      const startedAt = Date.now();
+      let seen = false;
+      while (Date.now() - startedAt < UNINSTALL_MAX_MS) {
+        await sleep(INSTALL_POLL_MS);
+        try {
+          const json = (await postAction({
+            action: "install_status",
+          })) as InstallStatusResponse;
+          if (json.op !== "uninstall" || (run && json.run !== run)) {
+            if (!seen && Date.now() - startedAt > UPDATE_START_MS) break;
+            continue;
+          }
+          seen = true;
+          if (json.status === "complete") {
+            await fetchStatus(true);
+            return OK;
+          }
+          if (json.status === "error") {
+            await fetchStatus(true);
+            return {
+              ok: false,
+              reason: resolveErrorMessage(t, json.error, undefined, ""),
+            };
+          }
+        } catch {
+          // The firewall reload can drop one poll; keep trying until the deadline.
+        }
+      }
+      await fetchStatus(true);
+      return { ok: false, reason: "" };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : "" };
     } finally {
       if (mountedRef.current) setIsUninstalling(false);
     }
-  }, [postAction, fetchStatus]);
+  }, [postAction, fetchStatus, t]);
 
   return {
     status,
@@ -458,6 +705,7 @@ export function useTailscale(): UseTailscaleReturn {
     isTogglingService,
     isTogglingSsh,
     isUninstalling,
+    isUpdating,
     installResult,
     error,
     connect,
@@ -469,6 +717,8 @@ export function useTailscale(): UseTailscaleReturn {
     setSshEnabled,
     uninstall,
     runInstall,
+    checkUpdate,
+    runUpdate,
     refresh: fetchStatus,
   };
 }

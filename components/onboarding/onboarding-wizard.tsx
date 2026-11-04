@@ -1,70 +1,70 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { OnboardingShell } from "./onboarding-shell";
+import { OnboardingShell, TOTAL_STEPS } from "./onboarding-shell";
 import { StepWelcome } from "./steps/step-welcome";
 import { StepPassword } from "./steps/step-password";
 import { StepNetworkMode } from "./steps/step-network-mode";
 import { StepConnection } from "./steps/step-connection";
 import { StepBandLocking } from "./steps/step-band-locking";
+import { StepWebPort } from "./steps/step-web-port";
 import { StepDone } from "./steps/step-done";
+import type { PendingMove } from "@/lib/web-port";
 
-// =============================================================================
-// OnboardingWizard — Orchestrates all 6 onboarding steps
-// =============================================================================
-// Steps:
-//   1  Welcome       — static intro
-//   2  Password      — required, calls setupPassword()
-//   3  Network Mode  — optional, calls cellular/settings.sh
-//   4  Connection    — optional, calls apn.sh or profiles/save.sh
-//   5  Band Locking  — optional, calls bands/lock.sh
-//   6  Done          — redirects to /dashboard/
-// =============================================================================
+// Steps: 1 Welcome, 2 Password (required), 3 Network mode, 4 Connection, 5 Bands, 6 Web port, 7 Done.
+// Steps 3-6 are skippable; each registers the submit fn the shell's Continue calls.
 
-// Per-step submit fns registered by each step component
 type AsyncVoidFn = () => Promise<void>;
 type SyncVoidFn = () => void;
 
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordValid, setPasswordValid] = useState(false);
+  // Set by the web-port step when the server moves; Done opens the dashboard there.
+  const [movedOrigin, setMovedOrigin] = useState<PendingMove | null>(null);
 
-  // Each step can register a submit fn. The shell's Continue button calls it.
   const submitFnRef = useRef<AsyncVoidFn | SyncVoidFn | null>(null);
+  const inFlightRef = useRef(false);
 
+  // The ref is cleared only on a step change, so a failed submit can be retried.
   const advance = useCallback(() => {
-    setCurrentStep((s) => Math.min(s + 1, 6));
+    submitFnRef.current = null;
+    setCurrentStep((s) => Math.min(s + 1, TOTAL_STEPS));
   }, []);
 
   const goBack = useCallback(() => {
+    submitFnRef.current = null;
     setCurrentStep((s) => Math.max(s - 1, 1));
   }, []);
 
-  // Shell's Continue button calls the step's registered submit fn.
-  // Null the ref before awaiting to guard against double-click and
-  // prevent a stale fn from the previous step firing during transitions.
   const handleContinue = useCallback(async () => {
-    if (submitFnRef.current) {
-      const fn = submitFnRef.current;
-      submitFnRef.current = null;
-      await fn();
-    } else {
+    if (inFlightRef.current) return;
+    const fn = submitFnRef.current;
+    if (!fn) {
       advance();
+      return;
+    }
+    inFlightRef.current = true;
+    try {
+      await fn();
+    } finally {
+      inFlightRef.current = false;
     }
   }, [advance]);
 
-  // Step 1 (Welcome) — no async, just advance
-  const handleWelcomeContinue = useCallback(() => {
-    advance();
-  }, [advance]);
+  const registerSubmit = useCallback((fn: AsyncVoidFn | SyncVoidFn) => {
+    submitFnRef.current = fn;
+  }, []);
 
   return (
     <OnboardingShell
       currentStep={currentStep}
-      onNext={currentStep === 1 ? handleWelcomeContinue : handleContinue}
+      onNext={currentStep === 1 ? advance : handleContinue}
       onBack={goBack}
-      onSkip={currentStep >= 3 && currentStep <= 5 ? advance : undefined}
+      onSkip={currentStep >= 3 && currentStep <= 6 ? advance : undefined}
       isLoading={isLoading}
+      continueDisabled={currentStep === 2 && !passwordValid}
     >
       {currentStep === 1 && <StepWelcome />}
 
@@ -72,18 +72,14 @@ export function OnboardingWizard() {
         <StepPassword
           onSuccess={advance}
           onLoadingChange={setIsLoading}
-          onSubmitRef={(fn) => {
-            submitFnRef.current = fn;
-          }}
+          onSubmitRef={registerSubmit}
+          onValidityChange={setPasswordValid}
         />
       )}
 
       {currentStep === 3 && (
         <StepNetworkMode
-          onDataChange={() => {}}
-          onSubmitRef={(fn) => {
-            submitFnRef.current = fn;
-          }}
+          onSubmitRef={registerSubmit}
           onLoadingChange={setIsLoading}
           onSuccess={advance}
         />
@@ -91,9 +87,7 @@ export function OnboardingWizard() {
 
       {currentStep === 4 && (
         <StepConnection
-          onSubmitRef={(fn) => {
-            submitFnRef.current = fn;
-          }}
+          onSubmitRef={registerSubmit}
           onLoadingChange={setIsLoading}
           onSuccess={advance}
         />
@@ -101,15 +95,22 @@ export function OnboardingWizard() {
 
       {currentStep === 5 && (
         <StepBandLocking
-          onSubmitRef={(fn) => {
-            submitFnRef.current = fn;
-          }}
+          onSubmitRef={registerSubmit}
           onLoadingChange={setIsLoading}
           onSuccess={advance}
         />
       )}
 
-      {currentStep === 6 && <StepDone />}
+      {currentStep === 6 && (
+        <StepWebPort
+          onSubmitRef={registerSubmit}
+          onLoadingChange={setIsLoading}
+          onSuccess={advance}
+          onMove={setMovedOrigin}
+        />
+      )}
+
+      {currentStep === 7 && <StepDone movedOrigin={movedOrigin} />}
     </OnboardingShell>
   );
 }

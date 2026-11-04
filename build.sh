@@ -39,8 +39,7 @@ fail() { printf "${RED}[%s] ERROR:${NC} %s\n" "$(date +%H:%M:%S)" "$1"; exit 1; 
 # --- Preflight checks --------------------------------------------------------
 [ -d "$OUT_DIR" ] || fail "'out/' not found — run 'bun run build' first"
 [ -d "$DEPS_DIR" ] || fail "'dependencies/' not found at repo root"
-[ -f "$DEPS_DIR/atcli_smd11" ] || fail "Missing required binary: dependencies/atcli_smd11"
-[ -f "$DEPS_DIR/sms_tool" ]    || fail "Missing required binary: dependencies/sms_tool"
+[ -f "$DEPS_DIR/qmanager_atd" ] || fail "Missing required binary: dependencies/qmanager_atd"
 [ -f "$DEPS_DIR/jq.ipk" ]      || fail "Missing required package: dependencies/jq.ipk"
 DROPBEAR_IPK=$(ls "$DEPS_DIR"/dropbear_*.ipk 2>/dev/null | head -n1)
 [ -n "$DROPBEAR_IPK" ] || fail "Missing required package: dependencies/dropbear_*.ipk"
@@ -57,7 +56,8 @@ step "Copying backend scripts..."
 mkdir -p "$STAGING_DIR/scripts"
 for item in "$SCRIPTS_DIR"/*; do
   name="$(basename "$item")"
-  case "$name" in install_rm520n.sh|uninstall_rm520n.sh) continue ;; esac
+  # `test` is retired; the case arm stays so an old working tree can't ship it.
+  case "$name" in install_rm520n.sh|uninstall_rm520n.sh|test) continue ;; esac
   cp -r "$item" "$STAGING_DIR/scripts/$name"
 done
 
@@ -99,7 +99,9 @@ SYSTEMD_SCRIPTS_DIR="$SCRIPTS_DIR/etc/systemd/system"
 # qmanager-auto-update is default-off/gated (like qmanager-watchcat and
 # qmanager-tower-failover above it) but, unlike the Discord bot, is always
 # shipped rather than conditionally built — so it belongs in this list too.
-CORE_SERVICES="lighttpd qmanager-firewall qmanager-setup qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check qmanager-watchcat qmanager-tower-failover qmanager-auto-update"
+# qmanager-dpi / qmanager-dpi-ensure are the Traffic Engine units — always
+# shipped, so they belong here as well.
+CORE_SERVICES="lighttpd qmanager-firewall qmanager-setup qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check qmanager-watchcat qmanager-tower-failover qmanager-auto-update qmanager-dpi qmanager-dpi-ensure qmanager-atd"
 LINT_ERRORS=0
 
 for svc in $CORE_SERVICES; do
@@ -117,18 +119,24 @@ if [ ! -f "$SYSTEMD_SCRIPTS_DIR/qmanager-auto-update.timer" ]; then
   LINT_ERRORS=$((LINT_ERRORS + 1))
 fi
 
+# qmanager-dpi-ensure.timer is the same static-installer shape — shipped by
+# the installer, symlinked into timers.target.wants unconditionally.
+if [ ! -f "$SYSTEMD_SCRIPTS_DIR/qmanager-dpi-ensure.timer" ]; then
+  printf "  ${RED}MISSING:${NC} qmanager-dpi-ensure.timer not found in scripts/etc/systemd/system/\n"
+  LINT_ERRORS=$((LINT_ERRORS + 1))
+fi
+
 if [ "$LINT_ERRORS" -gt 0 ]; then
   fail "Lint failed with $LINT_ERRORS missing service unit(s)"
 fi
-step "Lint passed ($CORE_SERVICES + qmanager-auto-update.timer)"
+step "Lint passed ($CORE_SERVICES + qmanager-auto-update.timer + qmanager-dpi-ensure.timer)"
 
 step "Copying bundled dependencies..."
 mkdir -p "$STAGING_DIR/dependencies"
-cp "$DEPS_DIR/atcli_smd11" "$STAGING_DIR/dependencies/atcli_smd11"
-cp "$DEPS_DIR/sms_tool"    "$STAGING_DIR/dependencies/sms_tool"
+cp "$DEPS_DIR/qmanager_atd" "$STAGING_DIR/dependencies/qmanager_atd"
 cp "$DEPS_DIR/jq.ipk"      "$STAGING_DIR/dependencies/jq.ipk"
 cp "$DEPS_DIR"/dropbear_*.ipk "$STAGING_DIR/dependencies/"
-chmod 755 "$STAGING_DIR/dependencies/atcli_smd11" "$STAGING_DIR/dependencies/sms_tool"
+chmod 755 "$STAGING_DIR/dependencies/qmanager_atd"
 
 # Discord bot binary — built fresh on every package run via build-discord-bot.sh.
 DISCORD_BUILT="$ROOT_DIR/qmanager-build/bin/qmanager_discord"
@@ -209,6 +217,37 @@ step "Generating sha256sum.txt..."
 if [ -f "$ARCHIVE" ] && [ -f "$BUILD_DIR/sha256sum.txt" ]; then
   step "Cleaning up staging directory..."
   rm -rf "$STAGING_DIR"
+fi
+
+# Keep the Windows GUI installer's embedded payload in lockstep with every
+# build — see docs/reference/gui-installer.md "Payload staleness": a stale
+# tarball at an unchanged VERSION= previously passed build_installer.py's
+# check silently. Copying here means installer-gui/payload/ can never drift
+# behind qmanager-build/ between two `bun run package` runs.
+#
+# Also sync straight into the already-built dist/ folder, if one exists.
+# payload/ is read from plain disk beside the exe at runtime
+# (Path(sys.executable).parent / "payload" — see core/payload.py), never
+# baked into PyInstaller's _internal/, so overwriting it here does NOT
+# require re-running build_installer.py. A PyInstaller rebuild is only
+# needed when Python/UI source changes, not for a tarball-only update.
+sync_installer_payload() {
+  local dest="$1"
+  mkdir -p "$dest"
+  cp "$ARCHIVE" "$dest/qmanager.tar.gz"
+  cp "$BUILD_DIR/sha256sum.txt" "$dest/sha256sum.txt"
+  printf '%s\n' "$PKG_VERSION" > "$dest/VERSION"
+}
+
+if [ -d "$ROOT_DIR/installer-gui" ]; then
+  sync_installer_payload "$ROOT_DIR/installer-gui/payload"
+  step "Synced payload to installer-gui/payload/ ($PKG_VERSION)"
+
+  DIST_EXE_DIR="$ROOT_DIR/installer-gui/dist/QManagerInstaller"
+  if [ -f "$DIST_EXE_DIR/QManagerInstaller.exe" ]; then
+    sync_installer_payload "$DIST_EXE_DIR/payload"
+    step "Synced payload to installer-gui/dist/QManagerInstaller/payload/ ($PKG_VERSION) — no PyInstaller rebuild needed"
+  fi
 fi
 
 ARCHIVE_SIZE=$(du -h "$ARCHIVE" | cut -f1)

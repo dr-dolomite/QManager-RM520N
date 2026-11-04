@@ -2,11 +2,11 @@
 [Unit]
 Description=QManager TTL/HL Rules Persistence
 After=network.target qmanager-setup.service
+ConditionPathExists=/etc/qmanager/ttl_state
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ConditionPathExists=/etc/qmanager/ttl_state
 ExecStartPre=/bin/sleep 5
 ExecStart=/bin/sh -c '. /usr/lib/qmanager/platform.sh && . /usr/lib/qmanager/ttl_state.sh && set -- $(ttl_state_read_persisted) && ttl_state_apply "$1" "$2" && logger -t qmanager_ttl "Applied TTL=$1 HL=$2"'
 

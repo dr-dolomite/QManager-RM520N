@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { useSharedConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import type {
   ScenarioListResponse,
   StoredScenario,
@@ -16,6 +17,12 @@ import type {
 // full activation/CRUD surface) so the form stays light. Built-in defaults
 // (balanced/gaming/streaming) are always present; custom scenarios come from
 // scenarios/list.sh.
+//
+// SHARED FETCH. When a `ConnectionScenariosProvider` is mounted above (as it is
+// on /cellular/custom-profiles), the custom records are DERIVED from that one
+// shared instance and this hook issues no request of its own. Without a
+// provider it fetches for itself exactly as before. Either way the public
+// return shape is identical, so neither call site changes.
 // =============================================================================
 
 const CGI_BASE = "/cgi-bin/quecmanager/scenarios";
@@ -37,6 +44,9 @@ export interface UseScenarioListReturn {
 
 export function useScenarioList(): UseScenarioListReturn {
   const { t } = useTranslation("cellular");
+  const shared = useSharedConnectionScenarios();
+  // Gate for our OWN fetch. Hooks below are still called unconditionally.
+  const enabled = shared === null;
   const [custom, setCustom] = useState<StoredScenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const mountedRef = useRef(true);
@@ -63,22 +73,35 @@ export function useScenarioList(): UseScenarioListReturn {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchList();
-  }, [fetchList]);
+  }, [enabled, fetchList]);
+
+  // Under a provider these are the shared instance's records; otherwise our own.
+  const customScenarios = shared ? shared.customScenarios : custom;
 
   // Memoized so the array identity is stable across renders. Without this the
   // list rebuilt every render, giving nameForId — and every value derived from
   // it (e.g. the scenario section's live-readout effect deps) — a new identity
   // each render, which drove an infinite setState loop the moment a schedule
   // rule made the readout active.
+  //
+  // The three built-ins stay written out here rather than mapped from
+  // `DEFAULT_SCENARIOS`: that constant carries hardcoded English `name`s for the
+  // scenario *tiles*, and sourcing the picker from it would silently
+  // un-translate every locale.
   const scenarios = useMemo<ScenarioOption[]>(
     () => [
       { id: "balanced", name: t("scenarios.default_balanced_name"), isDefault: true },
       { id: "gaming", name: t("scenarios.default_gaming_name"), isDefault: true },
       { id: "streaming", name: t("scenarios.default_streaming_name"), isDefault: true },
-      ...custom.map((s) => ({ id: s.id, name: s.name, isDefault: false })),
+      ...customScenarios.map((s) => ({
+        id: s.id,
+        name: s.name,
+        isDefault: false,
+      })),
     ],
-    [custom, t],
+    [customScenarios, t],
   );
 
   const nameForId = useCallback(
@@ -92,8 +115,10 @@ export function useScenarioList(): UseScenarioListReturn {
 
   return {
     scenarios,
-    isLoading,
+    isLoading: shared ? shared.isLoading : isLoading,
     nameForId,
-    refresh: fetchList,
+    // Under a provider, refreshing means refreshing the SHARED instance — a
+    // private refetch here would leave the page's other consumers stale.
+    refresh: shared ? shared.refresh : fetchList,
   };
 }

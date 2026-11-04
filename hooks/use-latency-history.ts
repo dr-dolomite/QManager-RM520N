@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { startVisibleInterval } from "@/lib/visible-interval";
 import type { PingHistoryEntry } from "@/types/modem-status";
 
 // =============================================================================
@@ -29,6 +30,8 @@ export interface UseLatencyHistoryOptions {
   pollInterval?: number;
   /** Whether polling is active (default: true) */
   enabled?: boolean;
+  /** Ask the CGI for only the newest N rows (default: none = the full 24 h) */
+  last?: number;
 }
 
 export interface UseLatencyHistoryReturn {
@@ -45,18 +48,21 @@ export interface UseLatencyHistoryReturn {
 export function useLatencyHistory(
   options: UseLatencyHistoryOptions = {}
 ): UseLatencyHistoryReturn {
-  const { pollInterval = DEFAULT_POLL_INTERVAL, enabled = true } = options;
+  const { pollInterval = DEFAULT_POLL_INTERVAL, enabled = true, last } = options;
+  const url =
+    last !== undefined && last > 0
+      ? `${HISTORY_ENDPOINT}?last=${Math.floor(last)}`
+      : HISTORY_ENDPOINT;
 
   const [data, setData] = useState<PingHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await authFetch(HISTORY_ENDPOINT);
+      const response = await authFetch(url);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -79,7 +85,7 @@ export function useLatencyHistory(
       setError(message);
       setIsLoading(false);
     }
-  }, []);
+  }, [url]);
 
   const refresh = useCallback(() => {
     fetchHistory();
@@ -95,14 +101,12 @@ export function useLatencyHistory(
     }
 
     fetchHistory();
-    intervalRef.current = setInterval(fetchHistory, pollInterval);
+    // Paused while the tab is hidden; refetches at once when shown.
+    const stop = startVisibleInterval(fetchHistory, pollInterval);
 
     return () => {
       mountedRef.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      stop();
     };
   }, [fetchHistory, pollInterval, enabled]);
 

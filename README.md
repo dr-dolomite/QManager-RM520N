@@ -1,7 +1,7 @@
 # QManager
 
 <div align="center">
-  <img src="public/qmanager-logo.svg" alt="QManager Logo" width="120" />
+  <img src="public/qmanager-mark.svg" alt="QManager" width="120" />
   <h3>A modern, custom GUI for Quectel modem management</h3>
   <p>Visualize, configure, and optimize your cellular modem's performance with an intuitive web interface</p>
 
@@ -15,12 +15,20 @@
 ---
 
 <div align="center">
-  <img src="docs/screenshots/dashboard.png" alt="QManager Dashboard Screenshot" width="900" />
+  <img src="docs/screenshots/dashboard-overview.png" alt="QManager Dashboard — Network Status and Device Information" width="900" />
+  <br/><br/>
+  <img src="docs/screenshots/dashboard-activity.png" alt="QManager Dashboard — Carrier Aggregation, Device Metrics, Live Latency and Recent Activities" width="900" />
+  <br/><br/>
+  <img src="docs/screenshots/cellular-radio-info.png" alt="QManager Cellular and Radio Information page" width="900" />
+  <br/><br/>
+  <img src="docs/screenshots/about-device.png" alt="QManager About Device page" width="900" />
 </div>
 
 ---
 
 > **Note:** QManager is the successor to [SimpleAdmin](https://github.com/dr-dolomite/simpleadmin-mockup), rebuilt from the ground up with a modern tech stack and improved user experience. This branch targets the **Quectel RM520N-GL** modem running its internal Linux OS (SDXLEMUR, ARMv7l, kernel 5.4.180).
+
+> **Other modems:** This build is primarily developed and tested against the RM520N-GL (Qualcomm SDXLEMUR chipset), but since it targets the vanilla Linux OS running on the modem itself rather than a device-specific stack, it may also work on other Quectel modems with a similar internal architecture -- notably Qualcomm **SDX55 / SDXPRAIRIE**-based models. These aren't officially validated -- your mileage may vary, and issue reports from other SDX55/SDXPRAIRIE modems are welcome.
 
 ---
 
@@ -64,7 +72,7 @@
 ### Reliability & Monitoring
 - **Connection Watchdog** — 4-tier auto-recovery: AT+COPS deregister/reregister -> CFUN toggle -> SIM failover -> full reboot (with token bucket rate limiting)
 - **Email Alerts** — Downtime notifications via Gmail SMTP (msmtp), sent on recovery with duration details
-- **SMS Alerts** — Downtime and recovery notifications delivered over the cellular control channel via `sms_tool`; reaches you even while the data link is offline. Registration-guarded retry with dedup collapse, threshold-based suppression of transient blips, bounded failure logging
+- **SMS Alerts** — Downtime and recovery notifications delivered over the cellular control channel via `qsms` (QMI WMS); reaches you even while the data link is offline. Registration-guarded retry with dedup collapse, threshold-based suppression of transient blips, bounded failure logging
 - **Low Power Mode** — Scheduled CFUN power-down windows via cron
 - **Software Updates** — In-app OTA update checking, download, verification, installation, and rollback
 - **System Logs** — Centralized log viewer with search
@@ -99,7 +107,7 @@ curl -fsSL -o /tmp/qmanager-installer.sh \
   bash /tmp/qmanager-installer.sh
 ```
 
-The interactive installer fetches the latest release, verifies the SHA-256 checksum, bootstraps Entware (if needed), installs lighttpd, deploys the QManager frontend and backend, configures systemd services, and optionally sets up SSH (dropbear). Bundled dependencies (`atcli_smd11`, `sms_tool`, `jq`, `dropbear`) are installed automatically. The SSH root password is automatically set to match the web UI password during first-time onboarding. A reboot is triggered after installation.
+The interactive installer fetches the latest release, verifies the SHA-256 checksum, bootstraps Entware (if needed), installs lighttpd, deploys the QManager frontend and backend, configures systemd services, and optionally sets up SSH (dropbear). Bundled dependencies (`qmanager_atd`, `jq`, `dropbear`) are installed automatically. The SSH root password is automatically set to match the web UI password during first-time onboarding. A reboot is triggered after installation.
 
 > **If `curl` isn't available on your modem** (common on x5x/x6x firmwares like RM502, RM520, RM521), install it through Entware first, then call it by absolute path so the BusyBox shell's default `PATH` doesn't trip you up:
 >
@@ -116,6 +124,16 @@ The interactive installer fetches the latest release, verifies the SHA-256 check
 > wget -O /tmp/qmanager-installer.sh \
 >   https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh && \
 >   bash /tmp/qmanager-installer.sh
+> ```
+>
+> **If `wget` and `curl`** are not working, push the installer via ADB from local workstation:
+>
+> via Windows
+> ```powershell
+> curl -fsSL -o qmanager-installer.sh `
+>   https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh; `
+>   adb push .\qmanager-installer.sh /tmp/; `
+>   adb shell bash /tmp/qmanager-installer.sh
 > ```
 >
 > The QManager installer creates a `/usr/bin/curl` symlink during install, so subsequent commands and OTA updates pick up `curl` from the standard PATH without manual export.
@@ -144,11 +162,21 @@ bash /tmp/qmanager_install/uninstall_rm520n.sh --purge
 
 Entware (`/opt/`) is always preserved even with `--purge` — remove it manually if needed.
 
+### Password Reset
+
+If you forget your QManager web GUI password, SSH into the modem as root and run:
+
+```sh
+qmanager_reset_password
+```
+
+This removes the stored password hash (`/etc/qmanager/auth.json`) and the active session, then prompts you to open the QManager web UI to set a new password — no reinstall needed.
+
 ---
 
 ## Additional Dependencies
 
-- **Bundled with installer:** `atcli_smd11` (Rust reimplementation from [1alessandro1/atcli_rust](https://github.com/1alessandro1/atcli_rust), static ARMv7, AT command transport via `/dev/smd11`, works across RM502/RM520/RM521/RM551), `sms_tool` (ARM binary, SMS send/recv/delete with multi-part reassembly), `jq` (Entware package), `dropbear` (SSH server)
+- **Bundled with installer:** `qmanager_atd` (QManager's own Rust AT/SMS broker, static ARMv7; `qcmd` and `qsms` are links to it), `jq` (Entware package), `dropbear` (SSH server)
 - **Downloaded during install:** `speedtest` (Ookla Speedtest CLI, ARMv7 armhf — downloaded from `install.speedtest.net`)
 - **Installed from Entware:** `lighttpd` + `lighttpd-mod-openssl`, `sudo`, `coreutils-timeout`
 - **Optional:** `msmtp` (email alerts) -- can be installed from within the app
@@ -160,10 +188,10 @@ Entware (`/opt/`) is always preserved even with `--purge` — remove it manually
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | Next.js 16, React 19, TypeScript 5 |
-| **Styling** | Tailwind CSS v4, OKLCH colors, Euclid Circular B + Geist Mono |
+| **Styling** | Tailwind CSS v4, OKLCH colors, Rethink Sans + JetBrains Mono |
 | **Components** | shadcn/ui (42+ components), Recharts, React Hook Form + Zod |
 | **Backend** | Shell scripts (Bash), CGI endpoints via lighttpd |
-| **AT Commands** | `qcmd` wrapper with `atcli_smd11` on `/dev/smd11` (direct, no socat) |
+| **AT Commands** | `qcmd` → `qmanager_atd` (Rust broker) on `/dev/smd11` (direct, no socat); SMS via `qsms` |
 | **Init System** | systemd (`.service` units in `/lib/systemd/system/`) |
 | **Package Manager** | Bun (development), Entware opkg (device) |
 
@@ -172,7 +200,7 @@ Entware (`/opt/`) is always preserved even with `--purge` — remove it manually
 ## Architecture
 
 ```
-Browser --- authFetch() --- lighttpd --- CGI Scripts --- qcmd --- atcli_smd11 --- /dev/smd11 --- Modem
+Browser --- authFetch() --- lighttpd --- CGI Scripts --- qcmd --- qmanager_atd --- /dev/smd11 --- Modem
                 |                  |                       |
                 |          Shell Libraries (12)      flock serialization
                 |
@@ -189,7 +217,7 @@ The frontend is a statically-exported Next.js app served by lighttpd from `/usrd
 - **Poller daemon** queries the modem via AT commands every 2-30s (3 tiers) and writes a JSON cache file
 - **CGI endpoints** (63 scripts) read the cache for GET requests, execute AT commands for POST requests
 - **React hooks** (31 custom hooks) poll the CGI layer and provide loading/error/staleness states
-- **AT transport** uses `atcli_smd11` on `/dev/smd11` directly (no socat PTY bridge needed)
+- **AT transport** uses `qcmd`, a link to the `qmanager_atd` broker, on `/dev/smd11` directly (no socat PTY bridge needed)
 
 **Platform Details:**
 
@@ -275,8 +303,7 @@ QManager/
 │   ├── install_rm520n.sh       # Device installation script
 │   └── uninstall_rm520n.sh     # Clean removal script
 ├── dependencies/               # Bundled ARM binaries and packages
-│   ├── atcli_smd11             # ARM binary (AT command transport via /dev/smd11)
-│   ├── sms_tool                # ARM binary (SMS send/recv/delete)
+│   ├── qmanager_atd            # ARM binary (AT/SMS broker; qcmd and qsms link to it)
 │   ├── jq.ipk                  # JSON processor
 │   └── dropbear_*.ipk          # SSH server
 ├── docs/                       # Documentation
@@ -320,6 +347,35 @@ QManager runs 10 systemd services on the modem:
   <br/><br/>
   <p>You can also <a href="https://github.com/sponsors/dr-dolomite" target="_blank">sponsor on GitHub</a>.</p>
 </div>
+
+---
+
+## The Mark
+
+<div align="center">
+  <img src="public/qmanager-mark.svg" alt="The QManager mark, a tonal Q" width="96" />
+</div>
+
+**The ring is the network. The ray is the device, speaking from inside it.**
+
+QManager runs on the modem it manages, so the mark starts where the device is: a single ray leaves the center of a signal field and cuts a clean channel out through it. Nothing reaches in from the outside.
+
+- **The ring** is the network. Continuous and even, there whether or not you are looking at it.
+- **The ray** is the transmission leaving the device. It is anchored at the center because that is where QManager actually lives.
+- **The notch** is where the ring gives way. The two shapes never overlap or blur; the field makes a clean, measured space for what passes through it. That is the product's promise in one detail: the interface never claims something the modem is not doing.
+
+It is a **Q** first, for QManager and Quectel. Two shapes, two tones, one hue, drawn on a 48 x 48 geometric grid at uniform stroke weight, with no gradient, shadow, or filter.
+
+> **If you redraw it, keep the ray anchored at the center.** Detached, a ring plus a 45 degree round-capped bar reads as a magnifying glass at every size below 48px. A magnifier's handle never reaches the lens center; a Q's tail does. That anchoring is what makes this a letterform instead of a search icon.
+
+The two tones are the **source pair for the entire design system**, not consumers of it:
+
+| Part | Value | Role in the system |
+| --- | --- | --- |
+| Ring | `oklch(0.623 0.214 259.815)` | Drives the dark-mode `--primary-container` and the active-nav tone |
+| Tail | `oklch(0.488 0.243 264.376)` | "Signal Blue", the light-mode `--primary`, used literally |
+
+Every neutral in the interface carries a trace of that hue, so surfaces read as a family. Changing either tone is a system-wide change, not an asset tweak. See [DESIGN.md](DESIGN.md) under Colors > Source color.
 
 ---
 

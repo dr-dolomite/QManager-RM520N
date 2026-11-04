@@ -5,19 +5,20 @@ import { authFetch } from "@/lib/auth-fetch";
 import type { AboutDeviceData, AboutDeviceResponse } from "@/types/about-device";
 
 // =============================================================================
-// useAboutDevice — One-shot Fetch Hook for About Device Data
+// useAboutDevice — one-shot read of the device's identity and addresses
 // =============================================================================
-// Fetches device identity, network addresses, 3GPP release info, and system
-// info on mount. No polling — this data is static/semi-static.
-//
-// Backend: GET /cgi-bin/quecmanager/device/about.sh
+// Backend: GET /cgi-bin/quecmanager/device/about.sh. No polling — the figures
+// are static for the life of a boot.
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/device/about.sh";
 
 export interface UseAboutDeviceReturn {
   data: AboutDeviceData | null;
+  /** The first read, which is the only one that may show skeletons. */
   isLoading: boolean;
+  /** A re-read behind an already-painted page. */
+  isRefreshing: boolean;
   error: string | null;
   refresh: () => void;
 }
@@ -25,6 +26,7 @@ export interface UseAboutDeviceReturn {
 export function useAboutDevice(): UseAboutDeviceReturn {
   const [data, setData] = useState<AboutDeviceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
@@ -36,8 +38,11 @@ export function useAboutDevice(): UseAboutDeviceReturn {
     };
   }, []);
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
+  // `about.sh` hardcodes `success: true` in its only `jq -n`, so the envelope's
+  // flag has never been a failure signal — the HTTP status is.
+  const fetchData = useCallback(async (silent: boolean) => {
+    if (silent) setIsRefreshing(true);
+    else setIsLoading(true);
     setError(null);
 
     try {
@@ -48,11 +53,6 @@ export function useAboutDevice(): UseAboutDeviceReturn {
 
       const json: AboutDeviceResponse = await resp.json();
       if (!mountedRef.current) return;
-
-      if (!json.success) {
-        setError(json.error || "Failed to fetch device information");
-        return;
-      }
 
       setData({
         device: json.device,
@@ -68,19 +68,21 @@ export function useAboutDevice(): UseAboutDeviceReturn {
           : "Failed to fetch device information",
       );
     } finally {
-      if (mountedRef.current && !silent) {
+      if (mountedRef.current) {
         setIsLoading(false);
+        setIsRefreshing(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
+    void fetchData(false);
   }, [fetchData]);
 
+  /** Re-reads behind the painted page: the pill spins, the figures stay put. */
   const refresh = useCallback(() => {
-    fetchData();
+    void fetchData(true);
   }, [fetchData]);
 
-  return { data, isLoading, error, refresh };
+  return { data, isLoading, isRefreshing, error, refresh };
 }

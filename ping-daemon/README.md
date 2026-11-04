@@ -72,4 +72,4 @@ Reload at runtime: write a new `/etc/qmanager/ping_profile.json` and `touch /tmp
 
 ## Architecture
 
-See `docs/superpowers/specs/2026-05-09-rust-ping-daemon-design.md` for the full design.
+The full design was written up as a local working note (not tracked in the repo).

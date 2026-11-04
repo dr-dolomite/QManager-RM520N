@@ -14,7 +14,7 @@
 #   "id": "custom-..." (optional — omit for create),
 #   "name": "My Scenario",
 #   "description": "...",
-#   "gradient": "from-violet-600 via-purple-600 to-indigo-700",
+#   "icon": "gamepad",            (optional — identity glyph key, UI-only)
 #   "config": {
 #     "atModeValue": "AUTO",
 #     "mode": "Auto",
@@ -32,6 +32,8 @@
 # --- Configuration -----------------------------------------------------------
 SCENARIOS_DIR="/etc/qmanager/scenarios"
 MAX_SCENARIOS=20
+
+. /usr/lib/qmanager/radio_validate.sh
 
 qlog_init "cgi_scenario_save"
 cgi_headers
@@ -59,24 +61,32 @@ fi
 # --- Create directory --------------------------------------------------------
 mkdir -p "$SCENARIOS_DIR" 2>/dev/null
 
+# Serialise id pick + limit check + write across concurrent saves.
+SAVE_LOCK="/tmp/qmanager_scenario_save.lock"
+if ( : >> "$SAVE_LOCK" ) 2>/dev/null; then
+    exec 8>> "$SAVE_LOCK"
+    flock -x 8
+fi
+
 # --- Generate ID if creating new scenario ------------------------------------
 IS_NEW=0
 if [ -z "$SCENARIO_ID" ] || ! echo "$SCENARIO_ID" | grep -q "^custom-"; then
-    # New scenario — generate a unique ID
-    SCENARIO_ID="custom-$(date +%s)"
+    # New scenario — custom-<epoch>, with -<n> appended while that file exists
+    ID_BASE="custom-$(date +%s)"
+    SCENARIO_ID="$ID_BASE"
+    ID_N=1
+    while [ -e "$SCENARIOS_DIR/${SCENARIO_ID}.json" ]; do
+        SCENARIO_ID="${ID_BASE}-${ID_N}"
+        ID_N=$((ID_N + 1))
+    done
     IS_NEW=1
 fi
 
 # --- Sanitize ID (prevent path traversal) ------------------------------------
-case "$SCENARIO_ID" in
-    custom-[0-9]*)
-        # Valid format
-        ;;
-    *)
-        cgi_error "invalid_id" "Invalid scenario ID format"
-        exit 0
-        ;;
-esac
+if ! rv_scenario_id "$SCENARIO_ID"; then
+    cgi_error "invalid_id" "Invalid scenario ID format"
+    exit 0
+fi
 
 # --- Check limit on new creation ---------------------------------------------
 if [ "$IS_NEW" -eq 1 ]; then

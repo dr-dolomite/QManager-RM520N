@@ -1,0 +1,519 @@
+/* QManager Installer — surface styles.
+   Every colour, radius, duration and easing here resolves through tokens.css,
+   which build_installer.py regenerates from app/globals.css. There are no
+   literal colours in this file by design: a token change in the app
+   propagates on the next installer build, so this surface cannot drift from
+   the product canon. Do not introduce a hex value or a raw millisecond. */
+
+@font-face {
+  font-family: "Rethink Sans";
+  src: url("fonts/RethinkSans-Variable.woff2") format("woff2-variations");
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+/* `hidden` lives in the UA stylesheet, so ANY author `display` outranks it --
+   and nearly every block this UI toggles declares one (.pane is flex,
+   .identity is grid, .empty is flex, .btn is inline-flex). Without this rule
+   `el.hidden = true` sets an attribute that changes nothing on screen: it is
+   why both transport panes rendered at once, why the "no device" help sat
+   under a populated device list, and why a destructive Uninstall button
+   showed on a device with nothing installed. Declared once here rather than
+   per class, so a new togglable block cannot forget to opt in. */
+[hidden] { display: none !important; }
+
+html { color-scheme: light dark; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Rethink Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Browser surfaces belong to the design system too. */
+::selection { background: var(--primary-container); color: var(--on-primary-container); }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-inline); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-container-high);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.sprite symbol { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- topbar ---------- */
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* The mark: a ring plus a 45-degree tail anchored at dead centre. The tail
+   starts at the centre because the signal originates at the device. */
+.brand-mark { width: 22px; height: 22px; fill: none; stroke-linecap: round; }
+.mark-ring { stroke: var(--primary); stroke-width: 2.2; opacity: 0.45; }
+.mark-tail { stroke: var(--primary); stroke-width: 2.6; }
+
+.topbar-end { display: flex; align-items: center; gap: 14px; }
+
+.version {
+  font-size: 13px; color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.locale-field select {
+  appearance: none;
+  font: inherit; font-size: 13px;
+  color: var(--foreground);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.locale-field select:hover { background: var(--surface-container-high); }
+
+/* ---------- layout ---------- */
+
+main { max-width: 720px; margin: 0 auto; padding: 28px 24px 64px; }
+
+.view { display: none; flex-direction: column; gap: 16px; }
+body[data-view="connect"]   .view[data-for="connect"],
+body[data-view="preflight"] .view[data-for="preflight"],
+body[data-view="run"]       .view[data-for="run"],
+body[data-view="result"]    .view[data-for="result"] { display: flex; }
+
+/* ---------- cards ---------- */
+
+.card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border-radius: var(--radius-card);
+  padding: 24px 26px;
+}
+/* The anchor card on a surface takes the hero radius. */
+.card-hero { border-radius: var(--radius-hero); }
+
+.card h2 { margin: 0 0 6px; font-size: 21px; font-weight: 700; letter-spacing: -0.015em; text-wrap: balance; }
+.card h3 { margin: 0 0 14px; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); letter-spacing: 0.02em; text-transform: uppercase; }
+
+.lede { margin: 0 0 18px; color: var(--on-surface-variant); max-width: 60ch; }
+.hint { margin: 8px 0 0; font-size: 13px; color: var(--on-surface-variant); }
+
+/* ---------- tabs ---------- */
+
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+
+.tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--on-surface-variant);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  /* Matches the .btn pill height (43px): the tab strip and the Rescan /
+     Connect buttons are the same control scale in the same card. */
+  padding: 11px 18px;
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-standard),
+              color var(--duration-quick) var(--ease-standard);
+}
+.tab:hover { background: var(--surface-container); }
+.tab.is-active { background: var(--primary-container); color: var(--on-primary-container); }
+
+/* Exactly one pane is ever in the document's box tree -- the other carries
+   `hidden`, which the rule at the top of this file makes real. The two
+   transports ask for different things, so showing both at once was not a
+   denser layout, it was two contradictory instructions in one column.
+
+   Spacing here is a three-step cadence, and the steps carry meaning:
+     6px  a control and its own footnote
+     12px peers inside one set (the three SSH credentials)
+     20px between groups, and between the tab strip and its panel
+   Group separation is `gap` alone -- no child margins -- so a group that
+   drops out (an empty device list, a hidden hint) closes the interval behind
+   it instead of leaving a dead margin.
+
+   The entrance re-uses the one `rise` this surface already authors: a pane
+   leaving `display: none` restarts it, so a tab switch reads as the new panel
+   arriving rather than as the card snapping to a new height. No exit -- the
+   outgoing pane is simply gone. */
+.pane {
+  display: flex; flex-direction: column; gap: 20px;
+  animation: rise var(--duration-quick) var(--ease-emphasized) both;
+}
+
+/* A control and the sentence that qualifies it are one thing. Before this,
+   the help text sat 22px from its own checkbox and 14px from the Connect
+   button -- the tightest interval in the pane fell between two unrelated
+   elements, so the note read as advice about connecting rather than about
+   remembering. */
+.field-note { display: flex; flex-direction: column; gap: 6px; }
+.field-note .hint { margin: 0; }
+
+/* ---------- device list ---------- */
+
+.device-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.device-list:empty { display: none; }
+
+.device {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  font: inherit; text-align: left;
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-field);
+  padding: 14px 18px;
+  cursor: pointer;
+  color: var(--foreground);
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.device:hover:not(:disabled) { background: var(--surface-container-high); }
+.device:disabled { cursor: not-allowed; opacity: 0.7; }
+
+.device-serial {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px; font-weight: 600;
+}
+.device-meta { font-size: 13px; color: var(--on-surface-variant); }
+.device .chip { margin-left: auto; }
+
+.empty {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0; padding: 20px 18px;
+  background: var(--surface-container);
+  border-radius: var(--radius-field);
+  color: var(--on-surface-variant);
+  font-size: 14px;
+}
+.empty-glyph { width: 22px; height: 22px; flex: none; opacity: 0.8; }
+
+/* ---------- fields ---------- */
+
+.fields { display: flex; flex-direction: column; gap: 12px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+
+.field input {
+  font: inherit; font-size: 14px;
+  color: var(--foreground);
+  caret-color: var(--primary);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-field);
+  padding: 12px 16px;
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.field input:hover { background: var(--surface-container-high); }
+.field input::placeholder { color: var(--muted-foreground); }
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--foreground);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 11px 22px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background var(--duration-quick) var(--ease-standard),
+              opacity var(--duration-quick) var(--ease-standard);
+}
+.btn:hover:not(:disabled) { background: var(--surface-container-high); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover:not(:disabled) { background: var(--primary); opacity: 0.9; }
+
+.btn-danger { background: var(--destructive-container); color: var(--on-destructive-container); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.switch input { accent-color: var(--primary); width: 17px; height: 17px; cursor: pointer; }
+
+.switch-row { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- tooltip ----------
+   A "?" trigger, never a hover-only affordance: the bubble also opens on
+   focus, so it is reachable from the keyboard and doesn't depend on a mouse
+   being present (webview has no guaranteed pointer device). */
+
+.tooltip { position: relative; display: inline-flex; }
+
+.tooltip-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  padding: 0;
+  color: var(--on-surface-variant);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-standard),
+              color var(--duration-quick) var(--ease-standard);
+}
+.tooltip-trigger:hover { background: var(--surface-container-high); color: var(--foreground); }
+.tooltip-trigger .glyph { width: 13px; height: 13px; }
+
+.tooltip-bubble {
+  position: absolute; z-index: 1;
+  bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  width: max-content; max-width: 260px;
+  padding: 10px 12px;
+  background: var(--foreground);
+  color: var(--background);
+  border-radius: var(--radius-field);
+  font-size: 12px; font-weight: 400; line-height: 1.5;
+  text-align: left;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--duration-quick) var(--ease-standard),
+              transform var(--duration-quick) var(--ease-standard),
+              visibility var(--duration-quick);
+}
+.tooltip-trigger:hover + .tooltip-bubble,
+.tooltip-trigger:focus-visible + .tooltip-bubble {
+  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
+}
+
+/* The same three-step cadence as .pane, for the same reason: each option is
+   grouped with its own note (6px), the options are peers within one set
+   (12px), and the set is separated from the commit action (20px). Spacing is
+   `gap` throughout -- the Uninstall button and the blocked note are both
+   conditionally `hidden`, so a child margin here would leave a dead interval
+   behind whichever one is absent. */
+.card-actions { display: flex; flex-direction: column; gap: 20px; }
+.options { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---------- status chips ----------
+   Filled tonal container, that container own ink, no border, pill radius,
+   and ALWAYS a glyph. Two states in one slot never share a glyph. */
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: var(--radius-pill);
+  padding: 4px 11px;
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+  border: none;
+}
+.chip .glyph { width: 13px; height: 13px; flex: none; }
+
+.chip[data-tone="pass"]  { background: var(--success-container);     color: var(--on-success-container); }
+.chip[data-tone="warn"]  { background: var(--warning-container);     color: var(--on-warning-container); }
+.chip[data-tone="block"] { background: var(--destructive-container); color: var(--on-destructive-container); }
+.chip[data-tone="info"]  { background: var(--primary-container);     color: var(--on-primary-container); }
+.chip[data-tone="idle"]  { background: var(--surface-container-high); color: var(--on-surface-variant); }
+
+.glyph { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- checks ---------- */
+
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.check {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 16px;
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.check:hover { background: var(--surface-container); }
+
+.check-label { font-size: 14px; font-weight: 600; }
+.check-detail {
+  margin-left: auto; text-align: right;
+  font-size: 13px; color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+.check .chip { flex: none; }
+
+/* ---------- identity ---------- */
+
+.identity { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; margin: 0 0 18px; }
+.identity dt { font-size: 13px; color: var(--on-surface-variant); }
+.identity dd {
+  margin: 0; font-size: 13px;
+  /* Machine truth that holds steady until something reconfigures it. */
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  word-break: break-all;
+}
+
+/* ---------- run ---------- */
+
+.progress { display: flex; align-items: center; gap: 14px; }
+.progress .btn-quiet { margin-left: auto; padding: 8px 16px; font-size: 13px; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.dot {
+  width: 9px; height: 9px; border-radius: var(--radius-pill);
+  background: var(--surface-container-high);
+  transition: background var(--duration-standard) var(--ease-standard);
+}
+.dot[data-done="true"] { background: var(--primary); }
+
+.progress-count {
+  font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.card-log { padding-bottom: 18px; }
+
+.log {
+  margin: 0;
+  max-height: 320px; overflow: auto;
+  padding: 16px 18px;
+  background: var(--surface-container);
+  border-radius: var(--radius-field);
+  /* Raw machine output. */
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px; line-height: 1.6;
+  color: var(--on-surface-variant);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* ---------- result ----------
+   The install/uninstall terminal screen. Two cards, matching the multi-card
+   convention the preflight view already uses (hero + supporting cards),
+   instead of one block carrying status, facts, log and action at once. */
+
+.result-hero { display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+.result-icon-wrap {
+  display: flex; align-items: center; justify-content: center;
+  width: 76px; height: 76px;
+  margin-bottom: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+.result-hero[data-tone="pass"]  .result-icon-wrap { background: var(--success-container);     color: var(--on-success-container); }
+.result-hero[data-tone="warn"]  .result-icon-wrap { background: var(--warning-container);     color: var(--on-warning-container); }
+.result-hero[data-tone="block"] .result-icon-wrap { background: var(--destructive-container); color: var(--on-destructive-container); }
+
+.result-icon { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* pathLength="100" on every sprite path (index.html) normalises the dash
+   units so one draw-in rule works across the pass/warn/block glyphs
+   regardless of their actual path geometry. */
+.result-icon use {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: result-icon-draw var(--duration-emphasized) var(--ease-emphasized) 160ms both;
+}
+
+.card h2#result-title { font-size: 26px; margin-bottom: 8px; }
+#result-detail { margin: 0 auto; max-width: 52ch; }
+#result-detail a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+#result-detail a:hover { color: var(--primary); opacity: 0.85; }
+
+/* One authored entrance for this screen: the hero card arrives as a single
+   deliberate move (scale + blur + fade) rather than the shared `rise` every
+   other card uses — the Motion-Ceiling still applies (emphasized is the
+   cap), this just replaces the default for the one card that announces the
+   whole run's outcome. */
+.view[data-for="result"] .card-hero {
+  animation: result-reveal var(--duration-emphasized) var(--ease-emphasized) both;
+}
+@keyframes result-reveal {
+  from { opacity: 0; transform: scale(0.94) translateY(10px); filter: blur(6px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes result-icon-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Content inside the hero cascades at the row step (80ms) while the card
+   itself is still settling in — the same nested stagger the card grid uses
+   at the 120ms step, one level down. */
+.result-hero > * { animation: rise var(--duration-standard) var(--ease-standard) both; }
+.result-hero > *:nth-child(2) { animation-delay: 80ms; }
+.result-hero > *:nth-child(3) { animation-delay: 160ms; }
+
+/* Flex gap, not per-child margin: an empty/hidden child (a passing run has
+   no facts, cancelled has no log) drops out of flow entirely and the gap
+   closes around it, instead of leaving a dead margin behind it. */
+.result-next { display: flex; flex-direction: column; gap: 16px; }
+.result-next .identity { margin: 0; }
+
+.result-log {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--surface-container);
+  border-radius: var(--radius-field);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px; line-height: 1.6;
+  color: var(--on-surface-variant);
+  word-break: break-all;
+}
+.result-log:empty { display: none; }
+
+/* ---------- errors ---------- */
+
+.inline-error {
+  margin: 20px 0 0; padding: 12px 16px;
+  background: var(--destructive-container);
+  color: var(--on-destructive-container);
+  border-radius: var(--radius-field);
+  font-size: 13px;
+}
+.card-actions > .inline-error { margin: 0; }
+
+/* ---------- motion ----------
+   One authored entrance, on the scale. No springs, no exits. */
+
+.view > * { animation: rise var(--duration-standard) var(--ease-emphasized) both; }
+.view > *:nth-child(2) { animation-delay: 120ms; }
+.view > *:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 560px) {
+  main { padding: 20px 16px 48px; }
+  .card { padding: 20px 18px; }
+  .check { flex-wrap: wrap; gap: 8px; }
+  .check-detail { margin-left: 0; width: 100%; text-align: left; }
+}

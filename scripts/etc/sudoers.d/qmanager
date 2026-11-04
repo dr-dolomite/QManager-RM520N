@@ -1,32 +1,51 @@
 # QManager — sudoers rules for CGI scripts (lighttpd runs as www-data)
 # Install location: /opt/etc/sudoers.d/qmanager (Entware) or /etc/sudoers.d/qmanager
 
+# sudo 1.8.31 here has no built-in secure_path, so the caller's PATH reached root
+# helpers. Opt-first matches cgi_base.sh.
+Defaults:www-data secure_path="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+
 # Service control (used by platform.sh svc_* functions).
-# Scoped to QManager's own unit namespace (qmanager-* covers qmanager-discord,
-# qmanager-firewall, qmanager-watchcat, qmanager-tower-failover, and the
-# qmanager-auto-update.service/.timer pair) plus tailscaled, the one
-# third-party unit www-data legitimately starts/stops (VPN toggle in
-# vpn/tailscale.sh). A bare `*` here would let a compromised www-data
-# start/stop/restart ANY systemd unit as root — see A5.
-www-data ALL=(root) NOPASSWD: /bin/systemctl start qmanager-*, /bin/systemctl start tailscaled
-www-data ALL=(root) NOPASSWD: /bin/systemctl stop qmanager-*, /bin/systemctl stop tailscaled
-www-data ALL=(root) NOPASSWD: /bin/systemctl restart qmanager-*, /bin/systemctl restart tailscaled
-www-data ALL=(root) NOPASSWD: /bin/systemctl is-active qmanager-*, /bin/systemctl is-active tailscaled
+# QManager units go through the qmanager_svc helper, which validates the verb
+# and unit name itself. A sudoers `*` in arguments also matches spaces and `/`,
+# so the old `qmanager-*` wildcard never confined www-data to our units.
+# tailscaled is the one third-party unit www-data starts/stops (vpn/tailscale.sh),
+# granted as exact lines.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_svc
+www-data ALL=(root) NOPASSWD: /bin/systemctl start tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl stop tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl restart tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl is-active tailscaled
 
-# Boot persistence (symlink-based — systemctl enable doesn't work on RM520N-GL)
-www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service /lib/systemd/system/multi-user.target.wants/qmanager*.service
-www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
+# Firewall rules (TTL, VPN firewall). The helper validates and applies the
+# ruleset itself; raw iptables is no longer granted.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_fw_apply
 
-# Firewall rules (used by TTL, VPN firewall)
-www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
+# Traffic Engine tpws installer (Local Network -> Traffic Engine -> install
+# binary). Bare path, no wildcards: ALL validation (pinned-release sha256
+# verification, asset selection, destination hardening) lives inside the
+# helper. The helper is root-owned in /usr/bin; the binary it installs goes
+# to /usrdata/qmanager/bin (root:root 0755, outside www-data's writable
+# /etc/qmanager) because the root systemd unit execs it.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_dpi_install
 
-# System reboot (used by system/reboot.sh, update installer)
-www-data ALL=(root) NOPASSWD: /sbin/reboot
+# Traffic Engine verification runner (two-phase speedtest behind
+# ?action=verify). Bare path; the helper validates its own single verb and
+# restores the engine on exit via a trap — a crashed run can never leave the
+# feature disabled.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_dpi_verify
+
+# System reboot (used by system/reboot.sh, update installer). The empty "" pins
+# the grant to the no-argument form; all callers pass none.
+www-data ALL=(root) NOPASSWD: /sbin/reboot ""
 
 # Crash-log breadcrumb (used by system/reboot.sh to classify a user-initiated
 # reboot). The helper hardcodes the log path + validates the reason against a
-# fixed enum and refuses to follow a symlink — www-data cannot write
-# /etc/qmanager/crash.log directly (root-owned; see qmanager_crash_log_append).
+# fixed enum and refuses to follow a symlink.
+#
+# NOTE: crash.log now lives in a root-owned directory under /usrdata/qmanager, so
+# this grant writes to a file www-data can no longer influence. The helper still
+# enforces the fixed reason enum, fixed path, symlink refusal and bounded trim.
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_crash_log_append
 
 # Auto-update timer live-arming (arms/disarms qmanager-auto-update.timer when the
@@ -52,10 +71,48 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 # SSH password management (reads password from stdin, updates /etc/shadow)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 
+# Alert-channel secret storage (Discord bot token / Gmail app password, plus the
+# generated msmtprc). These credentials used to sit in plaintext inside
+# /etc/qmanager/*.json — a directory www-data owns — so any file-read bug in any
+# CGI endpoint disclosed them. They now live in /etc/qmanager-secrets/ (0700
+# root:root), which www-data cannot traverse at all; only this helper can write
+# there.
+#
+# Bare path, no arguments, no wildcard: ALL validation (action verb, secret-name
+# whitelist, control-character and length limits, symlink refusal, atomic
+# private write) lives INSIDE the helper, where it can be read and tested. A
+# sudoers wildcard cannot express any of that, and the secret VALUE never
+# appears in argv — it is piped on stdin, because argv is world-readable via
+# /proc/<pid>/cmdline and that would recreate the very leak this fixes.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_secret_set
+
+# Alert test email (Monitoring -> Alerts -> "Send test"). Consequence of the
+# grant above: msmtprc embeds the Gmail app password, so it moved into the same
+# 0700 root:root directory — and the CGI can no longer run `msmtp -C` itself,
+# which is what it used to do inline as www-data.
+#
+# This grants www-data NO new capability. It already owns email_alerts.json, so
+# it already controls the sender/recipient and could already trigger this send;
+# the helper only removes its need to read the credential. Kept as a SEPARATE
+# helper from qmanager_secret_set on purpose: custody of secrets and sending
+# mail are different privileges and should stay separately auditable.
+#
+# The helper takes exactly one literal verb (`test`), reads nothing from stdin,
+# and the subject/body are canned constants — it cannot be driven to send
+# arbitrary content.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_email_send
+
 # Tailscale VPN management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tailscale_mgr
-www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale
-www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscaled --version
+# Exact argument forms used by vpn/tailscale.sh (`=` is backslash-escaped).
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale version
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale status --json
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale up --reset --accept-dns\=false
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale up --reset --accept-dns\=false --ssh
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale down
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale logout
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale set --ssh\=true
+www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscale set --ssh\=false
 
 # Tailscale boot persistence (symlink-based)
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/tailscaled.service /lib/systemd/system/multi-user.target.wants/tailscaled.service
@@ -73,16 +130,40 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_health_check
 # Ethernet link speed limit management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_ethernet_apply
 
+# LAN gateway IP / subnet (Local Network -> LAN Address). Bare path; the helper
+# validates RFC1918, prefix, OTA guard and edits mobileap_cfg.xml itself. No reboot.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_lan_apply
+
+# Web port (System Settings -> Device Access). Bare path; only show/set/reset work under
+# sudo: the helper validates the ports and refuses render/apply when SUDO_UID is set.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_web_port
+
 # Timezone apply (copies resolved TZif over /etc/localtime)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_timezone_apply
+
+# Custom MTU (Cellular -> MTU). Bare path; the helper takes one of set <n> / disable / apply,
+# validates the value and writes /etc/firewall.user.mtu itself.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_mtu_set
+
+# Device hostname (System Settings). Bare path; the helper validates the RFC 1123 label and
+# writes /etc/hostname and the live kernel name.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_hostname_apply
 
 # Runtime language-pack downloader (commits validated staging into the
 # root-owned persistent store + served web-root copy; remove mode too)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_language_pack_apply
 
-# Custom DNS management (dnsmasq config atomic swap + reload)
-# Note: chown's "radio:radio" argument has the colon backslash-escaped because
-# sudoers treats ':' as the user:group separator in any token unless escaped.
-www-data ALL=(root) NOPASSWD: /bin/mv /etc/data/qmanager/dnsmasq.conf.new /etc/data/dnsmasq.conf
-www-data ALL=(root) NOPASSWD: /bin/chown radio\:radio /etc/data/dnsmasq.conf
-www-data ALL=(root) NOPASSWD: /usr/bin/killall -HUP dnsmasq
+# SIM Registry apply (commits carrier/phone_number/dismissed fields into
+# /etc/qmanager/sim_registry.json — the helper hardcodes the path and validates
+# the ICCID/field values itself).
+#
+# NOTE (corrected): that file is NOT root-owned. Like every other file in
+# /etc/qmanager it is re-chowned to www-data:www-data 0644 by qmanager_setup on
+# every boot (verified live). The grant exists for VALIDATION and INTEGRITY —
+# hardcoded path, symlink refusal, per-field validation, atomic replace — not
+# because www-data lacks write access.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_sim_registry_apply
+
+# Custom DNS management (dnsmasq config atomic swap + reload). The helper owns
+# the paths, ownership and HUP; no raw mv/chown/killall is granted.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_dns_apply

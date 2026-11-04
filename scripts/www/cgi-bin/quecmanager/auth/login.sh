@@ -1,7 +1,7 @@
 #!/bin/sh
 # login.sh — Login and first-time password setup endpoint.
 # POST {"password":"..."} for login
-# POST {"password":"...","confirm":"..."} for first-time setup
+# POST {"password":"...","confirm":"...","enforce_strong":true|false} for first-time setup
 #
 # On success, sets HttpOnly session cookie + indicator cookie.
 _SKIP_AUTH=1
@@ -31,6 +31,7 @@ fi
 
 _password=$(printf '%s' "$POST_DATA" | jq -r '.password // empty')
 _confirm=$(printf '%s' "$POST_DATA" | jq -r '.confirm // empty')
+_enforce_strong=$(printf '%s' "$POST_DATA" | jq -r 'if .enforce_strong == false then "false" else "true" end')
 
 if [ -z "$_password" ]; then
     cgi_headers
@@ -48,10 +49,16 @@ if is_setup_required; then
         exit 0
     fi
 
+    # Min length 6 always; enforce_strong (absent = true) adds upper + lower + digit.
     _pw_len=$(printf '%s' "$_password" | wc -c)
     if [ "$_pw_len" -lt 6 ]; then
         cgi_headers
-        cgi_error "password_too_short" "Password must be at least 6 characters"
+        cgi_error "password_weak" "Password must be at least 6 characters"
+        exit 0
+    fi
+    if [ "$_enforce_strong" != "false" ] && ! qm_password_is_strong "$_password"; then
+        cgi_headers
+        cgi_error "password_weak" "Password must include uppercase, lowercase, and a number"
         exit 0
     fi
 
@@ -61,17 +68,27 @@ if is_setup_required; then
         exit 0
     fi
 
-    qm_save_password "$_password"
+    if ! qm_save_password "$_password"; then
+        qlog_error "First-time setup failed: could not write auth.json"
+        cgi_headers
+        cgi_error "save_failed" "Could not save the password"
+        exit 0
+    fi
 
-    # Also set SSH root password (best-effort — non-fatal if it fails)
-    qm_set_ssh_password "$_password" 2>/dev/null || qlog_warn "SSH password sync skipped"
+    # Also set SSH root password. Non-fatal, but reported so the UI can warn
+    # that SSH still has the install-time password.
+    _ssh_synced=true
+    if ! qm_set_ssh_password "$_password" 2>/dev/null; then
+        _ssh_synced=false
+        qlog_warn "SSH password sync failed"
+    fi
 
     qlog_info "First-time password configured"
 
     _token=$(qm_create_session)
     qm_set_session_cookies "$_token"
     cgi_headers
-    jq -n '{"success":true}'
+    jq -n --argjson ssh "$_ssh_synced" '{"success":true,"ssh_synced":$ssh}'
     exit 0
 fi
 
@@ -81,16 +98,20 @@ fi
 if ! qm_check_rate_limit; then
     echo "Status: 429 Too Many Requests"
     cgi_headers
-    jq -n --argjson retry "$RATE_LIMIT_RETRY_AFTER" \
-        '{"success":false,"error":"rate_limited","detail":"Too many failed attempts","retry_after":$retry}'
+    jq -n --argjson retry "$RATE_LIMIT_RETRY_AFTER" --argjson remaining "$RATE_LIMIT_ATTEMPTS_REMAINING" \
+        '{"success":false,"error":"rate_limited","detail":"Too many failed attempts","retry_after":$retry,"attempts_remaining":$remaining}'
     exit 0
 fi
 
 if ! qm_verify_password "$_password"; then
     qm_record_failed_attempt
+    # Read-only re-check to report how many attempts remain after the failure
+    # that just happened. Never mutates state (see qm_get_rate_limit_status).
+    qm_get_rate_limit_status
     qlog_warn "Failed login attempt"
     cgi_headers
-    cgi_error "invalid_password" "Invalid password"
+    jq -n --argjson remaining "$RATE_LIMIT_ATTEMPTS_REMAINING" \
+        '{"success":false,"error":"invalid_password","detail":"Invalid password","attempts_remaining":$remaining}'
     exit 0
 fi
 

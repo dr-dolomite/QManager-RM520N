@@ -56,6 +56,7 @@ export interface ApnSettingsResponse {
   /** The modem's live PDP contexts (1-6), each tagged for the CID picker. */
   cids: CidContext[];
   error?: string;
+  detail?: string;
 }
 
 /** Response from POST save / deactivate operations. */
@@ -63,7 +64,36 @@ export interface ApnSaveResponse {
   success: boolean;
   active?: number;
   error?: string;
+  detail?: string;
+  /** `false` when the modem change landed but the apn_setting.json sidecar did not save. */
+  persisted?: boolean;
 }
+
+/**
+ * What a write to this endpoint actually resolved to.
+ *
+ * A BOOLEAN CANNOT CARRY THE THIRD CASE, which is why this type exists. Every
+ * write here runs a full attach cycle (`AT+COPS=2` … `AT+COPS=0`), and on this
+ * hardware that drops the `eth0` link for about four seconds — so a CGI that
+ * brackets the cycle inline finishes its work and then loses its HTTP response
+ * on the way back. The fetch rejects at the transport layer for a write that
+ * LANDED. Reporting that as `false` made the card toast "Failed to save APN
+ * settings" over a successful save, which is the one thing this surface must
+ * never do.
+ *
+ *   "saved"        the modem answered, and it answered yes
+ *   "reconciling"  no answer came back. The write probably landed; the delayed
+ *                  re-read is what will say. Not an error, and not a success
+ *                  to announce either
+ *   "failed"       the modem answered, and it answered no (or HTTP said no)
+ */
+export type ApnSaveOutcome = "saved" | "reconciling" | "failed";
+
+/** A write's outcome plus what the handler needs to toast it; `error` is already translated. */
+export type ApnActionResult =
+  | { outcome: "saved"; persisted: boolean }
+  | { outcome: "reconciling" }
+  | { outcome: "failed"; error: string };
 
 // --- API Request Types -------------------------------------------------------
 

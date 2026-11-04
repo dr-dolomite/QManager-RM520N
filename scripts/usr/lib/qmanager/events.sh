@@ -10,12 +10,13 @@
 #
 # Global variables used (defined in poller):
 #   Read:  network_type, lte_band, lte_pci, nr_band, nr_pci, nr_state,
-#          modem_reachable, conn_internet_available, conn_latency,
-#          conn_avg_latency, conn_packet_loss, t2_ca_active, t2_ca_count,
-#          t2_nr_ca_active, t2_nr_ca_count, t2_carrier_components,
-#          service_status
+#          modem_reachable, conn_internet_available, conn_during_recovery,
+#          conn_latency, conn_avg_latency, conn_packet_loss, t2_ca_active,
+#          t2_ca_count, t2_nr_ca_active, t2_nr_ca_count,
+#          t2_carrier_components, service_status
 #   Write: prev_ev_*, ev_high_lat_streak, ev_high_loss_streak,
-#          ev_lat_alerted, ev_loss_alerted, events_initialized
+#          ev_lat_clear_streak, ev_loss_clear_streak, ev_lat_alerted,
+#          ev_loss_alerted, ev_link_state, events_initialized
 # =============================================================================
 
 [ -n "$_EVENTS_LOADED" ] && return 0
@@ -24,56 +25,42 @@ _EVENTS_LOADED=1
 PCI_STATE_FILE="/tmp/qmanager_pci_state.json"
 EVENT_STATE_FILE="${EVENT_STATE_FILE:-/tmp/qmanager_event_state.json}"
 
+# Quality thresholds (preset table, loader, reload flag) live in conn_state.sh, shared
+# with the poller verdict; read_ping_data reloads them each cycle.
+if [ -f "${QM_LIB_DIR:-/usr/lib/qmanager}/conn_state.sh" ]; then
+    . "${QM_LIB_DIR:-/usr/lib/qmanager}/conn_state.sh"
+else
+    CQ_LAT_MS=250; CQ_LAT_DEBOUNCE=3; CQ_LOSS_PCT=30; CQ_LOSS_DEBOUNCE=3
+fi
+
 # ---------------------------------------------------------------------------
-# Quality threshold config — drives high_latency / high_packet_loss events
+# CROSS-UID WRITE RULES FOR $EVENTS_FILE (/tmp/qmanager_events.json)
 # ---------------------------------------------------------------------------
-QUALITY_CONFIG="${QUALITY_CONFIG:-/etc/qmanager/quality_thresholds.json}"
-QUALITY_RELOAD_FLAG="${QUALITY_RELOAD_FLAG:-/tmp/qmanager_events_reload}"
-
-# Defaults match the "tolerant" preset; survive a missing or malformed JSON.
-_qt_lat_thresh=250
-_qt_lat_debounce=3
-_qt_loss_thresh=30
-_qt_loss_debounce=3
-
-_qt_apply_lat() {
-    case "$1" in
-        standard)      _qt_lat_thresh=150; _qt_lat_debounce=3 ;;
-        tolerant)      _qt_lat_thresh=250; _qt_lat_debounce=3 ;;
-        very-tolerant) _qt_lat_thresh=500; _qt_lat_debounce=2 ;;
-    esac
+# This file is appended to by BOTH uids: root (qmanager_poller, qmanager_watchcat,
+# qmanager_tower_failover) and www-data (cellular/apn.sh, profiles/deactivate.sh,
+# profile_mgr.sh's lazy loader — every CGI that sources this lib).
+#
+# /tmp is root-owned, mode 1777 (sticky), and this kernel runs with
+# fs.protected_regular=1. Together that means:
+#   * A regular file in /tmp can only be opened for write by another uid if
+#     file_owner == dir_owner (i.e. root-owned) OR caller == file_owner. Root
+#     gets NO override — root cannot write a www-data-owned file here either.
+#   * Only the file's owner (or root) may unlink or rename over it.
+# So root:root 0666 is the ONE ownership under which both uids can append.
+# Whoever creates the file first decides that, forever.
+#
+# _events_ensure_file() below is a BACKSTOP, not the fix: when ROOT creates the
+# file it yields root:root 0666 and everything works, but when WWW-DATA wins
+# the race the file is www-data-owned and ROOT is then blocked from appending —
+# and no chmod can undo that. The real fix is a boot-time root seed (handled
+# separately, alongside the /tmp/qmanager.log seed in qmanager_setup); this
+# helper only stops the common case of a total silent loss.
+_events_ensure_file() {
+    [ -e "$EVENTS_FILE" ] && return 0
+    : > "$EVENTS_FILE" 2>/dev/null || return 1
+    chmod 666 "$EVENTS_FILE" 2>/dev/null
+    return 0
 }
-
-_qt_apply_loss() {
-    case "$1" in
-        standard)      _qt_loss_thresh=15; _qt_loss_debounce=3 ;;
-        tolerant)      _qt_loss_thresh=30; _qt_loss_debounce=3 ;;
-        very-tolerant) _qt_loss_thresh=50; _qt_loss_debounce=2 ;;
-    esac
-}
-
-_qt_load() {
-    [ -f "$QUALITY_CONFIG" ] || return 0
-    local lat loss
-    lat=$(jq -r '.latency.preset // "tolerant"' "$QUALITY_CONFIG" 2>/dev/null)
-    loss=$(jq -r '.loss.preset // "tolerant"' "$QUALITY_CONFIG" 2>/dev/null)
-    if [ -z "$lat" ] || [ -z "$loss" ]; then
-        qlog_warn "quality_thresholds.json parse failed, keeping current thresholds"
-        return 0
-    fi
-    case "$lat"  in standard|tolerant|very-tolerant) _qt_apply_lat  "$lat"  ;; esac
-    case "$loss" in standard|tolerant|very-tolerant) _qt_apply_loss "$loss" ;; esac
-}
-
-_qt_check_reload() {
-    [ -f "$QUALITY_RELOAD_FLAG" ] || return 0
-    _qt_load
-    rm -f "$QUALITY_RELOAD_FLAG"
-    qlog_info "Quality thresholds reloaded: lat=${_qt_lat_thresh}ms/${_qt_lat_debounce} loss=${_qt_loss_thresh}%/${_qt_loss_debounce}"
-}
-
-# Initial load on first source. After this, only the reload flag triggers re-reads.
-_qt_load
 
 # Append a single event to the events file (NDJSON — one JSON per line)
 # Note: All message content is generated by us (band names, PCI numbers, etc.)
@@ -83,26 +70,49 @@ append_event() {
     local ts
     ts=$(date +%s)
 
-    jq -n -c \
+    if ! _events_ensure_file; then
+        qlog_warn "EVENT DROPPED [${etype}] ${message} — cannot create $EVENTS_FILE"
+        return 1
+    fi
+
+    # The append is CHECKED. It used to be fire-and-forget with an
+    # unconditional success log below it, so a cross-uid EACCES (see the note
+    # above) lost the event AND claimed in the log that it had been recorded.
+    if ! jq -n -c \
         --argjson ts "$ts" \
         --arg type "$etype" \
         --arg message "$message" \
         --arg severity "$severity" \
-        '{timestamp: $ts, type: $type, message: $message, severity: $severity}' >> "$EVENTS_FILE"
+        '{timestamp: $ts, type: $type, message: $message, severity: $severity}' >> "$EVENTS_FILE" 2>/dev/null; then
+        qlog_warn "EVENT DROPPED [${etype}] ${message} — append to $EVENTS_FILE failed (owner/permission denied; expected root:root 0666)"
+        return 1
+    fi
 
-    # Trim to max entries
+    # Trim to max entries.
+    # INODE-PRESERVING — this must NEVER go back to `mv`. A rename here (a) is
+    # refused outright for a cross-uid caller because /tmp is sticky, and (b)
+    # when it does succeed, replaces the shared root:root 0666 inode with one
+    # owned by whoever trimmed, at their umask (0644) — which is precisely how
+    # a correctly seeded file becomes unwritable for the OTHER uid. `cat` into
+    # the existing file keeps the inode, its owner and its mode.
+    # The scratch file carries $$ so two uids never collide on one fixed
+    # "${EVENTS_FILE}.tmp" path — that shared name has the same ownership trap
+    # as the events file itself, and the loser could never truncate it.
     local count
     count=$(wc -l < "$EVENTS_FILE" 2>/dev/null || echo 0)
     if [ "$count" -gt "$MAX_EVENTS" ]; then
-        local tmp="${EVENTS_FILE}.tmp"
+        local tmp="${EVENTS_FILE}.$$.tmp"
         if tail -n "$MAX_EVENTS" "$EVENTS_FILE" > "$tmp" 2>/dev/null; then
-            mv "$tmp" "$EVENTS_FILE" 2>/dev/null || rm -f "$tmp"
+            cat "$tmp" > "$EVENTS_FILE" 2>/dev/null || \
+                qlog_warn "Events trim failed: could not rewrite $EVENTS_FILE (owner/permission denied) — file keeps growing past $MAX_EVENTS"
         else
-            rm -f "$tmp"
+            qlog_warn "Events trim failed: could not write scratch file $tmp"
         fi
+        rm -f "$tmp" 2>/dev/null
     fi
 
     qlog_info "EVENT [${etype}] ${message}"
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -120,21 +130,19 @@ _ev_bands() {
         '[.[] | select(.technology == $t) | .band] | if length > 0 then join(" + ") else empty end' 2>/dev/null
 }
 
-# Get band summary with total bandwidth for a technology
-# Usage: summary=$(_ev_band_summary "LTE" "$t2_carrier_components") => "B3 + B7 + B28, 40 MHz"
-_ev_band_summary() {
-    local tech="$1" cc="$2"
-    [ -z "$cc" ] || [ "$cc" = "[]" ] && return
-    printf '%s' "$cc" | jq -r --arg t "$tech" '
-        [.[] | select(.technology == $t)] |
-        if length == 0 then empty
-        else
-            (map(.band) | join(" + ")) as $bands |
-            (map(.bandwidth_mhz) | add) as $bw |
-            if $bw > 0 then "\($bands), \($bw) MHz"
-            else $bands end
-        end
-    ' 2>/dev/null
+# Join identifier fragments into a trailing "( ... )" group for the UI chips.
+# Empty or "null" fragments are dropped, so a message never gains "()" or a
+# dangling comma; with nothing left it prints nothing at all.
+_ev_ids() {
+    local out=""
+    local frag
+    for frag in "$@"; do
+        [ -z "$frag" ] && continue
+        case "$frag" in *null*) continue ;; esac
+        [ -n "$out" ] && out="$out, "
+        out="$out$frag"
+    done
+    [ -n "$out" ] && printf ' (%s)' "$out"
 }
 
 # Compute added/removed bands between prev and current carrier_components.
@@ -147,49 +155,250 @@ _ev_ca_diff() {
     [ -z "$prev" ] && prev="[]"
     [ -z "$curr" ] && curr="[]"
 
+    # One line, "added|removed": $(...) drops an empty last line, which made a
+    # pure addition read as "(+B7, -B7)".
     local result
     result=$(jq -rn --arg t "$tech" --argjson p "$prev" --argjson c "$curr" '
-        ([$c[] | select(.technology == $t) | .band] - [$p[] | select(.technology == $t) | .band] | join(", ")),
+        ([$c[] | select(.technology == $t) | .band] - [$p[] | select(.technology == $t) | .band] | join(", "))
+        + "|" +
         ([$p[] | select(.technology == $t) | .band] - [$c[] | select(.technology == $t) | .band] | join(", "))
     ' 2>/dev/null)
 
-    _diff_added=$(printf '%s\n' "$result" | head -n 1)
-    _diff_removed=$(printf '%s\n' "$result" | tail -n 1)
+    case "$result" in *"|"*) ;; *) return ;; esac
+    _diff_added="${result%%|*}"
+    _diff_removed="${result#*|}"
 }
 
-# Round a latency value (e.g. "137.90286") to nearest integer ("138").
-# Returns input unchanged if "null", empty, or non-numeric.
-_ev_round_latency() {
-    case "$1" in
-        ""|null) printf '%s' "$1"; return 0 ;;
-    esac
-    awk -v v="$1" 'BEGIN { if (v+0 == v) printf "%.0f", v; else printf "%s", v }'
+# ---------------------------------------------------------------------------
+# Settle debounce for discrete radio identifiers (band, PCI)
+# ---------------------------------------------------------------------------
+# Why this exists, because the naive version was shipped first and was wrong:
+#
+# The serving band and cell identity are compared against the previous poll
+# sample. On a service drop the modem re-acquires by walking a ladder of
+# coverage bands, camping on each for one or two samples before settling back
+# on the band it started from. A raw inequality reports every rung. Measured on
+# a live RM520N: 44 of the 50 slots in the event ring were band_change, the
+# whole ring spanned 12.5 minutes, and one outage plus one 100% packet-loss
+# episode were the only non-band history that survived. The user's actual
+# problem had been evicted by the noise generated while diagnosing it.
+#
+# Two mechanics make that worse than it looks:
+#
+#   1. A blank reading is NOT a value. parse_serving_cell blanks these fields
+#      whenever AT+QENG returns no usable line (parse_at.sh:113-119, :232-235),
+#      which is exactly what happens during a drop. The old code let a blank
+#      propagate into the previous-sample snapshot, so the return leg of every
+#      re-acquisition compared a real band against "" and silently vanished. On
+#      the live capture that hid 22 of ~66 transitions: B8 was departed 24
+#      times and entered twice, which is impossible for a contiguous walk.
+#      Here a blank is skipped outright: no observation, no counter movement.
+#
+#   2. Announcing a settled value must not invent a hop. The band really does
+#      pass through the intermediate rungs, so "changed from B41 to B28" would
+#      state a transition the radio never made. Callers phrase it as "settled
+#      on X (was Y)" instead: both clauses stay true no matter how many rungs
+#      were skipped, and no reader is told about a hop that did not happen.
+#
+# The counterpart hazard, and the reason return code 2 exists: a value that
+# oscillates faster than the settle window never settles, so a hold-only rule
+# would go SILENT on the most broken radio it could encounter. That is a worse
+# failure than the noise it replaces. So churn is counted, and a caller that
+# gets rc 2 reports the instability itself rather than the individual rungs.
+#
+# Usage:
+#   _ev_settle <channel> <current-value>; rc=$?
+#     rc 0 → settled onto a new value; read $_EV_SETTLED_TO / $_EV_SETTLED_FROM
+#     rc 1 → nothing to report (blank, still settling, or unchanged)
+#     rc 2 → churning; read $_EV_FLAP_N for the count in this window
+#   Third arg "sticky": a settle back onto the announced value keeps the churn
+#   window and latch, so one-sample dips add up; _ev_ca_check ends the episode.
+#
+# <channel> must be a bare identifier — it is interpolated into variable names.
+# Per-channel state lives in poller globals, matching the existing latency and
+# loss streak counters (qmanager_poller:131-135), which are likewise not
+# persisted. A poller restart therefore re-settles rather than resuming, which
+# costs one settle window of silence and keeps the positional cut -f decode in
+# restore_event_state untouched.
+
+# Consecutive real observations before a new value is announced. The measured
+# poll cadence is ~3s (POLL_INTERVAL=2 is a sleep AFTER the cycle body), so 3
+# samples is roughly 9 seconds of stability. Every intermediate rung in the
+# live capture was held for 1 to 2 samples; the steady-state band held for 45
+# consecutive samples. Hard-coded deliberately, NOT a config key: the CGI that
+# writes quality_thresholds.json rebuilds it from scratch with exactly two keys
+# (settings/quality_thresholds.sh), so a third would be erased on the user's
+# next preset save, and install_backend only deploys config files that do not
+# already exist, so an upgraded device would never receive the new seed.
+EV_SETTLE_SAMPLES="${EV_SETTLE_SAMPLES:-3}"
+
+# Churn reporting: this many candidate changes inside this many seconds emits
+# one instability event, then the window restarts. Six changes in five minutes
+# is well clear of a normal handoff rate and well under the ~44-per-12-minutes
+# the live storm produced.
+EV_FLAP_THRESHOLD="${EV_FLAP_THRESHOLD:-6}"
+EV_FLAP_WINDOW="${EV_FLAP_WINDOW:-300}"
+
+_ev_settle() {
+    local _ch="$1" _cur="$2" _sticky="${3:-}"
+    local _hold _holdn _last _flapn _flapt _now
+    _EV_SETTLED_FROM=""
+    _EV_SETTLED_TO=""
+    _EV_FLAP_N=0
+
+    # A blank is an absent observation, not a new value. Leave every counter
+    # exactly as it was so an outage cannot reset a settle in progress.
+    [ -z "$_cur" ] && return 1
+
+    eval "_hold=\${_ev_hold_${_ch}:-}"
+    eval "_holdn=\${_ev_holdn_${_ch}:-0}"
+    eval "_last=\${_ev_last_${_ch}:-}"
+
+    if [ "$_cur" = "$_hold" ]; then
+        _holdn=$((_holdn + 1))
+    else
+        # A new candidate. Count it as churn unless it is simply the value we
+        # already announced coming back, which is a settle, not a flap.
+        if [ "$_cur" != "$_last" ]; then
+            eval "_flapn=\${_ev_flapn_${_ch}:-0}"
+            eval "_flapt=\${_ev_flapt_${_ch}:-0}"
+            _now=$(date +%s)
+            if [ $((_now - _flapt)) -ge "$EV_FLAP_WINDOW" ]; then
+                _flapn=1
+                _flapt="$_now"
+            else
+                _flapn=$((_flapn + 1))
+            fi
+            eval "_ev_flapn_${_ch}=\$_flapn"
+            eval "_ev_flapt_${_ch}=\$_flapt"
+            eval "_ev_chg_${_ch}=\$_now"
+        fi
+        _hold="$_cur"
+        _holdn=1
+    fi
+
+    eval "_ev_hold_${_ch}=\$_hold"
+    eval "_ev_holdn_${_ch}=\$_holdn"
+
+    if [ "$_holdn" -ge "$EV_SETTLE_SAMPLES" ]; then
+        # Settled: clear the churn window and report latch so a later episode is
+        # reported promptly. A sticky channel clears them only on a real change.
+        eval "_ev_last_${_ch}=\$_cur"
+        if [ -z "$_sticky" ] || { [ -n "$_last" ] && [ "$_cur" != "$_last" ]; }; then
+            eval "_ev_flapn_${_ch}=0"
+            eval "_ev_flapr_${_ch}=0"
+        fi
+        if [ -n "$_last" ] && [ "$_cur" != "$_last" ]; then
+            _EV_SETTLED_FROM="$_last"
+            _EV_SETTLED_TO="$_cur"
+            return 0
+        fi
+        # First settle after a cold start, or settled back onto the value we
+        # already reported (the re-acquisition case). Adopt it silently.
+        return 1
+    fi
+
+    # Still unsettled: report churn at most once per window (once per episode
+    # when sticky). The latch is separate from the counter, which refills fast.
+    eval "_flapn=\${_ev_flapn_${_ch}:-0}"
+    if [ "$_flapn" -ge "$EV_FLAP_THRESHOLD" ]; then
+        local _flapr
+        eval "_flapr=\${_ev_flapr_${_ch}:-0}"
+        _now=$(date +%s)
+        # A sticky channel reports once per episode; its caller clears the latch.
+        if [ "$_flapr" -eq 0 ] || { [ -z "$_sticky" ] && [ $((_now - _flapr)) -ge "$EV_FLAP_WINDOW" ]; }; then
+            _EV_FLAP_N="$_flapn"
+            eval "_ev_flapn_${_ch}=0"
+            eval "_ev_flapt_${_ch}=\$_now"
+            eval "_ev_flapr_${_ch}=\$_now"
+            return 2
+        fi
+    fi
+
+    return 1
 }
 
-# Build a short network context string from current state
-# Output: "5G-NSA: B3 + N41" or "LTE: B3" or "5G-SA: N41"
-_ev_net_context() {
-    if [ -n "$lte_band" ] && [ "$nr_state" = "connected" ] && [ -n "$nr_band" ]; then
-        echo "${network_type}: ${lte_band} + ${nr_band}"
-    elif [ "$nr_state" = "connected" ] && [ -n "$nr_band" ]; then
-        echo "${network_type}: ${nr_band}"
-    elif [ -n "$lte_band" ]; then
-        echo "${network_type}: ${lte_band}"
-    elif [ -n "$network_type" ]; then
-        echo "$network_type"
+# CA state for one tech (channel lte_ca / nr_ca), keyed on the SCC count through a
+# sticky settle. An empty carrier list means QCAINFO gave no reading: no observation.
+_ev_ca_check() {
+    local _ch="$1" _tech="$2" _count="$3"
+    local _obs="" _rc _base _bands _hold _holdn _last _flapr _chg _now
+    if [ -n "$t2_carrier_components" ] && [ "$t2_carrier_components" != "[]" ]; then
+        _obs="${_count:-0}"
+    fi
+
+    _ev_settle "$_ch" "$_obs" sticky; _rc=$?
+    eval "_base=\${_ev_cabase_${_ch}:-}"
+
+    if [ "$_rc" -eq 0 ]; then
+        if [ "$_EV_SETTLED_FROM" = "0" ]; then
+            _bands=$(_ev_bands "$_tech" "$t2_carrier_components")
+            append_event "ca_change" "$_tech CA activated${_bands:+ on $_bands}" "info"
+        elif [ "$_EV_SETTLED_TO" = "0" ]; then
+            append_event "ca_change" "$_tech CA deactivated" "warning"
+        else
+            local _sev="info" _detail="" _parts=""
+            [ "$_EV_SETTLED_TO" -lt "$_EV_SETTLED_FROM" ] && _sev="warning"
+            # Diff against the carriers last announced, not the previous sample.
+            _ev_ca_diff "$_tech" "$_base" "$t2_carrier_components"
+            if [ -n "$_diff_added" ] || [ -n "$_diff_removed" ]; then
+                [ -n "$_diff_added" ] && _parts="+${_diff_added}"
+                if [ -n "$_diff_removed" ]; then
+                    [ -n "$_parts" ] && _parts="$_parts, "
+                    _parts="${_parts}-${_diff_removed}"
+                fi
+                _detail=" ($_parts)"
+            else
+                _bands=$(_ev_bands "$_tech" "$t2_carrier_components")
+                [ -n "$_bands" ] && _detail=" (now $_bands)"
+            fi
+            append_event "ca_change" "$_tech carriers changed${_detail}" "$_sev"
+        fi
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "ca_change" "$_tech CA churn detected" "warning"
+    fi
+
+    # Below runs only while settled on the announced value.
+    [ -z "$_obs" ] && return 0
+    eval "_hold=\${_ev_hold_${_ch}:-}; _holdn=\${_ev_holdn_${_ch}:-0}; _last=\${_ev_last_${_ch}:-}"
+    { [ "$_hold" = "$_last" ] && [ "$_holdn" -ge "$EV_SETTLE_SAMPLES" ]; } || return 0
+    eval "_ev_cabase_${_ch}=\$t2_carrier_components"
+
+    # A churn episode ends after a full window with no candidate change.
+    eval "_flapr=\${_ev_flapr_${_ch}:-0}; _chg=\${_ev_chg_${_ch}:-0}"
+    [ "$_flapr" -eq 0 ] && return 0
+    _now=$(date +%s)
+    [ $((_now - _chg)) -ge "$EV_FLAP_WINDOW" ] || return 0
+    eval "_ev_flapr_${_ch}=0; _ev_flapn_${_ch}=0"
+    if [ "$_last" = "0" ]; then
+        append_event "ca_change" "$_tech CA settled inactive" "warning"
+    else
+        _bands=$(_ev_bands "$_tech" "$t2_carrier_components")
+        append_event "ca_change" "$_tech CA settled${_bands:+ on $_bands}" "info"
     fi
 }
 
 # Snapshot current state into prev_ev_* variables (called once after first parse)
 snapshot_event_state() {
     prev_ev_network_type="$network_type"
-    prev_ev_lte_band="$lte_band"
-    prev_ev_lte_pci="$lte_pci"
-    prev_ev_nr_band="$nr_band"
-    prev_ev_nr_pci="$nr_pci"
+    # Band and PCI keep their last known good value across a blank reading.
+    # parse_serving_cell (parse_at.sh) blanks all four whenever AT+QENG returns
+    # no usable line — the no-"+QENG:" fallback and the LTE-only SEARCH early
+    # return, i.e. on every service drop — and the previous unconditional copy
+    # propagated that blank, destroying the baseline. Deliberately described
+    # rather than cited by line number: those citations have now gone stale
+    # twice, most recently in the 2026-09-02 single-awk-pass rewrite.
+    #
+    # The visible symptom was the "was ..." clause on the NR anchor lost
+    # message (below, in detect_events) going empty precisely when a user
+    # most wants to know which band they fell off.
+    prev_ev_lte_band="${lte_band:-$prev_ev_lte_band}"
+    prev_ev_lte_pci="${lte_pci:-$prev_ev_lte_pci}"
+    prev_ev_nr_band="${nr_band:-$prev_ev_nr_band}"
+    prev_ev_nr_pci="${nr_pci:-$prev_ev_nr_pci}"
     prev_ev_nr_state="$nr_state"
     prev_ev_modem_reachable="$modem_reachable"
-    prev_ev_internet="$conn_internet_available"
+    # prev_ev_internet is owned by detect_data_connection_events (persisted here only).
     prev_ev_ca_active="$t2_ca_active"
     prev_ev_ca_count="$t2_ca_count"
     prev_ev_nr_ca_active="$t2_nr_ca_active"
@@ -198,7 +407,10 @@ snapshot_event_state() {
     prev_ev_cfun="$t1_cfun"
     prev_ev_carrier_components="$t2_carrier_components"
 
-    # Persist for restart recovery (atomic .tmp + mv).
+    # Persist for restart recovery (atomic .tmp + mv), only when a field other than the
+    # carrier signal values changed; the stored carrier list is only a change baseline.
+    local _sig="$prev_ev_network_type|$prev_ev_lte_band|$prev_ev_lte_pci|$prev_ev_nr_band|$prev_ev_nr_pci|$prev_ev_nr_state|$prev_ev_modem_reachable|$prev_ev_internet|$prev_ev_ca_active|$prev_ev_ca_count|$prev_ev_nr_ca_active|$prev_ev_nr_ca_count|$prev_ev_service_status|${prev_ev_cfun:-}|${t2_scc_key-}"
+    [ "$_sig" = "${_ev_state_sig-}" ] && [ -s "$EVENT_STATE_FILE" ] && return 0
     # _tmp is derived inside the function so EVENT_STATE_FILE overrides at any
     # point (tests, future callers) keep the .tmp path in sync with the final.
     local _tmp="${EVENT_STATE_FILE}.tmp"
@@ -227,7 +439,7 @@ snapshot_event_state() {
             service_status: $svc, carrier_components: $cc,
             cfun: $cfun
         }' > "$_tmp" 2>/dev/null && \
-        mv "$_tmp" "$EVENT_STATE_FILE" 2>/dev/null
+        mv "$_tmp" "$EVENT_STATE_FILE" 2>/dev/null && _ev_state_sig="$_sig"
 }
 
 # Restore prev_ev_* from disk on poller startup. Sets events_initialized=true
@@ -280,7 +492,7 @@ restore_event_state() {
 # SCC PCI change detection via temp JSON
 # ---------------------------------------------------------------------------
 # Compares current t2_carrier_components against saved state in PCI_STATE_FILE.
-# Only called when t2_carrier_components string has changed (Tier 2 refresh).
+# Called when the SCC tech|band|pci set (t2_scc_key) changes, and once per process start.
 detect_scc_pci_changes() {
     local prev_sccs curr_sccs
 
@@ -318,7 +530,7 @@ detect_scc_pci_changes() {
         # If previous PCI exists and differs, emit event
         if [ -n "$p_pci" ] && [ "$p_pci" != "null" ] && [ "$p_pci" != "$c_pci" ]; then
             append_event "scc_pci_change" \
-                "$c_tech $c_band SCC cell handoff (PCI: $p_pci -> $c_pci)" "info"
+                "$c_tech SCC handoff${c_band:+ on $c_band}$(_ev_ids "${c_pci:+PCI $p_pci -> $c_pci}")" "info"
         fi
 
         i=$((i + 1))
@@ -329,79 +541,146 @@ detect_scc_pci_changes() {
 }
 
 # ---------------------------------------------------------------------------
-# Data connection quality checks (debounced — 3 consecutive readings)
+# Link and quality transitions: the one place they are decided
 # ---------------------------------------------------------------------------
+# Called once per cycle by the poller after read_ping_data and before check_alerts.
+# ev_link_state ("down" | "up" | "") is what alert_engine.sh reads.
+ev_link_state=""
+
+_ev_set_link_state() {
+    case "$prev_ev_internet" in
+        false) ev_link_state="down" ;;
+        true)  ev_link_state="up" ;;
+        *)     ev_link_state="" ;;
+    esac
+}
+
+# True when latency $1 is strictly above the configured cut (decimal compare).
+_ev_lat_above() {
+    awk -v v="$1" -v t="$CQ_LAT_MS" 'BEGIN { exit !(v + 0 > t + 0) }'
+}
+
+ev_hold_until=""
+ev_recov_restored=""   # "true": link restored inside the current recovery window
+
+# Monotonic seconds into _EV_UP ("" if unreadable).
+_ev_uptime() {
+    _EV_UP=""
+    { read -r _EV_UP _ev_idle < /proc/uptime; } 2>/dev/null
+    _EV_UP="${_EV_UP%%.*}"
+    case "$_EV_UP" in ''|*[!0-9]*) _EV_UP="" ;; esac
+}
+
+# After a restore, hold quality ENTRY for one history window (outage nulls still in it).
+_ev_arm_hold() {
+    local _w=300
+    case "${CONN_HISTORY_SIZE:-}${conn_history_interval:-}" in
+        ''|*[!0-9]*) ;;
+        *) _w=$(( ${CONN_HISTORY_SIZE:-0} * ${conn_history_interval:-0} )) ;;
+    esac
+    [ "$_w" -gt 0 ] || _w=300
+    _ev_uptime
+    if [ -n "$_EV_UP" ]; then ev_hold_until=$((_EV_UP + _w)); else ev_hold_until=""; fi
+}
+
+# True while entry is held: inside the post-restore window, or the producer is counting
+# failures (run-up to a down declaration). Exits are never held.
+_ev_entry_held() {
+    [ "${CQ_STREAK_FAIL:-0}" -gt 0 ] 2>/dev/null && return 0
+    [ -n "$ev_hold_until" ] || return 1
+    _ev_uptime
+    [ -n "$_EV_UP" ] && [ "$_EV_UP" -lt "$ev_hold_until" ]
+}
+
 detect_data_connection_events() {
-    # Suppress internet events during active watchcat recovery.
-    # Prevents spurious internet_lost/restored events from recovery actions
-    # (Tier 1 ifup/ifdown, Tier 2 CFUN toggle, Tier 3 SIM switch).
-    # Also prevents email alerts from firing during recovery.
-    if [ "$conn_during_recovery" = "true" ]; then
-        prev_ev_internet="$conn_internet_available"   # keep state in sync
-        return
-    fi
+    case "$prev_ev_internet" in true|false) ;; *) prev_ev_internet="" ;; esac
+    _ev_set_link_state
 
-    # Pick up any pending threshold reload from the CGI before evaluating quality.
-    _qt_check_reload
+    # Stale or unknown ping data is no transition: all state stays frozen.
+    case "$conn_internet_available" in true|false) ;; *) return 0 ;; esac
 
-    # --- Internet connectivity ---
+    # First reading after a cold start is adopted silently.
+    [ -z "$prev_ev_internet" ] && prev_ev_internet="$conn_internet_available"
+
+    # The recovery window ends with the producer's flag; its restore marker goes with it.
+    [ "$conn_during_recovery" = "true" ] || ev_recov_restored=""
+
+    # Follows the producer's reachable verdict, not the status string ("recovery" masks it).
     if [ "$conn_internet_available" != "$prev_ev_internet" ]; then
-        if [ "$conn_internet_available" = "true" ] && [ "$prev_ev_internet" = "false" ]; then
-            local restore_ctx=""
-            if [ "$conn_latency" != "null" ] && [ -n "$conn_latency" ]; then
-                restore_ctx=" (latency: $(_ev_round_latency "$conn_latency")ms)"
-            fi
-            append_event "internet_restored" "Internet connectivity restored${restore_ctx}" "info"
-        elif [ "$conn_internet_available" = "false" ] && [ "$prev_ev_internet" = "true" ]; then
-            local net_ctx
-            net_ctx=$(_ev_net_context)
-            local lost_detail=""
-            [ -n "$net_ctx" ] && lost_detail=" ($net_ctx)"
-            append_event "internet_lost" "Internet connectivity lost${lost_detail}" "warning"
+        if [ "$conn_internet_available" = "true" ]; then
+            append_event "internet_restored" "Internet restored" "info"
+            prev_ev_internet="true"
+            [ "$conn_during_recovery" = "true" ] && ev_recov_restored="true"
+            _ev_arm_hold
+        elif [ "$ev_recov_restored" != "true" ]; then
+            # Only a repeat drop after a restore in the same recovery window is held (tier flap).
+            append_event "internet_lost" "Internet unreachable" "warning"
+            prev_ev_internet="false"
         fi
     fi
+    _ev_set_link_state
 
-    # --- High latency detection (threshold + debounce from quality_thresholds.json) ---
-    # Skip when ping daemon is stale (conn_latency="null") — don't touch streaks
-    if [ "$conn_latency" != "null" ] && [ -n "$conn_latency" ]; then
-        # Use awk for decimal comparison (POSIX shell has no float math)
-        if echo "$conn_latency" | awk -v t="$_qt_lat_thresh" '{exit !($1 > t)}'; then
-            ev_high_lat_streak=$((ev_high_lat_streak + 1))
-            if [ "$ev_high_lat_streak" -ge "$_qt_lat_debounce" ] && [ "$ev_lat_alerted" = "false" ]; then
-                append_event "high_latency" \
-                    "High latency detected ($(_ev_round_latency "$conn_latency")ms, avg $(_ev_round_latency "$conn_avg_latency")ms)" "warning"
-                ev_lat_alerted=true
+    # While the link is down the outage is the record: quality state is frozen, not toggled.
+    [ "$conn_internet_available" = "true" ] || return 0
+
+    local _held=0
+    _ev_entry_held && _held=1
+
+    # --- Latency: configured cut, preset debounce on entry and on exit ---
+    if [ -n "$conn_latency" ] && [ "$conn_latency" != "null" ]; then
+        if _ev_lat_above "$conn_latency"; then
+            ev_lat_clear_streak=0
+            if [ "$_held" = "1" ]; then
+                ev_high_lat_streak=0
+            elif [ "$ev_lat_alerted" != "true" ]; then
+                ev_high_lat_streak=$((ev_high_lat_streak + 1))
+                if [ "$ev_high_lat_streak" -ge "$CQ_LAT_DEBOUNCE" ]; then
+                    append_event "high_latency" "Latency above threshold" "warning"
+                    ev_lat_alerted=true
+                    ev_high_lat_streak=0
+                fi
             fi
         else
-            # Latency below threshold — recover if previously alerted
-            if [ "$ev_lat_alerted" = "true" ]; then
-                append_event "latency_recovered" \
-                    "Latency recovered ($(_ev_round_latency "$conn_latency")ms)" "info"
-            fi
             ev_high_lat_streak=0
-            ev_lat_alerted=false
+            if [ "$ev_lat_alerted" = "true" ]; then
+                ev_lat_clear_streak=$((ev_lat_clear_streak + 1))
+                if [ "$ev_lat_clear_streak" -ge "$CQ_LAT_DEBOUNCE" ]; then
+                    append_event "latency_recovered" "Latency recovered" "info"
+                    ev_lat_alerted=false
+                    ev_lat_clear_streak=0
+                fi
+            fi
         fi
     fi
 
-    # --- High packet loss detection (threshold + debounce from quality_thresholds.json) ---
-    if [ "$conn_packet_loss" != "null" ] && [ -n "$conn_packet_loss" ]; then
-        if [ "$conn_packet_loss" -ge "$_qt_loss_thresh" ] 2>/dev/null; then
-            ev_high_loss_streak=$((ev_high_loss_streak + 1))
-            if [ "$ev_high_loss_streak" -ge "$_qt_loss_debounce" ] && [ "$ev_loss_alerted" = "false" ]; then
-                append_event "high_packet_loss" \
-                    "High packet loss detected (${conn_packet_loss}%)" "warning"
-                ev_loss_alerted=true
-            fi
-        else
-            # Packet loss below threshold — recover if previously alerted
-            if [ "$ev_loss_alerted" = "true" ]; then
-                append_event "packet_loss_recovered" \
-                    "Packet loss recovered (${conn_packet_loss}%)" "info"
-            fi
-            ev_high_loss_streak=0
-            ev_loss_alerted=false
-        fi
-    fi
+    # --- Packet loss: same shape; null (window too short) is no reading ---
+    case "$conn_packet_loss" in
+        ''|null|*[!0-9]*) ;;
+        *)
+            if [ "$conn_packet_loss" -ge "$CQ_LOSS_PCT" ]; then
+                ev_loss_clear_streak=0
+                if [ "$_held" = "1" ]; then
+                    ev_high_loss_streak=0
+                elif [ "$ev_loss_alerted" != "true" ]; then
+                    ev_high_loss_streak=$((ev_high_loss_streak + 1))
+                    if [ "$ev_high_loss_streak" -ge "$CQ_LOSS_DEBOUNCE" ]; then
+                        append_event "high_packet_loss" "Packet loss above threshold" "warning"
+                        ev_loss_alerted=true
+                        ev_high_loss_streak=0
+                    fi
+                fi
+            else
+                ev_high_loss_streak=0
+                if [ "$ev_loss_alerted" = "true" ]; then
+                    ev_loss_clear_streak=$((ev_loss_clear_streak + 1))
+                    if [ "$ev_loss_clear_streak" -ge "$CQ_LOSS_DEBOUNCE" ]; then
+                        append_event "packet_loss_recovered" "Packet loss recovered" "info"
+                        ev_loss_alerted=false
+                        ev_loss_clear_streak=0
+                    fi
+                fi
+            fi ;;
+    esac
 }
 
 # Compare current state vs previous and emit events for any changes
@@ -427,13 +706,9 @@ detect_events() {
     # --- Modem reachability ---
     if [ "$modem_reachable" != "$prev_ev_modem_reachable" ]; then
         if [ "$modem_reachable" = "true" ]; then
-            local net_ctx
-            net_ctx=$(_ev_net_context)
-            local restore_detail=""
-            [ -n "$net_ctx" ] && restore_detail=" — $net_ctx"
-            append_event "signal_restored" "Modem signal restored${restore_detail}" "info"
+            append_event "signal_restored" "Signal restored" "info"
         else
-            append_event "signal_lost" "Modem became unreachable" "warning"
+            append_event "signal_lost" "Modem unreachable" "warning"
             # Don't generate band/PCI events when modem goes away
             snapshot_event_state
             return
@@ -463,186 +738,103 @@ detect_events() {
         case "$prev_ev_network_type-$network_type" in
             5G-SA-5G-NSA|5G-SA-LTE|5G-NSA-LTE) mode_severity="warning" ;;
         esac
-        # Include current band context
-        local mode_detail=""
+        # Band context rides along as a chip tail, never as prose.
+        local mode_ids=""
         case "$network_type" in
-            5G-NSA)
-                [ -n "$lte_band" ] && [ -n "$nr_band" ] && mode_detail=" (${lte_band} + ${nr_band})"
-                ;;
-            5G-SA)
-                [ -n "$nr_band" ] && mode_detail=" (${nr_band})"
-                ;;
-            LTE)
-                [ -n "$lte_band" ] && mode_detail=" (${lte_band})"
-                ;;
+            5G-NSA) [ -n "$lte_band" ] && [ -n "$nr_band" ] && mode_ids="${lte_band} + ${nr_band}" ;;
+            5G-SA)  mode_ids="$nr_band" ;;
+            LTE)    mode_ids="$lte_band" ;;
         esac
         append_event "network_mode" \
-            "Network mode changed from $prev_ev_network_type to $network_type${mode_detail}" "$mode_severity"
+            "Network mode changed to ${network_type}$(_ev_ids "$mode_ids")" "$mode_severity"
     fi
 
     # =====================================================================
     # Section 2: Band Changes events
     # =====================================================================
 
-    # --- LTE band change ---
-    if [ -n "$lte_band" ] && [ -n "$prev_ev_lte_band" ] && \
-       [ "$lte_band" != "$prev_ev_lte_band" ]; then
-        local lte_band_detail=""
-        if [ -n "$lte_pci" ]; then
-            if [ -n "$prev_ev_lte_pci" ] && [ "$lte_pci" != "$prev_ev_lte_pci" ]; then
-                lte_band_detail=" (PCI: $prev_ev_lte_pci -> $lte_pci)"
-            else
-                lte_band_detail=" (PCI $lte_pci)"
-            fi
-        fi
+    # --- LTE band change (settle-debounced, see _ev_settle) ---
+    local _rc
+    _ev_settle lte_band "$lte_band"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         append_event "band_change" \
-            "LTE band changed from $prev_ev_lte_band to $lte_band${lte_band_detail}" "info"
+            "LTE band settled on ${_EV_SETTLED_TO}$(_ev_ids "${_EV_SETTLED_FROM:+was ${_EV_SETTLED_FROM}}" "${lte_pci:+PCI ${lte_pci}}")" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "band_change" \
+            "LTE band churn detected" "warning"
     fi
 
-    # --- LTE PCI change (PCC cell handoff) ---
-    if [ -n "$lte_pci" ] && [ -n "$prev_ev_lte_pci" ] && \
-       [ "$lte_pci" != "$prev_ev_lte_pci" ]; then
+    # --- LTE PCI change (PCC cell handoff, settle-debounced) ---
+    _ev_settle lte_pci "$lte_pci"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         local lte_pci_ctx=""
         [ -n "$lte_band" ] && lte_pci_ctx=" on $lte_band"
+        local lte_pci_ids=""
+        [ -n "${_EV_SETTLED_FROM}" ] && [ -n "${_EV_SETTLED_TO}" ] && \
+            lte_pci_ids="PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO}"
         append_event "pci_change" \
-            "LTE PCC cell handoff${lte_pci_ctx} (PCI: $prev_ev_lte_pci -> $lte_pci)" "info"
+            "LTE cell handoff${lte_pci_ctx}$(_ev_ids "$lte_pci_ids")" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "pci_change" \
+            "LTE cell churn detected" "warning"
     fi
 
     # --- NR state change (5G anchor gained/lost) ---
     if [ -n "$nr_state" ] && [ -n "$prev_ev_nr_state" ] && \
        [ "$nr_state" != "$prev_ev_nr_state" ]; then
         if [ "$nr_state" = "connected" ] && [ "$prev_ev_nr_state" != "connected" ]; then
-            local nr_anchor_detail="($nr_band)"
-            [ -n "$nr_pci" ] && nr_anchor_detail="($nr_band, PCI $nr_pci)"
-            append_event "nr_anchor" "5G NR anchor acquired $nr_anchor_detail" "info"
+            append_event "nr_anchor" "NR5G anchor acquired$(_ev_ids "$nr_band" "${nr_pci:+PCI $nr_pci}")" "info"
         elif [ "$nr_state" != "connected" ] && [ "$prev_ev_nr_state" = "connected" ]; then
-            local nr_lost_detail=""
-            [ -n "$prev_ev_nr_band" ] && nr_lost_detail=" (was $prev_ev_nr_band)"
-            append_event "nr_anchor" "5G NR anchor lost${nr_lost_detail}" "warning"
+            append_event "nr_anchor" "NR5G anchor lost$(_ev_ids "${prev_ev_nr_band:+was $prev_ev_nr_band}")" "warning"
         fi
     fi
 
-    # --- NR band change ---
-    if [ "$nr_state" = "connected" ] && \
-       [ -n "$nr_band" ] && [ -n "$prev_ev_nr_band" ] && \
-       [ "$nr_band" != "$prev_ev_nr_band" ]; then
-        local nr_band_detail=""
-        if [ -n "$nr_pci" ]; then
-            if [ -n "$prev_ev_nr_pci" ] && [ "$nr_pci" != "$prev_ev_nr_pci" ]; then
-                nr_band_detail=" (PCI: $prev_ev_nr_pci -> $nr_pci)"
-            else
-                nr_band_detail=" (PCI $nr_pci)"
-            fi
-        fi
+    # --- NR band / PCI changes (settle-debounced) ---
+    # While the NR anchor is down there is nothing to observe, so feed the
+    # helper a blank rather than skipping the call: counters freeze instead of
+    # resetting, and an NSA drop-and-reacquire onto the same band stays silent.
+    # The anchor itself is reported by the nr_anchor events above.
+    local _nr_band_obs="" _nr_pci_obs=""
+    if [ "$nr_state" = "connected" ]; then
+        _nr_band_obs="$nr_band"
+        _nr_pci_obs="$nr_pci"
+    fi
+
+    _ev_settle nr_band "$_nr_band_obs"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         append_event "band_change" \
-            "NR band changed from $prev_ev_nr_band to $nr_band${nr_band_detail}" "info"
+            "NR band settled on ${_EV_SETTLED_TO}$(_ev_ids "${_EV_SETTLED_FROM:+was ${_EV_SETTLED_FROM}}" "${nr_pci:+PCI ${nr_pci}}")" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "band_change" \
+            "NR band churn detected" "warning"
     fi
 
-    # --- NR PCI change (PCC) ---
-    if [ "$nr_state" = "connected" ] && \
-       [ -n "$nr_pci" ] && [ -n "$prev_ev_nr_pci" ] && \
-       [ "$nr_pci" != "$prev_ev_nr_pci" ]; then
+    _ev_settle nr_pci "$_nr_pci_obs"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         local nr_pci_ctx=""
         [ -n "$nr_band" ] && nr_pci_ctx=" on $nr_band"
+        local nr_pci_ids=""
+        [ -n "${_EV_SETTLED_FROM}" ] && [ -n "${_EV_SETTLED_TO}" ] && \
+            nr_pci_ids="PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO}"
         append_event "pci_change" \
-            "NR PCC cell handoff${nr_pci_ctx} (PCI: $prev_ev_nr_pci -> $nr_pci)" "info"
+            "NR cell handoff${nr_pci_ctx}$(_ev_ids "$nr_pci_ids")" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "pci_change" \
+            "NR cell churn detected" "warning"
     fi
 
-    # --- LTE CA changes ---
-    if [ "$t2_ca_active" != "$prev_ev_ca_active" ]; then
-        if [ "$t2_ca_active" = "true" ]; then
-            local lte_ca_summary
-            lte_ca_summary=$(_ev_band_summary "LTE" "$t2_carrier_components")
-            if [ -n "$lte_ca_summary" ]; then
-                append_event "ca_change" \
-                    "LTE CA activated: $lte_ca_summary ($((t2_ca_count + 1)) carriers)" "info"
-            else
-                append_event "ca_change" \
-                    "LTE CA activated ($((t2_ca_count + 1)) carriers)" "info"
-            fi
-        elif [ "$prev_ev_ca_active" = "true" ]; then
-            local single_lte=""
-            [ -n "$lte_band" ] && single_lte=" — single carrier ($lte_band)"
-            append_event "ca_change" "LTE CA deactivated${single_lte}" "warning"
-        fi
-    elif [ "$t2_ca_active" = "true" ] && [ "$t2_ca_count" != "$prev_ev_ca_count" ]; then
-        local prev_total=$((prev_ev_ca_count + 1))
-        local new_total=$((t2_ca_count + 1))
-        local ca_sev="info"
-        [ "$new_total" -lt "$prev_total" ] && ca_sev="warning"
+    # --- CA changes (sticky settle, see _ev_ca_check) ---
+    _ev_ca_check lte_ca LTE "$t2_ca_count"
+    _ev_ca_check nr_ca NR "$t2_nr_ca_count"
 
-        # Compute which bands were added/removed
-        _ev_ca_diff "LTE" "$prev_ev_carrier_components" "$t2_carrier_components"
-        local ca_diff_detail=""
-        if [ -n "$_diff_added" ] || [ -n "$_diff_removed" ]; then
-            local parts=""
-            [ -n "$_diff_added" ] && parts="+${_diff_added}"
-            if [ -n "$_diff_removed" ]; then
-                [ -n "$parts" ] && parts="$parts, "
-                parts="${parts}-${_diff_removed}"
-            fi
-            ca_diff_detail=" ($parts)"
-        else
-            local lte_bands
-            lte_bands=$(_ev_bands "LTE" "$t2_carrier_components")
-            [ -n "$lte_bands" ] && ca_diff_detail=" (now $lte_bands)"
-        fi
-        append_event "ca_change" \
-            "LTE carriers changed from $prev_total to $new_total${ca_diff_detail}" "$ca_sev"
-    fi
-
-    # --- NR CA changes ---
-    if [ "$t2_nr_ca_active" != "$prev_ev_nr_ca_active" ]; then
-        if [ "$t2_nr_ca_active" = "true" ]; then
-            local nr_ca_summary
-            nr_ca_summary=$(_ev_band_summary "NR" "$t2_carrier_components")
-            if [ -n "$nr_ca_summary" ]; then
-                append_event "ca_change" \
-                    "NR CA activated: $nr_ca_summary ($((t2_nr_ca_count + 1)) NR carriers)" "info"
-            else
-                append_event "ca_change" \
-                    "NR CA activated ($((t2_nr_ca_count + 1)) NR carriers)" "info"
-            fi
-        elif [ "$prev_ev_nr_ca_active" = "true" ]; then
-            local single_nr=""
-            [ -n "$nr_band" ] && single_nr=" — single carrier ($nr_band)"
-            append_event "ca_change" "NR CA deactivated${single_nr}" "warning"
-        fi
-    elif [ "$t2_nr_ca_active" = "true" ] && [ "$t2_nr_ca_count" != "$prev_ev_nr_ca_count" ]; then
-        local prev_total=$((prev_ev_nr_ca_count + 1))
-        local new_total=$((t2_nr_ca_count + 1))
-        local nr_ca_sev="info"
-        [ "$new_total" -lt "$prev_total" ] && nr_ca_sev="warning"
-
-        # Compute which NR bands were added/removed
-        _ev_ca_diff "NR" "$prev_ev_carrier_components" "$t2_carrier_components"
-        local nr_diff_detail=""
-        if [ -n "$_diff_added" ] || [ -n "$_diff_removed" ]; then
-            local parts=""
-            [ -n "$_diff_added" ] && parts="+${_diff_added}"
-            if [ -n "$_diff_removed" ]; then
-                [ -n "$parts" ] && parts="$parts, "
-                parts="${parts}-${_diff_removed}"
-            fi
-            nr_diff_detail=" ($parts)"
-        else
-            local nr_bands
-            nr_bands=$(_ev_bands "NR" "$t2_carrier_components")
-            [ -n "$nr_bands" ] && nr_diff_detail=" (now $nr_bands)"
-        fi
-        append_event "ca_change" \
-            "NR carriers changed from $prev_total to $new_total${nr_diff_detail}" "$nr_ca_sev"
-    fi
-
-    # --- SCC PCI changes (detected on Tier 2 refresh) ---
-    if [ "$t2_carrier_components" != "$prev_ev_carrier_components" ]; then
+    # --- SCC PCI changes: keyed on the SCC tech|band|pci set, not on the signal values ---
+    if [ "${t2_scc_key-}" != "${prev_ev_scc_key-_unset_}" ]; then
         detect_scc_pci_changes
+        prev_ev_scc_key="${t2_scc_key-}"
     fi
 
-    # =====================================================================
-    # Section 3: Data Connection events
-    # =====================================================================
-    detect_data_connection_events
+    # Data connection events run from the poller right after read_ping_data
+    # (they need no modem), not from here.
 
     # Update snapshot
     snapshot_event_state

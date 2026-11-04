@@ -5,11 +5,13 @@
 # settings.sh — CGI Endpoint: Update Tower Lock Settings
 # =============================================================================
 # Updates persist and failover settings. Persist changes are sent to the
-# modem immediately via AT+QNWLOCK="save_ctrl". Failover settings are
-# written to the config file only.
+# modem immediately via AT+QNWLOCK="save_ctrl",<lte>,<nr>. Failover settings
+# are written to the config file only. Every field is optional.
 #
-# POST body:
-#   {"persist": true, "failover_enabled": true, "failover_threshold": 20}
+# POST body (any subset):
+#   {"persist_lte": true, "persist_nr": false,
+#    "failover_enabled": true, "failover_threshold": 20}
+#   "persist": true|false sets both radios (older clients).
 #
 # Endpoint: POST /cgi-bin/quecmanager/tower/settings.sh
 # Install location: /www/cgi-bin/quecmanager/tower/settings.sh
@@ -22,6 +24,7 @@ cgi_handle_options
 
 # --- Load library ------------------------------------------------------------
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -36,12 +39,23 @@ cgi_read_post
 # IMPORTANT: Cannot use `// empty` for booleans — jq treats `false` as falsy,
 # so `false // empty` produces nothing. Use `has()` + `tostring` instead.
 # "unset" = field not present in POST body (keep current value).
-PERSIST=$(printf '%s' "$POST_DATA" | jq -r 'if has("persist") then (.persist | tostring) else "unset" end' 2>/dev/null)
+# Persist fields must be JSON booleans; "invalid" covers strings like "true".
+PERSIST=$(printf '%s' "$POST_DATA" | jq -r 'if has("persist") then (if (.persist | type) == "boolean" then (.persist | tostring) else "invalid" end) else "unset" end' 2>/dev/null)
+PERSIST_LTE=$(printf '%s' "$POST_DATA" | jq -r 'if has("persist_lte") then (if (.persist_lte | type) == "boolean" then (.persist_lte | tostring) else "invalid" end) else "unset" end' 2>/dev/null)
+PERSIST_NR=$(printf '%s' "$POST_DATA" | jq -r 'if has("persist_nr") then (if (.persist_nr | type) == "boolean" then (.persist_nr | tostring) else "invalid" end) else "unset" end' 2>/dev/null)
 FO_ENABLED=$(printf '%s' "$POST_DATA" | jq -r 'if has("failover_enabled") then (.failover_enabled | tostring) else "unset" end' 2>/dev/null)
 FO_THRESHOLD=$(printf '%s' "$POST_DATA" | jq -r 'if has("failover_threshold") then (.failover_threshold | tostring) else "unset" end' 2>/dev/null)
 
 # --- Validate ----------------------------------------------------------------
-if [ "$PERSIST" = "unset" ] && [ "$FO_ENABLED" = "unset" ] && [ "$FO_THRESHOLD" = "unset" ]; then
+for _v in "$PERSIST" "$PERSIST_LTE" "$PERSIST_NR"; do
+    case "$_v" in
+        unset|true|false) ;;
+        *) cgi_error "invalid_persist" "persist values must be true or false"; exit 0 ;;
+    esac
+done
+
+if [ "$PERSIST" = "unset" ] && [ "$PERSIST_LTE" = "unset" ] && [ "$PERSIST_NR" = "unset" ] \
+    && [ "$FO_ENABLED" = "unset" ] && [ "$FO_THRESHOLD" = "unset" ]; then
     cgi_error "no_fields" "No settings fields provided"
     exit 0
 fi
@@ -60,95 +74,47 @@ current_fo_threshold=$(tower_config_get ".failover.threshold")
 [ -z "$current_fo_threshold" ] && current_fo_threshold="20"
 
 # Apply provided values (or keep current if "unset")
-[ "$PERSIST" = "unset" ] && PERSIST="$current_persist"
 [ "$FO_ENABLED" = "unset" ] && FO_ENABLED="$current_fo_enabled"
 [ "$FO_THRESHOLD" = "unset" ] && FO_THRESHOLD="$current_fo_threshold"
 
 # Validate threshold range
-if [ -n "$FO_THRESHOLD" ]; then
-    case "$FO_THRESHOLD" in
-        *[!0-9]*)
-            cgi_error "invalid_threshold" "Threshold must be a number 0-100"
-            exit 0
-            ;;
-    esac
-    if [ "$FO_THRESHOLD" -lt 0 ] 2>/dev/null || [ "$FO_THRESHOLD" -gt 100 ] 2>/dev/null; then
-        cgi_error "invalid_threshold" "Threshold must be 0-100"
-        exit 0
-    fi
+if ! rv_tower_threshold "$FO_THRESHOLD"; then
+    cgi_error "$RV_CODE" "$RV_DETAIL"
+    exit 0
 fi
 
-qlog_info "Updating tower settings: persist=$PERSIST failover_enabled=$FO_ENABLED threshold=$FO_THRESHOLD"
+qlog_info "Updating tower settings: persist=$PERSIST persist_lte=$PERSIST_LTE persist_nr=$PERSIST_NR failover_enabled=$FO_ENABLED threshold=$FO_THRESHOLD"
 
 # --- Send persist AT command if changed --------------------------------------
-persist_ok="true"
-if [ "$PERSIST" != "$current_persist" ]; then
-    local_val="0"
-    [ "$PERSIST" = "true" ] && local_val="1"
-
-    result=$(tower_set_persist "$local_val")
-    rc=$?
-
-    if [ $rc -ne 0 ] || [ -z "$result" ]; then
-        qlog_error "Persist AT command failed (rc=$rc)"
-        persist_ok="false"
-    else
-        case "$result" in
-            *ERROR*)
-                qlog_error "Persist AT ERROR: $result"
-                persist_ok="false"
-                ;;
-            *)
-                qlog_info "Persist set to $local_val"
-                ;;
-        esac
-    fi
-fi
+# save_ctrl writes both radios at once, so read the live pair first; an
+# unreadable modem blocks the write rather than guessing the untouched radio.
+tower_apply_persist "$PERSIST" "$PERSIST_LTE" "$PERSIST_NR" "$current_persist"
+persist_ok="$TW_PERSIST_OK"
+applied_lte="$TW_APPLIED_LTE"
+applied_nr="$TW_APPLIED_NR"
+new_persist="$TW_NEW_PERSIST"
 
 # --- Update config file using jq (atomic, safe) -----------------------------
-tower_config_update_settings "$PERSIST" "$FO_ENABLED" "$FO_THRESHOLD"
+tower_config_update_settings "$new_persist" "$FO_ENABLED" "$FO_THRESHOLD"
 
-# --- Ensure failover daemon is running when enabled + lock active ------------
-watcher_spawned="false"
-if [ "$FO_ENABLED" = "true" ]; then
-    lte_active=$(tower_config_get ".lte.enabled")
-    nr_active=$(tower_config_get ".nr_sa.enabled")
-    if [ "$lte_active" = "true" ] || [ "$nr_active" = "true" ]; then
-        # Only spawn if daemon is not already running (avoids resetting settle timer)
-        daemon_alive="false"
-        if [ -f "$TOWER_FAILOVER_PID" ]; then
-            wpid=$(cat "$TOWER_FAILOVER_PID" 2>/dev/null | tr -d ' \n\r')
-            pid_alive "$wpid" && daemon_alive="true"
-        fi
-        if [ "$daemon_alive" != "true" ]; then
-            spawn_result=$(tower_spawn_failover_watcher)
-            [ "$spawn_result" = "true" ] && watcher_spawned="true"
-            qlog_info "Failover spawn attempt: result=$spawn_result"
-        fi
-    fi
-fi
-
-# --- Kill failover daemon if failover was just disabled ----------------------
-if [ "$FO_ENABLED" = "false" ] && [ "$current_fo_enabled" = "true" ]; then
-    tower_kill_failover_watcher
-    rm -f "$TOWER_FAILOVER_FLAG"
-    svc_disable qmanager_tower_failover
-    qlog_info "Failover disabled — killed daemon, disabled service"
-fi
+# --- Failover daemon: start when enabled with a lock active, stop when just disabled
+tower_apply_failover_state "$FO_ENABLED" "$current_fo_enabled"
+watcher_spawned="$TW_WATCHER_SPAWNED"
+svc_enable_failed="$TW_SVC_ENABLE_FAILED"
+svc_disable_failed="$TW_SVC_DISABLE_FAILED"
 
 # --- Response ----------------------------------------------------------------
-if [ "$persist_ok" = "true" ]; then
-    jq -n \
-        --argjson persist "$PERSIST" \
-        --argjson fo_enabled "$FO_ENABLED" \
-        --argjson fo_threshold "$FO_THRESHOLD" \
-        --argjson ws "$watcher_spawned" \
-        '{success: true, persist: $persist, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws}'
-else
-    jq -n \
-        --argjson persist "$PERSIST" \
-        --argjson fo_enabled "$FO_ENABLED" \
-        --argjson fo_threshold "$FO_THRESHOLD" \
-        --argjson ws "$watcher_spawned" \
-        '{success: true, persist_command_failed: true, persist: $persist, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws}'
-fi
+# persist_lte / persist_nr: each radio's value after this call, null when
+# persistence was not asked or the modem could not be read.
+jq -n \
+    --argjson persist "$new_persist" \
+    --argjson plte "$applied_lte" \
+    --argjson pnr "$applied_nr" \
+    --argjson pfail "$([ "$persist_ok" = "true" ] && echo false || echo true)" \
+    --argjson fo_enabled "$FO_ENABLED" \
+    --argjson fo_threshold "$FO_THRESHOLD" \
+    --argjson ws "$watcher_spawned" \
+    --argjson svc_disable_failed "$svc_disable_failed" \
+    --argjson svc_enable_failed "$svc_enable_failed" \
+    '{success: true, persist: $persist, persist_lte: $plte, persist_nr: $pnr, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws, service_disable_failed: $svc_disable_failed, service_enable_failed: $svc_enable_failed}
+     + (if $pfail then {persist_command_failed: true} else {} end)'

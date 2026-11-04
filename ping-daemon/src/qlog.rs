@@ -84,7 +84,7 @@ mod tests {
         let log = Logger::new("ping", &path);
         log.info("hello");
         let content = read_to_string(&path).unwrap();
-        // Format: [TIMESTAMP] INFO  [ping:<pid>] hello
+        // Format: [TIMESTAMP] INFO  [ping:4821] hello -- the number is the process ID
         let expected_component = format!("[ping:{}]", pid);
         assert!(content.contains(&expected_component), "got: {}", content);
         assert!(content.contains("INFO "), "got: {}", content);

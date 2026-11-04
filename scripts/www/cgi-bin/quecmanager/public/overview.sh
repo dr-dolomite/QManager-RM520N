@@ -23,6 +23,10 @@ fi
 
 STATUS_FILE="/tmp/qmanager_status.json"
 
+# UI heartbeat for the poller's activity tiers (same contract as at_cmd/fetch_data.sh).
+# Never follow a planted symlink (builtin test, no fork); protected_symlinks covers the race.
+[ -L /tmp/qmanager_ui_active ] || echo "$$" > /tmp/qmanager_ui_active 2>/dev/null
+
 # Fresh-install gate: if no password is set, frontend must reroute to /setup/.
 if is_setup_required; then
     jq -n '{"state":"setup_required"}'

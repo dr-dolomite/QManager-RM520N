@@ -49,6 +49,8 @@ export interface RunResponse {
   success: boolean;
   job_id?: string;
   started_at?: number;
+  /** True when a run was already live and this POST joined it. */
+  resumed?: boolean;
   error?: string;
   detail?: string;
 }
@@ -59,26 +61,5 @@ export interface TestOutputResponse {
   output?: string;
   truncated?: boolean;
   error?: string;
+  detail?: string;
 }
-
-export const CATEGORY_LABELS: Record<TestCategory, string> = {
-  binaries: "Binaries & Versions",
-  permissions: "Filesystem & Permissions",
-  at_transport: "AT Transport",
-  sms: "SMS Subsystem",
-  sudoers: "Sudoers",
-  services: "Systemd Services",
-  network: "Network",
-  configuration: "Configuration",
-};
-
-export const CATEGORY_DESCRIPTIONS: Record<TestCategory, string> = {
-  binaries: "Required binaries and version checks",
-  permissions: "Filesystem ownership, modes, and group membership",
-  at_transport: "qcmd / atcli_smd11 round-trip checks against the modem",
-  sms: "sms_tool readiness and SIM presence",
-  sudoers: "www-data sudoers helper visibility",
-  services: "Systemd unit presence, enablement, and active state",
-  network: "DNS, IPv4, modem data path, lighttpd, firewall",
-  configuration: "QManager config files and poller cache freshness",
-};

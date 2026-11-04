@@ -1,10 +1,13 @@
-import CustomProfileComponent from '@/components/cellular/custom-profiles/custom-profile'
-import React from 'react'
+import { Suspense } from "react";
 
-const CustomProfilePage = () => {
-  return (
+import CustomProfileComponent from "@/components/cellular/custom-profiles/custom-profile";
+
+// Suspense is required: the page reads `?action=` deep links through
+// useSearchParams, which fails the static export build when unwrapped.
+const CustomProfilePage = () => (
+  <Suspense>
     <CustomProfileComponent />
-  )
-}
+  </Suspense>
+);
 
-export default CustomProfilePage
+export default CustomProfilePage;

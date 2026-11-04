@@ -1,4 +1,633 @@
 {
+  "antenna_alignment": {
+    "page": {
+      "title": "天線對準",
+      "description": "一邊觀察即時評分一邊調整天線朝向或位置，然後記錄最多三個位置以進行比較。"
+    },
+    "mode": {
+      "lte": "4G LTE",
+      "nr": "5G NR",
+      "lte_short": "LTE",
+      "nr_short": "NR"
+    },
+    "aim": {
+      "title": "即時對準",
+      "description": "主接收鏈路，評分標準與已記錄的位置相同。",
+      "score_label": "對準評分",
+      "score_sr": "對準評分 {{score}}，滿分 100",
+      "no_reading": "無對準評分 — 主鏈路未回報",
+      "peak": "峰值",
+      "updated": "更新於",
+      "delta_up": "較上次讀數提升",
+      "delta_down": "較上次讀數下降",
+      "partial": "僅 {{leg}}",
+      "not_reported": "未回報",
+      "primary_chain": "Main / PRX 是評分所依據的鏈路"
+    },
+    "quality": {
+      "excellent": "極佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "較差",
+      "bad": "極弱",
+      "none": "無讀數"
+    },
+    "recorder": {
+      "title": "位置記錄",
+      "description_directional": "記錄最多三個角度並進行比較。每次記錄會將數據機的 {{samples}} 次讀數取平均，需要幾秒鐘。",
+      "description_omni": "記錄最多三個擺放位置並進行比較。每次記錄會將數據機的 {{samples}} 次讀數取平均，需要幾秒鐘。",
+      "type_directional": "定向",
+      "type_omni": "全向",
+      "reset": "重設",
+      "position": "位置 {{letter}}",
+      "placeholder_angle": "角度",
+      "placeholder_position": "位置",
+      "record_angle": "記錄角度",
+      "record_position": "記錄位置",
+      "not_recorded": "未記錄",
+      "recorded_at": "記錄於 {{time}}",
+      "sample_progress": "第 {{current}} 次讀數，共 {{total}} 次",
+      "waiting": "正在等待數據機",
+      "cancel": "取消",
+      "clear": "清除 {{label}}",
+      "label_sr": "第 {{index}} 個插槽的標籤",
+      "slot_sr": "插槽 {{index}}：{{label}} — {{status}}",
+      "status": {
+        "recording": "正在記錄",
+        "recorded": "已記錄",
+        "recorded_best": "已記錄，結果最佳",
+        "empty": "空"
+      },
+      "best": "最佳",
+      "best_margin": "最佳，領先 {{margin}}",
+      "not_comparable": "沒有可排序的讀數，因此無法比較這個位置。",
+      "partial": "僅依單一指標評分。",
+      "confirm_cancel": "保留",
+      "reset_confirm_title": "清除所有已記錄的位置？",
+      "reset_confirm_body": "你記錄的所有位置都會被刪除。此操作無法復原。",
+      "reset_confirm_action": "全部清除",
+      "clear_confirm_title": "清除這筆記錄？",
+      "clear_confirm_body": "為 {{label}} 記錄的讀數會被刪除。此操作無法復原。",
+      "clear_confirm_action": "清除",
+      "all_recorded_hint": "三個位置均已記錄。清除其中一個即可重新記錄。",
+      "recording_hint": "請先完成或取消正在進行的記錄。",
+      "record_slot": "記錄 {{label}}",
+      "cancel_slot": "取消記錄 {{label}}"
+    },
+    "recommendation": {
+      "title": "目前最佳：{{label}}",
+      "body_directional": "在你已記錄的位置中，這個角度的綜合訊號最強。",
+      "body_omni": "在你已記錄的位置中，這個擺放位置的綜合訊號最強。",
+      "mixed_radios": "你的記錄橫跨兩種射頻，因此比較結果不如平時精確。",
+      "remaining": "記錄其餘插槽可獲得更完整的比較。"
+    },
+    "ports": {
+      "title": "接收鏈路",
+      "description": "有哪些天線參與評分。",
+      "reporting": "{{total}} 個中有 {{live}} 個在回報",
+      "not_reporting": "無資料",
+      "twin_hint": "若需每條鏈路的各項指標詳情，請前往",
+      "twin_link": "天線統計"
+    },
+    "states": {
+      "loading_sr": "正在載入天線對準",
+      "retry": "重試",
+      "error_banner": "無法連線至數據機。以下讀數可能已過期。",
+      "stale_banner": "訊號資料已過期。數據機可能沒有回應。",
+      "unreachable": {
+        "title": "無法連線至數據機",
+        "description": "無法載入天線讀數。請檢查輪詢服務是否正在執行，然後再試一次。"
+      },
+      "no_readings": {
+        "title": "無天線讀數",
+        "description": "數據機有回應，但沒有任何接收鏈路回報量測值。可能正在搜尋網路，也可能有天線未連接 — 一旦有鏈路開始回報，讀數就會自動恢復。"
+      }
+    }
+  },
+  "antenna_statistics": {
+    "page": {
+      "title": "天線統計",
+      "description": "各接收鏈路的天線訊號。比較 Main、Diversity 與 MIMO 連接埠，找出訊號弱或未運作的天線。"
+    },
+    "context": {
+      "mimo": {
+        "label": "啟用中的 MIMO",
+        "caption": "數據機回報的層數",
+        "unavailable": "未回報"
+      },
+      "mode": {
+        "label": "服務模式",
+        "caption": "目前回報的射頻",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "無服務"
+      },
+      "chains": {
+        "label": "回報中的鏈路",
+        "caption": "有讀數的天線連接埠",
+        "value": "{{total}} 個中有 {{live}} 個"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "LTE 訊號",
+        "description": "4G LTE 的各天線指標",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "NR5G 訊號",
+        "description": "5G NR 的各天線指標",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "無 LTE 訊號",
+        "description": "4G LTE 啟用後即會顯示各天線指標。"
+      },
+      "nr": {
+        "title": "無 5G NR 訊號",
+        "description": "5G NR 啟用後即會顯示各天線指標。"
+      }
+    },
+    "port": {
+      "not_reporting": "無資料",
+      "not_reported": "未回報"
+    },
+    "quality": {
+      "excellent": "極佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "較差",
+      "bad": "極弱",
+      "none": "無讀數"
+    },
+    "states": {
+      "loading_sr": "正在載入天線統計",
+      "retry": "重試",
+      "error_banner": "無法連線至數據機。以下讀數可能已過期。",
+      "stale_banner": "訊號資料已過期。數據機可能沒有回應。",
+      "unreachable": {
+        "title": "無法連線至數據機",
+        "description": "無法載入天線讀數。請檢查輪詢服務是否正在執行，然後再試一次。"
+      }
+    }
+  },
+  "band_locking": {
+    "controls_label": "頻段鎖定",
+    "page": {
+      "title": "頻段鎖定",
+      "description": "限制此數據機可以使用的 LTE 與 5G 頻段。"
+    },
+    "gate": {
+      "scenario_title": "頻段由 {{scenario}} 場景管理。",
+      "scenario_note": "切換至均衡場景即可手動控制。",
+      "profile_note": "目前的場景預定於 {{time}} 變更。"
+    },
+    "card": {
+      "status_scenario": "由場景控制",
+      "status_unrestricted": "全部頻段",
+      "status_locked": "{{total}} 個中已鎖定 {{count}} 個",
+      "status_unavailable": "無法讀取",
+      "unavailable_note": "無法讀取目前的頻段鎖定，因此這些控制項已停用。此時套用選取會覆蓋此卡片無法顯示的鎖定。待數據機回應後，請使用上方的重新整理。",
+      "pending_one": "{{count}} 項待套用的變更",
+      "pending_other": "{{count}} 項待套用的變更",
+      "legend_selected": "已選取",
+      "legend_live": "目前已鎖定",
+      "empty_title": "此處沒有可鎖定的頻段",
+      "empty_body": "數據機未回報此類別中支援的頻段。"
+    },
+    "actions": {
+      "lock_selected": "鎖定所選頻段",
+      "restore_all": "恢復所有支援的頻段",
+      "select_all": "全選",
+      "select_none": "清除選取",
+      "refresh": "重新整理"
+    },
+    "toast": {
+      "locked": "{{category}} 頻段已鎖定",
+      "unlocked": "{{category}} 頻段已恢復",
+      "lock_error": "無法套用 {{category}} 頻段鎖定",
+      "unlock_error": "無法恢復 {{category}} 頻段",
+      "refresh_error": "無法重新整理頻段設定",
+      "none_selected": "請至少選取一個要鎖定的頻段",
+      "locked_success": "{{category_label}} 頻段鎖定成功",
+      "unlocked_success": "{{category_label}} 頻段已解鎖"
+    },
+    "a11y": {
+      "applying": "正在套用 {{category}} 頻段鎖定…",
+      "refreshing": "正在重新整理頻段設定…",
+      "refresh_blocked_watcher": "頻段容錯移轉監控正在檢查無線電，重新整理已暫停。",
+      "band_selected": "{{band}}，已選取",
+      "band_unselected": "{{band}}，未選取",
+      "band_live": "{{band}}，已選取並在數據機上生效"
+    },
+    "settings_card": {
+      "band_failover_label": "頻段故障轉移",
+      "band_failover_tooltip": "如果鎖定的頻段在約 30 秒內沒有訊號，數據機將恢復使用所有支援的頻段。",
+      "band_failover_info_aria": "頻段故障轉移說明",
+      "status": {
+        "disabled": "已停用",
+        "ready": "就緒",
+        "fallback": "回退生效中",
+        "monitoring": "檢查中"
+      },
+      "toast": {
+        "failover_enabled": "頻段故障轉移已啟用",
+        "failover_disabled": "頻段故障轉移已停用"
+      }
+    },
+    "cards": {
+      "lte": {
+        "title": "LTE 頻段鎖定",
+        "description": "選擇要為您的裝置鎖定的 LTE 頻段。"
+      },
+      "nsa_nr5g": {
+        "title": "NSA 頻段鎖定",
+        "description": "選擇要鎖定的 5G NSA 頻段（透過 LTE 錨點的 5G）。"
+      },
+      "sa_nr5g": {
+        "title": "SA 頻段鎖定",
+        "description": "選擇要鎖定的 5G SA 頻段（獨立 5G）。"
+      }
+    },
+    "card_badges": {
+      "bands_locked": "{{locked}} / {{total}} 個頻段",
+      "scenario": "由情境控制",
+      "unrestricted": "全部頻段",
+      "unavailable": "無法讀取",
+      "unknown": "未回報",
+      "profile": "由設定控制"
+    },
+    "card_empty": "調變解調器未報告此類別的支援頻段。",
+    "card_buttons": {
+      "lock_selected": "鎖定所選頻段",
+      "select_all": "全選",
+      "deselect_all": "全不選",
+      "unlock_all": "全部解鎖"
+    },
+    "card_live_region": "正在套用 {{category_label}} 頻段鎖定…",
+    "card_category_label": {
+      "lte": "LTE",
+      "nsa_nr5g": "NSA",
+      "sa_nr5g": "SA"
+    },
+    "scenario_gate_title": "{{scenario}} 情境正在管理您的頻段",
+    "scenario_gate_action": "開啟場景",
+    "scenario_gate_note": "切換到「均衡」情境即可手動鎖定頻段。",
+    "read_error_title": "無法讀取頻段設定",
+    "refresh_blocked_watcher": "請等待故障轉移檢查完成",
+    "refreshing": "正在讀取頻段設定…",
+    "legend": {
+      "selected": "已選擇",
+      "live": "目前已鎖定"
+    },
+    "errors": {
+      "read_failed": "數據機未回傳頻段設定，請稍後再試。",
+      "no_bands": "請至少選擇一個頻段進行鎖定。",
+      "no_supported": "數據機尚未回報其支援的頻段。",
+      "lock_failed": "無法套用頻段鎖定。",
+      "failover_failed": "無法更新頻段故障轉移。"
+    },
+    "status": {
+      "title": "頻段狀態",
+      "on_air": "目前使用中",
+      "on_air_summary_one": "{{count}} 個載波（{{mhz}} MHz）",
+      "on_air_summary_other": "{{count}} 個載波（{{mhz}} MHz）",
+      "on_air_empty_title": "沒有使用中的載波",
+      "on_air_empty_body": "數據機目前未連線到任何基地台。",
+      "tile_aria": "{{tech}} 載波，{{role}}",
+      "tech_lte": "LTE",
+      "tech_nr": "5G NR",
+      "mhz": "{{value}} MHz",
+      "earfcn": "EARFCN {{value}}",
+      "pci": "PCI {{value}}",
+      "dbm": "{{value}} dBm",
+      "rsrp": "RSRP",
+      "no_value": "–",
+      "quality": {
+        "excellent": "訊號極佳",
+        "good": "訊號良好",
+        "fair": "訊號普通",
+        "poor": "訊號不佳",
+        "none": "無讀數"
+      },
+      "posture": "鎖定狀態",
+      "subtitle_locked": "{{total}} 個類別中有 {{count}} 個已鎖定",
+      "subtitle_unrestricted": "所有類別均使用全部頻段",
+      "subtitle_unknown": "數據機尚未回報其頻段",
+      "subtitle_unavailable": "無法讀取頻段設定",
+      "ratio": "{{count}} / {{total}} 個頻段",
+      "ratio_unavailable": "無法讀取",
+      "rail_locked": "已鎖定",
+      "rail_unrestricted": "全部頻段",
+      "rail_unknown": "未回報",
+      "rail_unavailable": "未知",
+      "rail_aria": "{{category}}：{{ratio}}（{{status}}）"
+    }
+  },
+  "cell_scanner": {
+    "page": {
+      "title": "小區掃描",
+      "description": "掃描本模組支援的所有頻段，找出周邊的基地台。取出 SIM 卡後結果最完整。"
+    },
+    "run": {
+      "title": "全網路掃描",
+      "link_neighbour_short": "鄰區",
+      "progress_label": "預估掃描進度",
+      "ledger": {
+        "col_carrier": "電信業者",
+        "col_cells": "小區",
+        "col_bands": "頻段",
+        "col_best": "最佳訊號",
+        "your_sim": "你的 SIM",
+        "cells_unit_one": "個小區",
+        "cells_unit_other": "個小區",
+        "dbm_unit": "dBm"
+      },
+      "description": "在模組支援的每個頻段上各掃描一遍。",
+      "start": "掃描全部頻段",
+      "rerun": "重新掃描",
+      "scanning_action": "掃描中…",
+      "download": "下載 CSV",
+      "link_neighbour": "鄰區",
+      "link_blocked": "掃描結束後可用。",
+      "summary_empty": "本次掃描結束時未列出任何小區，因此沒有可分析的內容。",
+      "summary_provider_unknown": "未命名電信業者",
+      "summary_others_one": "另有 1 家電信業者",
+      "summary_others_other": "另有 {{count}} 家電信業者",
+      "verdict_all_good_one": "唯一回報了電平的小區結果為良好。掃描是在沒有服務細胞協助的情況下測量的，因此達到該電平的讀數是確實很強的候選。",
+      "verdict_all_good_other": "回報了電平的 {{count}} 個小區全部為良好。掃描是在沒有服務細胞協助的情況下測量的，因此達到該電平的讀數都是確實很強的候選。",
+      "verdict_all_fair_one": "唯一回報了電平的小區處於普通水準。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB。",
+      "verdict_all_fair_other": "回報了電平的 {{count}} 個小區全部處於普通水準。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB。",
+      "verdict_all_poor_one": "唯一回報了電平的小區結果為較弱。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB——因此這與你自己的連線較弱並不是同一回事。",
+      "verdict_all_poor_other": "回報了電平的 {{count}} 個小區全部為較弱，因此整張表都位於量程底部。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB——因此這與你自己的連線較弱並不是同一回事。",
+      "verdict_no_readings": "模組列出了這些小區，但沒有回報其中任何一個的訊號電平，因此無法為它們評級。",
+      "idle_title": "尚未掃描",
+      "idle_body": "本頁開啟後還沒有掃描過。一次掃描會列出所有頻段上範圍內的每個基地台。",
+      "scanning_title": "正在逐一調諧頻段",
+      "scanning_body": "請保持此分頁開啟——模組完成後結果會顯示在這裡。",
+      "complete_title": "掃描完成",
+      "failed_title": "掃描失敗",
+      "failed_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。"
+    },
+    "results": {
+      "title": "掃描到的小區",
+      "description": "可依訊號排序、依電信業者篩選，並鎖定任一列。",
+      "filter_placeholder": "依電信業者篩選",
+      "columns": "欄位",
+      "previous": "上一頁",
+      "next": "下一頁",
+      "count_one": "{{count}} 個小區",
+      "count_other": "{{count}} 個小區",
+      "filtered_one": "{{total}} 個小區中的 {{count}} 個",
+      "filtered_other": "{{total}} 個小區中的 {{count}} 個",
+      "no_match_title": "沒有符合該篩選條件的小區",
+      "no_match_body": "清除電信業者篩選即可看到本次掃描的全部小區。",
+      "empty_title": "尚無小區",
+      "empty_body": "執行一次掃描，列出範圍內每個基地台及其頻段、頻點與訊號。",
+      "error_title": "掃描失敗",
+      "error_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。",
+      "error_retry": "重新掃描",
+      "note_lock": "鎖定某一列會立即把模組鎖定到該小區，直到你在基站鎖定中解除鎖定。",
+      "tally_rows_one": "1 列",
+      "tally_rows_other": "{{count}} 列",
+      "tally_good_one": "1 個良好",
+      "tally_good_other": "{{count}} 個良好",
+      "tally_fair_one": "1 個普通",
+      "tally_fair_other": "{{count}} 個普通",
+      "tally_poor_one": "1 個較弱",
+      "tally_poor_other": "{{count}} 個較弱",
+      "tally_none_one": "1 個未評級",
+      "tally_none_other": "{{count}} 個未評級"
+    },
+    "columns": {
+      "network": "制式",
+      "provider": "電信業者",
+      "band": "頻段",
+      "earfcn": "頻點",
+      "pci": "PCI",
+      "cell_id": "小區 ID",
+      "tac": "TAC",
+      "bandwidth": "頻寬",
+      "signal": "訊號"
+    },
+    "cells": {
+      "bandwidth": "{{value}} MHz",
+      "bandwidth_prb": "{{value}} PRB",
+      "signal": "{{value}} dBm"
+    },
+    "signal": {
+      "good": "良好",
+      "fair": "普通",
+      "poor": "較弱",
+      "none": "無資料"
+    },
+    "actions": {
+      "lock_cell": "鎖定到此小區",
+      "lock_other_network": "不是你的 SIM 所屬網路"
+    },
+    "a11y": {
+      "network_codes": "網路代碼",
+      "row_menu": "小區操作"
+    },
+    "lock": {
+      "title": "鎖定到小區 {{pci}}？",
+      "description": "模組將只駐留在此小區，在解除鎖定之前不會切換到訊號更強的小區。",
+      "target": "{{network}} · PCI {{pci}} · 頻點 {{earfcn}}",
+      "target_with_provider": "{{network}} · PCI {{pci}} · 頻點 {{earfcn}} · {{provider}}",
+      "confirm": "鎖定小區",
+      "cancel": "取消",
+      "locking": "鎖定中…"
+    },
+    "toast": {
+      "scan_complete_title": "掃描完成",
+      "scan_complete_desc_one": "找到 {{count}} 個小區",
+      "scan_complete_desc_other": "找到 {{count}} 個小區",
+      "poll_failed_title": "與模組失去聯繫",
+      "poll_failed_desc": "掃描可能仍在進行。重新整理頁面即可接手。",
+      "locked_title": "小區已鎖定",
+      "locked_desc": "已駐留在 {{network}} PCI {{pci}}，頻點 {{earfcn}}。",
+      "lock_failed_title": "鎖定失敗",
+      "lock_failed_unknown": "模組拒絕了此次鎖定。",
+      "lock_failed_network": "無法連線到模組。"
+    },
+    "error": {
+      "scan_failed": "掃描失敗",
+      "poll_lost": "掃描期間與模組失去聯繫。",
+      "start_failed": "模組無法啟動掃描。",
+      "start_unreachable": "無法連線到掃描服務。請確認模組正在回應。",
+      "other_scan_running": "鄰區讀取正在佔用模組。它幾秒鐘就會結束——屆時再重新開始掃描。",
+      "scan_vanished": "掃描結束了，但沒有回傳任何結果。請重新開始掃描。"
+    },
+    "neighbour": {
+      "page": {
+        "title": "鄰區",
+        "description": "讀取服務細胞已在追蹤的基地台，無需掃描任何頻段。"
+      },
+      "run": {
+        "title": "鄰區掃描",
+        "ledger": {
+          "figure_unit_one": "個鄰區",
+          "figure_unit_other": "個鄰區"
+        },
+        "description": "請求服務細胞已經追蹤的鄰區，無需掃描額外的頻段。",
+        "start": "讀取鄰區",
+        "rerun": "重新讀取",
+        "scanning_action": "讀取中…",
+        "link_sweep": "小區掃描",
+        "link_blocked": "本次讀取結束後可用。",
+        "summary_empty": "本次讀取結束時未列出任何鄰區，因此沒有可分析的內容。",
+        "idle_title": "尚未讀取",
+        "idle_body": "本頁載入後尚未讀取。讀取會列出服務細胞正在測量的鄰區。",
+        "scanning_title": "正在詢問服務細胞",
+        "scanning_body": "幾秒內即可完成。",
+        "complete_title": "讀取完成",
+        "failed_title": "讀取失敗",
+        "failed_body": "數據機可能忙碌或無法存取。請檢查連線後重新讀取。"
+      },
+      "results": {
+        "title": "鄰區回報",
+        "description": "依訊號排序、依通道篩選，可鎖定任一 LTE 列。",
+        "filter_placeholder": "依通道篩選",
+        "empty_title": "尚無鄰區",
+        "empty_body": "執行一次讀取，即可列出服務基地台正在測量的細胞及其通道與訊號。",
+        "error_title": "讀取失敗",
+        "error_retry": "重新讀取",
+        "note_channel_only": "僅以通道形式回報的鄰區背後沒有測量值，因此它不帶品質資訊，其鎖定操作維持停用。鎖定一個有測量值的 LTE 列會立即把模組鎖定到該小區，直到你在基站鎖定中解除鎖定。",
+        "tally_measured_one": "1 個有測量值",
+        "tally_measured_other": "{{count}} 個有測量值",
+        "tally_channel_only_one": "1 個僅通道",
+        "tally_channel_only_other": "{{count}} 個僅通道"
+      },
+      "columns": {
+        "cell_type": "關係",
+        "frequency": "通道",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "同頻",
+        "inter": "異頻",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "未回報",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "鎖定 — 僅限 LTE 細胞"
+      },
+      "toast": {
+        "complete_title": "讀取完成",
+        "complete_desc_one": "回報了 {{count}} 個鄰區",
+        "complete_desc_other": "回報了 {{count}} 個鄰區",
+        "poll_failed_title": "與數據機失去聯繫",
+        "poll_failed_desc": "讀取可能仍在進行。重新載入頁面即可繼續。"
+      },
+      "error": {
+        "failed": "讀取失敗",
+        "poll_lost": "讀取過程中與數據機失去聯繫。",
+        "start_failed": "數據機無法啟動讀取。",
+        "start_unreachable": "無法存取掃描器。請檢查數據機是否回應。",
+        "other_scan_running": "全頻段掃描正在佔用數據機。它最長需時三分鐘——等它結束後再讀取鄰區。",
+        "scan_vanished": "讀取結束了，但沒有回傳任何結果。請重新讀取。"
+      }
+    },
+    "calculator": {
+      "page": {
+        "title": "頻率計算器",
+        "description": "將 EARFCN 或 NR-ARFCN 換算為對應的頻率與工作頻段，適用於 LTE 與 5G NR。",
+        "sibling": "小區掃描"
+      },
+      "form": {
+        "title": "E/ARFCN 計算器",
+        "description": "輸入通道號碼，即可得到對應的頻率與頻段。",
+        "mode_auto": "自動",
+        "mode_lte": "LTE",
+        "mode_nr": "NR",
+        "label_auto": "E/ARFCN 值",
+        "label_lte": "E-ARFCN",
+        "label_nr": "NR-ARFCN",
+        "placeholder": "例如 1350 或 627264",
+        "submit": "計算"
+      },
+      "error": {
+        "empty": "請先輸入通道號碼——此欄位是空的。",
+        "not_a_number": "這不是數字。請輸入整數通道號碼，例如 1850。",
+        "no_band": "沒有頻段符合 {{value}}。請檢查數值，或不使用「自動」而直接選擇 LTE 或 NR。",
+        "unexpected": "計算失敗：{{message}}。請檢查數值後再試一次。",
+        "negative": "通道號碼從 0 開始。請輸入正數。",
+        "auto_gap": "自動無法定位 {{value}}——{{low}} 與 {{high}} 之間沒有定義任何頻段。選擇 LTE 或 NR 即可強制計算。"
+      },
+      "result": {
+        "title": "計算結果",
+        "network_type": "網路類型",
+        "earfcn": "EARFCN",
+        "nrarfcn": "NR-ARFCN",
+        "frequency": "頻率",
+        "bands_title": "可能的工作頻段",
+        "band_lte": "頻段 {{band}}",
+        "band_nr": "n{{band}}",
+        "downlink": "下行",
+        "uplink": "上行",
+        "range_mhz_label": "範圍",
+        "in_band": "頻段內位置",
+        "of_range": "範圍 {{low}} – {{high}}",
+        "tdd_uplink": "上行與下行共用同一載波（TDD）。",
+        "sdl_uplink": "僅下行。此頻段不承載上行。",
+        "position_aria": "位於頻段的 {{pct}}% 處",
+        "method": "依據 {{spec}} 計算。",
+        "bands_description": "通道範圍包含此數值的所有頻段。",
+        "bands_empty_title": "尚無頻段",
+        "bands_empty_body": "計算一個通道號碼，能夠承載它的頻段就會列在這裡。",
+        "bands_agree_one": "有 {{count}} 個頻段符合此通道。",
+        "bands_agree_other": "有 {{count}} 個頻段共用此通道號碼，且雙工模式一致，因此上方的上行資訊對它們都適用。",
+        "bands_conflict_one": "有 {{count}} 個頻段符合此通道。",
+        "bands_conflict_other": "有 {{count}} 個頻段共用此通道號碼，但雙工模式不一致——上行會因網路實際使用的頻段而異。"
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "range_mhz": "{{low}} – {{high}} MHz",
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
+      },
+      "history": {
+        "title": "計算紀錄",
+        "description": "最近十次計算，儲存在這個瀏覽器中。",
+        "clear": "清除",
+        "empty_title": "尚無計算紀錄",
+        "empty_body": "計算一個通道號碼後就會顯示在這裡，方便比較而不必重新輸入。",
+        "band_lte": "B{{band}}",
+        "band_nr": "n{{band}}",
+        "no_timestamp": "無時間戳記",
+        "time_now": "剛剛",
+        "time_minutes_one": "{{count}} 分鐘前",
+        "time_minutes_other": "{{count}} 分鐘前",
+        "time_hours_one": "{{count}} 小時前",
+        "time_hours_other": "{{count}} 小時前",
+        "time_yesterday": "昨天",
+        "time_days_one": "{{count}} 天前",
+        "time_days_other": "{{count}} 天前"
+      },
+      "a11y": {
+        "delete_entry": "刪除這筆紀錄",
+        "recall_entry": "重新載入 {{value}}"
+      },
+      "readout": {
+        "idle_title": "尚無通道",
+        "idle_body": "其頻率與頻段會顯示在這裡。",
+        "failed_title": "沒有可顯示的內容",
+        "failed_body": "修正通道號碼後再計算一次。",
+        "channel_lte": "EARFCN {{value}} · 下行",
+        "channel_nr": "NR-ARFCN {{value}} · 下行",
+        "several_bands_one": "有 {{count}} 個頻段可以承載此通道。",
+        "several_bands_other": "有 {{count}} 個頻段可以承載此通道。"
+      }
+    }
+  },
   "core_settings": {
     "apn": {
       "page": {
@@ -11,13 +640,10 @@
         "title": "APN 設定",
         "description": "數據機用於建立資料連線的存取點名稱。"
       },
-      "status": {
-        "active": "已啟用",
-        "not_live": "未生效",
-        "carrier_default": "電信商預設",
-        "network_using": "網路正在使用：{{apn}}"
+      "cards": {
+        "unread": "尚未從數據機讀取到任何資料，因此此卡片沒有可顯示的值。"
       },
-      "save_connection_notice": "儲存時數據機重新連線期間蜂窩連線會短暫中斷。",
+      "save_connection_notice": "儲存會讓數據機中斷並重新附著網路。行動數據會中斷約四秒——如果你是透過數據機的乙太網路埠連線的，此頁面也會隨之中斷，並會自動重新連線。",
       "carrier_default": {
         "button": "使用電信商預設",
         "dialog": {
@@ -31,21 +657,24 @@
         "saved": "APN 設定已儲存",
         "save_error": "儲存 APN 設定失敗",
         "deactivated": "已還原至電信商預設 APN",
-        "deactivate_error": "還原至電信商預設失敗"
+        "deactivate_error": "還原至電信商預設失敗",
+        "reconciling": "正在確認連線是否已恢復…",
+        "saved_not_persisted": "APN 已套用，但無法儲存，重新開機後可能失效。",
+        "deactivated_not_persisted": "已還原至電信商預設 APN，但無法儲存此變更。"
       },
       "controls_label": "APN 配置",
       "managed_by_profile_fallback": "活動的自訂 SIM 設定",
-      "list": {
-        "live": {
-          "mismatch_default": "網路正在使用運營商預設值"
-        }
-      },
       "edit": {
         "fields": {
           "apn": {
             "label": "APN *",
             "placeholder": "fast.t-mobile.com",
-            "error_required": "APN 為必填項"
+            "error_required": "APN 為必填項",
+            "presets": {
+              "trigger": "顯示建議的 APN",
+              "group_network": "適用於此 SIM 卡",
+              "group_mvno": "此網路上的其他品牌"
+            }
           },
           "pdp_type": {
             "label": "PDP 型別",
@@ -74,51 +703,1971 @@
           "confirm": "仍然使用",
           "cancel": "取消"
         },
-        "save_button": "儲存設定檔"
+        "reserved_dialog": {
+          "unverified_body": "該上下文通常保留用於 VoLTE 或緊急呼叫，但數據機未回報它的類型。在此寫入資料 APN 可能會中斷這些服務。"
+        }
+      },
+      "rows": {
+        "apn": {
+          "label": "APN 名稱",
+          "consequence": "此值由電信業者決定。如果不確定，請交由業者設定。"
+        },
+        "pdp_type": {
+          "label": "IP 通訊協定",
+          "consequence": "IPv4v6 幾乎在任何網路下都適用。只有業者要求時才固定單一通訊協定族。"
+        },
+        "cid": {
+          "label": "資料內容",
+          "consequence": "APN 將寫入哪個 PDP 內容。寫入保留內容時會要求確認。"
+        }
+      },
+      "save_apn": "儲存 APN",
+      "cid_in_use": "CID {{cid}} 正用於網際網路",
+      "cid_unknown": "未回報網際網路內容",
+      "readout": {
+        "title": "網路授予的內容",
+        "description": "即時讀取自數據機，而非已儲存的設定。",
+        "granted_ip": "已授予的 IP",
+        "bearer_state": "承載狀態",
+        "ipv4": "IPv4 位址",
+        "ipv6": "IPv6 位址",
+        "attached": "已附著",
+        "not_attached": "未附著",
+        "ip_v4_only": "僅 IPv4",
+        "ip_v6_only": "僅 IPv6",
+        "ip_both": "IPv4 與 IPv6",
+        "ip_none": "未指派",
+        "error_title": "無法取得即時狀態",
+        "error_body": "數據機狀態來源未回應。下方的值可能缺失。",
+        "configured_label": "你設定的",
+        "granted_label": "網路授予的",
+        "source_stored": "來自已儲存的設定",
+        "source_negotiated": "與網路協商的結果",
+        "stale": "讀數已停止更新",
+        "stale_body": "數據機狀態來源近期沒有更新。上方的值可能已經不再準確。",
+        "reread": "從數據機重新讀取",
+        "mode_label": "模式",
+        "custom": "自訂 APN",
+        "context_label": "數據內容",
+        "not_connected": "未連線",
+        "matches": "與已儲存的 APN 一致",
+        "not_live_note": "網路正在使用的 APN 與已儲存的不同。"
+      },
+      "mbn": {
+        "title": "電信業者設定檔 (MBN)",
+        "description": "為每家電信業者設定 APN、IMS 與頻段預設值的韌體套件。",
+        "auto": {
+          "label": "自動選擇",
+          "consequence": "數據機會依 SIM 卡自動選擇套件。關閉後可自行指定。"
+        },
+        "list_label": "可用套件",
+        "selected_caption": "已選擇，自上次開機起生效",
+        "pending_note": "變更將在重新開機後生效。",
+        "save": "套用設定檔",
+        "empty": {
+          "title": "未回報任何套件",
+          "body": "此韌體未回傳電信業者設定檔清單。目前只能使用自動選擇。"
+        },
+        "error_title": "載入電信業者設定檔失敗",
+        "toast": {
+          "error": "套用電信業者設定檔失敗",
+          "auto_enabled": "已啟用自動選擇 — 需要重新開機",
+          "auto_disabled": "已停用自動選擇 — 需要重新開機",
+          "profile_applied": "電信業者設定檔已套用 — 需要重新開機",
+          "reboot_error": "重新開機失敗 — 請手動重新啟動裝置"
+        },
+        "reboot": {
+          "title": "需要重新開機",
+          "description": "電信業者設定檔變更需重新開機後生效。現在重新開機嗎？",
+          "later": "稍後重新開機",
+          "now": "立即重新開機",
+          "rebooting": "正在重新開機…"
+        },
+        "errors": {
+          "load_failed": "數據機未回傳電信業者設定檔，請稍後再試。",
+          "save_failed": "無法套用電信業者設定檔設定。",
+          "autosel_failed": "數據機未接受自動選擇的變更。",
+          "deactivate_failed": "數據機無法釋放目前的電信業者設定檔。",
+          "select_failed": "數據機未接受該電信業者設定檔。"
+        }
+      },
+      "status": {
+        "carrier_default": "電信商預設",
+        "network_using_label": "網路正在使用",
+        "not_live": "未生效"
+      },
+      "errors": {
+        "load_failed": "數據機未回傳 APN 設定，請稍後再試。",
+        "save_failed": "無法儲存 APN。",
+        "deactivate_failed": "無法切換到電信業者預設 APN。"
+      }
+    },
+    "basic": {
+      "page": {
+        "title": "蜂窩基本設定",
+        "description": "變更數據機使用 SIM 卡、射頻以及連線網路的方式。",
+        "error_title": "無法讀取數據機",
+        "error_body": "顯示的值可能已過時。",
+        "retry": "重試"
+      },
+      "sim_card": {
+        "title": "SIM 卡與射頻電源",
+        "description": "數據機使用哪張 SIM 卡，以及射頻是否供電。"
+      },
+      "network_card": {
+        "title": "網路模式與漫遊",
+        "description": "數據機如何選擇要連線的網路。"
+      },
+      "cards": {
+        "unread": "尚未從數據機讀取到任何資料，因此這裡暫時沒有可變更的設定。"
+      },
+      "rows": {
+        "sim_slot": {
+          "label": "SIM 卡插槽",
+          "consequence": "切換插槽會中斷連線約 15 秒。",
+          "options": {
+            "slot_1": "SIM 1",
+            "slot_2": "SIM 2"
+          }
+        },
+        "cfun": {
+          "label": "射頻電源",
+          "consequence": "關閉射頻同時會切斷 SIM 卡供電，飛航模式則仍為 SIM 卡供電，兩種情況下主控台都仍可透過 Ethernet 存取。",
+          "options": {
+            "normal": "正常",
+            "radio_off": "關閉射頻",
+            "airplane": "飛航模式"
+          }
+        },
+        "mode_pref": {
+          "label": "偏好網路類型",
+          "consequence": "僅在排查問題時才固定某一種技術。",
+          "options": {
+            "auto": "自動",
+            "lte_nr": "LTE + 5G",
+            "nr_only": "僅 5G",
+            "lte_only": "僅 LTE"
+          }
+        },
+        "nr5g_mode": {
+          "label": "5G 架構",
+          "consequence": "除非電信商要求獨立組網（5G 獨立運作）或非獨立組網（5G 錨定至 LTE），否則請保持自動。",
+          "options": {
+            "auto": "自動",
+            "nsa": "僅 NSA",
+            "sa": "僅 SA"
+          }
+        },
+        "roam_pref": {
+          "label": "漫遊偏好",
+          "consequence": "合作網路可能單獨計費。",
+          "options": {
+            "any": "任意網路",
+            "home": "僅歸屬網路",
+            "partner": "合作網路"
+          }
+        },
+        "sim_detect": {
+          "label": "SIM 卡熱插拔偵測",
+          "consequence": "未啟用時，更換過的 SIM 卡要到下次重新啟動才會被發現。",
+          "on": "開啟",
+          "off": "關閉"
+        }
+      },
+      "save_bar": {
+        "count_one": "{{count}} 項變更待套用",
+        "count_other": "{{count}} 項變更待套用",
+        "note": "套用時連線會短暫中斷。數據機不會重新啟動。",
+        "discard": "捨棄",
+        "save": "儲存設定",
+        "failed": "無法套用 {{fields}}。您的其他變更已儲存。"
+      },
+      "toast": {
+        "saved": "設定已套用。",
+        "save_failed": "無法套用您的設定。"
+      },
+      "apply": {
+        "writing": "正在寫入數據機",
+        "recovering": "正在等待射頻穩定",
+        "verifying": "正在確認數據機已套用的設定"
+      },
+      "footer": {
+        "refresh": "重新整理"
+      },
+      "strip": {
+        "label": "即時狀態",
+        "stale": "已過時",
+        "network": "網路",
+        "sim": "SIM 卡",
+        "aggregation": "載波聚合",
+        "data_path": "資料通道",
+        "carrier_none": "未回報電信業者",
+        "bands_none": "未回報頻段",
+        "ip_dual": "已指派 IPv4 與 IPv6",
+        "ip_v4": "僅 IPv4",
+        "ip_v6": "僅 IPv6",
+        "ip_none": "未指派位址",
+        "unavailable_title": "無法讀取數據機",
+        "unavailable_retrying": "上次讀取失敗。QManager 仍在重試。"
+      },
+      "rate_ceiling": {
+        "eyebrow": "網路授予的速率上限",
+        "in_force": "{{radio}} AMBR 生效中",
+        "no_ceiling": "未讀到上限",
+        "sr_rate_block": "{{radio}}：{{state}}",
+        "provenance": "速率上限是網路授予的上限值，不是實測速度。它們在頁面開啟時讀取，每次儲存後再讀取一次。",
+        "unavailable": "上次讀取失敗。請使用下方的「從數據機重新讀取」再試一次。"
+      },
+      "readout": {
+        "slot_n": "SIM {{slot}}",
+        "unknown": "未知",
+        "no_apn": "未回報",
+        "ca_none": "未啟用",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
+      },
+      "sim_status": {
+        "ready": "就緒",
+        "pin_required": "需要 PIN",
+        "puk_required": "需要 PUK",
+        "not_inserted": "無 SIM 卡",
+        "error": "錯誤",
+        "unknown": "未知"
+      },
+      "sim_slots": {
+        "empty": "空",
+        "sr_active": "SIM {{slot}}，使用中，卡號末四碼 {{last4}}",
+        "sr_standby": "SIM {{slot}}，備用，卡號末四碼 {{last4}}",
+        "sr_empty": "SIM {{slot}}，未偵測到卡片"
+      },
+      "ambr": {
+        "lte_heading": "LTE 速率上限",
+        "nr_heading": "5G 速率上限",
+        "governing": "生效中",
+        "not_governing": "未生效",
+        "nsa_note": "5G 非獨立組網走 LTE 資料工作階段，因此以這條上限為準。",
+        "lte_empty_reason": "數據機僅在 LTE 資料工作階段建立期間才發布 LTE 上限。",
+        "nr_empty_reason": "數據機僅在 5G 資料工作階段建立期間才發布 5G 上限。",
+        "download": "下載",
+        "upload": "上傳",
+        "governing_unread": "您的連線正在使用此射頻。開啟本頁時未讀到它的上限。",
+        "lte_short": "LTE",
+        "nr_short": "5G NR"
+      }
+    },
+    "fplmn": {
+      "page": {
+        "title": "被封鎖的網路",
+        "description": "SIM 卡會保存曾經拒絕過本裝置的網路清單。清除該清單可以恢復連線並改善漫遊。",
+        "note": "清除操作寫入的是 SIM 卡而非數據機，並且不會重新啟動任何裝置。如果某個網路再次拒絕本裝置，該清單會重新產生。"
+      },
+      "card": {
+        "title": "禁用網路清單",
+        "description": "每次開啟本頁面時，QManager 都會直接從 SIM 卡讀取該清單。",
+        "learn_more": "瞭解更多"
+      },
+      "states": {
+        "loading": {
+          "title": "正在檢查 SIM 卡",
+          "description": "正在讀取卡片上儲存的禁用網路清單。"
+        },
+        "clean": {
+          "title": "沒有被封鎖的網路",
+          "description": "SIM 卡的禁用清單為空，無需任何操作。"
+        },
+        "entries": {
+          "title": "發現被封鎖的網路",
+          "description": "SIM 卡正在拒絕一個或多個網路，這可能導致數據機無法註冊。建議清除該清單。"
+        },
+        "error": {
+          "title": "無法檢查 SIM 卡"
+        },
+        "unknown": {
+          "title": "狀態未知",
+          "description": "QManager 無法確定此 SIM 卡是否存在被封鎖的網路。未做任何變更，請重試讀取。"
+        }
+      },
+      "actions": {
+        "refresh": "重新整理狀態",
+        "clear": "清除被封鎖的網路",
+        "clearing": "正在清除…"
+      },
+      "confirm": {
+        "title": "要清除被封鎖的網路清單嗎？",
+        "description": "此操作將清除儲存在 SIM 卡上的禁用網路清單，且無法復原。裝置不會重新啟動，數據機保持連線。如果某個網路再次拒絕本裝置，該清單會重新產生。",
+        "confirm": "清除清單"
+      },
+      "toast": {
+        "cleared": "已清除被封鎖的網路",
+        "clear_failed": "無法清除被封鎖的網路"
+      },
+      "errors": {
+        "read_failed": "裝置無法讀取 SIM 卡的禁用網路清單。",
+        "unreachable": "無法連線到裝置。"
+      }
+    },
+    "imei": {
+      "page": {
+        "title": "IMEI 設定",
+        "description": "檢視、寫入並驗證數據機向網路出示的識別碼。",
+        "error_title": "無法讀取 IMEI 設定",
+        "error_body": "數據機沒有回應：{{detail}}"
+      },
+      "legal": {
+        "title": "多數國家對修改 IMEI 有法律限制",
+        "body": "在許多司法管轄區，寫入不屬於自己的識別碼屬於違法行為。修改本頁任何內容前，請先了解當地法律。"
+      },
+      "reboot": {
+        "banner": {
+          "title": "需要重新啟動才能套用新的 IMEI",
+          "description": "識別碼已寫入。在重新啟動之前，數據機仍會出示原本的 IMEI。",
+          "review": "檢視",
+          "reboot": "重新啟動"
+        },
+        "dialog": {
+          "title": "重新啟動以套用新的 IMEI",
+          "description": "IMEI 已儲存，但在重新啟動之前數據機仍會出示原本的 IMEI。重新啟動會中斷連線約一分鐘。",
+          "now": "立即重新啟動",
+          "later": "稍後重新啟動"
+        },
+        "toast_failed": "無法啟動重新啟動。重新啟動仍處於待處理狀態，可以從橫幅中重試。"
+      },
+      "device": {
+        "title": "裝置 IMEI",
+        "description": "數據機目前回報的值，以及下次開機後將回報的值。",
+        "rows": {
+          "write": {
+            "label": "寫入新 IMEI",
+            "consequence": "15 位數字。僅在重新啟動後生效。",
+            "placeholder": "15 位數字"
+          }
+        },
+        "errors": {
+          "length": "IMEI 必須正好是 15 位數字，您已輸入 {{entered}} 位。",
+          "luhn": "這 15 位數字未通過檢查碼檢驗，網路會拒絕該號碼。請修改最後一位，或在「IMEI 工具」中產生一個有效號碼。"
+        },
+        "status": {
+          "empty": "沒有可寫入的內容，輸入欄為空。",
+          "unchanged": "這已經是數據機上的 IMEI。",
+          "ready": "可以寫入。在重新啟動之前，數據機仍保持目前身分。",
+          "unchanged_tip_label": "關於勾選標記"
+        },
+        "actions": {
+          "write": "寫入 IMEI",
+          "reset": "還原為數據機上的 IMEI",
+          "reset_short": "重置"
+        },
+        "toasts": {
+          "saved": "IMEI 已寫入，將在下次重新啟動後生效。",
+          "failed": "數據機未接受該 IMEI。",
+          "copied": "IMEI 已複製。",
+          "copy_failed": "無法複製 IMEI。"
+        }
+      },
+      "backup": {
+        "title": "備用 IMEI",
+        "description": "第二個識別碼；當韌體事件導致主 IMEI 失效時，裝置會自動改用它。",
+        "rows": {
+          "keep": {
+            "label": "保留備用 IMEI",
+            "consequence_off": "已關閉。未儲存任何備用識別碼。",
+            "consequence_on": "已開啟。若主 IMEI 被拒絕，裝置將改用 {{imei}}。"
+          },
+          "value": {
+            "label": "備用識別碼",
+            "consequence": "15 位數字。僅在主 IMEI 被拒絕時使用。",
+            "placeholder": "15 位數字"
+          }
+        },
+        "errors": {
+          "length": "IMEI 必須正好是 15 位數字，您已輸入 {{entered}} 位。",
+          "luhn": "這 15 位數字未通過檢查碼檢驗，網路同樣會拒絕該備用號碼。請修改最後一位，或在「IMEI 工具」中產生一個有效號碼。"
+        },
+        "actions": {
+          "save": "儲存備用設定",
+          "reset": "還原為已儲存的備用設定"
+        },
+        "toasts": {
+          "saved": "備用設定已儲存。",
+          "failed": "無法儲存備用設定。"
+        },
+        "dialog": {
+          "title": "關於備用還原",
+          "description": "儲存備用 IMEI 後，裝置會在每次重新啟動後檢查網路是否拒絕了目前 IMEI。若被拒絕，裝置會自動切換到備用識別碼並再次重新啟動。",
+          "confirm": "保留備用 IMEI"
+        }
+      },
+      "tools": {
+        "title": "IMEI 工具",
+        "description": "依型號分配碼產生符合 Luhn 檢驗的號碼，或檢驗既有的號碼。",
+        "generate": {
+          "tac_label": "型號分配碼",
+          "tac_consequence": "前八位數字，用於表明該號碼所宣稱的機型。",
+          "tac_placeholder": "選擇機型",
+          "custom": "自訂代碼",
+          "prefix_label": "前置碼",
+          "prefix_consequence": "8 至 12 位數字。其餘部分會自動補齊。",
+          "prefix_placeholder": "8–12 位數字",
+          "prefix_error": "前置碼應為 8 至 12 位數字，您已輸入 {{entered}} 位。",
+          "action": "產生"
+        },
+        "check": {
+          "label": "檢驗號碼",
+          "placeholder": "貼上或產生 15 位數字",
+          "valid": "Luhn 檢驗通過",
+          "invalid": "Luhn 檢驗失敗",
+          "empty": "輸入 15 位數字即可查看該號碼的組成。",
+          "lookup": "線上查詢"
+        },
+        "actions": {
+          "copy": "複製該號碼"
+        },
+        "toasts": {
+          "copied": "號碼已複製。",
+          "copy_failed": "無法複製該號碼。"
+        },
+        "breakdown": {
+          "tac": "TAC",
+          "serial": "序號",
+          "check": "檢查碼"
+        },
+        "footnote": "結構有效並不代表你有權使用該號碼。此處的內容不會寫入數據機。"
+      }
+    },
+    "network_priority": {
+      "page": {
+        "title": "網路優先順序",
+        "description": "數據機註冊網路時嘗試各種無線技術的順序。"
+      },
+      "card": {
+        "title": "搜網順序",
+        "description": "拖曳即可調整順序。儲存後數據機會重新註冊網路，連線會中斷幾秒鐘。"
+      },
+      "rats": {
+        "NR5G": "5G NR",
+        "LTE": "LTE",
+        "WCDMA": "WCDMA"
+      },
+      "hints": {
+        "WCDMA": "此技術的資料速率會大幅下降。"
+      },
+      "position": {
+        "first": "最先嘗試。若此處沒有基地台回應，會自動回退。",
+        "middle": "當上方技術均無法註冊時，接著嘗試。",
+        "last": "最後的備用選擇。僅當上方技術均無法註冊時才使用。",
+        "only": "數據機唯一會嘗試的技術。"
+      },
+      "serving_now": "目前使用中",
+      "handle_aria": "重新排序 {{name}}，目前第 {{rank}} 項，共 {{total}} 項",
+      "save_bar": {
+        "count_one": "有 {{count}} 項變更待儲存",
+        "count_other": "有 {{count}} 項變更待儲存",
+        "note": "儲存後數據機會重新註冊網路，預計約 3 秒無資料連線。",
+        "discard": "捨棄變更",
+        "save": "儲存優先順序"
+      },
+      "apply": {
+        "writing": "正在寫入新順序",
+        "recovering": "正在重新註冊網路",
+        "verifying": "正在讀回順序"
+      },
+      "states": {
+        "error": {
+          "title": "無法讀取優先順序",
+          "description": "數據機未回應搜網順序查詢。它可能正忙，請稍後重試。"
+        },
+        "empty": {
+          "title": "未回報任何無線技術",
+          "description": "數據機回傳的搜網順序為空，因此沒有可排序的項目。請重新讀取，或確認射頻是否已開啟。"
+        }
+      },
+      "toast": {
+        "saved": "網路優先順序已更新",
+        "save_error": "無法設定網路優先順序"
       }
     }
   },
   "custom_profiles": {
-    "form": {
-      "fields": {
-        "mno_custom": "自訂"
+    "suggestions": {
+      "badge": "推薦",
+      "create": "建立",
+      "creating": "建立中",
+      "create_aria": "建立 {{name}} 設定檔",
+      "rationale_bands": "頻段鎖定會讓數據機保持在電信業者的主要 5G 頻段上，通常可以提升穩定性。但在只有其他頻段涵蓋的地方，也可能縮小收訊範圍。數據機未回報支援的頻段會被排除，停用設定檔即可解除鎖定。",
+      "rationale_ttl": "TTL 與躍點限制設為 64，讓數據機後方裝置的流量與數據機自身流量具有相同數值。停用此設定檔會還原先前的數值。"
+    },
+    "page": {
+      "title": "自訂 SIM 設定檔",
+      "description": "設定檔承載身分資訊：APN、TTL 與躍點限制，以及選用的 IMEI。它會繫結一個連線場景，由該場景掌管無線電。啟用設定檔會重新設定執行中的數據機。",
+      "new_profile": "新增設定檔",
+      "new_scenario": "新增場景"
+    },
+    "hero": {
+      "eyebrow": "目前生效",
+      "iccid": "ICCID {{value}}",
+      "edit": "編輯",
+      "deactivate": "停用",
+      "reapply": "重新套用設定檔",
+      "notice": {
+        "unknown_step": "未知",
+        "applying_title": "正在套用 {{name}}",
+        "applying_body": "第 {{step}} 步，共 {{total}} 步。射頻重新附著時連線可能會短暫中斷。",
+        "partial_title": "僅部分套用",
+        "partial_body": "步驟 {{step}} 未生效，維持原狀。模組回報：",
+        "mismatch_title": "插入了另一張 SIM 卡",
+        "mismatch_body": "這不是此設定檔儲存時對應的 SIM 卡。其 APN 與 TTL 仍在生效 — 請更新此設定檔，或啟用與之相符的設定檔。"
       },
-      "mno_hint": "您可以在此處選擇預配置的行動網路運營商。",
-      "default_scenario_label": "預設場景",
-      "default_scenario_hint": "在沒有任何計劃時段處於活動狀態時執行。",
-      "schedule_inline_label": "基於時間的計劃",
-      "schedule_inline_hint": "在最多兩個每日時段內切換場景。",
-      "windows_empty": "尚無時段。新增一個以在設定時間切換場景。",
-      "windows_count": "{{max}} 個時段中的 {{count}} 個",
-      "add_window": "新增時段",
+      "tiles": {
+        "identity": "身分",
+        "imei_override": "IMEI 覆寫",
+        "scenario": "生效中的場景",
+        "scheduled": "已排定計劃",
+        "not_scheduled": "未排程",
+        "radio": "無線電設定",
+        "band_locking": "頻段鎖定",
+        "network_mode": "網路模式",
+        "lte_bands": "LTE 頻段",
+        "nr_bands": "NR 頻段",
+        "bands_auto": "全部頻段"
+      },
       "scenario": {
-        "deleted_scenario": "（已刪除的場景）",
-        "create_new": "建立新場景",
+        "unknown": "未知場景",
+        "next_change": "{{name}} 將於 {{time}} 接手"
+      },
+      "ribbon": {
+        "title": "今日計劃",
+        "edit": "編輯計劃",
+        "unknown_scenario": "未知場景",
+        "aria_label": "今日場景計劃：{{schedule}}",
+        "aria_segment": "{{name}} 至 {{end}}",
+        "aria_join": "，接著",
+        "aria_empty": "今日沒有場景計劃"
+      },
+      "badge": {
+        "live": "已生效",
+        "applying": "套用中",
+        "partial": "部分套用",
+        "mismatch": "SIM 卡不相符"
+      }
+    },
+    "hero_empty": {
+      "title": "沒有啟用中的設定檔",
+      "description": "數據機正在使用原廠 APN 與預設連線場景。儲存一個設定檔，即可為此 SIM 卡固定 APN、TTL 與場景計劃。",
+      "description_saved": "目前沒有任何設定檔生效。啟用下方任一已儲存的設定檔，即可恢復已知的身分識別與已知的無線行為。",
+      "activate_action": "啟用設定檔"
+    },
+    "hero_error": {
+      "title": "無法載入設定檔詳情",
+      "description": "該設定檔仍處於啟用狀態，只是其詳情未能載入。數據機未被變更——這僅是顯示問題。",
+      "retry": "重試"
+    },
+    "view": {
+      "title": "已儲存的設定檔",
+      "description": "管理您的自訂 SIM 設定檔。",
+      "count_one": "已儲存 {{count}} 個設定檔",
+      "count_other": "已儲存 {{count}} 個設定檔",
+      "subtitle": "在此裝置上啟用、編輯或移除蜂窩設定檔。",
+      "none_saved_yet": "尚未儲存任何設定檔。可從下方的建議開始，或自行建立。",
+      "activating": "正在啟用",
+      "scenario_always_on": "{{scenario}}，始終啟用",
+      "delete_description": "此操作將從裝置中移除該設定檔。繫結到它的任何計劃都將被清除。此操作無法撤銷。",
+      "delete_keep": "保留設定檔",
+      "mismatch_note": "modem 中的 SIM 卡與此設定檔的 ICCID 不匹配。在插入匹配的 SIM 卡之前，裝置將保持當前設定。",
+      "toast": {
+        "deactivated": "已停用 {{name}}",
+        "deactivate_error": "停用設定檔失敗",
+        "deleted": "已刪除 {{name}}",
+        "delete_error": "刪除設定檔失敗",
+        "activated": "{{name}} 已啟用",
+        "activated_partial": "{{name}} 已啟用，部分步驟已略過",
+        "activate_error": "無法啟用設定。"
+      },
+      "delete_title": "刪除“{{name}}”？",
+      "row_menu_aria": "{{name}} 的操作",
+      "reapply": "重新套用設定檔",
+      "mismatch_confirm": {
+        "title": "將「{{name}}」套用到此 SIM 卡？",
+        "description": "此設定檔綁定到另一張 SIM 卡。其設定將立即套用到數據機中的 SIM 卡，並在下次重新啟動或更換 SIM 卡時關閉。",
+        "confirm": "套用到此 SIM 卡"
+      },
+      "scenario_scheduled": "{{scenario}}，按每日計劃"
+    },
+    "table": {
+      "headers": {
+        "profile": "設定檔",
+        "status": "狀態",
+        "actions": ""
+      },
+      "status_badge": {
+        "active": "活動",
+        "inactive": "未啟用",
+        "sim_mismatch": "SIM 不匹配"
+      },
+      "pagination": {
+        "total_one": "共 {{count}} 個設定檔",
+        "total_other": "共 {{count}} 個設定檔",
+        "previous": "上一頁",
+        "next": "下一頁"
+      },
+      "empty_row": "暫無設定檔，請建立一個以開始使用。",
+      "actions_menu": {
+        "open_menu": "開啟選單",
+        "edit": "編輯",
+        "activate": "啟用",
+        "deactivate": "停用",
+        "delete": "刪除"
+      },
+      "delete_confirm": {
+        "title": "刪除設定檔",
+        "description": "確定要刪除「{{name}}」嗎？此操作不可撤銷。刪除此設定檔不會變更當前調變解調器設定。",
+        "confirm_button": "刪除",
+        "deleting": "刪除中…"
+      }
+    },
+    "form": {
+      "create_title": "建立自訂 SIM 設定檔",
+      "create_description": "使用特定的 APN、TTL 和 IMEI 設定建立自訂 SIM 設定檔。",
+      "edit_title": "編輯設定檔",
+      "edit_description": "正在編輯「{{name}}」。請更新以下欄位。",
+      "load_current_button": "載入當前 SIM",
+      "fields": {
+        "profile_name_label": "設定檔名稱",
+        "profile_name_placeholder": "我的 LTE 設定檔",
+        "profile_name_required": "設定檔名稱為必填項。",
+        "sim_iccid_required": "SIM ICCID 為必填項。",
+        "sim_iccid_duplicate": "已存在使用此 SIM ICCID 的設定檔。",
+        "apn_name_required": "APN 名稱為必填項。",
+        "sim_iccid_label": "SIM ICCID",
+        "sim_iccid_placeholder": "自動從當前 SIM 填充",
+        "mno_label": "行動網路運營商",
+        "mno_placeholder": "選擇運營商…",
+        "mno_custom": "自訂",
+        "reuse_apn_label": "APN 配置",
+        "reuse_apn_placeholder": "選擇已儲存的 APN…",
+        "reuse_apn_custom": "自訂",
+        "use_saved_apn": "使用我已儲存的 APN（{{apn}}）",
+        "apn_name_label": "APN 名稱",
+        "apn_name_placeholder": "internet",
+        "ip_protocol_label": "IP 協議",
+        "ip_protocol_ipv4": "僅 IPv4",
+        "ip_protocol_ipv6": "僅 IPv6",
+        "ip_protocol_dual": "IPv4 + IPv6 (雙棧)",
+        "cid_label": "設定檔槽位 (CID)",
+        "cid_error": "CID 必須為 1–15。",
+        "imei_label": "首選 IMEI",
+        "imei_placeholder": "留空以保留當前 IMEI",
+        "imei_error": "IMEI 必須為 15 位數字。",
+        "ttl_label": "TTL 值",
+        "ttl_error": "TTL 必須為 0–255。",
+        "hl_label": "跳數限制",
+        "hl_error": "HL 必須為 0–255。",
+        "sim_iccid_hint": "留空可將此配置套用於任意 SIM 卡。",
+        "imei_danger": "更改 IMEI 會重寫數據機標識，並在啟用時重啟數據機。留空以保留當前 IMEI。"
+      },
+      "buttons": {
+        "create_submit": "建立設定檔",
+        "update_submit": "更新設定檔",
+        "reset": "重置",
+        "back": "上一步",
+        "next": "下一步"
+      },
+      "toast": {
+        "create_success": "設定檔建立成功。",
+        "create_error": "建立設定檔失敗。",
+        "update_success": "設定檔更新成功。",
+        "update_error": "更新設定檔失敗。"
+      },
+      "scenario": {
+        "section_title": "場景",
+        "section_description": "將此配置繫結到連線場景，啟用時自動套用。可選擇按時段配置不同場景的定時切換。",
+        "default_label": "預設場景",
+        "default_hint": "啟用此配置時套用，並用作未被以下計劃覆蓋的時段的回退場景。",
+        "schedule_toggle_label": "按時段計劃",
+        "schedule_toggle_hint": "按每日時間表自動切換場景。",
+        "add_block": "新增時段",
+        "remove_block_aria": "刪除時段",
+        "block_label": "時段 {{index}}",
         "start_label": "開始",
         "end_label": "結束",
         "block_scenario_label": "場景",
+        "otherwise_label": "其他時間",
+        "entries_cap_hint": "最多 {{max}} 個時段。請先刪除一個再新增。",
+        "empty_schedule_hint": "暫無時段 — 效果與直接使用 {{name}} 相同。",
         "overlap_warning": "此時段與另一個時段重疊。重疊時，列表靠前的時段優先生效。",
-        "overnight_hint": "次日結束",
-        "summary_line": "{{time}} → {{scenario}}",
-        "time_range": "{{start}}–{{end}}",
-        "move_up_aria": "上移時段",
-        "move_down_aria": "下移時段",
-        "expand_rule_aria": "編輯時段",
-        "remove_block_aria": "刪除時段",
-        "block_label": "時段 {{index}}",
         "schedule_invalid": "請先修正高亮顯示的計劃時段再儲存。",
+        "deleted_scenario": "（已刪除的場景）",
         "block_errors": {
           "invalid_start": "請輸入有效的開始時間（HH:MM）。",
           "invalid_end": "請輸入有效的結束時間（HH:MM）。",
           "zero_length": "開始時間和結束時間不能相同。",
           "no_days": "請至少選擇一天。"
-        }
+        },
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "上移時段",
+        "move_down_aria": "下移時段",
+        "expand_rule_aria": "編輯時段",
+        "overnight_hint": "次日結束",
+        "create_new": "建立新場景"
+      },
+      "loading_current": "正在讀取 SIM…",
+      "advanced": {
+        "title": "高階",
+        "summary_imei": "IMEI 覆蓋",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
+      "back_to_list": "返回配置列表",
+      "edit_loading": "正在載入配置…",
+      "steps": {
+        "nav_aria": "配置步驟",
+        "identity_label": "身份與運營商",
+        "identity_short": "身份",
+        "apn_short": "APN",
+        "apn_label": "APN 與連線",
+        "advanced_label": "高階",
+        "advanced_short": "高階",
+        "advanced_desc": "通常無需更改。除非確有需要，請保持預設。",
+        "scenario_label": "連線場景",
+        "scenario_short": "場景",
+        "review_short": "檢視",
+        "review_label": "檢視",
+        "scenario_desc": "選擇啟用此配置時套用的場景，並可按一天中的時間安排切換。",
+        "optional": "可選",
+        "step_of": "第 {{current}} 步，共 {{total}} 步",
+        "state_current": "當前步驟",
+        "state_complete": "已完成",
+        "state_error": "存在錯誤",
+        "state_upcoming": "待進行"
+      },
+      "sections": {
+        "identity_title": "標識",
+        "identity_desc": "為此配置命名並選擇對應的運營商。",
+        "apn_title": "APN 與連線",
+        "apn_desc": "數據機連線運營商資料網路的方式。",
+        "advanced_title": "高階",
+        "advanced_desc": "很少需要更改。僅在確有必要時修改。"
+      },
+      "summary": {
+        "title": "預覽",
+        "desc": "此配置在列表中的顯示方式，以及啟用時會更改的內容。",
+        "untitled": "未命名配置",
+        "reboot_note": "啟用將重啟數據機以套用 IMEI 更改。"
+      },
+      "discard_dialog": {
+        "title": "放棄更改？",
+        "description": "您有未儲存的更改。現在離開將放棄這些更改。",
+        "confirm": "放棄",
+        "keep": "繼續編輯"
+      },
+      "add_title": "新增設定檔",
+      "add_description": "向您的裝置新增新的蜂窩設定檔。",
+      "edit_description_simple": "更新此蜂窩設定檔，然後儲存更改。",
+      "load_from_sim": "從 SIM 載入",
+      "loaded_from_sim": "已從 SIM 載入當前設定",
+      "save_failed": "儲存設定檔失敗",
+      "profile_added": "已新增設定檔",
+      "profile_updated": "已更新設定檔",
+      "submit_add": "提交",
+      "submit_edit": "儲存更改",
+      "cancel": "取消",
+      "next": "下一步",
+      "tab_network": "網路",
+      "network_desc": "modem 連線到運營商資料網路的方式。",
+      "identity_load_hint": "為此設定檔命名並選擇適用的運營商。",
+      "sim_iccid_placeholder_inline": "自動檢測或輸入 ICCID",
+      "sim_iccid_hint_inline": "標識此設定檔對應的 SIM 卡。",
+      "mno_hint": "您可以在此處選擇預配置的行動網路運營商。",
+      "cid_default_option": "CID 1（預設）",
+      "scenario_desc_inline": "選擇此設定檔執行的場景，並可選擇在一天中的設定時間切換場景。",
+      "default_scenario_label": "預設場景",
+      "default_scenario_hint": "在沒有任何計劃時段處於活動狀態時執行。",
+      "create_scenario_option": "新建場景",
+      "schedule_inline_label": "基於時間的計劃",
+      "schedule_inline_hint": "在最多兩個每日時段內切換場景。",
+      "windows_empty": "尚無時段。新增一個以在設定時間切換場景。",
+      "window_label": "時段 {{index}}",
+      "window_remove_aria": "移除時段 {{index}}",
+      "window_from": "從",
+      "window_to": "到",
+      "windows_count": "{{max}} 個時段中的 {{count}} 個",
+      "add_window": "新增時段",
+      "review_desc_add": "檢查您的設定檔，然後將其新增到裝置。",
+      "review_desc_edit": "檢查您的設定檔，然後儲存更改。",
+      "review_edit_aria": "編輯",
+      "review": {
+        "section_identity": "身份",
+        "section_network": "網路",
+        "section_scenario": "場景",
+        "profile_name": "設定檔名稱",
+        "sim_iccid": "SIM ICCID",
+        "all_sims": "所有 SIM 卡",
+        "operator": "運營商",
+        "apn": "APN",
+        "ip_protocol": "IP 協議",
+        "profile_slot": "設定檔槽位",
+        "cid_value": "CID {{cid}}",
+        "cid_value_default": "CID {{cid}}（預設）",
+        "preferred_imei": "首選 IMEI",
+        "ttl_hl": "TTL / 跳數限制",
+        "default": "預設",
+        "schedule": "計劃",
+        "schedule_on_no_windows": "已啟用，無時段",
+        "schedule_off": "已關閉",
+        "not_set": "未設定"
+      },
+      "pdp_inline": {
+        "ipv4": "IPv4",
+        "ipv6": "IPv6",
+        "dual": "IPv4 & IPv6"
+      }
+    },
+    "deactivate_dialog": {
+      "title": "停用設定檔",
+      "working_title": "正在停用設定檔",
+      "verifying_title": "正在確認停用",
+      "description": "停用此設定檔？APN 將恢復為電信業者預設值，行動網路會短暫中斷。IMEI 和 TTL 設定保持不變。",
+      "confirm": "停用",
+      "unknown_profile": "無設定檔名稱",
+      "confirm_headline": "恢復為電信業者預設 APN？",
+      "working_headline": "正在恢復 APN 並重新附著網路",
+      "verifying_headline": "正在重新連線至數據機",
+      "working_sub": "數據機正在中斷連線、寫入電信業者預設 APN，並重新附著到網路。這通常需要約 10 秒，期間行動網路連線會中斷。請勿離開此頁面。",
+      "verifying_sub": "數據機重新附著網路時會中斷乙太網路連線數秒，因此本次請求的回應在返回途中遺失。系統並未重新送出任何指令，QManager 正在讀取數據機以確認實際結果。",
+      "toast": {
+        "success": "已停用 {{name}}",
+        "busy_title": "數據機忙碌中——未做任何變更",
+        "busy_body": "另一項 APN 操作正佔用鎖定，因此未送出任何指令。請稍後再試。",
+        "link_lost_title": "無法確認停用結果",
+        "link_lost_body": "附著週期中與數據機的連線中斷，設定檔仍標示為啟用中。請重新整理頁面查看目前狀態；若仍顯示為啟用中，表示 APN 還原並未完成。",
+        "deregistered_title": "數據機可能已脫離網路",
+        "deregistered_body": "APN 已恢復，但數據機三次嘗試後仍未能重新附著網路。該設定檔仍處於啟用狀態。請檢查連線，若仍未恢復，請重新啟動數據機。",
+        "unconfirmed_title": "已重新附著，但未確認",
+        "unconfirmed_body": "數據機已重新附著網路，但從未回報存在使用中的資料連線。該設定檔仍處於啟用狀態——請先檢查連線再重試。",
+        "failed_title": "無法停用該設定檔",
+        "failed_body": "APN 恢復失敗。數據機未被變更且仍處於註冊狀態，該設定檔仍處於啟用狀態。"
+      }
+    },
+    "apply_dialog": {
+      "title": "正在套用設定檔",
+      "description": "正在將此設定檔的設定寫入數據機。",
+      "status_badge": {
+        "applying": "套用中…",
+        "complete": "完成",
+        "partial": "部分完成",
+        "failed": "失敗"
+      },
+      "step_labels": {
+        "apn": "APN 設定",
+        "ttl_hl": "TTL / 跳數限制",
+        "imei": "IMEI",
+        "scenario": "連線情境"
+      },
+      "preparing": "準備中…",
+      "step_progress": "第 {{current}} / {{total}} 步",
+      "complete_headline": "配置已啟用",
+      "complete_sub": "所有適用的設定已套用到數據機。",
+      "partial_hero_headline_one": "已套用，有一個步驟未生效",
+      "partial_hero_headline_other": "已套用，有 {{count}} 個步驟未生效",
+      "partial_hero_sub_one": "設定檔正在執行。有一項設定未生效。",
+      "partial_hero_sub_other": "設定檔正在執行。有 {{count}} 項設定未生效。",
+      "failed_headline": "啟用失敗",
+      "failed_sub": "數據機未完全重新配置。",
+      "details_label": "步驟",
+      "partial_notice_title": "此設定檔的部分內容未生效",
+      "failed_notice_title": "設定檔未被套用",
+      "reapply_notice": "重新套用會從頭再執行整個流程——數據機無法只重試單一步驟。",
+      "reapply_action": "重新套用設定檔",
+      "reboot_notice_deferred": "此設定檔會寫入 IMEI，因此數據機將重新啟動以套用。連線會短暫中斷。",
+      "step_state_unchanged": "無變化",
+      "errors": {
+        "start_failed": "無法開始套用設定檔。",
+        "not_started": "設定檔套用未啟動，請重試。"
+      }
+    },
+    "empty_state": {
+      "refresh": "重新整理",
+      "card_title": "自訂 SIM 設定檔",
+      "card_description": "將 APN、IMEI 和 TTL 設定打包，一步套用到數據機。",
+      "teaching_headline": "尚無設定檔",
+      "teaching_body": "自訂 SIM 設定檔將 APN 名稱、IP 協議、TTL/HL 覆蓋和可選 IMEI 打包為一個已儲存的預設。啟用後一次性套用所有設定，切換運營商或 SIM 卡槽只需數秒。",
+      "cta_new": "新建設定檔"
+    },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "預設 APN",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "IMEI 覆蓋",
+      "apn_prefix": "APN ",
+      "other_sim": "其他 SIM 卡"
+    },
+    "card": {
+      "label_updated": "更新時間"
+    },
+    "registry": {
+      "error_title": "無法載入您的設定"
+    }
+  },
+  "frequency_locking": {
+    "page": {
+      "title": "頻點鎖定",
+      "description": "將無線電限制在特定頻點上。僅限頻點，不含 PCI，因此小區仍由數據機選擇。",
+      "experimental": "實驗性功能"
+    },
+    "live": {
+      "title": "目前狀態",
+      "refresh": "重新整理",
+      "camped_title": "目前駐留",
+      "camped_meta": "{{count}} 個載波 · {{bandwidth}} MHz",
+      "camped_empty_title": "未回報載波",
+      "camped_empty_body": "數據機未回報服務中的小區。仍可手動輸入頻點。",
+      "add_hint": "「新增」會將該頻點加入下方清單。頻點鎖定不涉及 PCI，因此小區仍由數據機選擇。",
+      "compare_hint": "基站鎖定會同時固定頻點與小區。頻點鎖定較為寬鬆：相同頻點，任意小區。",
+      "compare_hint_unknown": "無法讀取基站鎖定狀態。基站鎖定生效期間頻點鎖定會被拒絕，因此在該讀取成功之前，這裡的任何設定都無法套用。",
+      "add_blocked": "在解除基站鎖定之前無法新增。",
+      "add_blocked_unknown": "在能夠讀取基站鎖定狀態之前無法新增。",
+      "outside_list": "有框線的載波正在使用，但不在你的頻點清單中。"
+    },
+    "verdict": {
+      "unlocked_title": "允許所有頻點",
+      "unlocked_body": "數據機可使用其已啟用頻段提供的任意頻點，並可自由重選。允許某個頻點即可縮小範圍。",
+      "locked_title": "已鎖定至你的頻點清單",
+      "locked_body": "數據機只能使用下方列出的頻點。小區仍由它自行選擇，因此 PCI 可能會變動。",
+      "blocked_title": "基站鎖定正在占用無線電",
+      "blocked_body": "基站鎖定生效期間，QManager 不會寫入頻點鎖定。請先解除基站鎖定，再使用此頁面。",
+      "blocked_unknown_title": "基站鎖定狀態未確認",
+      "blocked_unknown_body": "QManager 無法讀取基站鎖定是否生效。在該讀取成功之前，頻點鎖定的變更會維持封鎖，因為在基站鎖定生效時套用頻點鎖定可能導致數據機當機。請重新整理後再試。",
+      "unknown_title": "尚未回報鎖定狀態",
+      "unknown_body": "數據機未回應上次的狀態讀取。請重新整理後再試。",
+      "serving_in_list": "駐留頻點在清單內",
+      "serving_out_of_list": "駐留頻點在清單之外",
+      "tower_lock_off": "基站鎖定已關閉，因此此功能可用",
+      "no_recovery": "無自動復原",
+      "open_tower_locking": "開啟基站鎖定"
+    },
+    "legs": {
+      "lte": {
+        "title": "LTE 頻點",
+        "description": "最多 2 個 EARFCN。數據機只能使用這些頻點。"
+      },
+      "nr": {
+        "title": "5G NR 頻點",
+        "description": "最多 32 個 ARFCN，每個都帶有其子載波間隔。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr": "5G NR"
+    },
+    "card": {
+      "status_locked": "已鎖定",
+      "status_unlocked": "未鎖定",
+      "status_blocked": "已阻擋",
+      "status_unknown": "尚未回報",
+      "status_applying": "套用中",
+      "empty_title": "清單中沒有頻點",
+      "empty_body_lte": "從上方新增一個載波，或輸入 EARFCN。",
+      "empty_body_nr": "新增上方的 NR 載波，或輸入 ARFCN 並選擇其間隔。",
+      "blocked_body": "解除基站鎖定後才能編輯此清單。",
+      "scs_warning": "間隔填錯看起來仍是有效項目，但數據機永遠不會使用它。從上方新增載波時，此值會一併複製過來。",
+      "no_pci_note": "頻點鎖定絕不會固定小區。數據機會在你允許的頻點範圍內持續重選。",
+      "count": "{{used}} / {{max}}",
+      "unused": "有框線的頻點已鎖定，但無線電並未使用它們。"
+    },
+    "blocked": {
+      "tower_lock_active": "基站鎖定正佔用此射頻。請先解除後再鎖定頻點。",
+      "tower_lock_unknown": "無法讀取基站鎖定狀態，在數據機回應前將拒絕此次鎖定。請重新整理後再試。"
+    },
+    "slots": {
+      "slot": "插槽 {{index}}",
+      "earfcn_placeholder": "EARFCN",
+      "arfcn_placeholder": "NR-ARFCN",
+      "optional": "選填。第二個頻點會擴大允許範圍。",
+      "scs_label": "間隔",
+      "scs_unit": "{{value}} kHz",
+      "serving": "駐留中",
+      "aggregated": "已聚合",
+      "staged": "待套用",
+      "in_list": "在清單中",
+      "remove": "移除項目",
+      "staged_count": "已暫存 {{count}} / {{max}} 個項目。尚未寫入數據機。",
+      "on_air": "使用中"
+    },
+    "actions": {
+      "use_current": "使用目前",
+      "use_current_none": "目前無在網載波",
+      "use_current_hint": "以數據機目前使用的頻點填入",
+      "add": "新增",
+      "add_channel": "新增頻點",
+      "apply": "套用鎖定",
+      "apply_lte": "套用 LTE 鎖定",
+      "apply_nr": "套用 NR 鎖定",
+      "clear_all": "全部清除",
+      "clear_lte": "清除 LTE 鎖定",
+      "clear_nr": "清除 NR 鎖定",
+      "clear_fields": "清空欄位",
+      "refresh": "重新整理"
+    },
+    "apply": {
+      "disclaimer": "套用時無線電會重新註冊，連線將短暫中斷。若所選頻點沒有涵蓋範圍，在清除鎖定前數據機將沒有服務。",
+      "no_recovery": "頻點鎖定沒有容錯移轉監控。與頻段鎖定和基站鎖定不同，若這些頻點失去涵蓋範圍，沒有任何機制會自動恢復服務。",
+      "readback_label": "數據機回報",
+      "readback_none": "數據機上沒有頻點鎖定",
+      "readback_lte": "LTE {{channels}}",
+      "readback_nr": "NR {{channels}}",
+      "readback_serving": "駐留 {{channel}}",
+      "live_title": "鎖定已在數據機上生效",
+      "blocked_title": "基站鎖定生效期間無法套用",
+      "blocked_readback": "基站鎖定生效中 · 頻點鎖定無法使用",
+      "blocked_unknown_title": "在能夠讀取基站鎖定狀態之前無法套用",
+      "blocked_unknown_readback": "基站鎖定狀態未知，因此寫入已被封鎖",
+      "applying_title": "正在等待數據機恢復",
+      "applying_readback": "已傳送 {{seconds}} 秒",
+      "clobbered_title": "頻點鎖定已消失",
+      "clobbered_body": "數據機不再回報此頁面套用的鎖定。設定基站鎖定會在無提示的情況下取代頻點鎖定，這很可能就是原因。"
+    },
+    "progress": {
+      "title": "正在寫入頻點",
+      "accepted": "指令已接受",
+      "reregistering": "無線電重新註冊中",
+      "verifying": "正在核實駐留頻點",
+      "wait_note": "這需要幾秒鐘。請勿重新啟動。",
+      "no_service_title": "短暫無服務",
+      "carriers_dropped": "載波已中斷",
+      "carriers_return": "數據機註冊到允許的頻點後，載波會重新出現。",
+      "stuck_warning": "若一分鐘內仍未恢復，表示所選頻點在此處沒有涵蓋範圍。清除鎖定即可恢復正常搜尋網路。",
+      "paused": "在數據機回應前，編輯已暫停。",
+      "sent": "已傳送"
+    },
+    "dialog": {
+      "lock_lte_title": "鎖定 LTE 頻點？",
+      "lock_lte_body": "數據機將只使用 {{channels}}，重新註冊期間可能會短暫中斷連線。",
+      "lock_nr_title": "鎖定 5G NR 頻點？",
+      "lock_nr_body": "數據機將只使用 {{channels}}，重新註冊期間可能會短暫中斷連線。",
+      "unlock_lte_title": "清除 LTE 鎖定？",
+      "unlock_lte_body": "數據機將可自由使用其已啟用頻段提供的任意頻點，並可能短暫中斷連線。",
+      "unlock_nr_title": "清除 5G NR 鎖定？",
+      "unlock_nr_body": "數據機將可自由使用其已啟用頻段提供的任意頻點，並可能短暫中斷連線。",
+      "unsupported_title": "這些頻點不在你的數據機支援的頻段內",
+      "unsupported_body": "鎖定至數據機不支援的頻段可能導致其意外重新啟動，而且這裡沒有任何機制會自動復原。",
+      "unsupported_matched": "相符的頻段",
+      "unsupported_supported": "支援的頻段",
+      "unsupported_unknown": "未知",
+      "unsupported_confirm": "仍要鎖定",
+      "cancel": "取消",
+      "confirm_lock": "鎖定頻點",
+      "confirm_unlock": "清除鎖定",
+      "no_recovery": "頻點鎖定沒有容錯移轉監控。與頻段鎖定和基站鎖定不同，若這些頻點失去涵蓋範圍，沒有任何機制會自動恢復服務。"
+    },
+    "bands": {
+      "possible": "可能的頻段：",
+      "none": "沒有與 {{label}} 相符的頻段",
+      "this_frequency": "此頻點",
+      "unsupported_suffix": "不支援"
+    },
+    "toast": {
+      "lte_locked": "已套用 LTE 頻點鎖定",
+      "lte_lock_failed": "無法套用 LTE 頻點鎖定",
+      "lte_cleared": "已清除 LTE 頻點鎖定",
+      "lte_clear_failed": "無法清除 LTE 頻點鎖定",
+      "nr_locked": "已套用 5G NR 頻點鎖定",
+      "nr_lock_failed": "無法套用 5G NR 頻點鎖定",
+      "nr_cleared": "已清除 5G NR 頻點鎖定",
+      "nr_clear_failed": "無法清除 5G NR 頻點鎖定",
+      "filled_from_current": "已從在網載波填入",
+      "no_channels_title": "未輸入頻點",
+      "no_channels_body": "請至少輸入一個頻點後再套用。"
+    },
+    "error": {
+      "load_title": "無法讀取鎖定狀態",
+      "load_body": "數據機未回應。請重新整理後再試。",
+      "tower_lock_active": "基站鎖定已生效，因此數據機不會接受頻點鎖定。",
+      "invalid_channel": "頻點編號只能是數字。",
+      "retry": "重試"
+    },
+    "a11y": {
+      "refresh": "重新整理鎖定狀態",
+      "remove_entry": "移除此頻點",
+      "add_carrier": "將此載波加入清單"
+    },
+    "errors": {
+      "tower_state_unknown": "數據機未回報基站鎖定是否生效，因此未寫入頻點鎖定。請重新整理後再試。"
+    }
+  },
+  "profiles": {
+    "list": {
+      "bands_more": "+{{n}}",
+      "bands_more_aria": "另有 {{n}} 個頻段",
+      "status": {
+        "sim_changed": "SIM 卡已更換"
+      },
+      "suggestion_meta": "為你的 SIM 卡推薦"
+    },
+    "today": {
+      "armed": "排程已啟用",
+      "not_armed": "未設定排程",
+      "summary": {
+        "until": "生效至 {{time}}，隨後切換至 {{next}}",
+        "rest_of_day": "在今天剩餘時間內生效",
+        "all_day": "全天生效"
+      }
+    }
+  },
+  "radio_info": {
+    "common": {
+      "not_available": "—",
+      "value_unavailable": "未回報"
+    },
+    "page": {
+      "title": "蜂窩與射頻資訊",
+      "description": "數據機目前回報的所有無線連結資訊：身分識別、使用中的頻譜，以及各載波的訊號品質。"
+    },
+    "alert": {
+      "modem_unreachable": "無法連線數據機 — 顯示的是最後收到的數值。"
+    },
+    "header": {
+      "cadence": "每隔幾秒更新一次",
+      "refresh": "立即重新整理",
+      "copy": "複製診斷資訊",
+      "copied": "已複製",
+      "copy_success": "診斷資訊已複製到剪貼簿",
+      "copy_error": "無法複製到剪貼簿。請改為手動選取這些數值。"
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "未回報"
+    },
+    "tiles": {
+      "network": {
+        "label": "網路類型",
+        "caption_nsa": "非獨立組網，錨定在 LTE 上",
+        "caption_sa": "獨立組網 5G 核心網",
+        "caption_lte": "未接入 5G 分支",
+        "caption_unknown": "數據機未回報存取技術"
+      },
+      "bandwidth": {
+        "label": "使用中的頻寬",
+        "unit": "MHz",
+        "caption_unavailable": "數據機未回報",
+        "caption_single": "單載波",
+        "caption_breakdown": "{{parts}} MHz"
+      },
+      "carriers": {
+        "label": "載波聚合",
+        "value_one": "{{count}} 個載波",
+        "value_other": "{{count}} 個載波",
+        "caption": "LTE {{lte}}    NR {{nr}}",
+        "caption_none": "未回報任何載波"
+      },
+      "mimo": {
+        "label": "啟用中的 MIMO",
+        "caption_link": "各天線詳情",
+        "caption_unavailable": "數據機未回報"
+      }
+    },
+    "states": {
+      "loading_sr": "正在載入射頻資訊",
+      "retry": "重試",
+      "no_sim": {
+        "title": "未偵測到 SIM 卡",
+        "description": "數據機偵測不到 SIM 卡，因此沒有可回報的無線連結。請檢查 SIM 卡是否已插入生效的卡槽。"
+      },
+      "no_service": {
+        "title": "無服務",
+        "description": "SIM 卡已插入，但數據機尚未註冊到任何網路。在成功附著之前，訊號指標將保持為空。"
+      },
+      "searching": {
+        "title": "正在搜尋網路",
+        "description": "數據機正在掃描可用的小區。註冊成功後即會顯示射頻詳情。"
+      },
+      "unknown": {
+        "title": "未回報射頻狀態",
+        "description": "數據機回傳了本頁面無法識別的狀態。請嘗試重新整理；若持續出現，可能需要重新啟動輪詢服務。"
+      }
+    },
+    "cellular_card": {
+      "title": "連線詳情",
+      "description": "由網路在本次附著中回報。"
+    },
+    "groups": {
+      "connection": "連線",
+      "cell_identity": "小區識別",
+      "addressing": "位址配置"
+    },
+    "rows": {
+      "operator": "電信業者",
+      "apn": "存取點名稱（APN）",
+      "network_type": "網路類型",
+      "carrier_aggregation": "載波聚合",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "扇區",
+      "tac": "追蹤區碼（TAC）",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "主要 DNS",
+      "secondary_dns": "次要 DNS",
+      "link_uptime": "連線持續時間",
+      "traffic_family": "目前承載流量",
+      "distance": "到基地台的距離"
+    },
+    "actions": {
+      "edit_apn": "編輯"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE（{{count}} 個載波）",
+      "lte_carriers_other": "LTE（{{count}} 個載波）",
+      "nr_carriers_one": "NR（{{count}} 個載波）",
+      "nr_carriers_other": "NR（{{count}} 個載波）",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "未啟用"
+    },
+    "value": {
+      "unknown": "未回報",
+      "not_assigned": "未指派",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "無回應",
+      "estimated": "估算",
+      "distance_hint": "根據網路的時間提前量（TA）推算，該值由射頻以較粗的步長回報。請將其視為到服務細胞的大致範圍，而非實測距離。"
+    },
+    "copy": {
+      "aria": "將{{label}}複製到剪貼簿",
+      "success": "{{label}}已複製到剪貼簿",
+      "error": "無法複製到剪貼簿",
+      "copied": "已複製"
+    },
+    "a11y": {
+      "show_full_address": "顯示完整未壓縮的 {{label}}"
+    },
+    "bands": {
+      "title": "使用中的頻譜",
+      "description_one": "{{count}} 個作用中載波，下方為其即時訊號指標。",
+      "description_other": "{{count}} 個作用中載波，均顯示各自的即時訊號指標。",
+      "cadence": "每隔幾秒更新一次",
+      "stale": "讀數已暫停",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "ANCHOR",
+        "scc": "SCC {{index}}"
+      },
+      "released": "已釋放",
+      "released_note": "此載波已於 {{seconds}} 秒前停止回報。它會在清單中保留一小段時間，以防它重新出現。",
+      "quality": {
+        "excellent": "極佳",
+        "good": "良好",
+        "fair": "一般",
+        "poor": "較差",
+        "bad": "極弱",
+        "none": "無讀數"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "寬頻接收功率",
+        "not_reported": "此載波未回報",
+        "not_reported_short": "未回報"
+      },
+      "detail": {
+        "band_name": "頻段名稱",
+        "bandwidth": "頻寬",
+        "dl_frequency": "下行頻率",
+        "ul_frequency": "上行頻率",
+        "pci": "PCI",
+        "arfcn": "ARFCN",
+        "earfcn": "EARFCN",
+        "scs": "子載波間隔",
+        "unknown": "未知",
+        "scs_derived": "推算值",
+        "scs_derived_hint": "數據機只對服務中的 NR 小區回報子載波間隔。此數值由該頻段的雙工模式推算得出，並非直接讀自射頻。",
+        "duplex": "雙工模式"
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "此載波的 SNR 為 {{value}} dB，處於較差區間。",
+      "empty": {
+        "title": "未回報任何載波",
+        "description": "數據機目前未回報任何聚合載波。在射頻搜尋、閒置或換手期間，這屬於正常現象。"
+      },
+      "scanner": {
+        "body": "想找出數據機未使用的載波？小區掃描會遍歷射頻支援的每一個頻段。",
+        "link": "開啟小區掃描"
+      },
+      "reference": {
+        "show": "顯示頻段參考",
+        "hide": "隱藏頻段參考"
       }
     }
   },
   "scenarios": {
+    "card": {
+      "title": "連線場景",
+      "description": "無線電設定。設定檔會繫結場景；生效中的場景掌管頻段鎖定。"
+    },
+    "ownership_notice": "當已排定計劃的設定檔處於啟用狀態時，場景啟用由該計劃掌管。在停用該設定檔之前，手動頻段鎖定將保持停用。",
+    "controls_label": "場景啟用",
+    "icons": {
+      "sparkles": "閃光",
+      "gamepad": "遊戲",
+      "play": "媒體",
+      "zap": "效能",
+      "globe": "瀏覽",
+      "rocket": "速度",
+      "video": "視訊通話",
+      "download": "下載",
+      "shield": "安全",
+      "plane": "旅行",
+      "moon": "夜間",
+      "briefcase": "工作"
+    },
     "default_balanced_name": "均衡",
     "default_gaming_name": "遊戲",
-    "default_streaming_name": "流媒體"
+    "default_streaming_name": "流媒體",
+    "default_balanced_description": "自動頻段選擇",
+    "default_gaming_description": "低延遲，SA 優先",
+    "default_streaming_description": "高頻寬，連線穩定",
+    "error": {
+      "title": "無法載入場景",
+      "body": "正在顯示上次已知的清單。請稍後再試。"
+    },
+    "toast": {
+      "activate_success": "已切換至「{{name}}」場景。",
+      "activate_error": "啟用「{{name}}」場景失敗。",
+      "create_success": "場景建立成功。",
+      "create_success_from_profile": "場景已建立。返回您的設定檔並選取它。",
+      "create_error": "建立場景失敗。",
+      "delete_success": "場景已刪除。",
+      "delete_error": "刪除場景失敗。",
+      "update_success": "場景已更新。",
+      "update_error": "更新場景失敗。"
+    },
+    "dialog": {
+      "add": {
+        "title": "新增連線場景"
+      },
+      "edit": {
+        "title": "編輯設定"
+      },
+      "fields": {
+        "name_label": "場景名稱",
+        "name_placeholder_add": "例如：在家工作",
+        "name_placeholder_edit": "場景名稱",
+        "description_label": "描述",
+        "description_placeholder_add": "例如：針對視訊通話最佳化",
+        "description_placeholder_edit": "場景描述",
+        "network_mode_label": "網路模式",
+        "lte_band_label": "LTE 頻段鎖定",
+        "lte_band_placeholder": "例如：1、3、7、28（留空 = 自動）",
+        "sa_band_label": "NR5G-SA 頻段鎖定",
+        "nsa_band_label": "NR5G-NSA 頻段鎖定",
+        "band_placeholder": "例如：41、78",
+        "optimization_label": "最佳化標籤",
+        "optimization_placeholder": "例如：延遲、輸送量、自訂",
+        "icon_label": "圖示",
+        "preview_description_fallback": "自訂設定"
+      },
+      "buttons": {
+        "create": "建立場景",
+        "creating": "建立中…",
+        "save_changes": "儲存變更",
+        "saving": "儲存中…"
+      },
+      "description": "頻段欄位留空即由數據機自動選擇。",
+      "name_required": "請為場景命名。"
+    },
+    "active_config": {
+      "title": "「{{name}}」設定",
+      "status": {
+        "applying": "套用中…",
+        "active": "活動",
+        "inactive": "未啟用"
+      },
+      "activate": "啟用",
+      "edit_aria": "編輯場景設定",
+      "disabled_tooltip": "場景啟用由「{{profile}}」自訂 SIM 設定檔管理。",
+      "rows": {
+        "network_mode": "網路模式",
+        "optimization": "最佳化",
+        "lte_bands": "LTE 頻段",
+        "nr_sa_bands": "NR5G-SA 頻段",
+        "nr_nsa_bands": "NR5G-NSA 頻段"
+      },
+      "edit": "編輯",
+      "show_details": "顯示詳細資訊",
+      "hide_details": "隱藏詳細資訊"
+    },
+    "tile": {
+      "in_force": "生效中",
+      "caption_next": "下次 {{time}}",
+      "delete_dialog": {
+        "title": "刪除場景",
+        "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
+        "confirm": "刪除"
+      },
+      "add": {
+        "title": "新增場景"
+      }
+    },
+    "redirect": {
+      "label": "正在開啟自訂 SIM 設定檔…"
+    },
+    "network_mode": {
+      "auto": "自動",
+      "lte_only": "僅 LTE",
+      "nr5g_only": "僅 5G SA",
+      "lte_nr5g": "5G SA / NSA"
+    },
+    "optimization": {
+      "balanced": "均衡",
+      "latency": "低延遲",
+      "throughput": "高吞吐",
+      "custom": "自訂"
+    },
+    "bands_auto": "自動",
+    "schedule_lock": {
+      "badge": "已計劃",
+      "next_change": "下次切換於 {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "頻段鎖定"
+    },
+    "errors": {
+      "load_failed": "數據機未回傳您的場景，請稍後再試。",
+      "activate_failed": "無法啟用場景。",
+      "save_failed": "無法儲存場景。",
+      "delete_failed": "無法刪除場景。"
+    }
+  },
+  "sms": {
+    "page": {
+      "title": "簡訊中心",
+      "description": "檢視、管理並從調變解調器傳送簡訊。"
+    },
+    "inbox": {
+      "buttons": {
+        "delete_all": "全部刪除"
+      },
+      "delete_single_confirm": {
+        "deleting": "刪除中…"
+      },
+      "delete_all_confirm": {
+        "title": "刪除所有訊息",
+        "description": "所有已儲存的訊息和對話都將被永久刪除，此操作無法復原。",
+        "confirm": "全部刪除",
+        "cancel": "保留訊息",
+        "deleting": "正在全部刪除…"
+      },
+      "toast": {
+        "delete_all_success": "所有訊息已刪除"
+      }
+    },
+    "compose": {
+      "title": "新簡訊",
+      "description": "撰寫併傳送簡訊。",
+      "fields": {
+        "phone_label": "電話號碼",
+        "phone_placeholder": "+1234567890",
+        "message_label": "訊息",
+        "message_placeholder": "請輸入您的訊息..."
+      },
+      "buttons": {
+        "send": "傳送",
+        "sending": "傳送中…"
+      },
+      "toast": {
+        "success": "簡訊傳送成功",
+        "partial": "{{parts}} 部分中僅傳送了 {{sent}} 部分；再次傳送會重複這些部分。"
+      },
+      "encoding_hint": "出現 GSM 字母表以外的字元時，訊息將切換為 UCS-2 編碼，單則上限為 70 個字元。",
+      "encoding": {
+        "gsm7": "GSM 7 位元",
+        "ucs2": "UCS-2"
+      }
+    },
+    "forwarding": {
+      "page": {
+        "title": "轉發",
+        "description": "將每則收到的簡訊轉發到另一個號碼，並查看轉發是否真正送達。"
+      },
+      "health": {
+        "toast_test_success": "測試簡訊已傳送到您的轉發號碼。",
+        "toast_clear_success": "已清除。",
+        "card_title": "投遞與狀態",
+        "card_description": "收到的簡訊是否正在送達您的號碼。",
+        "state_active": "運作中 · 正常",
+        "state_issue": "投遞發生問題",
+        "state_unconfigured": "未設定轉發號碼",
+        "state_off": "轉發已關閉",
+        "destination_label": "傳送至",
+        "destination_none": "開啟轉發並儲存號碼後即可開始轉發簡訊。",
+        "state_unconfigured_description": "轉發已開啟，但尚無轉發目標。新增一個號碼即可開始轉發。",
+        "preview_label": "收件者看到",
+        "preview_hint_label": "關於此預覽",
+        "preview_hint": "「來自」行中的號碼是範例發件人。您儲存的號碼會收到此訊息，而不是由它發出。",
+        "preview_from": "來自 {{sender}}：",
+        "preview_sample_body": "你好，下午三點還約嗎？",
+        "failures_title_one": "有 {{count}} 則簡訊轉發失敗",
+        "failures_title_other": "有 {{count}} 則簡訊轉發失敗",
+        "failures_description": "新簡訊仍會繼續轉發。以下簡訊在 3 次嘗試後仍未成功：",
+        "failures_unknown_sender": "未知寄件者",
+        "clear_button": "清除提醒",
+        "failures_empty": "沒有投遞問題。",
+        "test_hint": "向您儲存的號碼傳送測試。",
+        "test_disabled_hint": "開啟轉發並儲存號碼後即可傳送測試。",
+        "test_sending": "傳送中…",
+        "test_button": "傳送測試"
+      },
+      "sms": {
+        "loading_label": "正在載入轉發設定",
+        "error_load": "無法載入轉發設定",
+        "validation_phone": "請輸入有效的電話號碼（例如 +886912345678）。",
+        "toast_save_success": "轉發設定已儲存。",
+        "card_title": "簡訊轉發",
+        "card_description": "自動將每則收到的簡訊重新傳送到您選擇的號碼。",
+        "enable_label": "轉發收到的簡訊",
+        "target_label": "轉發至",
+        "target_hint_label": "關於轉寄的簡訊",
+        "target_description": "每則新簡訊將以「來自 <sender>：<message>」的格式重新傳送到此號碼。",
+        "target_placeholder": "+886912345678"
+      },
+      "errors": {
+        "load_failed": "數據機未回傳轉寄設定，請稍後再試。",
+        "save_failed": "無法儲存轉寄設定。",
+        "test_failed": "無法傳送測試簡訊。",
+        "clear_failed": "無法清除警示。"
+      }
+    },
+    "center": {
+      "toast": {
+        "message_marked_unread": "已標為未讀",
+        "mark_unread_failed": "無法將訊息標為未讀",
+        "thread_marked_read": "已標為已讀",
+        "message_deleted": "訊息已刪除",
+        "message_delete_failed": "無法刪除訊息",
+        "thread_deleted": "會話已刪除",
+        "thread_delete_failed": "無法刪除會話",
+        "address_copied": "已複製發件人地址",
+        "copy_failed": "無法複製。此連線下瀏覽器已禁止存取剪貼簿。",
+        "message_copied": "訊息已複製"
+      },
+      "header": {
+        "synced": "{{seconds}} 秒前已同步",
+        "refresh_failed": "重新整理失敗"
+      },
+      "actions": {
+        "refresh": "重新整理",
+        "more": "更多選項",
+        "back": "返回全部訊息",
+        "copy_address": "複製發件人地址",
+        "thread_options": "會話選項",
+        "mark_read": "全部標為已讀",
+        "delete_thread": "刪除會話",
+        "copy_text": "複製文字",
+        "forward": "轉發…",
+        "mark_unread": "標為未讀",
+        "details": "詳情…",
+        "delete_message": "刪除",
+        "compose": "新訊息"
+      },
+      "states": {
+        "missing": {
+          "title": "該會話已不存在",
+          "description": "它已不再儲存，可能在建立此連結後被刪除。",
+          "action": "返回全部訊息"
+        },
+        "no_selection": {
+          "title": "選擇一個會話",
+          "description": "從左側選擇一個會話，或新增訊息。"
+        },
+        "loading_thread_sr": "正在載入會話",
+        "thread_empty": {
+          "title": "這裡還沒有內容",
+          "description": "此會話沒有已儲存的訊息。傳送一條即可開始。"
+        },
+        "loading_sr": "正在載入會話",
+        "error": {
+          "title": "無法載入訊息",
+          "description": "您已儲存的訊息是安全的。請稍後重試。",
+          "retry": "重試"
+        },
+        "no_matches": {
+          "title": "無匹配結果",
+          "description": "沒有符合搜尋條件的會話。可嘗試姓名、號碼或訊息中的某個詞。"
+        },
+        "no_unread": {
+          "title": "沒有未讀訊息",
+          "description": "所有已儲存的訊息都已在此瀏覽器中開啟過。"
+        },
+        "empty": {
+          "title": "暫無訊息",
+          "description": "收到的訊息將顯示在這裡。",
+          "action": "寫訊息"
+        }
+      },
+      "delete_thread": {
+        "title": "刪除此會話？",
+        "description": "將移除為 {{contact}} 儲存的所有訊息，此操作不可撤銷。",
+        "confirm": "刪除會話"
+      },
+      "delete_message": {
+        "title": "刪除此訊息？",
+        "description": "將被永久移除，此操作不可撤銷。",
+        "confirm": "刪除訊息"
+      },
+      "composer": {
+        "segments_one": "{{count}} 條簡訊",
+        "segments_other": "{{count}} 條簡訊",
+        "aria": "回覆 {{contact}}",
+        "placeholder": "簡訊",
+        "remaining_one": "還可輸入 {{count}} 個字元",
+        "remaining_other": "還可輸入 {{count}} 個字元",
+        "send": "傳送訊息",
+        "no_reply": "該寄件者是名稱而非號碼，因此無法回覆。"
+      },
+      "identity": {
+        "matched": "已匹配"
+      },
+      "time": {
+        "today": "今天",
+        "yesterday": "昨天"
+      },
+      "send": {
+        "sending": "傳送中…",
+        "failed": "傳送失敗",
+        "retry": "重試",
+        "discard": "放棄",
+        "sent_at": "{{time}} 已傳送"
+      },
+      "phishing": {
+        "with_logo": "含有連結。發件人名稱可能被偽造，{{name}} 未必傳送了此訊息。",
+        "generic": "含有連結。僅在您預期收到此訊息時才開啟。"
+      },
+      "code": {
+        "copied": "已複製",
+        "copy": "複製驗證碼"
+      },
+      "forward": {
+        "prefix": "來自 {{addr}}：",
+        "title": "轉發訊息",
+        "description": "將從此數據機傳送一條新簡訊，原訊息保持不變。",
+        "to_label": "收件人",
+        "alpha_disabled": "發件人名稱無法接收簡訊",
+        "include_sender": "包含原發件人",
+        "include_sender_hint": "在頂部新增一行「來自 {{addr}}：」",
+        "submit": "轉發"
+      },
+      "details": {
+        "kind": {
+          "msisdn": "電話號碼",
+          "shortcode": "短號碼",
+          "alphanumeric": "發件人名稱"
+        },
+        "title": "訊息詳情",
+        "description": "QManager 掌握的此訊息的全部資訊。",
+        "to": "收件人",
+        "from": "發件人",
+        "sender_type": "發件人類型",
+        "sent_at": "傳送時間",
+        "received_at": "接收時間",
+        "length": "長度",
+        "length_value_one": "{{count}} 個字元",
+        "length_value_other": "{{count}} 個字元",
+        "close": "關閉"
+      },
+      "storage": {
+        "unknown": "未回報",
+        "label": "訊息儲存",
+        "modem": "數據機記憶體",
+        "sim": "SIM 卡儲存",
+        "combined_caption": "兩個儲存區共用的插槽"
+      },
+      "search": {
+        "aria": "搜尋訊息",
+        "placeholder": "搜尋訊息"
+      },
+      "filters": {
+        "all": "全部",
+        "unread": "未讀"
+      },
+      "sort": {
+        "to_oldest": "最早的在前",
+        "to_newest": "最新的在前"
+      },
+      "preview": {
+        "you": "你："
+      },
+      "a11y": {
+        "unread_count_one": "{{count}} 條未讀訊息",
+        "unread_count_other": "{{count}} 條未讀訊息"
+      }
+    },
+    "errors": {
+      "delete_all": "刪除全部訊息失敗",
+      "send": "傳送簡訊失敗",
+      "fetch": "載入訊息失敗"
+    },
+    "settings": {
+      "title": "簡訊設定",
+      "description": "選擇此數據機傳送和儲存簡訊的方式。",
+      "smsc": {
+        "toast_saved": "運營商號碼已儲存。",
+        "save_failed": "無法儲存運營商號碼。",
+        "title": "運營商號碼",
+        "hint_label": "關於運營商號碼",
+        "hint": "也稱為簡訊中心 (SMSC)。該號碼由運營商設定，僅在簡訊無法傳送時才需要修改。",
+        "description": "用於轉發您發出簡訊的運營商號碼。",
+        "placeholder": "例如 +639180000101",
+        "invalid": "請輸入 3 至 20 位數字，開頭可帶 +。",
+        "unreadable": "無法讀取目前號碼，但仍可設定新號碼。"
+      }
+    },
+    "storage": {
+      "full": "已滿",
+      "nearly_full": "即將存滿",
+      "card_title": "簡訊儲存位置",
+      "card_description": "新簡訊的儲存位置。現有簡訊保持原位。",
+      "load_failed": "無法讀取簡訊儲存資訊。",
+      "toast_saved": "簡訊儲存位置已儲存。",
+      "field_label": "新簡訊儲存至",
+      "hint_label": "關於簡訊儲存",
+      "hint": "數據機可儲存更多簡訊。儲存在 SIM 卡上的簡訊會隨 SIM 卡轉移到其他裝置。",
+      "option_modem": "數據機",
+      "option_sim": "SIM 卡",
+      "row_modem": "數據機",
+      "row_sim": "SIM 卡",
+      "used_of_total": "{{used}} / {{total}}",
+      "unavailable": "無法使用",
+      "save_failed": "無法儲存簡訊儲存位置。"
+    }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "基站鎖定",
+      "description": "依 PCI 與頻點將數據機固定至特定的實體小區。"
+    },
+    "live": {
+      "title": "此刻狀態",
+      "camped_empty_title": "目前無在網載波",
+      "camped_empty_body": "數據機目前未駐留在任何小區。鎖定仍會在其附著後生效。",
+      "absent_nr_title": "無 5G 載波",
+      "absent_lte_title": "無 LTE 錨點",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_no_value": "—",
+      "tile_blocked_nsa": "5G 鎖定需要獨立組網模式",
+      "tile_blocked_lte_only": "無 5G 連線可鎖定",
+      "tile_blocked_slots_full": "三個 LTE 小區均已設定",
+      "refresh": "從數據機重新讀取鎖定狀態",
+      "persist_label": "重新啟動後保持鎖定",
+      "persist_help": "將鎖定儲存在數據機本身，重新啟動後會自動還原。",
+      "persist_state_on": "已開啟",
+      "persist_state_off": "已關閉",
+      "persist_state_split": "僅一個無線電",
+      "persist_state_unknown": "尚未回報",
+      "persist_split_help": "數據機回報僅為一個無線電儲存了此設定。請關閉後重新開啟，以重寫兩者。",
+      "persist_toast_enabled": "重新啟動後將保持鎖定",
+      "persist_toast_disabled": "重新啟動後將不保持鎖定",
+      "failover_label": "訊號容錯移轉",
+      "failover_help_label": "關於訊號容錯移轉",
+      "failover_help": "若訊號品質持續低於門檻值，則自動解除基站鎖定，避免劣質小區導致連線中斷。解除時會同時釋放兩個無線電，而不僅是訊號弱的那個。",
+      "failover_state_disabled": "已停用",
+      "failover_state_stalled": "未在守護",
+      "failover_state_unknown": "尚未回報",
+      "threshold_label": "低於此值時解除",
+      "threshold_invalid": "請輸入 0 到 100 之間的數值",
+      "threshold_unread": "尚未從模組讀取到該值。",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "尚未回報",
+      "verdict_on_target_title": "已在目標上",
+      "verdict_on_target_body": "無線電已駐留在你鎖定的小區上。",
+      "verdict_off_target_title": "未在目標上",
+      "verdict_off_target_body": "鎖定已設定，但無線電駐留在別處。",
+      "verdict_unverified_title": "無法核實",
+      "verdict_unverified_body": "已設定鎖定，但目前沒有在網載波可供比對。",
+      "verdict_unlocked_title": "未鎖定",
+      "verdict_unlocked_body": "數據機自行選擇小區，並可自由重選。",
+      "verdict_unknown_title": "尚未讀取",
+      "verdict_unknown_body": "尚未從數據機回讀鎖定狀態。",
+      "target_serving": "駐留中",
+      "band_channel": "{{band}}（{{channel}}）",
+      "target_pair": "{{channel}}，PCI {{pci}}",
+      "tile_add": "將頻段 {{band}}、PCI {{pci}} 加入鎖定",
+      "tile_lock": "鎖定到頻段 {{band}}、PCI {{pci}}",
+      "tile_replace": "改為鎖定到頻段 {{band}}、PCI {{pci}}",
+      "tile_unlock": "將頻段 {{band}}、PCI {{pci}} 從鎖定中移除"
+    },
+    "automation": {
+      "title": "無人看管時",
+      "description": "鎖定在重新啟動後、訊號變差時以及計時器觸發時的行為。",
+      "failover_help": "訊號品質持續低於閾值時釋放基站鎖定，避免差的小區使連線中斷。它會同時釋放兩種無線電，而不只是訊號弱的那一個。",
+      "failover_help_label": "關於訊號故障轉移",
+      "failover_hint": "已設定鎖定，但故障轉移已關閉。鎖定不會自動開啟它。",
+      "failover_label": "訊號故障轉移",
+      "failover_state_disabled": "已關閉",
+      "failover_state_ready": "就緒",
+      "failover_state_released": "已釋放（訊號弱）",
+      "failover_state_stalled": "未在守護",
+      "failover_state_unknown": "未報告",
+      "failover_state_watching": "監控中",
+      "quality_unknown": "當前訊號品質：未報告",
+      "quality_value": "當前訊號品質：{{value}}%",
+      "threshold_invalid": "請輸入 0 到 100 之間的值",
+      "threshold_label": "低於此值時釋放",
+      "threshold_unread": "無法讀取閾值。"
+    },
+    "legs": {
+      "lte": {
+        "title": "LTE 基站",
+        "description": "依頻點與 PCI 將 4G 無線電固定至最多三個小區。"
+      },
+      "nr_sa": {
+        "title": "5G NR-SA 基站",
+        "description": "將 5G 獨立組網無線電固定至單一小區。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "頻點 (EARFCN)",
+      "arfcn": "頻點 (NR-ARFCN)",
+      "pci": "小區 ID (PCI)",
+      "band": "NR 頻段",
+      "scs": "子載波間隔",
+      "slot": "小區 {{index}}",
+      "slot_clear": "清除小區 {{index}}",
+      "scs_guess": "已依頻段 {{band}} 的預設值填入。若鎖定失敗，請對照您的基站核實。",
+      "pick_placeholder": "選擇一個在網載波",
+      "slot_in_use": "位於小區 {{index}}"
+    },
+    "card": {
+      "persist_label": "重新啟動後保持",
+      "persist_aria": "重新啟動後保持 {{leg}} 鎖定",
+      "gate_nsa_title": "5G NSA 下無法使用",
+      "gate_nsa_body": "獨立組網鎖定需要數據機處於 SA 模式。目前 5G 錨定於一個 LTE 小區上。",
+      "gate_lte_title": "無 5G 連線",
+      "gate_lte_body": "數據機僅使用 LTE，因此沒有可固定的 NR 小區。",
+      "empty_title": "尚無小區目標",
+      "empty_body": "從上方列表中選取一個小區，或手動輸入頻點與 PCI。",
+      "simple_mode": "從在網載波中選擇",
+      "input_mode": "輸入小區的方式",
+      "mode_pick": "已偵測",
+      "mode_type": "手動",
+      "unread_note": "數據機未報告鎖定狀態。",
+      "unused_lte": "有框線的小區已鎖定，但數據機並未使用。",
+      "unused_nr": "已鎖定，但數據機並未使用此小區。"
+    },
+    "schedule": {
+      "title": "鎖定排程",
+      "description": "僅在每日時段內套用基站鎖定。",
+      "enable_label": "排程鎖定",
+      "start": "開始",
+      "end": "結束",
+      "days": "重複於",
+      "days_a11y": "星期",
+      "day_selected": "{{day}}，已選取",
+      "day_unselected": "{{day}}，未選取",
+      "day_0": "日",
+      "day_1": "一",
+      "day_2": "二",
+      "day_3": "三",
+      "day_4": "四",
+      "day_5": "五",
+      "day_6": "六",
+      "status_active": "生效中",
+      "status_inactive": "未生效",
+      "toast_saved": "已更新排程",
+      "toast_error": "無法儲存排程",
+      "arm_warning": "已儲存，但排程未啟用：{{reason}}",
+      "arm_reason_unit_absent": "此裝置尚未安裝排程服務 — 請更新至最新韌體以啟用",
+      "arm_reason_unknown": "原因不明",
+      "no_days": "請至少選擇一天",
+      "toast_disabled": "鎖定計劃已關閉",
+      "toast_enabled": "鎖定計劃已開啟"
+    },
+    "actions": {
+      "lock": "鎖定基站",
+      "unlock": "解除鎖定",
+      "clear_fields": "清空欄位",
+      "refresh": "重新整理"
+    },
+    "dialog": {
+      "lock_lte_title": "將 LTE 鎖定至此小區？",
+      "lock_lte_body_one": "數據機將短暫中斷連線並重新附著至 {{summary}}。若該小區無法接入，在解除鎖定前可能會失去服務。",
+      "lock_lte_body_other": "數據機將短暫中斷連線並重新附著至 {{count}} 個小區中的一個。若均無法接入，在解除鎖定前可能會失去服務。",
+      "lock_nr_title": "將 5G 鎖定至此小區？",
+      "lock_nr_body": "數據機將短暫中斷連線並重新附著至 {{summary}}。若該小區無法接入，在解除鎖定前可能會失去服務。",
+      "unlock_title": "解除 {{leg}} 基站鎖定？",
+      "unlock_body": "無線電將恢復自行選擇小區。重新附著期間連線會短暫中斷。"
+    },
+    "toast": {
+      "persist_enabled": "重新啟動後將保持 {{leg}} 鎖定",
+      "persist_disabled": "重新啟動後將不再保持 {{leg}} 鎖定",
+      "locked": "已套用 {{leg}} 基站鎖定",
+      "unlocked": "已清除 {{leg}} 基站鎖定",
+      "incomplete": "請填寫所有欄位後再鎖定",
+      "filled": "已從頻段 {{band}}、PCI {{pci}} 填入 {{leg}}",
+      "slots_full": "三個 LTE 小區均已設定",
+      "cell_added": "已將小區加入 {{leg}} 鎖定",
+      "cell_exists": "該小區已加入",
+      "cell_removed": "已將小區從 {{leg}} 鎖定中移除",
+      "failover_disabled": "訊號故障轉移已關閉",
+      "failover_enabled": "訊號故障轉移已開啟",
+      "refresh_error": "無法重新整理鎖定狀態",
+      "threshold_saved": "故障轉移閾值已更新"
+    },
+    "warning": {
+      "service_enable_failed": "鎖定目前已生效，但無法設為開機啟動，因此重新啟動後不會保留。",
+      "service_disable_failed": "鎖定已解除，但未能從開機啟動中移除 — 重新啟動後可能會再次生效。",
+      "persist_command_failed": "「重新啟動後保持鎖定」未生效。數據機拒絕了儲存指令。",
+      "dismiss": "忽略"
+    },
+    "error": {
+      "title": "無法讀取基站鎖定狀態",
+      "body": "數據機經三次嘗試仍無回應。在此操作成功之前，下方內容均不反映無線電真實的鎖定狀態。",
+      "retry": "重試",
+      "retrying": "正在重試…"
+    },
+    "blocked": {
+      "lock_empty_lte": "請輸入頻點與 PCI，或從上方的小卡片中選取一個小區。",
+      "lock_incomplete_lte": "已開始填寫的每個插槽都需要同時填入頻點與 PCI。",
+      "lock_empty_nr": "請輸入頻點、PCI、子載波間隔與頻段，或從上方的小卡片中選取一個小區。",
+      "lock_incomplete_nr": "鎖定該小區前，四個欄位都必須填寫。",
+      "lock_gated_nsa": "模組目前處於 5G NSA，5G 側沒有可鎖定的獨立組網小區。",
+      "lock_gated_lte_only": "模組目前沒有在用的 5G 載波，因此沒有可鎖定的對象。",
+      "refresh_writing": "正在套用基站更改。"
+    },
+    "a11y": {
+      "applying": "正在套用 {{leg}} 基站鎖定…",
+      "refreshing": "正在重新讀取基站鎖定狀態…"
+    },
+    "errors": {
+      "in_flight": "另一項基站更改仍在套用中。",
+      "lock_failed": "無法套用基站鎖定。",
+      "no_cells": "請先至少輸入一個通道和 PCI。",
+      "read_failed": "數據機未報告其基站鎖定狀態。",
+      "schedule_failed": "無法儲存鎖定計劃。",
+      "settings_failed": "無法儲存基站設定。",
+      "unlock_failed": "無法移除基站鎖定。"
+    }
   }
 }

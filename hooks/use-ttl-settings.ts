@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
+import type { MutationResult } from "@/types/mutation-result";
 
 // =============================================================================
 // useTtlSettings — One-Shot TTL/HL Fetch & Save Hook
@@ -14,6 +17,11 @@ import { authFetch } from "@/lib/auth-fetch";
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/ttl.sh";
+const K = "ttlMtu";
+
+// ttl.sh's persist_failed means "live but not saved"; the shared errors key is worded for config restore.
+const ttlCode = (code: unknown) =>
+  code === "persist_failed" ? "ttl_persist_failed" : typeof code === "string" ? code : null;
 
 export interface TtlSettingsData {
   /** Whether custom TTL/HL is currently active */
@@ -36,12 +44,18 @@ export interface UseTtlSettingsReturn {
   /** Error message if fetch or save failed */
   error: string | null;
   /** Apply new TTL/HL values. Returns true on success. */
-  saveTtlHl: (ttl: number, hl: number) => Promise<boolean>;
+  saveTtlHl: (ttl: number, hl: number) => Promise<MutationResult>;
   /** Re-fetch TTL/HL data */
   refresh: () => void;
 }
 
 export function useTtlSettings(): UseTtlSettingsReturn {
+  const { t } = useTranslation("common");
+  // Read through a ref so a language switch does not rebuild the callbacks and re-run the mount fetch.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [data, setData] = useState<TtlSettingsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -73,7 +87,8 @@ export function useTtlSettings(): UseTtlSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!json.success) {
-        setError(json.error || "Failed to fetch TTL settings");
+        const tr = tRef.current;
+        setError(resolveErrorMessage(tr, ttlCode(json.error), json.detail, tr(`${K}.ttl_load_error`)));
         return;
       }
 
@@ -83,11 +98,9 @@ export function useTtlSettings(): UseTtlSettingsReturn {
         hl: json.hl,
         autostart: json.autostart,
       });
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch TTL settings",
-      );
+      setError(tRef.current(`${K}.ttl_load_error`));
     } finally {
       if (mountedRef.current && !silent) {
         setIsLoading(false);
@@ -104,7 +117,7 @@ export function useTtlSettings(): UseTtlSettingsReturn {
   // Save TTL/HL values
   // ---------------------------------------------------------------------------
   const saveTtlHl = useCallback(
-    async (ttl: number, hl: number): Promise<boolean> => {
+    async (ttl: number, hl: number): Promise<MutationResult> => {
       setError(null);
       setIsSaving(true);
 
@@ -120,20 +133,23 @@ export function useTtlSettings(): UseTtlSettingsReturn {
         }
 
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to apply TTL/HL");
-          return false;
+          const tr = tRef.current;
+          const message = resolveErrorMessage(tr, ttlCode(json.error), json.detail, tr(`${K}.toast_ttl_error`));
+          setError(message);
+          return { ok: false, error: message };
         }
 
         // Silent re-fetch to update local state
         await fetchTtl(true);
-        return true;
-      } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to apply TTL/HL");
-        return false;
+        return { ok: true, error: null };
+      } catch {
+        if (!mountedRef.current) return { ok: false, error: null };
+        const message = tRef.current(`${K}.toast_ttl_error`);
+        setError(message);
+        return { ok: false, error: message };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);

@@ -2,8 +2,9 @@ import type { LanguageCode, LanguageMeta } from "@/types/i18n";
 
 export const DEFAULT_LANGUAGE: LanguageCode = "en";
 
-// Bundle-only catalog: every language ships in firmware (`bundled: true`), so
-// there is no remote manifest, no download flow, and no non-bundled placeholder.
+// The BUNDLED catalog: these five ship in firmware and are always present.
+// Community packs are downloaded at runtime and never appear here — they come
+// from the remote manifest and `list.sh`, and are merged in by `buildCatalogView`.
 // RTL is parked (all `rtl: false`) — physical spacing utilities are still used
 // throughout the tree, so an RTL language would render with broken margins.
 export const AVAILABLE_LANGUAGES: readonly LanguageMeta[] = [

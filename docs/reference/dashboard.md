@@ -1,0 +1,478 @@
+# Dashboard (`/dashboard`)
+
+> **Status: shipped 2026-09-02.** The adoption pass approved on 2026-09-01 ran as one
+> product-wide pre-step plus ten steps, one commit each, and everything this document
+> describes is now true of the code. Four of its prescriptions were overturned by
+> measurement during execution and are recorded under
+> [What the pass got wrong](#what-the-pass-got-wrong) rather than quietly dropped.
+> **Applies to:** RM520N-GL. The surface is poller-fed and RM520N-only.
+
+The dashboard is the product's **glance surface**: the mid-day check that answers *is it
+up, how good is it, and did anything happen while I was away* in seconds, usually on a
+phone beside the modem. It is also the surface `DESIGN.md` was originally written from,
+which is the single most important thing to know before editing it — several of its
+constructions **are** the canon's worked examples, and rewriting them is churn rather
+than a win.
+
+Two sibling docs already own halves of this surface and are **not** superseded:
+[`dashboard-chart-cards.md`](dashboard-chart-cards.md) (Device Metrics, Connection Quality,
+Signal History — the recharts, threshold and history-strip contracts) and
+[`dashboard-state-motion.md`](dashboard-state-motion.md) (the tick cascade, the chip
+morph, the save flow). This doc owns everything else: composition, the shape module, the
+three-state contract, and which parts are load-bearing.
+
+## Quick Reference
+
+| Item | Value |
+|------|-------|
+| Route | `app/dashboard/page.tsx` → `components/dashboard/home-component.tsx` |
+| Shell | `components/dashboard/home-component.tsx` — grid, cascade, page banner |
+| Shape module | `components/dashboard/shapes.ts` |
+| Page header | `components/dashboard/page-header.tsx` + `status-rail.tsx` |
+| Cards | 9 widgets across 12 files, ~6,300 lines |
+| Signal rows | `components/dashboard/signal-rows.ts` — `buildSignalRows(family, data, t)` |
+| Data source | `useModemStatus()` (poller cache) + `useAboutDevice()` |
+| Poll cadence | Tied to `connectivity.history_interval_sec` + 250 ms; **measured ~3.7–4.0 s** |
+| Icon library | **Material Symbols Rounded** (route-scoped), with three recorded exceptions |
+| i18n namespace | `dashboard` |
+| Design canon | `DESIGN.md` — Layout, Motion > Entrances, Components > Tiles / Metric rows |
+| Proof | No test harness — `scripts/test/` was deleted 2026-09-03. Verify by loading `/dashboard` and reading `next build`'s output |
+
+---
+
+## Composition
+
+**Bento, and it stays bento.** A 5-column container grid (`@4xl/main:grid-cols-5`) with
+a 3-column left stack and a 2-column right rail, then full-width rows beneath. This
+layout, its orbs and its motion character are **preserved by explicit user request** and
+recorded as such in `PRODUCT.md` > Brand Commitments. Do not restructure it.
+
+Reading order, top to bottom:
+
+| Band | Contents | Span |
+|------|----------|------|
+| Header | Page title, description, and the Radio / Internet / Stale rail | full |
+| Top | Network Status hero + the NR / LTE pair (left, 3 cols) · Device Information (right, 2 cols) | full |
+| Aggregation | Carrier Aggregation strip | full |
+| Trio | Device Metrics · Connection Quality · Recent Activity | full |
+| History | Signal History | full |
+
+**The page header is not optional.** The dashboard was for a long
+time the only feature route in the product without one, and it compensated by inflating a
+card `h3` to `text-[30px]` — the Display step `DESIGN.md` reserves for the page title,
+"one per route". Three cards had climbed to page-title size as a result. The header
+restores the address and lets every card sit at the 18px Title step.
+
+**The chip rail is page-level, not card-level.** Radio, Internet
+and Stale answer *"is the whole thing up?"*, which is a question about the route rather
+than about Network Status. They render through the header's `rail` slot.
+
+> ℹ️ This **upholds** the existing reasoning in `network-status.tsx`. That comment argues
+> against promoting the Stale chip to a **`Banner`** — "promoting it to a banner would
+> cry wolf" — and a page-header chip is not a banner. `/cellular/settings/apn-management`
+> is the precedent for a header chip reporting a live fact.
+
+---
+
+## The shape module
+
+`components/dashboard/shapes.ts` is the family's single home for geometry, control
+heights, glyph sizes and tone maps — the fourteenth such module in the tree, on the same
+conventions as `components/local-network/ethernet/shapes.ts`.
+
+**It exists because the surface had the exact failure set the rule was minted for**, none
+of it visible in any single file:
+
+- **Five copies of the card shell**, across `carrier-aggregation`, `device-metrics`,
+  `live-latency`, `recent-activities` and `signal-history` — plus two more inlined in
+  `signal-status-card` and `device-status`. Two of the five disagreed: `px-7` on cards
+  that are grid **peers**, `px-6` on their neighbours in the same row.
+- **Skeletons restating numbers they cannot see** — `h-[41px]` against a live
+  `px-[15px] py-2.5 text-sm` row, `h-[62px]` against a `px-4 py-3` tile.
+- **One constant declared twice** — `CLOCK_TICK_MS = 30_000` in two cards.
+
+> ⚠️ **Geometry is restated across sibling families, never imported between them.** The
+> dashboard's `TILE` restates `components/cellular/tile-shape.ts`'s values rather than
+> importing them; the two are dimensionally identical today and are allowed to diverge
+> tomorrow. Anything genuinely product-wide is promoted to `components/ui/`, not shared
+> sideways.
+
+### The `px-6` / `px-7` resolution
+
+`px-6` is the **peer** card and `px-7` is the **hero**. Signal History shipped `px-7` and
+is a peer, so step 08 moved it. The two heroes are Network Status and Carrier Aggregation.
+
+> ⚠️ **Changing a card's horizontal padding moves its own container-query thresholds.**
+> `@container/card` is `container-type: inline-size`, which measures the **content** box,
+> so 4px less padding per side makes the card query 8px *wider* at the same rendered
+> width. Measured on Signal History: the `@[540px]/card` ToggleGroup↔Select swap moved
+> from a 596px card width to 588px. A threshold shift, not a mechanism change — but check
+> for one before assuming a padding edit is cosmetic.
+
+---
+
+## Tiles, rows and lanes
+
+The surface uses three repeating units, and the canon owns all three.
+
+- **Metric row** — a 40px full-round pill on `surface-container`, 16px horizontal, a
+  13px/600 `on-surface-variant` key against a 13px value. **The `/5` leading is not
+  optional**: 13px is an arbitrary Tailwind size, so without an explicit line box it
+  inherits whatever leading the card sits in and the row stops being 40px — which
+  silently breaks the skeleton's `h-10` mirror.
+- **Tile** — 12px radius, **pinned** `h-[6.5rem]` (104px), a 52px full-round glyph disc
+  beside eyebrow → value → caption. **A tile body is neutral; the disc carries the
+  colour.** A `min-h-` on a *tile* is a bug, not a lenient pin: a floor cannot be a
+  mirror.
+  > ⚠️ **One kind of `min-h-` is not that bug: a floor under a recharts chart that also
+  > grows.** `ChartContainer`'s base class is `aspect-video`, so an unpinned chart's
+  > height is a function of the card's *width*; and recharts' `ResponsiveContainer`
+  > renders **nothing** until it has measured its parent, so a zero-height parent on the
+  > first frame makes the card pop when the measurement lands. A floor there guarantees a
+  > measurable height on frame one. Live Latency's `CHART_BOX = "min-h-[150px] flex-1"`
+  > was that case; it left with the card on 2026-10-11, and no `min-h-` remains under
+  > `components/dashboard/`. **A floor standing in for a mirror is a defect; a floor
+  > guaranteeing a first-frame measurement is not.** Neither failure shows in a static
+  > screenshot.
+- **Bars — one thickness, three widths.** Every bar in the product is
+  **8px tall**. What varies is **width**, chosen by slot:
+
+  | Form | Width | Where | Why |
+  |------|-------|-------|-----|
+  | **Full-width meter** | spans the row | Device Metrics — CPU, memory, temperature | The bar owns its own line beneath the label, so it has the width to spend |
+  | **Inline lane** | `w-14` (56px), `LANE` | The NR / LTE signal rows | It shares a 40px row with the figure it qualifies. A full-width bar under the last line would read as a coloured bottom border rather than as a gauge |
+  | **Compact lane** | `w-11` (44px), `QUALITY.LANE` | Connection Quality's Internet and DNS lookup rows | It sits between a label and a fixed `w-16` value column in a 20px row inside one tile, so both rows share a right edge whatever their digit counts |
+
+  > **Why one thickness.** `DESIGN.md` rests the whole quality ramp on length — adjacent
+  > stops sit *deliberately* below the CVD separation floor, on the understanding that
+  > **bar length carries the fine distinctions**. The old 4px lane was the thinnest mark
+  > on its card, carrying the one channel the ramp may not lose. And the 4px/8px split was
+  > never a decision: `MetricBar`'s `size` **defaulted to `sm`**, so 11 call sites
+  > inherited 4px and 9 opted out. `sm` is deleted, not deprecated — a size nobody should
+  > pick is a trap.
+
+  > ⚠️ **Do not thin Device Metrics' meters, and do not re-introduce a thin variant.**
+  > User-directed 2026-09-01. `METER_H = "h-2"` is mirrored by that card's skeleton, so
+  > changing one silently breaks the other.
+
+  In both forms, **length carries magnitude and the glyph carries the stop**, and a
+  missing reading is `MetricBar value={null}` — an empty track, never a zero-length fill.
+
+> ℹ️ NOTE: **ramp ink on a numeral with no lane beside it is a bug.** Adjacent quality
+> stops sit deliberately below the CVD separation floor, on the explicit understanding
+> that bar length carries the fine distinctions. See `DESIGN.md` > Quality bars.
+
+---
+
+## The three-state contract
+
+Every card ships **loading**, **empty** and **error**. The dashboard's honest failure
+mode is not a per-card error screen — it is a **failed poll**, and the same failure hits
+every card at once. Nine copies of one message would be noise.
+
+So the contract splits:
+
+1. **The page** carries the condition — `home-component.tsx`'s `Banner role="stale"`,
+   which already exists. It is suppressed while `useConnectionStatus().reconnecting` is
+   true: once an outage escalates to "reconnecting", the global banner in the app layout
+   owns it, and the two must never stack.
+2. **Each card** goes honest rather than blank. A measurement with no reading renders an
+   **empty track**, an `on-surface-variant` em-dash, a `muted` "No reading" chip and an
+   `sr-only` word. An **identifier** — IMEI, ICCID, firmware, band — keeps its last-known
+   value, because an identifier does not go stale on a missed poll.
+
+> ⚠️ **Never `??` a fallback tone in.** `qualityMeterTone()` returns `null` for `none`
+> precisely so a caller cannot. A rival copy of that map once sent `none` through a
+> `default:` arm to `success`, and **an antenna with no reading painted green**. The
+> absence is a value the caller must handle, not a case it can fall through.
+
+Six cards had no error branch at all before this pass — `network-status`,
+`device-status`, `signal-status-card`, `lte-status`, `nr-status`, `device-metrics` — and
+drew `"-"` and `0` in the same slots as real readings while the page banner said the
+modem was unreachable. The card and the banner disagreed. All six are closed: steps 01,
+02, 03 and 05 added an `unreachable` branch to the four surviving files, and the two
+wrapper files stopped existing (R2).
+
+---
+
+## Motion
+
+The dashboard is where the product's motion system was authored, so most of it is
+canonical and stays. Three things are worth stating because they are easy to undo.
+
+**One entrance cascade, four beats.** A single `staggerContainer`
+over the grid's five direct children, at the 120 ms card step: header → top band →
+aggregation → trio → history. The tail lands at **480 ms**.
+
+> The surface previously ran **five** independent containers, each with its own
+> `initial`/`animate` and each starting its own clock at t=0 — so the page read as five
+> things arriving simultaneously rather than as one cascade. `home-component.tsx`'s own
+> comment conceded this, and declined to reproduce the design mock's 240 ms offset
+> *because* of it. One container removes both problems.
+
+**Nested containers must not declare `initial`/`animate`.** The carrier pair, the orb
+grid and every row group inherit `visible` from the parent. Declaring their own detaches
+them from the parent's clock — which is the bug the single-container change exists to
+fix, reintroduced one level down.
+
+**The tick cascade is the tightest thing in the system against the poll.** A full
+`TickGroup` sweep is 1.4 s of lead plus a 1.4 s dip = 2.8 s, against a measured
+~3.7–4.0 s poll. That is **~900 ms of headroom**. Re-check the arithmetic in
+`lib/motion.ts` before raising the motion scale or making the poller faster.
+
+**Only measurements tick.** Identifiers take the container morph instead — dipping a
+value that holds steady for minutes invents an event.
+
+---
+
+## The trio row, and why one card could not absorb slack
+
+
+Device Metrics, Connection Quality and Recent Activity share one grid row and are `h-full`-locked
+by `*:data-[slot=card]:h-full`. Equalising a 3-up row is the documented norm — "Equal
+heights are explicit" — but it only works if every card can *use* the height it is given.
+
+- **Device Metrics.** Four `MeterRow`, two `PillRow` (data used; one cell-distance row
+  carrying both legs, each led by its `lte` / `nr` `Tag`), then the Speed Test tile, pinned
+  to the bottom edge by `mt-auto` (`device-metrics.tsx:604`, skeleton `:221`). Since
+  2026-11-01 it can absorb slack too: the space pools above the tile.
+- **Connection Quality.** Its body is a `flex-1` column and its Typical / Worst / Loss
+  footer is wrapped in `mt-auto` (`connection-quality.tsx:643`, skeleton `:323`), so slack
+  pools above the footer. The Speed Test row that used to sit there moved to Device
+  Metrics on 2026-11-01. Before 2026-10-11 Live Latency absorbed it through its chart
+  box's `flex-1`.
+- **Recent Activity could not.** Its list was pinned *and* clipped —
+  `maxHeight: LIST_MAX_H` (332px) under `overflow-hidden` — so every pixel past 332
+  became dead space at the bottom of that card.
+
+`VISIBLE_ROWS` is **the only number to change** — `LIST_MAX_H`, `RENDER_COUNT` and
+`ROW_ADVANCE` all derive from it, so the clip edge and the push animation stay correct by
+construction.
+
+> ⚠️ **It is 5, and the plan's "make it container-query-driven" was wrong.** R1 assumed
+> the hole was a row's worth of height. Measured across the 3-column layout — the only one
+> where the three cards share a row — the gap ran **30.8–76.3px** depending on where Device
+> Metrics' description wraps, against `ROW_ADVANCE = 68px`. A sixth row therefore
+> *overshoots*: verified in the live DOM at 1280px, the trio grew **486 → 500.3px** and the
+> dead space simply moved onto Device Metrics, which is the driver and can absorb nothing.
+> What closed the gap was the **`CardDescription`** step 07 added — the content difference
+> was only 8px, and the other ~45px was this card lacking a description its row-mate had.
+> The residual is at most one text line and cannot be driven to zero by any copy: the
+> `CardAction` chip takes a grid column, so this description's text column is ~100px
+> narrower than Device Metrics' at the same card width, across five locales.
+
+> ⚠️ `RENDER_COUNT` must stay exactly `VISIBLE_ROWS + 1`. The spare row exists to be pushed
+> *under* the clip edge; with no spare, the bottom row is pulled into view at the start of
+> the push and then vanishes at the end.
+
+> ℹ️ This was originally reported as the Speed Test tile creating "a huge whitespace gap".
+> The tile was real but secondary — shrinking it to a row took ~48px off **Live Latency**
+> (the card Connection Quality replaced), which was already absorbing fine, and gave
+> Recent Activity nothing. **Measure which card
+> cannot absorb before shrinking the one that can.**
+
+## Orb sizing
+
+
+The three orbs are 152px on desktop and **~92px, 3-across, below a card container query**.
+Stacked at 152px on a phone they run ~456px of orb plus three label blocks — roughly 600px
+before the reader reaches anything else, on the surface built for a thirty-second glance.
+
+This is a **responsive step, not a recomposition**: same three objects, same circular
+treatment, same corner badges and ring stack. Both sizes live in `shapes.ts` so the
+skeleton reads the same pair.
+
+> ⚠️ The ring stack's rings are absolutely positioned at 152 / 112 / 80px around a 48px
+> core. Scale all four from one ratio rather than by hand, and re-check that
+> `animate-pulse-ring` still reads at the smaller size.
+
+## The parts that are load-bearing
+
+Everything in this section is **correct as shipped** and was deliberately excluded from
+the adoption pass. Changing any of it needs its own justification.
+
+- **The signal cards' quality treatment.** Identity on the fill, quality in the Material
+  glyph's bar count, ramp ink on the numeral, a 56px lane beside it, and an `sr-only`
+  quality word. `DESIGN.md` cites this card by name under Signature surfaces.
+  > The **card** is load-bearing; its two wrappers were not. `nr-status.tsx` and
+  > `lte-status.tsx` rendered nothing — each mapped a poller block to
+  > `SignalStatusRow[]` and forwarded six props — so they collapsed into
+  > `signal-rows.ts` (R2). The builder branches on `family` rather
+  > than pretending the legs match: **NR carries `scs` and LTE does not.**
+- **Recent Activity's age-gated tone.** Tone is *what kind of thing happened* and never
+  expires — carried by a full-strength disc for as long as the row exists. Weight is
+  *how much it still deserves attention* and does expire, settling the container onto
+  `surface-container` after an hour. **The disc never consults the age gate.**
+- **Carrier Aggregation's `width` animation.** The single sanctioned `width` animation in
+  the product, because the width *is* the data and a `scaleX` would distort the band
+  labels riding inside it. Its released-carrier contract (visible and explicitly marked,
+  never silently dropped) and its freeze-while-stale rule are equally load-bearing.
+- **The chart draw-in.** CSS over recharts, `pathLength={1}` plus
+  `{...useChartSeriesMotion()}` on every animated series. See
+  [`dashboard-chart-cards.md`](dashboard-chart-cards.md).
+- **The skeleton-overlay crossfade** in Device Metrics — the outgoing skeleton sits *on
+  top of* real content so the card is sized by its content from the first frame and the
+  handoff contributes zero layout shift.
+- **The live speedtest figure is deliberately not wrapped in `TickingValue`.** The tick
+  is a 1.4 s gesture; the speedtest's live cadence is 500 ms. It would strobe.
+- **Device Metrics' layout, including where the data-usage row sits.** See the rule
+  below — this one has already been proposed once and vetoed.
+
+### Placement encodes confidence
+
+**Do not promote the data-usage row.** It stays a `PillRow` in the quiet slot beneath the
+three meters, with its direction glyphs inline and its reset control in the label.
+
+A 2026-09-01 draft proposed moving the rx/tx figures onto two pinned 104 px tiles with
+direction discs. It was **vetoed by the user**, and the veto generalises into a rule this
+surface should keep:
+
+> **A figure the product does not trust must not occupy a slot that asserts trust.**
+> Promoting a value amplifies the claim it makes. Data Used is a cumulative
+> `AT+QGDCNT` / `AT+QGDNRCNT` counter with a manual reset and known accuracy problems —
+> it cannot back the claim two 104 px tiles would make on its behalf.
+
+The concrete trade was ~208 px of tile — the loudest slot on the card — for its least
+reliable value, while CPU, memory, storage and temperature, all directly measured, stayed
+as 40 px rows. That inverts the card's honesty ordering, which is the same failure The
+State-Honesty Rule names one level up: a surface must not report something as more solid
+than it is, and **layout is one of the channels that reports it**.
+
+> ℹ️ The direction ink on that row is separately load-bearing. `arrow_circle_down` takes
+> `text-downlink-on-surface` and `arrow_circle_up` takes `text-uplink-on-surface` — this
+> was the one site in the product that was already half-right before the direction hues
+> were unified (download had been `text-primary`, the 5G NR identity hue, on a figure
+> counting bytes received on *any* radio). Leave both.
+
+### The three icon exceptions
+
+The route is Material Symbols. Three glyphs on Network Status are recorded exceptions in
+`DESIGN.md` > Icons and must survive any sweep:
+
+| Glyph | Library | Why |
+|-------|---------|-----|
+| `CardSimIcon` | lucide | The SIM orb is a recognised landmark on the glance surface |
+| `Plane` | lucide | Its airplane-mode stand-in, same reason |
+| `MdOutline5G` / `Md4gMobiledata` / `Md4gPlusMobiledata` / `Md3gMobiledata` | react-icons/md | "5G", "4G+", "3G" are typographic marks Material Symbols has no equivalent for |
+
+---
+
+## The speed test dialog
+
+`components/dashboard/speedtest-dialog.tsx` is the surface's only modal and its only
+off-grid file. It does **not** import `shapes.ts`: that module is the grid's geometry, and
+a modal sharing one radius token with it is not a reason to couple them.
+
+**The dialog is the detail view, and that is load-bearing.** The dashboard's speed-test
+tile (Device Metrics, `SPEEDTEST` in `shapes.ts`, pinned at 68px) carries only download,
+upload and ping; the full result — three role tiles, four metric pills,
+the server line, the ISP and both links — lives here. Shrinking this display would retract
+the justification for that small tile.
+
+**The meter's clock is the poll cadence, not a step of the motion scale.** `TrackBar` is
+local rather than `components/ui/progress.tsx` so retiming it cannot retime every other
+bar in the product, and its fill transitions `width` **linearly** over
+`LIVE_INTERVAL_MS` — imported from `hooks/use-speedtest.ts` and applied as an inline
+`transitionDuration`, never retyped as a `duration-*` class.
+
+> This is a **sanctioned exception to The One-Scale Rule**, and the exception is the
+> duration's *source*, not its freedom. The bar bridges one throughput sample to the next
+> rather than expressing a state change, so `linear` is correct where the system's curves
+> would read as easing the data, and `standard` (600ms) would leave the fill still
+> travelling when the next sample landed. Retune `LIVE_INTERVAL_MS` and the bar follows;
+> there is no second copy to forget.
+
+**The live meter's track is `surface-container-high`, and the reason is dark mode.** It
+shipped as `bg-white/45` on the argument that a neutral token would fight the tonal
+container. Composited and measured in CIE L*, the opposite was true in the theme the
+argument never checked: over `downlink-container` in dark, a 45% white veil resolves to
+**53.78** against a fill at **57.47** — 3.7 apart, a progress bar with no readable boundary
+between done and remaining. The token reads 11.20 there, 46.3 clear of the fill.
+
+| | container | white/45 track | fill | old ΔL* | new ΔL* |
+|---|---|---|---|---|---|
+| **dark / download** | 15.15 | 53.78 | 57.47 | **3.69** | 46.27 |
+| dark / upload | 24.80 | 60.08 | 80.85 | 20.77 | 69.65 |
+| light / download | 84.25 | 91.08 | 36.48 | 54.60 | 56.45 |
+| light / upload | 91.40 | 94.67 | 48.50 | 46.17 | 44.43 |
+
+**Two things here are deliberately unmigrated**, and `[09-5]` of the harness pins both so
+a drive-by "fix" goes red:
+
+- `hover:bg-primary/90` ×2. There is no `--primary-hover` token to point at, and the
+  string is `components/ui/button.tsx`'s own `default` variant, verbatim at six sites
+  product-wide. Changing two dashboard copies would make this surface's primary CTA hover
+  differ from every other primary CTA in the product.
+- The five `rounded-tile` boxes are not re-pointed at `shapes.ts`'s `TILE`. `TILE` is the
+  system's pinned 104px horizontal geometry with a 52px disc; none of these is that shape.
+
+**The step chips are a stepper, not status badges** — a documented departure from the
+Filled-Chip Rule, because the active chip carries the measurement's *direction* hue and
+`Badge` has no `uplink` role. Every state still carries a distinct non-chromatic mark and
+an `sr-only` status word, so nothing here depends on hue.
+
+---
+
+## What the pass got wrong
+
+Four of the approved plan's prescriptions did not survive execution. They are recorded
+here rather than dropped, because each one is a reasoning error that will otherwise be
+made again.
+
+**1. Recent Activity's row count.** R1 said make `VISIBLE_ROWS` container-query-driven. A
+sixth row overshoots the hole and moves the dead space onto the one card that cannot
+absorb it. See the warning under [the trio row](#the-trio-row-and-why-one-card-could-not-absorb-slack).
+*The lesson: measure the hole before sizing the thing you put in it.*
+
+**2. The speed test dialog's "bare `transition-all`".** Finding 17 named three One-Scale
+violations in `speedtest-dialog.tsx`. One of them does not exist. `transition-all` appears
+in that file exactly once, inside the comment explaining why `TrackBar` is local *instead
+of* `components/ui/progress.tsx` — which is the file that ships it. The audit read the
+explanation as the offence, and `DESIGN.md`'s delta row repeated it. *The lesson: this is
+why every section of the harness greps comment-stripped source.*
+
+**3. `duration-500` was not a value to replace.** The plan said move it onto the duration
+scale. No step of the scale is correct for a bar whose job is to bridge samples arriving
+on a 500ms poll. The defect was that `500` was written twice with nothing but a comment
+coupling the copies. *The lesson: an off-scale number with a written reason is a coupling
+to make explicit, not a violation to normalise.*
+
+**4. The Modal-Exit Rule already held.** The plan asked for it to be verified and warned
+that an unqualified `emphasized` buys 800ms of dead clicks per close. `dialog.tsx` gets it
+right on both the panel and the scrim, and the call site's unqualified
+`duration-[var(--duration-emphasized)]` was **losing**: `data-[state=closed]:duration-…`
+is an attribute selector at (0,2,0) against a bare utility's (0,1,0), so the closed clock
+measured **0.36s before and after** the call site was qualified. Qualifying it closes a
+*latent* trap — an unqualified duration parked behind a rule that outranks it springs the
+moment the two tie, and at a tie nothing but Tailwind's name sort decides. *The lesson: a
+specificity claim is measurable in one line of `getComputedStyle`; do not argue it.*
+
+> ℹ️ A fifth was withdrawn **before** execution: finding 06 claimed `live-latency.tsx`'s
+> `CHART_BOX = "min-h-[150px] flex-1"` was a floor where the canon says pin. It was correct
+> as shipped (the file was later deleted with the card) and its own JSDoc carried the counter-evidence. That reasoning is preserved
+> in full under [Tiles, rows and lanes](#tiles-rows-and-lanes).
+
+---
+
+## Gotchas
+
+- **`MaterialSymbol` sets `fontSize` as an inline style**, which outranks every utility.
+  Pass `size` explicitly at every call site — and doubly so inside a `SwapLabel` or a
+  `Badge`, where the parent's `[&>svg]:size-3` selector cannot reach the glyph anyway.
+- **`CardDescription` hardcodes a retired ink.** `components/ui/card.tsx:51` ships
+  `text-muted-foreground`; the system's ink for that role is `on-surface-variant`. This
+  surface overrides at the call site rather than fixing the primitive, which is its own
+  tracked delta.
+  > ⚠️ A harness assertion grepping `components/dashboard/**` for `text-muted-foreground`
+  > therefore proves **nothing** about what renders — the class lives in the shared
+  > primitive. Assert that every `CardDescription` here carries an explicit ink class
+  > instead.
+- **`components/ui/empty.tsx` ships `md:p-12`** — a viewport breakpoint inside a
+  card-level primitive, so Carrier Aggregation's empty state re-pads against the browser
+  window rather than its column. Same tracked delta.
+- **Poll cadence is not 2 s.** `DEFAULT_POLL_MS` is 2000 and the poller's own `sleep 2`
+  runs *after* the cycle body, so the real interval is roughly double. Any duration
+  derived from the nominal figure is 50% short.
+- **`prefers-reduced-motion` has three states here, not two.** The Animations preference
+  can outrank the OS setting in either direction. Keep every shared variant pure
+  transform and opacity so the one global switch stays sufficient.

@@ -155,7 +155,7 @@ confirm_uninstall() {
     printf "\n  ${BOLD}QManager — RM520N-GL Uninstaller${NC}\n\n"
     printf "  The following will be removed:\n"
     printf "    • All QManager systemd services and boot symlinks\n"
-    printf "    • Daemons and binaries: /usr/bin/qmanager_*, qcmd, atcli_smd11, sms_tool\n"
+    printf "    • Daemons and binaries: /usr/bin/qmanager_* (incl. the qmanager_atd broker), qcmd, qsms\n"
     printf "    • Shared libraries: %s\n" "$LIB_DIR"
     printf "    • udev rule: /etc/udev/rules.d/99-qmanager-smd11.rules\n"
     printf "    • CGI endpoints and frontend: %s\n" "$WWW_ROOT"
@@ -163,7 +163,7 @@ confirm_uninstall() {
     printf "    • Sudoers rules\n"
     printf "    • Web console (ttyd): %s\n" "$CONSOLE_DIR"
     printf "    • Speedtest CLI: /usrdata/root/bin/speedtest\n"
-    printf "    • Runtime state: /tmp/qmanager_*\n"
+    printf "    • Runtime state: /tmp/qmanager_*, /var/run/qmanager*, /run/qmanager_at (AT lock)\n"
     printf "    • Cron jobs referencing qmanager\n"
     if [ "$PURGE" = "1" ]; then
         printf "    • Config directory: %s  ${YELLOW}[--purge]${NC}\n" "$CONF_DIR"
@@ -191,7 +191,10 @@ printf "  ═══════════════════════�
 
 confirm_uninstall
 
-# Remount rootfs read-write — /usr, /etc, /lib live on the read-only root
+# Remount rootfs read-write — /usr and /lib live on the read-only root (ubi0).
+# NOT /etc: that is a bind mount of ubi2_0, always rw, unaffected by this call.
+# Left rw afterwards, matching install_rm520n.sh and qmanager_setup — the tree's
+# convention is "remount rw once, never restore ro". See docs/BACKEND.md.
 mount -o remount,rw / 2>/dev/null || true
 
 # =============================================================================
@@ -207,9 +210,13 @@ for unit_file in "$SYSTEMD_DIR"/qmanager-*.service; do
     [ -f "$unit_file" ] || continue
     _units="$_units $(basename "$unit_file" .service)"
 done
+# Old v0.1.14-v0.1.18 sms_forward never exited on TERM; queue its stop, then KILL the cgroup.
+systemctl --no-block stop qmanager-sms-forward 2>/dev/null || true
+systemctl kill -s KILL qmanager-sms-forward 2>/dev/null || true
 # Also stop lighttpd (QManager owns its service file; restored below)
 if [ -n "$_units" ]; then
     systemctl stop $_units lighttpd 2>/dev/null || true
+    systemctl reset-failed $_units 2>/dev/null || true
 else
     systemctl stop lighttpd 2>/dev/null || true
 fi
@@ -265,6 +272,19 @@ else
     info "Tower lock schedule timers torn down (manual fallback)"
 fi
 
+# Traffic Engine (DPI bypass) rule teardown — dpi_state.sh installs an
+# iptables `nat` PREROUTING REDIRECT sending LAN tcp/80,443 to the tpws
+# engine's port. That rule is not owned by any systemd unit — stopping
+# qmanager-dpi-ensure.timer below only stops the periodic re-assertion of
+# it, it never removes it — so a live REDIRECT rule survives uninstall and
+# points at a dead port, breaking every LAN client's HTTP/HTTPS until QCMAP
+# next flushes iptables. Must run here, before Step 3 removes the helper
+# binary and /usr/lib/qmanager/dpi_state.sh it sources.
+if [ -x "$BIN_DIR/qmanager_dpi_run" ]; then
+    "$BIN_DIR/qmanager_dpi_run" --clear >/dev/null 2>&1 || true
+    info "Traffic Engine REDIRECT rule torn down"
+fi
+
 # Auto-update timer teardown — unlike the three runtime-armed timers above,
 # this is a STATIC installer-shipped .timer, so it is caught by neither the
 # qmanager-*.service glob in Step 2 nor an arm-helper teardown verb (the
@@ -277,6 +297,17 @@ rm -f /lib/systemd/system/timers.target.wants/qmanager-auto-update.timer
 rm -f "$SYSTEMD_DIR/qmanager-auto-update.timer"
 systemctl daemon-reload 2>/dev/null || true
 info "Auto-update timer torn down"
+
+# Traffic Engine ensure timer teardown — same static-installer shape as the
+# auto-update timer above (shipped by the installer, timers.target.wants
+# symlink, not covered by the qmanager-*.service glob). The engine unit
+# files themselves are removed by the Step 2 glob; only the .timer needs
+# explicit handling.
+systemctl stop qmanager-dpi-ensure.timer 2>/dev/null || true
+rm -f /lib/systemd/system/timers.target.wants/qmanager-dpi-ensure.timer
+rm -f "$SYSTEMD_DIR/qmanager-dpi-ensure.timer"
+systemctl daemon-reload 2>/dev/null || true
+info "Traffic Engine ensure timer torn down"
 
 # SIGTERM first, then SIGKILL stragglers — uninstall is terminal so
 # we include update daemons that are normally excluded from service teardown
@@ -312,6 +343,23 @@ if [ -f "$SYSTEMD_DIR/lighttpd.service" ]; then
     info "Removed QManager lighttpd.service override"
 fi
 
+# The installer disables Entware's S80lighttpd so it can never win the
+# boot-time port-80 race against QManager's lighttpd.service. Now that we've
+# just removed that unit, restore S80lighttpd so the device still has a web
+# server on port 80 after uninstall — leaving it disabled would strand the
+# device with no web server at all. opt.mount's wants symlink is intentionally
+# left alone: Entware is preserved unconditionally and still needs /opt mounted.
+# qmanager-wait-usrdata.service (F11) IS removed, by the qmanager-*.service glob
+# above. That is correct: /opt then races /usrdata again exactly as it did
+# pre-QManager, with start-opt-mount.service — also left alone — still the
+# fallback that gets it mounted.
+if [ -f /opt/etc/init.d/S80lighttpd ] && [ ! -x /opt/etc/init.d/S80lighttpd ]; then
+    # `a+x`, not a bare `+x`: a bare `+x` skips umask-set bits, so a masked u+x
+    # would silently leave the device with no web server after uninstall.
+    chmod a+x /opt/etc/init.d/S80lighttpd
+    info "Restored Entware S80lighttpd"
+fi
+
 # Clean up old /etc/systemd/system/ location from any previous installs
 rm -f /etc/systemd/system/qmanager*.service /etc/systemd/system/qmanager*.target
 rm -rf /etc/systemd/system/qmanager.target.wants
@@ -331,8 +379,15 @@ info "Removed /usr/bin/qmanager_*"
 
 # Bundled transport and tool binaries
 rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test"
+# atcli_smd11 and sms_tool were retired in T5.1 S6; older installs still carry them.
 rm -f "$BIN_DIR/atcli_smd11" "$BIN_DIR/sms_tool"
-info "Removed qcmd, atcli_smd11, sms_tool"
+info "Removed qcmd and retired AT binaries"
+
+# qsms is a symlink to qmanager_atd; remove the link only, never a real directory
+if [ -L "$BIN_DIR/qsms" ]; then
+    rm -f "$BIN_DIR/qsms"
+    info "Removed qsms"
+fi
 
 # Shared libraries (includes staged tailscaled.service + qmanager_smd11_udev.sh)
 rm -rf "$LIB_DIR"
@@ -378,8 +433,13 @@ step "Removing CGI, frontend, lighttpd config, and TLS certs"
 rm -rf "$WWW_ROOT"
 info "Removed frontend and CGI endpoints ($WWW_ROOT)"
 
-rm -f "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak"
+rm -f "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak" "${LIGHTTPD_CONF}.new"
 info "Removed lighttpd config"
+
+# The web port file belongs to this conf; the stock lighttpd that comes back uses its own port.
+rm -f "$QMANAGER_ROOT/web_port" "$QMANAGER_ROOT"/.web_port.*
+rm -rf /run/qmanager_web_port
+info "Removed web port setting"
 
 rm -rf "$CERT_DIR"
 info "Removed TLS certs ($CERT_DIR)"
@@ -434,6 +494,10 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$TAILSCALE_DIR"
     info "Removed $TAILSCALE_DIR (binaries + state)"
 
+    # Interrupted-download residue
+    rm -rf /usrdata/tailscale_*_arm*
+    rm -f "$SYSTEMD_DIR/qmanager_tailscale_install.service"
+
     # Two symlinks the installer creates for CLI accessibility
     rm -f /usrdata/root/bin/tailscale
     rm -f "$BIN_DIR/tailscale"
@@ -455,18 +519,36 @@ step "Cleaning up firewall rules"
 
 # Legacy TTL/MTU helper files that may persist independently of the service
 rm -f /etc/firewall.user.ttl /etc/firewall.user.mtu 2>/dev/null || true
+# Leftover per-PID temps from the root MTU / hostname helpers
+rm -f /etc/firewall.user.mtu.tmp.* /etc/firewall.user.mtu.prev.* /etc/hostname.tmp.* 2>/dev/null || true
 
 # The qmanager-firewall service (stopped in Step 1) runs ExecStop to flush
 # its rules. The fallbacks below cover the case where the service was
 # already gone before uninstall started — both the new chain-based layout
 # and any pre-chain INPUT-direct rules from older installs are cleaned.
 if command -v iptables >/dev/null 2>&1; then
-    # New layout: tear down the QMANAGER_FW chain
-    while iptables -C INPUT -j QMANAGER_FW 2>/dev/null; do
-        iptables -D INPUT -j QMANAGER_FW 2>/dev/null || break
+    # New layout: tear down the QMANAGER_FW chain (and a staging chain left by
+    # an interrupted reload) in both IPv4 and IPv6
+    for _ipt in iptables ip6tables; do
+        command -v "$_ipt" >/dev/null 2>&1 || continue
+        for _chain in QMANAGER_FW QMANAGER_FW_NEW; do
+            while "$_ipt" -C INPUT -j "$_chain" 2>/dev/null; do
+                "$_ipt" -D INPUT -j "$_chain" 2>/dev/null || break
+            done
+            "$_ipt" -F "$_chain" 2>/dev/null || true
+            "$_ipt" -X "$_chain" 2>/dev/null || true
+        done
     done
-    iptables -F QMANAGER_FW 2>/dev/null || true
-    iptables -X QMANAGER_FW 2>/dev/null || true
+    if command -v ip6tables >/dev/null 2>&1; then
+        for _chain in QMANAGER_FWD6 QMANAGER_FWD6_NEW; do
+            while ip6tables -C FORWARD -i rmnet+ -j "$_chain" 2>/dev/null; do
+                ip6tables -D FORWARD -i rmnet+ -j "$_chain" 2>/dev/null || break
+            done
+            ip6tables -F "$_chain" 2>/dev/null || true
+            ip6tables -X "$_chain" 2>/dev/null || true
+        done
+    fi
+    rm -f /run/qmanager_firewall.lock
 
     # Legacy layout: drain INPUT-direct rules from pre-chain installs
     for port in 80 443; do
@@ -492,19 +574,35 @@ info "Firewall rules cleared"
 
 step "Removing runtime state and temporary files"
 
-rm -f /tmp/qmanager_*.json  2>/dev/null || true
-rm -f /tmp/qmanager.log*    2>/dev/null || true
-rm -f /tmp/qmanager_*.pid   2>/dev/null || true
-rm -f /tmp/qmanager_*.lock  2>/dev/null || true
-rm -f /tmp/qmanager_speedtest_output /tmp/qmanager_speedtest_run.sh 2>/dev/null || true
-rm -f /tmp/qmanager_email_reload /tmp/qmanager_sms_reload          2>/dev/null || true
-rm -f /tmp/qmanager_sms_forward_reload /tmp/qmanager_sms_forward_seen 2>/dev/null || true
-rm -f /tmp/qmanager_sms_forward_failures.json                       2>/dev/null || true
-rm -f /tmp/qmanager_ping_reload /tmp/qmanager_ping_history          2>/dev/null || true
-rm -f /tmp/qmanager_imei_check_done                                 2>/dev/null || true
-rm -f /tmp/qmanager_low_power_active /tmp/qmanager_recovery_active  2>/dev/null || true
-rm -f /tmp/qmanager_staged.tar.gz /tmp/qmanager_staged_version      2>/dev/null || true
+# One glob, not a maintained list. The previous form matched only *.json, *.pid
+# and *.lock plus a hand-kept roster of named files, so every EXTENSION-LESS
+# runtime file survived an uninstall until the next reboot — the scan error
+# files, the long-running maintenance marker, three watchcat flags and the
+# events reload flag were all leaking, and the roster had already been extended
+# three times without closing the class. A prefix glob closes it permanently:
+# every file this product writes to /tmp is named `qmanager_*` by convention.
+#
+# Safe because uninstall is terminal and standalone — it is never invoked from
+# the OTA path (`qmanager_update`), so there is no in-flight staging state to
+# protect. Directories under the prefix (`qmanager_install`, the session dir)
+# fail this `rm -f` with EISDIR, which `|| true` swallows exactly as before;
+# `$SESSION_DIR` is still removed explicitly below.
+#
+# `qmanager.log*` needs its own line: a dot follows the prefix there, not an
+# underscore, so `qmanager_*` does not match it.
+rm -f  /tmp/qmanager_*   2>/dev/null || true
+rm -f  /tmp/qmanager.log* 2>/dev/null || true
+rm -f  /tmp/.qmanager_web_port_result.* 2>/dev/null || true
+rm -f  /run/qmanager_profile_boot_applied 2>/dev/null || true
 rm -rf "$SESSION_DIR"
+rm -rf /tmp/qmanager_console_tokens
+rm -rf /tmp/qmanager_stage   # OTA stage dir (a staged download is tens of MB of RAM)
+
+# qmanager_atd broker runtime (/var/run, not /tmp) and the QMI sidecar
+rm -f  /var/run/qmanager_atd.sock /var/run/qmanager_atd.proto 2>/dev/null || true
+rm -rf /var/run/qmanager 2>/dev/null || true
+rm -rf /run/qmanager_at 2>/dev/null || true   # AT lock dir; the line above does not match it
+rm -f  /tmp/qmanager_qmi.json 2>/dev/null || true
 
 # Update artifacts that live under /etc/qmanager but are runtime, not config
 rm -f "$CONF_DIR/VERSION.pending"                2>/dev/null || true
@@ -519,9 +617,44 @@ info "Runtime state removed"
 
 step "Removing cron jobs"
 
-if crontab -l 2>/dev/null | grep -q qmanager; then
-    crontab -l 2>/dev/null | grep -v qmanager | crontab - 2>/dev/null || true
-    info "Removed qmanager cron jobs"
+# Scrub qmanager markers directly from the spool file rather than shelling
+# out to `crontab` — RM520N-GL has no functioning cron (no crond unit, no
+# boot symlink; the BusyBox crond/crontab binaries being present is not
+# evidence anything consumes crontabs), and on this device `crontab -l`
+# itself errors ("can't open 'root'"), so the old grep|crontab pipeline
+# never actually matched. Mirrors scrub_legacy_cron() in qmanager_update.
+CRON_FILE="/var/spool/cron/crontabs/root"
+if [ -f "$CRON_FILE" ] && grep -q qmanager "$CRON_FILE" 2>/dev/null; then
+    # Temp file lives in the same directory as CRON_FILE so the mv below is
+    # an atomic same-filesystem rename(2), not a cross-filesystem copy.
+    CRON_TMP="${CRON_FILE}.tmp"
+    # grep exits 1 when it selects NO lines. For `grep -v` that means every
+    # line was a qmanager entry — i.e. the crontab is entirely ours, the case
+    # this step most needs to handle. Testing the pipeline directly would
+    # short-circuit on that exit 1 and silently leave our entries behind, so
+    # capture the status and treat 0 and 1 alike; only 2+ is a real error.
+    # (`|| rc=$?` also keeps this safe under the `set -e` at the top of the
+    # file — a bare non-zero command there would abort the uninstall.)
+    CRON_RC=0
+    grep -v qmanager "$CRON_FILE" > "$CRON_TMP" 2>/dev/null || CRON_RC=$?
+    if [ "$CRON_RC" -le 1 ]; then
+        # crontabs are conventionally 0600 root:root; set that on the temp
+        # file before the rename, since the `>` redirect above creates it
+        # with the ambient umask.
+        chmod 600 "$CRON_TMP" 2>/dev/null || true
+        # Report success only if the rename actually happened — swallowing
+        # mv's status with `|| true` and then claiming success would leave
+        # the entries in place while telling the user they were removed.
+        if mv "$CRON_TMP" "$CRON_FILE" 2>/dev/null; then
+            info "Removed qmanager cron jobs"
+        else
+            rm -f "$CRON_TMP" 2>/dev/null || true
+            warn "Could not replace $CRON_FILE — qmanager cron entries left in place"
+        fi
+    else
+        rm -f "$CRON_TMP" 2>/dev/null || true
+        warn "Could not scrub qmanager cron entries from $CRON_FILE"
+    fi
 else
     info "No qmanager cron jobs found"
 fi
@@ -536,12 +669,53 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$CONF_DIR"
     info "Purged config directory $CONF_DIR"
 
+    # The daemon EnvironmentFile is user config (QLOG_LEVEL, and the
+    # PING_PROFILE / PING_TARGET_IPV4 / PING_TARGET_IPV6 manual overrides
+    # documented in qmanager-ping.service), so it follows the same
+    # "preserved unless --purge" contract as everything else in $CONF_DIR.
+    # It needs its own line because it deliberately lives OUTSIDE $CONF_DIR —
+    # /etc/qmanager is www-data-owned and a www-data-writable EnvironmentFile
+    # for four root daemons is a privilege-escalation path (see
+    # migrate_environment_location() in install_rm520n.sh). The `rm -rf`
+    # above therefore does not reach it. Same orphan class as the APN
+    # sidecars below.
+    rm -f /etc/qmanager.env
+    info "Purged daemon environment file (/etc/qmanager.env)"
+
+    # Alert secrets store — the Discord bot token, the Gmail app password, and
+    # msmtprc (which holds that password in cleartext by construction). Same
+    # orphan class as /etc/qmanager.env above: it deliberately lives OUTSIDE
+    # $CONF_DIR — /etc/qmanager is www-data-owned, so nothing secret can be
+    # protected inside it (see migrate_alert_secrets() in install_rm520n.sh) —
+    # so the `rm -rf "$CONF_DIR"` above does not reach it. Without this line a
+    # purge uninstall leaves a LIVE bot token and a plaintext Gmail app
+    # password on disk after the user believes QManager is gone.
+    rm -rf /etc/qmanager-secrets
+    info "Purged alert secrets store (/etc/qmanager-secrets)"
+
+    # Auth-backup store — the timestamped auth.json snapshots, i.e. the
+    # operator's QManager login password, up to 5 generations of it. Third
+    # member of the same orphan class as the two above: it deliberately lives
+    # OUTSIDE $CONF_DIR because /etc/qmanager is www-data-owned and nothing
+    # inside it can be protected from www-data (see migrate_backup_location()
+    # in install_rm520n.sh), so the `rm -rf "$CONF_DIR"` above does not reach
+    # it. Without this line a purge uninstall leaves the password history on
+    # disk after the user believes QManager is gone.
+    rm -rf /etc/qmanager-backups
+    info "Purged auth backup store (/etc/qmanager-backups)"
+
     # Sidecar state files that live directly under $QMANAGER_ROOT (siblings
     # of www/, not inside it — install_frontend's www-wipe-and-recopy never
     # touches these, so they must be cleaned up here explicitly).
     # apn_names.json was a pre-existing orphan bug: it was never removed on
     # --purge, so it silently blocked the rmdir below from ever succeeding
     # and left /usrdata/qmanager/ behind after every purge uninstall.
+    #
+    # Both sidecars now live in $CONF_DIR, which the `rm -rf` above already
+    # removes. This line is kept for the LEGACY path: a device uninstalled
+    # before it ever OTA'd through migrate_apn_sidecars() still has them here,
+    # and leaving either one behind re-strands /usrdata/qmanager/. Do not drop
+    # it just because the new location is covered.
     rm -f "$QMANAGER_ROOT/apn_setting.json" "$QMANAGER_ROOT/apn_names.json"
     info "Purged APN sidecar state (apn_setting.json, apn_names.json)"
 
@@ -551,8 +725,18 @@ if [ "$PURGE" = "1" ]; then
     # silently block the rmdir below and strand /usrdata/qmanager/ after purge.
     rm -rf "$QMANAGER_ROOT/locales-packs" "$QMANAGER_ROOT/locales-staging"
     info "Purged language-pack store (locales-packs, locales-staging)"
+
+    # Sites monitor history sits directly under $QMANAGER_ROOT and would block the rmdir below.
+    rm -rf "$QMANAGER_ROOT/sites"
+    info "Purged sites monitor history"
+
+    # Crash log moved out of www-data's /etc/qmanager; it too would block the rmdir below.
+    rm -f "$QMANAGER_ROOT/crash.log" "$QMANAGER_ROOT"/crash.log.* "$QMANAGER_ROOT/.crash_log_migrated"
+    info "Purged crash log"
 elif [ -d "$CONF_DIR" ]; then
-    warn "Config preserved at $CONF_DIR (use --purge to remove)"
+    warn "Config preserved at $CONF_DIR, /etc/qmanager.env, /etc/qmanager-secrets and /etc/qmanager-backups (use --purge to remove)"
+    warn "/etc/qmanager-secrets still holds the Discord token / email app password (root-only, 0700)"
+    warn "/etc/qmanager-backups still holds up to 5 auth.json password snapshots (root-only, 0700)"
 fi
 
 # Custom DNS staging dir (/etc/data/qmanager) — installer-created scratch space
@@ -573,6 +757,11 @@ printf "  ═══════════════════════�
 printf "  ${GREEN}${BOLD}  QManager uninstalled successfully.${NC}\n"
 printf "  ══════════════════════════════════════════\n\n"
 printf "  ${DIM}Log: %s${NC}\n\n" "$LOG_FILE"
+
+rm -f /etc/data/.qm_lan_apply.lock /usrdata/.qm_lan_subnet_set
+if [ -f /etc/data/mobileap_cfg.xml.qm-bak ]; then
+    info "LAN settings left as they are; original LAN config saved at /etc/data/mobileap_cfg.xml.qm-bak"
+fi
 
 if [ "$NO_REBOOT" = "1" ]; then
     info "Skipping reboot (--no-reboot). Some changes (udev, kernel modules) require a reboot to take full effect."

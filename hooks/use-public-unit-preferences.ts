@@ -18,15 +18,19 @@ import { useEffect, useRef, useState } from "react";
 
 const FETCH_ENDPOINT = "/cgi-bin/quecmanager/public/units.sh";
 
+/**
+ * Temperature only. The authenticated `useUnitPreferences` also carries a
+ * distance unit, and this hook used to mirror it — fetched, typed, and read by
+ * nothing, because the splash has no distance reading to format. A preference
+ * that cannot reach a rendered value is not a preference, it is a field.
+ */
 interface UnitPreferences {
   tempUnit: "celsius" | "fahrenheit";
-  distanceUnit: "km" | "miles";
 }
 
 interface PublicUnitsResponse {
   settings?: {
     temp_unit?: "celsius" | "fahrenheit";
-    distance_unit?: "km" | "miles";
   };
 }
 
@@ -48,10 +52,7 @@ export function usePublicUnitPreferences(): UnitPreferences | null {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as PublicUnitsResponse;
         if (!mountedRef.current || controller.signal.aborted) return;
-        setPrefs({
-          tempUnit: json?.settings?.temp_unit || "celsius",
-          distanceUnit: json?.settings?.distance_unit || "km",
-        });
+        setPrefs({ tempUnit: json?.settings?.temp_unit || "celsius" });
       } catch {
         // Silent failure is the contract: any error resolves to null, and the
         // consumer falls back to its own defaults. Never throws, never redirects.

@@ -78,12 +78,12 @@ bun install
 bun run dev
 ```
 
-Opens at `http://localhost:3000`. API requests are proxied to `http://192.168.224.1` (the modem's IP).
+Opens at `http://localhost:3000`. API requests are proxied to `http://192.168.225.1` (the modem's IP).
 
 To change the proxy target, edit `next.config.ts`:
 
 ```typescript
-destination: "http://192.168.224.1/cgi-bin/:path*",
+destination: "http://192.168.225.1/cgi-bin/:path*",
 // or for Tailscale:
 // destination: "http://your-device.ts.net/cgi-bin/:path*",
 ```
@@ -181,7 +181,9 @@ cat /etc/qmanager/VERSION
         └── vpn/
 
 /usr/bin/
-├── qcmd                    # AT command wrapper
+├── qcmd -> qmanager_atd    # AT command client (link to the broker binary, every model)
+├── qsms -> qmanager_atd    # SMS client (QMI WMS on the RM520N-GL)
+├── qmanager_atd            # AT/SMS/QMI broker binary (daemon runs on the RM520N-GL and RG501Q-EU)
 ├── qmanager_update         # OTA update worker (runs as root via sudoers)
 ├── qmanager_auto_update    # Automatic update checker daemon
 ├── qmanager_poller         # Main data collector
@@ -232,8 +234,14 @@ cat /etc/qmanager/VERSION
 ├── tower_lock.json
 ├── band_lock.json
 ├── imei_backup.json
-├── last_iccid
-└── msmtprc                # Email SMTP config (no logfile directive)
+└── last_iccid
+
+/etc/qmanager-backups/     # Root-only auth.json snapshots, newest 5 (0700 root:root)
+
+/etc/qmanager-secrets/     # Root-only alert credentials (0700 root:root)
+├── discord_bot_token      # Raw Discord bot token (0600)
+├── email_app_password     # Raw Gmail app password (0600)
+└── msmtprc                # Email SMTP config, embeds the password (0600, no logfile directive)
 
 /etc/sudoers.d/qmanager    # www-data privilege escalation rules (includes qmanager_update)
 
@@ -302,7 +310,7 @@ find scripts -name "*.sh" -exec sed -i 's/\r$//' {} \;
 ps | grep qmanager_poller
 
 # Check if modem serial port is accessible
-ls -la /dev/smd7  # or /dev/ttyUSB2
+ls -la /dev/smd11  # crw-rw---- root:dialout
 
 # Test AT command
 qcmd 'AT+QENG="servingcell"'
@@ -329,7 +337,9 @@ ls -la /etc/qmanager/shadow
 ```bash
 # Check service status and logs (systemd — units in /lib/systemd/system/)
 systemctl status qmanager-poller
-journalctl -u qmanager-poller --no-pager | tail -50
+# journald is masked (no unit logs); read restarts and QManager's own log
+systemctl show -p NRestarts,Result,ExecMainStatus qmanager-poller
+tail -50 /tmp/qmanager.log
 
 # Start it manually (boot persistence is a multi-user.target.wants/ symlink;
 # `systemctl enable` does NOT work on this platform)
@@ -382,8 +392,10 @@ The installer is idempotent — re-running updates rather than duplicates. It ha
 - Stopping existing services (filesystem-driven scan of `/lib/systemd/system/qmanager-*.service`, batched into a single `systemctl stop` call so systemd shuts them down in parallel; long-running daemons set `TimeoutStopSec=10` so a wedged service caps the wait at 10s instead of systemd's 90s default)
 - Removing orphaned daemons/units/libs not present in the current source tree (`cleanup_legacy_scripts`)
 - Removing conflicting packages (`socat`, `socat-at-bridge`) even with `--skip-packages`
-- Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform)
+- Deploying the bundled first-party binaries (`qmanager_atd` with its `qsms` link, `qmanager_discord`) even with `--skip-packages` — `install_bundled_binaries()` runs unconditionally in `main()`, so an OTA/in-app "Software Update" upgrade (which always passes `--skip-packages`) still refreshes them; each copy is skipped via `cmp -s` when the on-device binary is already byte-identical, avoiding a needless UBIFS write. Entware/opkg packages (jq, dropbear, sudo, lighttpd) stay gated inside `install_dependencies()` and are the *only* thing `--skip-packages` actually skips
+- Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform). Exception: `qmanager-atd.service` is boot-linked and started on every RM520N-GL and RG501Q-EU install, and its unit is removed on a definite model outside `RM520N*|RG501Q*`
 - AT stack health check (3× `qcmd 'ATI'` retries, warn-only) and poller health check after completion
+- Removing the retired `/usr/bin/sms_tool` and `/usr/bin/atcli_smd11` left by an older release (`retire_legacy_at_binaries`, last under `DO_START`): each is deleted only once `qsms status` / `qcmd AT` answers, otherwise kept — see [AT Command Transport](reference/at-command-transport.md#retired-binaries-atcli_smd11-and-sms_tool)
 
 ---
 
@@ -410,6 +422,7 @@ The uninstaller:
 - Removes the web console (`/usrdata/qmanager/console/`) by default
 - With `--purge`: also tears down Tailscale (stops `tailscaled`, removes unit, removes `/usrdata/tailscale/` and symlinks)
 - Cleans up `/etc/qmanager/VERSION.pending` and `/etc/qmanager/updates/previous_version`
+- Wipes runtime state with a single prefix glob, `rm -f /tmp/qmanager_*` (plus `/tmp/qmanager.log*`, which has a dot rather than an underscore after the prefix) — see [Uninstaller coverage](reference/qmanager-independence.md#uninstaller-coverage)
 - **Entware (`/opt/`) is always preserved** even with `--purge` — remove it manually if needed
 
 ---
@@ -425,7 +438,7 @@ The installer writes `/etc/qmanager/VERSION.pending` early and only moves it to 
 The kernel's sticky directory protection (`fs.protected_regular=1`) blocks a process from truncating a file in `/tmp` that was created by a different user. The OTA worker (`qmanager_update`) works around this by doing `rm -f $LOG_FILE` before creating a fresh log — never truncating an existing file. CGI scripts that need to write `/tmp` files should pre-create them with the correct ownership in `qmanager_setup` (boot one-shot).
 
 **Socat conflict blocks AT transport:**
-If `socat` or `socat-at-bridge` services are running, `atcli_smd11` cannot open `/dev/smd11`. The installer actively removes these packages (`opkg remove socat socat-at-bridge`) with retry through `--force-removal-of-dependent-packages`. This runs even with `--skip-packages`.
+If `socat` or `socat-at-bridge` services are running, `qcmd` cannot open `/dev/smd11`. The installer actively removes these packages (`opkg remove socat socat-at-bridge`) with retry through `--force-removal-of-dependent-packages`. This runs even with `--skip-packages`.
 
 ### CGI Returns Empty Response
 
@@ -443,6 +456,9 @@ systemctl status qmanager-poller
 # Test AT command directly
 qcmd 'ATI'
 
+# RM520N-GL: is the AT broker up? (qcmd still works in-process when it is not)
+systemctl is-active qmanager-atd
+
 # Check /dev/smd11 permissions (should be crw-rw---- root:dialout)
 ls -la /dev/smd11
 
@@ -453,9 +469,10 @@ grep "poller" /tmp/qmanager.log
 ### Service Won't Start
 
 ```bash
-# Check systemd status and journal
+# Check systemd status (journald is masked: use NRestarts and /tmp/qmanager.log)
 systemctl status qmanager-poller
-journalctl -u qmanager-poller --no-pager -n 50
+systemctl show -p NRestarts,Result,ExecMainStatus qmanager-poller
+tail -50 /tmp/qmanager.log
 
 # Verify dependencies
 command -v qcmd
@@ -483,22 +500,23 @@ QManager's sudoers file (`/etc/sudoers.d/qmanager`) grants `www-data` the follow
 # OTA update worker
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 
-# Service control
-www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
+# PATH for every www-data sudo call
+Defaults:www-data secure_path="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 
-# Boot persistence (symlink-based — systemctl enable doesn't work)
-www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
-www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
+# Service control + boot persistence for QManager units (validating helper)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_svc
 
-# Firewall, reboot, schedule-timer arming, SSH password
-www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
-www-data ALL=(root) NOPASSWD: /sbin/reboot
+# Firewall (allow-listed helper), reboot (no arguments), schedule-timer arming, SSH password
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_fw_apply
+www-data ALL=(root) NOPASSWD: /sbin/reboot ""
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 ```
 
-> **Note:** All sudoers commands use full absolute paths — Entware's sudo has a restricted `secure_path` that excludes `/sbin/` and `/usr/bin/`. Bare command names will fail silently from CGI context.
+This is an excerpt. The full, current list and the reasons for its shape are in [qmanager-independence.md](reference/qmanager-independence.md#privilege-boundary-sudoers-grants-for-www-data); the authoritative file is `scripts/etc/sudoers.d/qmanager`, installed to `/opt/etc/sudoers.d/qmanager` when Entware sudo is present.
+
+> **Note:** All sudoers commands use full absolute paths. This sudo (1.8.31) has **no** built-in `secure_path`, so the drop-in sets one for `www-data`; absolute paths in the grants are what sudo matches against regardless.
 
 ---
 
@@ -510,11 +528,11 @@ QManager runs directly on the modem's internal Linux OS — no external OpenWRT 
 |---------|-------|
 | Platform | Quectel RM520N-GL (SDXLEMUR, ARMv7l, kernel 5.4.210) |
 | Init system | systemd (units in `/lib/systemd/system/`) |
-| Root filesystem | Read-only by default (`mount -o remount,rw /` when needed) |
+| Root filesystem | `ubi0:rootfs`, boots read-only. Remount `rw` before a rootfs write and leave it `rw` — never restore `ro` ([BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract)) |
 | Persistent storage | `/usrdata/` partition |
 | Web server | lighttpd (Entware) |
-| AT transport | `atcli_smd11` on `/dev/smd11` directly (no socat bridge) |
-| Config store | Files in `/etc/qmanager/` (rootfs, remounted rw) |
+| AT transport | `qcmd` → `qmanager_atd` on `/dev/smd11` directly (no socat bridge) |
+| Config store | Files in `/etc/qmanager/`. `/etc` is `/dev/ubi2_0`, **not** the rootfs — always `rw`, no remount needed |
 | Firewall | iptables direct |
 | `systemctl enable` | Does NOT work — use direct symlinks into `multi-user.target.wants/` |
 

@@ -25,7 +25,7 @@
     "apn_management": "Manajemen APN",
     "network_priority": "Prioritas Jaringan",
     "imei_settings": "Pengaturan IMEI",
-    "fplmn_settings": "Pengaturan FPLMN",
+    "fplmn_settings": "Jaringan Diblokir",
     "ethernet_status": "Status Ethernet",
     "local_network_settings": "Pengaturan",
     "ip_passthrough": "IP Passthrough",
@@ -38,15 +38,48 @@
     "tailscale": "Tailscale VPN",
     "system_settings": "Pengaturan Sistem",
     "logs": "Log",
+    "config_backup": "Cadangan Konfigurasi",
     "system_health_check": "Pemeriksaan Kesehatan Sistem",
     "connection_quality": "Kualitas Koneksi",
     "languages": "Bahasa",
+    "device_access": "Akses Perangkat",
+    "adaptive_polling": "Polling Adaptif",
     "software_update": "Pembaruan Perangkat Lunak",
     "terminals": "Terminal",
     "at_terminal": "AT Terminal",
     "web_console": "Konsol Web",
     "about_device": "Tentang Perangkat",
     "support": "Dukungan",
-    "donate": "Donasi untuk Proyek"
-  }
+    "donate": "Donasi untuk Proyek",
+    "traffic_engine": "Mesin Lalu Lintas",
+    "cellular_overview": "Ringkasan",
+    "sms_inbox": "Kotak Masuk",
+    "band_locking_bands": "Penguncian Band",
+    "cell_scanner_full_scan": "Pindai Penuh",
+    "cellular_settings_general": "Umum",
+    "connection_quality_overview": "Ringkasan",
+    "system_settings_general": "Umum"
+  },
+  "header": {
+    "role": "Admin"
+  },
+  "user": {
+    "signed_in": "Masuk"
+  },
+  "actions": {
+    "toggle_section": "Buka atau tutup bagian {{section}}",
+    "toggle_sidebar": "Buka atau tutup bilah sisi",
+    "skip_to_content": "Lompat ke konten utama"
+  },
+  "status": {
+    "watchdog_acting": "bertindak",
+    "watchdog_acting_detail": "Watchdog sedang memulihkan koneksi (tingkat {{tier}}).",
+    "watchdog_settling": "memantau",
+    "watchdog_settling_detail": "Watchdog sedang memastikan koneksi bertahan setelah pemulihan."
+  },
+  "mobile": {
+    "title": "Bilah sisi",
+    "description": "Navigasi utama QManager."
+  },
+  "breadcrumb": "Jejak navigasi"
 }

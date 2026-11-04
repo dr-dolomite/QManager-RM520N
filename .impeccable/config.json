@@ -1,0 +1,61 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "reimagine/**"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "0.6875rem",
+        "createdAt": "2026-07-27T23:25:19.748Z",
+        "reason": "DESIGN.md documents 11px for sidebar section labels (lines 454, 741)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.1875rem",
+        "createdAt": "2026-07-28T20:30:00.000Z",
+        "reason": "19px card title — Pre-auth card scale (/ and /login/), user-confirmed and documented in DESIGN.md > Typography > Hierarchy > The pre-auth card exception"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.0625rem",
+        "createdAt": "2026-07-28T20:30:00.000Z",
+        "reason": "17px empty-state title — Pre-auth card scale (/ and /login/), user-confirmed and documented in DESIGN.md > Typography > Hierarchy > The pre-auth card exception"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "0.9375rem",
+        "createdAt": "2026-07-28T20:30:00.000Z",
+        "reason": "15px pill-CTA label and status-tile value — Pre-auth card scale (/ and /login/), user-confirmed and documented in DESIGN.md > Typography > Hierarchy > The pre-auth card exception"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "0.8125rem",
+        "createdAt": "2026-07-28T20:30:00.000Z",
+        "reason": "13px body/label/inline-error — Pre-auth card scale (/ and /login/), user-confirmed and documented in DESIGN.md > Typography > Hierarchy > The pre-auth card exception"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "13px",
+        "createdAt": "2026-07-28T20:30:00.000Z",
+        "reason": "13px TonalBanner body; DESIGN.md > Banner System sanctions 13px for banner body copy"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "40px",
+        "createdAt": "2026-07-31T01:29:02.795Z",
+        "reason": "User confirmed 40px is intentional for larger recorder slot scores"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "app/globals.css"
+        ],
+        "createdAt": "2026-10-31T05:54:38.703Z",
+        "reason": "Claude: L906 is the 404 campfire pixel-art button's inset top/bottom bevel, ported verbatim from RM551E v0.1.34, not a side accent on a card"
+      }
+    ]
+  }
+}

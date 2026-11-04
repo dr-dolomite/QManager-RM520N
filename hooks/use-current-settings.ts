@@ -10,8 +10,15 @@ import type { CurrentModemSettings } from "@/types/sim-profile";
 // Fetches current modem settings (APN, IMEI, ICCID) for pre-filling
 // the profile creation form. Called once on demand, not on a timer.
 //
-// The CGI endpoint queries the modem via qcmd using sip-don't-gulp pattern,
-// so this may take 2-3 seconds to complete.
+// The CGI endpoint queries the modem via qcmd, so it is the ONE endpoint on the
+// Custom SIM Profiles page that takes the AT flock — everything else there
+// (profiles/list.sh, scenarios/list.sh, apply_status.sh) is a plain disk read.
+//
+// MEASURED ON HARDWARE, 2026-08-02: ~0.22s uncontended, 0.47s worst case when it
+// queues behind a poller AT cycle. This comment previously claimed "2-3 seconds",
+// which was wrong by an order of magnitude and directly motivated an
+// optimization investigation that turned out to have nothing to optimize. If you
+// are about to design around this endpoint being slow: re-measure first.
 //
 // Usage:
 //   const { settings, isLoading, error, refresh } = useCurrentSettings();

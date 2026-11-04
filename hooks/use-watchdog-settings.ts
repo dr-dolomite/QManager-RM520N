@@ -21,53 +21,65 @@ export interface WatchdogSettings {
   tier4_enabled: boolean;
   backup_sim_slot: number | null;
   max_reboots_per_hour: number;
+  /** Hold the ladder while the baseband restarts itself (absent on older backends). */
+  ssr_aware?: boolean;
+  /** Longest hold, seconds. */
+  ssr_grace?: number;
+  /** Start a Tier 1-2 recovery when the link stays over the quality limits. */
+  quality_enabled?: boolean;
+  /** Consecutive over-limit checks before that recovery starts. */
+  quality_consecutive?: number;
+  /** While on the backup SIM, periodically try the primary again. */
+  primary_recheck_enabled?: boolean;
+  /** Minutes between those tries. */
+  primary_recheck_interval?: number;
 }
 
-export type WatchdogSavePayload = WatchdogSettings & {
+/** The limits the quality trigger uses: Connection Quality's, raised to the watchdog's floors. */
+export interface WatchdogQualityLimits {
+  latency_ms: number;
+  loss_pct: number;
+}
+
+export type WatchdogSavePayload = Omit<WatchdogSettings, "check_interval"> & {
   action: "save_settings";
+  /** Optional on the wire. The CGI writes the key only when it is present, so
+   *  omitting it preserves the server's value instead of clobbering it. */
+  check_interval?: number;
 };
 
-export interface WatchdogLiveStatus {
-  timestamp: number;
-  enabled: boolean;
-  state: string;
-  current_tier: number;
-  failure_count: number;
-  last_recovery_time: number | null;
-  last_recovery_tier: number | null;
-  total_recoveries: number;
-  cooldown_remaining: number;
-  sim_failover_active: boolean;
-  original_sim_slot: number | null;
-  current_sim_slot: number | null;
-  reboots_this_hour: number;
-}
+// The CGI also returns `status` and `sim_failover`. Neither is read here: the
+// page takes both from the poller snapshot, which is the fresher source.
 
-export interface SimFailoverInfo {
-  active: boolean;
-  original_slot?: number;
-  current_slot?: number;
-  switched_at?: number;
-}
+// NOTE: SIM-swap state is NOT surfaced here. It lives in the persistent SIM
+// registry (`system/sim_registry.sh` + `hooks/use-sim-registry.ts`) and is read
+// for display through `status.json.sim_swap`; the watchdog endpoint no longer
+// owns a dismiss action.
 
-export interface SimSwapInfo {
-  detected: boolean;
-  matching_profile_id?: string;
-  matching_profile_name?: string;
-  dismissed?: boolean;
+/**
+ * The save outcome, RETURNED rather than only stored. `error` state is set in
+ * the same tick, so a caller's closure still holds the pre-call value and the
+ * backend's reason was being dropped on every failure.
+ */
+export interface WatchdogSaveResult {
+  ok: boolean;
+  /** The backend's own sentence when it sent one. Already human-readable. */
+  message: string | null;
+  /** The rejected field's backend name, when the failure names one. */
+  field: string | null;
 }
 
 export interface UseWatchdogSettingsReturn {
   settings: WatchdogSettings | null;
-  status: WatchdogLiveStatus | null;
-  simFailover: SimFailoverInfo | null;
-  simSwap: SimSwapInfo | null;
   autoDisabled: boolean;
+  /** Epoch seconds of the watchdog's own Tier-4 reboots, newest first. */
+  recentReboots: number[];
+  /** Null on an older backend that does not report them. */
+  qualityLimits: WatchdogQualityLimits | null;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  saveSettings: (payload: WatchdogSavePayload) => Promise<boolean>;
-  dismissSimSwap: () => Promise<boolean>;
+  saveSettings: (payload: WatchdogSavePayload) => Promise<WatchdogSaveResult>;
   revertSim: () => Promise<boolean>;
   refresh: () => void;
 }
@@ -76,10 +88,9 @@ export interface UseWatchdogSettingsReturn {
 
 export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   const [settings, setSettings] = useState<WatchdogSettings | null>(null);
-  const [status, setStatus] = useState<WatchdogLiveStatus | null>(null);
-  const [simFailover, setSimFailover] = useState<SimFailoverInfo | null>(null);
-  const [simSwap, setSimSwap] = useState<SimSwapInfo | null>(null);
   const [autoDisabled, setAutoDisabled] = useState(false);
+  const [recentReboots, setRecentReboots] = useState<number[]>([]);
+  const [qualityLimits, setQualityLimits] = useState<WatchdogQualityLimits | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,11 +131,29 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         ...json.settings,
         fail_threshold: json.settings?.fail_threshold ?? 5,
         probe_interval: json.settings?.probe_interval ?? 5,
+        ssr_aware: json.settings?.ssr_aware ?? true,
+        ssr_grace: json.settings?.ssr_grace ?? 45,
+        quality_enabled: json.settings?.quality_enabled ?? false,
+        quality_consecutive: json.settings?.quality_consecutive ?? 5,
+        primary_recheck_enabled: json.settings?.primary_recheck_enabled ?? false,
+        primary_recheck_interval: json.settings?.primary_recheck_interval ?? 30,
       });
-      setStatus(json.status && json.status.timestamp ? json.status : null);
-      setSimFailover(json.sim_failover || null);
-      setSimSwap(json.sim_swap || null);
+      const ql = json.quality_limits;
+      setQualityLimits(
+        ql && Number.isFinite(ql.latency_ms) && Number.isFinite(ql.loss_pct)
+          ? { latency_ms: ql.latency_ms, loss_pct: ql.loss_pct }
+          : null,
+      );
       setAutoDisabled(json.auto_disabled === true);
+      // Absent on older backends: no history, not an error.
+      setRecentReboots(
+        Array.isArray(json.recent_reboots)
+          ? json.recent_reboots.filter(
+              (v: unknown): v is number =>
+                typeof v === "number" && Number.isFinite(v),
+            )
+          : [],
+      );
     } catch (err) {
       if (!mountedRef.current) return;
       setError(
@@ -151,7 +180,7 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   // Save settings
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    async (payload: WatchdogSavePayload): Promise<boolean> => {
+    async (payload: WatchdogSavePayload): Promise<WatchdogSaveResult> => {
       setError(null);
       setIsSaving(true);
 
@@ -167,22 +196,34 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         }
 
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, message: null, field: null };
 
         if (!json.success) {
-          setError(json.error || "Failed to save watchdog settings");
-          return false;
+          // `error` is a machine token ("invalid_field"); `reason` is the
+          // sentence the two-pass validator wrote. Prefer the sentence.
+          const message =
+            typeof json.reason === "string" && json.reason
+              ? json.reason
+              : typeof json.error === "string" && json.error
+                ? json.error
+                : null;
+          setError(message ?? "Failed to save watchdog settings");
+          return {
+            ok: false,
+            message,
+            field: typeof json.field === "string" ? json.field : null,
+          };
         }
 
         // Silent re-fetch to sync state
         await fetchSettings(true);
-        return true;
+        return { ok: true, message: null, field: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(
-          err instanceof Error ? err.message : "Failed to save settings"
-        );
-        return false;
+        if (!mountedRef.current) return { ok: false, message: null, field: null };
+        const message =
+          err instanceof Error ? err.message : "Failed to save settings";
+        setError(message);
+        return { ok: false, message, field: null };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);
@@ -191,33 +232,6 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
     },
     [fetchSettings]
   );
-
-  // ---------------------------------------------------------------------------
-  // Dismiss SIM swap notification
-  // ---------------------------------------------------------------------------
-  const dismissSimSwap = useCallback(async (): Promise<boolean> => {
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss_sim_swap" }),
-      });
-
-      if (!resp.ok) return false;
-
-      const json = await resp.json();
-      if (!mountedRef.current) return false;
-
-      if (json.success) {
-        setSimSwap((prev) =>
-          prev ? { ...prev, detected: false, dismissed: true } : prev
-        );
-      }
-      return json.success;
-    } catch {
-      return false;
-    }
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Request SIM revert (watchcat picks up the flag)
@@ -241,15 +255,13 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
 
   return {
     settings,
-    status,
-    simFailover,
-    simSwap,
     autoDisabled,
+    recentReboots,
+    qualityLimits,
     isLoading,
     isSaving,
     error,
     saveSettings,
-    dismissSimSwap,
     revertSim,
     refresh: fetchSettings,
   };

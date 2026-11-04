@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { authFetch } from "@/lib/auth-fetch";
+import { resolveErrorMessage } from "@/lib/i18n/resolve-error";
 import type {
+  ApnActionResult,
   ApnSetting,
   CidContext,
   ApnSettingsResponse,
@@ -28,6 +31,31 @@ const CGI_ENDPOINT = "/cgi-bin/quecmanager/cellular/apn.sh";
 // fresh active_cid/cids state isn't readable immediately — a short delayed
 // silent refresh reconciles the optimistic patch.
 const RECONCILE_DELAY_MS = 1500;
+// A second silent refresh catches a slow attach: the data bearer often comes up
+// well after COPS=0 returns, so the first reconcile can still read "no bearer".
+const RECONCILE_LATE_DELAY_MS = 8000;
+const K = "core_settings.apn.errors";
+
+/**
+ * A response ARRIVED and carried a failing HTTP status.
+ *
+ * This is the distinction the save path could not previously make. `postAction`
+ * threw a bare `Error` for a non-2xx status, and `fetch` itself rejects with a
+ * `TypeError` when the connection dies — two events with opposite meanings
+ * landing in the same `catch` as the same shape. A non-2xx means the server was
+ * reachable and said no; a rejection means nobody said anything, which on this
+ * endpoint is the EXPECTED outcome of the attach cycle killing the link the
+ * response had to travel back over.
+ */
+class HttpStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, statusText: string) {
+    super(`HTTP ${status}: ${statusText}`);
+    this.name = "HttpStatusError";
+    this.status = status;
+  }
+}
 
 export interface UseApnSettingsReturn {
   /** The stored single APN setting (null before first fetch). */
@@ -42,23 +70,32 @@ export interface UseApnSettingsReturn {
   isLoading: boolean;
   /** True while a save/deactivate operation is in progress. */
   isSaving: boolean;
-  /** Error message if fetch or a mutation failed. */
+  /** A save whose response was lost to the attach-cycle link drop, now being verified. */
+  isReconciling: boolean;
+  /** Why the last READ failed (translated), or null. Mutations return theirs. */
   error: string | null;
-  /** Persist the APN configuration and apply it. Returns true on success. */
-  save: (request: ApnSaveRequest) => Promise<boolean>;
-  /** Revert to carrier-default APN (active=0). Returns true on success. */
-  deactivate: () => Promise<boolean>;
+  /** Persist the APN configuration and apply it. */
+  save: (request: ApnSaveRequest) => Promise<ApnActionResult>;
+  /** Revert to carrier-default APN (active=0). */
+  deactivate: () => Promise<ApnActionResult>;
   /** Re-fetch the APN setting + CID contexts. */
   refresh: () => void;
 }
 
 export function useApnSettings(): UseApnSettingsReturn {
+  const { t } = useTranslation("cellular");
+  // Read through a ref so a language switch (a new `t`) does not re-run the mount fetch.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [apn, setApn] = useState<ApnSetting | null>(null);
   const [cids, setCids] = useState<CidContext[] | null>(null);
   const [active, setActive] = useState<number | null>(null);
   const [activeCid, setActiveCid] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
@@ -87,7 +124,8 @@ export function useApnSettings(): UseApnSettingsReturn {
       if (!mountedRef.current) return;
 
       if (!data.success) {
-        setError(data.error ?? "Failed to fetch APN settings");
+        const tr = tRef.current;
+        setError(resolveErrorMessage(tr, data.error, data.detail, tr(`${K}.load_failed`)));
         return;
       }
 
@@ -97,11 +135,9 @@ export function useApnSettings(): UseApnSettingsReturn {
       setActiveCid(
         typeof data.active_cid === "number" ? data.active_cid : null
       );
-    } catch (err) {
+    } catch {
       if (!mountedRef.current) return;
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch APN settings"
-      );
+      setError(tRef.current(`${K}.load_failed`));
     } finally {
       if (mountedRef.current && !silent) {
         setIsLoading(false);
@@ -127,10 +163,24 @@ export function useApnSettings(): UseApnSettingsReturn {
     );
   }, []);
 
+  // The re-read that decides what actually landed. It is the ONLY arbiter after
+  // a write: the optimistic patch above states what was asked for, and this
+  // states what the modem now reports. `isReconciling` is the window between
+  // the two, published so the page can hold its verdict rather than asserting
+  // one from a value that is mid-flight — an attach cycle legitimately reports
+  // a disagreeing APN while it is running.
   const scheduleReconcile = useCallback(() => {
+    setIsReconciling(true);
     setTimeout(() => {
-      if (mountedRef.current) fetchSettings(true);
+      if (!mountedRef.current) return;
+      void fetchSettings(true).finally(() => {
+        if (mountedRef.current) setIsReconciling(false);
+      });
     }, RECONCILE_DELAY_MS);
+    // The late pass is silent and holds no verdict: the first re-read already settled it.
+    setTimeout(() => {
+      if (mountedRef.current) void fetchSettings(true);
+    }, RECONCILE_LATE_DELAY_MS);
   }, [fetchSettings]);
 
   // Shared POST wrapper. Returns the parsed body on HTTP success, or throws.
@@ -142,7 +192,7 @@ export function useApnSettings(): UseApnSettingsReturn {
         body: JSON.stringify(body),
       });
       if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        throw new HttpStatusError(resp.status, resp.statusText);
       }
       return (await resp.json()) as ApnSaveResponse;
     },
@@ -152,62 +202,96 @@ export function useApnSettings(): UseApnSettingsReturn {
   // ---------------------------------------------------------------------------
   // Save — writes the APN and runs a COPS cycle (brief WAN drop).
   // ---------------------------------------------------------------------------
-  const save = useCallback(
-    async (request: ApnSaveRequest): Promise<boolean> => {
-      setError(null);
-      setIsSaving(true);
-      try {
-        const data = await postAction({ action: "save", ...request });
-        if (!mountedRef.current) return false;
-        if (!data.success) {
-          setError(data.error ?? "Failed to save APN");
-          return false;
-        }
-        // Optimistic update: reflect the stored setting immediately.
+  // A LOST RESPONSE IS NOT A REFUSAL, and the catch below is where that
+  // distinction lives. The backend brackets the write in AT+COPS=2 / AT+COPS=0;
+  // on this hardware the attach cycle drops the eth0 link for about four
+  // seconds, so a CGI that runs it inline completes its work and then has no
+  // route left to answer over. `fetch` rejects, and the write LANDED.
+  //
+  // The old code funnelled both shapes into one `setError(...) / return false`,
+  // so the card toasted "Failed to save APN settings" over a successful save —
+  // and, worse, never reconciled, leaving the page asserting the old APN.
+  //
+  // Three outcomes, three behaviours (see `ApnSaveOutcome`):
+  //   response + success:false   the modem refused        -> "failed"
+  //   response + non-2xx         a real transport error   -> "failed"
+  //   no response at all         the expected link drop   -> "reconciling"
+  const save = useCallback(async (
+    request: ApnSaveRequest,
+  ): Promise<ApnActionResult> => {
+    setIsSaving(true);
+    try {
+      const data = await postAction({ action: "save", ...request });
+      if (!data.success) {
+        return {
+          outcome: "failed",
+          error: resolveErrorMessage(t, data.error, data.detail, t(`${K}.save_failed`)),
+        };
+      }
+      if (!mountedRef.current) return { outcome: "saved", persisted: data.persisted !== false };
+      // Optimistic update: reflect the stored setting immediately.
+      setApn(request);
+      setActive(1);
+      // Reflect on the live CID so the CID picker doesn't show a stale context
+      // APN before the reconcile picks up the modem's response.
+      patchCidApn(request.cid, request.apn);
+      scheduleReconcile();
+      return { outcome: "saved", persisted: data.persisted !== false };
+    } catch (err) {
+      if (!mountedRef.current) return { outcome: "failed", error: t(`${K}.save_failed`) };
+      if (!(err instanceof HttpStatusError)) {
+        // Nothing came back. The attach cycle's link drop is the expected
+        // cause, and it happens AFTER the write has been issued — so patch
+        // optimistically exactly as the success path does and let the delayed
+        // re-read say what actually took. The page holds its verdict for the
+        // duration via `isReconciling`; it does not claim success, and it does
+        // not claim failure either.
         setApn(request);
         setActive(1);
-        // Reflect on the live CID so the "Active vs Not live" badge doesn't
-        // flash "Not live" before the reconcile picks up the modem's response.
         patchCidApn(request.cid, request.apn);
         scheduleReconcile();
-        return true;
-      } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save APN");
-        return false;
-      } finally {
-        if (mountedRef.current) setIsSaving(false);
+        return { outcome: "reconciling" };
       }
-    },
-    [postAction, patchCidApn, scheduleReconcile]
-  );
+      return { outcome: "failed", error: t(`${K}.save_failed`) };
+    } finally {
+      if (mountedRef.current) setIsSaving(false);
+    }
+  }, [postAction, patchCidApn, scheduleReconcile, t]);
 
   // ---------------------------------------------------------------------------
   // Deactivate — revert to carrier-default APN (active=0).
   // ---------------------------------------------------------------------------
-  const deactivate = useCallback(async (): Promise<boolean> => {
-    setError(null);
+  // Same three outcomes as `save`, and for the same reason: `deactivate` runs
+  // `apn_apply_write <cid> <pdp> "" 1`, which is the identical attach cycle. A
+  // lost response here was reported as "Failed to revert to carrier default"
+  // over a revert that had already happened.
+  const deactivate = useCallback(async (): Promise<ApnActionResult> => {
     setIsSaving(true);
     try {
       const data = await postAction({ action: "deactivate" });
-      if (!mountedRef.current) return false;
       if (!data.success) {
-        setError(data.error ?? "Failed to use carrier default");
-        return false;
+        return {
+          outcome: "failed",
+          error: resolveErrorMessage(t, data.error, data.detail, t(`${K}.deactivate_failed`)),
+        };
       }
+      const persisted = data.persisted !== false;
+      if (!mountedRef.current) return { outcome: "saved", persisted };
       setActive(0);
       scheduleReconcile();
-      return true;
+      return { outcome: "saved", persisted };
     } catch (err) {
-      if (!mountedRef.current) return false;
-      setError(
-        err instanceof Error ? err.message : "Failed to use carrier default"
-      );
-      return false;
+      if (!mountedRef.current) return { outcome: "failed", error: t(`${K}.deactivate_failed`) };
+      if (!(err instanceof HttpStatusError)) {
+        setActive(0);
+        scheduleReconcile();
+        return { outcome: "reconciling" };
+      }
+      return { outcome: "failed", error: t(`${K}.deactivate_failed`) };
     } finally {
       if (mountedRef.current) setIsSaving(false);
     }
-  }, [postAction, scheduleReconcile]);
+  }, [postAction, scheduleReconcile, t]);
 
   return {
     apn,
@@ -216,6 +300,7 @@ export function useApnSettings(): UseApnSettingsReturn {
     activeCid,
     isLoading,
     isSaving,
+    isReconciling,
     error,
     save,
     deactivate,

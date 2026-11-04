@@ -29,7 +29,10 @@ function EmptyHeader({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const emptyMediaVariants = cva(
-  "flex shrink-0 items-center justify-center mb-2 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  // See badge.tsx: the `[&_svg]` rules cannot reach a MaterialSymbol's inline
+  // fontSize, so Material glyphs in an EmptyMedia pass `size={24}` explicitly
+  // to match the `icon` variant's size-6 default.
+  "flex shrink-0 items-center justify-center mb-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_[data-slot=material-symbol]]:pointer-events-none",
   {
     variants: {
       variant: {

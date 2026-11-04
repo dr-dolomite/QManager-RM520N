@@ -1,32 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import * as React from "react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import ApnSettingsCard from "./apn-settings-card";
-import MBNCard from "./mbn-card";
+
+import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
+import CellularPageHeader from "@/components/cellular/page-header";
+import { Button } from "@/components/ui/button";
+import { TonalBanner } from "@/components/ui/tonal-banner";
+import { useApnPresets } from "@/hooks/use-apn-presets";
 import { useApnSettings } from "@/hooks/use-apn-settings";
 import { useMbnSettings } from "@/hooks/use-mbn-settings";
+import { useModemStatus } from "@/hooks/use-modem-status";
 import { useSimProfiles } from "@/hooks/use-sim-profiles";
-import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { staggerContainer, staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+
+import ApnSettingsCard from "./apn-settings-card";
+import MBNCard from "./mbn-card";
+import { APN_PAIR, BANNER_ACTION, PAGE_ROOT } from "../shapes";
 
 // =============================================================================
-// APNSettingsComponent — APN Settings page coordinator (single-APN model)
+// APN Management — the route shell (RM551E v0.1.34 layout)
 // =============================================================================
-// Gating: when a Custom SIM Profile is active AND that profile sets a
-// non-empty APN, this whole page becomes read-only. The user can still see
-// the current configuration but can't edit it — the source of truth is the
-// profile. We wrap the cards in a disabled <fieldset> rather than threading
-// `disabled` through every child component.
+// Two write cards side by side on desktop (`APN_PAIR`), stacked below `@4xl/main`: the APN card (including the
+// network-granted readout) and the carrier profile (MBN).
 //
-// NOTE: this page renders ONLY the single-APN card (+ the MBN card). The
-// legacy 6-slot WAN-profile list/edit UI (WanProfileListCard /
-// WanProfileEditCard) is retired from this page per the RM551E pixel-strict
-// port — those components are left in place (not deleted) since other code
-// may still import them.
+// THREE DATA SOURCES, DELIBERATELY SEPARATE:
+// Hooks: useApnSettings (apn_setting.json + live CIDs), useMbnSettings (own clock), useModemStatus (granted APN, WAN
+// addresses, IMSI for suggestions).
+//
+// THE OVERRIDE GATE covers only the APN card (a disabled fieldset while a Custom SIM Profile owns the APN); MBN sits
+// outside it.
 // =============================================================================
+
+const K = "core_settings.apn";
 
 const APNSettingsComponent = () => {
   const { t } = useTranslation("cellular");
@@ -38,6 +46,7 @@ const APNSettingsComponent = () => {
     activeCid,
     isLoading,
     isSaving,
+    isReconciling,
     error,
     save,
     deactivate,
@@ -49,30 +58,35 @@ const APNSettingsComponent = () => {
     autoSel,
     isLoading: mbnLoading,
     isSaving: mbnSaving,
+    error: mbnError,
     saveMbn,
+    rebootDevice: rebootMbn,
+    refresh: refreshMbn,
   } = useMbnSettings();
+
+  const {
+    data: status,
+    isStale: statusStale,
+    error: statusError,
+  } = useModemStatus();
+
+  // Suggested APNs for the SIM in the slot, matched by its IMSI's home PLMN.
+  const presetMatch = useApnPresets(status?.device?.imsi);
 
   const { activeProfileId, isLoading: simLoading, getProfile } = useSimProfiles();
 
-  // --- SIM Profile override check (async) ----------------------------------
-  // Gate iff the active profile has a non-empty APN name. Empty APN = profile
-  // does not manage APN, so we leave the page editable.
-  const [profileOverride, setProfileOverride] = useState<{
+  // --- SIM Profile override check (async) ------------------------------------
+  // Gate iff the active profile has a non-empty APN name.
+  const [profileOverride, setProfileOverride] = React.useState<{
     profileId: string;
     name: string;
   } | null>(null);
 
-  // The override verdict arrives over TWO sequential fetches: useSimProfiles
-  // first learns `activeProfileId`, then the effect below fetches that
-  // profile's APN. `checkedId` records the profile id whose APN fetch has
-  // completed, so render can tell whether the current verdict is settled or
-  // still in flight — without any synchronous setState in the effect.
-  const [checkedId, setCheckedId] = useState<string | null>(null);
+  // The profile id whose APN fetch has completed, so render can tell a settled
+  // verdict from one still in flight without a setState in the effect body.
+  const [checkedId, setCheckedId] = React.useState<string | null>(null);
 
-  useEffect(() => {
-    // Only fetch once the profile list has settled and there is an active
-    // profile to inspect. Until then the verdict stays "undetermined" (derived
-    // below) so the UI holds its skeleton rather than exposing live controls.
+  React.useEffect(() => {
     if (simLoading || !activeProfileId) return;
 
     let cancelled = false;
@@ -96,79 +110,97 @@ const APNSettingsComponent = () => {
   const isProfileControlled =
     !!activeProfileId && profileOverride?.profileId === activeProfileId;
 
-  // True while we still can't tell whether a profile owns the APN: the list is
-  // still loading, or an active profile's APN fetch hasn't resolved yet
-  // (`checkedId` lags `activeProfileId`). The interactive cards stay in their
-  // loading state and the fieldset stays disabled until this clears, closing
-  // the window where every button is live before the override gate engages.
   const overrideUndetermined =
     simLoading || (!!activeProfileId && checkedId !== activeProfileId);
 
   const profileName = isProfileControlled
     ? profileOverride.name
-    : t("core_settings.apn.managed_by_profile_fallback");
+    : t(`${K}.managed_by_profile_fallback`);
 
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">
-          {t("core_settings.apn.page.title")}
-        </h1>
-        <p className="text-muted-foreground">
-          {t("core_settings.apn.page.description")}
-        </p>
-      </div>
+    <div className={PAGE_ROOT}>
+      <CellularPageHeader
+        title={t(`${K}.page.title`)}
+        description={t(`${K}.page.description`)}
+      />
 
-      {error && !isLoading && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircleIcon />
-          <AlertTitle>{t("core_settings.apn.page.error_load_title")}</AlertTitle>
-          <AlertDescription className="flex items-center gap-2">
-            <span>{t("core_settings.apn.page.error_load_description")}</span>
-            <Button variant="outline" size="sm" onClick={() => refresh()}>
-              <RefreshCwIcon className="size-3.5" />
+      {/* A failed RE-read only: the card keeps its last snapshot, so say it may
+          be outdated. A never-read card carries its own error and retry. */}
+      {error && !isLoading && apn ? (
+        <TonalBanner
+          tone="destructive"
+          icon="error"
+          title={t(`${K}.page.error_load_title`)}
+        >
+          <span className="flex flex-wrap items-center gap-2">
+            {t(`${K}.page.error_load_description`)}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => refresh()}
+              className={BANNER_ACTION}
+            >
               {t("actions.retry", { ns: "common" })}
             </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+          </span>
+        </TonalBanner>
+      ) : null}
 
-      {isProfileControlled && (
+      {isProfileControlled ? (
         <ProfileOverrideAlert
           profileName={profileName}
-          controls={t("core_settings.apn.controls_label")}
+          controls={t(`${K}.controls_label`)}
         />
-      )}
+      ) : null}
 
-      {/* Fieldset wrap: `pointer-events-none opacity-60` makes the
-          disabled state visually obvious while leaving values readable. */}
-      <fieldset
-        disabled={isProfileControlled || overrideUndetermined}
-        className={
-          isProfileControlled
-            ? "pointer-events-none opacity-60 grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4 border-0 p-0 m-0"
-            : "grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4 border-0 p-0 m-0"
-        }
+      <motion.div
+        className={APN_PAIR.GRID}
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
       >
-        <ApnSettingsCard
-          apn={apn}
-          cids={cids}
-          active={active}
-          activeCid={activeCid}
-          isLoading={isLoading || overrideUndetermined}
-          isSaving={isSaving}
-          onSave={save}
-          onDeactivate={deactivate}
-        />
+        <motion.div variants={staggerItem} className={APN_PAIR.CELL}>
+          <fieldset
+            disabled={isProfileControlled || overrideUndetermined}
+            className={cn(
+              "m-0 flex min-w-0 flex-col border-0 p-0",
+              isProfileControlled && "pointer-events-none opacity-60",
+            )}
+          >
+            <ApnSettingsCard
+              apn={apn}
+              cids={cids}
+              active={active}
+              activeCid={activeCid}
+              isLoading={isLoading || overrideUndetermined}
+              isSaving={isSaving}
+              isReconciling={isReconciling}
+              loadError={apn === null ? error : null}
+              onRetry={() => refresh()}
+              onSave={save}
+              onDeactivate={deactivate}
+              presets={presetMatch?.presets ?? null}
+              status={status}
+              statusStale={statusStale}
+              statusError={statusError}
+            />
+          </fieldset>
+        </motion.div>
 
-        <MBNCard
-          profiles={mbnProfiles}
-          autoSel={autoSel}
-          isLoading={mbnLoading}
-          isSaving={mbnSaving}
-          onSave={saveMbn}
-        />
-      </fieldset>
+        <motion.div variants={staggerItem} className={APN_PAIR.CELL}>
+          <MBNCard
+            profiles={mbnProfiles}
+            autoSel={autoSel}
+            isLoading={mbnLoading}
+            isSaving={mbnSaving}
+            loadError={mbnError}
+            onSave={saveMbn}
+            onReboot={rebootMbn}
+            onRetry={refreshMbn}
+          />
+        </motion.div>
+      </motion.div>
     </div>
   );
 };

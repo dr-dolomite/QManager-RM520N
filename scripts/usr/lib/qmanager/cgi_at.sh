@@ -60,6 +60,11 @@ detect_active_cid() {
 
     # Compound AT: fetch both CID sources in one call
     raw=$(qcmd 'AT+CGPADDR;+QMAP="WWAN"' 2>/dev/null)
+    # The broker refuses the whole compound while QMAP is unsafe; keep CGPADDR.
+    case "$raw" in
+        *+CGPADDR:*) ;;
+        *) raw=$(qcmd 'AT+CGPADDR' 2>/dev/null) ;;
+    esac
 
     # Step 1: +CGPADDR lines — collect CIDs with real IPv4 addresses
     cgpaddr_cids=""
@@ -133,6 +138,124 @@ parse_cgdcont() {
             {cid: (.[0] | tonumber), pdp_type: .[1], apn: .[2]}
         )
     '
+}
+
+# ---------------------------------------------------------------------------
+# parse_cgcontrdp <stripped_cgcontrdp_response>
+#   -> "<v4addr>\t<v4gw>\t<dns1>\t<dns2>\t<v6addr>"
+# RM520N-GL format (no MTU / interface fields present):
+#   +CGCONTRDP: <cid>,<bearer>,"<apn>","<addr>",<gw>,"<dns1>","<dns2>"
+# Promoted here from apn.sh (same field layout / same awk -F'"' split) so
+# apn.sh's existing `cut -f1..5` consumers are unaffected. The 5-field arity
+# and field ORDER are contract — callers slice them positionally with
+# `cut -f1..5`. Do not widen or reorder without updating every consumer.
+#
+# IPv4-vs-IPv6 is decided by OCTET COUNT, not by punctuation. 3GPP returns an
+# IPv6 address as 16 dotted-decimal octets, NOT colon-hex — verified live on
+# this firmware, which emits the dotted form in +CGCONTRDP, +CGPADDR and
+# +CGDCONT? alike (colon-hex shows up only in +QMAP). A `addr ~ /:/` test
+# therefore never matches an IPv6 +CGCONTRDP address, and since the address is
+# per-CID and a dual-stack context emits the IPv6 record SECOND, the old test
+# sent it down the IPv4 branch where it overwrote v4/gw/dns1/dns2 wholesale and
+# left v6 permanently empty. Counting octets is the only reliable split:
+#   4 octets  -> IPv4        16 octets -> IPv6        contains ':' -> IPv6
+# First record of each family wins, so a later record can no longer clobber an
+# earlier one. Colon-hex is kept as a fallback for firmwares that do emit it.
+#
+# Input is normalised with `tr '\r' '\n'` first: some firmwares glue successive
+# records with a bare CR instead of CRLF, which would otherwise leave two
+# records on one awk line and hide the second entirely (parse_at.sh's sibling
+# parser has carried this same normalisation since it was written).
+#
+# Usage:
+#   fields=$(parse_cgcontrdp "$rdp_resp"); v4addr=$(printf '%s' "$fields" | cut -f1)
+# ---------------------------------------------------------------------------
+parse_cgcontrdp() {
+    printf '%s\n' "$1" | tr '\r' '\n' | awk '
+        /\+CGCONTRDP:/ {
+            # Split on COMMA, not on the quote character. Quoting is not a
+            # stable property of this response: SDX55 firmware (RG501Q-EU)
+            # emits every field BARE, where an -F(") parser sees NF==1 and
+            # silently yields an all-empty tuple. Measured on two live
+            # devices, same SIM, minutes apart:
+            #   SDX65 RM520N-GL: 1,5,"SMARTLTE","10.148.167.210",,"..",".."
+            #   SDX55 RG501Q-EU: 1,5,SMARTLTE,10.167.105.28,,..,..
+            # Comma positions ARE fixed across both, which also retires the
+            # int(NF/2) quote-counting hack below. No field here can contain
+            # a comma: APNs are DNS-style labels, IPv6 is dotted-decimal.
+            line = $0
+            sub(/^.*\+CGCONTRDP:[ \t]*/, "", line)
+            n = split(line, f, ",")
+            for (i = 1; i <= n; i++) {
+                gsub(/"/, "", f[i])
+                gsub(/^[ \t]+|[ \t]+$/, "", f[i])
+            }
+
+            # 3GPP packs the subnet mask into the address field, space-
+            # separated ("10.148.167.210 255.255.255.248"), so strip it.
+            addr = f[4]; sub(/ .*/, "", addr)
+
+            # The gateway may be quoted or bare, which used to shift every
+            # -F(") field after it by two and returned the GATEWAY as dns1.
+            # Comma positions do not shift, so the fields are simply fixed.
+            gw = f[5]; d1 = f[6]; d2 = f[7]
+            gsub(/[^0-9.:]/, "", gw)
+
+            n = split(addr, _oct, "[.]")
+            if ((addr ~ /:/) || n == 16) {
+                if (v6 == "") v6 = addr
+            } else if (n == 4) {
+                # Gateway is address-family-specific (the consumer emits it as
+                # ipv4_gateway), so it is only ever taken from an IPv4 record.
+                if (v4 == "") { v4 = addr; v4gw = gw }
+            }
+            # DNS is NOT family-specific in the consumer contract — apn.sh
+            # emits plain dns1/dns2, not ipv4_dns1 — so take them from
+            # whichever record supplies them. Without this, an IPv6-only
+            # context (which this SIM does hand out) would report no DNS at
+            # all. First non-empty wins, so a dual-stack context still
+            # prefers the IPv4 record that arrives first.
+            if (d1 != "" && dns1 == "") dns1 = d1
+            if (d2 != "" && dns2 == "") dns2 = d2
+        }
+        END { printf "%s\t%s\t%s\t%s\t%s\n", v4, v4gw, dns1, dns2, v6 }'
+}
+
+# ---------------------------------------------------------------------------
+# parse_cgcontrdp_apn <stripped_cgcontrdp_response> -> "<apn>" (empty if none)
+# Sibling of parse_cgcontrdp, kept separate rather than widening its 5-tuple:
+# same "+CGCONTRDP: <cid>,<bearer>,<apn>,<addr>,<gw>,<dns1>,<dns2>" field
+# layout, comma-split, field 3 = apn. Quotes around the values are optional
+# and firmware-dependent (see the parser body), so they are stripped rather
+# than used as delimiters. Used by apn_apply.sh to verify what the network
+# actually negotiated (AT+CGDCONT? only echoes back what was asked for,
+# never what was granted).
+#
+# Usage:
+#   negotiated=$(parse_cgcontrdp_apn "$rdp_resp")
+# ---------------------------------------------------------------------------
+parse_cgcontrdp_apn() {
+    printf '%s\n' "$1" | tr '\r' '\n' | awk '
+        /\+CGCONTRDP:/ {
+            # Comma-split for the same reason as parse_cgcontrdp above: on
+            # SDX55 the fields arrive unquoted, and an -F(") parser returns
+            # "" from a perfectly good reply. That empty is what the caller
+            # polls on (apn_apply.sh:481), so it was indistinguishable from
+            # "the bearer is not up yet" -> a full 15s spin -> rc=5
+            # timeout_verify -> a false "APN did not land" on an APN that
+            # had. Field 3 is the APN in both wire formats.
+            line = $0
+            sub(/^.*\+CGCONTRDP:[ \t]*/, "", line)
+            n = split(line, f, ",")
+            if (n < 3) next
+            apn = f[3]
+            gsub(/"/, "", apn)
+            gsub(/^[ \t]+|[ \t]+$/, "", apn)
+            # Stay empty when there is genuinely nothing to read — the empty
+            # result is load-bearing signal for the verify poll, so this must
+            # never manufacture a value.
+            if (apn != "") { print apn; exit }
+        }'
 }
 
 # ---------------------------------------------------------------------------

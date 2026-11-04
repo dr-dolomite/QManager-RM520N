@@ -16,12 +16,15 @@
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
-. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
+if [ -f /usr/lib/qmanager/qlog.sh ]; then
+    . /usr/lib/qmanager/qlog.sh
+else
     qlog_init() { :; }
     qlog_info() { :; }
     qlog_warn() { :; }
     qlog_error() { :; }
-}
+fi
 qlog_init "cell_scanner"
 
 # --- Configuration -----------------------------------------------------------
@@ -48,6 +51,8 @@ qlog_info "Cell scanner started (PID: $$)"
 # STEP 1: Execute AT+QSCAN=3,1 via qcmd
 # =============================================================================
 # Mode 3 = LTE + NR5G, ext 1 = show all extension parameters
+# The broker raises /run/qmanager_at/long_running around QSCAN once it holds the
+# lock; raising it earlier would fail a short command already running (transport.rs).
 raw_output=$(qcmd 'AT+QSCAN=3,1')
 scan_rc=$?
 

@@ -16,8 +16,7 @@
 #     www/cgi-bin/          — CGI API endpoints
 #     usrdata/qmanager/     — lighttpd config
 #   dependencies/           — Bundled binaries and packages
-#     atcli_smd11           — ARM binary (AT command transport via /dev/smd11)
-#     sms_tool              — ARM binary (SMS send/recv/delete via /dev/smd11)
+#     qmanager_atd          — ARM binary (AT/SMS/QMI broker; qcmd and qsms link to it)
 #     jq.ipk                — JSON processor (Entware package)
 #     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
@@ -80,9 +79,22 @@ detect_sudo() {
 }
 detect_sudo
 CONF_DIR="/etc/qmanager"
+# Root-only store for alert secrets (Discord bot token, Gmail app password,
+# msmtprc). Deliberately a SIBLING of $CONF_DIR, not a subdirectory: www-data
+# owns $CONF_DIR, so it could rename any subdirectory of it out of the way.
+# See migrate_alert_secrets().
+SECRETS_DIR="/etc/qmanager-secrets"
 CERT_DIR="/usrdata/qmanager/certs"
 SESSION_DIR="/tmp/qmanager_sessions"
-BACKUP_DIR="/etc/qmanager/backups"
+# Timestamped auth.json snapshots (the QManager login password), one per
+# install/OTA run, newest 5 kept. Deliberately a SIBLING of $CONF_DIR for the
+# same reason as $SECRETS_DIR above and /etc/qmanager.env: www-data owns
+# $CONF_DIR, and unlink/rename permission comes from the PARENT directory, so
+# nothing inside it can be protected from www-data no matter its own owner or
+# mode — and qmanager_setup:177 chowns the whole tree to www-data on every
+# boot anyway. This lived at /etc/qmanager/backups until F22. See
+# migrate_backup_location().
+BACKUP_DIR="/etc/qmanager-backups"
 LIGHTTPD_CONF="/usrdata/qmanager/lighttpd.conf"
 
 # Source directories (relative to INSTALL_DIR)
@@ -105,6 +117,7 @@ WATCHCAT_LOCK="/tmp/qmanager_watchcat.lock"
 # Status of early SSH bootstrap; set by setup_ssh_early(), read by print_summary().
 # Values: installed | skipped_ota | skipped_existing | failed_install | failed_start | failed_password | not_run
 SSH_BOOTSTRAP_STATUS="not_run"
+SSH_BOOTSTRAP_PASSWORD=""  # printed once by print_summary; never logged
 
 # Install log (qmanager_update tails this for step progress)
 LOG_FILE="/tmp/qmanager_install.log"
@@ -160,6 +173,101 @@ die() {
     exit 1
 }
 
+# --- qm_timeout: portable `timeout` wrapper (BusyBox 1.29 vs 1.31 straddle) --
+# LOCAL COPY of qm_timeout() from scripts/usr/lib/qmanager/platform.sh. This
+# script needs its own copy rather than sourcing the lib: LIB_DIR points at
+# the DEPLOYED path (/usr/lib/qmanager), which doesn't exist yet this early
+# in a fresh install, and `--frontend-only` (DO_BACKEND=0) never deploys libs
+# at all while still running the AT/service verification code below that
+# needs a portable timeout. Keep this block byte-for-byte logically
+# identical to platform.sh's qm_timeout — a change to the BusyBox-version
+# rationale, the 143->124 remap, or the fail-open bound belongs in BOTH
+# places. See platform.sh for the full rationale; only the set -e-specific
+# notes below are unique to this copy.
+#
+# BusyBox changed `timeout`'s CLI in 1.30: SECS went from an option
+# (`-t SECS`) to a positional first argument, and `-t` was dropped.
+# RG501Q-EU (v1.29.3) and RM520N-GL (v1.31.1) straddle that change, so no
+# single literal invocation works on both. `command -v timeout` cannot tell
+# the two apart (BusyBox always provides the applet) — detect by BEHAVIOUR
+# instead: run `timeout 1 true` once and check for exit 127.
+#
+# Every probe/dispatch below uses "cmd || rc=$?" rather than a bare
+# "cmd; rc=$?" — this script runs under `set -e` (see top of file), and a
+# bare statement's non-zero exit outside an if/while/&&/|| test aborts the
+# WHOLE INSTALL, including on the very probe that exists to detect a
+# non-zero exit on purpose.
+_QM_TIMEOUT_BIN=""
+_QM_TIMEOUT_FORM=""   # "positional" (coreutils/BusyBox >=1.30) or "legacy" (-t, BusyBox <1.30)
+
+if [ -x /opt/bin/timeout ]; then
+    _qm_probe_rc=0
+    /opt/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+    if [ "$_qm_probe_rc" -ne 127 ]; then
+        _QM_TIMEOUT_BIN="/opt/bin/timeout"
+        _QM_TIMEOUT_FORM="positional"
+    fi
+fi
+
+if [ -z "$_QM_TIMEOUT_BIN" ] && [ -x /usr/bin/timeout ]; then
+    _qm_probe_rc=0
+    /usr/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+    if [ "$_qm_probe_rc" -eq 127 ]; then
+        _QM_TIMEOUT_BIN="/usr/bin/timeout"
+        _QM_TIMEOUT_FORM="legacy"
+    else
+        _QM_TIMEOUT_BIN="/usr/bin/timeout"
+        _QM_TIMEOUT_FORM="positional"
+    fi
+fi
+unset _qm_probe_rc
+
+# qm_timeout SECS COMMAND [ARGS...] — callers always write the coreutils
+# (positional) form; dispatches to whichever CLI shape was detected above,
+# and remaps a BusyBox SIGTERM-relay (143) to the documented 124 contract.
+# See platform.sh's qm_timeout for why the remap is scoped to this function
+# only, not a global "143 means timeout" rule.
+qm_timeout() {
+    local secs="$1"
+    shift
+    local rc=0
+    local cmd_pid waited killed
+
+    if [ -n "$_QM_TIMEOUT_BIN" ] && [ "$_QM_TIMEOUT_FORM" = "positional" ]; then
+        "$_QM_TIMEOUT_BIN" "$secs" "$@" || rc=$?
+    elif [ -n "$_QM_TIMEOUT_BIN" ] && [ "$_QM_TIMEOUT_FORM" = "legacy" ]; then
+        "$_QM_TIMEOUT_BIN" -t "$secs" "$@" || rc=$?
+    else
+        # Fail open, but never unbounded: neither probe found a usable
+        # `timeout` (should not happen on either target device). Bound the
+        # command manually rather than exec'ing it with no limit at all —
+        # an unbounded call inside this `set -e` installer would hang the
+        # whole install, which is the exact hazard `timeout` exists to
+        # prevent.
+        "$@" &
+        cmd_pid=$!
+        waited=0
+        killed=0
+        while kill -0 "$cmd_pid" 2>/dev/null; do
+            if [ "$waited" -ge "$secs" ]; then
+                kill -TERM "$cmd_pid" 2>/dev/null || true
+                wait "$cmd_pid" 2>/dev/null || true
+                rc=143
+                killed=1
+                break
+            fi
+            sleep 1
+            waited=$((waited + 1))
+        done
+        if [ "$killed" -eq 0 ]; then
+            wait "$cmd_pid" || rc=$?
+        fi
+    fi
+
+    [ "$rc" -eq 143 ] && rc=124
+    return "$rc"
+}
+
 TOTAL_STEPS=9; CURRENT_STEP=0
 
 # step() writes the step header used by qmanager_update to track progress —
@@ -185,7 +293,8 @@ install_file() {
     cp "$src" "$tmp" || return 1
 
     if ! head -c 4 "$tmp" 2>/dev/null | grep -q $'\x7fELF'; then
-        tr -d '\r' < "$tmp" > "${tmp}.cr" && mv "${tmp}.cr" "$tmp"
+        tr -d '\r' < "$tmp" > "${tmp}.cr" && mv "${tmp}.cr" "$tmp" \
+            || { rm -f "$tmp" "${tmp}.cr"; return 1; }
     fi
 
     chmod "$mode" "$tmp" || { rm -f "$tmp"; return 1; }
@@ -233,46 +342,30 @@ install_tree() {
 # --- Two-phase Version Write -------------------------------------------------
 
 mark_version_pending() {
-    mkdir -p "$CONF_DIR"
+    # SECURITY: pin the mode, don't just ensure existence. This is the FIRST
+    # thing that creates $CONF_DIR, and a bare `mkdir -p` honours the ambient
+    # umask and is a silent no-op on an already-existing directory — which is
+    # how 0777 reached fielded devices and then survived every OTA. `install -d`
+    # re-applies the mode on EVERY run, so one OTA self-heals a drifted device.
+    # Owner is deliberately NOT set here: www-data is created later, in
+    # install_dependencies(). install_backend() pins owner+mode together once
+    # the user exists. See the SECURITY note there for why the mode matters.
+    install -d -m 0755 "$CONF_DIR"
     printf '%s\n' "$VERSION" > "$VERSION_PENDING"
     _log_raw "Version $VERSION marked as pending"
 }
 
 finalize_version() {
     if [ -f "$VERSION_PENDING" ]; then
-        mv "$VERSION_PENDING" "$CONF_DIR/VERSION"
-        _log_raw "Version $VERSION finalized"
+        # Runs after services are already back up (see main()'s ordering) —
+        # a failed rename here must not abort the reboot over a stale VERSION
+        # marker, so warn and continue rather than die().
+        if mv "$VERSION_PENDING" "$CONF_DIR/VERSION"; then
+            _log_raw "Version $VERSION finalized"
+        else
+            warn "Could not finalize $CONF_DIR/VERSION — install completed, marker left pending"
+        fi
     fi
-}
-
-# --- Modem Firmware Detection ------------------------------------------------
-
-detect_modem_firmware() {
-    local model=""
-
-    # Try version file first (fastest, no AT round-trip)
-    if [ -f /etc/quectel-project-version ]; then
-        model=$(grep -m1 "^Project Name:" /etc/quectel-project-version 2>/dev/null \
-            | sed 's/^Project Name:[[:space:]]*//' | tr -d '[:space:]')
-    fi
-
-    # Fall back to AT stack
-    if [ -z "$model" ] && [ -x "$BIN_DIR/atcli_smd11" ]; then
-        model=$(timeout 5 "$BIN_DIR/atcli_smd11" "ATI" 2>/dev/null \
-            | grep -i "RM520N" | head -1 | tr -d '[:space:]') || true
-        [ -z "$model" ] && model=$(timeout 5 "$BIN_DIR/atcli_smd11" "AT+GMR" 2>/dev/null \
-            | grep -i "RM520N" | head -1 | tr -d '[:space:]') || true
-    fi
-
-    # Fall back to poller cache
-    if [ -z "$model" ]; then
-        for f in /tmp/qmanager_status.json /etc/qmanager/status.json; do
-            [ -f "$f" ] && model=$(grep -o '"RM520N[^"]*"' "$f" 2>/dev/null | head -1 \
-                | tr -d '"[:space:]') && [ -n "$model" ] && break
-        done
-    fi
-
-    printf '%s' "$(printf '%s' "$model" | tr '[:lower:]' '[:upper:]')"
 }
 
 # --- Download Helper ---------------------------------------------------------
@@ -296,18 +389,48 @@ dl_resolve() {
     [ "$_DL_TOOL" != "none" ]
 }
 
-# dl_get <url> <dest> — download url to dest; dest is removed on failure so a
-# partial file or an HTTP error page is never left behind as a "success".
+# dl_get <url> <dest> [max_time_secs] — download url to dest; dest is removed
+# on failure so a partial file or an HTTP error page is never left behind as
+# a "success". The optional 3rd arg bounds the transfer (curl --max-time /
+# wget -T) for callers where a hung connection must not stall indefinitely;
+# omitted, curl keeps its prior unbounded behavior and wget keeps its 60s
+# default, so existing 2-arg call sites are unaffected.
 dl_get() {
-    local url="$1" dest="$2" rc
+    local url="$1" dest="$2" max_time="${3:-}" rc
     dl_resolve || return 1
     case "$_DL_TOOL" in
-        curl) curl -fsSL -o "$dest" "$url" ;;
-        wget) wget -q -T 60 -O "$dest" "$url" ;;
+        curl)
+            if [ -n "$max_time" ]; then
+                curl -fsSL --max-time "$max_time" -o "$dest" "$url"
+            else
+                curl -fsSL -o "$dest" "$url"
+            fi
+            ;;
+        wget) wget -q -T "${max_time:-60}" -O "$dest" "$url" ;;
     esac
     rc=$?
     [ "$rc" -ne 0 ] && rm -f "$dest"
     return "$rc"
+}
+
+# sha256_ok <file> <expected_hex> — 0 only if sha256sum exists and matches.
+sha256_ok() {
+    local actual
+    command -v sha256sum >/dev/null 2>&1 || return 1
+    actual=$(sha256sum "$1" 2>/dev/null | awk '{ print $1 }')
+    [ -n "$actual" ] && [ "$actual" = "$2" ]
+}
+
+# dl_get_pinned <url> <dest> <sha256> [max_time] — dl_get, then remove dest
+# and fail unless its SHA-256 matches. Used for fixed-version third-party files.
+dl_get_pinned() {
+    dl_get "$1" "$2" "${4:-}" || return 1
+    if ! sha256_ok "$2" "$3"; then
+        warn "SHA-256 mismatch (or no sha256sum) for $1 — discarding download"
+        rm -f "$2"
+        return 1
+    fi
+    return 0
 }
 
 # --- Pre-flight Checks -------------------------------------------------------
@@ -337,6 +460,10 @@ preflight() {
 
     if [ "$DO_FORCE" = "1" ]; then
         warn "--force: skipping modem firmware detection"
+        # --force skips the model arms below; still note the community tier.
+        if grep -q "^Project Name:[[:space:]]*RG501Q" /etc/quectel-project-version 2>/dev/null; then
+            info "Detected: RG501Q-EU — community-supported model"
+        fi
     else
         if [ -f /etc/quectel-project-version ]; then
             local ver project_name
@@ -350,6 +477,13 @@ preflight() {
                     ;;
                 RM520N*)
                     info "Detected: RM520N-GL ($ver)"
+                    ;;
+                RG501Q*)
+                    # Community tier — see qm_hw_tier() in hw_profile.sh. Info
+                    # only, deliberately no prompt: this arm exists so the
+                    # RG501Q stops falling through to the `*` arm's
+                    # "unrecognized device / proceed anyway?" question.
+                    info "Detected: RG501Q-EU ($ver) — community-supported model"
                     ;;
                 "")
                     warn "Cannot parse device model from firmware version — proceeding anyway"
@@ -406,14 +540,93 @@ preflight() {
         die "Backend scripts not found at $SRC_SCRIPTS"
     fi
 
+    # The shipped sudoers drop-in must parse BEFORE anything is stopped or
+    # installed: new helpers paired with the old (broader) grants is worse than
+    # an early abort. The late check in install_backend stays as a second guard.
+    if [ "$DO_BACKEND" = "1" ] && [ -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" ]; then
+        local _pf_visudo="" _pf_c
+        for _pf_c in /opt/sbin/visudo /opt/bin/visudo /usr/sbin/visudo /usr/bin/visudo; do
+            [ -x "$_pf_c" ] && { _pf_visudo="$_pf_c"; break; }
+        done
+        [ -z "$_pf_visudo" ] && _pf_visudo=$(command -v visudo 2>/dev/null) || true
+        if [ -n "$_pf_visudo" ]; then
+            if ! "$_pf_visudo" -c -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" >/dev/null 2>&1; then
+                "$_pf_visudo" -c -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" 2>&1 | head -5 || true
+                die "Shipped sudoers drop-in failed visudo syntax check — aborting before any change"
+            fi
+        fi
+    fi
+
     mark_version_pending
+
+    # Write the advisory hardware profile. The PLACEMENT here is load-bearing on
+    # three counts, and two of them fail silently if it moves:
+    #
+    #  1. AFTER mark_version_pending(), which is the first thing that creates
+    #     $CONF_DIR (`install -d -m 0755`, :249). qm_hw_write_profile()
+    #     deliberately refuses to create its own parent, so anywhere earlier it
+    #     returns 1 and writes nothing on every device where QManager was never
+    #     installed — that is, every fresh install. A device that already has
+    #     /etc/qmanager would show nothing wrong, which is exactly how such a
+    #     bug ships.
+    #  2. OUTSIDE the `--force` gate that closes above. Every OTA upgrade passes
+    #     --force, so anything placed inside that block never runs on upgrade.
+    #  3. AFTER the RM551E die and the remount die, so the installer never
+    #     leaves config behind on a device it explicitly refused.
+    #
+    # Sourced from the STAGING tree, never the absolute /usr/lib/qmanager path:
+    # at preflight time the installed copy is the PREVIOUS version's library (on
+    # an OTA) or absent entirely (fresh install). install_backend() does not
+    # glob-install that directory until much later.
+    #
+    # CRLF: this is the installer's first `.` of a staging-tree file ahead of any
+    # line-ending normalization — every other source in this file reads the
+    # already-installed, already-stripped copy. Safety rests entirely on
+    # .gitattributes' `scripts/**/*.sh text eol=lf`.
+    #
+    # Both the source AND the call are guarded, because this file runs under
+    # `set -e` (:42) and preflight is called bare from main(): --frontend-only
+    # sets DO_BACKEND=0 and so never asserts $SRC_SCRIPTS exists, and
+    # qm_hw_write_profile returns 1 legitimately. The profile is advisory —
+    # failing to write one must never abort an install.
+    local hw_lib="$SRC_SCRIPTS/usr/lib/qmanager/hw_profile.sh"
+    if [ -f "$hw_lib" ] && . "$hw_lib" && command -v qm_hw_write_profile >/dev/null 2>&1; then
+        if qm_hw_write_profile "$CONF_DIR/platform.json"; then
+            info "Hardware profile written: $CONF_DIR/platform.json"
+        else
+            warn "Could not write hardware profile — continuing (it is advisory)"
+        fi
+    else
+        warn "Hardware profile library unavailable — skipping (it is advisory)"
+    fi
+
     info "Pre-flight checks passed"
+}
+
+# Mask-only LAN fix (/22 -> /24) for factory configs; applies on next reboot.
+# Sourced from the staging tree; advisory, so every failure returns 0.
+normalize_lan_subnet() {
+    local lan_lib="$SRC_SCRIPTS/usr/lib/qmanager/lan_subnet.sh"
+    if [ ! -f "$lan_lib" ] || ! . "$lan_lib"; then
+        warn "LAN subnet library unavailable — skipping (it is advisory)"
+        return 0
+    fi
+    if ! command -v qm_lan_subnet_normalize >/dev/null 2>&1; then
+        warn "LAN subnet function missing — skipping (it is advisory)"
+        return 0
+    fi
+    if qm_lan_subnet_normalize /etc/data/mobileap_cfg.xml; then
+        info "LAN subnet check done (takes effect on next reboot if changed)"
+    else
+        warn "LAN subnet normalization failed — config left untouched"
+    fi
+    return 0
 }
 
 # --- Remove Conflicts --------------------------------------------------------
 
 # Removes packages that must not coexist with QManager (e.g. socat-at-bridge
-# which holds /dev/smd11 open, blocking atcli_smd11).
+# which holds /dev/smd11 open, blocking qcmd).
 # Runs even with --skip-packages so conflicts are cleared on every update.
 remove_conflicts() {
     # Skip silently if Entware isn't available yet (fresh install, pre-bootstrap)
@@ -436,6 +649,263 @@ remove_conflicts() {
             fi
         fi
     done
+}
+
+# --- Neutralize Entware lighttpd ---------------------------------------------
+
+# Disables Entware's S80lighttpd init script so it can never win the boot-time
+# race for port 80 against QManager's own lighttpd.service. rc.unslung starts
+# S80lighttpd via `pidof lighttpd` — a process-NAME check, not a port check —
+# so on some boots Entware's instance binds port 80 first, in an empty docroot
+# with no TLS, before QManager's unit gets there. Confirmed live on an
+# RG501Q-EU: identical on-disk config won on one boot by 1.18s and lost
+# outright on an earlier boot the same day. rc.unslung selects scripts with
+# `find /opt/etc/init.d/ -perm '-u+x' -name 'S*'` — no allowlist, no
+# .disabled convention — so clearing the executable bit is a valid, sufficient
+# disable.
+#
+# Must never die() or return non-zero: failure here only degrades to today's
+# pre-existing intermittent behavior, it must not abort an install. Must be
+# idempotent — safe on every install and every OTA, including when the file
+# is already non-executable or absent.
+neutralize_entware_lighttpd() {
+    local _s80="/opt/etc/init.d/S80lighttpd"
+
+    if [ ! -f "$_s80" ]; then
+        return 0
+    fi
+
+    if [ ! -x "$_s80" ]; then
+        info "Entware S80lighttpd already disabled"
+        return 0
+    fi
+
+    # `a-x`, not a bare `-x`: with no "who" prefix, POSIX chmod acts as if `a`
+    # were given BUT skips bits set in the umask. This whole fix depends on
+    # clearing the one bit rc.unslung tests (`find -perm '-u+x'`), so a masked
+    # u+x would leave S80lighttpd armed while we log success — the exact silent
+    # no-op F8 exists to eliminate. Spelling out `a` makes umask irrelevant.
+    if chmod a-x "$_s80" 2>/dev/null; then
+        info "Disabled Entware S80lighttpd (QManager's lighttpd.service owns ports 80/443)"
+    else
+        warn "Could not disable $_s80 — the Entware lighttpd may take port 80 on some boots"
+    fi
+
+    return 0
+}
+
+# --- Harden Entware bootstrap unit modes -------------------------------------
+
+# The three Entware bootstrap units written by `cat > ... << EOF` heredocs in
+# install_dependencies() are created with mode 0666 & ~umask. The install
+# shell's umask is 0000 on both measured devices, so all three land
+# world-writable (0666, measured on RM520N-GL and RG501Q-EU).
+# /lib/systemd/system itself is 0755, so the exposure is bounded to exactly
+# these three files — but each is a unit systemd executes as root at boot, and
+# the installer remounts / rw and never restores ro, so the file mode is the
+# only barrier left. Any local user could append an ExecStart and own the
+# device on the next reboot.
+#
+# Numeric 0644, not `go-w`: a numeric mode is idempotent regardless of whatever
+# mode the file already carries, and is immune to the umask-sensitivity that
+# bites symbolic modes with no "who" prefix.
+#
+# Runs unconditionally from main() — the same precedent as
+# neutralize_entware_lighttpd — so it reaches already-installed devices over
+# OTA (qmanager_update calls this installer with --skip-packages, which skips
+# install_dependencies where the heredocs live), not just fresh installs.
+# Must never die() or return non-zero: a failed chmod leaves today's behavior.
+harden_entware_unit_modes() {
+    local _unit
+
+    # dropbear.service is belt-and-braces here: it does not exist yet when this
+    # runs on a fresh install, so _write_dropbear_unit chmods 0644 itself.
+    for _unit in /lib/systemd/system/opt.mount \
+                 /lib/systemd/system/start-opt-mount.service \
+                 /lib/systemd/system/rc.unslung.service \
+                 /lib/systemd/system/dropbear.service; do
+        [ -f "$_unit" ] || continue
+        chmod 0644 "$_unit" 2>/dev/null \
+            || warn "Could not chmod 0644 $_unit — it may remain world-writable"
+    done
+
+    # / is UBIFS and the installer leaves it mounted rw; flush the metadata the
+    # same way every other rootfs write in this installer does. No
+    # daemon-reload is needed — changing a file's mode does not make systemd
+    # re-parse the unit, and the chmod is safe on an already-loaded active one.
+    sync 2>/dev/null || true
+
+    return 0
+}
+
+# --- Harden world-writable package/firmware files ---------------------------
+
+# opkg and stock firmware leave root-owned files at 0666 (install shell umask
+# is 0000), so www-data could rewrite opkg state, dbus config or the timezone
+# tables root reads. Numeric 0644 is idempotent; each path is guarded because
+# the RG501Q-EU may lack some. Runs after install_dependencies so a later opkg
+# run cannot undo it, and on OTA too. Must never die() or return non-zero.
+harden_world_writable_modes() {
+    local _f
+
+    for _f in /opt/etc/opkg.conf               /opt/lib/opkg/status               /lib/systemd/system/dbus.service.d/dbus.conf               /bin/timezone21.bin               /bin/iana_tzdb; do
+        [ -f "$_f" ] || continue
+        chmod 0644 "$_f" 2>/dev/null             || warn "Could not chmod 0644 $_f — it may remain world-writable"
+    done
+
+    # info/ holds hundreds of *.list files; -perm -0002 matches world-writable
+    # in both BusyBox and GNU find. Only files, never the directory.
+    if [ -d /opt/lib/opkg/info ]; then
+        find /opt/lib/opkg/info -type f -perm -0002 -exec chmod 0644 {} + 2>/dev/null || true
+    fi
+
+    # Only root uses /opt/tmp.
+    if [ -d /opt/tmp ] && [ -w /opt/tmp ]; then
+        chmod 0755 /opt/tmp 2>/dev/null || true
+    fi
+
+    sync 2>/dev/null || true
+    return 0
+}
+
+# --- Link Entware's account files to /etc ------------------------------------
+
+# Entware's dropbear reads /opt/etc/shadow; the bootstrap skips any file absent
+# at that moment, so re-link on every install and OTA. Must never return non-zero.
+ensure_entware_account_links() {
+    local _f _cur
+
+    # Only the bind-mounted /usrdata/opt; never write into a rootfs /opt.
+    if ! awk '$5 == "/opt" { f = 1 } END { exit !f }' /proc/self/mountinfo 2>/dev/null \
+        || [ ! -d /opt/etc ]; then
+        info "/opt not mounted — Entware account links left unchanged"
+        return 0
+    fi
+
+    for _f in passwd group shells shadow gshadow; do
+        [ -e "/etc/$_f" ] || continue
+        if [ -L "/opt/etc/$_f" ]; then
+            _cur=$(readlink "/opt/etc/$_f" 2>/dev/null) || _cur=""
+            [ "$_cur" = "/etc/$_f" ] && continue
+            # -n: replace a link to a directory instead of writing inside it.
+            if ln -sfn "/etc/$_f" "/opt/etc/$_f" 2>/dev/null; then
+                warn "Replaced /opt/etc/$_f (pointed to '$_cur') with a link to /etc/$_f"
+            else
+                warn "Could not relink /opt/etc/$_f"
+            fi
+        elif [ -e "/opt/etc/$_f" ]; then
+            warn "/opt/etc/$_f is not a link to /etc/$_f — left as is"
+        elif ln -s "/etc/$_f" "/opt/etc/$_f" 2>/dev/null; then
+            info "Linked /opt/etc/$_f to /etc/$_f"
+        else
+            warn "Could not link /opt/etc/$_f"
+        fi
+    done
+
+    return 0
+}
+
+# --- F11: gate opt.mount on /usrdata actually being mounted -------------------
+
+# opt.mount binds /usrdata/opt -> /opt, but /usrdata is mounted by the vendor
+# kernel (no fstab, no unit), so systemd cannot order against it: measured on
+# RM520N-GL, opt.mount's boot-transaction job runs at 2.54s and fails with
+# mount exit 32 because /usrdata does not arrive until 3.86s. /opt then appears
+# only at ~30s via start-opt-mount.service's retry. See platform-matrix.md F11.
+#
+# Ordering only, never a Requires= of opt.mount: a timeout releases opt.mount to
+# behave exactly as it does today, with start-opt-mount.service still the
+# fallback. DefaultDependencies=no is load-bearing — the default After=
+# basic.target would form an ordering cycle with opt.mount's Before=
+# local-fs.target, which systemd breaks by silently deleting a job.
+_usrdata_wait_unit_body() {
+    cat << 'WAITEOF'
+[Unit]
+Description=Wait for /usrdata before opt.mount
+DefaultDependencies=no
+Before=opt.mount shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'while ! grep -q " /usrdata " /proc/self/mountinfo || [ ! -d /usrdata/opt ]; do sleep 0.25; done'
+TimeoutStartSec=15
+
+[Install]
+WantedBy=multi-user.target
+WAITEOF
+}
+
+# Runs unconditionally from main() so it reaches already-installed devices:
+# qmanager_update invokes this installer with --force --skip-packages
+# --no-reboot, which skips install_dependencies. Must never die() or return
+# non-zero — every failure path leaves today's working boot in place.
+ensure_usrdata_wait_unit() {
+    local _dest="$SYSTEMD_DIR/qmanager-wait-usrdata.service"
+    local _tmp="${_dest}.new"
+    local _link="$WANTS_DIR/qmanager-wait-usrdata.service"
+
+    # Nothing to gate. opt.mount is only written in the Entware bootstrap
+    # branch, so a device that had Entware before QManager never gets the file
+    # (same reason enable_services guards its symlink with [ -f ]).
+    [ -f "$SYSTEMD_DIR/opt.mount" ] || return 0
+
+    if [ -f "$_dest" ] && [ "$(cat "$_dest" 2>/dev/null)" = "$(_usrdata_wait_unit_body)" ]; then
+        info "qmanager-wait-usrdata.service already current"
+    else
+        mount -o remount,rw / 2>/dev/null || true
+
+        if ! _usrdata_wait_unit_body > "$_tmp" 2>/dev/null; then
+            rm -f "$_tmp" 2>/dev/null
+            warn "Could not stage $_tmp — opt.mount ordering left unchanged"
+            return 0
+        fi
+        # Mode before the rename: a heredoc into /lib inherits 0666 & ~umask,
+        # and the install shell's umask is 0 on both devices (F13).
+        chmod 0644 "$_tmp" 2>/dev/null || true
+        sync 2>/dev/null || true
+
+        if ! mv -f "$_tmp" "$_dest" 2>/dev/null; then
+            rm -f "$_tmp" 2>/dev/null
+            warn "Could not install $_dest — opt.mount ordering left unchanged"
+            return 0
+        fi
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+
+    ln -sf "$_dest" "$_link" 2>/dev/null || true
+
+    # Verify by reading the fragment bytes, NOT `systemctl show`: systemd
+    # derives After=/BindsTo=/RequiresMountsFor= for mount units from
+    # /proc/self/mountinfo, so a property readback reports the ordering as
+    # already present on an unmodified device and would pass with no change.
+    if grep -q '^Before=opt.mount shutdown.target$' "$_dest" 2>/dev/null \
+        && grep -q '^DefaultDependencies=no$' "$_dest" 2>/dev/null \
+        && [ -L "$_link" ]; then
+        info "opt.mount gated on /usrdata (qmanager-wait-usrdata.service)"
+    else
+        warn "qmanager-wait-usrdata.service did not verify — removing it"
+        rm -f "$_link" "$_dest" 2>/dev/null || true
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+
+    return 0
+}
+
+# opkg update with its error kept: rc as opkg's, first error line in OPKG_UPDATE_ERR,
+# full output in the install log (failure only).
+qm_opkg_update() {
+    local _out
+    OPKG_UPDATE_ERR=""
+    if _out=$("$OPKG" update 2>&1); then
+        return 0
+    fi
+    _log_raw "opkg update failed: $(printf '%s' "$_out" | tr -d '\r' | tr '\n' ' ' | cut -c1-600)"
+    OPKG_UPDATE_ERR=$(printf '%s\n' "$_out" | tr -d '\r' | grep -E 'Failed|returned|Cannot' | head -n1 | sed 's/^[ *]*//' | cut -c1-200) || true
+    [ -n "$OPKG_UPDATE_ERR" ] || OPKG_UPDATE_ERR="no error text"
+    return 1
 }
 
 # --- Ensure Zoneinfo Packages -------------------------------------------------
@@ -465,7 +935,7 @@ ensure_zoneinfo_packages() {
     fi
 
     info "Installing timezone data ($ZONEINFO_PACKAGE)..."
-    if "$OPKG" update >/dev/null 2>&1 && "$OPKG" install "$ZONEINFO_PACKAGE" >/dev/null 2>&1; then
+    if qm_opkg_update && "$OPKG" install "$ZONEINFO_PACKAGE" >/dev/null 2>&1; then
         info "$ZONEINFO_PACKAGE installed"
     else
         warn "Failed to install $ZONEINFO_PACKAGE (offline?) — timezone apply will fail until this succeeds"
@@ -473,7 +943,230 @@ ensure_zoneinfo_packages() {
     fi
 }
 
+# --- Install Bundled Binaries -------------------------------------------------
+
+# Copies the first-party binaries bundled in dependencies/ (qmanager_atd + its
+# qsms link, qmanager_discord) into $BIN_DIR; install_backend() links qcmd to it.
+#
+# Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
+# and ensure_zoneinfo_packages() above in main()): OTA upgrades invoke this
+# installer with --skip-packages, which gates install_dependencies(). These
+# binaries are app payload, not Entware opkg packages — unlike the one-time
+# package installs that legitimately stay skippable, they ship a new revision
+# with every QManager release and MUST be refreshed on every upgrade.
+#
+# Each binary is skipped via `cmp -s` if the bundled copy is byte-identical to
+# what's already installed, avoiding a needless UBIFS rewrite on every OTA.
+_atd_on() {
+    command -v qm_hw_atd_enabled >/dev/null 2>&1 && qm_hw_atd_enabled
+}
+
+# 0 only for a definite model without the broker; unknown model or no hw_profile.sh = 1.
+_atd_definitely_off() {
+    command -v qm_hw_model >/dev/null 2>&1 || return 1
+    case "$(qm_hw_model 2>/dev/null)" in
+        ""|unknown|RM520N*|RG501Q*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# AT lock dir 0750 + lock 0640, root:dialout: only root writes there, so nothing can be
+# planted in it (it is not sticky; /tmp's symlink protection does not apply). Never truncates.
+# Marker = bridge: new qcmd/qsms also flock a trusted legacy /tmp lock (old code holds only that).
+ensure_at_lock() {
+    local d=/run/qmanager_at st
+    if [ -L "$d" ] || { [ -e "$d" ] && [ ! -d "$d" ]; }; then
+        rm -rf "$d" || warn "Could not remove stray $d"
+    fi
+    if [ ! -d "$d" ]; then
+        mkdir "$d" || { warn "Could not create $d"; return 0; }
+    fi
+    chown root:dialout "$d" || warn "chown $d failed"
+    chmod 0750 "$d" || warn "chmod $d failed"
+    if [ ! -e "$d/at.lock" ]; then
+        : > "$d/at.lock" || warn "Could not create $d/at.lock"
+    fi
+    chown root:dialout "$d/at.lock" || warn "chown $d/at.lock failed"
+    chmod 0640 "$d/at.lock" || warn "chmod $d/at.lock failed"
+    # Trusted legacy = regular file, owner root/www-data, one link.
+    st=$(stat -c '%u %h %F' /tmp/qmanager_at.lock 2>/dev/null) || st=""
+    case "$st" in
+        "0 1 regular"*|"33 1 regular"*)
+            : > "$d/bridge" || warn "Could not create $d/bridge"
+            chown root:root "$d/bridge" || warn "chown $d/bridge failed"
+            chmod 0644 "$d/bridge" || warn "chmod $d/bridge failed"
+            ;;
+    esac
+    return 0
+}
+
+install_bundled_binaries() {
+    step "Installing bundled binaries"
+
+    # Before the binary swap, regardless of DO_BACKEND/DO_START: in-process qcmd needs the dir.
+    ensure_at_lock
+
+    # --- qmanager_atd (AT/SMS/QMI broker) + qsms link --------------------------
+    # Binary ships on every model; the unit only where qm_hw_atd_enabled (RM520N, RG501Q).
+    if [ -f "$SRC_DEPS/qmanager_atd" ]; then
+        if [ -x "$BIN_DIR/qmanager_atd" ] && cmp -s "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd"; then
+            info "qmanager_atd already current"
+        else
+            install_file "$SRC_DEPS/qmanager_atd" "$BIN_DIR/qmanager_atd" 755 \
+                || die "Failed to install qmanager_atd"
+            info "qmanager_atd installed to $BIN_DIR/qmanager_atd"
+        fi
+    elif [ -x "$BIN_DIR/qmanager_atd" ]; then
+        info "qmanager_atd already installed"
+    else
+        die "qmanager_atd not found in $SRC_DEPS and not installed on device"
+    fi
+
+    if [ -d "$BIN_DIR/qsms" ] && [ ! -L "$BIN_DIR/qsms" ]; then
+        warn "$BIN_DIR/qsms is a directory — not creating the qsms link"
+    else
+        ln -sf qmanager_atd "$BIN_DIR/qsms" || warn "Failed to link $BIN_DIR/qsms"
+    fi
+
+    # Remove the unit only on a definite no-broker model, never when the model is unknown.
+    if _atd_definitely_off; then
+        rm -f "$WANTS_DIR/qmanager-atd.service" "$SYSTEMD_DIR/qmanager-atd.service" \
+            || warn "Could not remove qmanager-atd.service"
+        info "qmanager-atd not used on this model ($(qm_hw_model 2>/dev/null || echo unknown))"
+    elif [ "$DO_BACKEND" = "1" ] && ! _atd_on; then
+        warn "Model unknown — qmanager-atd unit left as is, qcmd runs AT in-process"
+    fi
+
+    # --- qmanager_discord (optional Discord bot binary) -----------------------
+    if [ -f "$SRC_DEPS/qmanager_discord" ]; then
+        if [ -x "$BIN_DIR/qmanager_discord" ] && cmp -s "$SRC_DEPS/qmanager_discord" "$BIN_DIR/qmanager_discord"; then
+            info "qmanager_discord already current"
+        else
+            install_file "$SRC_DEPS/qmanager_discord" "$BIN_DIR/qmanager_discord" 755 \
+                || warn "Failed to install qmanager_discord"
+            info "qmanager_discord installed to $BIN_DIR/qmanager_discord"
+        fi
+    elif [ -x "$BIN_DIR/qmanager_discord" ]; then
+        info "qmanager_discord already installed"
+    else
+        info "qmanager_discord not bundled — Discord bot feature disabled"
+    fi
+}
+
+# --- Install Speedtest CLI ----------------------------------------------------
+
+# Downloads the Ookla Speedtest CLI (not bundled — proprietary, not
+# redistributable) into /usrdata/root/bin so the web UI's speed test feature
+# has a binary to exec.
+#
+# Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts(),
+# ensure_zoneinfo_packages(), and install_bundled_binaries() above in main()):
+# OTA upgrades invoke this installer with --skip-packages, which gates
+# install_dependencies(). This download used to live inside that gated
+# function — a device whose install-time download failed (offline, flaky
+# cellular) would warn and continue, then NEVER get a retry on any future OTA,
+# leaving Speedtest permanently dead with no recovery path. Warn-only on any
+# failure here too — optional, must never abort an install or upgrade.
+#
+# Depends on preflight() having already remounted / read-write earlier in
+# main() — if this is ever called from outside main(), it needs its own
+# remount guard.
+install_speedtest_cli() {
+    local speedtest_dir="/usrdata/root/bin"
+    local speedtest_url="https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz"
+    # Pinned: SHA-256 of the 1.2.0 armhf tarball. Update with the URL.
+    local speedtest_sha256="e45fcdebbd8a185553535533dd032d6b10bc8c64eee4139b1147b9c09835d08d"
+
+    # /usrdata must already be its own mount before we create anything under
+    # it, or the dir (and binary) land on whatever filesystem backs the path
+    # and silently vanish on next boot. Device-number comparison rather than
+    # the BusyBox applet that tests this on most systems: the RG501Q ships
+    # no such applet at all, and a command-not-found (exit 127) read through
+    # `!` reads as "not mounted", which silently skips this function's
+    # install -d remediation below on every RG501Q. stat -c %d is verified
+    # working on both devices.
+    if [ "$(stat -c %d /usrdata 2>/dev/null)" = "$(stat -c %d / 2>/dev/null)" ]; then
+        warn "/usrdata is not a mounted filesystem — skipping speedtest CLI install"
+        return 0
+    fi
+
+    # install -d (not mkdir -p): mkdir -p no-ops on an already-existing dir
+    # and would preserve a bad mode across every future OTA.
+    #
+    # ORDER IS LOAD-BEARING: this runs BEFORE the idempotence guard below, so
+    # the directory mode is re-asserted on every install and every OTA even
+    # when the binary is already present. Putting it after the guard looks
+    # tidier and silently defeats the whole point — a device that installed
+    # the CLI under the old `mkdir -p` code satisfies both halves of that
+    # guard while sitting on a world-writable 0777 directory, so it would
+    # return early and never be remediated. Devices already in the bad state
+    # are exactly the ones this line exists for. Only the network download
+    # below is worth skipping; this is free.
+    install -d -o root -g root -m 0755 "$speedtest_dir"
+
+    # Primary idempotence guard: command -v costs zero network calls on a
+    # device that already has it — this is what keeps a normal OTA free of
+    # any speedtest network traffic. The -x check on our own install path is
+    # belt-and-braces against some other same-named binary earlier on PATH
+    # shadowing a missing/broken install here.
+    if command -v speedtest >/dev/null 2>&1 && [ -x "$speedtest_dir/speedtest" ]; then
+        info "speedtest CLI is already installed"
+        return 0
+    fi
+
+    # 120s bound: a hung TCP connection on a marginal cellular link must not
+    # stall an OTA indefinitely now that this runs on every upgrade.
+    rm -f /tmp/speedtest.tgz
+    if ! dl_get_pinned "$speedtest_url" /tmp/speedtest.tgz "$speedtest_sha256" 120 2>/dev/null; then
+        warn "speedtest CLI download failed or did not verify (optional — requires internet)"
+        return 0
+    fi
+
+    tar -xzf /tmp/speedtest.tgz -C "$speedtest_dir" speedtest 2>/dev/null
+    rm -f /tmp/speedtest.tgz "$speedtest_dir/speedtest.md"
+
+    # Verify extraction actually produced the binary before touching
+    # ownership/mode or linking — a truncated archive (disk full, dropped
+    # cellular link) must never leave a symlink to a missing/partial target.
+    if [ ! -f "$speedtest_dir/speedtest" ]; then
+        warn "speedtest CLI extraction failed (partial download?) — skipping"
+        return 0
+    fi
+
+    # tar inherits owner metadata from the archive (observed shipping as
+    # uid/gid 10000:10000, an account with no /etc/passwd entry) — assert
+    # root:root explicitly rather than trusting the tarball's own attrs.
+    chown root:root "$speedtest_dir/speedtest" 2>/dev/null
+    chmod 0755 "$speedtest_dir/speedtest"
+
+    if [ ! -x "$speedtest_dir/speedtest" ]; then
+        warn "speedtest CLI binary is not executable after extraction — skipping"
+        return 0
+    fi
+
+    ln -sf "$speedtest_dir/speedtest" /bin/speedtest
+    info "speedtest CLI installed to $speedtest_dir/speedtest"
+}
+
 # --- Install Dependencies ----------------------------------------------------
+
+# qm_entware_complete — replaces a bare "-x $OPKG" check as the bootstrap
+# guard. A binary at $OPKG is not proof the bootstrap finished: it is written
+# partway through, and either of the two `opkg` calls right after it can
+# still fail and `die`. Without this, a device that died there is a poison
+# pill forever — every future run sees the leftover binary, prints "already
+# installed", and skips ~120 lines of setup that never actually completed.
+#   - rc.unslung is written strictly AFTER entware-opt installs successfully,
+#     so its presence proves the run crossed the point that currently kills
+#     it (see the bootstrap block below).
+#   - an empty `opkg list-installed` is the exact signature measured on a
+#     poisoned RG501Q-EU: the binary exists, but no base package landed.
+qm_entware_complete() {
+    [ -x "$OPKG" ] || return 1
+    [ -f /opt/etc/init.d/rc.unslung ] || return 1
+    "$OPKG" list-installed 2>/dev/null | head -n 1 | grep -q . || return 1
+    return 0
+}
 
 install_dependencies() {
     step "Installing dependencies"
@@ -531,43 +1224,101 @@ install_dependencies() {
         info "www-data added to dialout via /etc/group fallback"
     fi
 
-    # --- atcli_smd11 (AT command transport — direct /dev/smd11 access) --------
-    if [ -f "$SRC_DEPS/atcli_smd11" ]; then
-        install_file "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11" 755 \
-            || die "Failed to install atcli_smd11"
-        info "atcli_smd11 installed to $BIN_DIR/atcli_smd11"
-    elif [ -x "$BIN_DIR/atcli_smd11" ]; then
-        info "atcli_smd11 already installed"
-    else
-        die "atcli_smd11 not found in $SRC_DEPS and not installed on device"
-    fi
+    # Bundled first-party binaries (qmanager_discord, qmanager_atd) are
+    # installed unconditionally by install_bundled_binaries(), called earlier in
+    # main() — NOT here — so they refresh on OTA even with --skip-packages.
 
-    # --- sms_tool (SMS send/recv/delete — handles multi-part reassembly) ------
-    if [ -f "$SRC_DEPS/sms_tool" ]; then
-        install_file "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool" 755 \
-            || die "Failed to install sms_tool"
-        info "sms_tool installed to $BIN_DIR/sms_tool"
-    elif [ -x "$BIN_DIR/sms_tool" ]; then
-        info "sms_tool already installed"
-    else
-        warn "sms_tool not found — SMS features will not work"
-    fi
-
-    # --- qmanager_discord (optional Discord bot binary) -----------------------
-    if [ -f "$SRC_DEPS/qmanager_discord" ]; then
-        install_file "$SRC_DEPS/qmanager_discord" "$BIN_DIR/qmanager_discord" 755 \
-            || warn "Failed to install qmanager_discord"
-        info "qmanager_discord installed to $BIN_DIR/qmanager_discord"
-    elif [ -x "$BIN_DIR/qmanager_discord" ]; then
-        info "qmanager_discord already installed"
-    else
-        info "qmanager_discord not bundled — Discord bot feature disabled"
+    # --- Temporary wget shim for opkg -------------------------------------------
+    # Entware's opkg binary shells out to wget to download packages, hardcoded
+    # at build time — there is no "option downloader" in opkg.conf to point it
+    # at curl instead. That's fine on the RM520N-GL (BusyBox v1.31.1 ships
+    # wget), but the RG501Q-EU's BusyBox (v1.29.3) was built without the wget
+    # applet at all — only /usr/bin/curl exists — so every opkg fetch fails,
+    # every Entware package (lighttpd, sudo, jq, dropbear) gets skipped, and
+    # the install never finalizes.
+    #
+    # The fix is a curl-backed wget shim, but it must be gone by the time this
+    # function returns rather than living in /opt/bin: on the RM520N-GL,
+    # /opt/bin precedes /usr/bin in the vendor default PATH, so a persistent
+    # /opt/bin/wget would shadow the real system wget for the CGI backend,
+    # the poller's downloader, and every root helper. It also can't rely on
+    # the uninstaller to clean it up — uninstall_rm520n.sh deliberately never
+    # touches anything under /opt. So it lives under /tmp instead, is put
+    # first on PATH only for the remainder of this function, and is deleted
+    # unconditionally before returning (see the bottom of this function). It
+    # is a stepping stone: step 2 below installs the real wget-ssl package
+    # from Entware once opkg is up, and that becomes the permanent handoff.
+    _QM_NEED_WGET_SHIM=0
+    if ! command -v wget >/dev/null 2>&1; then
+        _QM_NEED_WGET_SHIM=1
+        install -d -m 0755 /tmp/qm_wget_shim
+        cat > /tmp/qm_wget_shim/wget << 'SHIMEOF'
+#!/bin/sh
+# Minimal curl-backed stand-in for wget, used only while bootstrapping
+# Entware's opkg on a device with no wget applet (see install_rm520n.sh).
+# Translates the flags opkg actually passes (confirmed via `strings` on the
+# opkg binary): -O <file>/-O<file>, --no-check-certificate, --timeout[=]N.
+# Anything else starting with '-' is silently dropped; the last non-flag
+# argument is treated as the URL.
+_out=""
+_url=""
+_curl_args=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -O)
+            shift
+            _out="$1"
+            ;;
+        -O*)
+            _out="${1#-O}"
+            ;;
+        --no-check-certificate)
+            _curl_args="$_curl_args -k"
+            ;;
+        --timeout=*)
+            _curl_args="$_curl_args --max-time ${1#--timeout=}"
+            ;;
+        --timeout)
+            shift
+            _curl_args="$_curl_args --max-time $1"
+            ;;
+        --version)
+            # Must NOT contain the string "GNU Wget" in any form —
+            # downloader.sh does `wget --version | grep -qi 'GNU Wget'` to
+            # pick a header-dump strategy, and a substring match doesn't
+            # care that a disclaimer was meant. Say nothing about GNU.
+            echo "qm-wget-shim 1 (curl-backed, temporary)"
+            exit 0
+            ;;
+        -*)
+            # unrecognized flag — ignore
+            ;;
+        *)
+            _url="$1"
+            ;;
+    esac
+    shift
+done
+if [ -z "$_url" ]; then
+    echo "qm-wget-shim: no URL given" >&2
+    exit 1
+fi
+if [ -n "$_out" ]; then
+    exec curl -fsSL $_curl_args -o "$_out" "$_url"
+else
+    exec curl -fsSL $_curl_args "$_url"
+fi
+SHIMEOF
+        chmod 755 /tmp/qm_wget_shim/wget
+        PATH="/tmp/qm_wget_shim:/opt/bin:/opt/sbin:$PATH"
+        export PATH
+        info "No wget on this device — using a temporary curl-backed shim for opkg"
     fi
 
     # --- Entware bootstrap -------------------------------------------------------
     # If opkg is not installed, bootstrap Entware from scratch.
     # This replicates the RGMII toolkit's Entware installation process.
-    if [ ! -x "$OPKG" ]; then
+    if ! qm_entware_complete; then
         info "Entware not found — bootstrapping from bin.entware.net"
 
         # Prevent library conflicts during bootstrap
@@ -575,7 +1326,11 @@ install_dependencies() {
         unset LD_PRELOAD
 
         ENTWARE_ARCH="armv7sf-k3.2"
-        ENTWARE_URL="http://bin.entware.net/${ENTWARE_ARCH}/installer"
+        ENTWARE_PATH="bin.entware.net/${ENTWARE_ARCH}/installer"
+        # Pinned SHA-256 of the installer files (opkg d038e5b6). The hash, not
+        # the transport, is what makes them safe; update both if Entware rebuilds.
+        ENTWARE_OPKG_SHA256="82d693e3c928def1cbf584a1130f37fd51bcb3338e57d4af327e342a5f19ee3a"
+        ENTWARE_CONF_SHA256="bca7307a5d323911be95875037dfa83f0e0720a7c88a59ddc233b080495c6b5f"
 
         # Rename factory opkg if present (conflicts with Entware opkg)
         if command -v opkg >/dev/null 2>&1; then
@@ -584,8 +1339,10 @@ install_dependencies() {
             info "Renamed factory opkg to opkg_old"
         fi
 
-        # Create /usrdata/opt and bind-mount to /opt via systemd
-        mkdir -p /usrdata/opt
+        # Create /usrdata/opt and bind-mount to /opt via systemd.
+        # install -d, not mkdir -p: mkdir -p no-ops on an existing directory,
+        # so a bad mode from a prior run would silently persist across OTA.
+        install -d -m 0755 /usrdata/opt
 
         if [ ! -f /lib/systemd/system/opt.mount ]; then
             cat > /lib/systemd/system/opt.mount << 'MOUNTEOF'
@@ -627,16 +1384,21 @@ SVCEOF
         systemctl start opt.mount 2>/dev/null || true
         info "Mounted /usrdata/opt → /opt"
 
-        # Create directory structure
-        for folder in bin etc lib/opkg tmp var/lock; do
+        # Create directory structure. sbin is normally created by the
+        # entware-opt package itself, but dropbear.service hardcodes
+        # ExecStart=/opt/sbin/dropbear and /opt/sbin was measured absent on
+        # the RG501Q-EU, so create it up front rather than trust the package.
+        for folder in bin sbin etc lib/opkg tmp var/lock; do
             mkdir -p "/opt/$folder"
         done
-        chmod 777 /opt/tmp
+        chmod 0755 /opt/tmp
 
-        # Download opkg binary and config. ENTWARE_URL is plain HTTP, so any
-        # downloader works here — including a TLS-less BusyBox wget.
-        dl_get "$ENTWARE_URL/opkg" /opt/bin/opkg \
-            || die "Failed to download opkg from $ENTWARE_URL"
+        # Download opkg binary and config: https first, then plain http for a
+        # BusyBox wget, which fails the TLS handshake with this mirror.
+        # Both are checked against the pinned SHA-256.
+        dl_get_pinned "https://$ENTWARE_PATH/opkg" /opt/bin/opkg "$ENTWARE_OPKG_SHA256" \
+            || dl_get_pinned "http://$ENTWARE_PATH/opkg" /opt/bin/opkg "$ENTWARE_OPKG_SHA256" \
+            || die "Failed to download a verified opkg from $ENTWARE_PATH"
         # wget (unlike curl -f) writes HTTP error pages to the output file on a
         # 4xx/5xx. Verify the download is a real ELF binary before trusting it:
         # the first 4 bytes of every ELF file are 0x7F 'E' 'L' 'F', so the
@@ -647,15 +1409,22 @@ SVCEOF
             die "Downloaded opkg is not a valid binary (server error or bad mirror?)"
         fi
         chmod 755 /opt/bin/opkg
-        dl_get "$ENTWARE_URL/opkg.conf" /opt/etc/opkg.conf \
-            || die "Failed to download opkg.conf from $ENTWARE_URL"
+        dl_get_pinned "https://$ENTWARE_PATH/opkg.conf" /opt/etc/opkg.conf "$ENTWARE_CONF_SHA256" \
+            || dl_get_pinned "http://$ENTWARE_PATH/opkg.conf" /opt/etc/opkg.conf "$ENTWARE_CONF_SHA256" \
+            || { rm -f /opt/bin/opkg; die "Failed to download a verified opkg.conf from $ENTWARE_PATH"; }
         info "Downloaded opkg package manager"
 
-        # Install base Entware
-        /opt/bin/opkg update >/dev/null 2>&1 \
-            || die "opkg update failed — check internet connectivity"
+        # Install base Entware. Both failure paths remove the just-downloaded
+        # opkg binary before dying — same precedent as the ELF sanity check
+        # above — so a failed bootstrap doesn't leave a poison-pill binary
+        # behind for qm_entware_complete() to have to detect. This cleanup is
+        # only safe here because it runs after the opt.mount start above,
+        # where /opt is guaranteed to be the bind-mounted /usrdata/opt and
+        # never the rootfs.
+        qm_opkg_update \
+            || { rm -f /opt/bin/opkg; die "Package list download failed (opkg: $OPKG_UPDATE_ERR) — check connectivity, or opkg has no usable wget"; }
         /opt/bin/opkg install entware-opt >/dev/null 2>&1 \
-            || die "Failed to install entware-opt base package"
+            || { rm -f /opt/bin/opkg; die "Failed to install entware-opt base package"; }
         info "Entware base installed"
 
         # Link system user/group files
@@ -666,19 +1435,7 @@ SVCEOF
 
         # Create Entware init.d service (starts Entware services at boot)
         if [ ! -f /lib/systemd/system/rc.unslung.service ]; then
-            cat > /lib/systemd/system/rc.unslung.service << 'RCEOF'
-[Unit]
-Description=Start Entware services
-
-[Service]
-Type=oneshot
-ExecStartPre=/bin/sleep 5
-ExecStart=/opt/etc/init.d/rc.unslung start
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-RCEOF
+            _rc_unslung_unit_body > /lib/systemd/system/rc.unslung.service
             ln -sf /lib/systemd/system/rc.unslung.service \
                 /lib/systemd/system/multi-user.target.wants/rc.unslung.service
             info "Created rc.unslung.service"
@@ -691,22 +1448,33 @@ RCEOF
         systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         info "Entware bootstrap complete"
     else
-        info "Entware already installed at $OPKG"
+        info "Entware already bootstrapped at $OPKG"
     fi
 
     # --- Entware packages (requires opkg to be available) ---------------------
     _opkg_ready=0
     if [ -x "$OPKG" ]; then
-        if "$OPKG" update >/dev/null 2>&1; then
+        if qm_opkg_update; then
             _opkg_ready=1
         else
-            warn "opkg update failed — no internet connection?"
+            warn "Package list download failed (opkg: $OPKG_UPDATE_ERR) — check connectivity, or opkg has no usable wget"
             warn "Skipping Entware package installs (lighttpd, sudo, jq, etc.)"
             warn "Re-run the installer with internet to complete package setup"
         fi
     fi
 
     if [ "$_opkg_ready" = "1" ]; then
+        # wget-ssl: the permanent replacement for the temporary shim above.
+        # Installed first so every opkg call after this one — and anything
+        # else on the device that shells out to wget — gets the real thing.
+        # A failure here is not fatal: the shim already got opkg this far,
+        # and it will simply be needed again on the next run.
+        if [ "$_QM_NEED_WGET_SHIM" = "1" ]; then
+            "$OPKG" install wget-ssl >/dev/null 2>&1 \
+                && info "wget-ssl installed from Entware (replaces temporary shim)" \
+                || warn "wget-ssl install failed — opkg will need the temporary shim again next run"
+        fi
+
         # lighttpd (web server + required modules)
         if [ -x /opt/sbin/lighttpd ]; then
             info "lighttpd is already installed"
@@ -755,16 +1523,27 @@ RCEOF
 
         # Same for curl — Entware-installed curl lands in /opt/bin/, but
         # CGI scripts and BusyBox shells don't have /opt/bin on PATH.
-        [ -x /opt/bin/curl ] && ! command -v curl >/dev/null 2>&1 && \
+        [ -x /opt/bin/curl ] && [ ! -e /usr/bin/curl ] && \
             ln -sf /opt/bin/curl /usr/bin/curl 2>/dev/null || true
 
-        # coreutils-timeout
-        if command -v timeout >/dev/null 2>&1; then
-            info "timeout is already installed"
-        else
+        # coreutils-timeout — installed as defense-in-depth only, NOT
+        # load-bearing. qm_timeout() (defined above) is the actual fix for
+        # BusyBox's `-t SECS` vs positional `SECS` straddle; per that
+        # block's header comment, `timeout` installed via Entware even lands
+        # at /opt/bin, which is missing from the PATH sudo hands root
+        # helpers (measured), so this package can be invisible to exactly
+        # the callers that need it. `command -v timeout` is not a valid
+        # detector here — BusyBox always ships the applet, so that check
+        # always reports "installed" and coreutils-timeout would never get
+        # installed even on the legacy-CLI device. Reuse qm_timeout's own
+        # behaviour probe instead.
+        if [ "$_QM_TIMEOUT_FORM" = "legacy" ]; then
+            info "BusyBox timeout uses the legacy -t form — installing GNU coreutils-timeout as defense-in-depth (qm_timeout wrapper is the actual portability fix)"
             "$OPKG" install coreutils-timeout >/dev/null 2>&1 \
                 && info "coreutils-timeout installed from Entware" \
-                || warn "coreutils-timeout not available — some commands may hang without timeout safety"
+                || warn "coreutils-timeout not available — qm_timeout's fail-open bound still applies"
+        else
+            info "BusyBox timeout is coreutils-compatible (positional SECS) — no separate package needed"
         fi
 
         # dropbear (SSH server)
@@ -779,24 +1558,6 @@ RCEOF
         fi
     fi
 
-    # --- Ookla Speedtest CLI (speed test from web UI) ---
-    if command -v speedtest >/dev/null 2>&1; then
-        info "speedtest CLI is already installed"
-    else
-        SPEEDTEST_URL="https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz"
-        SPEEDTEST_DIR="/usrdata/root/bin"
-        mkdir -p "$SPEEDTEST_DIR"
-        if dl_get "$SPEEDTEST_URL" /tmp/speedtest.tgz 2>/dev/null; then
-            tar -xzf /tmp/speedtest.tgz -C "$SPEEDTEST_DIR" speedtest 2>/dev/null
-            rm -f /tmp/speedtest.tgz "$SPEEDTEST_DIR/speedtest.md"
-            chmod +x "$SPEEDTEST_DIR/speedtest"
-            ln -sf "$SPEEDTEST_DIR/speedtest" /bin/speedtest
-            info "speedtest CLI installed to $SPEEDTEST_DIR/speedtest"
-        else
-            warn "speedtest CLI download failed (optional — requires internet)"
-        fi
-    fi
-
     # --- Optional packages (from Entware, not bundled) ---
     if [ -x "$OPKG" ]; then
         for pkg in $OPTIONAL_PACKAGES; do
@@ -808,6 +1569,36 @@ RCEOF
             fi
         done
     fi
+
+    # Remove the temporary wget shim before anything outside this function
+    # can see it, and before the /opt/bin/wget symlink check right below —
+    # while the shim is still on PATH it IS a "wget", so any PATH-based
+    # probe would find it rather than a real one.
+    if [ "$_QM_NEED_WGET_SHIM" = "1" ]; then
+        rm -rf /tmp/qm_wget_shim
+    fi
+
+    # Same intent as the jq/curl symlinks above: Entware-installed wget lands
+    # in /opt/bin/, which CGI scripts and BusyBox shells do NOT have on PATH
+    # (see downloader.sh, which backs the OTA pipeline and probes for wget
+    # with an unmutated PATH).
+    #
+    # Test the symlink TARGET directly instead of using `! command -v wget`.
+    # The PATH set when the shim was created is still in effect here and
+    # still carries /opt/bin, so a `command -v wget` probe would resolve to
+    # /opt/bin/wget, decide wget is "already reachable", and skip the symlink
+    # on the exact devices that need it — leaving OTA's wget fallback blind
+    # to the wget we just installed. Testing /usr/bin/wget is immune to
+    # whatever PATH happens to be in force.
+    #
+    # The PATH mutation is deliberately NOT restored. setup_ssh_early() runs
+    # after this function and probes `command -v dropbear`; dropbear exists
+    # only at /opt/sbin/dropbear and gets no symlink anywhere, so dropping
+    # /opt/sbin would make that probe report "not installed" on every fresh
+    # install and trigger a redundant reinstall. coreutils-timeout (used by
+    # at_stack_check) has the same shape — Entware-only, no symlink.
+    [ -x /opt/bin/wget ] && [ ! -e /usr/bin/wget ] && \
+        ln -sf /opt/bin/wget /usr/bin/wget 2>/dev/null || true
 }
 
 # --- Stop Running Services ---------------------------------------------------
@@ -821,6 +1612,11 @@ stop_services() {
     killall -9 qmanager_watchcat 2>/dev/null || true
     touch "$WATCHCAT_LOCK"  # re-touch after SIGKILL as defense in depth
 
+    # Old v0.1.14-v0.1.18 sms_forward never exited on TERM (90 s stop timeout -> failed).
+    # Queue the stop first so Restart=on-failure can't respawn it; KILL takes the whole cgroup.
+    systemctl --no-block stop qmanager-sms-forward 2>/dev/null || true
+    systemctl kill -s KILL qmanager-sms-forward 2>/dev/null || true
+
     # Stop socat-at-bridge services if present from previous installations
     # (idempotent — systemctl stop is a no-op for inactive/missing units)
     systemctl stop socat-smd11 socat-smd11-to-ttyIN socat-smd11-from-ttyIN 2>/dev/null || true
@@ -828,12 +1624,15 @@ stop_services() {
         rm -f "$WANTS_DIR/${svc}.service"
     done
 
-    # Collect all qmanager-* units (excluding watchcat — already stopped above)
+    # Collect all qmanager-* units (excluding watchcat — already stopped above).
+    # The firewall stays up so 22/80/443 are never open on the WAN mid-OTA;
+    # start_services reloads it in place.
     _units=""
     for unit in "$SYSTEMD_DIR"/qmanager-*.service; do
         [ -f "$unit" ] || continue
         svc=$(basename "$unit" .service)
         [ "$svc" = "qmanager-watchcat" ] && continue
+        [ "$svc" = "qmanager-firewall" ] && continue
         _units="$_units $svc"
     done
     # Single batched stop — systemd processes these in parallel internally
@@ -864,6 +1663,10 @@ stop_services() {
         killall -9 "$proc" 2>/dev/null || true
     done
 
+    # Clear failed state left by the kills (named units only); drop the pre-/run long flag.
+    systemctl reset-failed $_units qmanager-watchcat 2>/dev/null || true
+    rm -f /tmp/qmanager_long_running
+
     info "All services stopped"
 }
 
@@ -872,7 +1675,27 @@ stop_services() {
 backup_originals() {
     step "Backing up original files"
 
-    mkdir -p "$BACKUP_DIR"
+    # install -d, NOT mkdir -p: measured 0777 www-data:www-data on BOTH shipped
+    # devices 2026-08-31 (umask 0000 at install time, see :624; mkdir -p then
+    # no-ops on the existing dir forever). The auth.json snapshots inside are
+    # individually 0600, but a world-writable, non-sticky parent lets any uid
+    # unlink and replace them regardless of the files' own mode.
+    #
+    # BOTH halves are durable now, which was NOT true before F22. This store
+    # used to sit at /etc/qmanager/backups, where `-o root -g root` was
+    # decorative: qmanager_setup:177 runs `chown -R www-data:www-data
+    # /etc/qmanager` unconditionally on every boot, so the pin survived
+    # exactly one boot cycle and 0700 then meant "www-data only" rather than
+    # "root only". F22 moved $BACKUP_DIR out to a sibling under root-owned
+    # /etc (see migrate_backup_location()), which the boot-time sweep does not
+    # reach — so root ownership now persists and 0700 means what it says.
+    #
+    # This is a real boundary and not just tidiness: the installer is the only
+    # reader and the only writer here (the cp below and the prune loop under
+    # it), and it runs as root. Nothing else in the tree — no CGI, no root
+    # helper, no restore path — touches the store, so there is no consumer
+    # that a root-only mode could break.
+    install -d -o root -g root -m 0700 "$BACKUP_DIR"
 
     # Backup existing QManager auth (preserves password across upgrades)
     if [ -f "$CONF_DIR/auth.json" ]; then
@@ -915,8 +1738,12 @@ install_frontend() {
     step "Installing frontend"
 
     # Create web root if it doesn't exist (independent install — no SimpleAdmin)
-    mkdir -p "$WWW_ROOT"
-    mkdir -p "$WWW_ROOT/cgi-bin"
+    # SECURITY: 0755, never world-writable. lighttpd serves this tree and runs
+    # CGI from cgi-bin/; a writable docroot lets an unprivileged local user
+    # replace served assets or swap out the whole cgi-bin/ subtree (the subtree
+    # is correctly 0755 itself, but a writable PARENT makes that moot).
+    install -d -o root -g root -m 0755 "$WWW_ROOT"
+    install -d -o root -g root -m 0755 "$WWW_ROOT/cgi-bin"
 
     local file_count
     file_count=$(count_files "$SRC_FRONTEND")
@@ -954,8 +1781,50 @@ install_frontend() {
 install_backend() {
     step "Installing backend scripts"
 
+    # --- Secure the install root FIRST ----------------------------------------
+    # SECURITY: $QMANAGER_ROOT must never be group/world-writable, and must be
+    # pinned BEFORE anything is written into it — not merely by the time this
+    # function returns.
+    #
+    # Why it matters: qmanager-console.service has no User= directive, so it
+    # runs as root with ExecStart=$QMANAGER_ROOT/console/ttyd ... console.sh.
+    # Write permission on this PARENT allows deleting and recreating console/
+    # regardless of console/'s own mode, so the next service start would execute
+    # attacker-supplied console.sh as root, with no authentication anywhere in
+    # the path.
+    #
+    # Why up here: this directory was otherwise first created by the console
+    # block further down via `mkdir -p`, which honours the ambient umask and is
+    # a silent no-op on an existing directory — exactly how 0777 reached fielded
+    # devices and then persisted across every OTA. `install -d` re-applies
+    # owner/mode on EVERY run, so one OTA self-heals a drifted device.
+    install -d -o root -g root -m 0755 "$QMANAGER_ROOT"
+
+    # --- Traffic Engine binary directory ---
+    # Home of the tpws engine binary (installed on demand by
+    # /usr/bin/qmanager_dpi_install from the official zapret release). Must
+    # stay root-owned 0755: the root systemd unit execs this binary, so
+    # www-data writability here would be a root-code-execution vector. It
+    # lives on the persistent ubi2_0 volume ($QMANAGER_ROOT) on purpose —
+    # unlike /usr/bin, it survives a rootfs wipe on OTA.
+    install -d -o root -g root -m 0755 "$QMANAGER_ROOT/bin"
+
+    # --- Sites monitor rollups: root-written hourly JSONL, CGI read-only ---
+    install -d -o root -g root -m 0755 "$QMANAGER_ROOT/sites"
+
     # --- Shared libraries ---
-    mkdir -p "$LIB_DIR"
+    # SECURITY: this directory MUST NOT be group/world-writable. Root helpers
+    # (qmanager_*_apply, invoked by www-data through a NOPASSWD sudoers grant)
+    # `.` source these libraries AS ROOT. Directory write permission governs
+    # create/rename/DELETE of entries — so a world-writable dir lets www-data
+    # replace a 0644 root-owned lib wholesale and get root code execution on
+    # the next helper call, regardless of the files' own modes.
+    #
+    # `mkdir -p` honours the process umask and is a silent no-op on an existing
+    # directory, which is how this shipped as 0777 in the field. `install -d`
+    # re-applies owner/mode on EVERY run, so one OTA self-heals every device
+    # (same idiom, same reason, as /etc/data/qmanager below).
+    install -d -o root -g root -m 0755 "$LIB_DIR"
     if [ -d "$SRC_SCRIPTS/usr/lib/qmanager" ]; then
         local lib_count
         lib_count=$(install_dir_flat "$SRC_SCRIPTS/usr/lib/qmanager" "$LIB_DIR" 644)
@@ -998,6 +1867,11 @@ install_backend() {
         info "$bin_count daemons/utilities installed to $BIN_DIR"
     fi
 
+    # qcmd is the broker client (argv[0] link) on every model; it runs AT in-process without the daemon.
+    local qtmp="$BIN_DIR/qcmd.qm_install.$$"
+    ln -sf qmanager_atd "$qtmp" && mv -f "$qtmp" "$BIN_DIR/qcmd" \
+        || die "Failed to link $BIN_DIR/qcmd"
+
     # --- CGI endpoints ---
     if [ -d "$SRC_SCRIPTS/www/cgi-bin/quecmanager" ]; then
         install_tree "$SRC_SCRIPTS/www/cgi-bin/quecmanager" "$CGI_DIR"
@@ -1011,8 +1885,11 @@ install_backend() {
     fi
 
     # --- Console startup script ---
+    # console/ holds console.sh, which qmanager-console.service executes AS ROOT
+    # (no User= directive). Both this dir and its parent are pinned to 0755 —
+    # see the SECURITY note on $QMANAGER_ROOT at the top of this function.
     if [ -d "$SRC_SCRIPTS/usrdata/qmanager/console" ]; then
-        mkdir -p "$QMANAGER_ROOT/console"
+        install -d -o root -g root -m 0755 "$QMANAGER_ROOT/console"
         for f in "$SRC_SCRIPTS/usrdata/qmanager/console"/*; do
             [ -f "$f" ] || continue
             local mode=644
@@ -1034,6 +1911,12 @@ install_backend() {
         # Copy service files to /lib/systemd/system/ (persistent on RM520N-GL)
         for f in "$SRC_SCRIPTS/etc/systemd/system"/qmanager*.service; do
             [ -f "$f" ] || continue
+            # qmanager-atd.service only where qm_hw_atd_enabled (see install_bundled_binaries).
+            if [ "$(basename "$f")" = "qmanager-atd.service" ]; then
+                if ! _atd_on; then
+                    continue
+                fi
+            fi
             install_file "$f" "$SYSTEMD_DIR/$(basename "$f")" 644 \
                 || die "Failed to install $(basename "$f")"
         done
@@ -1076,7 +1959,19 @@ install_backend() {
         # install_file also writes its atomic temp file *inside* the destination
         # dir, so without this mkdir the cp fails with ENOENT. (/etc is its own
         # always-RW UBIFS volume — no root remount is needed or helpful here.)
-        mkdir -p /etc/profile.d 2>/dev/null || true
+        # install -d, NOT mkdir -p. This directory is a root code-execution
+        # path — /etc/profile:15 sources /etc/profile.d/*.sh — and it measured
+        # 0777 root:root on BOTH shipped devices on 2026-08-31. Cause: the
+        # install shell runs at umask 0000 (see :624), so a bare `mkdir -p`
+        # creates it 0777, and `mkdir -p` then no-ops on the existing directory
+        # forever after, carrying that mode through every OTA. Because the dir
+        # has no sticky bit, a world-writable mode lets www-data (the CGI user,
+        # so web-reachable) drop a new snippet here or replace qmanager-path.sh
+        # outright — the file's own 0644 is no defence, since unlink permission
+        # comes from the directory. It would then run as root at the next root
+        # login. install -d re-applies the mode on every run, so an OTA heals
+        # an already-affected device; mkdir -p never would.
+        install -d -o root -g root -m 0755 /etc/profile.d 2>/dev/null || true
         if [ -d /etc/profile.d ] && install_file "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" \
             "/etc/profile.d/qmanager-path.sh" 644; then
             sync
@@ -1089,31 +1984,113 @@ install_backend() {
     # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
     detect_sudo
     if [ -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" ] && [ -n "$SUDOERS_DIR" ]; then
-        mkdir -p "$SUDOERS_DIR"
+        # install -d, not mkdir -p: this is the sudoers drop-in directory —
+        # whatever detect_sudo resolved SUDOERS_DIR to. On the RM520N-GL that
+        # is Entware's /opt/etc/sudoers.d, NOT /etc/sudoers.d, which does not
+        # exist on the device; the fix applies uniformly either way.
+        # mkdir -p honours the ambient umask and no-ops on an existing dir, so
+        # a bad mode reached once persists across every OTA forever. install -d
+        # re-applies owner/mode on EVERY run. 0750 (not 0755) — sudo itself is
+        # setuid-root so it reads the dir regardless of mode; 0750 only stops
+        # non-root users (www-data) from listing it, matching the 0700
+        # precedent already shipped for SECRETS_DIR.
+        install -d -o root -g root -m 0750 "$SUDOERS_DIR"
         # Ensure sudoers includes the drop-in directory
         if ! grep -q "includedir.*sudoers.d" "$SUDOERS_CONF" 2>/dev/null; then
             echo "#includedir $SUDOERS_DIR" >> "$SUDOERS_CONF"
             info "Added #includedir $SUDOERS_DIR to $SUDOERS_CONF"
         fi
-        install_file "$SRC_SCRIPTS/etc/sudoers.d/qmanager" "$SUDOERS_DIR/qmanager" 440 \
-            || die "Failed to install sudoers rules"
-        chown root:root "$SUDOERS_DIR/qmanager"
-        info "Sudoers rules installed to $SUDOERS_DIR (440)"
+        # SYNTAX-GATE the drop-in before it goes live. sudo parses the whole
+        # of sudoers.d as one unit: a single malformed line here does not
+        # disable one grant, it makes sudo reject the ENTIRE directory — which
+        # takes out every privileged CGI action at once (reboot, OTA, Tailscale,
+        # ethernet, timezone, secret writes). Installing an unvalidated file was
+        # survivable while the content was static; it is not now that grants are
+        # being added to it.
+        #
+        # Staged in the DESTINATION directory so the final `mv` is a true
+        # rename(2) on the same filesystem, and so a validation failure leaves
+        # the previously-installed (known-good) file completely untouched.
+        # Safe to stage in-place: sudo SKIPS any file in an include directory
+        # whose name contains a '.', so `qmanager.qm_stage.$$` is never parsed
+        # even if we crash before cleaning it up (same property install_file's
+        # own `.qm_install.$$` temp relies on).
+        _sudo_stage="$SUDOERS_DIR/qmanager.qm_stage.$$"
+        _sudoers_ok=0
+        if install_file "$SRC_SCRIPTS/etc/sudoers.d/qmanager" "$_sudo_stage" 440; then
+            chown root:root "$_sudo_stage" 2>/dev/null || true
+            # visudo lives in sbin, which is not always on PATH for this
+            # script; probe both the Entware and the system location. If the
+            # binary is genuinely absent (sudo installed without visudo) we
+            # proceed unvalidated rather than blocking the install — the
+            # pre-existing behaviour — but say so loudly.
+            _visudo=""
+            for _c in /opt/sbin/visudo /opt/bin/visudo /usr/sbin/visudo /usr/bin/visudo; do
+                [ -x "$_c" ] && { _visudo="$_c"; break; }
+            done
+            [ -z "$_visudo" ] && _visudo=$(command -v visudo 2>/dev/null) || true
+            if [ -n "$_visudo" ]; then
+                if "$_visudo" -c -f "$_sudo_stage" >/dev/null 2>&1; then
+                    _sudoers_ok=1
+                else
+                    warn "sudoers drop-in FAILED visudo syntax check — refusing to install it"
+                    warn "Existing $SUDOERS_DIR/qmanager left untouched; privileged CGI actions unchanged"
+                    "$_visudo" -c -f "$_sudo_stage" 2>&1 | head -5 || true
+                fi
+            else
+                warn "visudo not found — installing sudoers drop-in WITHOUT syntax validation"
+                _sudoers_ok=1
+            fi
+        else
+            # Same hard failure as before this gate existed: if the file cannot
+            # even be staged, the install is broken in a way the operator must
+            # see.
+            rm -f "$_sudo_stage" 2>/dev/null || true
+            die "Failed to install sudoers rules"
+        fi
+
+        if [ "$_sudoers_ok" = "1" ]; then
+            if mv "$_sudo_stage" "$SUDOERS_DIR/qmanager"; then
+                chown root:root "$SUDOERS_DIR/qmanager" 2>/dev/null || true
+                chmod 440 "$SUDOERS_DIR/qmanager" 2>/dev/null || true
+                info "Sudoers rules installed to $SUDOERS_DIR (440, visudo-checked)"
+            else
+                rm -f "$_sudo_stage" 2>/dev/null || true
+                die "Failed to install sudoers rules"
+            fi
+        else
+            rm -f "$_sudo_stage" 2>/dev/null || true
+        fi
     elif [ -z "$SUDOERS_DIR" ]; then
         warn "sudo not found — install Entware sudo: $OPKG install sudo"
         warn "Skipping sudoers rules (CGI privilege escalation will not work)"
     fi
 
     # --- lighttpd config ---
-    mkdir -p "$QMANAGER_ROOT"
+    # ($QMANAGER_ROOT is secured at the top of this function, before any write.)
     if [ -f "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" ]; then
         install_file "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" "$LIGHTTPD_CONF" 644 \
             || die "Failed to install lighttpd.conf"
         info "lighttpd config installed"
+        # The shipped conf is 80/443; carry a saved custom port into it. Fail-soft: never die after stop_services.
+        local _wp_out=""
+        if [ -x "$BIN_DIR/qmanager_web_port" ] \
+           && _wp_out=$("$BIN_DIR/qmanager_web_port" render 2>/dev/null); then
+            info "Web port: ${_wp_out:-unknown}"
+        else
+            warn "Could not render the web port into lighttpd.conf; lighttpd renders it at its next start"
+        fi
     fi
 
     # --- TLS certificates ---
-    mkdir -p "$CERT_DIR"
+    # SECURITY: 0755 root:root. The private key is 0600 and lighttpd reads it
+    # while still root at startup (it drops to www-data afterwards), so www-data
+    # never needs to read the key — but it DOES need traverse+read for the
+    # public cert, which is why this is 0755 and not 0750. The bug being fixed
+    # is the world-WRITE bit: a writable certs/ let any local user delete and
+    # replace server.key/server.crt wholesale (bypassing the key's own 0600)
+    # and MITM the HTTPS admin UI.
+    install -d -o root -g root -m 0755 "$CERT_DIR"
     if [ ! -f "$CERT_DIR/server.key" ]; then
         # Generate self-signed cert if none exist
         openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/server.key" \
@@ -1123,13 +2100,84 @@ install_backend() {
     else
         info "TLS certs already exist"
     fi
+    # Re-assert file modes every run: the key must never be group/world
+    # readable, and the cert was shipping 0666 (world-WRITABLE) on fielded
+    # devices. Unconditional so an already-drifted device self-heals on OTA.
+    [ -f "$CERT_DIR/server.key" ] && chmod 600 "$CERT_DIR/server.key"
+    [ -f "$CERT_DIR/server.crt" ] && chmod 644 "$CERT_DIR/server.crt"
 
     # --- Create required directories ---
     # www-data (lighttpd CGI) needs write access to config dir (auth.json, profiles)
     # and session dir (session tokens). Also needs dialout group for serial device access.
     addgroup www-data dialout 2>/dev/null || true
-    mkdir -p "$CONF_DIR/profiles"
+
+    # SECURITY: $CONF_DIR must be 0755, never group/world-writable — and the
+    # MODE matters independently of the ownership carve-out below.
+    #
+    # Why: removing or replacing a file requires write permission on its PARENT
+    # DIRECTORY, not on the file. A 0777 $CONF_DIR therefore lets ANY local
+    # user — not just the owner — unlink a file here and drop in their own,
+    # no matter what that file's own mode says. Pinning a file's mode is not a
+    # defence against a writable parent.
+    #
+    # Note what 0755 does and does not buy: it closes group and world, but
+    # www-data OWNS this directory, and 0755 grants the owner rwx. So www-data
+    # can still create, rename and unlink anything in here. That is by design —
+    # the CGI has to write auth.json, profiles/, ping_profile.json and the
+    # *_alerts.json blobs — but it means this directory can never hold a file
+    # that must be protected FROM www-data. The daemon EnvironmentFile used to
+    # try, and failed; it now lives at /etc/qmanager.env. See
+    # migrate_environment_location().
+    #
+    # This directory was previously created by mark_version_pending()'s
+    # `mkdir -p`, which honours the ambient umask and no-ops on an existing
+    # directory — so 0777 reached fielded devices and persisted across every
+    # OTA. `install -d` re-applies owner AND mode on EVERY run: one OTA
+    # self-heals a drifted device. Same reasoning as $QMANAGER_ROOT above.
+    install -d -o www-data -g www-data -m 0755 "$CONF_DIR"
+    install -d -o www-data -g www-data -m 0755 "$CONF_DIR/profiles"
     chown -R www-data:www-data "$CONF_DIR"
+
+    # NOTE: the daemon EnvironmentFile used to live at $CONF_DIR/environment,
+    # carved out of the blanket chown above and re-pinned root:root here. That
+    # carve-out did not work and has been REMOVED — the file now lives at
+    # /etc/qmanager.env, outside this directory entirely. See
+    # migrate_environment_location() below for the full reasoning. The short
+    # version: pinning a file root:root inside a directory www-data OWNS buys
+    # nothing, because unlinking and replacing a file needs write permission on
+    # the PARENT DIRECTORY, not the file. Worse, qmanager_setup runs a bare
+    # `chown -R www-data:www-data /etc/qmanager` on EVERY boot, so the pin only
+    # survived until the next reboot anyway. Do not reintroduce a carve-out
+    # here for any file that must not be www-data-writable — move it out of
+    # $CONF_DIR instead.
+
+    # --- Alert secrets store (root-only, OUTSIDE $CONF_DIR) -------------------
+    # The Discord bot token and the Gmail app password used to live as plain
+    # strings inside $CONF_DIR/discord_bot.json and $CONF_DIR/email_alerts.json,
+    # both 0644 and both inside the directory www-data OWNS — so any local user
+    # could read them and www-data could rewrite them at will. As with the
+    # daemon EnvironmentFile above, no mode or ownership pin INSIDE $CONF_DIR
+    # can fix that (qmanager_setup re-runs `chown -R www-data:www-data
+    # /etc/qmanager` on every boot, and owning the parent directory beats any
+    # per-file mode). The only real fix is relocation, which is what
+    # migrate_alert_secrets() performs.
+    #
+    # 0700 root:root: only root reads these. www-data writes them exclusively
+    # through the /usr/bin/qmanager_secret_set sudoers grant, which takes the
+    # value on stdin and never on argv.
+    #
+    # `install -d`, never `mkdir -p`: mkdir -p honours the ambient umask and is
+    # a silent no-op on an existing directory, so a mode that drifted once would
+    # persist across every future OTA. install -d re-applies the mode on EVERY
+    # run, so one OTA self-heals a drifted device. The explicit chmod/chown
+    # afterwards do not assume `install -o/-g/-m` semantics are uniform, and
+    # everything here is non-fatal: an abort inside install_backend would kill
+    # an in-flight OTA with services already stopped.
+    install -d -m 0700 "$SECRETS_DIR" 2>/dev/null || warn "Could not create $SECRETS_DIR"
+    if [ -d "$SECRETS_DIR" ]; then
+        chown root:root "$SECRETS_DIR" 2>/dev/null || true
+        chmod 0700 "$SECRETS_DIR" 2>/dev/null || true
+    fi
 
     # Custom DNS needs a www-data-owned staging dir on /dev/ubi2_0 (same volume
     # as /etc/data/dnsmasq.conf) so the CGI can write the candidate config and
@@ -1143,7 +2191,19 @@ install_backend() {
     # so the unprivileged download worker can extract + validate a pack there
     # before handing the validated tree to the root helper. install -d self-
     # heals owner/mode on re-run, so this is safe on upgrade.
-    mkdir -p /usrdata/qmanager/locales-packs
+    #
+    # Both lines below use install -d. Until 2026-08-31 the packs line was a
+    # bare `mkdir -p`, and the "install -d self-heals" sentence above was true
+    # only of the staging line directly beneath it — so the store inherited the
+    # installer's umask 0000 (see :624) and measured 0777 on BOTH shipped
+    # devices, which is precisely the root-only-writer boundary this comment
+    # claims to enforce.
+    #
+    # 0755, NOT 0700: the store must stay world-READABLE. Only root writes it,
+    # but system/language-packs/list.sh is a www-data CGI that reads each
+    # <code>/_pack.json straight out of here to report what is installed.
+    # Tightening this to 0700 breaks the language-pack list endpoint.
+    install -d -o root -g root -m 0755 /usrdata/qmanager/locales-packs
     install -d -o www-data -g www-data -m 0700 /usrdata/qmanager/locales-staging
 
     # --- Migrate legacy TTL state file (one-time, non-fatal) -----------------
@@ -1201,13 +2261,29 @@ install_backend() {
         qm_config_init
         info "Config initialized at /etc/qmanager/qmanager.conf"
         migrate_watchcat_fail_threshold
+        migrate_traffic_masquerade_to_full_bypass
     fi
 
     # --- Bootstrap default ping_profile.json / migrate legacy env vars ----------
     install_ping_profile
     migrate_ping_environment
     prune_stale_ping_environment
+    # MUST stay after the two above — they are hardcoded to the OLD path and
+    # would silently no-op forever if the file moved first. See the ordering
+    # note in migrate_environment_location().
+    migrate_environment_location
     migrate_ping_targets
+    # Kept after migrate_ping_targets so the second read-modify-rename sees the
+    # first one's result. The two touch disjoint keys, so neither corrupts the
+    # other, but this order means a single OTA lands both edits on one file.
+    migrate_ping_debounce_shadow
+    migrate_sim_registry
+    migrate_apn_sidecars
+    # Relocates the Discord token / Gmail app password / msmtprc out of the
+    # www-data-owned $CONF_DIR into $SECRETS_DIR. Depends only on $SECRETS_DIR
+    # existing (created earlier in this function); see the ordering note in
+    # migrate_alert_secrets().
+    migrate_alert_secrets
 
     info "Backend installed"
 }
@@ -1230,26 +2306,104 @@ install_backend() {
 migrate_watchcat_fail_threshold() {
     command -v qm_config_get >/dev/null 2>&1 || return 0
 
+    # qm_config_set/qm_config_delete (config.sh) return 1 on a jq failure —
+    # e.g. a corrupt/unparseable qmanager.conf — and this file runs under
+    # `set -e` with this function called bare from install_backend(), so an
+    # unguarded call here would abort the entire installer/OTA over a
+    # non-fatal config migration. `|| true` on each: worst case this one
+    # migration is skipped and retried next run: config.sh's writers are
+    # self-contained (temp file + gated mv), so a skip here cannot corrupt
+    # the config, only leave the old key(s) in place for the next install.
     local current legacy probe_interval
     current=$(qm_config_get watchcat fail_threshold "")
     if [ -n "$current" ]; then
-        qm_config_delete watchcat max_failures
+        qm_config_delete watchcat max_failures || true
     else
         legacy=$(qm_config_get watchcat max_failures "")
         if [ -n "$legacy" ]; then
-            qm_config_set watchcat fail_threshold "$legacy"
-            qm_config_delete watchcat max_failures
+            qm_config_set watchcat fail_threshold "$legacy" || true
+            qm_config_delete watchcat max_failures || true
             echo "  Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
         else
-            qm_config_set watchcat fail_threshold 5
+            qm_config_set watchcat fail_threshold 5 || true
             echo "  Seeded watchcat.fail_threshold=5 (default)"
         fi
     fi
 
     probe_interval=$(qm_config_get watchcat probe_interval "")
     if [ -z "$probe_interval" ]; then
-        qm_config_set watchcat probe_interval 5
+        qm_config_set watchcat probe_interval 5 || true
         echo "  Seeded watchcat.probe_interval=5 (default)"
+    fi
+}
+
+# --- Migrate traffic_masquerade -> full_bypass (Traffic Engine rename) -------
+#
+# "Traffic Masquerade" was renamed "Full Bypass" because the old name described
+# a capability this platform does not have: the RM551E's nfqws rewrote the
+# outgoing ClientHello's SNI to a spoofed identity, while the tpws engine used
+# here only splits and reorders the connection's real ClientHello. The mode
+# never impersonated anything on an RM520N-GL.
+#
+# The CONFIG SECTION moves with the name, and that is the part that needs this
+# function. config.sh has no key-migration primitive: qm_config_init only seeds
+# an empty file and returns early the moment $QM_CONFIG is non-empty. Every
+# already-deployed device therefore keeps its traffic_masquerade section, the
+# renamed reader looks up full_bypass, qm_config_get's `// empty` hands back the
+# caller's default, and a user who had the mode ON silently comes back from an
+# OTA with it OFF -- no error, no log line, nothing they could notice.
+#
+# Runs unconditionally on every install/OTA -- mirrors migrate_ping_environment
+# and migrate_watchcat_fail_threshold above. Four cases, each a no-op on re-run:
+#   1. full_bypass absent, traffic_masquerade present -> copy both keys over,
+#      then retire the old section
+#   2. both present (an earlier run died between the copy and the delete)
+#      -> full_bypass WINS and is left alone; only the legacy section is
+#      retired. The stale value must not revert a change the user made in
+#      between the two runs
+#   3. neither present                                -> seed full_bypass
+#   4. full_bypass present, legacy absent             -> nothing to do
+#
+# sni_domain travels with enabled: it is inert in the tpws engine but is still
+# validated, stored and published by the CGI for RM551 API-contract parity, so
+# dropping it here would be a contract change wearing a migration's clothes.
+#
+migrate_traffic_masquerade_to_full_bypass() {
+    command -v qm_config_get >/dev/null 2>&1 || return 0
+
+    # qm_config_set/qm_config_delete_section (config.sh) return 1 on a jq
+    # failure -- e.g. a corrupt/unparseable qmanager.conf -- and this file runs
+    # under `set -e` with this function called bare from install_backend(), so
+    # an unguarded call here would abort the entire installer/OTA over a
+    # non-fatal config migration. `|| true` on each: worst case the migration
+    # is skipped and retried on the next install. config.sh's writers are
+    # self-contained (temp file + gated mv), so a skip cannot corrupt the
+    # config -- it can only leave the old section in place for the next run,
+    # which is exactly what case 2 above is written to absorb.
+    local current legacy_enabled legacy_sni
+    current=$(qm_config_get full_bypass enabled "")
+    legacy_enabled=$(qm_config_get traffic_masquerade enabled "")
+
+    if [ -n "$current" ]; then
+        # Cases 2 and 4. full_bypass is authoritative; drop any legacy leftover.
+        if [ -n "$legacy_enabled" ]; then
+            qm_config_delete_section traffic_masquerade || true
+            echo "  Retired the legacy traffic_masquerade config section"
+        fi
+    elif [ -n "$legacy_enabled" ]; then
+        # Case 1 -- the upgrade path that carries a real device's saved state.
+        legacy_sni=$(qm_config_get traffic_masquerade sni_domain "speedtest.net")
+        qm_config_set full_bypass enabled "$legacy_enabled" || true
+        qm_config_set full_bypass sni_domain "$legacy_sni" || true
+        qm_config_delete_section traffic_masquerade || true
+        echo "  Migrated traffic_masquerade -> full_bypass (enabled=$legacy_enabled)"
+    else
+        # Case 3 -- neither section exists (a config predating the Traffic
+        # Engine entirely, or one hand-edited). Seed the defaults qm_config_init
+        # would have written.
+        qm_config_set full_bypass enabled 0 || true
+        qm_config_set full_bypass sni_domain "speedtest.net" || true
+        echo "  Seeded full_bypass (default: disabled)"
     fi
 }
 
@@ -1263,9 +2417,18 @@ install_ping_profile() {
     mkdir -p /etc/qmanager
     if [ ! -f "$target" ]; then
         if [ -f "$source_file" ]; then
-            cp "$source_file" "$target"
-            chmod 644 "$target"
-            echo "  Installed default ping profile (relaxed)"
+            # This file runs under `set -e` and install_ping_profile is
+            # called bare from install_backend() — a `cp` failure (e.g. disk
+            # full on /etc/qmanager's UBIFS volume) would otherwise abort the
+            # whole installer/OTA over a missing default profile, which the
+            # ping daemon can tolerate (it has in-code defaults) far better
+            # than a half-finished install can.
+            if cp "$source_file" "$target" 2>/dev/null; then
+                chmod 644 "$target"
+                echo "  Installed default ping profile (relaxed)"
+            else
+                echo "  WARNING: failed to install default ping profile to $target" >&2
+            fi
         else
             echo "  WARNING: $source_file missing from installer payload" >&2
         fi
@@ -1274,41 +2437,436 @@ install_ping_profile() {
     fi
 }
 
-# --- Migrate Legacy HTTP Ping Targets to ICMP Targets ------------------------
+# --- Migrate Legacy Ping Targets to the Four-Slot ICMP Chain -----------------
 
-# The ping daemon moved from HTTP probes (target_1/target_2 URLs, e.g.
-# "http://cp.cloudflare.com/") to plain ICMP probes (target_ipv4/target_ipv6
-# hosts, e.g. "1.1.1.1"). An HTTP URL is not a valid ICMP host, so this does
-# NOT try to convert the old value — it reseeds the Cloudflare ICMP defaults
-# and drops the stale keys. Idempotent: a device already on target_ipv4/
-# target_ipv6 (or with no config file yet) is a no-op.
+# The ping daemon's target shape has changed twice. It started on HTTP probes
+# (target_1/target_2 URLs, e.g. "http://cp.cloudflare.com/"), moved to a
+# two-slot ICMP pair (target_ipv4/target_ipv6), and now runs a FOUR-leg chain
+# in a fixed probe order:
+#
+#     target_host_1  target_host_2  target_ip_1  target_ip_2
+#
+# The two hostname legs come first (the resolver, not a config key, picks the
+# address family) and the two IPv4 literals are the DNS-independent fallback.
+#
+# config.sh has no key-migration primitive and this file is only ever SEEDED
+# when absent, so an already-deployed device keeps its old shape forever unless
+# this rewrites it. What carries across:
+#
+#   * target_ipv4 -> target_ip_1. It is the one legacy value that still means
+#     something: an IPv4 literal moving into an IPv4-literal slot. Reseeding
+#     the default here would silently discard a target the user chose.
+#   * Every other new slot is seeded from the documented default.
+#   * target_ipv6 is deleted (the family question moved to the resolver) and
+#     intercept_secs with it (no reader in shipped code, and none possible
+#     under a binary reachable/not-reachable verdict). The stale HTTP
+#     target_1/target_2 keys go too.
+#   * profile / interval_sec / fail_secs / recover_secs / history_secs are
+#     merged INTO, never rebuilt, so the daemon's own tuning survives. (The
+#     debounce triple is separately retired by migrate_ping_debounce_shadow()
+#     below when it is still the untouched seeded 15/10/300.)
+#
+# The gate is a NON-EMPTY target_host_1, not the absence of a legacy key: a
+# fresh install seeded from the new ping_profile.json carries no legacy key at
+# all and must not be treated as unmigrated. That also makes a re-fire on the
+# next OTA a byte-for-byte no-op, so a target the user changed AFTER migrating
+# is never reseeded.
 migrate_ping_targets() {
     local target="/etc/qmanager/ping_profile.json"
     [ -f "$target" ] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    local has_legacy has_new
-    has_legacy=$(jq -r 'has("target_1") or has("target_2")' "$target" 2>/dev/null)
-    has_new=$(jq -r 'has("target_ipv4") and has("target_ipv6")' "$target" 2>/dev/null)
+    # The gate tests for a NON-EMPTY target_host_1, not merely its presence.
+    # `has()` would call a config carrying `"target_host_1": ""` migrated and
+    # leave the device probing an empty slot forever; an empty value is
+    # indistinguishable from an absent one for every reader downstream, all of
+    # which test with -n. Re-firing on that shape reseeds the default, which is
+    # strictly better, and idempotency still holds because the value written is
+    # never empty.
+    local has_new
+    has_new=$(jq -r '(.target_host_1 // "") != ""' "$target" 2>/dev/null)
 
-    if [ "$has_legacy" != "true" ] || [ "$has_new" = "true" ]; then
+    if [ "$has_new" = "true" ]; then
         return 0
     fi
 
-    echo "  Migrating ping_profile.json from HTTP targets to ICMP targets..."
-    local tmp; tmp=$(mktemp)
+    echo "  Migrating ping_profile.json to the four-slot ICMP probe chain..."
+    # Temp file MUST live in the destination directory (/etc/qmanager), not a
+    # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
+    # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
+    # cross-filesystem mv silently degrades to copy+unlink. That matters here
+    # for two reasons: (1) crash-atomicity against power loss mid-write on
+    # flash, and (2) lighttpd (and its CGI, settings/ping_profile.sh and
+    # monitoring/watchdog.sh) is NOT stopped during an OTA, so there IS a live
+    # concurrent writer for this specific file. Note this does not fully
+    # close that race: no lock is held on either side, so an atomic rename
+    # only turns a torn read into a lost update if the CGI writes between our
+    # read and our rename — out of scope here, no locking added.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.ping_profile.json.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for ping_profile.json migration — skipping" >&2
+        return 0
+    }
+    # A legacy target_ipv4 is carried into target_ip_1; every other slot falls
+    # back to its documented default, one key at a time.
+    #
+    # `//` alone is NOT enough for the fallbacks: jq substitutes only on null
+    # and false, so a legacy `"target_ipv4": ""` would be carried through as
+    # `"target_ip_1": ""` and persisted to disk. Every runtime reader tests
+    # with -n so nothing breaks, but the file on the device would be wrong and
+    # a maintainer reading it would be misled. `nz` turns an empty string into
+    # `empty`, which `//` then does substitute for.
     if jq \
-        --arg t4 "1.1.1.1" \
-        --arg t6 "2606:4700:4700::1111" \
-        '.target_ipv4 = $t4 | .target_ipv6 = $t6 | del(.target_1) | del(.target_2)' \
+        --arg h1 "cloudflare.com" \
+        --arg h2 "google.com" \
+        --arg i1 "1.1.1.1" \
+        --arg i2 "8.8.8.8" \
+        'def nz: select(. != null and . != "");
+         .target_host_1 = ((.target_host_1 | nz) // $h1)
+         | .target_host_2 = ((.target_host_2 | nz) // $h2)
+         | .target_ip_1 = ((.target_ip_1 | nz) // (.target_ipv4 | nz) // $i1)
+         | .target_ip_2 = ((.target_ip_2 | nz) // $i2)
+         | del(.target_ipv4)
+         | del(.target_ipv6)
+         | del(.intercept_secs)
+         | del(.target_1)
+         | del(.target_2)' \
         "$target" > "$tmp" 2>/dev/null; then
-        mv "$tmp" "$target"
-        chmod 644 "$target"
-        echo "  Migrated $target to target_ipv4=1.1.1.1 target_ipv6=2606:4700:4700::1111"
+        # Set mode AND owner on the temp file BEFORE the rename: BusyBox
+        # mktemp creates 0600 root:root, and mv carries both mode and owner
+        # to the destination. A chmod-after-mv (the old code) leaves a
+        # 0600-root window AND silently flips this file from
+        # www-data:www-data back to root:root on every run where the legacy
+        # gate fires — install_backend() chowns /etc/qmanager to
+        # www-data:www-data earlier in the same function, so www-data is the
+        # intended steady state. `|| true` on chown: a missing www-data user
+        # must not abort the install.
+        chmod 644 "$tmp"
+        chown www-data:www-data "$tmp" 2>/dev/null || true
+        if mv "$tmp" "$target"; then
+            echo "  Migrated $target to the four-slot chain: $(jq -r '[.target_host_1, .target_host_2, .target_ip_1, .target_ip_2] | join(" -> ")' "$target" 2>/dev/null)"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to install migrated $target — left untouched" >&2
+        fi
     else
         rm -f "$tmp"
         echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
     fi
+}
+
+# --- Drop the seeded debounce triple that shadowed the profile table ---------
+# Until 2026-09-02 the seeded ping_profile.json carried fail_secs / recover_secs
+# / history_secs as literal values. qmanager_ping's resolve_profile() lets a
+# per-field JSON value OVERRIDE the profile table, so those three seeded keys
+# shadowed the table on every device: switching the profile from relaxed to
+# sensitive or quiet changed the probe cadence and nothing else — the debounce
+# windows stayed at the seeded 15/10/300 whatever the user picked.
+#
+# The seed no longer writes them, so a fresh install obeys the table. This
+# brings a deployed device to the same place by deleting the three keys, but
+# ONLY when all three still hold the exact old seeded triple — that is the
+# fingerprint of "nobody ever touched this". Any other combination means
+# somebody hand-edited the file and their values are kept, matching
+# migrate_ping_targets()'s rule about never discarding a chosen value.
+#
+# Idempotent: after a successful run the keys are gone, so the gate below sees
+# `false` and returns. No UI writes these keys (settings/ping_profile.sh names
+# them only to say it leaves them alone), so there is no writer to race.
+migrate_ping_debounce_shadow() {
+    local target="/etc/qmanager/ping_profile.json"
+    [ -f "$target" ] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    local pristine
+    pristine=$(jq -r '(.fail_secs == 15 and .recover_secs == 10 and .history_secs == 300)' \
+        "$target" 2>/dev/null)
+    [ "$pristine" = "true" ] || return 0
+
+    echo "  Dropping the seeded debounce keys so the profile table governs..."
+    local tmp
+    # Same-filesystem mktemp, chmod+chown before the rename — see the long
+    # rationale in migrate_ping_targets() above; /etc is UBIFS, /tmp is tmpfs,
+    # and lighttpd's CGI is a live concurrent writer of this same file.
+    tmp=$(mktemp /etc/qmanager/.ping_profile.json.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for ping_profile.json debounce migration — skipping" >&2
+        return 0
+    }
+    if jq 'del(.fail_secs) | del(.recover_secs) | del(.history_secs)' \
+        "$target" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        chmod 644 "$tmp"
+        chown www-data:www-data "$tmp" 2>/dev/null || true
+        if mv "$tmp" "$target"; then
+            echo "  $target now follows the profile table for fail/recover windows"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to install debounce-migrated $target — left untouched" >&2
+        fi
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to drop seeded debounce keys in $target" >&2
+    fi
+}
+
+# --- Migrate APN Sidecars from /usrdata/qmanager to /etc/qmanager ------------
+
+# The two APN sidecars (apn_names.json — the per-CID profile-name map; and
+# apn_setting.json — the WS6 single-APN record) used to live in
+# /usrdata/qmanager. That directory is pinned 0755 root:root for security (the
+# root-run qmanager-console.service executes ttyd from a subdirectory, so a
+# writable parent is a root-escalation path), and BOTH writers of these files
+# run as www-data: cellular/apn.sh is CGI, and qmanager_profile_apply is
+# spawned WITHOUT sudo by profiles/apply.sh on the UI path. Creating a file
+# needs write permission on the parent directory, so both writers' atomic
+# tmp+rename silently no-opped and the settings never persisted.
+#
+# They now live in /etc/qmanager, which install_backend() already owns as
+# www-data:www-data. Nothing root sources or executes from there, so this adds
+# no privilege surface — these are inert JSON blobs read only via jq.
+#
+# Migration is needed, not merely tidy: apn_setting.json shipped while
+# /usrdata/qmanager was still 0777, so devices installed in that window carry
+# a real file with real user data. apn_names.json is older still and is known
+# to exist in the field (see the orphan-cleanup note in uninstall_rm520n.sh).
+#
+# Idempotent: no-op when the source is absent or the destination already
+# exists, so re-running an install or OTA never clobbers newer state.
+#
+# Never aborts the installer: called bare from install_backend() under `set -e`,
+# after stop_services() has already torn every qmanager service down, so every
+# failure path must warn and continue rather than return non-zero. The original
+# is unlinked only after the copy AND the rename have both succeeded — a failure
+# leaves the old file exactly where it was, still readable, rather than losing
+# the user's APN settings.
+migrate_apn_sidecars() {
+    local f src dst tmp
+    for f in apn_names.json apn_setting.json; do
+        src="/usrdata/qmanager/$f"
+        dst="/etc/qmanager/$f"
+
+        [ -f "$src" ] || continue
+
+        # Guard the pathological case BEFORE anything else touches $src.
+        # Nothing in this tree ever creates a directory at $dst — the two
+        # writers (cellular/apn.sh, qmanager_profile_apply) only ever mkdir the
+        # PARENT — but if one existed it would poison both checks below. `[ -e ]`
+        # would read it as "already migrated" and delete the original outright,
+        # while falling through is worse still: `mv file dir` does not fail, it
+        # moves the file INSIDE the directory where nothing reads it, returns 0,
+        # and the unlink would then run believing the rename succeeded. Bail out
+        # and keep $src instead. Same guard, same reason, as
+        # migrate_environment_location() below.
+        if [ -d "$dst" ]; then
+            echo "  WARNING: $dst exists and is a directory — skipping migration of $f, leaving $src in place" >&2
+            continue
+        fi
+
+        # `-f`, not `-e`: only a regular file counts as already-migrated, so the
+        # unlink below can never be reached by a non-file squatting on $dst.
+        if [ -f "$dst" ]; then
+            # Already migrated on an earlier run; drop the stale original so a
+            # later reader can never pick up the abandoned copy.
+            rm -f "$src" 2>/dev/null || true
+            continue
+        fi
+
+        echo "  Migrating $src -> $dst ..."
+        # Temp file MUST live in the DESTINATION directory. /usrdata and /etc
+        # are separate UBIFS volumes, so a direct `mv` across them is not
+        # rename(2) — it degrades to copy+unlink and loses crash-atomicity on
+        # flash. Same reasoning as migrate_ping_targets() above; lighttpd is
+        # not stopped during an OTA, so a concurrent CGI reader is possible.
+        tmp=$(mktemp /etc/qmanager/.${f}.XXXXXX) || {
+            echo "  WARNING: failed to create temp file for $f migration — skipping" >&2
+            continue
+        }
+        if cat "$src" > "$tmp" 2>/dev/null; then
+            # Mode AND owner set BEFORE the rename: BusyBox mktemp creates
+            # 0600 root:root and mv carries both across, which would leave the
+            # file unreadable and unwritable by the www-data CGI that owns it.
+            # Both guarded, not just the chown: a bare `chmod` here would abort
+            # the whole in-flight OTA under `set -e` — after stop_services() has
+            # torn every service down — which is exactly what this function's
+            # header promises it will never do. Degrading is safe and
+            # self-healing: the file lands 0600, but the chown below (and
+            # qmanager_setup's `chown -R www-data:www-data /etc/qmanager` on
+            # every boot, qmanager_setup:139) makes www-data the owner, and
+            # www-data is the ONLY reader/writer — cellular/apn.sh is CGI and
+            # qmanager_profile_apply is spawned without sudo. So 0600 www-data
+            # is functionally equivalent here; nothing else needs the read bit.
+            chmod 644 "$tmp" 2>/dev/null || true
+            chown www-data:www-data "$tmp" 2>/dev/null || true
+            # The rename is guarded and the original is unlinked ONLY inside the
+            # success branch. General rule, and the reason this function had a
+            # data-loss bug: an unlink of the LAST REMAINING COPY must live
+            # inside the success branch of whatever created the new copy — never
+            # as a sibling statement after it. A bare `mv` here was doubly wrong:
+            # on a genuine failure it would abort the whole in-flight OTA under
+            # `set -e`, after stop_services() has torn every service down (this
+            # function is called bare from install_backend(), so it must never
+            # return non-zero — see the same convention at the top of
+            # migrate_sim_registry()); and on the `mv file dir` case it returns 0
+            # while doing the wrong thing, which no exit-status check can catch —
+            # hence the [ -d "$dst" ] guard above as well.
+            if mv "$tmp" "$dst"; then
+                rm -f "$src" 2>/dev/null || true
+                echo "  Migrated $f to /etc/qmanager"
+            else
+                rm -f "$tmp" 2>/dev/null || true
+                echo "  WARNING: failed to install $dst — leaving $src in place" >&2
+            fi
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to copy $src — leaving original in place" >&2
+        fi
+    done
+}
+
+# --- Seed SIM Registry from Legacy known_iccids ------------------------------
+
+# The "New SIM detected" banner used to be dismissed via browser localStorage.
+# The new /etc/qmanager/sim_registry.json (root:root 0644, one object per
+# ICCID) replaces that with a server-side record, filled in going forward by
+# the poller (carrier/phone_number) and the sim_registry CGI (dismissed).
+#
+# On an existing device, /etc/qmanager/known_iccids (newline-delimited bare
+# ICCIDs, see sim_db.sh) already lists every SIM the device has seen and the
+# user has implicitly acknowledged — being a member of that set IS the prior
+# acknowledgement. So each line is seeded as dismissed:true to avoid re-firing
+# the banner for every already-known SIM on the first boot after upgrade.
+# carrier/phone_number are seeded empty (unknown for historical entries — the
+# poller fills them in for the active SIM on its next cycle) and first_seen is
+# seeded null (there is no recorded add-time for these legacy entries; do NOT
+# fabricate one from install time or the file's mtime, which only reflects the
+# LAST add, not the first).
+#
+# Idempotent via a CONTENT check (missing-keys backfill), not an existence
+# gate. It used to gate on existence alone, which turned a one-release bug into
+# a permanent one: the original seed trimmed with jq's gsub(), which aborts on
+# this platform (see the ONIGURUMA note below), so the file got created lazily
+# by sim_registry_refresh_active()'s auto-vivify with only the ACTIVE SIM in it.
+# An existence gate then meant no later install could ever repair that — the
+# same trap as "fixing" a bad chmod by deleting the line (see
+# docs/reference/qmanager-independence.md): a fix that never revisits the drifted
+# state is not a fix. So this now adds records for known_iccids entries that have
+# NO record at all, and is strictly ADDITIVE — an existing record is never
+# modified, so a real "new SIM" record (first_seen set, dismissed false) and a
+# user's dismissal both survive untouched. If nothing is missing it writes
+# nothing, which also keeps it from clobbering a concurrent CGI write in the
+# common case (lighttpd is NOT stopped during an OTA, unlike the poller).
+# NOTE: this function is called BARE (not inside an if/&&/||) from
+# install_backend(), and this whole file runs under `set -e` (see top of
+# file). A non-zero return here would abort the entire installer/OTA
+# mid-flight — after stop_services() has already torn down every qmanager
+# service, with no rollback. A failed seed is recoverable (the poller/CGI
+# recreate sim_registry.json records lazily as the SIM is re-observed), but a
+# half-finished install is not. So every failure path below warns to stderr
+# and returns 0, matching every sibling migration function in this file.
+migrate_sim_registry() {
+    local target="/etc/qmanager/sim_registry.json"
+    local source_file="/etc/qmanager/known_iccids"
+    command -v jq >/dev/null 2>&1 || return 0
+    # Config dir must exist — the in-dir mktemp below depends on it.
+    [ -d /etc/qmanager ] || return 0
+    # Nothing to seed from, and nothing to repair.
+    [ -f "$source_file" ] || return 0
+
+    # Load any existing registry. A target that exists but does not parse is
+    # left strictly alone: it may be a partial CGI write we'd rather not
+    # overwrite, and destroying a user's dismissal state is worse than skipping.
+    local existing='{}'
+    if [ -f "$target" ]; then
+        existing=$(jq -c '.' "$target" 2>/dev/null) || {
+            echo "  WARNING: $target is not valid JSON — leaving it untouched" >&2
+            return 0
+        }
+        [ -n "$existing" ] || existing='{}'
+    fi
+    # NO jq regex functions anywhere below. Entware's jq on RM520N-GL (1.7.1) is
+    # built WITHOUT the ONIGURUMA regex library, so gsub/sub/test/match/capture
+    # all abort at runtime with "jq was compiled without ONIGURUMA regex
+    # library". `jq -n builtins` still LISTS gsub/2, so `builtins` is NOT a
+    # usable capability probe — only actually calling one reveals the gap.
+    # Trimming is done by `tr` before jq sees the data: known_iccids lines are
+    # bare ICCIDs (line format frozen — see sim_db.sh), so deleting every
+    # space/tab/CR is equivalent to trimming each line, and also strips CRLF if
+    # the file was ever touched by a Windows editor.
+    local missing
+    missing=$(tr -d ' \t\r' < "$source_file" | jq -R -s --argjson existing "$existing" '
+        [ split("\n")[]
+          | select(length > 0)
+          | . as $iccid
+          | select($existing | has($iccid) | not)
+        ] | length' 2>&1) || {
+        echo "  WARNING: failed to read known_iccids: ${missing:-unknown error}" >&2
+        return 0
+    }
+    case "$missing" in
+        ''|*[!0-9]*) return 0 ;;
+        0) return 0 ;;
+    esac
+
+    echo "  Backfilling sim_registry.json with $missing SIM(s) from known_iccids..."
+    # Temp file MUST live in the destination directory: mv is only atomic
+    # (rename(2)) within one filesystem, and /tmp is tmpfs while /etc is UBIFS.
+    # A cross-filesystem mv degrades to copy+unlink, leaving a window where the
+    # destination exists half-written. Note this atomicity is what bounds the
+    # residual race with a CGI dismissal write (lighttpd is never stopped during
+    # an OTA): a concurrent write can be LOST here, but the file cannot be
+    # corrupted, and this branch only runs when a record is genuinely missing.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.sim_registry.json.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for sim_registry.json seed — skipping" >&2
+        return 0
+    }
+    # Seed a stub for every known ICCID, then let any EXISTING record win
+    # outright. `+` on objects is a shallow, right-hand-wins merge, which is
+    # exactly the semantics wanted: a key present in $existing replaces the
+    # seeded stub WHOLESALE, so an existing record is never partially patched
+    # and a field the poller/CGI deliberately left absent is never resurrected.
+    # Do NOT use `*` here — it deep-merges and would reach inside live records.
+    # stderr is captured, NOT discarded: the previous `2>/dev/null` is exactly
+    # what hid the ONIGURUMA failure behind a generic warning on a live install.
+    local jq_err
+    jq_err=$(tr -d ' \t\r' < "$source_file" | jq -R -s --argjson existing "$existing" '
+        split("\n")
+        | map(select(length > 0))
+        | reduce .[] as $iccid ({}; .[$iccid] = {
+            carrier: "",
+            phone_number: "",
+            first_seen: null,
+            dismissed: true
+          })
+        | . + $existing
+        ' > "$tmp" 2>&1) || {
+        rm -f "$tmp"
+        echo "  WARNING: failed to seed sim_registry.json from known_iccids: ${jq_err:-unknown error}" >&2
+        return 0
+    }
+    # chmod BEFORE the rename: mktemp creates 0600, so chmod-after would leave a
+    # window where the live file is root-only and www-data's CGI cannot read it.
+    # Both of these are guarded rather than bare: a bare failure under `set -e`
+    # would abort the in-flight OTA, which is exactly what this function's header
+    # comment promises it will never do.
+    chmod 644 "$tmp" 2>/dev/null || true
+    # Owner must be set on the TEMP too, for the same reason as the mode: `mv`
+    # carries owner as well as mode across a rename. The blanket
+    # `chown -R www-data:www-data "$CONF_DIR"` runs earlier in install_backend()
+    # than this function, so a root:root temp would silently DOWNGRADE a live
+    # www-data-owned registry. sim_registry.json genuinely has a www-data
+    # writer — the dismiss/undismiss CGI, via sim_registry.sh — so www-data
+    # ownership is correct here, and that is exactly why this file belongs in
+    # $CONF_DIR while the daemon EnvironmentFile (no www-data writer, and a
+    # root-escalation path if it had one) does not. See
+    # migrate_environment_location().
+    chown www-data:www-data "$tmp" 2>/dev/null || true
+    if ! mv "$tmp" "$target"; then
+        rm -f "$tmp"
+        echo "  WARNING: could not install $target — skipping seed" >&2
+        return 0
+    fi
+    local count; count=$(jq 'length' "$target" 2>/dev/null) || true
+    echo "  Seeded $target with ${count:-0} entries from known_iccids"
 }
 
 # --- Migrate Legacy Ping Environment -----------------------------------------
@@ -1339,9 +2897,28 @@ migrate_ping_environment() {
     fi
 
     local backup="${env_file}.pre-rust-ping.bak"
-    cp "$env_file" "$backup"
+    # `|| true`: this file runs under `set -e` and migrate_ping_environment
+    # is called bare from install_backend() — a backup-copy failure (e.g.
+    # disk full) must not abort the whole installer/OTA over a best-effort
+    # safety copy; the migration below still proceeds without one.
+    cp "$env_file" "$backup" 2>/dev/null || echo "  WARNING: failed to back up $env_file to $backup" >&2
 
-    local tmp; tmp=$(mktemp)
+    # Temp file MUST live in the destination directory (/etc/qmanager), not a
+    # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
+    # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
+    # cross-filesystem mv silently degrades to copy+unlink. The concern here
+    # is crash-atomicity, not a concurrent reader: /etc/qmanager/environment
+    # is the systemd EnvironmentFile= for four units (qmanager-poller,
+    # qmanager-ping, qmanager-watchcat, qmanager-discord), and stop_services()
+    # has already stopped all of them by the time install_backend() runs
+    # this migration — but a power loss mid-copy on flash can still leave the
+    # file truncated, and a torn EnvironmentFile means those daemons silently
+    # start with missing env vars on next boot.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.environment.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for environment migration — skipping" >&2
+        return 0
+    }
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
             FAIL_THRESHOLD=*)
@@ -1364,9 +2941,34 @@ migrate_ping_environment() {
                 ;;
         esac
     done < "$env_file"
-    mv "$tmp" "$env_file"
-    chmod 644 "$env_file"
-    echo "  Migrated $env_file (backup at $backup)"
+    # Set mode AND owner on the temp file BEFORE the rename: BusyBox mktemp
+    # creates 0600, and mv carries both mode and owner to the destination, so
+    # a chmod-after-mv (the old code) leaves a window where the live file is
+    # 0600 and the owner is whatever the temp had.
+    #
+    # Owner is root:root DELIBERATELY, unlike ping_profile.json below. This
+    # file is the systemd EnvironmentFile= for four root-run daemons
+    # (qmanager-poller/-ping/-watchcat/-discord) and NO CGI reads or writes
+    # it. Making it www-data-owned would hand a compromised web user
+    # in-place environment-variable injection into root daemons; 0644 keeps
+    # it world-readable, which is all any consumer needs.
+    #
+    # This function still operates on the OLD path, /etc/qmanager/environment,
+    # on purpose — it is a one-time historical conversion and must run BEFORE
+    # migrate_environment_location() moves the file to /etc/qmanager.env. Do
+    # not retarget it. The root:root here is therefore transient: it holds only
+    # until the relocation a few calls later, which is where the ownership
+    # actually becomes durable. Inside $CONF_DIR it never was — the blanket
+    # `chown -R www-data:www-data "$CONF_DIR"` earlier in install_backend()
+    # and qmanager_setup's per-boot equivalent both flatten it back.
+    chmod 644 "$tmp"
+    chown root:root "$tmp" 2>/dev/null || true
+    if mv "$tmp" "$env_file"; then
+        echo "  Migrated $env_file (backup at $backup)"
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to install migrated $env_file — original left untouched (backup at $backup)" >&2
+    fi
 }
 
 # --- Prune Stale Ping Environment Vars ---------------------------------------
@@ -1380,7 +2982,19 @@ prune_stale_ping_environment() {
 
     local stale_keys="CARRIER_FILE"
     local pruned=0
-    local tmp; tmp=$(mktemp)
+    # Temp file MUST live in the destination directory (/etc/qmanager), not a
+    # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
+    # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
+    # cross-filesystem mv silently degrades to copy+unlink. As with
+    # migrate_ping_environment() above, the concern is crash-atomicity (this
+    # file is the systemd EnvironmentFile= for four daemons, all stopped by
+    # stop_services() before this runs, but a torn write on power loss still
+    # leaves them starting with missing env vars), not a concurrent reader.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.environment.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for environment pruning — skipping" >&2
+        return 0
+    }
 
     while IFS= read -r line || [ -n "$line" ]; do
         local key="${line%%=*}"
@@ -1396,12 +3010,579 @@ prune_stale_ping_environment() {
     done < "$env_file"
 
     if [ "$pruned" -gt 0 ]; then
-        mv "$tmp" "$env_file"
-        chmod 644 "$env_file"
-        echo "  Removed $pruned stale ping env var(s) from $env_file (CARRIER_FILE no longer used)"
+        # Mode AND owner on the temp file BEFORE the rename — see the
+        # equivalent block in migrate_ping_environment() above for the full
+        # rationale, including why this function still targets the OLD path
+        # and must run before migrate_environment_location().
+        chmod 644 "$tmp"
+        chown root:root "$tmp" 2>/dev/null || true
+        if mv "$tmp" "$env_file"; then
+            echo "  Removed $pruned stale ping env var(s) from $env_file (CARRIER_FILE no longer used)"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to install pruned $env_file — original left untouched" >&2
+        fi
     else
         rm -f "$tmp"
     fi
+}
+
+# --- Relocate the daemon EnvironmentFile out of /etc/qmanager ----------------
+
+# SECURITY. Moves /etc/qmanager/environment -> /etc/qmanager.env.
+#
+# That file is the systemd EnvironmentFile= for four ROOT-run daemons
+# (qmanager-poller/-ping/-watchcat/-discord). systemd does not shell-source an
+# EnvironmentFile, but it DOES set every KEY=VALUE it finds into those daemons'
+# environment — including PATH= and LD_PRELOAD= — and those daemons shell out
+# constantly. So anyone who can write that file, or replace it, has root code
+# execution.
+#
+# It used to live inside /etc/qmanager and was pinned root:root 0644 by a
+# carve-out in install_backend(). That did not work, for two independent
+# reasons, both confirmed on live hardware:
+#
+#   1. Unlinking or replacing a file requires write permission on its PARENT
+#      DIRECTORY, not on the file. /etc/qmanager is owned by www-data (the CGI
+#      genuinely writes auth.json, profiles/, ping_profile.json, sim_registry
+#      .json and the *_alerts.json blobs there), and mode 0755 grants the OWNER
+#      rwx. So www-data could unlink the pinned file and drop in its own,
+#      whatever the file's mode said. Verified: `sudo -u www-data` could both
+#      create and unlink in that directory.
+#   2. qmanager_setup runs `chown -R www-data:www-data /etc/qmanager` on EVERY
+#      boot with no exclusion list, so the install-time pin survived exactly
+#      one boot cycle. Fielded devices were found with the file sitting
+#      www-data:www-data — directly writable, no unlink trick even needed.
+#
+# Neither is fixable while the file lives in that directory, because the
+# directory must stay www-data-writable for the CGI to work. A root-owned
+# SUBdirectory would not help either: www-data owns the parent, so it could
+# rename the subdirectory out of the way. Nor would the sticky bit (+t), whose
+# exemption covers "root, the directory's owner, or the file's owner" — and
+# www-data IS the directory's owner.
+#
+# /etc is root:root 0755 and unwritable by www-data (verified live), so
+# /etc/qmanager.env is genuinely out of reach. Moving the file also makes
+# qmanager_setup's blanket chown harmless for it, which removes the lockstep
+# hazard rather than adding another carve-out to keep in sync.
+#
+# ORDERING — this must run AFTER migrate_ping_environment() and
+# prune_stale_ping_environment(). Both of those open with
+# `env_file=/etc/qmanager/environment; [ -f "$env_file" ] || return 0` and are
+# deliberately left pointing at the OLD path. If this relocation ran first, a
+# device still carrying the pre-v0.1.9 cycle-count format (FAIL_THRESHOLD=3
+# rather than FAIL_SECS=15) would move the unconverted file out from under
+# them, both would find nothing, return 0, and that device would never get its
+# conversion — not on this OTA and not on any future one. Running last lets
+# them finish their one-time historical work first. After the first successful
+# relocation the old path stays empty forever, so both become permanent
+# no-ops; that is expected, not a bug.
+#
+# Idempotent, and never aborts the installer: this file runs under `set -e` and
+# this function is called bare from install_backend(), so every failure path
+# warns and returns 0. The original is removed only after the copy AND the
+# rename have both succeeded — a failure leaves the old file exactly where it
+# was, still readable by the daemons, rather than losing the operator's
+# overrides.
+migrate_environment_location() {
+    local src="/etc/qmanager/environment"
+    local dst="/etc/qmanager.env"
+    local tmp
+
+    [ -f "$src" ] || return 0
+
+    # Guard the pathological case BEFORE anything else touches $src. Nothing in
+    # this tree ever creates a directory at $dst, but if one existed the two
+    # obvious codings both destroy data: `[ -e ]` would treat it as "already
+    # migrated" and delete the original outright, while falling through would
+    # be worse still — `mv file dir` does not fail, it moves the file INSIDE
+    # the directory, where nothing reads it, and then we would delete the
+    # original believing the rename succeeded. Bail out and keep $src instead.
+    if [ -d "$dst" ]; then
+        echo "  WARNING: $dst exists and is a directory — skipping relocation, leaving $src in place" >&2
+        return 0
+    fi
+
+    if [ -f "$dst" ]; then
+        # Already relocated on an earlier run. Drop the stale original so no
+        # later reader — and no downgraded unit file — can pick up the
+        # abandoned copy, and so www-data stops owning a writable leftover.
+        rm -f "$src" 2>/dev/null || true
+        return 0
+    fi
+
+    echo "  Relocating $src -> $dst (security: out of the www-data-owned dir) ..."
+
+    # Temp file in the DESTINATION directory, /etc. Confirmed live: /etc and
+    # /etc/qmanager are the same UBIFS volume (/dev/ubi2_0, the same one as
+    # /usrdata), so `mv` between them is a true rename(2) and stays atomic. A
+    # bare mktemp would land in /tmp, which is tmpfs — a different filesystem,
+    # where mv silently degrades to copy+unlink and a power loss mid-write can
+    # leave a torn EnvironmentFile.
+    tmp=$(mktemp /etc/.qmanager.env.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for environment relocation — skipping" >&2
+        return 0
+    }
+
+    if cat "$src" > "$tmp" 2>/dev/null; then
+        # Mode AND owner BEFORE the rename: BusyBox mktemp creates 0600 and mv
+        # carries both mode and owner across, so setting them afterwards leaves
+        # a window at the wrong values. root:root is the whole point here; 0644
+        # is all any consumer needs, and nothing but root ever writes it.
+        #
+        # Both are `|| true` rather than bare. Under `set -e` a bare failure
+        # here would abort the whole in-flight OTA — with services already
+        # stopped — which is precisely what this function's header promises it
+        # will never do. Degrading instead is safe: a chmod failure leaves the
+        # file 0600 root:root, and systemd reads an EnvironmentFile as root, so
+        # the daemons still get their overrides.
+        chmod 644 "$tmp" 2>/dev/null || true
+        chown root:root "$tmp" 2>/dev/null || true
+        # The rename is guarded for the same reason, and the original is
+        # removed ONLY if it succeeded — otherwise the operator's overrides
+        # would be lost with nothing installed in their place.
+        if mv "$tmp" "$dst"; then
+            rm -f "$src" 2>/dev/null || true
+            echo "  Relocated daemon environment to $dst (root:root 0644)"
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            echo "  WARNING: failed to install $dst — leaving $src in place" >&2
+        fi
+    else
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: failed to copy $src — leaving original in place" >&2
+    fi
+}
+
+# --- Relocate the auth-backup store out of /etc/qmanager ---------------------
+
+# SECURITY (F22). Moves /etc/qmanager/backups/* -> /etc/qmanager-backups/.
+#
+# That store holds timestamped auth.json snapshots — the QManager login
+# password, one per install/OTA run, newest 5 kept. It is the third and last
+# thing to leave /etc/qmanager for the reasons migrate_environment_location()
+# spells out in full above and migrate_alert_secrets() repeats below: www-data
+# OWNS /etc/qmanager, unlink/rename permission comes from the parent directory
+# rather than the entry, and qmanager_setup:177 chowns the whole tree to
+# www-data on every boot with no exclusion list. So no per-file owner or mode
+# inside that directory means anything, and an exclusion list is not the fix —
+# qmanager_setup:144-156 forbids that pattern in its own comment, because it
+# addresses the boot-time sweep while leaving the parent-directory rule
+# untouched, and the parent-directory rule alone is sufficient.
+#
+# F15 had already raised this directory from a bare `mkdir -p` (measured 0777
+# on both shipped devices) to `install -d -o root -g root -m 0700`. That was a
+# real improvement — it removed every OTHER local uid — but it could not make
+# the directory root-only while it lived inside the swept tree. Relocation is
+# what makes F15's mode pin mean what it says.
+#
+# WHY THIS IS NOT A COPY OF THE TWO FUNCTIONS AROUND IT
+# -----------------------------------------------------
+# Both of those move a single FILE. This moves a DIRECTORY OF N FILES into a
+# destination that ALREADY EXISTS on essentially every run, and two codings
+# that are correct for one file are actively wrong here:
+#
+#   - No directory-level `mv "$src" "$dst"`. BusyBox `mv dir dir` does not
+#     fail when the destination exists — it NESTS the source inside it. The
+#     destination is created by backup_originals() on every run, so a bare mv
+#     would bury every snapshot at $BACKUP_DIR/backups/, one level below the
+#     prune loop's `ls -1 "$BACKUP_DIR"/auth.json.*` glob, orphaned on flash
+#     forever. Hence the per-file copy loop below.
+#   - No `[ -e "$dst" ] && return` completion check, for the same reason: the
+#     destination's existence carries no information about whether this
+#     migration has run. The gate keys on the OLD path instead, which is the
+#     only signal that actually means "there is still work to do".
+#
+# ORDERING — this must run BEFORE backup_originals(), and OUTSIDE the
+# `if [ "$DO_FRONTEND" = "1" ]` block that guards it in main(). Two separate
+# reasons, both load-bearing:
+#
+#   1. backup_originals() creates the store, copies in the fresh snapshot AND
+#      prunes to the newest 5, all in one call. Running this migration after
+#      that — e.g. from install_backend()'s migration block, where the two
+#      sibling relocations live and where this one would naturally be filed —
+#      delivers the legacy snapshots after the prune has already happened,
+#      leaving up to 10 files with no further prune pass until the NEXT OTA.
+#      Running first lets the existing prune operate over the merged set once,
+#      correctly.
+#   2. backup_originals() is gated on DO_FRONTEND. A `--backend-only` run
+#      would therefore never migrate — leaving the password snapshots sitting
+#      in the swept directory on exactly the devices an operator was
+#      repairing. So the call site is unconditional, and this function creates
+#      the destination itself rather than depending on backup_originals having
+#      already done so.
+#
+#      KNOWN, ACCEPTED CONSEQUENCE of that same asymmetry: on a
+#      `--backend-only` run this migration executes but backup_originals — and
+#      therefore the prune-to-5 — does not. A device whose legacy store held
+#      more than 5 snapshots (one predating the prune logic, or one that has
+#      not had a frontend-inclusive install since) can sit above the retention
+#      cap until the next ordinary run. That is not a regression: those files
+#      were already unpruned in the old location, they are merely unpruned in
+#      a safer one now, and the next non-backend-only run prunes the merged
+#      set correctly. Deliberately not worth gating the security fix on.
+#
+# Idempotent, and never aborts the installer: this file runs under `set -e`,
+# the call site is bare in main() with services already stopped, so every
+# failure path warns and returns 0. Each original is unlinked only after its
+# own copy has succeeded — a partial failure leaves the remaining snapshots
+# where they were rather than losing them.
+migrate_backup_location() {
+    local src="/etc/qmanager/backups"
+    local dst="$BACKUP_DIR"
+    local migrated=0
+    local skipped=0
+    local failed=0
+    local f base
+
+    # Gate on the OLD path only — never on the destination, which exists on
+    # essentially every run. Once the old path is gone this is a permanent
+    # no-op, which is expected rather than a bug.
+    #
+    # The literal is spelled out again rather than reusing $src so the
+    # regression harness can anchor this gate by text: substituting a
+    # destination-existence check here is the specific defect it pins.
+    [ -d "/etc/qmanager/backups" ] || return 0
+
+    # Refuse to migrate onto ourselves. Nothing sets $BACKUP_DIR back to the
+    # old path, but a bad edit that did would otherwise make the loop below
+    # copy each file onto itself and then unlink it — deleting the store.
+    if [ "$src" = "$dst" ]; then
+        echo "  WARNING: \$BACKUP_DIR is still $src — skipping relocation" >&2
+        return 0
+    fi
+
+    echo "  Relocating $src -> $dst (security: out of the www-data-owned dir) ..."
+
+    # Create the destination ourselves; see ORDERING note 2 above. Same flags
+    # as backup_originals() so a --backend-only run gets the same mode.
+    if [ ! -d "$dst" ]; then
+        install -d -o root -g root -m 0700 "$dst" 2>/dev/null || {
+            echo "  WARNING: could not create $dst — leaving $src in place" >&2
+            return 0
+        }
+    fi
+
+    for f in "$src"/*; do
+        # Literal glob when the directory is empty — nothing matched.
+        [ -e "$f" ] || continue
+        [ -f "$f" ] || continue
+        # Parameter expansion, NOT $(basename "$f"). A command substitution is
+        # the one construct in this loop whose non-zero exit is unguarded, so
+        # under `set -e` a basename failure would abort the installer mid-loop
+        # instead of warning and returning like every other path here. `${f##*/}`
+        # cannot fail, and forks no process per file.
+        base=${f##*/}
+
+        # Collision: keep what is already at the destination, discard ours.
+        #
+        # This is not the "two different snapshots happened to share a
+        # timestamp" case — that cannot occur. Once this fix ships, NOTHING
+        # writes to the old path again (backup_originals always targets
+        # $BACKUP_DIR, which is now the new path), so the source directory is
+        # frozen. A same-name collision therefore means only one thing: an
+        # earlier run already copied this file successfully and its trailing
+        # `rm -f` did not take effect. Source and destination are byte-identical
+        # in every reachable collision, so discarding the source costs nothing.
+        #
+        # The direction is also the safe one on its own merits: this function
+        # runs BEFORE backup_originals takes today's snapshot, so anything
+        # already at the destination is at least as current as what we carry.
+        if [ -e "$dst/$base" ]; then
+            echo "  WARNING: $dst/$base already exists — keeping it, discarding the copy at $src" >&2
+            rm -f "$f" 2>/dev/null || true
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        # Copy-then-verify-then-unlink, one file at a time. `cp -p` preserves
+        # the 0600 the snapshots already carry; the chown is belt-and-braces
+        # for the case where the source file had drifted to www-data (which is
+        # the normal state on every fielded device — that is the whole bug).
+        if cp -p "$f" "$dst/$base" 2>/dev/null; then
+            chown root:root "$dst/$base" 2>/dev/null || true
+            rm -f "$f" 2>/dev/null || true
+            migrated=$((migrated + 1))
+        else
+            rm -f "$dst/$base" 2>/dev/null || true
+            failed=$((failed + 1))
+        fi
+    done
+
+    if [ "$failed" -gt 0 ]; then
+        echo "  WARNING: $failed snapshot(s) could not be copied — left in $src" >&2
+    fi
+
+    # Best-effort. Fails harmlessly and by design if anything is left behind,
+    # which is exactly the case where we want the old directory kept.
+    rmdir "$src" 2>/dev/null || true
+
+    if [ -d "$src" ]; then
+        echo "  Relocated $migrated snapshot(s) to $dst; $src kept (not empty)"
+    else
+        echo "  Relocated $migrated snapshot(s) to $dst (root:root 0700), removed $src"
+    fi
+    # A full `if` rather than `[ cond ] && echo`. Under `set -e` the AND-list
+    # form evaluates to 1 when the condition is false, and errexit DOES apply
+    # to the list as a whole — so the common `[ x ] && echo` idiom placed
+    # mid-function aborts the installer on the ordinary path where nothing was
+    # skipped. Exactly the failure this function's header promises never to
+    # cause.
+    if [ "$skipped" -gt 0 ]; then
+        echo "  Discarded $skipped stale duplicate(s)"
+    fi
+
+    return 0
+}
+
+# --- Relocate alert secrets out of the www-data-owned config dir -------------
+
+# WHY THIS EXISTS — the same story as migrate_environment_location() above, one
+# directory over.
+#
+# /etc/qmanager/discord_bot.json shipped mode 0644 with a LIVE Discord bot token
+# stored as a plain JSON string, and /etc/qmanager/email_alerts.json did the same
+# with the operator's Gmail app password. /etc/qmanager/msmtprc held that
+# password a second time. Two independent problems:
+#
+#   1. World-readable. 0644 means every local account — the web console shell,
+#      any Entware daemon, anything that gets a shell through a CGI bug — can
+#      read a bot token that controls the operator's Discord bot, and an app
+#      password that is full IMAP/SMTP access to their Google account.
+#   2. www-data-writable. www-data OWNS /etc/qmanager, and directory write
+#      permission governs unlink/rename of entries, so no per-file mode or
+#      ownership pin inside it means anything. qmanager_setup then runs a bare
+#      `chown -R www-data:www-data /etc/qmanager` on EVERY boot, so even a
+#      root:root pin only survives until the next reboot.
+#
+# Neither is fixable in place, for exactly the reasons spelled out in
+# migrate_environment_location(): the directory has to stay www-data-writable
+# for the CGI to work, a root-owned SUBdirectory is renameable by the parent's
+# owner, and the sticky bit exempts the directory's owner — which is www-data.
+# So the fix is relocation to /etc/qmanager-secrets (0700 root:root, a SIBLING
+# of /etc/qmanager under root-owned /etc), with www-data writing values only
+# through the qmanager_secret_set sudoers grant.
+#
+# THE del() IS THE WHOLE FIX. /etc/qmanager is the additive-only bucket —
+# nothing in this tree ever prunes stale keys out of a config there. Copying the
+# secret to the new store and leaving the key behind would make the entire
+# change cosmetic: the plaintext would sit world-readable in the old file
+# forever. The JSON is therefore rewritten with `del(.bot_token)` /
+# `del(.app_password)`, and a non-secret boolean marker (`token_set` /
+# `app_password_set`) is written in its place so the CGI's GET can still tell
+# the UI whether a secret is configured without ever handling the value.
+#
+# ORDERING — this runs LAST in install_backend's migration block, after
+# migrate_environment_location() and the sidecar migrations. Nothing else reads
+# or writes these two keys during install, so there is no dependency in either
+# direction; running last simply keeps the "historical one-time conversions
+# first, relocations after" shape the block already has. It DOES depend on
+# $SECRETS_DIR existing, which install_backend creates far earlier in the same
+# function.
+#
+# Idempotent, and a permanent no-op after the first success: once the secret key
+# is gone from the JSON there is nothing left to extract, and once msmtprc is at
+# the new path the old one no longer exists. Never aborts the installer — this
+# file runs under `set -e` and this function is called bare from
+# install_backend(), so an unguarded failure would kill an in-flight OTA with
+# services already stopped. Every failure path warns and returns 0, and every
+# command substitution carries a `|| var=default`.
+migrate_alert_secrets() {
+    if [ ! -d "$SECRETS_DIR" ]; then
+        echo "  WARNING: $SECRETS_DIR missing — skipping alert secret relocation" >&2
+        return 0
+    fi
+
+    _migrate_one_secret "$CONF_DIR/discord_bot.json"  bot_token     token_set        discord_bot_token
+    _migrate_one_secret "$CONF_DIR/email_alerts.json" app_password  app_password_set email_app_password
+    _migrate_msmtprc
+}
+
+# _migrate_one_secret <config.json> <secret_key> <marker_key> <secret_filename>
+#
+# Extract $secret_key out of the JSON into $SECRETS_DIR/$secret_filename, then
+# rewrite the JSON without it and with $marker_key set to a boolean. If there is
+# no secret to move, still ensure $marker_key exists so the CGI's GET has a
+# defined value rather than `null` (a `null` would render the UI's "configured"
+# state as neither true nor false).
+_migrate_one_secret() {
+    local cfg="$1" key="$2" marker="$3" fname="$4"
+    local dst="$SECRETS_DIR/$fname"
+    local val tmp
+
+    [ -f "$cfg" ] || return 0
+
+    # Guarded: corrupt JSON makes jq exit non-zero, and a bare command
+    # substitution under `set -e` would abort the OTA right here.
+    val=$(jq -r --arg k "$key" '.[$k] // ""' "$cfg" 2>/dev/null) || val=""
+
+    if [ -n "$val" ] && [ "$val" != "null" ]; then
+        # Guard the pathological case BEFORE touching anything. `mv file dir`
+        # does NOT fail — it moves the file INSIDE the directory — so falling
+        # through would leave the secret somewhere nothing reads while we
+        # happily deleted the key from the JSON, destroying the only copy.
+        if [ -d "$dst" ]; then
+            echo "  WARNING: $dst is a directory — skipping $key relocation" >&2
+            return 0
+        fi
+
+        # Temp file in the DESTINATION directory. /etc, /etc/qmanager and
+        # /etc/qmanager-secrets are all the same UBIFS volume (/dev/ubi2_0), so
+        # `mv` between them is a true atomic rename(2). A bare `mktemp` lands in
+        # /tmp, which is tmpfs — a DIFFERENT filesystem, where mv silently
+        # degrades to copy+unlink and a power cut can tear the file.
+        tmp=$(mktemp "$SECRETS_DIR/.secret.XXXXXX" 2>/dev/null) || {
+            echo "  WARNING: failed to create temp file in $SECRETS_DIR — skipping $key" >&2
+            return 0
+        }
+
+        # printf '%s' (no trailing newline) — the contract is a raw value, and a
+        # stray \n would be sent verbatim as part of the Discord Authorization
+        # header / SMTP password.
+        if printf '%s' "$val" > "$tmp" 2>/dev/null; then
+            # Mode AND owner BEFORE the rename: mv carries both across, so
+            # setting them afterwards leaves a window at the wrong values. Both
+            # are `|| true` — a bare failure here would abort the OTA, and this
+            # function promises it never does. BusyBox mktemp already creates
+            # 0600, and we run as root, so the degraded state is still correct.
+            chmod 600 "$tmp" 2>/dev/null || true
+            chown root:root "$tmp" 2>/dev/null || true
+            if mv "$tmp" "$dst" 2>/dev/null; then
+                # Only NOW is it safe to drop the key: the secret is durably at
+                # its new home. Rewriting the JSON first and failing the move
+                # would lose the operator's token outright.
+                _strip_secret_key "$cfg" "$key" "$marker" true
+            else
+                rm -f "$tmp" 2>/dev/null || true
+                echo "  WARNING: failed to install $dst — leaving $key in $cfg" >&2
+            fi
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            echo "  WARNING: failed to write $dst — leaving $key in $cfg" >&2
+        fi
+        return 0
+    fi
+
+    # No secret in the config. Two sub-cases: the key is present but empty (drop
+    # it — an empty string is still a key the new readers must not see), or it
+    # was never there. Either way the marker must end up defined. Its value
+    # depends on whether a secret file already exists at the new path, so a
+    # device that migrated on an earlier OTA does not get its marker reset to
+    # false and prompt the user to re-enter a secret that is in fact configured.
+    local have=false
+    [ -s "$dst" ] && have=true
+
+    local marker_now
+    marker_now=$(jq -r --arg m "$marker" '.[$m] // "absent"' "$cfg" 2>/dev/null) || marker_now="absent"
+
+    local key_present
+    key_present=$(jq -r --arg k "$key" 'has($k)' "$cfg" 2>/dev/null) || key_present="false"
+
+    if [ "$marker_now" = "absent" ] || [ "$key_present" = "true" ]; then
+        _strip_secret_key "$cfg" "$key" "$marker" "$have"
+    fi
+    return 0
+}
+
+# _strip_secret_key <config.json> <secret_key> <marker_key> <true|false>
+#
+# Atomically rewrite the JSON with the secret key DELETED and the marker set.
+# Ownership/mode are deliberately re-applied from the ORIGINAL file rather than
+# pinned: this file stays www-data-owned 0644 (it holds no secret any more) and
+# the CGI must keep being able to write it.
+_strip_secret_key() {
+    local cfg="$1" key="$2" marker="$3" val="$4"
+    local tmp
+
+    # SECURITY: mktemp, never a predictable "${cfg}.something.$$" name.
+    #
+    # $cfg lives in $CONF_DIR, which www-data OWNS. A shell `>` redirect
+    # FOLLOWS SYMLINKS, so a predictable temp name lets an already-compromised
+    # www-data pre-plant that path as a symlink to any root-owned file
+    # (/etc/sudoers.d/qmanager, a systemd unit, /etc/shadow) and have root's jq
+    # below truncate and overwrite the target — an arbitrary-root-write
+    # primitive reachable on every OTA. mktemp creates with O_EXCL, so it FAILS
+    # on a pre-planted path instead of following it. This is why every other
+    # migration in this file uses mktemp inside the destination directory; the
+    # `mv` further down is already safe, because rename(2) does not follow
+    # symlinks the way redirection does.
+    tmp=$(mktemp "${CONF_DIR}/.qmsecret.XXXXXX" 2>/dev/null) || {
+        echo "  WARNING: could not create temp file for $cfg — $key NOT removed" >&2
+        return 0
+    }
+
+    if ! jq --arg k "$key" --arg m "$marker" --argjson v "$val" \
+            'del(.[$k]) | .[$m] = $v' "$cfg" > "$tmp" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: could not rewrite $cfg (invalid JSON?) — $key NOT removed" >&2
+        return 0
+    fi
+
+    # Refuse to install an empty result. A jq that wrote nothing but still
+    # exited 0 (disk full mid-write) would otherwise truncate the config.
+    if [ ! -s "$tmp" ]; then
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: rewrite of $cfg produced an empty file — leaving original" >&2
+        return 0
+    fi
+
+    chmod 644 "$tmp" 2>/dev/null || true
+    chown www-data:www-data "$tmp" 2>/dev/null || true
+    if mv "$tmp" "$cfg" 2>/dev/null; then
+        echo "  Removed $key from $cfg (now $marker=$val)"
+    else
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: failed to replace $cfg — $key NOT removed" >&2
+    fi
+    return 0
+}
+
+# Relocate the msmtp config, which contains the SMTP password in cleartext by
+# construction (msmtp has no other way to supply it non-interactively).
+_migrate_msmtprc() {
+    local src="$CONF_DIR/msmtprc"
+    local dst="$SECRETS_DIR/msmtprc"
+    local tmp
+
+    [ -f "$src" ] || return 0
+
+    # Same `mv file dir` trap as above — bail rather than scatter the file.
+    if [ -d "$dst" ]; then
+        echo "  WARNING: $dst is a directory — leaving $src in place" >&2
+        return 0
+    fi
+
+    if [ -f "$dst" ]; then
+        # Already relocated on an earlier run. Drop the stale original so the
+        # cleartext password stops sitting in a world-readable, www-data-owned
+        # directory, and so no downgraded reader picks up the abandoned copy.
+        rm -f "$src" 2>/dev/null || true
+        return 0
+    fi
+
+    tmp=$(mktemp "$SECRETS_DIR/.msmtprc.XXXXXX" 2>/dev/null) || {
+        echo "  WARNING: failed to create temp file in $SECRETS_DIR — leaving $src in place" >&2
+        return 0
+    }
+
+    if cat "$src" > "$tmp" 2>/dev/null; then
+        chmod 600 "$tmp" 2>/dev/null || true
+        chown root:root "$tmp" 2>/dev/null || true
+        # The original is removed ONLY after the destination is confirmed in
+        # place — msmtp refuses to run with no config at all, so losing it
+        # would silently break every email alert.
+        if mv "$tmp" "$dst" 2>/dev/null; then
+            rm -f "$src" 2>/dev/null || true
+            echo "  Relocated msmtprc to $dst (root:root 0600)"
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            echo "  WARNING: failed to install $dst — leaving $src in place" >&2
+        fi
+    else
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: failed to copy $src — leaving original in place" >&2
+    fi
+    return 0
 }
 
 # --- Cleanup Legacy Scripts --------------------------------------------------
@@ -1412,6 +3593,12 @@ cleanup_legacy_scripts() {
     step "Cleaning up legacy scripts"
 
     local removed=0
+
+    # qcmd_test was the atcli smoke test; retired with the qcmd cut-over.
+    if [ -f "$BIN_DIR/qcmd_test" ]; then
+        rm -f "$BIN_DIR/qcmd_test" || warn "Could not remove $BIN_DIR/qcmd_test"
+        removed=$(( removed + 1 ))
+    fi
 
     # /usr/bin/qmanager_* — remove if not in source (scripts/usr/bin/) AND not bundled in dependencies/
     for installed in "$BIN_DIR"/qmanager_*; do
@@ -1521,10 +3708,17 @@ install_udev_rules() {
         return 0
     fi
 
-    # Remount rootfs rw — /etc and /usr/lib live on the read-only root.
+    # Remount rootfs rw — /usr/lib lives on the read-only root (ubi0). NOT /etc:
+    # that is a bind mount of ubi2_0 and is always rw, so this call does nothing
+    # for the /etc/udev write below. Left rw afterwards, per the tree-wide
+    # "remount rw once, never restore ro" convention. See docs/BACKEND.md.
     mount -o remount,rw / 2>/dev/null || true
 
-    mkdir -p /etc/udev/rules.d /usr/lib/qmanager
+    mkdir -p /etc/udev/rules.d
+    # 0755 explicitly — see the SECURITY note in install_backend(); root helpers
+    # source libs from here, so this dir must never be world-writable no matter
+    # which of the two creation sites happens to run first.
+    install -d -o root -g root -m 0755 /usr/lib/qmanager
 
     # Strip any third-party smd11 entries from vendor files first, so our rule
     # is the only one firing on smd11 add events (no race for ownership).
@@ -1570,6 +3764,50 @@ install_udev_rules() {
     fi
 }
 
+# --- Config-gated service symlink (UCI_GATED_SERVICES) -----------------------
+
+# jq's `// false` can't tell "explicitly off" from "unreadable" — map by hand
+# so a failed read leaves the existing symlink alone instead of disabling it.
+_apply_gated_symlink() {
+    local _file="$1" _key="$2" _unit="$3" _label="$4"
+    local _link="$WANTS_DIR/${_unit}.service"
+    local _raw
+
+    if [ ! -f "$_file" ]; then
+        [ -L "$_link" ] && warn "$_file missing — leaving $_label symlink untouched"
+        return 0
+    fi
+
+    # The assignment must live INSIDE the if-condition: a bare
+    # `_raw=$(jq ...)` statement is not exempt from `set -e` and a jq parse
+    # failure would abort the whole installer right here.
+    if ! _raw=$(jq -r "${_key} | if . == null then \"unset\" else . end" "$_file" 2>/dev/null) || [ -z "$_raw" ]; then
+        [ -L "$_link" ] && warn "Could not parse $_file — leaving $_label symlink untouched"
+        return 0
+    fi
+
+    case "$_raw" in
+        true|1)
+            ln -sf "$SYSTEMD_DIR/${_unit}.service" "$_link"
+            info "$_label enabled"
+            ;;
+        false|0)
+            rm -f "$_link"
+            info "$_label disabled"
+            ;;
+        *)
+            # "unset" (key absent) lands here too — an absent key is not the
+            # same claim as an explicit false.
+            [ -L "$_link" ] && warn "$_file has no definite setting for $_key — leaving $_label symlink untouched"
+            ;;
+    esac
+
+    # This function must never return non-zero: its call sites are bare
+    # statements under `set -e`, and a failed cosmetic [ -L ]/warn above must
+    # not abort the installer.
+    return 0
+}
+
 # --- Enable Services ---------------------------------------------------------
 
 enable_services() {
@@ -1593,14 +3831,23 @@ enable_services() {
         info "Enabled lighttpd"
     fi
 
-    # Capture pre-install symlink state for gated services so we can restore
-    # the same enabled/disabled state rather than force-enabling them.
-    local gated_was_enabled=""
-    for svc in $UCI_GATED_SERVICES; do
-        if [ -L "$WANTS_DIR/${svc}.service" ]; then
-            gated_was_enabled="$gated_was_enabled $svc"
-        fi
-    done
+    # Ensure opt.mount is properly enabled. It is written with
+    # WantedBy=multi-user.target but was never symlinked into wants/, so /opt
+    # ended up mounted by start-opt-mount.service's `systemctl start opt.mount`
+    # wrapper instead — a oneshot that self-deadlocks on systemd's job queue
+    # and burns ~3.7s before /opt appears, which is what ate the margin behind
+    # the lighttpd boot race (see neutralize_entware_lighttpd). The [ -f ]
+    # guard is required: opt.mount is only written in the bootstrap branch, so
+    # a device that already had Entware before QManager never gets the file
+    # and the symlink would dangle. start-opt-mount.service is intentionally
+    # left in place as a fallback — do not remove it.
+    if [ -f "$SYSTEMD_DIR/opt.mount" ]; then
+        ln -sf "$SYSTEMD_DIR/opt.mount" "$WANTS_DIR/opt.mount"
+        info "Enabled opt.mount"
+    fi
+
+    # UCI_GATED_SERVICES are config-driven (see _apply_gated_symlink below),
+    # not symlink-state-gated — nothing to capture before this run.
 
     # Scan all installed qmanager units and enable/skip based on gating
     for unit in "$SYSTEMD_DIR"/qmanager-*.service; do
@@ -1622,6 +3869,11 @@ enable_services() {
         # gate here beyond skipping the boot-symlink for the .service itself.
         [ "$svc" = "qmanager-scenario-schedule" ] && continue
 
+        # The broker is boot-linked only where qcmd is its client (RM520N, RG501Q).
+        if [ "$svc" = "qmanager-atd" ] && ! _atd_on; then
+            continue
+        fi
+
         # qmanager-scheduled-reboot.service / qmanager-tower-schedule-apply.service /
         # qmanager-tower-schedule-clear.service are the same shape: no
         # [Install] section, started only by their runtime-armed .timer
@@ -1642,24 +3894,13 @@ enable_services() {
         done
 
         if [ "$is_gated" = "1" ]; then
-            # Only re-enable if it was already enabled before this run
-            local was_on=0
-            for w in $gated_was_enabled; do
-                if [ "$w" = "$svc" ]; then
-                    was_on=1
-                    break
-                fi
-            done
-            if [ "$was_on" = "1" ]; then
-                ln -sf "$unit" "$WANTS_DIR/${svc}.service"
-                info "Re-enabled $svc (was previously enabled)"
-            else
-                info "Skipped $svc (enable manually if needed)"
-            fi
-        else
-            ln -sf "$unit" "$WANTS_DIR/${svc}.service"
-            info "Enabled $svc"
+            # Owned entirely by _apply_gated_symlink below — this loop must
+            # not touch its symlink either way.
+            continue
         fi
+
+        ln -sf "$unit" "$WANTS_DIR/${svc}.service"
+        info "Enabled $svc"
     done
 
     # --- Auto-update timer (config-gated, NOT symlink-state-gated) ------------
@@ -1675,7 +3916,7 @@ enable_services() {
     command -v qm_config_get >/dev/null 2>&1 || . "$LIB_DIR/config.sh"
 
     if [ -f "$SYSTEMD_DIR/qmanager-auto-update.timer" ]; then
-        _auto_update_enabled=$(qm_config_get update auto_update_enabled 0 2>/dev/null)
+        _auto_update_enabled=$(qm_config_get update auto_update_enabled 0 2>/dev/null) || _auto_update_enabled=0
         if [ "$_auto_update_enabled" = "1" ]; then
             ln -sf "$SYSTEMD_DIR/qmanager-auto-update.timer" "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
             info "Auto-update timer enabled (update.auto_update_enabled=1)"
@@ -1684,6 +3925,17 @@ enable_services() {
             rm -f "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
             info "Auto-update timer not enabled (opt in via System Settings → Software Update)"
         fi
+    fi
+
+    # --- Traffic Engine ensure timer (unconditionally armed, payload self-gates)
+    # The qmanager-dpi-ensure.timer re-asserts the REDIRECT rule every 60s
+    # (QCMAP flushes iptables on re-dial). Unlike auto-update there is no
+    # config to gate on: the oneshot payload (qmanager_dpi_run --ensure)
+    # self-gates — it exits 0 doing nothing when the engine is disabled. So
+    # the timer is always armed here, unconditionally (additive ln -sf only).
+    if [ -f "$SYSTEMD_DIR/qmanager-dpi-ensure.timer" ]; then
+        ln -sf "$SYSTEMD_DIR/qmanager-dpi-ensure.timer" "$TIMERS_WANTS_DIR/qmanager-dpi-ensure.timer"
+        info "Traffic Engine ensure timer enabled"
     fi
 
     # --- Scheduled Reboot / Tower Lock schedule timers (config-driven re-arm) --
@@ -1702,10 +3954,10 @@ enable_services() {
     # this installer already runs as root — mirrors scenario_mgr.sh's
     # scenario_install_schedule "already root" branch.
     if [ -x "$BIN_DIR/qmanager_scheduled_reboot_arm" ]; then
-        _sched_enabled=$(qm_config_get settings sched_reboot_enabled 0 2>/dev/null)
+        _sched_enabled=$(qm_config_get settings sched_reboot_enabled 0 2>/dev/null) || _sched_enabled=0
         if [ "$_sched_enabled" = "1" ]; then
-            _sched_time=$(qm_config_get settings sched_reboot_time "04:00" 2>/dev/null)
-            _sched_days=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6" 2>/dev/null)
+            _sched_time=$(qm_config_get settings sched_reboot_time "04:00" 2>/dev/null) || _sched_time="04:00"
+            _sched_days=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6" 2>/dev/null) || _sched_days="0,1,2,3,4,5,6"
             "$BIN_DIR/qmanager_scheduled_reboot_arm" install "$_sched_time" "$_sched_days" >/dev/null 2>&1 \
                 && info "Scheduled reboot timer re-armed (${_sched_time}, days=${_sched_days})" \
                 || warn "Scheduled reboot timer re-arm failed (non-fatal)"
@@ -1715,11 +3967,11 @@ enable_services() {
     fi
 
     if [ -x "$BIN_DIR/qmanager_tower_schedule_arm" ] && [ -f /etc/qmanager/tower_lock.json ]; then
-        _tower_enabled=$(jq -r '.schedule.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null)
+        _tower_enabled=$(jq -r '.schedule.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_enabled=false
         if [ "$_tower_enabled" = "true" ]; then
-            _tower_start=$(jq -r '.schedule.start_time // "08:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
-            _tower_end=$(jq -r '.schedule.end_time // "22:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
-            _tower_days=$(jq -r '.schedule.days // [1,2,3,4,5] | join(",")' /etc/qmanager/tower_lock.json 2>/dev/null)
+            _tower_start=$(jq -r '.schedule.start_time // "08:00"' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_start="08:00"
+            _tower_end=$(jq -r '.schedule.end_time // "22:00"' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_end="22:00"
+            _tower_days=$(jq -r '.schedule.days // [1,2,3,4,5] | join(",")' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_days="1,2,3,4,5"
             "$BIN_DIR/qmanager_tower_schedule_arm" install "$_tower_start" "$_tower_end" "$_tower_days" >/dev/null 2>&1 \
                 && info "Tower lock schedule timers re-armed (apply ${_tower_start}, clear ${_tower_end}, days=${_tower_days})" \
                 || warn "Tower lock schedule timer re-arm failed (non-fatal)"
@@ -1728,13 +3980,28 @@ enable_services() {
         fi
     fi
 
-    # --- Discord bot (gated on binary + config + enabled flag) ----------------
-    if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
-        enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null)
-        if [ "$enabled" = "true" ]; then
-            ln -sf "$SYSTEMD_DIR/qmanager-discord.service" "$WANTS_DIR/qmanager-discord.service"
-            info "Discord bot service enabled"
-        fi
+    # --- Discord / Watchcat / Tower Failover / SMS Forward (config-gated) -----
+    # All four UCI_GATED_SERVICES now go through _apply_gated_symlink, which
+    # is symmetric (enables AND disables) — see its doc-comment for why a
+    # failed config read must never be read as "disabled".
+    if [ -x "$BIN_DIR/qmanager_discord" ]; then
+        _apply_gated_symlink /etc/qmanager/discord_bot.json '.enabled' qmanager-discord "Discord bot service"
+    fi
+
+    # watchcat: /etc/qmanager/qmanager.conf is JSON despite the .conf name.
+    if [ -x "$BIN_DIR/qmanager_watchcat" ]; then
+        _apply_gated_symlink /etc/qmanager/qmanager.conf '.watchcat.enabled' qmanager-watchcat "Watchdog service"
+    fi
+
+    if [ -x "$BIN_DIR/qmanager_tower_failover" ]; then
+        _apply_gated_symlink /etc/qmanager/tower_lock.json '.failover.enabled' qmanager-tower-failover "Tower failover service"
+    fi
+
+    # sms_forwarding.json is lazy-created by cellular/sms_forwarding.sh's own
+    # tmp+mv on first save — a never-configured device simply has no file
+    # here yet, which _apply_gated_symlink already treats as "leave alone".
+    if [ -x "$BIN_DIR/qmanager_sms_forward" ]; then
+        _apply_gated_symlink /etc/qmanager/sms_forwarding.json '.enabled' qmanager-sms-forward "SMS forwarding service"
     fi
 
     sync
@@ -1753,24 +4020,69 @@ start_services() {
         info "Set /dev/smd11 permissions for dialout group"
     fi
 
-    # Start firewall before lighttpd (protects web UI before accepting connections)
-    systemctl start qmanager-firewall 2>/dev/null || true
+    # Firewall before lighttpd. reload-or-restart, not start: the unit is kept
+    # running across OTA, so `start` would be a no-op and skip the new rules.
+    systemctl reload-or-restart qmanager-firewall 2>/dev/null || true
+    systemctl start qmanager-firewall-watch 2>/dev/null || warn "Could not start qmanager-firewall-watch"
 
-    # Restart lighttpd to pick up new config
-    systemctl restart lighttpd 2>/dev/null || warn "Could not restart lighttpd"
-    info "lighttpd restarted with QManager config"
+    # qmanager_update reboots after us, so defer; the cgroup arm covers an older updater running
+    # inside lighttpd. The conf is tested after the services start (end of this function).
+    local lighttpd_deferred=0
+    if [ "${QM_DEFER_LIGHTTPD_RESTART:-}" = "1" ] \
+       || grep -q 'lighttpd\.service' /proc/self/cgroup 2>/dev/null; then
+        lighttpd_deferred=1
+        info "lighttpd restart deferred to the reboot"
+    elif systemctl restart lighttpd 2>/dev/null; then
+        info "lighttpd restarted with QManager config"
+    else
+        warn "Could not restart lighttpd"
+    fi
 
-    # Run setup oneshot (creates lock files, session dirs, permissions)
-    systemctl start qmanager-setup 2>/dev/null || true
+    # Run setup oneshot (creates lock files, session dirs, permissions).
+    #
+    # `restart`, not `start`, as defence-in-depth. qmanager-setup.service is
+    # Type=oneshot with RemainAfterExit=yes, so systemd holds it `active` after
+    # ExecStart exits (that latch is what keeps Before=qmanager-poller.service
+    # satisfiable), and `systemctl start` on an ALREADY-active unit is a no-op
+    # that returns success without re-running ExecStart.
+    #
+    # That no-op does NOT bite today: stop_services() above batches a stop over
+    # every /lib/systemd/system/qmanager-*.service except watchcat, which
+    # includes this unit and releases the latch — so `start` did re-run it. The
+    # correctness of the /tmp ownership seed in qmanager_setup therefore rests
+    # on an exclusion list in a different function. `restart` makes it rest on
+    # nothing: it is identical to `start` on an inactive or not-yet-loaded unit,
+    # and still re-runs ExecStart if that stop is ever narrowed, reordered, or
+    # silently fails. Cheap insurance on a step whose failure mode is invisible
+    # (files keep last boot's ownership; cross-UID writes fail silently).
+    #
+    # Safe to restart mid-install: qmanager_setup is idempotent by design, and
+    # chown/chmod mutate the existing inode in place rather than replacing it,
+    # so a flock held on /run/qmanager_at/at.lock (tied to the open file
+    # description, not the mode bits) and any open fd both survive untouched.
+    systemctl restart qmanager-setup 2>/dev/null || true
+
+    # Broker after setup (it needs the lock file), before the poller. StartLimitBurst
+    # counts start attempts, so repeated installs reset it first.
+    local atd_on=0
+    if [ -f "$SYSTEMD_DIR/qmanager-atd.service" ] && [ -x "$BIN_DIR/qmanager_atd" ] && _atd_on; then
+        atd_on=1
+        systemctl reset-failed qmanager-atd 2>/dev/null || true
+        systemctl start qmanager-atd 2>/dev/null || warn "Could not start qmanager-atd (qcmd runs in-process)"
+    fi
 
     # Start always-on services with verification
-    for svc in qmanager-cfun-fix qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check; do
+    for svc in qmanager-cfun-fix qmanager-ping qmanager-sites qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check; do
         systemctl start "$svc" 2>/dev/null || true
     done
 
     # Start Discord bot if binary present, config exists, and enabled flag is true
     if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
-        _dc_enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null)
+        # `|| _dc_enabled=false` is load-bearing: this file runs under `set -e`,
+        # so a corrupt discord_bot.json makes jq exit non-zero and aborts the
+        # installer HERE — mid-OTA, with services already stopped. Matches the
+        # guarded read in the enable block above.
+        _dc_enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null) || _dc_enabled=false
         if [ "$_dc_enabled" = "true" ]; then
             systemctl start qmanager-discord 2>/dev/null || warn "Could not start qmanager-discord"
             info "Discord bot started"
@@ -1778,15 +4090,47 @@ start_services() {
     fi
     sleep 2
 
+    # Start Traffic Engine ensure timer (armed; payload self-gates on config).
+    # The engine itself starts from its own config gate below (or on next
+    # boot via the unit glob in enable_services).
+    systemctl start qmanager-dpi-ensure.timer 2>/dev/null || true
+
+    # Start Traffic Engine if enabled and the binary is provisioned. Mirrors
+    # the Discord bot start guard: binary present AND config enabled. A
+    # missing binary is non-fatal — the engine shows "stopped" in the UI
+    # until the user runs the on-demand install.
+    if [ -x "$BIN_DIR/qmanager_dpi_run" ]; then
+        command -v qm_config_get >/dev/null 2>&1 || . "$LIB_DIR/config.sh"
+        # BOTH modes, not just video_optimizer: gating on that key alone meant a
+        # Full Bypass device's engine never came back after an install or OTA.
+        _dpi_enabled=$(qm_config_get video_optimizer enabled 0 2>/dev/null) || _dpi_enabled=0
+        if [ "$_dpi_enabled" != "1" ]; then
+            _dpi_enabled=$(qm_config_get full_bypass enabled 0 2>/dev/null) || _dpi_enabled=0
+        fi
+        if [ "$_dpi_enabled" = "1" ] && [ -x /usrdata/qmanager/bin/tpws ]; then
+            systemctl start qmanager-dpi 2>/dev/null || warn "Could not start qmanager-dpi"
+        fi
+    fi
+
     # Download ttyd for web console (non-fatal — console is optional)
     if [ ! -x /usrdata/qmanager/console/ttyd ]; then
         info "Downloading ttyd for web console..."
         /usr/bin/qmanager_console_mgr install 2>/dev/null || warn "ttyd download failed — web console unavailable"
+    elif [ -L "$SYSTEMD_DIR/multi-user.target.wants/qmanager-console.service" ]; then
+        # stop_services stopped it; restart so an update's console gate applies now.
+        # --no-block: After=lighttpd, whose restart hangs if an older updater runs in its cgroup.
+        systemctl --no-block start qmanager-console 2>/dev/null || warn "Could not start qmanager-console"
     fi
 
     # Verify critical services
     local svc_errors=0
-    for svc in qmanager-firewall lighttpd qmanager-setup qmanager-ping qmanager-poller; do
+    local verify_svcs="qmanager-firewall qmanager-firewall-watch lighttpd qmanager-setup qmanager-ping qmanager-poller"
+    if [ "$atd_on" = "1" ]; then
+        verify_svcs="$verify_svcs qmanager-atd"
+    fi
+    for svc in $verify_svcs; do
+        # Deferred restart: the old lighttpd is still serving this OTA's status page.
+        [ "$svc" = "lighttpd" ] && [ "$lighttpd_deferred" = "1" ] && continue
         if systemctl is-active "$svc" >/dev/null 2>&1; then
             info "$svc is running"
         else
@@ -1795,10 +4139,10 @@ start_services() {
         fi
     done
 
-    # Verify AT device access
-    if [ -x "$BIN_DIR/atcli_smd11" ] && [ -e /dev/smd11 ]; then
-        if timeout 3 "$BIN_DIR/atcli_smd11" "AT" >/dev/null 2>&1; then
-            info "AT device responds (atcli_smd11 → /dev/smd11)"
+    # Verify AT device access through qcmd (the broker may hold /dev/smd11)
+    if [ -x "$BIN_DIR/qcmd" ] && [ -e /dev/smd11 ]; then
+        if qm_timeout 8 "$BIN_DIR/qcmd" "AT" >/dev/null 2>&1; then
+            info "AT device responds (qcmd → /dev/smd11)"
         else
             warn "AT device not responding — modem may not be ready yet"
         fi
@@ -1806,6 +4150,13 @@ start_services() {
 
     if [ "$svc_errors" -gt 0 ]; then
         warn "$svc_errors service(s) failed to start"
+    fi
+
+    # Deferred restart: fail the install (no reboot) rather than reboot into a broken web server.
+    if [ "$lighttpd_deferred" = "1" ]; then
+        /opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf >/dev/null 2>&1 \
+            || die "lighttpd config test failed — not rebooting into a broken web server"
+        info "lighttpd config test passed"
     fi
 }
 
@@ -1840,7 +4191,7 @@ at_stack_check() {
     while [ "$i" -le 3 ]; do
         if command -v qcmd >/dev/null 2>&1; then
             local out
-            out=$(timeout 8 qcmd 'ATI' 2>/dev/null) || true
+            out=$(qm_timeout 8 qcmd 'ATI' 2>/dev/null) || true
             if printf '%s' "$out" | grep -q '^OK'; then
                 ok=1
                 break
@@ -1854,16 +4205,350 @@ at_stack_check() {
     else
         warn "at_stack_check: no OK from ATI after 3 attempts"
         warn "  Troubleshooting: check /dev/smd11 permissions (should be root:dialout 660)"
-        warn "  and verify atcli_smd11 is executable: $BIN_DIR/atcli_smd11"
+        warn "  and verify qcmd links to qmanager_atd: ls -l $BIN_DIR/qcmd"
     fi
+}
+
+# --- Retire Legacy AT Binaries ---------------------------------------------
+
+# Removes sms_tool and atcli_smd11 (retired in T5.1 S6), each only once its
+# replacement answers; a failed gate keeps the file. Rollback reinstalls both.
+retire_legacy_at_binaries() {
+    local f rc
+    for f in sms_tool atcli_smd11; do
+        [ -e "$BIN_DIR/$f" ] || continue
+        rc=0
+        # Each gate ends in `|| rc=$?` so a failure cannot trip set -e.
+        case "$f" in
+            sms_tool)    qm_timeout 8 "$BIN_DIR/qsms" status >/dev/null 2>&1 || rc=$? ;;
+            atcli_smd11) { [ "$(readlink "$BIN_DIR/qcmd" 2>/dev/null)" = "qmanager_atd" ] \
+                             && qm_timeout 8 "$BIN_DIR/qcmd" AT >/dev/null 2>&1; } || rc=$? ;;
+        esac
+        if [ "$rc" -ne 0 ]; then
+            info "Kept $BIN_DIR/$f (its replacement did not answer)"
+            continue
+        fi
+        mount -o remount,rw / 2>/dev/null || true
+        if rm -f "$BIN_DIR/$f" && [ ! -e "$BIN_DIR/$f" ]; then
+            info "Removed retired $BIN_DIR/$f"
+        else
+            warn "Could not remove retired $BIN_DIR/$f"
+        fi
+    done
+    return 0
+}
+
+# --- Dropbear unit body (single source of truth) ------------------------------
+
+# The one place dropbear.service's content is spelled. setup_ssh_early (fresh
+# install) and ensure_dropbear_unit_ordering (OTA) both emit through it, so the
+# two paths cannot drift.
+_dropbear_unit_body() {
+    cat << 'DBUNITEOF'
+[Unit]
+Description=Dropbear SSH Server
+After=network.target opt.mount
+Before=rc.unslung.service
+StartLimitIntervalSec=60
+StartLimitBurst=40
+
+[Service]
+Type=simple
+ExecStart=/opt/sbin/dropbear -F -E -p 22
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target
+DBUNITEOF
+}
+
+# The old body, verbatim. ensure_dropbear_unit_ordering only rewrites a unit
+# byte-identical to this — anything else is someone's own file.
+_dropbear_unit_body_legacy() {
+    cat << 'DBOLDEOF'
+[Unit]
+Description=Dropbear SSH Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sbin/dropbear -F -E -p 22
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+DBOLDEOF
+}
+
+# Atomic write: temp file on the same filesystem, then rename(2), which UBIFS
+# makes atomic. A truncate-in-place `cat >` can leave a zero-length SSH unit on
+# flash if power is lost mid-write, and nothing at boot would recover it.
+_write_dropbear_unit() {
+    local _dest="$SYSTEMD_DIR/dropbear.service"
+    local _tmp="${_dest}.new"
+
+    mount -o remount,rw / 2>/dev/null || true
+
+    if ! _dropbear_unit_body > "$_tmp" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not stage $_tmp — dropbear.service left unchanged"
+        return 1
+    fi
+    # Mode is set on the temp file so the unit is never world-writable, not even
+    # for the instant between rename and chmod. `cat >` onto an existing file
+    # would otherwise preserve the old 0666 (F13's umask-0 heredoc mechanism).
+    chmod 0644 "$_tmp" 2>/dev/null || true
+    sync 2>/dev/null || true
+
+    if ! mv -f "$_tmp" "$_dest" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not install $_dest — dropbear.service left unchanged"
+        return 1
+    fi
+    sync 2>/dev/null || true
+
+    return 0
+}
+
+# --- F10: dropbear boot ordering ----------------------------------------------
+
+# dropbear.service shipped with `After=network.target` and nothing else, despite
+# ExecStart=/opt/sbin/dropbear living on the /opt bind mount, so it raced the
+# mount and was rescued only by Restart=on-failure. Two further hazards measured
+# 2026-09-03 on both devices: the stock 5-failures-in-10s start limit can latch
+# SSH permanently `failed`, and Entware's S51dropbear (still executable, unlike
+# S80lighttpd which F8 disabled) races us for port 22 from rc.unslung with a
+# guard keyed on a pidfile our unit never writes. Full diagnosis and timings:
+# docs/reference/platform-matrix.md, F10.
+#
+# Runs unconditionally from main() — the neutralize_entware_lighttpd /
+# harden_entware_unit_modes precedent — because setup_ssh_early returns early on
+# every OTA, so nothing inside it can reach an already-installed device.
+#
+# Never creates a unit (that stays exclusively in setup_ssh_early, fresh-install
+# only) and never rewrites one it did not write itself. Must never die() or
+# return non-zero: every failure path leaves today's working unit in place.
+ensure_dropbear_unit_ordering() {
+    local _dest="$SYSTEMD_DIR/dropbear.service"
+    local _bak="${_dest}.qmbak"
+    local _current
+
+    [ -f "$_dest" ] || return 0
+
+    # `|| true` is load-bearing: the installer runs under `set -e` (:42) and a
+    # bare assignment from a failed command substitution would abort the whole
+    # install, which this function must never do.
+    _current=$(cat "$_dest" 2>/dev/null) || true
+
+    if [ "$_current" = "$(_dropbear_unit_body)" ]; then
+        info "dropbear.service ordering already current"
+        return 0
+    fi
+
+    if [ "$_current" != "$(_dropbear_unit_body_legacy)" ]; then
+        warn "dropbear.service is not QManager's — leaving it untouched"
+        return 0
+    fi
+
+    # Written only when absent, so it always holds the true original even if a
+    # later OTA runs this again.
+    if [ ! -f "$_bak" ]; then
+        cp "$_dest" "$_bak" 2>/dev/null || true
+        chmod 0644 "$_bak" 2>/dev/null || true
+    fi
+
+    _write_dropbear_unit || return 0
+    systemctl daemon-reload 2>/dev/null || true
+
+    # Semantic readback, not LoadState: an unknown lvalue (a directive in the
+    # wrong section) still reads `loaded`, so LoadState cannot see the most
+    # likely authoring error here. Assert the properties systemd actually
+    # parsed. dropbear is deliberately NOT restarted — the running daemon keeps
+    # this session and the OTA alive, and the new unit governs from next boot.
+    if _verify_dropbear_unit; then
+        info "dropbear.service ordered after opt.mount, before rc.unslung"
+        return 0
+    fi
+
+    warn "dropbear.service did not verify — restoring the previous unit"
+    if [ -f "$_bak" ] && cp "$_bak" "$_dest" 2>/dev/null; then
+        chmod 0644 "$_dest" 2>/dev/null || true
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+        warn "Restored the previous dropbear.service — SSH ordering unchanged"
+    else
+        warn "Could not restore $_bak — inspect $_dest before rebooting"
+    fi
+
+    return 0
+}
+
+# Reads back what systemd parsed. Every assertion must hold or the caller rolls
+# back. `After`/`Before` are space-separated lists, hence the padded match.
+_verify_dropbear_unit() {
+    local _after _before _interval _burst _restart
+
+    _after=" $(systemctl show dropbear -p After --value 2>/dev/null) "
+    _before=" $(systemctl show dropbear -p Before --value 2>/dev/null) "
+    _interval=$(systemctl show dropbear -p StartLimitIntervalUSec --value 2>/dev/null)
+    _burst=$(systemctl show dropbear -p StartLimitBurst --value 2>/dev/null)
+    _restart=$(systemctl show dropbear -p RestartUSec --value 2>/dev/null)
+
+    case "$_after" in *" opt.mount "*) : ;; *) return 1 ;; esac
+    case "$_before" in *" rc.unslung.service "*) : ;; *) return 1 ;; esac
+    # systemd renders a duration in whatever unit it picks (244 says "1min",
+    # 239 has been seen to say "60s"), so accept either spelling rather than
+    # rolling back a correct unit over formatting.
+    case "$_interval" in 1min|60s) : ;; *) return 1 ;; esac
+    [ "$_burst" = "40" ] || return 1
+    [ "$_restart" = "2s" ] || return 1
+
+    return 0
+}
+
+# --- rc.unslung unit body (single source of truth) ---------------------------
+
+# install_dependencies (fresh install) and ensure_rc_unslung_unit_ordering (OTA)
+# both emit through this, so the two paths cannot drift.
+# Requires=opt.mount only when that unit file exists — a Requires= on a
+# nonexistent unit makes rc.unslung fail to start outright.
+_rc_unslung_unit_body() {
+    printf '%s\n' '[Unit]' 'Description=Start Entware services'
+    [ -f "$SYSTEMD_DIR/opt.mount" ] && printf '%s\n' 'Requires=opt.mount'
+    printf '%s\n' \
+        'After=opt.mount' \
+        '' \
+        '[Service]' \
+        'Type=oneshot' \
+        'ExecStartPre=/bin/sleep 5' \
+        'ExecStart=/opt/etc/init.d/rc.unslung start' \
+        'RemainAfterExit=yes' \
+        '' \
+        '[Install]' \
+        'WantedBy=multi-user.target'
+}
+
+# The old body, verbatim. ensure_rc_unslung_unit_ordering only rewrites a unit
+# byte-identical to this — anything else is someone's own file.
+_rc_unslung_unit_body_legacy() {
+    cat << 'RCOLDEOF'
+[Unit]
+Description=Start Entware services
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 5
+ExecStart=/opt/etc/init.d/rc.unslung start
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+RCOLDEOF
+}
+
+# Atomic write, same rationale as _write_dropbear_unit: temp file + rename(2)
+# so a power loss mid-write never leaves a truncated unit on flash.
+_write_rc_unslung_unit() {
+    local _dest="$SYSTEMD_DIR/rc.unslung.service"
+    local _tmp="${_dest}.new"
+
+    mount -o remount,rw / 2>/dev/null || true
+
+    if ! _rc_unslung_unit_body > "$_tmp" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not stage $_tmp — rc.unslung.service left unchanged"
+        return 1
+    fi
+    chmod 0644 "$_tmp" 2>/dev/null || true
+    sync 2>/dev/null || true
+
+    if ! mv -f "$_tmp" "$_dest" 2>/dev/null; then
+        rm -f "$_tmp" 2>/dev/null
+        warn "Could not install $_dest — rc.unslung.service left unchanged"
+        return 1
+    fi
+    sync 2>/dev/null || true
+
+    return 0
+}
+
+# Never creates a unit or rewrites one it didn't write itself, and must never
+# die()/return non-zero — every failure path leaves today's working unit in place.
+ensure_rc_unslung_unit_ordering() {
+    local _dest="$SYSTEMD_DIR/rc.unslung.service"
+    local _bak="${_dest}.qmbak"
+    local _current
+
+    [ -f "$_dest" ] || return 0
+
+    # `|| true` is load-bearing: the installer runs under `set -e` (:42) and a
+    # bare assignment from a failed command substitution would abort the
+    # whole install, which this function must never do.
+    _current=$(cat "$_dest" 2>/dev/null) || true
+
+    if [ "$_current" = "$(_rc_unslung_unit_body)" ]; then
+        info "rc.unslung.service ordering already current"
+        return 0
+    fi
+
+    if [ "$_current" != "$(_rc_unslung_unit_body_legacy)" ]; then
+        warn "rc.unslung.service is not QManager's — leaving it untouched"
+        return 0
+    fi
+
+    # Written only when absent, so it always holds the true original even if
+    # a later OTA runs this again.
+    if [ ! -f "$_bak" ]; then
+        cp "$_dest" "$_bak" 2>/dev/null || true
+        chmod 0644 "$_bak" 2>/dev/null || true
+    fi
+
+    _write_rc_unslung_unit || return 0
+    systemctl daemon-reload 2>/dev/null || true
+
+    if _verify_rc_unslung_unit; then
+        info "rc.unslung.service ordered after opt.mount"
+        return 0
+    fi
+
+    warn "rc.unslung.service did not verify — restoring the previous unit"
+    if [ -f "$_bak" ] && cp "$_bak" "$_dest" 2>/dev/null; then
+        chmod 0644 "$_dest" 2>/dev/null || true
+        sync 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+        warn "Restored the previous rc.unslung.service — ordering unchanged"
+    else
+        warn "Could not restore $_bak — inspect $_dest before rebooting"
+    fi
+
+    return 0
+}
+
+# Reads back what systemd parsed, same rationale as _verify_dropbear_unit:
+# an unknown lvalue still reads `loaded`, so LoadState can't see a mis-authored
+# directive. Requires/After are space-separated lists, hence the padded match.
+_verify_rc_unslung_unit() {
+    local _requires _after
+
+    _requires=" $(systemctl show rc.unslung -p Requires --value 2>/dev/null) "
+    _after=" $(systemctl show rc.unslung -p After --value 2>/dev/null) "
+
+    # Requires= is only emitted when the opt.mount unit exists, so only assert it then.
+    if [ -f "$SYSTEMD_DIR/opt.mount" ]; then
+        case "$_requires" in *" opt.mount "*) : ;; *) return 1 ;; esac
+    fi
+    case "$_after" in *" opt.mount "*) : ;; *) return 1 ;; esac
+
+    return 0
 }
 
 # --- Early SSH Bootstrap (fresh installs only) -------------------------------
 # Runs once, right after install_dependencies (so Entware/dropbear are available)
 # and before the rest of the install. On fresh installs with no existing SSH,
 # installs dropbear, writes a systemd unit, starts it, and sets root's password
-# to "qmanager" so the user can SSH in immediately. Web-UI onboarding overwrites
-# this temporary password later.
+# to a random per-install value (shown once in the summary) so the user can SSH
+# in immediately. Web-UI onboarding overwrites this temporary password later.
 #
 # Skips entirely on OTA upgrades (VERSION file present) or when port 22 is
 # already in use by another SSH server.
@@ -1928,80 +4613,83 @@ setup_ssh_early() {
     #    ED25519 host keys in /opt/etc/dropbear/, which persists via the
     #    /usrdata/opt bind mount. dropbear finds them automatically.
     if [ ! -f "$SYSTEMD_DIR/dropbear.service" ]; then
-        mount -o remount,rw / 2>/dev/null || true
-        cat > "$SYSTEMD_DIR/dropbear.service" << 'SSHEOF'
-[Unit]
-Description=Dropbear SSH Server
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/opt/sbin/dropbear -F -E -p 22
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-SSHEOF
-        sync
-        info "Created dropbear.service"
+        if _write_dropbear_unit; then
+            info "Created dropbear.service"
+        else
+            SSH_BOOTSTRAP_STATUS="failed_start"
+            return 0
+        fi
     fi
 
     # systemctl enable does not work on RM520N-GL — direct symlink instead.
     ln -sf "$SYSTEMD_DIR/dropbear.service" "$WANTS_DIR/dropbear.service"
     systemctl daemon-reload 2>/dev/null || true
 
-    # 5. Start dropbear and verify it's active.
+    # 5. Block SSH on the cellular WAN before dropbear listens. The installed
+    #    firewall service does not exist yet on a fresh install, so run the
+    #    shipped script; start_services re-applies it via the service later.
+    if [ -f "$SRC_SCRIPTS/usr/bin/qmanager_firewall" ]; then
+        sh "$SRC_SCRIPTS/usr/bin/qmanager_firewall" start 2>/dev/null \
+            || warn "Early firewall apply failed — SSH is open on the WAN until services start"
+    fi
+
+    # 6. Start dropbear and verify it's active.
     systemctl start dropbear 2>/dev/null || true
-    sleep 1
+    # Poll rather than `sleep 1`: RestartSec=2s means a single transient failure
+    # (a late /opt) now takes longer to recover than one second, and the old
+    # probe would report a healthy install as failed.
+    local _tries=0
+    while [ "$_tries" -lt 8 ]; do
+        systemctl is-active dropbear >/dev/null 2>&1 && break
+        sleep 1
+        _tries=$((_tries + 1))
+    done
     if ! systemctl is-active dropbear >/dev/null 2>&1; then
-        warn "dropbear failed to start — check: journalctl -u dropbear"
+        warn "dropbear failed to start — check: systemctl status dropbear"
         SSH_BOOTSTRAP_STATUS="failed_start"
         return 0
     fi
     info "dropbear started on port 22"
 
-    # 6. Set root's password to "qmanager" inline. The qmanager_set_ssh_password
-    #    helper isn't installed at this point in the install (backend hasn't run),
-    #    so we replicate its core logic here. Onboarding will overwrite the
-    #    password on first web login.
-    local _password="qmanager"
-    local _salt _hash _escaped_hash
-    _salt=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    _hash=$(printf '%s\n' "$_password" | openssl passwd -1 -salt "$_salt" -stdin 2>/dev/null)
-
-    if [ -z "$_hash" ]; then
-        warn "openssl passwd failed — root password not set"
+    # 7. Set root's password to a random per-install value through the shipped
+    #    helper (not installed yet). Never pass it to info()/warn(): the install
+    #    log is world-readable. print_summary shows it once on the console.
+    local _password _result
+    _password=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    if [ ${#_password} -ne 16 ]; then
+        warn "Could not generate a random password — root password not set"
         SSH_BOOTSTRAP_STATUS="failed_password"
         return 0
     fi
 
-    if [ ! -f /etc/shadow ]; then
-        warn "/etc/shadow not found — root password not set"
+    _result=$(printf '%s\n' "$_password" | sh "$SRC_SCRIPTS/usr/bin/qmanager_set_ssh_password" 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        warn "Root password not set: $_result"
         SSH_BOOTSTRAP_STATUS="failed_password"
         return 0
     fi
 
-    mount -o remount,rw / 2>/dev/null || true
-
-    # Escape sed-special chars in the hash. Using | as the sed delimiter so /
-    # in the hash isn't a problem; only &, \, and | need escaping.
-    _escaped_hash=$(printf '%s' "$_hash" | sed 's/[&\\|]/\\&/g')
-
-    # Match locked (root:!:...), passwordless (root::...), or any-existing-hash forms.
-    if ! sed -i "s|^root:[^:]*:|root:${_escaped_hash}:|" /etc/shadow 2>/dev/null; then
-        warn "Failed to update /etc/shadow"
-        SSH_BOOTSTRAP_STATUS="failed_password"
-        return 0
-    fi
-    sync
-
+    SSH_BOOTSTRAP_PASSWORD="$_password"
     SSH_BOOTSTRAP_STATUS="installed"
-    info "Root password set to 'qmanager' (will be replaced on web onboarding)"
+    info "Root password set to a random temporary value (shown in the summary)"
 }
 
 # --- Summary -----------------------------------------------------------------
 
 print_summary() {
+    # Gateway from the modem's LAN config; qm_lan_read is sourced by normalize_lan_subnet.
+    local lan_ip="" lan_rest=""
+    if command -v qm_lan_read >/dev/null 2>&1; then
+        lan_rest=$(qm_lan_read 2>/dev/null) && lan_ip=${lan_rest%% *}
+    fi
+    case "$lan_ip" in ""|*[!0-9.]*) lan_ip="192.168.225.1" ;; esac
+    # The saved HTTPS port, omitted when it is the default 443.
+    local web_host="$lan_ip"
+    if [ -f "$LIB_DIR/web_port.sh" ] && . "$LIB_DIR/web_port.sh" 2>/dev/null; then
+        wp_read_file
+        [ "$WP_HTTPS" = "443" ] || web_host="$lan_ip:$WP_HTTPS"
+    fi
+
     printf "\n"
     printf "  ══════════════════════════════════════════\n"
     printf "  ${GREEN}${BOLD}  QManager — Installation Complete${NC}\n"
@@ -2018,12 +4706,16 @@ print_summary() {
     printf "  ${DIM}Log:       ${NC}%s\n" "$LOG_FILE"
 
     printf "\n"
-    printf "  Open in browser:  ${BOLD}https://192.168.225.1${NC}\n"
-    printf "  Web console:      ${BOLD}https://192.168.225.1/console${NC}\n"
+    printf "  Open in browser:  ${BOLD}https://%s${NC}\n" "$web_host"
+    printf "  Web console:      ${BOLD}https://%s/console${NC}\n" "$web_host"
+    if grep -q "^Project Name:[[:space:]]*RG501Q" /etc/quectel-project-version 2>/dev/null; then
+        printf "  ${DIM}Model:            RG501Q-EU — community-supported model${NC}\n"
+    fi
 
     case "$SSH_BOOTSTRAP_STATUS" in
         installed)
-            printf "  SSH:              ${BOLD}ssh root@192.168.225.1${NC} ${DIM}(temp password: qmanager — replaced on web onboarding)${NC}\n"
+            printf "  SSH:              ${BOLD}ssh root@%s${NC}\n" "$lan_ip"
+            printf "  SSH password:     ${BOLD}%s${NC} ${DIM}(temporary — shown once, replaced on web onboarding)${NC}\n" "$SSH_BOOTSTRAP_PASSWORD"
             ;;
         failed_install|failed_start|failed_password)
             printf "  ${YELLOW}SSH bootstrap failed${NC} (${SSH_BOOTSTRAP_STATUS}). Re-run installer or set up dropbear manually.\n"
@@ -2080,6 +4772,9 @@ main() {
     # Watchcat lock cleanup on any exit — prevents Tier-4 reboot if installer aborts
     trap 'rm -f "$WATCHCAT_LOCK"' EXIT INT TERM
 
+    # The install shell inherits umask 0000, so opkg/heredoc files landed 0666.
+    umask 022
+
     log_init
 
     printf "\n"
@@ -2089,7 +4784,7 @@ main() {
     printf "  ══════════════════════════════════════════\n"
 
     # Calculate steps: preflight always runs; others are conditional
-    TOTAL_STEPS=4  # preflight + setup_ssh_early + stop_services + cleanup_legacy_scripts
+    TOTAL_STEPS=5  # preflight + install_bundled_binaries + setup_ssh_early + stop_services + cleanup_legacy_scripts
     [ "$DO_PACKAGES" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 1 ))
     [ "$DO_FRONTEND" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 2 ))  # backup + frontend
     [ "$DO_BACKEND" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 2 ))   # backend + udev
@@ -2099,7 +4794,7 @@ main() {
     preflight
 
     # remove_conflicts runs even with --skip-packages (e.g. socat-at-bridge
-    # must be gone before atcli_smd11 can open /dev/smd11)
+    # must be gone before qcmd can open /dev/smd11)
     remove_conflicts
 
     # ensure_zoneinfo_packages runs even with --skip-packages — OTA upgrades
@@ -2107,14 +4802,75 @@ main() {
     # the timezone-apply fix silently broken for every in-app-updated device.
     ensure_zoneinfo_packages
 
+    # install_bundled_binaries runs even with --skip-packages — see its
+    # doc-comment above for why (SMS OTA-upgrade bug root cause).
+    install_bundled_binaries
+
+    # install_speedtest_cli runs even with --skip-packages — see its
+    # doc-comment above for why (permanently-dead-Speedtest bug on any device
+    # whose install-time download failed).
+    install_speedtest_cli
+
     [ "$DO_PACKAGES" = "1" ] && install_dependencies
+
+    # neutralize_entware_lighttpd runs unconditionally (even with
+    # --skip-packages, mirroring remove_conflicts/ensure_zoneinfo_packages
+    # above) so the OTA path (qmanager_update calls this installer with
+    # --force --skip-packages --no-reboot) also disables S80lighttpd on
+    # already-installed devices, not just fresh installs. It must also run
+    # AFTER install_dependencies: that step's `opkg upgrade/install lighttpd`
+    # re-extracts S80lighttpd with its executable bit restored, which would
+    # silently undo an earlier disable in the same run.
+    neutralize_entware_lighttpd
+
+    # Same unconditional placement, and for the same OTA-reach reason. Runs
+    # after install_dependencies so the units already exist by the time it
+    # chmods them on a fresh install.
+    harden_entware_unit_modes
+    harden_world_writable_modes
+
+    # F11 — same unconditional placement and OTA-reach reason. Must run after
+    # install_dependencies, which is where opt.mount is first written on a
+    # fresh install, and before setup_ssh_early so /opt's ordering is settled
+    # before anything reasons about the SSH unit.
+    ensure_usrdata_wait_unit
+
+    # Unconditional so OTA repairs a missing /opt/etc/shadow; before SSH setup.
+    ensure_entware_account_links
 
     # SSH bootstrap runs after install_dependencies so Entware + bundled
     # dropbear .ipk are available, and before stop_services so it never has
     # to wait on QManager service teardown.
     setup_ssh_early
 
+    # F10 — must run AFTER setup_ssh_early (which creates the unit on a fresh
+    # install) and unconditionally, because that function returns early on every
+    # OTA, so this is the only path that reaches an already-installed device.
+    ensure_dropbear_unit_ordering
+
+    # Same unconditional-reach reason as ensure_dropbear_unit_ordering above.
+    # Order between the two doesn't matter to systemd (Before=/After= don't
+    # require the referenced unit to exist yet), but both must run before
+    # stop_services so a broken rc.unslung ordering is fixed even on a run
+    # that never reaches install_dependencies.
+    ensure_rc_unslung_unit_ordering
+
+    # One-time LAN mask fix (/22 -> /24); runs on fresh install and OTA alike.
+    normalize_lan_subnet || warn "LAN subnet normalization skipped"
+
     stop_services
+
+    # F22 — relocate the auth-backup store out of the www-data-owned
+    # /etc/qmanager. Placement here is load-bearing in two ways, both of which
+    # a natural filing alongside the other migrations in install_backend()
+    # would get wrong; see the function's ORDERING note:
+    #   - BEFORE backup_originals, which creates the store, takes the fresh
+    #     snapshot AND prunes to the newest 5 in one call. Migrating after
+    #     that leaves up to 10 files with no prune pass until the next OTA.
+    #   - OUTSIDE the DO_FRONTEND gate below, so a --backend-only run migrates
+    #     too. Otherwise the password snapshots stay in the swept directory on
+    #     exactly the devices someone is repairing.
+    migrate_backup_location
 
     if [ "$DO_FRONTEND" = "1" ]; then
         backup_originals
@@ -2132,14 +4888,15 @@ main() {
 
     [ "$DO_START" = "1" ] && health_check
     [ "$DO_START" = "1" ] && at_stack_check
+    [ "$DO_START" = "1" ] && { retire_legacy_at_binaries || true; }
 
     print_summary
 
     finalize_version
 
     # Staging-dir cleanup is intentionally NOT done here. On the OTA path the
-    # worker (qmanager_update) cd's into /tmp/qmanager_install before invoking
-    # us and owns the `rm -rf /tmp/qmanager_install` afterward. If the installer
+    # worker (qmanager_update) cd's into /tmp/qmanager_stage/qmanager_install
+    # before invoking us and owns removing /tmp/qmanager_stage afterward. If the installer
     # deleted it here it would (a) race that owner and (b) yank the CWD out from
     # under whoever is sitting inside it — the OTA worker, or a human who ran
     # `cd /tmp/qmanager_install && sh install_rm520n.sh` — producing

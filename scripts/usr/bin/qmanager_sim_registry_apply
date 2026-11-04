@@ -1,0 +1,140 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_sim_registry_apply — Root helper: mutate the SIM registry.
+# =============================================================================
+# Called via: sudo -n /usr/bin/qmanager_sim_registry_apply <iccid> <action>
+#   action ∈ dismiss | undismiss | clear_keep
+#
+# This is the privileged boundary for /etc/qmanager/sim_registry.json
+# (root:root 0644) — www-data cannot write it directly. ALL input validation
+# happens HERE, inside the helper, not in the calling CGI:
+#   - ICCID: charset digits with an optional single TRAILING F/f pad nibble,
+#     18-22 characters total.
+#   - action: strict 3-value enum (dismiss|undismiss|clear_keep).
+# The ICCID is NEVER string-interpolated into a jq filter — it always goes in
+# via `jq --arg` (see sim_registry.sh). Anything that fails validation is
+# rejected with a nonzero exit and NO write.
+#
+# clear_keep is the ONLY action that accepts an empty ICCID: it is the sidecar
+# half of "clear known SIMs", and clearing with no SIM inserted legitimately
+# empties the whole registry (mirroring sim_db_clear_keep). A NON-empty ICCID
+# still runs the full gate set regardless of action.
+#
+# Exit codes:
+#   0 — success (dismissed/undismissed/cleared)
+#   1 — invalid input, or write failed
+#   2 — could not acquire the sim_registry lock in time
+#   3 — unknown ICCID (no existing registry record) — a dismiss/undismiss
+#       call must never silently create a new record. clear_keep never
+#       returns 3: an unknown ICCID there simply clears everything.
+#
+# Install location: /usr/bin/qmanager_sim_registry_apply
+# Sudoers: bare-path NOPASSWD grant for www-data (added by the installer).
+# =============================================================================
+
+# Pin PATH: sudo passes the caller's PATH to this root helper.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+
+. /usr/lib/qmanager/sim_db.sh
+. /usr/lib/qmanager/sim_registry.sh
+
+raw_iccid="$1"
+action="$2"
+
+# --- Validate action (strict 3-value enum) -----------------------------------
+case "$action" in
+    dismiss|undismiss|clear_keep) ;;
+    *)
+        printf '{"success":false,"error":"invalid_action","detail":"action must be dismiss, undismiss, or clear_keep"}\n'
+        exit 1
+        ;;
+esac
+
+# --- Validate ICCID -----------------------------------------------------------
+# sim_db_normalize strips space/CR/LF only (byte-parity with known_iccids) —
+# NOT the BCD-pad-stripping iccid_canonicalize, since the registry KEY must
+# match what the poller writes.
+iccid=$(sim_db_normalize "$raw_iccid")
+
+# Empty is legal ONLY for clear_keep (no SIM inserted -> clear everything).
+if [ -z "$iccid" ] && [ "$action" != "clear_keep" ]; then
+    printf '{"success":false,"error":"empty_iccid","detail":"ICCID is required"}\n'
+    exit 1
+fi
+
+# A non-empty ICCID runs every gate below, whatever the action.
+if [ -n "$iccid" ]; then
+    # Charset gate: only digits and F/f are allowed anywhere.
+    case "$iccid" in
+        *[!0-9Ff]*)
+            printf '{"success":false,"error":"invalid_charset","detail":"ICCID must be digits, with optional trailing F padding"}\n'
+            exit 1
+            ;;
+    esac
+
+    # Shape gate: F/f, if present, must appear ONLY as trailing pad (one F, or
+    # FF as some modems report, e.g. "...742FF"). Strip every trailing F/f and
+    # require the remainder be all-digit — this rejects an embedded F anywhere
+    # but the tail (e.g. "12F34", "12F34F").
+    _stripped="$iccid"
+    while :; do
+        case "$_stripped" in
+            *[Ff]) _stripped=${_stripped%?} ;;
+            *) break ;;
+        esac
+    done
+    case "$_stripped" in
+        ''|*[!0-9]*)
+            printf '{"success":false,"error":"invalid_charset","detail":"F/f is only allowed as trailing pad nibbles"}\n'
+            exit 1
+            ;;
+    esac
+
+    # Length gate: 18-22 characters total.
+    iccid_len=${#iccid}
+    if [ "$iccid_len" -lt 18 ] || [ "$iccid_len" -gt 22 ]; then
+        printf '{"success":false,"error":"invalid_length","detail":"ICCID must be 18-22 characters"}\n'
+        exit 1
+    fi
+fi
+
+# --- Apply ---------------------------------------------------------------------
+if [ "$action" = "clear_keep" ]; then
+    sim_registry_clear_keep "$iccid"
+    rc=$?
+else
+    val="false"
+    [ "$action" = "dismiss" ] && val="true"
+
+    sim_registry_set_dismissed "$iccid" "$val"
+    rc=$?
+fi
+
+case "$rc" in
+    0)
+        case "$action" in
+            clear_keep)
+                printf '{"success":true,"cleared":true}\n'
+                ;;
+            dismiss)
+                printf '{"success":true,"dismissed":true}\n'
+                ;;
+            *)
+                printf '{"success":true,"dismissed":false}\n'
+                ;;
+        esac
+        exit 0
+        ;;
+    3)
+        printf '{"success":false,"error":"unknown_iccid","detail":"No registry record for this ICCID"}\n'
+        exit 3
+        ;;
+    2)
+        printf '{"success":false,"error":"lock_timeout","detail":"Could not acquire the sim_registry lock"}\n'
+        exit 2
+        ;;
+    *)
+        printf '{"success":false,"error":"write_failed","detail":"Failed to update sim_registry.json"}\n'
+        exit 1
+        ;;
+esac

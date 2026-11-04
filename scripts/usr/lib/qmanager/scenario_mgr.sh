@@ -74,6 +74,19 @@ scenario_is_known() {
     esac
 }
 
+# scenario_profile_managed
+# rc 0 when the active SIM profile binds a non-Balanced scenario (the profile owns
+# radio config, so scenarios must not be activated independently). "balanced" or no
+# binding means no opinion.
+scenario_profile_managed() {
+    local active_profile bound
+    command -v get_active_profile >/dev/null 2>&1 || . /usr/lib/qmanager/profile_mgr.sh
+    active_profile=$(get_active_profile)
+    [ -n "$active_profile" ] || return 1
+    bound=$(jq -r '.settings.scenario_id // empty'         "/etc/qmanager/profiles/${active_profile}.json" 2>/dev/null)
+    [ -n "$bound" ] && [ "$bound" != "balanced" ]
+}
+
 # =============================================================================
 # Active Scenario State Management
 # =============================================================================

@@ -1,37 +1,49 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { authFetch } from "@/lib/auth-fetch";
-
-import { Card, CardContent } from "@/components/ui/card";
+import * as React from "react";
+import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import {
-  AlertCircle,
-  DownloadIcon,
-  LoaderCircleIcon,
-  RefreshCcwIcon,
-} from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
-import { downloadCSV } from "@/lib/download-csv";
-import { ScannerSkeleton } from "@/components/cellular/cell-scanner/scanner-skeleton";
-import ScannerEmptyView from "@/components/cellular/cell-scanner/empty-view";
-import NeighbourScanResultView, {
-  type NeighbourCellResult,
-} from "./neighbour-scan-result";
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useNeighbourScanner } from "@/hooks/use-neighbour-scanner";
+import { downloadCSV } from "@/lib/download-csv";
+import { staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import type { NeighbourCellResult } from "@/types/cell-scanner";
 
-// --- CSV row builder for neighbour scan results ------------------------------
+import LockCellDialog, { type LockCellTarget } from "../lock-cell-dialog";
+import RunHero from "../run-hero";
+import LedgerRows, { type LedgerRow } from "../run-summary";
+import { ScanErrorState } from "../scan-states";
+import { ScannerSkeleton } from "../scanner-skeleton";
+import SiblingRouteLink from "../sibling-link";
+import {
+  EMPTY_PANEL,
+  PILL_QUIET,
+  SCAN_RESULTS_CARD,
+  SECTION_HEAD,
+  runPosture,
+} from "../shapes";
+import { summariseNeighbours } from "../summaries";
+import NeighbourScanResultView, {
+  CELL_TYPE_KEY,
+} from "./neighbour-scan-result";
+
+// =============================================================================
+// Neighbour cells — the read and its results
+// =============================================================================
+// The sweep's launch bar, ledger and results card; no progress bar (a read takes seconds).
+// =============================================================================
+
 function buildCsvRows(results: NeighbourCellResult[]): string[] {
   return results.map((r) =>
     [
@@ -50,156 +62,231 @@ function buildCsvRows(results: NeighbourCellResult[]): string[] {
 const NEIGHBOUR_CSV_HEADER =
   "Network,Cell Type,Frequency,PCI,Signal (dBm),RSRQ,RSSI,SINR";
 
-const NeighbourCellScanner = () => {
+/** Posture -> its copy keys, as literals for `i18n:check`. */
+const POSTURE_COPY = {
+  idle: {
+    title: "cell_scanner.neighbour.run.idle_title",
+    body: "cell_scanner.neighbour.run.idle_body",
+  },
+  scanning: {
+    title: "cell_scanner.neighbour.run.scanning_title",
+    body: "cell_scanner.neighbour.run.scanning_body",
+  },
+  // No body on complete: the figure is the count.
+  complete: { title: "cell_scanner.neighbour.run.complete_title" },
+  failed: {
+    title: "cell_scanner.neighbour.run.failed_title",
+    body: "cell_scanner.neighbour.run.failed_body",
+  },
+} as const;
+
+/** The full-sweep route, for the header cross-link. */
+const SWEEP_ROUTE = "/cellular/cell-scanner";
+
+/** The ledger's dBm figure, or `null` for the blank mark. */
+function formatDbm(value: number | null): string | null {
+  return value === null ? null : String(value);
+}
+
+export function NeighbourScanner() {
+  const { t } = useTranslation("cellular");
   const { status, results, error, startScan } = useNeighbourScanner();
-  const [lockTarget, setLockTarget] = useState<NeighbourCellResult | null>(
+  const [lockTarget, setLockTarget] = React.useState<LockCellTarget | null>(
     null,
   );
-  const [isLocking, setIsLocking] = useState(false);
 
-  const hasScanResults = status === "complete" && results.length > 0;
-  const isScanning = status === "running";
+  const posture = runPosture(status);
+  const isScanning = posture === "scanning";
+  const hasResults = posture === "complete" && results.length > 0;
 
-  // --- Lock Cell Handler -----------------------------------------------------
-  const handleLockCell = useCallback((cell: NeighbourCellResult) => {
-    setLockTarget(cell);
+  const handleLockCell = React.useCallback((cell: NeighbourCellResult) => {
+    // Always the LTE payload: a neighbour report carries no band or SCS for NR.
+    setLockTarget({
+      kind: "lte",
+      networkType: cell.networkType,
+      pci: cell.pci,
+      earfcn: cell.frequency,
+    });
   }, []);
 
-  const confirmLockCell = useCallback(async () => {
-    if (!lockTarget) return;
-    setIsLocking(true);
+  const handleDownload = React.useCallback(() => {
+    downloadCSV(
+      NEIGHBOUR_CSV_HEADER,
+      buildCsvRows(results),
+      `neighbour_cells_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+  }, [results]);
 
-    try {
-      const body = {
-        type: "lte",
-        action: "lock",
-        cells: [{ earfcn: lockTarget.frequency, pci: lockTarget.pci }],
-      };
+  const copy = POSTURE_COPY[posture];
 
-      const res = await authFetch("/cgi-bin/quecmanager/tower/lock.sh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+  const summary = React.useMemo(() => summariseNeighbours(results), [results]);
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+  const ledgerRows = React.useMemo<LedgerRow[]>(
+    () =>
+      summary.groups.map((group) => ({
+        id: group.type,
+        name: t(CELL_TYPE_KEY[group.type]),
+        cells: group.count,
+        cellsUnit: t("cell_scanner.run.ledger.cells_unit", {
+          count: group.count,
+        }),
+        bands: [],
+        strength: group.best,
+        dbmText: formatDbm(group.best),
+      })),
+    [summary, t],
+  );
 
-      if (data.success) {
-        toast.success("Cell Locked", {
-          description: `Locked to LTE PCI ${lockTarget.pci} on EARFCN ${lockTarget.frequency}`,
-        });
-      } else {
-        toast.error("Lock Failed", {
-          description: data.detail || data.error || "Unknown error",
-        });
-      }
-    } catch {
-      toast.error("Lock Failed", {
-        description: "Failed to connect to modem",
-      });
-    } finally {
-      setIsLocking(false);
-      setLockTarget(null);
-    }
-  }, [lockTarget]);
+  const usesModemMessage = posture === "failed" && Boolean(error);
+  const postureTitle = usesModemMessage && error ? error : t(copy.title);
+  const postureBody = "body" in copy ? t(copy.body) : null;
+
+  // Scanning or complete only: on failed, `results` may hold the previous read.
+  const ledgerRowsNode =
+    isScanning || posture === "complete" ? (
+      <LedgerRows
+        rows={ledgerRows}
+        isLoading={isScanning}
+        emptyText={t("cell_scanner.neighbour.run.summary_empty")}
+        head={{
+          carrier: t("cell_scanner.neighbour.columns.cell_type"),
+          cells: t("cell_scanner.run.ledger.col_cells"),
+          best: t("cell_scanner.run.ledger.col_best"),
+        }}
+        dbmUnit={t("cell_scanner.run.ledger.dbm_unit")}
+      />
+    ) : null;
 
   return (
     <>
-      <Card className="@container/card">
-        <CardContent className="pt-6">
-          <div className="grid gap-4">
-            {hasScanResults ? (
+      <motion.div variants={staggerItem}>
+        <RunHero
+          posture={posture}
+          title={t("cell_scanner.neighbour.run.title")}
+          description={t("cell_scanner.neighbour.run.description")}
+          link={
+            <SiblingRouteLink
+              href={SWEEP_ROUTE}
+              glyph="radar"
+              label={t("cell_scanner.neighbour.run.link_sweep")}
+              blockedReason={
+                isScanning ? t("cell_scanner.neighbour.run.link_blocked") : null
+              }
+            />
+          }
+          postureTitle={postureTitle}
+          postureTitleIsMachine={usesModemMessage}
+          postureBody={postureBody}
+          metric={posture === "complete" ? summary.total : null}
+          metricUnit={
+            posture === "complete"
+              ? t("cell_scanner.neighbour.run.ledger.figure_unit", {
+                  count: summary.total,
+                })
+              : null
+          }
+          rows={ledgerRowsNode}
+          idleCollapsed
+          actions={
+            // None on failed: the results card carries the retry.
+            posture === "failed" ? null : (
+              <Button
+                type="button"
+                onClick={startScan}
+                disabled={isScanning}
+                size="action"
+              >
+                <MaterialSymbol
+                  name={isScanning ? "progress_activity" : "cell_tower"}
+                  size={18}
+                  className={
+                    isScanning
+                      ? "motion-safe:animate-spin"
+                      : undefined
+                  }
+                />
+                {isScanning
+                  ? t("cell_scanner.neighbour.run.scanning_action")
+                  : hasResults
+                    ? t("cell_scanner.neighbour.run.rerun")
+                    : t("cell_scanner.neighbour.run.start")}
+              </Button>
+            )
+          }
+        />
+      </motion.div>
+
+      {posture === "idle" ? null : (
+        <motion.div variants={staggerItem} initial="hidden" animate="visible">
+          <Card className={SCAN_RESULTS_CARD}>
+            <div className={SECTION_HEAD.ROOT}>
+              <div className={SECTION_HEAD.TITLES}>
+                <CardTitle as="h2" className={SECTION_HEAD.TITLE}>
+                  {t("cell_scanner.neighbour.results.title")}
+                </CardTitle>
+                <CardDescription className={SECTION_HEAD.DESC}>
+                  {t("cell_scanner.neighbour.results.description")}
+                </CardDescription>
+              </div>
+            </div>
+
+            {isScanning ? (
+              <ScannerSkeleton />
+            ) : posture === "failed" ? (
+              // No `message`: the hero's status cell already names the reason.
+              <ScanErrorState
+                title={t("cell_scanner.neighbour.results.error_title")}
+                body={t("cell_scanner.neighbour.run.failed_body")}
+                retryLabel={t("cell_scanner.neighbour.results.error_retry")}
+                onRetry={startScan}
+              />
+            ) : results.length > 0 ? (
               <NeighbourScanResultView
                 data={results}
                 onLockCell={handleLockCell}
+                toolbarActions={
+                  <Button
+                    type="button"
+                    variant="tonal-neutral"
+                    className={cn(PILL_QUIET, "gap-1.5")}
+                    onClick={handleDownload}
+                    aria-label={t("cell_scanner.run.download")}
+                  >
+                    <MaterialSymbol name="download" size={16} />
+                    <span className="hidden @sm/section:inline">
+                      {t("cell_scanner.run.download")}
+                    </span>
+                  </Button>
+                }
               />
-            ) : isScanning ? (
-              <ScannerSkeleton headerCols={5} rowCols={4} />
-            ) : status === "error" ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-                <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
-                  <AlertCircle className="size-5 text-destructive" />
-                </div>
-                <div className="max-w-xs space-y-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {error || "Scan failed"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    The modem may be busy or unreachable. Check your connection
-                    and try again.
-                  </p>
-                </div>
-                <Button onClick={startScan} variant="outline" size="sm">
-                  <RefreshCcwIcon className="size-4" />
-                  Retry Scan
-                </Button>
-              </div>
             ) : (
-              <ScannerEmptyView onStartScan={startScan} />
+              // Only after a completed read that listed nothing; no button.
+              <Empty className={EMPTY_PANEL}>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <MaterialSymbol name="radar" size={24} aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>
+                    {t("cell_scanner.neighbour.results.empty_title")}
+                  </EmptyTitle>
+                  <EmptyDescription className="text-pretty">
+                    {t("cell_scanner.neighbour.results.empty_body")}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
-          </div>
-          {(hasScanResults || isScanning) && (
-            <div className="mt-4 flex items-center gap-x-2">
-              <Button onClick={startScan} disabled={isScanning}>
-                {isScanning ? "Scanning..." : "Start New Scan"}
-              </Button>
-              {hasScanResults && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    downloadCSV(
-                      NEIGHBOUR_CSV_HEADER,
-                      buildCsvRows(results),
-                      `neighbour_scan_${new Date().toISOString().slice(0, 10)}.csv`,
-                    )
-                  }
-                  aria-label="Download CSV"
-                >
-                  <DownloadIcon />
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </Card>
+        </motion.div>
+      )}
 
-      {/* Lock confirmation dialog */}
-      <AlertDialog
-        open={!!lockTarget}
-        onOpenChange={(open) => !open && !isLocking && setLockTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Lock to Cell?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will lock the modem to the following cell. It will only
-              connect to this specific cell until the lock is removed.
-            </AlertDialogDescription>
-            {lockTarget && (
-              <p className="font-mono text-xs text-muted-foreground">
-                {lockTarget.networkType} — PCI {lockTarget.pci}, EARFCN{" "}
-                {lockTarget.frequency}
-              </p>
-            )}
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLocking}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); confirmLockCell(); }} disabled={isLocking}>
-              {isLocking ? (
-                <>
-                  <LoaderCircleIcon className="size-4 animate-spin" />
-                  Locking...
-                </>
-              ) : (
-                "Lock Cell"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <LockCellDialog
+        target={lockTarget}
+        onOpenChange={(open) => {
+          if (!open) setLockTarget(null);
+        }}
+      />
     </>
   );
-};
+}
 
-export default NeighbourCellScanner;
+export default NeighbourScanner;

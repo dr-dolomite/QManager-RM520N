@@ -6,7 +6,8 @@ After=network.target lighttpd.service
 [Service]
 Type=simple
 ExecStartPre=/bin/sleep 2
-ExecStart=/usrdata/qmanager/console/ttyd -i 127.0.0.1 -p 8080 -t 'theme={"foreground":"#e4e4e7","background":"#09090b","cursor":"#e4e4e7"}' -t fontSize=14 --writable /usrdata/qmanager/console/console.sh
+# -a passes ?arg=<token> to console.sh, which refuses the shell without a valid one.
+ExecStart=/usrdata/qmanager/console/ttyd -i 127.0.0.1 -p 8080 -a -t 'theme={"foreground":"#e4e4e7","background":"#09090b","cursor":"#e4e4e7"}' -t fontSize=14 --writable /usrdata/qmanager/console/console.sh
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=5s

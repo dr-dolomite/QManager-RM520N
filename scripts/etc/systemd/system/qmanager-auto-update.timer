@@ -8,6 +8,15 @@ Description=QManager Unattended Update Check (daily)
 # once on the hour. Persistent=true catches a missed run (device was off /
 # rebooting at the scheduled time) on the next boot instead of silently
 # skipping a day.
+#
+# Persistent=true is intentional and is KEPT (not a bug): missed-day catch-up
+# is genuinely wanted for a daily update check. It is only safe because
+# qmanager_auto_update (the fired worker) carries the boot-window fire guard
+# (_qm_timer_fire_allowed) — without that guard, this same catch-up mechanism
+# fires at boot against a stepped clock on every boot (RM520N has no battery
+# RTC; systemd 244 fires an armed OnCalendar timer once when the clock steps
+# from 1970 to real time, ~24s in). See docs/reference/scheduled-timers.md
+# ("The 1970 boot window") and issue #9.
 OnCalendar=daily
 RandomizedDelaySec=3h
 Persistent=true

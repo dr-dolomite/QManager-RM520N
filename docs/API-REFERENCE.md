@@ -18,18 +18,48 @@ All endpoints return JSON with a consistent structure:
 { "success": false, "error": "error_code", "detail": "Human-readable message" }
 ```
 
+### Boot-persistence failures (`service_enable_failed` / `service_disable_failed`)
+
+Any endpoint that switches a background service on or off has to write a systemd boot symlink under `/lib/systemd/system/multi-user.target.wants/`, which sits on the read-only-at-boot rootfs. That write can fail (see [BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract)). These endpoints previously reported success regardless; they now report the failure, in one of two shapes.
+
+**As an error envelope** — the setting was saved, but the service will not survive a reboot:
+
+```json
+{ "success": false, "error": "service_enable_failed",
+  "detail": "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)" }
+```
+
+| Endpoint | Emits |
+|----------|-------|
+| `POST /monitoring/watchdog.sh` | `service_enable_failed`, `service_disable_failed` |
+| `POST /monitoring/alerts.sh` (Discord channel) | `service_enable_failed` |
+| `POST /cellular/sms_forwarding.sh` | `service_enable_failed`, `service_disable_failed` |
+| `POST /vpn/tailscale.sh` (`set_boot_enabled`) | `service_enable_failed`, `service_disable_failed` |
+| `POST /tower/lock.sh` (unlock, when the last lock is cleared) | `service_disable_failed` |
+
+> ⚠️ WARNING: In every case the **settings write already succeeded** — only the boot symlink failed. The UI should tell the user the change applies now but will not survive a reboot, not that the save was rejected.
+
+**As boolean fields on a success envelope** — used where the operation has a meaningful result of its own that the client still needs:
+
+| Field | On | Meaning when `true` |
+|-------|----|---------------------|
+| `service_enable_failed` | `POST /tower/settings.sh`, `POST /tower/lock.sh` (both lock-success envelopes) | The failover daemon is running now, but its boot symlink was not written — failover will not resume after a reboot. |
+| `service_disable_failed` | `POST /tower/settings.sh` | The failover daemon was stopped, but its boot symlink could not be removed — it will start again after a reboot. |
+
+Both default to `false` and are always present on those envelopes.
+
 ---
 
 ## Platform Notes
 
 ### RM520N-GL Variant
 
-On the RM520N-GL, CGI endpoints are served by lighttpd instead of uhttpd, and AT commands go through `atcli_smd11` on `/dev/smd11` directly via the `qcmd` wrapper — no socat PTY bridge. The API contract (request/response format) is the same across platforms.
+On the RM520N-GL, CGI endpoints are served by lighttpd instead of uhttpd, and AT commands go through `qcmd` (a link to the `qmanager_atd` broker binary) on `/dev/smd11` directly — no socat PTY bridge. The API contract (request/response format) is the same across platforms.
 
 Key differences:
 - **Base URL**: Same (`/cgi-bin/quecmanager/`), served from `/usrdata/qmanager/www/cgi-bin/quecmanager/`
 - **Auth**: Same cookie-based session mechanism
-- **AT execution**: `qcmd` wrapping `atcli_smd11` on `/dev/smd11`
+- **AT execution**: `qcmd` → `qmanager_atd` on `/dev/smd11`
 - **Config**: File-based (`/etc/qmanager/`) instead of UCI
 
 ---
@@ -205,11 +235,13 @@ Main polling endpoint. Returns the cached modem status JSON (built by `qmanager_
     "max_latency_ms": 89.3,
     "jitter_ms": 4.8,
     "packet_loss_pct": 0,
-    "ping_target": "8.8.8.8",
-    "latency_history": [34.2, 36.1, 38.0, ...],
+    "ping_target": "1.1.1.1",
+    "latency_history": [34.2, 36.1, null, 38.0, ...],
     "history_interval_sec": 5,
     "history_size": 60,
-    "during_recovery": false
+    "during_recovery": false,
+    "profile": "relaxed",
+    "last_family": "ipv4"
   },
   "signal_per_antenna": {
     "lte_rsrp": [-95, -97, -102, null],
@@ -246,7 +278,7 @@ Main polling endpoint. Returns the cached modem status JSON (built by `qmanager_
 
 ### GET `/at_cmd/fetch_events.sh`
 
-Returns network events as a JSON array.
+Returns the **newest 50** network events as a JSON array, oldest first. The on-device ring holds up to 300 (`MAX_EVENTS`); the endpoint serves a slice so the browser payload stays small.
 
 **Response:**
 ```json
@@ -254,11 +286,19 @@ Returns network events as a JSON array.
   {
     "timestamp": 1710700000,
     "type": "band_change",
-    "message": "LTE band changed from B2 to B66",
+    "message": "LTE band settled on B66 (was B2) (PCI 305)",
     "severity": "info"
+  },
+  {
+    "timestamp": 1710700120,
+    "type": "band_change",
+    "message": "LTE band unstable — 14 changes in the last 5 min",
+    "severity": "warning"
   }
 ]
 ```
+
+> ℹ️ NOTE: `band_change` and `pci_change` messages are phrased as "settled on X (was Y)" rather than "changed from X to Y" because the value is debounced — the radio may pass through intermediate values that are deliberately not reported. Both types can arrive at `severity: "warning"` when the radio is churning; do not assume they are always `info`.
 
 ### GET `/at_cmd/fetch_signal_history.sh`
 
@@ -281,7 +321,9 @@ Returns signal history entries as a JSON array.
 
 ### GET `/at_cmd/fetch_ping_history.sh`
 
-Returns ping history entries as a JSON array.
+Returns ping history entries as a JSON array, oldest first.
+
+**Query:** `last=N` (optional, digits only; anything else is ignored) returns only the newest N rows. Without it the whole 24 h file is returned (≈ 1 MB on RM520N-GL).
 
 **Response:**
 ```json
@@ -314,29 +356,40 @@ Execute a raw AT command.
 
 ### POST `/at_cmd/cell_scan_start.sh`
 
-Start the cell scanner daemon.
+Start the cell scanner worker. Takes an exclusive `flock` on `/tmp/qmanager_scan.lock` — shared with the neighbour scanner — before spawning, and the worker inherits it.
 
 **Response:**
 ```json
 { "success": true }
 ```
 
+**Errors** (`{"success": false, "error": …, "detail": …}`):
+
+| `error` | Meaning |
+|---------|---------|
+| `already_running` | The **same** scan type is in flight. The client should attach and poll. |
+| `other_scan_running` | The **other** scan type holds the modem. The client must **not** attach — it would poll a status file that does not exist and read `idle` a second later. |
+| `start_failed` | The worker was spawned but was dead 0.2 s later (missing or non-executable binary). |
+
 ### GET `/at_cmd/cell_scan_status.sh`
 
-Get cell scan results.
+Get cell scan results. **Non-destructive** — it does not delete the error file on read, so two tabs or a page reload can both see a failure. The error is cleared by the next scan start.
 
-**Response:**
+**Response** (one of):
 ```json
-{
-  "success": true,
-  "status": "complete",
-  "cells": [...]
-}
+{ "status": "running" }
+{ "status": "complete", "results": [...] }
+{ "status": "error", "message": "…" }
+{ "status": "idle" }
 ```
+
+> ⚠️ The result check sits **above** the error check, and the order matters: if both files are ever present, error-first would mean a good result is delivered *never* rather than merely late. Result-first cannot mask a real failure, because a real failure means the start endpoint already deleted the result file.
+
+> ℹ️ `idle` on a client that is actively polling means the run vanished — no pid, no result, no error. Both hooks report that as an error rather than resetting the surface to rest.
 
 ### POST `/at_cmd/neighbour_scan_start.sh` / GET `neighbour_scan_status.sh`
 
-Same pattern as cell scanner for neighbor cells.
+Same pattern, same lock, same four error codes and the same status envelope. A neighbour read whose LTE or NR leg was blocked while the other found no cells returns `{"status":"error"}` naming the failed leg, **not** an empty `complete`.
 
 ### POST `/at_cmd/speedtest_start.sh` / GET `speedtest_status.sh` / GET `speedtest_check.sh`
 
@@ -481,11 +534,13 @@ Activates (`true`) or deactivates (`false`) one PDP context via `AT+CGACT`.
 | Code | Meaning |
 |------|---------|
 | `invalid_index` | `index` missing or not 1-6 |
-| `invalid_action` | `action` not `save` or `toggle` |
+| `invalid_action` | `action` not `save`, `toggle`, or `deactivate` |
 | `missing_fields` | Required field absent (`apn` for save, `enabled` for toggle) |
 | `invalid_pdp_type` | `pdp_type` not `ipv4`/`ipv6`/`ipv4v6` |
 | `invalid_value` | APN/username/password contains a double-quote |
-| `cops_detach_failed` / `cgdcont_failed` / `qicsgp_failed` / `cops_attach_failed` / `cgact_failed` | The underlying AT command failed. On `cgdcont_failed` / `qicsgp_failed` during save, `apn.sh` runs a best-effort `AT+COPS=0` so the modem does not stay detached |
+| `cops_detach_failed` / `cgdcont_failed` / `qicsgp_failed` / `cops_attach_failed` / `cgact_failed` | The underlying AT command failed. Saves are **write-first** (`AT+CGDCONT` before `AT+COPS=2`), so a `cgdcont_failed` / `qicsgp_failed` happens with the modem still registered — there is no recovery re-attach to run. Only `cops_attach_failed` can leave it deregistered |
+| `apn_mismatch` | The modem re-attached, but the APN the network granted (`AT+CGCONTRDP`) differs from the one requested — the apply did **not** take. Distinct from an AT failure: every command succeeded |
+| `apn_busy` | Another APN apply is mid-flight and the bracket lock could not be acquired within 5s. No AT command was issued and the modem is unchanged — surface as "try again shortly", not a hard failure |
 | `parse_failed` | GET could not assemble the profile list |
 
 ### GET/POST `/cellular/mbn.sh`
@@ -606,6 +661,15 @@ Current frequency lock state.
 }
 ```
 
+**POST Response (lock success):**
+```json
+{ "success": true, "type": "lte", "action": "lock", "num_cells": 2,
+  "failover_armed": true, "service_enable_failed": false }
+```
+The `nr_sa` variant is the same minus `num_cells`. `failover_armed` describes the **running** daemon; `service_enable_failed: true` means that daemon is alive now but its boot symlink was not written, so failover will not resume after a reboot. See [Boot-persistence failures](#boot-persistence-failures-service_enable_failed--service_disable_failed).
+
+On unlock, if this was the last active lock the endpoint disables the failover service; a failed disable returns `{"success": false, "error": "service_disable_failed", ...}` instead of the unlock envelope.
+
 ### GET `/tower/status.sh`
 
 Current tower lock state.
@@ -613,6 +677,13 @@ Current tower lock state.
 ### GET/POST `/tower/settings.sh`
 
 Tower locking general settings.
+
+**POST Response:**
+```json
+{ "success": true, "persist": true, "failover_enabled": true, "failover_threshold": 3,
+  "watcher_spawned": true, "service_disable_failed": false, "service_enable_failed": false }
+```
+`persist_command_failed: true` is added when the persist AT command failed. The two `service_*_failed` booleans report boot-symlink writes for `qmanager-tower-failover.service` and are always present — see [Boot-persistence failures](#boot-persistence-failures-service_enable_failed--service_disable_failed).
 
 ### GET `/tower/failover_status.sh`
 
@@ -779,7 +850,28 @@ Deactivate the currently active profile.
 
 ### GET `/profiles/current_settings.sh`
 
-Get current modem settings for pre-filling profile creation forms.
+Get current modem settings for pre-filling profile creation forms. One compound
+AT read (`AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN`), called once
+per form open — never polled.
+
+```json
+{
+  "apn_profiles": [ { "cid": 1, "apn": "fbb.home", "pdp_type": "IPV4V6" } ],
+  "imei": "860000000000000",
+  "iccid": "8901260123456789012",
+  "active_cid": 1,
+  "spn": "GLOBE",
+  "mcc": "515",
+  "mnc": "02"
+}
+```
+
+`spn` / `mcc` / `mnc` are the carrier identity parsed from `+QSPN`; the MCC/MNC
+split is first-3 / rest (MNC is 2 **or** 3 digits). All three fail soft to `""`
+on an absent or malformed `+QSPN` — the endpoint always returns 200, including
+on a SIM-less modem. `iccid` is already canonicalized (trailing BCD pad `F`
+stripped). See
+[sim-profiles.md](reference/sim-profiles.md#live-modem-settings-get-profilescurrent_settingssh).
 
 ---
 
@@ -868,7 +960,7 @@ Unified endpoint for all three alert channels (SMS, email, Discord) plus the rou
 
 | Action | Purpose |
 |--------|---------|
-| `save_settings` | Persist all three channel configs + routing atomically. `app_password` / `bot_token` sent only when changed; omitted secrets reuse the stored value. `connection_lost.email` and `connection_lost.discord` routing cells are hard-clamped to `false` server-side. |
+| `save_settings` | Persist all three channel configs + routing atomically. `app_password` / `bot_token` are sent only when the user typed a new one; an omitted secret leaves the stored credential untouched and carries its `*_set` marker forward. The secrets are written by a root helper into `/etc/qmanager-secrets/` and never land in the config JSONs. `connection_lost.email` and `connection_lost.discord` routing cells are hard-clamped to `false` server-side. |
 | `send_test` | `{ "channel": "sms" \| "email" \| "discord" }` — send a real test alert via that channel's live transport. |
 | `get_log` | Merged NDJSON activity log across all three channels, newest first, cap 100. |
 | `install_msmtp` | Background `opkg` install of the `msmtp` mailer (optional email dependency). |
@@ -1221,7 +1313,7 @@ The frontend hook (`hooks/use-modem-subsys.ts`) treats `null` fields the same as
 
 ## DPI Settings
 
-The DPI Settings page manages two features through a single CGI endpoint: **Video Optimizer** (SNI splitting for video throttle bypass) and **Traffic Masquerade** (fake TLS ClientHello with spoofed SNI). Both share the nfqws binary and kernel module but run as separate nfqws instances on different NFQUEUE numbers.
+The **Traffic Engine** page manages two modes through a single CGI endpoint: **Video Optimizer** (SNI splitting scoped to a hostlist) and **Full Bypass** (the same recipe applied to every 80/443 connection). This is the zapret add-on: the engine is one userspace `tpws` instance behind an iptables REDIRECT — not the legacy nfqws/NFQUEUE model. The two modes differ in **scope, not technique**, which is why Full Bypass is no longer called "Traffic Masquerade": there is no fake ClientHello anywhere in this engine. The endpoint also exposes the standalone **QUIC Force-TCP** toggle and the test-bypass comparison. See `docs/reference/dpi.md` for the architecture and recipe.
 
 ### GET `/network/video_optimizer.sh`
 
@@ -1237,15 +1329,31 @@ Read video optimizer settings and service status.
   "packets_processed": 48291,
   "domains_loaded": 22,
   "binary_installed": true,
-  "kernel_module_loaded": true
+  "kernel_module_loaded": true,
+  "force_tcp": false,
+  "force_tcp_active": false
 }
 ```
 
-Status values: `running`, `stopped`, `restarting`, `error`
+Status values: `running`, `stopped`, `restarting`, `error`. `force_tcp` is the config intent (`quic.force_tcp`); `force_tcp_active` is whether the FORWARD rule rejecting QUIC (UDP 443) is currently applied — independent of the engine.
 
-### GET `/network/video_optimizer.sh?section=masquerade`
+### GET `/network/video_optimizer.sh?section=full_bypass`
 
-Read traffic masquerade settings and service status.
+Read Full Bypass settings and service status.
+
+> **Renamed 2026-09-01.** This section was `?section=masquerade` ("Traffic
+> Masquerade") until v0.1.14. The old name came from the RM551E, where nfqws
+> forged a TLS ClientHello carrying a spoofed SNI; the tpws engine used here has
+> no fake-SNI mode and only splits the real ClientHello, so nothing was ever
+> masqueraded on this platform. The mode differs from Video Optimizer in
+> **scope** (no hostlist), which is what the new name says.
+>
+> `?section=masquerade` and `action=save_masquerade` are still accepted as
+> **deprecated aliases for one release**, so a browser tab held open across an
+> OTA does not get `unknown_action` on its next write. Do not write new clients
+> against them. The persisted config section moved with the name
+> (`traffic_masquerade` → `full_bypass`) and existing devices are migrated in
+> place on install/OTA — see `docs/reference/dpi.md` > Modes.
 
 **Response:**
 ```json
@@ -1257,7 +1365,9 @@ Read traffic masquerade settings and service status.
   "packets_processed": 15320,
   "sni_domain": "speedtest.net",
   "binary_installed": true,
-  "kernel_module_loaded": true
+  "kernel_module_loaded": true,
+  "force_tcp": false,
+  "force_tcp_active": false
 }
 ```
 
@@ -1280,9 +1390,12 @@ Poll verification test progress/results.
   "timestamp": "2026-03-24T14:30:00Z",
   "without_bypass": {"speed_mbps": 2.4, "throttled": true},
   "with_bypass": {"speed_mbps": 47.2, "throttled": false},
+  "reference": {"speed_mbps": 48.1, "source": "speedtest"},
   "improvement": "19.7x"
 }
 ```
+
+`reference` is the "3rd opinion" — the raw line sampled through speedtest.net with a Cloudflare fallback (`source` is `speedtest` or `cloudflare`, and `null` when both are down). The `throttled` verdicts consult it: a slow fast.com beside a healthy reference reads throttled, while a slow result on both reads not throttled; a broken reference falls back to the absolute-speed rule.
 
 ### GET `/network/video_optimizer.sh?action=install_status`
 
@@ -1315,15 +1428,23 @@ Poll nfqws installation progress/results.
 {"action": "save", "enabled": true}
 ```
 
-**Save traffic masquerade settings:**
+**Save Full Bypass settings:**
 ```json
-{"action": "save_masquerade", "enabled": true, "sni_domain": "speedtest.net"}
+{"action": "save_full_bypass", "enabled": true, "sni_domain": "speedtest.net"}
 ```
 
-- `enabled` (boolean, required): Enable or disable traffic masquerade.
-- `sni_domain` (string, optional): Domain to spoof in fake TLS ClientHello. Must contain at least one dot, max 253 characters. Defaults to `speedtest.net` if not provided.
+- `enabled` (boolean, required): Enable or disable Full Bypass.
+- `sni_domain` (string, optional): Must contain at least one dot, max 253 characters. Defaults to `speedtest.net` if not provided. **Inert on this platform** — it is validated and stored for RM551E contract parity only, and tpws never reads it (there is no fake ClientHello to put it in). Kept deliberately through the rename; removing it would be a contract change.
+- Legacy alias: `"action": "save_masquerade"` is accepted for one release (see the GET section above).
 
-Saving masquerade settings restarts the entire `qmanager_dpi` service (both instances) to apply changes.
+Saving Full Bypass settings restarts the `qmanager-dpi` service to apply changes, and the CGI-enforced mutex disables Video Optimizer in the same write.
+
+**Force QUIC over TCP (standalone):**
+```json
+{"action": "save_force_tcp", "enabled": true}
+```
+
+- `enabled` (boolean, required): Install/remove the FORWARD rule rejecting QUIC (UDP 443) on the LAN bridge, so QUIC-first apps fall back to HTTPS over TCP. Applies immediately; fully independent of the engine — no binary check, no mode mutex, no service restart. Config key: `quic.force_tcp`.
 
 **Start verification:**
 ```json

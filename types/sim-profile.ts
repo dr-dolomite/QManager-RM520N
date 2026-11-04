@@ -186,7 +186,7 @@ export type ApplyStatus = "idle" | "applying" | "complete" | "partial" | "failed
 
 /** Status of a single step in the apply sequence */
 export interface ApplyStep {
-  /** Step name: apn, network_mode, lte_bands, nsa_nr_bands, sa_nr_bands, ttl_hl, imei */
+  /** Step name — the RM520N apply pipeline emits exactly 4, in order: apn, ttl_hl, scenario, imei */
   name: string;
   /** Current step status */
   status: ApplyStepStatus;
@@ -208,6 +208,23 @@ export interface CurrentModemSettings {
   iccid: string;
   /** Active data CID (detected via QMAP/CGPADDR cross-reference) */
   active_cid: number;
+  /**
+   * Service Provider Name — AT+QSPN's THIRD quoted field, read from the SIM's
+   * EF_SPN. This names whoever sold the SIM, so an MVNO brands itself here
+   * (a Mint SIM on T-Mobile reads `spn: "Mint"`, `network_name: "T-Mobile"`).
+   * EF_SPN is optional, so `""` is common and must never be read as a signal.
+   */
+  spn: string;
+  /**
+   * Full Network Name — AT+QSPN's FIRST quoted field, read from the SIM's
+   * EF_PNN. This names the NETWORK, not the reseller. Kept alongside `spn`
+   * because some MVNOs brand via EF_PNN instead. May be "".
+   */
+  network_name: string;
+  /** 3-digit mobile country code, parsed from the AT+QSPN PLMN field. May be "" if unavailable. */
+  mcc: string;
+  /** 2- or 3-digit mobile network code, parsed from the AT+QSPN PLMN field. May be "" if unavailable. */
+  mnc: string;
 }
 
 /** A single APN/CID pair from AT+CGDCONT? */

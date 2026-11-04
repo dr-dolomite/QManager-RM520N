@@ -1,0 +1,94 @@
+#!/bin/sh
+# qmanager_mtu_set — root helper for the custom MTU: set <n> | disable | apply.
+# Called via: sudo -n /usr/bin/qmanager_mtu_set <verb> [n]  (www-data cannot write /etc).
+# The rules file is generated here and never sourced; apply re-reads and re-validates the value.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+LC_ALL=C; export LC_ALL
+
+MTU_FILE="/etc/firewall.user.mtu"
+tmp=""; bak=""
+cleanup() { [ -z "$tmp" ] || rm -f "$tmp"; [ -z "$bak" ] || rm -f "$bak"; return 0; }
+trap cleanup EXIT INT TERM
+
+fail() { printf '{"success":false,"error":"%s","detail":"%s"}\n' "$1" "$2"; exit 1; }
+
+# valid_mtu <v> — digits only, no leading zero, at most 4 digits, 576-9000.
+valid_mtu() {
+    case "$1" in ''|*[!0-9]*|0*) return 1 ;; esac
+    [ "${#1}" -le 4 ] && [ "$1" -ge 576 ] && [ "$1" -le 9000 ]
+}
+
+# apply_live <mtu> — ip link set on every rmnet_data*; prints the count, rc 1 if any refused.
+apply_live() {
+    _n=0; _bad=0
+    for _p in /sys/class/net/rmnet_data*; do
+        [ -e "$_p" ] || continue
+        if ip link set "${_p##*/}" mtu "$1" 2>/dev/null; then _n=$((_n + 1)); else _bad=1; fi
+    done
+    echo "$_n"
+    return $_bad
+}
+
+case "$1" in
+    set)
+        [ $# -eq 2 ] || fail "bad_args" "set takes exactly one MTU value"
+        valid_mtu "$2" || fail "invalid_mtu" "MTU must be a whole number from 576 to 9000"
+        mtu="$2"
+        content=""
+        for p in /sys/class/net/rmnet_data*; do
+            [ -e "$p" ] || continue
+            content="${content}ip link set ${p##*/} mtu $mtu
+"
+        done
+        # Temps inside /etc: only root can create or replace names there.
+        if [ -f "$MTU_FILE" ]; then
+            bak="$MTU_FILE.prev.$$"
+            cp -p "$MTU_FILE" "$bak" 2>/dev/null || fail "write_failed" "Could not back up the MTU rules file"
+        fi
+        prev=""
+        for p in /sys/class/net/rmnet_data*; do
+            [ -e "$p" ] || continue
+            prev="$prev ${p##*/}=$(cat "$p/mtu" 2>/dev/null)"
+        done
+        tmp="$MTU_FILE.tmp.$$"
+        printf '%s' "$content" > "$tmp" 2>/dev/null || fail "write_failed" "Could not write the MTU rules file"
+        chmod 644 "$tmp" 2>/dev/null && chown root:root "$tmp" 2>/dev/null || fail "write_failed" "Could not set the MTU rules file permissions"
+        mv -f "$tmp" "$MTU_FILE" 2>/dev/null || fail "write_failed" "Could not replace the MTU rules file"
+        tmp=""
+        if ! count=$(apply_live "$mtu"); then
+            # Put the file and the interfaces back so they agree with the reported error.
+            for e in $prev; do
+                case "${e#*=}" in ''|*[!0-9]*) continue ;; esac
+                ip link set "${e%%=*}" mtu "${e#*=}" 2>/dev/null
+            done
+            if [ -n "$bak" ]; then mv -f "$bak" "$MTU_FILE" 2>/dev/null; bak=""; else rm -f "$MTU_FILE"; fi
+            fail "apply_failed" "An interface refused the MTU change"
+        fi
+        [ -z "$bak" ] || rm -f "$bak"; bak=""
+        printf '{"success":true,"verb":"set","mtu":%s,"interfaces":%s}\n' "$mtu" "$count"
+        ;;
+    disable)
+        [ $# -eq 1 ] || fail "bad_args" "disable takes no arguments"
+        rm -f "$MTU_FILE" 2>/dev/null
+        [ ! -e "$MTU_FILE" ] || fail "remove_failed" "Could not remove the MTU rules file"
+        # 1500 is the boot MTU of every rmnet_data on both devices.
+        count=$(apply_live 1500) || fail "apply_failed" "An interface refused the default MTU"
+        printf '{"success":true,"verb":"disable","mtu":1500,"interfaces":%s}\n' "$count"
+        ;;
+    apply)
+        [ $# -eq 1 ] || fail "bad_args" "apply takes no arguments"
+        if [ ! -f "$MTU_FILE" ]; then
+            printf '{"success":true,"verb":"apply","mtu":null,"interfaces":0}\n'
+            exit 0
+        fi
+        m=$(grep -o 'mtu [0-9]*' "$MTU_FILE" 2>/dev/null | head -n 1)
+        mtu="${m#mtu }"
+        valid_mtu "$mtu" || fail "invalid_file" "The MTU rules file holds no valid MTU"
+        count=$(apply_live "$mtu") || fail "apply_failed" "An interface refused the MTU change"
+        printf '{"success":true,"verb":"apply","mtu":%s,"interfaces":%s}\n' "$mtu" "$count"
+        ;;
+    *)
+        fail "bad_verb" "Verb must be set, disable or apply"
+        ;;
+esac
+exit 0

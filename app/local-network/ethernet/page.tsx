@@ -1,4 +1,4 @@
-import EthernetStatusComponent from "@/components/local-network/ethernet-status";
+import EthernetStatusComponent from "@/components/local-network/ethernet/ethernet-status";
 import React from "react";
 
 const EthernetPage = () => {

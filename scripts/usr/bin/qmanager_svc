@@ -1,0 +1,78 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_svc — root helper: control QManager's own systemd units
+# =============================================================================
+# Called via: sudo -n /usr/bin/qmanager_svc <verb> <unit>
+#   verb: start | stop | restart | reset-failed | is-active | enable | disable
+#   unit: qmanager-<name> (lowercase, digits, dashes), no suffix
+#
+# Replaces the sudoers `systemctl ... qmanager-*` and `ln/rm ... qmanager*`
+# wildcard grants: a sudoers `*` in arguments also matches spaces and `/`, so
+# those lines let www-data pass extra units and options to a root systemctl.
+# Here the verb and unit are validated and the argv is built from constants.
+#
+# enable/disable manage the /lib boot symlink directly (platform.sh explains
+# why not `systemctl enable`). Exit status mirrors systemctl/ln/rm.
+# =============================================================================
+
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+UNIT_DIR="/lib/systemd/system"
+WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
+
+_die() {
+    echo "qmanager_svc: $*" >&2
+    exit 2
+}
+
+[ "$#" -eq 2 ] || _die "usage: qmanager_svc <verb> <unit>"
+verb="$1"
+unit="$2"
+
+case "$verb" in
+    start|stop|restart|reset-failed|is-active|enable|disable) ;;
+    *) _die "bad verb" ;;
+esac
+
+# Charset test via case (device jq/BusyBox have no regex). Prefix, a non-empty
+# remainder, and only [a-z0-9-] anywhere.
+case "$unit" in
+    qmanager-?*) ;;
+    *) _die "bad unit" ;;
+esac
+case "$unit" in
+    *[!a-z0-9-]*) _die "bad unit" ;;
+esac
+[ "${#unit}" -le 64 ] || _die "bad unit"
+
+file="$UNIT_DIR/$unit.service"
+link="$WANTS_DIR/$unit.service"
+
+# disable only removes a boot symlink, so a unit file already gone is fine.
+if [ "$verb" != "disable" ]; then
+    if [ ! -f "$file" ] || [ -L "$file" ]; then
+        if [ "$verb" = "is-active" ]; then
+            echo "inactive"
+            exit 3
+        fi
+        _die "no such unit"
+    fi
+fi
+
+case "$verb" in
+    enable)
+        exec /bin/ln -sf "$file" "$link"
+        ;;
+    disable)
+        # Remove only a symlink; never delete a regular file by this name.
+        if [ -L "$link" ]; then
+            exec /bin/rm -f "$link"
+        fi
+        [ ! -e "$link" ] || _die "wants entry is not a symlink"
+        exit 0
+        ;;
+    *)
+        exec /bin/systemctl "$verb" "$unit.service"
+        ;;
+esac

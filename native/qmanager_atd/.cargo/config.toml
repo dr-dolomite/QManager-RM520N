@@ -1,0 +1,10 @@
+# The device is aarch64 musl. musl targets ship self-contained CRT objects, so
+# rust-lld links a fully static binary without a cross gcc.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# RM520N-GL / RG501Q-EU: one Cortex-A7 core, armv7l hard-float.
+[target.armv7-unknown-linux-musleabihf]
+linker = "rust-lld"
+rustflags = ["-C", "target-feature=+crt-static"]

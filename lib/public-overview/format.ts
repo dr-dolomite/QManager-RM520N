@@ -3,7 +3,6 @@
 // =============================================================================
 
 import type { ConnectionState } from "@/types/modem-status";
-import type { PublicOverviewBand } from "@/types/public-overview";
 
 /**
  * Reduces LTE + NR connection states into a single label for the connection
@@ -31,38 +30,15 @@ export function deriveConnectionLabel(
   return "unknown";
 }
 
-/**
- * One row per active carrier component (PCC + SCCs in input order). Bandwidth
- * is `null` when missing (0 or non-finite); PCI / RSRP are `null` when not
- * reported. Renderer decides how to format each side independently.
- */
-export interface CarrierComponentRow {
-  band: string;
-  bandwidth: number | null;
-  pci: number | null;
-  rsrp: number | null;
-}
-
-/**
- * Builds the per-component rows for the "Bands" section. Entries with empty
- * `band` are skipped; remaining fields are normalized to a flat shape so the
- * renderer can lay each row out without juggling discriminated variants.
- */
-export function formatCarrierComponents(
-  bands: PublicOverviewBand[],
-): CarrierComponentRow[] {
-  return bands
-    .filter((b): b is PublicOverviewBand => Boolean(b && b.band))
-    .map((b) => ({
-      band: b.band,
-      bandwidth:
-        Number.isFinite(b.bandwidth_mhz) && b.bandwidth_mhz > 0
-          ? b.bandwidth_mhz
-          : null,
-      pci: b.pci != null ? b.pci : null,
-      rsrp: b.rsrp != null ? b.rsrp : null,
-    }));
-}
+// A carrier-component flattener and its row interface used to live here. They
+// had no consumer: `BandRow` reads `PublicOverviewBand` directly and needs none
+// of the normalising, so the pair was a preparation step for a renderer that was
+// never written.
+//
+// `formatUptime` below is NOT in that category and must stay — it has two live
+// consumers on the AUTHENTICATED side (`cellular/radio/cellular-information-card.tsx`
+// and `dashboard/device-status.tsx`), so deleting it while cleaning up this
+// module's public-splash helpers would be a regression, not a tidy-up.
 
 export type UptimeFormat =
   | { key: "days"; days: number; hours: number }

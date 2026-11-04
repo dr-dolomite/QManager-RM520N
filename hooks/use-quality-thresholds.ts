@@ -33,6 +33,8 @@ export interface UseQualityThresholdsReturn {
   isSaving: boolean;
   saveError: string | null;
   save: (next: QualityThresholdsSettings) => Promise<QualityThresholdsResponse>;
+  /** Re-runs the GET non-silently — the Retry affordance for the error state. */
+  refresh: () => Promise<void>;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -94,6 +96,9 @@ export function useQualityThresholds(): UseQualityThresholdsReturn {
     fetchThresholds();
   }, [fetchThresholds]);
 
+  // Wrapped so a caller cannot pass `silent` and suppress the loading state.
+  const refresh = useCallback(() => fetchThresholds(), [fetchThresholds]);
+
   // ---------------------------------------------------------------------------
   // Save thresholds
   // ---------------------------------------------------------------------------
@@ -146,5 +151,6 @@ export function useQualityThresholds(): UseQualityThresholdsReturn {
     isSaving,
     saveError,
     save,
+    refresh,
   };
 }

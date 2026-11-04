@@ -22,10 +22,8 @@ qlog_init "cgi_bands_failover"
 cgi_headers
 cgi_handle_options
 
-# --- Configuration -----------------------------------------------------------
-FAILOVER_ENABLED_FILE="/etc/qmanager/band_failover_enabled"
-FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
-FAILOVER_PID_FILE="/tmp/qmanager_band_failover.pid"
+# --- Libraries ---------------------------------------------------------------
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -46,28 +44,10 @@ if [ -z "$ENABLED_VAL" ]; then
 fi
 
 # --- Persist setting ---------------------------------------------------------
-mkdir -p "$(dirname "$FAILOVER_ENABLED_FILE")" 2>/dev/null
+bands_set_failover "$ENABLED_VAL"
 
 if [ "$ENABLED_VAL" = "true" ]; then
-    printf '1' > "$FAILOVER_ENABLED_FILE"
-    qlog_info "Band failover ENABLED"
     jq -n '{"success":true,"enabled":true}'
 else
-    printf '0' > "$FAILOVER_ENABLED_FILE"
-    qlog_info "Band failover DISABLED"
-
-    # Kill any running watcher to prevent unexpected failovers
-    if [ -f "$FAILOVER_PID_FILE" ]; then
-        old_pid=$(cat "$FAILOVER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
-        if pid_alive "$old_pid"; then
-            kill -9 "$old_pid" 2>/dev/null
-            qlog_warn "Killed active failover watcher (PID=$old_pid) due to toggle OFF"
-        fi
-        rm -f "$FAILOVER_PID_FILE"
-    fi
-
-    # Clear any active failover flag so the UI resets from "Using Default Bands"
-    rm -f "$FAILOVER_ACTIVATED_FLAG"
-
     jq -n '{"success":true,"enabled":false}'
 fi

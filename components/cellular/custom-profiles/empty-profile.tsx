@@ -1,69 +1,40 @@
+"use client";
+
 import React from "react";
+import { useTranslation } from "react-i18next";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
-import { SmartphoneIcon, RefreshCcwIcon } from "lucide-react";
+import { ConditionScreen } from "@/components/cellular/condition-screen";
 import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { motion } from "motion/react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
-interface EmptyProfileViewProps {
-  onRefresh?: () => void;
+// The registry's empty state, rendered INSIDE the Saved Profiles card: nothing
+// is saved and no suggestion matched. A resting state, so neutral + `status`.
+
+interface EmptyProfileProps {
+  /** Opens the new-profile wizard; the button renders only when given. */
+  onAdd?: () => void;
 }
 
-const EmptyProfileViewComponent = ({ onRefresh }: EmptyProfileViewProps) => {
+const EmptyProfileComponent = ({ onAdd }: EmptyProfileProps) => {
+  const { t } = useTranslation("cellular");
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className="h-full"
-    >
-    <Card className="@container/card h-full">
-      <CardHeader>
-        <CardTitle>Saved Profiles</CardTitle>
-        <CardDescription>
-          Manage your custom SIM profiles here.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="h-full flex items-center justify-center">
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SmartphoneIcon />
-            </EmptyMedia>
-            <EmptyTitle>No Custom Profiles</EmptyTitle>
-            <EmptyDescription>
-              You have not created any custom SIM profiles yet. Use the form to
-              create your first profile.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            {onRefresh && (
-              <Button variant="outline" size="sm" onClick={onRefresh}>
-                <RefreshCcwIcon className="size-4" />
-                Refresh
-              </Button>
-            )}
-          </EmptyContent>
-        </Empty>
-      </CardContent>
-    </Card>
-    </motion.div>
+    <div className="flex flex-col items-center gap-4">
+      <ConditionScreen
+        tone="neutral"
+        glyph="sim_card"
+        ariaRole="status"
+        title={t("custom_profiles.empty_state.teaching_headline")}
+        description={t("custom_profiles.empty_state.teaching_body")}
+        className="w-full rounded-tile py-10"
+      />
+      {onAdd ? (
+        <Button size="action" onClick={onAdd}>
+          <MaterialSymbol name="add" size={18} />
+          {t("custom_profiles.empty_state.cta_new")}
+        </Button>
+      ) : null}
+    </div>
   );
 };
 
-export default EmptyProfileViewComponent;
+export default EmptyProfileComponent;

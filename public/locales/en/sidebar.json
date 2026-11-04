@@ -25,7 +25,7 @@
     "apn_management": "APN Management",
     "network_priority": "Network Priority",
     "imei_settings": "IMEI Settings",
-    "fplmn_settings": "FPLMN Settings",
+    "fplmn_settings": "Blocked Networks",
     "ethernet_status": "Ethernet Status",
     "local_network_settings": "Settings",
     "ip_passthrough": "IP Passthrough",
@@ -38,15 +38,48 @@
     "tailscale": "Tailscale VPN",
     "system_settings": "System Settings",
     "logs": "Logs",
+    "config_backup": "Configuration Backup",
     "system_health_check": "System Health Check",
     "connection_quality": "Connection Quality",
     "languages": "Languages",
+    "device_access": "Device Access",
+    "adaptive_polling": "Adaptive Polling",
     "software_update": "Software Update",
     "terminals": "Terminals",
     "at_terminal": "AT Terminal",
     "web_console": "Web Console",
     "about_device": "About Device",
     "support": "Support",
-    "donate": "Donate to the Project"
-  }
+    "donate": "Donate to the Project",
+    "traffic_engine": "Traffic Engine",
+    "cellular_overview": "Overview",
+    "sms_inbox": "Inbox",
+    "band_locking_bands": "Band Locking",
+    "cell_scanner_full_scan": "Full Scan",
+    "cellular_settings_general": "General",
+    "connection_quality_overview": "Overview",
+    "system_settings_general": "General"
+  },
+  "header": {
+    "role": "Admin"
+  },
+  "user": {
+    "signed_in": "Signed in"
+  },
+  "actions": {
+    "toggle_section": "Toggle {{section}} section",
+    "toggle_sidebar": "Toggle sidebar",
+    "skip_to_content": "Skip to main content"
+  },
+  "status": {
+    "watchdog_acting": "acting",
+    "watchdog_acting_detail": "Watchdog is recovering the connection (tier {{tier}}).",
+    "watchdog_settling": "settling",
+    "watchdog_settling_detail": "Watchdog is verifying the connection held after a recovery."
+  },
+  "mobile": {
+    "title": "Sidebar",
+    "description": "Main navigation for QManager."
+  },
+  "breadcrumb": "Breadcrumb"
 }

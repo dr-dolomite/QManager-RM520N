@@ -23,17 +23,26 @@ sys_get_hostname() {
     printf '%s' "$h"
 }
 
-# Set hostname (persists to config + applies live)
+# _sys_hostname_label <display name> — RFC 1123 label: spaces/underscores become hyphens, other
+# characters outside [A-Za-z0-9-] are dropped, edge hyphens stripped, 63 max; empty if nothing is left.
+_sys_hostname_label() {
+    printf '%s' "$1" | tr ' _' '--' | tr -cd 'A-Za-z0-9-' | sed 's/^-*//' | cut -c1-63 | sed 's/-*$//'
+}
+
+# Save the display name to qmanager.conf, apply the derived label to the system.
+# rc 0 ok (or no label), 1 config write failed, 2 saved but the system apply failed.
 sys_set_hostname() {
-    local name="$1"
+    local name="$1" label
     [ -z "$name" ] && return 1
-    qm_config_set settings hostname "$name"
-    # Apply to running system
-    echo "$name" > /proc/sys/kernel/hostname 2>/dev/null
-    # Persist to /etc/hostname (requires remount if rootfs is ro)
-    if [ -w /etc/hostname ] || mount -o remount,rw / 2>/dev/null; then
-        echo "$name" > /etc/hostname 2>/dev/null
-    fi
+    qm_config_set settings hostname "$name" || return 1
+    label=$(_sys_hostname_label "$name")
+    [ -z "$label" ] && return 0
+    if [ "$(id -u)" = "0" ]; then
+        /usr/bin/qmanager_hostname_apply "$label" >/dev/null 2>&1
+    else
+        sudo -n /usr/bin/qmanager_hostname_apply "$label" >/dev/null 2>&1
+    fi || { qlog_warn "qmanager_hostname_apply failed for $label"; return 2; }
+    return 0
 }
 
 # --- Timezone ----------------------------------------------------------------

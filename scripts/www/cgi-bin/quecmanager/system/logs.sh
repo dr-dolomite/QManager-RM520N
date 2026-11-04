@@ -32,10 +32,16 @@ MAX_ROTATED=2
 
 # --- Helpers -----------------------------------------------------------------
 
-# Extract a query parameter from QUERY_STRING
-get_param() {
-    echo "$QUERY_STRING" | tr '&' '\n' | grep "^${1}=" | head -1 | \
-        sed "s/^${1}=//" | sed 's/+/ /g; s/%20/ /g; s/%2F/\//g; s/%3A/:/g'
+# Set variable $2 to query parameter $1, decoded like the old echo|grep|sed pipeline. No fork.
+qs_param() {
+    _qs_v=""
+    _qs_ifs=$IFS; IFS='&'; set -f
+    for _qs_kv in $QUERY_STRING; do
+        case "$_qs_kv" in "$1="*) _qs_v=${_qs_kv#"$1="}; break ;; esac
+    done
+    IFS=$_qs_ifs; set +f
+    _qs_v=${_qs_v//+/ }; _qs_v=${_qs_v//%20/ }; _qs_v=${_qs_v//%2F/\/}; _qs_v=${_qs_v//%3A/:}
+    eval "$2=\$_qs_v"
 }
 
 # Gather log file paths in order (oldest rotated first, then current)
@@ -49,19 +55,6 @@ get_log_sources() {
         done
     fi
     [ -f "$LOG_FILE" ] && echo "$LOG_FILE"
-}
-
-# Collect unique component names from log sources
-get_components() {
-    local sources="$1"
-    if [ -z "$sources" ]; then
-        echo "[]"
-        return
-    fi
-    # shellcheck disable=SC2086
-    grep -h -o '\[[^:]*:' $sources 2>/dev/null | \
-        sed 's/\[//;s/:$//' | sort -u | \
-        jq -R -s 'split("\n") | map(select(length > 0))'
 }
 
 # Get log file statistics
@@ -90,24 +83,54 @@ get_stats() {
         '{current_size_kb: $size_kb, current_lines: $lines, rotated_files: $rotated}'
 }
 
-# Parse log entries with filtering — single awk pass, outputs NDJSON
-parse_logs() {
+# One awk pass over the sources: filtered tail of entries, component list and stats,
+# printed in jq's pretty-print format; body = old jq pipeline's except cases listed in logs.md.
+render_logs() {
     local sources="$1"
-    local param_lines="$2"
-    local param_level="$3"
-    local param_component="$4"
-    local param_search="$5"
+    local size_kb=0 line_count=0 rotated=0
 
-    if [ -z "$sources" ]; then
-        echo ""
-        return
+    if [ -f "$LOG_FILE" ]; then
+        set -- $(wc -lc < "$LOG_FILE" 2>/dev/null)
+        line_count=${1:-0}; size_kb=$(( ${2:-0} / 1024 ))
     fi
+    i=1
+    while [ "$i" -le "$MAX_ROTATED" ]; do
+        [ -f "${LOG_FILE}.${i}" ] && rotated=$((rotated + 1))
+        i=$((i + 1))
+    done
 
     # shellcheck disable=SC2086
-    cat $sources | awk -v max_lines="$param_lines" \
-        -v filter_level="$param_level" \
-        -v filter_component="$param_component" \
-        -v filter_search="$param_search" '
+    awk -v max_lines="$PARAM_LINES" \
+        -v filter_level="$PARAM_LEVEL" \
+        -v filter_component="$PARAM_COMPONENT" \
+        -v filter_search="$PARAM_SEARCH" \
+        -v size_kb="$size_kb" -v line_count="$line_count" -v rotated="$rotated" '
+    # utf8only = 1: repair invalid UTF-8 but leave ASCII unescaped.
+    function esc(s, utf8only,    out, i, n, c, b, len, bad, cp, j, ch) {
+        if (s !~ HI && (utf8only || (!index(s, "\\") && !index(s, "\"") && s !~ CTL))) return s
+        out = ""; n = length(s); i = 1
+        while (i <= n) {
+            c = substr(s, i, 1); b = O[c]
+            if (b < 128) { if (!utf8only && (c in E)) c = E[c]; out = out c; i++; continue }
+            # Invalid UTF-8 -> one U+FFFD per bad sequence, as jq 1.7 jvp_utf8_next decides it.
+            len = 1; bad = 1
+            if (b >= 194 && b <= 244) {
+                bad = 0
+                if (b < 224) { len = 2; cp = b - 192 } else if (b < 240) { len = 3; cp = b - 224 } else { len = 4; cp = b - 240 }
+                # A sequence cut off by the end of the field takes the rest of the field, ASCII too.
+                if (i + len - 1 > n) { bad = 1; len = n - i + 1 }
+                for (j = 1; !bad && j < len; j++) {
+                    ch = O[substr(s, i + j, 1)]
+                    if (ch < 128 || ch > 191) { bad = 1; len = j; break }
+                    cp = cp * 64 + ch - 128
+                }
+                if (!bad && (cp < FIRST[len] || (cp >= 55296 && cp <= 57343) || cp > 1114111)) bad = 1
+            }
+            if (bad) c = FFFD; else c = substr(s, i, len)
+            out = out c; i += len
+        }
+        return out
+    }
     BEGIN {
         lvl["DEBUG"] = 0
         lvl["INFO"]  = 1
@@ -118,33 +141,47 @@ parse_logs() {
             min_level = lvl[filter_level]
         }
         count = 0
+        ncomp = 0
+        ml = max_lines + 0
         filter_search_lower = tolower(filter_search)
+        # jq string escapes: \\ \" \b \t \n \f \r, other C0 and DEL as \u00xx
+        for (i = 1; i < 32; i++) E[sprintf("%c", i)] = sprintf("\\u%04x", i)
+        E[sprintf("%c", 8)] = "\\b"; E[sprintf("%c", 9)] = "\\t"; E[sprintf("%c", 10)] = "\\n"
+        E[sprintf("%c", 12)] = "\\f"; E[sprintf("%c", 13)] = "\\r"
+        E[sprintf("%c", 127)] = "\\u007f"; E["\\"] = "\\\\"; E["\""] = "\\\""
+        CTL = "[" sprintf("%c", 1) "-" sprintf("%c", 31) sprintf("%c", 127) "]"
+        HI = "[" sprintf("%c", 128) "-" sprintf("%c", 255) "]"
+        for (i = 1; i < 256; i++) O[sprintf("%c", i)] = i
+        FIRST[2] = 128; FIRST[3] = 2048; FIRST[4] = 65536
+        FFFD = sprintf("%c%c%c", 239, 191, 189)
+    }
+    # Same matches as: grep -h -o "\[[^:]*:" | sed "s/\[//;s/:$//" | sort -u
+    index($0, "[") {
+        s = $0
+        while (match(s, /\[[^:]*:/)) {
+            c = substr(s, RSTART + 1, RLENGTH - 2)
+            if (!(c in seen)) { seen[c] = 1; if (c != "") comp[++ncomp] = c }
+            s = substr(s, RSTART + RLENGTH)
+        }
     }
     /^\[/ {
-        # Parse: [YYYY-MM-DD HH:MM:SS] LEVEL [component:PID] Message
         ts_end = index($0, "]")
         if (ts_end == 0) next
         timestamp = substr($0, 2, ts_end - 2)
 
         rest = substr($0, ts_end + 2)
 
-        # Extract level (first word after ] )
-        match(rest, /^[[:space:]]*([A-Z]+)/, _)
-        n = split(rest, parts, /[[:space:]]+/)
-        if (n < 1) next
-        level = parts[1]
+        # First whitespace-separated word, as split(rest, parts, /[[:space:]]+/) gave parts[1].
+        if (match(rest, /[[:space:]]/)) level = substr(rest, 1, RSTART - 1); else level = rest
 
-        # Level filter
         if (!(level in lvl)) next
         if (lvl[level] < min_level) next
 
-        # Find [component:PID] block
         comp_start = index(rest, "[")
         comp_end_pos = index(rest, "]")
         if (comp_start == 0 || comp_end_pos == 0) next
         comp_pid = substr(rest, comp_start + 1, comp_end_pos - comp_start - 1)
 
-        # Split component:PID
         cp_sep = index(comp_pid, ":")
         if (cp_sep > 0) {
             component = substr(comp_pid, 1, cp_sep - 1)
@@ -154,57 +191,74 @@ parse_logs() {
             pid = ""
         }
 
-        # Component filter
         if (filter_component != "" && component != filter_component) next
 
-        # Message is everything after the ] closing component block
         message = substr(rest, comp_end_pos + 2)
-        # Trim leading whitespace
         sub(/^[[:space:]]+/, "", message)
 
-        # Search filter (case-insensitive)
         if (filter_search != "") {
             test_line = tolower($0)
             if (index(test_line, filter_search_lower) == 0) next
         }
 
-        # Store matching entry
         count++
-        timestamps[count] = timestamp
-        levels[count] = level
-        components[count] = component
-        pids[count] = pid
-        messages[count] = message
+        if (ml < 1) next
+        # Ring buffer of the newest ml entries (the old pass kept every entry).
+        k = count % ml
+        timestamps[k] = timestamp
+        levels[k] = level
+        components[k] = component
+        pids[k] = pid
+        messages[k] = message
     }
     END {
-        # Output last max_lines entries as NDJSON
         start = 1
-        if (count > max_lines + 0) start = count - max_lines + 1
-
-        for (i = start; i <= count; i++) {
-            # Escape JSON special chars in message
-            gsub(/\\/, "\\\\", messages[i])
-            gsub(/"/, "\\\"", messages[i])
-            gsub(/\t/, "\\t", messages[i])
-            # Escape in other fields too (component names are safe, but be thorough)
-            gsub(/\\/, "\\\\", timestamps[i])
-            gsub(/"/, "\\\"", timestamps[i])
-
-            printf "{\"timestamp\":\"%s\",\"level\":\"%s\",\"component\":\"%s\",\"pid\":\"%s\",\"message\":\"%s\"}\n", \
-                timestamps[i], levels[i], components[i], pids[i], messages[i]
+        if (count > ml) start = count - ml + 1
+        printf "{\n  \"success\": true,\n"
+        if (start > count) {
+            printf "  \"entries\": [],\n  \"total\": 0,\n"
+        } else {
+            printf "  \"entries\": [\n"
+            for (i = start; i <= count; i++) {
+                k = i % ml
+                printf "    {\n      \"timestamp\": \"%s\",\n      \"level\": \"%s\",\n      \"component\": \"%s\",\n      \"pid\": \"%s\",\n      \"message\": \"%s\"\n    }%s\n", \
+                    esc(timestamps[k]), esc(levels[k]), esc(components[k]), esc(pids[k]), esc(messages[k]), (i < count ? "," : "")
+            }
+            # total = entries - 1: the old `wc -l` over the NDJSON lost the last newline (docs/reference/logs.md).
+            printf "  ],\n  \"total\": %d,\n", count - start
         }
-    }'
+        printf "  \"stats\": {\n    \"current_size_kb\": %d,\n    \"current_lines\": %d,\n    \"rotated_files\": %d\n  },\n", size_kb, line_count, rotated
+        for (i = 2; i <= ncomp; i++) {
+            c = comp[i]
+            for (j = i - 1; j >= 1 && comp[j] > c; j--) comp[j + 1] = comp[j]
+            comp[j + 1] = c
+        }
+        # Old jq -R decoded each "name\n" line alone, so a cut-off sequence ate the newline and joined two names.
+        acc = ""; m = 0
+        for (i = 1; i <= ncomp; i++) {
+            acc = acc esc(comp[i] "\n", 1)
+            while ((p = index(acc, "\n")) > 0) { if (p > 1) outc[++m] = substr(acc, 1, p - 1); acc = substr(acc, p + 1) }
+        }
+        if (acc != "") outc[++m] = acc
+        if (m == 0) {
+            printf "  \"available_components\": []\n}\n"
+        } else {
+            printf "  \"available_components\": [\n"
+            for (i = 1; i <= m; i++) printf "    \"%s\"%s\n", esc(outc[i]), (i < m ? "," : "")
+            printf "  ]\n}\n"
+        }
+    }' $sources
 }
 
 # =============================================================================
 # GET — Read and filter logs
 # =============================================================================
 if [ "$REQUEST_METHOD" = "GET" ]; then
-    PARAM_LINES=$(get_param "lines")
-    PARAM_LEVEL=$(get_param "level")
-    PARAM_COMPONENT=$(get_param "component")
-    PARAM_SEARCH=$(get_param "search")
-    PARAM_INCLUDE_ROTATED=$(get_param "include_rotated")
+    qs_param lines PARAM_LINES
+    qs_param level PARAM_LEVEL
+    qs_param component PARAM_COMPONENT
+    qs_param search PARAM_SEARCH
+    qs_param include_rotated PARAM_INCLUDE_ROTATED
 
     # Defaults and validation
     PARAM_LINES="${PARAM_LINES:-100}"
@@ -230,39 +284,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         exit 0
     fi
 
-    entries=$(parse_logs "$SOURCES" "$PARAM_LINES" "$PARAM_LEVEL" "$PARAM_COMPONENT" "$PARAM_SEARCH")
-    components=$(get_components "$SOURCES")
-    stats=$(get_stats)
-
-    entry_count=0
-    if [ -n "$entries" ]; then
-        entry_count=$(printf '%s' "$entries" | wc -l)
-    fi
-
-    if [ -n "$entries" ]; then
-        printf '%s' "$entries" | jq -s \
-            --argjson stats "$stats" \
-            --argjson components "$components" \
-            --argjson total "$entry_count" \
-            '{
-                success: true,
-                entries: .,
-                total: $total,
-                stats: $stats,
-                available_components: $components
-            }'
-    else
-        jq -n \
-            --argjson stats "$stats" \
-            --argjson components "$components" \
-            '{
-                success: true,
-                entries: [],
-                total: 0,
-                stats: $stats,
-                available_components: $components
-            }'
-    fi
+    render_logs "$SOURCES"
     exit 0
 fi
 

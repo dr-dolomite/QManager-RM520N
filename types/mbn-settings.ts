@@ -30,6 +30,7 @@ export interface MbnSettingsResponse {
   /** All available MBN profiles */
   profiles: MbnProfile[];
   error?: string;
+  detail?: string;
 }
 
 /** POST body for /cgi-bin/quecmanager/cellular/mbn.sh */
@@ -50,3 +51,6 @@ export interface MbnSaveResponse {
   /** Whether a reboot is required for changes to take effect */
   reboot_required?: boolean;
 }
+
+/** A mutation's outcome; `error` is already resolved for display. */
+export type MbnActionResult = { ok: true } | { ok: false; error: string };

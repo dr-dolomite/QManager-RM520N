@@ -38,7 +38,7 @@ QManager is a two-tier application, but both tiers live on the modem:
 │  │  └──────────────────────────────────────────────┘    ││
 │  │       │ reads cache        │ executes AT             ││
 │  │       ▼                    ▼                          ││
-│  │  /tmp/qmanager_      qcmd → atcli_smd11 → /dev/smd11  ││
+│  │  /tmp/qmanager_      qcmd → qmanager_atd → /dev/smd11 ││
 │  │  status.json              (flock-serialized)          ││
 │  │       ▲                                               ││
 │  │       │ writes every ~2s                              ││
@@ -76,6 +76,7 @@ Key mechanics verified from the poller source:
 - **Single atomic cache write.** Each cycle ends in `write_cache`, which builds `/tmp/qmanager_status.json` with `jq` into a `.tmp` file and `mv`s it into place — readers never see a half-written file.
 - **`system_health` is precomputed.** Tier 1 runs `update_system_health()`, a no-AT, sysfs-only collector (modem subsystem state, crash counters, load, CPU freq, `/usrdata` storage) that fills the top-level `system_health` block. The `/system/modem-subsys.sh` CGI is a thin reader over that block — no live computation at request time.
 - **Data-usage counter.** Tier 1 also runs `update_data_used()`, which accumulates kernel RX/TX bytes from `/proc/net/dev` (`rmnet_ipa0`) into a persistent, reboot-surviving JSON at `/usrdata/qmanager/data_used.json`. Counter orientation (which raw field is download vs upload) is resolved once at startup from the SoC branch name. Full detail: [`reference/data-usage-counter.md`](reference/data-usage-counter.md).
+- **Activity tiers.** The table above is the `active` tier, which holds while a browser has fetched `fetch_data.sh` or `overview.sh` within 20 s (those CGIs rewrite `/tmp/qmanager_ui_active`). With no browser the poller drops to `idle` and then `deep`, running the AT reads on longer uptime deadlines; local work still runs every cycle. The tier is published as `.device.poller_tier`. Full detail: [`reference/adaptive-polling.md`](reference/adaptive-polling.md).
 - **On-demand refresh flags.** Touching `/tmp/qmanager_tier2_refresh` (e.g. from a SIM-slot-change CGI) pulls the warm refresh into the next cycle instead of waiting up to ~30s.
 
 ### Frontend Polling
@@ -84,7 +85,8 @@ The frontend never touches the modem. Each polling hook fetches a CGI endpoint t
 
 ```
 useModemStatus()    ── GET /at_cmd/fetch_data.sh           ── reads /tmp/qmanager_status.json
-  (every 2s)
+  (one shared timer per tab: the shortest interval any caller asks for,
+   2s by default, never longer than 10s; stopped while the tab is hidden)
 
 useSignalHistory()  ── GET /at_cmd/fetch_signal_history.sh ── reads signal-history NDJSON
   (every 10s)
@@ -121,7 +123,7 @@ Frontend polls GET /profiles/apply_status.sh
 Worker writes progress → /tmp/qmanager_profile_state.json
 ```
 
-The same start/poll shape is used for cell scans (`/at_cmd/cell_scan_*`), neighbour scans, and speedtests. Because a long AT command (e.g. `AT+QSCAN`) can hold the modem for a minute or more, the worker touches `/tmp/qmanager_long_running` so the poller drops into a ping-only, no-AT mode until the scan finishes.
+The same start/poll shape is used for cell scans (`/at_cmd/cell_scan_*`), neighbour scans, and speedtests. Because a full cell scan (`AT+QSCAN=3,1`) can hold the AT mutex for 30–180s, the `qmanager_atd` broker raises the root-only flag `/run/qmanager_at/long_running` once it holds the lock for `AT+QSCAN` (the worker itself never writes it), so `qmanager_poller` drops into a ping-only, no-AT mode (`system_state="scan_in_progress"`) and `qmanager_watchcat` parks in `LOCKED` until the sweep finishes. The neighbour worker deliberately does not raise it: `AT+QENG="neighbourcell"` holds the mutex for ~2s, which is shorter than the poller's own cadence. Full contract: [reference/cell-scanner.md](reference/cell-scanner.md).
 
 ### CGI Endpoint Namespaces
 
@@ -187,13 +189,13 @@ Runtime state is coordinated entirely through files — **no IPC sockets or sign
 | `/tmp/qmanager_status.json` | poller | JSON | Main modem-status cache (the frontend's source of truth) |
 | `/tmp/qmanager_signal_history.json` | poller | NDJSON | Per-antenna signal history (~30 min, 180 lines @ 10s) |
 | `/tmp/qmanager_ping_history.json` | poller | NDJSON | Latency history (24 h, max 8640 lines @ 10s) |
-| `/tmp/qmanager_events.json` | poller | NDJSON | Network events (max 50 entries) |
+| `/tmp/qmanager_events.json` | poller (+ 4 other producers) | NDJSON | Network events (max 300 entries) |
 | `/tmp/qmanager_pci_state.json` | poller | JSON | SCC PCI tracking for event detection |
 | `/usrdata/qmanager/data_used.json` | poller | JSON | Persistent RX/TX byte accounting (survives reboot) |
 | `/tmp/qmanager_ping.json` | ping daemon | JSON | Current connectivity/latency result |
 | `/tmp/qmanager_watchcat.json` | watchcat | JSON | Watchdog state machine |
 | `/tmp/qmanager_profile_state.json` | profile_apply | JSON | SIM-profile apply progress |
-| `/tmp/qmanager_at.lock` | qcmd (shared) | flock target | Serializes all AT access across daemons + CGIs |
+| `/run/qmanager_at/at.lock` | qmanager_setup creates it (`root:dialout` 0640, dir 0750; `/run`, not `/tmp`, since T4.3); `qmanager_atd` (broker, `qcmd`) locks it | flock target | Serializes all AT access across daemons + CGIs |
 | `/tmp/qmanager_sessions/<token>` | auth | one file/session | Session store (RAM, cleared on reboot) |
 | `/etc/qmanager/` | CGI + daemons | Various | Persistent configuration (see below) |
 
@@ -209,6 +211,9 @@ Core long-running services:
 
 ```
 qmanager-setup.service      one-shot bootstrap (dirs, perms, lock files) — ordered before the rest
+  │
+  ├── qmanager-atd.service       qmanager_atd — AT broker that qcmd talks to (RM520N-GL, RG501Q-EU;
+  │                                Type=notify, WatchdogSec=30, Before= poller)
   │
   ├── qmanager-ping.service      qmanager_ping — connectivity/latency probe (writes qmanager_ping.json)
   │
@@ -237,9 +242,9 @@ qmanager-tower-failover.service  qmanager_tower_failover — tower-lock failover
 qmanager-cfun-fix.service     qmanager_cfun_fix — recovers a modem stuck in CFUN=0
 ```
 
-Scheduled work (cron, configured by `system/settings.sh`): `qmanager_scheduled_reboot` fires a reboot at a user-configured time.
+Scheduled work (runtime systemd `OnCalendar` timers, configured by `system/settings.sh`; see [`reference/scheduled-timers.md`](reference/scheduled-timers.md)): `qmanager_scheduled_reboot` fires a reboot at a user-configured time.
 
-For the full unit dependency graph, Entware bootstrap, and lighttpd config, see [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md) and [`rm520n-phase2-systemd-migration.md`](rm520n-phase2-systemd-migration.md).
+For the full unit dependency graph, Entware bootstrap, and lighttpd config, see [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md).
 
 ### AT Command Transport
 
@@ -247,26 +252,27 @@ All modem communication funnels through one gatekeeper, `qcmd` (`/usr/bin/qcmd`)
 
 | Aspect | Behavior |
 |--------|----------|
-| Tool | `qcmd` shell wrapper around `atcli_smd11` (a static ARMv7 Rust binary) |
+| Tool | `qcmd` is a symlink to `qmanager_atd` (a static ARMv7 Rust binary) on every model; it talks to the `qmanager_atd` broker on the RM520N-GL and the RG501Q-EU, and runs AT in-process when no broker runs (unknown model, or the broker is down) |
 | Device | `/dev/smd11`, opened directly — **no socat/PTY bridge** |
-| Locking | `flock` on `/tmp/qmanager_at.lock` via a read-only FD (`9<`), so root and `www-data` share it under `fs.protected_regular=1` |
-| Timeout | BusyBox `flock` has no `-w`; `qcmd` polls with `flock -x -n` in a loop (`flock_wait`) |
-| Exit code | `atcli_smd11` **always exits 0** — error detection parses the response text for `OK`/`ERROR`, never `$?` |
-| SMS | `sms_tool` (separate ARM binary) under the *same* lock file |
+| Locking | `flock` on `/run/qmanager_at/at.lock` (`root:dialout` 0640, in a root-only 0750 dir), opened read-only; only root creates it (`qmanager_setup`, or a root in-process client), and a non-root caller that finds it missing gets `modem_busy`. See [at-command-transport.md](reference/at-command-transport.md#the-at-lock-and-who-may-hold-it) |
+| Timeout | Lock wait 5 s, 10 s for long commands (`QSCAN`, `COPS=2`, …); then `modem_busy` |
+| Exit code | Failure is **exit 1** with empty stdout and `ERROR: modem_busy` / `ERROR: command_failed` on stderr — check `$?`, never match `ERROR` in stdout |
+| SMS | `qsms` over QMI WMS on the RM520N-GL, no AT lock — see [`reference/sms.md`](reference/sms.md#transport-qsms) |
 
-Full detail — including the "do NOT UPX-compress the Rust binary" rule and `pid_alive()` for cross-user PID checks — is in [`reference/at-command-transport.md`](reference/at-command-transport.md).
+Full detail — including the retired `atcli_smd11` / `sms_tool` binaries and `pid_alive()` for cross-user PID checks — is in [`reference/at-command-transport.md`](reference/at-command-transport.md).
 
 ---
 
 ## Event System
 
-The poller's `events.sh` library detects state changes each cycle and appends them to the events NDJSON file (max 50), which the UI surfaces as "Recent Activity":
+The poller's `events.sh` library detects state changes each cycle and appends them to the events NDJSON file (max 300; the CGI serves only the newest 50), which the UI surfaces as "Recent Activity":
 
 | Event Type | Trigger | Severity |
 |-----------|---------|----------|
 | `network_mode` | LTE ↔ 5G-NSA ↔ 5G-SA switch | info/warning |
-| `band_change` | LTE or NR band changed | info |
-| `pci_change` / `scc_pci_change` | PCC / SCC cell handoff | info |
+| `band_change` | LTE or NR band settled on a new value (debounced), or is churning | info/warning |
+| `pci_change` | PCC cell handoff (debounced), or cell is churning | info/warning |
+| `scc_pci_change` | SCC cell handoff | info |
 | `ca_change` | Carrier aggregation activated/deactivated/count changed | info/warning |
 | `nr_anchor` | 5G NR anchor gained/lost | info/warning |
 | `airplane_mode` | CFUN state toggled (radio on/off) | info/warning |
@@ -274,6 +280,8 @@ The poller's `events.sh` library detects state changes each cycle and appends th
 | `internet_lost` / `internet_restored` | Internet connectivity change | warning/info |
 | `high_latency` / `latency_recovered` | Latency over threshold (debounced) | warning/info |
 | `high_packet_loss` / `packet_loss_recovered` | Loss over threshold (debounced) | warning/info |
+
+Band and PCI are **settle-debounced**: a value must hold for `EV_SETTLE_SAMPLES` (3, ~9s) consecutive non-blank readings before an event is written, and a value that churns faster than that emits one `warning`-severity "unstable" row per `EV_FLAP_WINDOW` (300s) instead. Blank readings — what `AT+QENG` returns during a service drop — are treated as absent observations, not as values. See [`reference/recent-activities.md`](reference/recent-activities.md).
 
 Two additional events are emitted from outside `events.sh`: `sim_swap_detected` (poller `collect_boot_data`, when the boot ICCID differs from the stored one) and watchdog recovery/failover events (from `qmanager_watchcat`). Events are suppressed during active watchdog recovery to prevent noise.
 
@@ -332,7 +340,9 @@ There is **no UCI** on this platform. Structured config lives in a single JSON f
 | Ping profile | `/etc/qmanager/ping_profile.json` | JSON |
 | Quality thresholds | `/etc/qmanager/quality_thresholds.json` | JSON |
 | Last SIM ICCID | `/etc/qmanager/last_iccid` | Plain text |
-| Email SMTP config | `/etc/qmanager/msmtprc` | msmtp config (chmod 600) |
+| Email SMTP config | `/etc/qmanager-secrets/msmtprc` | msmtp config (`0600 root:root`, in the `0700` root-only secrets store — see [BACKEND.md](BACKEND.md#alert-secrets-store-etcqmanager-secrets)) |
+| Alert channel secrets | `/etc/qmanager-secrets/{discord_bot_token,email_app_password}` | Raw credentials (`0600 root:root`); the config JSONs carry only `*_set` markers |
+| Auth password backups | `/etc/qmanager-backups/auth.json.<timestamp>` | Timestamped snapshots of `auth.json`, newest 5 kept (`0700 root:root` store). Relocated from `/etc/qmanager/backups` in v0.1.14 — see [qmanager-independence.md](reference/qmanager-independence.md#migration-migrate_backup_location) |
 | Persistent data-usage counter | `/usrdata/qmanager/data_used.json` | JSON |
 | Sessions | `/tmp/qmanager_sessions/<token>` | One file per session (RAM) |
 

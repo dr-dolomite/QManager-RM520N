@@ -20,8 +20,7 @@ QManager is a modern web-based GUI that runs **on the Quectel RM520N-GL modem it
 | [Deployment Guide](DEPLOYMENT.md) | Building the static export and installing onto the RM520N-GL |
 | [Contributing Translations](CONTRIBUTING-translations.md) | Non-developer guide to adding/completing a language with the `bun run lang` toolkit (pairs with [reference/i18n.md](reference/i18n.md)) |
 | [RM520N-GL Architecture](rm520n-gl-architecture.md) | Platform internals, Entware bootstrap, lighttpd, boot sequence, AT handling, troubleshooting |
-| [RM520N Phase 2: Systemd Migration](rm520n-phase2-systemd-migration.md) | Converting the legacy procd/init.d model to systemd service units for the RM520N-GL |
-| [reference/](reference/) | Per-feature and per-subsystem operational notes (AT transport, data usage counter, WAN profiles, SIM profiles, connection watchdog, Discord bot, custom DNS, antenna alignment, timezone, overview splash, install/runtime internals). See [reference/README.md](reference/README.md) for the index. |
+| [reference/](reference/) | Per-feature and per-subsystem operational notes (AT transport, data usage counter, WAN profiles, SIM profiles, connection watchdog, Discord bot, custom DNS, antenna alignment and statistics, timezone, the pre-auth splash + login screens, auth rate limiting, icon system, colour system, cross-UID `/tmp` file ownership, install/runtime internals). See [reference/README.md](reference/README.md) for the index. |
 
 > ℹ️ NOTE: Product/vision docs (`PRODUCT.md`), the visual design system (`DESIGN.md`), and the working agreement / platform golden rules (`CLAUDE.md`) live in the **repo root**, not in `docs/`.
 
@@ -69,7 +68,7 @@ The `out/` directory contains the complete static frontend. The installer (`scri
 | **Forms** | React Hook Form + Zod validation |
 | **Animations** | Motion (Framer Motion) |
 | **Backend** | CGI shell scripts on vanilla Linux, run as `www-data` by lighttpd (bash available, many commands are BusyBox applets) |
-| **AT Commands** | `qcmd` wrapper serializing access (via `flock`) to `atcli_smd11` on `/dev/smd11` (direct, no socat/PTY bridge); SMS via `sms_tool` |
+| **AT Commands** | `qcmd` (a link to the Rust `qmanager_atd` broker) serializing access (via `flock`) to `/dev/smd11` (direct, no socat/PTY bridge); SMS via `qsms` (QMI WMS) |
 | **Package Manager** | Bun |
 
 ---
@@ -83,7 +82,7 @@ The `out/` directory contains the complete static frontend. The installer (`scri
 - **Connection Watchdog** — Multi-tier auto-recovery (re-register, CFUN toggle, SIM/tower failover, reboot)
 - **Latency Monitoring** — Real-time ping with history and aggregated views
 - **Cell Scanner** — Active and neighbor cell scanning with a frequency calculator
-- **Antenna Alignment** — Guided per-port aiming using live signal metrics
+- **Antenna Alignment** — A live 0–100 aim score for sweeping, plus a 3-position recorder that averages real modem measurements and recommends the best aim
 - **Data Usage Counter** — Kernel-sourced RX/TX accounting with persistence across reboots
 - **Network Settings** — Ethernet link speed (2.5GbE `eth0`), TTL/HL, MTU, custom DNS, IP passthrough
 - **Alerts** — Email (Gmail SMTP), SMS, and Discord-bot notifications on downtime/recovery

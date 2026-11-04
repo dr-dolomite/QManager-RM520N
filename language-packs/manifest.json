@@ -1,6 +1,23 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-07-19T00:00:00.000Z",
+  "generated_at": "2026-11-04T00:17:05.002Z",
   "app_repo": "https://github.com/dr-dolomite/QManager-RM520N",
-  "packs": []
+  "packs": [
+    {
+      "code": "ru",
+      "native_name": "Русский",
+      "english_name": "Russian",
+      "rtl": false,
+      "version": "2026.11.04",
+      "app_min_version": "0.1.18",
+      "completeness": 0.91,
+      "size_bytes": 91182,
+      "sha256": "1c191c1b3d919d91cf57a08aeb06882d65df2dde938b318e1a7aa0a4445af403",
+      "url": "https://github.com/dr-dolomite/QManager-RM520N/releases/download/language-packs/qmanager-lang-ru-2026.11.04.tar.gz",
+      "contributors": [
+        "a18186",
+        "akorshun"
+      ]
+    }
+  ]
 }

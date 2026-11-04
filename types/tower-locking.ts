@@ -70,6 +70,27 @@ export interface TowerModemState {
   nr_cell: NrSaLockCell | null;
   persist_lte: boolean;
   persist_nr: boolean;
+
+  /**
+   * DID THIS PARTICULAR AT READ COME BACK WITH A TRUSTWORTHY ANSWER?
+   *
+   * `success: true` on the response only means the endpoint RAN. `status.sh`
+   * seeds `lte_locked="false"` before it asks the modem anything, so a failed
+   * `AT+QNWLOCK` read is indistinguishable downstream from a genuine "not
+   * locked" — the surface rendered a confident green `Unlocked` chip for a
+   * question nobody managed to ask. Same for persistence, where a failed read
+   * painted a muted `Disabled`: "the user turned this off".
+   *
+   * OPTIONAL, AND ABSENT MEANS TRUE. A statically-exported page bundle can
+   * outlive the CGI it talks to, so a cached client will meet an un-upgraded
+   * `status.sh` that emits none of these. Making them optional is what lets
+   * every consumer test `=== false` and nothing else: `!== true` would repaint
+   * an entire working page as "unknown" the moment the two halves fall out of
+   * step. Test `=== false`, never `!== true`.
+   */
+  lte_read_ok?: boolean;
+  nr_read_ok?: boolean;
+  persist_read_ok?: boolean;
 }
 
 // --- Failover ----------------------------------------------------------------
@@ -90,6 +111,7 @@ export interface TowerStatusResponse {
   config: TowerLockConfig;
   failover_state: TowerFailoverState;
   error?: string;
+  detail?: string;
 }
 
 /** Response from POST /cgi-bin/quecmanager/tower/lock.sh */
@@ -99,19 +121,61 @@ export interface TowerLockResponse {
   action?: string;
   num_cells?: number;
   failover_armed?: boolean;
+  /**
+   * The lock landed on the modem but `systemctl enable` of the persistence
+   * unit failed — so the lock is live NOW and will NOT survive a reboot.
+   *
+   * `lock.sh` has emitted this since it was written (`lock.sh:151`, `:270`) and
+   * nothing declared it, so nothing could read it. That is the whole failure
+   * mode: a partial success the backend reports honestly and the UI rendered as
+   * an unqualified success.
+   */
+  service_enable_failed?: boolean;
+  /**
+   * THE UNLOCK LANDED AND THE FAILOVER/PERSISTENCE UNIT IS STILL ARMED ON BOOT.
+   *
+   * Emitted by `lock.sh:223` / `:351` on the two unlock branches when
+   * `systemctl disable` of the persistence unit fails.
+   *
+   * IT ARRIVED WITH AN ENVELOPE CHANGE THAT IS ITSELF CORRECT — the branch used
+   * to answer `cgi_error`, i.e. `success:false`, for an operation whose AT write
+   * had SUCCEEDED. But an honest envelope only reports honestly if something
+   * reads the field: declaring it and consuming it are one change. `success:true`
+   * plus a field nobody reads is strictly WORSE than the misleading error it
+   * replaced, because the user is told the unlock worked and the unit re-arms at
+   * the next boot in complete silence.
+   */
+  service_disable_failed?: boolean;
   error?: string;
   detail?: string;
+}
+
+/** One settings write. Persistence is sent only when given, so a failover save never touches it and one radio's
+ * value never touches the other; `persist` sets both radios. */
+export interface TowerSettingsChange {
+  persist_lte?: boolean;
+  persist_nr?: boolean;
+  persist?: boolean;
+  /** Only the fields given change; the rest are read when the write is sent. */
+  failover?: { enabled?: boolean; threshold?: number };
 }
 
 /** Response from POST /cgi-bin/quecmanager/tower/settings.sh */
 export interface TowerSettingsResponse {
   success: boolean;
   persist?: boolean;
+  /** Each radio's value after the call; null when persistence was not asked or could not be read. */
+  persist_lte?: boolean | null;
+  persist_nr?: boolean | null;
   failover_enabled?: boolean;
   failover_threshold?: number;
   persist_command_failed?: boolean;
   /** True if the failover watcher was spawned during this settings update */
   watcher_spawned?: boolean;
+  /** `systemctl enable`/`disable` of the persistence unit failed — see
+   *  `TowerLockResponse.service_enable_failed`. Emitted by `settings.sh:157`. */
+  service_enable_failed?: boolean;
+  service_disable_failed?: boolean;
   error?: string;
   detail?: string;
 }
@@ -135,13 +199,27 @@ export interface TowerScheduleResponse {
   detail?: string;
 }
 
+// --- Hook results --------------------------------------------------------------
+
 /**
- * Result surfaced to the schedule card after saving a tower schedule. `armed`
- * carries the on-device timer status so the card can warn honestly. Absent
- * `armed` (older backend that doesn't report it) is treated as "assume armed".
+ * A non-fatal partial success: the write landed but something alongside did not (`persist_command_failed`, or
+ * `service_enable_failed` / `service_disable_failed` when the boot unit could not be toggled).
  */
-export interface TowerScheduleSaveResult {
-  success: boolean;
+export type TowerWarningCode =
+  | "persist_command_failed"
+  | "service_enable_failed"
+  | "service_disable_failed";
+
+/** What every tower mutation resolves to; `error` is already translated through `resolveErrorMessage`. */
+export interface TowerActionResult {
+  ok: boolean;
+  error?: string;
+  warning?: TowerWarningCode;
+}
+
+/** A schedule save. `armed:false` + `reason` (e.g. "unit_absent") means persisted but no live timer; absent
+ * `armed` = assume armed. */
+export interface TowerScheduleSaveResult extends TowerActionResult {
   armed?: boolean;
   reason?: string;
 }

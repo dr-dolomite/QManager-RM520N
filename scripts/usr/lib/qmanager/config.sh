@@ -7,12 +7,50 @@
 _CONFIG_LOADED=1
 
 QM_CONFIG="/etc/qmanager/qmanager.conf"
-QM_CONFIG_TMP="/etc/qmanager/qmanager.conf.tmp"
+QM_CONFIG_LOCK="/etc/qmanager/qmanager.conf.lock"
+
+# Lock is 0644 and opened read-only; noclobber (O_EXCL) refuses a planted symlink.
+_qm_config_lock_ready() {
+    [ -L "$QM_CONFIG_LOCK" ] && return 1
+    [ -f "$QM_CONFIG_LOCK" ] || (umask 022; set -C; : > "$QM_CONFIG_LOCK") 2>/dev/null
+    [ -f "$QM_CONFIG_LOCK" ] && [ ! -L "$QM_CONFIG_LOCK" ]
+}
+
+# _qm_config_mutate <jq args...>: locked jq edit, published via a per-call temp + mv.
+_qm_config_mutate() {
+    (
+        if _qm_config_lock_ready; then
+            exec 9< "$QM_CONFIG_LOCK"
+            flock -x 9 || exit 1
+        fi
+        tmp=$(mktemp "${QM_CONFIG}.XXXXXX" 2>/dev/null) || exit 1
+        if jq "$@" "$QM_CONFIG" > "$tmp" 2>/dev/null &&
+            chmod 0644 "$tmp" && mv "$tmp" "$QM_CONFIG"; then
+            exit 0
+        fi
+        rm -f "$tmp"
+        exit 1
+    )
+}
 
 # Create default config if missing or empty
 qm_config_init() {
     [ -s "$QM_CONFIG" ] && return 0
-    cat > "$QM_CONFIG" << 'DEFAULTS'
+    (
+        if _qm_config_lock_ready; then
+            exec 9< "$QM_CONFIG_LOCK"
+            flock -x 9 || exit 1
+        fi
+        [ -s "$QM_CONFIG" ] && exit 0
+        tmp=$(mktemp "${QM_CONFIG}.XXXXXX" 2>/dev/null) || exit 1
+        _qm_config_defaults > "$tmp" && chmod 0644 "$tmp" && mv "$tmp" "$QM_CONFIG" && exit 0
+        rm -f "$tmp"
+        exit 1
+    )
+}
+
+_qm_config_defaults() {
+    cat << 'DEFAULTS'
 {
   "watchcat": {
     "enabled": 0,
@@ -49,6 +87,14 @@ qm_config_init() {
     "sched_reboot_time": "04:00",
     "sched_reboot_days": "0,1,2,3,4,5,6"
   },
+  "video_optimizer": {
+    "enabled": 0,
+    "strategy": "full"
+  },
+  "full_bypass": {
+    "enabled": 0,
+    "sni_domain": "speedtest.net"
+  },
   "update": {
     "include_prerelease": 1,
     "auto_update_enabled": 0,
@@ -81,51 +127,43 @@ qm_config_get() {
 # Write: qm_config_set <section> <key> <value>
 # Example: qm_config_set watchcat enabled 0
 #   Equivalent to: uci set quecmanager.watchcat.enabled=0 && uci commit
-# Atomic write via temp file + mv.
+# Locked read-modify-write; atomic publish via per-call temp + mv.
 qm_config_set() {
     local section="$1" key="$2" value="$3"
     qm_config_init
     # Detect numeric values to store as numbers, not strings
     case "$value" in
         ''|*[!0-9]*) # non-numeric or empty — store as string
-            jq --arg s "$section" --arg k "$key" --arg v "$value" \
-                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null ;;
+            _qm_config_mutate --arg s "$section" --arg k "$key" --arg v "$value" \
+                '.[$s][$k] = $v' ;;
         *) # numeric — store as number
-            jq --arg s "$section" --arg k "$key" --argjson v "$value" \
-                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null ;;
+            _qm_config_mutate --arg s "$section" --arg k "$key" --argjson v "$value" \
+                '.[$s][$k] = $v' ;;
     esac
-    # Gate the mv on jq's exit status (a case statement's status is that of the
-    # jq it ran): the '>' redirect truncates $QM_CONFIG_TMP to empty before jq
-    # runs, so an unconditional mv after a jq failure (corrupt/unparseable
-    # config) would clobber the live config with that empty temp. Only publish
-    # the temp when jq actually succeeded — mirrors qm_config_delete below.
-    if [ $? -eq 0 ]; then
-        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
-    else
-        rm -f "$QM_CONFIG_TMP"
-        return 1
-    fi
 }
 
 # Delete: qm_config_delete <section> <key>
 # Example: qm_config_delete watchcat max_failures
 #   Equivalent to: uci -q delete quecmanager.watchcat.max_failures
-# Atomic write via temp file + mv. No-op (success) if the config file or the
-# section/key doesn't exist — used by defensive key-rename migrations.
+# No-op (success) if the config file or the section/key doesn't exist — used
+# by defensive key-rename migrations.
 qm_config_delete() {
     local section="$1" key="$2"
     [ -f "$QM_CONFIG" ] || return 0
-    # Gate the mv on jq's exit status: the '>' redirect creates an empty
-    # $QM_CONFIG_TMP before jq runs, so an unconditional mv after a jq failure
-    # (e.g. a corrupt/unparseable config) would clobber the live file with that
-    # empty temp. Only publish the temp when jq actually succeeded.
-    if jq --arg s "$section" --arg k "$key" \
-        'if has($s) then .[$s] |= del(.[$k]) else . end' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null; then
-        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
-    else
-        rm -f "$QM_CONFIG_TMP"
-        return 1
-    fi
+    _qm_config_mutate --arg s "$section" --arg k "$key" \
+        'if has($s) then .[$s] |= del(.[$k]) else . end'
+}
+
+# Delete a whole section: qm_config_delete_section <section>
+# Example: qm_config_delete_section traffic_masquerade
+# No-op (success) if the config file or the section doesn't exist.
+#
+# Section-scoped sibling of qm_config_delete: deleting a section's keys one at
+# a time leaves an empty `"x": {}` behind. Used by install_rm520n.sh renames.
+qm_config_delete_section() {
+    local section="$1"
+    [ -f "$QM_CONFIG" ] || return 0
+    _qm_config_mutate --arg s "$section" 'del(.[$s])'
 }
 
 # Bulk read: qm_config_section <section>

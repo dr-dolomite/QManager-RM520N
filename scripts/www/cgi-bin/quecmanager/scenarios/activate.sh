@@ -33,6 +33,7 @@ cgi_handle_options
 # --- Source libraries --------------------------------------------------------
 . /usr/lib/qmanager/scenario_mgr.sh
 . /usr/lib/qmanager/profile_mgr.sh
+. /usr/lib/qmanager/radio_validate.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -57,14 +58,9 @@ fi
 # A "balanced" binding is treated as "no opinion" (same as no binding); the
 # user may still pick any scenario freely. The profile will re-assert Balanced
 # on its next apply, so any override is session-level only.
-ACTIVE_PROFILE_ID=$(get_active_profile)
-if [ -n "$ACTIVE_PROFILE_ID" ]; then
-    BOUND_SCENARIO=$(jq -r '.settings.scenario_id // empty' \
-        "/etc/qmanager/profiles/${ACTIVE_PROFILE_ID}.json" 2>/dev/null)
-    if [ -n "$BOUND_SCENARIO" ] && [ "$BOUND_SCENARIO" != "balanced" ]; then
-        cgi_error "profile_managed" "Scenarios are managed by the active SIM profile"
-        exit 0
-    fi
+if scenario_profile_managed; then
+    cgi_error "profile_managed" "Scenarios are managed by the active SIM profile"
+    exit 0
 fi
 
 # --- Validate scenario ID and parse custom fields ----------------------------
@@ -92,8 +88,7 @@ case "$SCENARIO_ID" in
         # Validate band format: only digits and colons allowed (e.g., "1:3:28")
         for _band_field in "$LTE_BANDS" "$NSA_NR_BANDS" "$SA_NR_BANDS"; do
             if [ -n "$_band_field" ]; then
-                _cleaned=$(printf '%s' "$_band_field" | tr -d '0-9:')
-                if [ -n "$_cleaned" ]; then
+                if ! rv_bands_format "$_band_field"; then
                     cgi_error "invalid_bands" "Band values must contain only digits and colons"
                     exit 0
                 fi
@@ -101,13 +96,10 @@ case "$SCENARIO_ID" in
         done
 
         # Validate mode value
-        case "$AT_MODE" in
-            AUTO|LTE|NR5G|LTE:NR5G) ;;
-            *)
-                cgi_error "invalid_mode" "Invalid mode value"
-                exit 0
-                ;;
-        esac
+        if ! rv_scenario_mode "$AT_MODE"; then
+            cgi_error "invalid_mode" "Invalid mode value"
+            exit 0
+        fi
         ;;
     *)
         cgi_error "invalid_id" "Unknown scenario ID"

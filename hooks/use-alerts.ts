@@ -6,6 +6,7 @@ import type {
   AlertsState,
   AlertsSavePayload,
   AlertChannel,
+  AlertsMutationResult,
   InstallResult,
 } from "@/types/alerts";
 
@@ -21,15 +22,20 @@ import type {
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/monitoring/alerts.sh";
 
+/** The cgi_error slug, which callers translate; `detail` stays English and is never shown. */
+const slugOf = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
+
 export interface UseAlertsReturn {
   state: AlertsState | null;
   isLoading: boolean;
   isSaving: boolean;
   testingChannel: AlertChannel | null;
   installResult: InstallResult;
+  /** Load failures only; save and test failures come back in their own result. */
   error: string | null;
-  saveSettings: (payload: AlertsSavePayload) => Promise<boolean>;
-  sendTest: (channel: AlertChannel) => Promise<boolean>;
+  saveSettings: (payload: AlertsSavePayload) => Promise<AlertsMutationResult>;
+  sendTest: (channel: AlertChannel) => Promise<AlertsMutationResult>;
   runInstall: () => Promise<void>;
   refresh: () => void;
 }
@@ -82,6 +88,9 @@ export function useAlerts(): UseAlertsReturn {
         routing: json.routing,
         capabilities: json.capabilities,
         reboots: Array.isArray(json.reboots) ? json.reboots : [],
+        ...(typeof json.alert_after_min === "number"
+          ? { alert_after_min: json.alert_after_min }
+          : {}),
       });
     } catch (err) {
       if (!mountedRef.current) return;
@@ -101,8 +110,7 @@ export function useAlerts(): UseAlertsReturn {
   // Save (one atomic POST covering all channels + routing)
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    async (payload: AlertsSavePayload): Promise<boolean> => {
-      setError(null);
+    async (payload: AlertsSavePayload): Promise<AlertsMutationResult> => {
       setIsSaving(true);
       try {
         const resp = await authFetch(CGI_ENDPOINT, {
@@ -113,19 +121,23 @@ export function useAlerts(): UseAlertsReturn {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
 
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null, code: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save settings");
-          return false;
+          const message = json.detail || json.error || "Failed to save settings";
+          // A failed call may still have saved (e.g. service_restart_failed): re-read the truth.
+          await fetchState(true);
+          return { ok: false, error: message, code: slugOf(json.error) };
         }
 
         await fetchState(true);
-        return true;
+        return { ok: true, error: null, code: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save settings");
-        return false;
+        if (!mountedRef.current) return { ok: false, error: null, code: null };
+        const message =
+          err instanceof Error ? err.message : "Failed to save settings";
+        await fetchState(true);
+        return { ok: false, error: message, code: null };
       } finally {
         if (mountedRef.current) setIsSaving(false);
       }
@@ -137,8 +149,7 @@ export function useAlerts(): UseAlertsReturn {
   // Per-channel test send (real path, gated on saved config by the caller)
   // ---------------------------------------------------------------------------
   const sendTest = useCallback(
-    async (channel: AlertChannel): Promise<boolean> => {
-      setError(null);
+    async (channel: AlertChannel): Promise<AlertsMutationResult> => {
       setTestingChannel(channel);
       try {
         const resp = await authFetch(CGI_ENDPOINT, {
@@ -149,17 +160,18 @@ export function useAlerts(): UseAlertsReturn {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
         const json = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { ok: false, error: null, code: null };
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to send test");
-          return false;
+          const message = json.detail || json.error || "Failed to send test";
+          return { ok: false, error: message, code: slugOf(json.error) };
         }
-        return true;
+        return { ok: true, error: null, code: null };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to send test");
-        return false;
+        if (!mountedRef.current) return { ok: false, error: null, code: null };
+        const message =
+          err instanceof Error ? err.message : "Failed to send test";
+        return { ok: false, error: message, code: null };
       } finally {
         if (mountedRef.current) setTestingChannel(null);
       }

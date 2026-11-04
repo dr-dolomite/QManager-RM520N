@@ -1,7 +1,15 @@
-import ConnectionQualitySettings from "@/components/system-settings/connection-quality/connection-quality";
+"use client";
 
-const ConnectionQualityPage = () => {
-  return <ConnectionQualitySettings />;
-};
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default ConnectionQualityPage;
+// Connection Quality moved under Monitoring; this keeps old bookmarks working.
+export default function ConnectionQualityRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/monitoring/connection-quality");
+  }, [router]);
+
+  return null;
+}

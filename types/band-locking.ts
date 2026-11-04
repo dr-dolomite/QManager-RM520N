@@ -18,6 +18,10 @@
 /** Discriminator for the three independent band locking cards */
 export type BandCategory = "lte" | "nsa_nr5g" | "sa_nr5g";
 
+/** The three categories, in display order. Single copy — see the coordinator
+ *  and the hero, which both iterate this list and must agree on its order. */
+export const BAND_CATEGORIES: BandCategory[] = ["lte", "nsa_nr5g", "sa_nr5g"];
+
 /** Display labels for each band category */
 export const BAND_CATEGORY_LABELS: Record<BandCategory, string> = {
   lte: "LTE",
@@ -51,11 +55,22 @@ export interface FailoverState {
   watcher_running: boolean;
 }
 
-/** Response from GET /cgi-bin/quecmanager/bands/current.sh */
+/** Result of a band mutation; `error` is already resolved through `resolveErrorMessage`, so the caller toasts
+ * it as-is. */
+export type BandActionResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Response from GET /cgi-bin/quecmanager/bands/current.sh
+ *
+ * `current` and `failover` are OPTIONAL because the error envelope omits them
+ * both. They were declared present, which made the type lie about the exact
+ * case the consumer has to handle; it only avoided a crash because the hook
+ * returns early on `!success`. Optional here forces that guard to stay.
+ */
 export interface BandCurrentResponse {
   success: boolean;
-  current: CurrentBands;
-  failover: FailoverState;
+  current?: CurrentBands;
+  failover?: FailoverState;
   error?: string;
   detail?: string;
 }

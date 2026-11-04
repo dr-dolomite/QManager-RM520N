@@ -2,11 +2,17 @@
 # Managed by QManager — ensures lighttpd uses the correct config.
 [Unit]
 Description=Lighttpd Daemon
-After=network.target opt.mount
+# Ordering only (no Requires/Wants): setup failing must not keep the web UI down.
+After=network.target opt.mount qmanager-setup.service
 
 [Service]
 Type=simple
-PIDFile=/opt/var/run/lighttpd.pid
+# Deliberately no pidfile directive here: systemd ignores it for Type=simple,
+# and our lighttpd.conf sets no server.pid-file so we never write one — the
+# path it used to name was Entware's default pidfile (the rival instance),
+# harmless today but wrong if this unit is ever changed to Type=forking.
+# Renders the port lines from /usrdata/qmanager/web_port; "-" so it never blocks the start.
+ExecStartPre=-/usr/bin/qmanager_web_port render
 ExecStartPre=/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf
 ExecStart=/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf
 ExecReload=/bin/kill -USR1 $MAINPID

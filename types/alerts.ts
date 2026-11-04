@@ -9,6 +9,8 @@
 // hard-codes which cells are possible.
 // =============================================================================
 
+import type { MutationResult } from "@/types/mutation-result";
+
 export type AlertChannel = "sms" | "email" | "discord";
 
 /** The trigger events a channel can be routed to. Extensible by design — new
@@ -80,7 +82,7 @@ export type AlertCapabilities = Record<AlertEventKey, AlertCapabilityCell>;
 /** How a recorded reboot was classified. `unplanned` is inferred as the
  *  absence of any intentional-reboot breadcrumb — there is no positive
  *  hardware signal for it on the device. */
-export type RebootCause = "watchdog" | "user" | "unplanned";
+export type RebootCause = "watchdog" | "user" | "scheduled" | "unplanned";
 
 export interface RebootHistoryEntry {
   /** Unix epoch seconds of the reboot, as recorded on the device. */
@@ -96,16 +98,21 @@ export interface AlertsState {
   capabilities: AlertCapabilities;
   /** Most-recent reboots (newest first), independent of alert routing. */
   reboots: RebootHistoryEntry[];
+  /** The one alert wait in minutes (1-1440). Absent on older backends. */
+  alert_after_min?: number;
 }
 
 // ─── Save payload ────────────────────────────────────────────────────────────
 
 export interface AlertsSavePayload {
   action: "save_settings";
+  /** Only sent when the wait was edited; it wins over every per-channel value. */
+  alert_after_min?: number;
   sms: {
     enabled: boolean;
     recipient_phone: string;
-    threshold_minutes: number;
+    /** Omitted means "keep the current wait". */
+    threshold_minutes?: number;
   };
   email: {
     enabled: boolean;
@@ -113,14 +120,14 @@ export interface AlertsSavePayload {
     recipient_email: string;
     /** Only sent when the user typed a new password. */
     app_password?: string;
-    threshold_minutes: number;
+    threshold_minutes?: number;
   };
   discord: {
     enabled: boolean;
     owner_discord_id: string;
     /** Only sent when the user typed a new bot token. */
     bot_token?: string;
-    threshold_minutes: number;
+    threshold_minutes?: number;
   };
   routing: AlertRouting;
 }
@@ -134,6 +141,13 @@ export interface AlertLogEntry {
   status: "sent" | "failed";
   recipient: string;
   channel: AlertChannel;
+}
+
+// ─── Save / test outcome ─────────────────────────────────────────────────────
+
+/** A save or test outcome; `code` is the CGI error slug, null on success or a transport failure. */
+export interface AlertsMutationResult extends MutationResult {
+  code: string | null;
 }
 
 // ─── msmtp install lifecycle (generic, previously @/types/video-optimizer) ───

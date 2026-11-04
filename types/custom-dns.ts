@@ -7,8 +7,9 @@
 //   GET/POST /cgi-bin/quecmanager/network/custom_dns.sh
 //
 // Backend writes a sentinel-delimited block into /etc/data/dnsmasq.conf and
-// reloads dnsmasq via SIGHUP. The runtime DNS proxy is gated by <DNSMode>
-// in /etc/data/mobileap_cfg.xml — when not "PROXY", the feature is unavailable.
+// reloads dnsmasq via SIGHUP. The runtime DNS proxy is gated by <DNSMode> in
+// /etc/data/mobileap_cfg.xml — the feature is available when that element reads
+// "PROXY", and when it is absent entirely (SDX55 firmware ships no selector).
 // =============================================================================
 
 /** Source of the live upstream resolvers dnsmasq is currently forwarding to. */
@@ -24,9 +25,12 @@ export interface CustomDnsSettingsResponse {
   ignoreCarrier: boolean;
   /** User-configured upstream resolvers (max 4) */
   servers: string[];
-  /** Value of <DNSMode> from /etc/data/mobileap_cfg.xml (typically "PROXY") */
+  /**
+   * Value of <DNSMode> in /etc/data/mobileap_cfg.xml — or "ABSENT" when the
+   * element is not in the file, or "UNKNOWN" when the file could not be read.
+   */
   dnsMode: string;
-  /** True when dnsMode === "PROXY"; gates all writes */
+  /** True for dnsMode "PROXY" and "ABSENT"; gates all writes */
   available: boolean;
   /** Live nameservers dnsmasq is forwarding to right now */
   currentUpstream: string[];

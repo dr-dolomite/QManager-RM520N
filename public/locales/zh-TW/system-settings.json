@@ -1,16 +1,1236 @@
 {
   "known_sims": {
-    "row_label": "已知 SIM 卡",
-    "info_aria": "已知 SIM 卡資訊",
-    "tooltip": "QManager 會記住已識別過的 SIM 卡，僅在插入全新 SIM 卡時才提醒您。清除會忘記除當前插入之外的所有 SIM 卡。",
-    "remembered_count_one": "{{count}} 張",
-    "remembered_count_other": "{{count}} 張",
+    "section": "已追蹤的 SIM 卡",
+    "rows": {
+      "count": {
+        "consequence": "QManager 會記住已識別過的 SIM 卡，僅在插入全新 SIM 卡時才提醒您。清除會忘記除當前插入之外的所有 SIM 卡。",
+        "label": "已記住的 SIM 卡"
+      }
+    },
+    "states": {
+      "empty_title": "尚未記錄任何 SIM 卡",
+      "empty_description": "QManager 會在 SIM 卡首次插入時記錄它。插入一張 SIM 卡即可開始。",
+      "error_title": "無法讀取已追蹤的 SIM 卡",
+      "error_description": "裝置未回應。沒有任何記錄被刪除，這只是讀取失敗，數量仍保存在數據機上。"
+    },
     "clear_button": "清除",
     "clear_dialog_title": "清除已知 SIM 卡？",
     "clear_dialog_description": "這將忘記 QManager 識別過的所有 SIM 卡，但保留當前插入的這張——因此您正在使用的 SIM 卡不會被標記為新卡。之前用過的 SIM 卡在下次插入時會再次提醒。",
     "clear_dialog_confirm": "清除",
     "clear_dialog_clearing": "正在清除…",
     "toast_cleared": "已清除已知 SIM 卡",
-    "toast_clear_failed": "清除已知 SIM 卡失敗"
+    "toast_clear_failed": "清除已知 SIM 卡失敗",
+    "toast_cleared_partial": "已清除已知 SIM 卡，但未完全清除",
+    "toast_cleared_partial_detail": "裝置已忘記這些 SIM 卡，但無法更新其單卡記錄。請重新載入頁面查看。"
+  },
+  "page": {
+    "title": "系統設定",
+    "description": "本裝置如何計時、何時重啟，以及它記住了哪些 SIM 卡。",
+    "refresh": "重新整理"
+  },
+  "band": {
+    "head": "目前生效",
+    "unreachable": "無法連線",
+    "clock": {
+      "eyebrow": "裝置時鐘",
+      "caption_applied": "{{zone}}，已套用",
+      "caption_drifted": "已儲存為 {{zone}}，但時鐘沒有變化",
+      "caption_unread": "無法讀取時鐘",
+      "caption_unreported": "已儲存 {{zone}}，裝置時鐘未知"
+    },
+    "reboot": {
+      "eyebrow": "下次重啟",
+      "off": "已關閉",
+      "day_separator": "、",
+      "caption_repeats": "重複：{{days}}",
+      "caption_off": "未設定自動重啟",
+      "caption_no_day": "已啟用，但未選取任何日期",
+      "caption_unread": "無法讀取排程",
+      "never": "從不"
+    },
+    "sims": {
+      "eyebrow": "已追蹤的 SIM 卡",
+      "caption_none": "尚未記錄任何內容",
+      "caption_known": "僅新 SIM 卡會觸發提醒",
+      "caption_unread": "無法讀取數量"
+    },
+    "stale": "上次確認的讀數"
+  },
+  "preferences": {
+    "section": "時間與單位",
+    "card": {
+      "title": "裝置與單位",
+      "description": "本數據機如何計時、讀數所用的單位，以及它記住的 SIM 卡。",
+      "save": "儲存偏好設定"
+    },
+    "rows": {
+      "unsaved": "未儲存",
+      "timezone": {
+        "label": "時區",
+        "consequence": "本數據機沒有電池時鐘。每一條日誌、每一個事件和每一項排程都以此為基準。",
+        "placeholder": "選擇時區",
+        "search": "搜尋時區…",
+        "empty": "沒有相符的時區。"
+      },
+      "temperature": {
+        "label": "溫度",
+        "consequence": "適用於 QManager 中的所有溫度讀數。",
+        "celsius": "攝氏度（°C）",
+        "fahrenheit": "華氏度（°F）"
+      },
+      "distance": {
+        "label": "距離",
+        "consequence": "適用於基地台掃描與天線頁面上的基地台距離。",
+        "km": "公里（km）",
+        "miles": "英里（mi）"
+      }
+    },
+    "states": {
+      "error_title": "無法讀取您的偏好設定",
+      "error_body": "QManager 無法讀取本裝置的偏好設定。沒有任何設定被變更——已儲存的時區和單位仍在數據機上生效。",
+      "error_body_detail": "QManager 無法讀取本裝置的偏好設定。沒有任何設定被變更——已儲存的時區和單位仍在數據機上生效。裝置回應：{{detail}}",
+      "stale": "數據機未回應最近一次請求。此處顯示的是它最後確認的狀態。",
+      "tz_not_applied_chip": "時鐘未更新",
+      "tz_not_applied_body": "已儲存為 {{zone}}，但裝置時鐘仍執行在 {{offset}}。它可能稍後會跟上，也可能是此韌體缺少該時區的資料。"
+    },
+    "toast": {
+      "saved": "偏好設定已儲存",
+      "failed": "無法儲存偏好設定",
+      "tz_not_applied": "偏好設定已儲存，但時區尚未套用到裝置時鐘"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "定時重啟",
+      "description": "依固定的每週排程自動重啟數據機。"
+    },
+    "rows": {
+      "enabled": {
+        "label": "自動重啟",
+        "armed": "已啟用",
+        "off": "已關閉",
+        "consequence": "數據機將依此排程重啟。您的工作階段會中斷約九十秒，隨後自動恢復。",
+        "no_day": "永不觸發"
+      },
+      "time": {
+        "label": "時間",
+        "consequence": "使用裝置本地時間，而非瀏覽器時間。"
+      },
+      "days": {
+        "label": "重複於",
+        "consequence": "未選取任何日期時，該排程永遠不會觸發。",
+        "rail": "每週重啟日"
+      },
+      "clock": {
+        "label": "數據機時間",
+        "consequence": "排程所依據的日期和時間，使用「裝置與單位」中設定的時區。",
+        "unsynced": "尚未設定",
+        "unsynced_consequence": "數據機尚未從網路取得時間，在此之前排程重啟不會執行。"
+      }
+    },
+    "days": {
+      "sun": "週日",
+      "mon": "週一",
+      "tue": "週二",
+      "wed": "週三",
+      "thu": "週四",
+      "fri": "週五",
+      "sat": "週六"
+    },
+    "states": {
+      "error": {
+        "title": "無法讀取重啟排程",
+        "description": "QManager 無法載入本裝置的重啟排程。已儲存的排程仍在數據機上生效——這只是讀取失敗，並非已被停用。"
+      },
+      "stale": "QManager 在重新整理時失去了聯繫。這些是它上次從裝置讀取到的值。",
+      "autosave": "自動儲存",
+      "saving": "儲存中…"
+    },
+    "toast": {
+      "enabled": "已啟用定時重啟",
+      "disabled": "已關閉定時重啟",
+      "saved": "重啟排程已儲存",
+      "save_failed": "儲存重啟排程失敗",
+      "update_failed": "更新重啟排程失敗",
+      "unsaved": "重啟排程的變更未儲存——您在儲存完成前離開了頁面。",
+      "not_armed": "重啟排程已儲存，但無法在本裝置上啟用——{{detail}}",
+      "reason_unknown": "原因不明",
+      "reasons": {
+        "unit_absent": "本裝置尚未安裝排程服務——請更新至最新韌體以啟用該功能",
+        "no_schedule": "尚未設定可啟用的重啟排程"
+      },
+      "rejected": {
+        "no_days": "請至少選取一天，或關閉該排程。",
+        "invalid_time": "該時間無效。請使用24小時制的 HH:MM 格式。",
+        "network": "無法連線至裝置以儲存。請檢查連線後再試一次。",
+        "invalid_day": "所選日期中有無效項目。請選擇週日至週六。",
+        "missing_enabled": "裝置未收到開關設定，請再試一次。"
+      }
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "系統日誌",
+      "description": "QManager 將日誌保存在數據機的記憶體中，因此每次重啟後都會清空，也不會磨損快閃記憶體。在這裡篩選日誌，查看各元件的運作情況。",
+      "refresh": "重新整理",
+      "clear": "清除日誌",
+      "copy": "複製"
+    },
+    "band": {
+      "head": "日誌健康",
+      "severity": {
+        "eyebrow": "嚴重程度",
+        "errors_one": "{{count}} 個錯誤",
+        "errors_other": "{{count}} 個錯誤",
+        "warnings_one": "{{count}} 個警告",
+        "warnings_other": "{{count}} 個警告",
+        "clean": "無異常",
+        "caption_unread": "尚無讀取結果",
+        "caption_errors_one": "在已讀取的 {{lines}} 行中有 {{count}} 條警告",
+        "caption_errors_other": "在已讀取的 {{lines}} 行中有 {{count}} 條警告",
+        "caption_warnings_one": "已讀取的 {{count}} 行中沒有錯誤",
+        "caption_warnings_other": "已讀取的 {{count}} 行中沒有錯誤",
+        "caption_clean_one": "已讀取的 {{count}} 行中沒有警告",
+        "caption_clean_other": "已讀取的 {{count}} 行中沒有警告"
+      },
+      "feed": {
+        "eyebrow": "日誌串流",
+        "live": "即時",
+        "paused": "已暫停",
+        "stopped": "已停止",
+        "caption_unread": "等待首次讀取",
+        "caption_live": "已於 {{age}} 重新整理，每 10 秒一次",
+        "caption_paused": "自動重新整理已暫停，上次讀取於 {{age}}",
+        "caption_stopped": "上次讀取失敗，{{age}}"
+      },
+      "file": {
+        "eyebrow": "日誌檔案",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} 行，{{rotated}} 份已封存",
+        "caption_other": "{{count}} 行，{{rotated}} 份已封存",
+        "caption_unread": "未回報大小"
+      }
+    },
+    "card": {
+      "title": "日誌內容",
+      "description": "正在顯示 {{shown}} 行。目前日誌共有 {{held}} 行。",
+      "description_loading": "正在讀取日誌…",
+      "description_unreadable": "QManager 無法讀取日誌。"
+    },
+    "rail": {
+      "label": "依等級篩選",
+      "all": "全部",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Error"
+    },
+    "filters": {
+      "search_label": "搜尋日誌",
+      "search_placeholder": "搜尋訊息",
+      "component_label": "依元件篩選",
+      "component_all": "所有元件",
+      "lines_label": "讀取行數",
+      "lines_option": "{{lines}} 行",
+      "archived": "包含已封存日誌"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "unknown": "無日期"
+    },
+    "time": {
+      "now": "剛剛",
+      "seconds": "{{value}} 秒前",
+      "minutes": "{{value}} 分鐘前",
+      "hours": "{{value}} 小時前",
+      "days": "{{value}} 天前"
+    },
+    "severity": {
+      "DEBUG": "偵錯",
+      "INFO": "資訊",
+      "WARN": "警告",
+      "ERROR": "錯誤"
+    },
+    "notice": {
+      "stale": "QManager 在重新整理時失去了聯繫。這些是它上次從裝置讀取到的行。"
+    },
+    "empty": {
+      "title": "日誌為空",
+      "description": "QManager 將日誌保存在記憶體中，並在每次重啟時清空，因此自本裝置上次啟動以來還沒有寫入任何內容。"
+    },
+    "empty_filtered": {
+      "title": "沒有符合這些篩選條件的內容",
+      "description": "日誌中有內容，但沒有一條符合您選擇的等級、元件或搜尋條件。",
+      "action": "清除篩選條件"
+    },
+    "error": {
+      "title": "無法讀取日誌",
+      "description": "QManager 無法連接到本裝置上的日誌讀取程式。日誌本身並未受到影響，這只是讀取失敗，並非日誌遺失。",
+      "retry": "重試"
+    },
+    "clear_dialog": {
+      "title": "清除系統日誌？",
+      "description": "此操作將清空目前日誌，並刪除兩個封存檔案。已寫入的內容將永久消失，新日誌會立即開始寫入。",
+      "cancel": "取消",
+      "confirm": "清除日誌",
+      "clearing": "正在清除…"
+    },
+    "toast": {
+      "cleared": "系統日誌已清除",
+      "clear_failed": "無法清除系統日誌",
+      "refresh_failed": "無法讀取系統日誌",
+      "copied": "日誌已複製到剪貼簿",
+      "copy_failed": "無法複製日誌"
+    }
+  },
+  "languages": {
+    "page": {
+      "title": "語言",
+      "description": "選擇 QManager 介面所使用的語言，並安裝為此裝置發布的社群翻譯包。"
+    },
+    "actions": {
+      "refresh": "重新整理",
+      "refreshing": "正在重新整理…",
+      "refresh_aria": "重新整理已安裝的語言與社群目錄",
+      "check_again": "重新檢查",
+      "install": "安裝",
+      "update": "更新",
+      "cancel": "取消",
+      "install_aria": "安裝 {{language}}",
+      "update_aria": "更新 {{language}}",
+      "cancel_aria": "取消 {{language}} 的安裝",
+      "remove_aria": "移除 {{language}} 語言包",
+      "copy_command": "複製手動安裝指令"
+    },
+    "band": {
+      "head": "此裝置上",
+      "display": {
+        "eyebrow": "顯示語言",
+        "caption_built_in": "內建，{{code}}",
+        "caption_downloaded": "已下載，{{code}}",
+        "caption_unknown": "不在此裝置的目錄中"
+      },
+      "ready": {
+        "eyebrow": "可以使用",
+        "caption_built_in_one": "{{count}} 種內建",
+        "caption_built_in_other": "{{count}} 種內建",
+        "caption_with_downloaded_one": "{{builtIn}} 種內建，{{count}} 種已下載",
+        "caption_with_downloaded_other": "{{builtIn}} 種內建，{{count}} 種已下載",
+        "caption_unknown": "無法讀取清單"
+      },
+      "catalog": {
+        "eyebrow": "社群目錄",
+        "value_unreachable": "無法連線",
+        "caption_unreachable": "無法連線 GitHub",
+        "caption_none": "尚未發布任何語言包",
+        "caption_available": "可以安裝",
+        "caption_updates_one": "有可用更新",
+        "caption_updates_other": "有 {{count}} 項可用更新"
+      }
+    },
+    "display": {
+      "title": "顯示語言",
+      "description": "選擇 QManager 介面所使用的語言。變更會立即生效，且僅作用於此裝置。",
+      "group_aria": "顯示語言",
+      "built_in": "內建",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "移除 {{language}}？",
+      "description": "此操作會從此裝置刪除已下載的 {{language}} 語言包。您隨時可以重新安裝。",
+      "description_active": "{{language}} 正是您目前正在閱讀的語言。移除它會讓 QManager 切換回英文。",
+      "cancel": "保留",
+      "confirm": "移除",
+      "removing": "正在移除…"
+    },
+    "community": {
+      "title": "社群語言包",
+      "description": "由社群為 QManager 發布的翻譯包。安裝其中一個後，它會加入上方的清單。",
+      "list_aria": "社群語言包",
+      "completeness": "已翻譯 {{pct}}%",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} 位譯者",
+      "contributors_other": "{{count}} 位譯者",
+      "contributors_none": "社群",
+      "incompatible": "需要較新版本的 QManager"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "正在安裝 {{language}}"
+    },
+    "steps": {
+      "pending": "排隊中",
+      "downloading": "正在下載",
+      "verifying": "正在驗證校驗碼",
+      "extracting": "正在解壓縮",
+      "validating": "正在驗證",
+      "installing": "正在安裝",
+      "cancelling": "正在取消",
+      "working": "處理中"
+    },
+    "failure": {
+      "manual": "裝置上沒有任何內容被變更。您可以透過 SSH 手動安裝此語言包："
+    },
+    "states": {
+      "unreachable": {
+        "title": "無法連線語言包目錄",
+        "description": "裝置無法從 GitHub 載入社群語言包清單。您已安裝的語言未受影響 — 這只是一次失敗的讀取，數據機上沒有任何變更。"
+      },
+      "none": {
+        "title": "還沒有社群語言包",
+        "description": "還沒有人為 QManager 發布可下載的翻譯包。上方的語言內建於韌體中，隨時都可使用。"
+      }
+    },
+    "loading": {
+      "status": "正在載入語言"
+    },
+    "toast": {
+      "switched": "已切換為 {{language}}",
+      "switch_failed": "無法載入 {{language}} 語言包",
+      "switch_failed_detail": "可能需要重新安裝它。",
+      "installing": "正在安裝 {{language}}…",
+      "installed": "{{language}} 已安裝",
+      "install_failed": "無法安裝 {{language}}",
+      "install_failed_generic": "語言包安裝失敗",
+      "use_now": "立即使用",
+      "install_cancelled": "安裝已取消",
+      "removed": "{{language}} 已移除",
+      "removed_active": "{{language}} 已移除，已切換回英文",
+      "remove_failed": "無法移除 {{language}}",
+      "copied": "安裝指令已複製",
+      "copy_failed": "無法複製安裝指令"
+    },
+    "errors": {
+      "generic": "無法安裝該語言包。",
+      "checksum_mismatch": "下載的內容未通過完整性檢查，已被捨棄。",
+      "sha256_mismatch": "下載的內容未通過完整性檢查，已被捨棄。",
+      "insufficient_space": "裝置上的可用空間不足，無法安裝此語言包。",
+      "download_failed": "裝置無法下載該語言包。請檢查它的連線後再試一次。",
+      "manifest_fetch_failed": "裝置無法連線 GitHub 上的語言包目錄。",
+      "incompatible": "此語言包需要較新版本的 QManager。",
+      "bundled_immutable": "內建語言無法移除。",
+      "extract_failed": "無法解壓縮該語言包的封存檔。",
+      "validate_failed": "該語言包未通過驗證，已被捨棄。",
+      "pack_not_found": "該語言包已不在目錄中。",
+      "install_in_progress": "已有另一個語言包正在安裝。"
+    }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "連線品質",
+      "description": "數據機 ping 的目標，以及把緩慢連線記為事件的門檻。"
+    },
+    "targets": {
+      "title": "探測目標",
+      "description": "依序 ping，直到有目標回應，用來判斷網際網路是否連通。",
+      "restore": "還原預設值",
+      "unsaved": "未儲存",
+      "save": "儲存探測目標",
+      "save_failed": "無法儲存探測目標",
+      "cadence_clear_failed": "無法重設探測間隔",
+      "leg": {
+        "host_1": "主機名稱目標 1",
+        "host_2": "主機名稱目標 2",
+        "ip_1": "IPv4 目標 1",
+        "ip_2": "IPv4 目標 2"
+      },
+      "error": {
+        "title": "無法讀取探測目標",
+        "body": "已儲存的目標仍在使用。",
+        "retry": "重試"
+      },
+      "empty": {
+        "title": "尚未儲存探測鏈",
+        "body": "本裝置還沒有記錄任何探測目標。還原預設值，為它設定一條可用的探測鏈。",
+        "action": "還原預設值"
+      },
+      "toast": {
+        "saved": "探測目標已儲存",
+        "cadence_cleared": "探測間隔已改為跟隨靈敏度設定"
+      },
+      "validation": {
+        "empty": "請輸入一個目標。",
+        "too_long": "最多 {{max}} 個字元。",
+        "spaces": "不允許包含空格。",
+        "disallowed": "包含不允許使用的字元。",
+        "host_invalid": "不是有效的主機名稱。",
+        "ipv4_required": "此欄位需要一個 IPv4 位址，不接受主機名稱。",
+        "ipv4_invalid": "不是有效的 IPv4 位址。"
+      },
+      "verdict": {
+        "answering": "第 {{n}} 個目標正在回應",
+        "fallback": "DNS 解析失效",
+        "none": "無回應",
+        "unknown": "未回報"
+      },
+      "group": {
+        "hostnames": "主機名稱",
+        "fallback": "IPv4 備援",
+        "sensitivity": "靈敏度"
+      },
+      "fallback_hint": "不需要 DNS，因此解析器故障不會被誤判為斷線。",
+      "fallback_hint_label": "關於 IPv4 備援",
+      "interval": {
+        "label": "探測間隔",
+        "value": "每 {{seconds}} 秒",
+        "override": "每 {{seconds}} 秒（看門狗）",
+        "use_profile": "使用靈敏度預設間隔"
+      },
+      "failed": "儲存失敗",
+      "profile": {
+        "sensitive": "靈敏",
+        "regular": "一般",
+        "relaxed": "寬鬆",
+        "quiet": "安靜"
+      }
+    },
+    "thresholds": {
+      "title": "品質門檻",
+      "description": "何時把緩慢或封包遺失的連線記錄為網路事件。",
+      "latency": {
+        "title": "延遲"
+      },
+      "loss": {
+        "title": "封包遺失"
+      },
+      "preset": {
+        "standard": "標準",
+        "tolerant": "寬鬆",
+        "very_tolerant": "非常寬鬆",
+        "custom": "自訂"
+      },
+      "unsaved": "未儲存",
+      "save": "儲存門檻",
+      "save_failed": "無法儲存門檻",
+      "error": {
+        "title": "無法讀取品質門檻",
+        "body": "已儲存的門檻仍在使用。",
+        "retry": "重試"
+      },
+      "toast": {
+        "saved": "品質門檻已儲存"
+      },
+      "row": {
+        "flags": "觸發條件",
+        "now": "目前",
+        "limit": "門檻"
+      },
+      "flags": {
+        "latency_one": "{{count}} 個樣本超過 {{ms}} 毫秒",
+        "latency_other": "{{count}} 個樣本超過 {{ms}} 毫秒",
+        "loss_one": "{{count}} 個樣本達到 {{pct}}% 或以上",
+        "loss_other": "{{count}} 個樣本達到 {{pct}}% 或以上",
+        "pending": "請輸入門檻"
+      },
+      "now": {
+        "latency": "{{ms}} 毫秒",
+        "loss": "{{pct}}%",
+        "no_reply": "無回覆",
+        "collecting": "正在收集",
+        "over_latency": "超出 {{ms}} 毫秒門檻",
+        "over_loss": "超出 {{pct}}% 門檻"
+      },
+      "default_chip": "內建預設值",
+      "failed": "儲存失敗",
+      "unit": {
+        "latency": "毫秒",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "請輸入 {{min}} 到 {{max}} 之間的整數。"
+      }
+    }
+  },
+  "software_update": {
+    "page": {
+      "title": "軟體更新",
+      "description": "QManager 會檢查 GitHub 上是否有更新的版本，並直接在數據機上安裝。安裝會取代應用程式並重啟裝置，因此您正在閱讀本頁的工作階段會中斷，隨後自動恢復。"
+    },
+    "actions": {
+      "check": "檢查更新",
+      "checking": "檢查中…",
+      "check_again": "重新檢查",
+      "download": "下載 {{version}}",
+      "downloading": "下載中…",
+      "install": "安裝 {{version}}",
+      "installing": "安裝中…",
+      "try_again": "再試一次",
+      "retry": "重試",
+      "read_full_notes": "閱讀完整發行說明",
+      "rebooting": "重啟中…",
+      "verifying": "驗證中…",
+      "retry_download": "重新下載",
+      "reboot_now": "立即重啟"
+    },
+    "band": {
+      "head": "更新狀態",
+      "chip_offline": "離線",
+      "chip_in_progress": "進行中",
+      "installed": {
+        "eyebrow": "已安裝",
+        "caption_stable": "穩定版通道",
+        "caption_prerelease": "預先發行通道",
+        "caption_interrupted": "安裝可能不完整"
+      },
+      "latest": {
+        "eyebrow": "最新版本",
+        "caption_checked": "上次檢查 {{ago}}",
+        "caption_downloading": "正在下載 {{size}}…",
+        "caption_verified": "已下載並驗證",
+        "caption_installing": "第 {{step}} 步，共 4 步——請勿斷電",
+        "caption_failed": "無法連線至 GitHub",
+        "caption_never": "從未檢查",
+        "value_none_label": "沒有版本資訊",
+        "caption_downloading_plain": "正在下載安裝套件…",
+        "caption_verifying": "正在驗證安裝套件…",
+        "caption_failed_download": "下載未能完成",
+        "caption_failed_install": "安裝未能完成"
+      },
+      "auto": {
+        "eyebrow": "自動更新",
+        "value_on": "開啟",
+        "value_off": "關閉",
+        "caption_on": "每天在隨機時間檢查一次",
+        "caption_off": "僅手動更新"
+      },
+      "chip_failed": "失敗"
+    },
+    "card": {
+      "loading": {
+        "title": "正在檢查更新",
+        "description": "正在從 GitHub 讀取版本列表。"
+      },
+      "unreachable": {
+        "title": "更新服務無法使用",
+        "description": "QManager 無法存取本數據機上的更新端點，因此無法說明已安裝的版本或可用的版本。"
+      },
+      "check_failed": {
+        "title": "更新檢查失敗",
+        "description": "本數據機上的版本未被更動。QManager 只是這次沒能讀取到版本列表。"
+      },
+      "download_failed": {
+        "title": "下載沒有完成",
+        "description": "沒有任何檔案被取代。本數據機上原有的版本未被更動，因此可以放心重新下載。"
+      },
+      "install_failed": {
+        "title": "安裝沒有完成",
+        "description": "數據機上的檔案可能是混雜的。重新安裝可讓它回到一個確定的版本。"
+      },
+      "up_to_date": {
+        "title": "您已是最新版本",
+        "description": "沒有可安裝的內容。下方四個步驟就是有更新時會執行的動作。"
+      },
+      "available": {
+        "title": "有可用更新",
+        "description": "下載並安裝需要幾分鐘，最後會重啟裝置。整個過程如下。"
+      },
+      "downloading": {
+        "title": "正在下載更新",
+        "description": "正在從 GitHub 取得安裝套件。目前尚未取代任何檔案，數據機仍正常運作。"
+      },
+      "verifying": {
+        "title": "正在驗證下載內容",
+        "description": "QManager 正在以 SHA-256 驗證安裝套件，之後才會取代任何檔案。"
+      },
+      "staged": {
+        "title": "準備安裝",
+        "description": "安裝套件已下載並通過驗證。安裝會取代 QManager 並重啟數據機。"
+      },
+      "installing": {
+        "title": "正在安裝更新",
+        "description": "正在取代應用程式、其服務與 CGI 指令碼。請勿讓數據機斷電。"
+      },
+      "rebooting": {
+        "title": "正在重啟數據機",
+        "description": "安裝已完成。數據機正在重啟，本工作階段會中斷，直到它恢復。"
+      },
+      "chip": {
+        "loading": "檢查中",
+        "unreachable": "無法存取",
+        "check_failed": "檢查失敗",
+        "download_failed": "下載失敗",
+        "install_failed": "安裝失敗",
+        "up_to_date": "已是最新",
+        "available": "有可用更新",
+        "downloading": "下載中",
+        "verifying": "驗證中",
+        "staged": "準備就緒",
+        "installing": "安裝中",
+        "rebooting": "重啟中"
+      }
+    },
+    "delta": {
+      "installed": "已安裝",
+      "available": "可用",
+      "channel_stable": "穩定版",
+      "channel_prerelease": "預先發行版"
+    },
+    "steps": {
+      "aria_label": "更新步驟",
+      "download": {
+        "label": "下載",
+        "detail": "從 GitHub 取得 qmanager.tar.gz"
+      },
+      "verify": {
+        "label": "驗證",
+        "detail": "以 SHA-256 驗證安裝套件"
+      },
+      "install": {
+        "label": "安裝",
+        "detail": "取代應用程式、服務與 CGI 指令碼"
+      },
+      "reboot": {
+        "label": "重啟",
+        "detail": "數據機會重啟。您的工作階段將中斷。"
+      },
+      "state": {
+        "done": "已完成",
+        "active": "進行中"
+      }
+    },
+    "notice": {
+      "rest": "安裝會重啟數據機，本工作階段以及經由它的所有連線都會中斷約一分鐘。",
+      "staged": "安裝會取代 QManager 並重啟數據機。本工作階段會中斷，隨後自動恢復。",
+      "running": "請勿讓數據機斷電。",
+      "failed_check": "QManager 未能讀取版本列表。本數據機上的版本未被更動，這只是一次讀取失敗，並非損失。",
+      "failed_download": "下載沒有完成，因此沒有安裝任何內容。裝置上原有的版本未被更動。",
+      "versions": "這裡的每個選項都會重啟數據機，而較舊的版本可能會撤銷較新版本引入的設定。",
+      "failed_install": "安裝沒有完成，因此數據機上的檔案可能是混雜的。重新安裝可讓它回到一個確定的版本。",
+      "stalled": "安裝程式已兩分鐘沒有進展。若仍無回應，請重啟數據機以完成或復原此次安裝。"
+    },
+    "notes": {
+      "title": "變更內容",
+      "description": "隨 {{version}} 一同發行的發行說明。",
+      "empty_title": "沒有發行說明",
+      "empty_description": "GitHub 未回傳此版本的變更日誌，因此這裡沒有可顯示的內容。",
+      "dialog_title": "{{version}} 的發行說明",
+      "region_label": "發行說明"
+    },
+    "preferences": {
+      "title": "更新偏好設定",
+      "description": "本數據機如何決定何時自我更新。",
+      "auto": {
+        "label": "自動更新",
+        "description": "每天在隨機時間檢查一次，並安裝找到的更新。數據機會重啟以完成安裝。",
+        "error": "無法儲存自動更新設定"
+      },
+      "prerelease": {
+        "label": "包含預先發行版本",
+        "description": "提供在 GitHub 上標記為預先發行的版本。它們發行得較早，但測試也較少。",
+        "error": "無法儲存預先發行版設定"
+      }
+    },
+    "versions": {
+      "title": "版本管理",
+      "description": "安裝、重新安裝或回復到任何已發行的版本。",
+      "select_label": "選擇要安裝的版本",
+      "select_placeholder": "選擇版本",
+      "install": "安裝",
+      "current": "目前",
+      "no_binary": "沒有安裝套件",
+      "dialog": {
+        "title_install": "安裝 {{version}}？",
+        "title_reinstall": "重新安裝 {{version}}？",
+        "description_install": "這會以 {{version}} 取代目前的 {{current}}。完成後數據機會重啟。",
+        "description_reinstall": "這會在數據機上已有的副本之上重新安裝 {{version}}，以進行修復。完成後數據機會重啟。",
+        "size": "下載大小：{{size}}。",
+        "warning": "安裝過程中請勿讓數據機斷電。",
+        "cancel": "取消",
+        "confirm_install": "立即安裝",
+        "confirm_reinstall": "立即重新安裝"
+      },
+      "empty_title": "沒有可選擇的版本",
+      "empty_description": "GitHub 未回傳任何帶有可安裝套件的版本，因此這裡沒有可安裝或可回復的目標。"
+    },
+    "banner": {
+      "title": "上次更新未能完成",
+      "description": "{{pending}} 的待處理標記在重啟後仍然存在，而目前執行的是 {{version}}，因此已安裝的檔案可能是混雜的。重新安裝 {{pending}} 可讓本數據機回到一個確定的版本。",
+      "action": "完成安裝",
+      "description_unknown": "在執行 {{version}} 期間有一次安裝沒有完成，因此已安裝的檔案可能是混雜的。重新安裝可讓本數據機回到一個確定的版本。"
+    },
+    "states": {
+      "loading": {
+        "status": "正在檢查更新",
+        "notes": "正在載入版本資訊"
+      },
+      "unreachable": {
+        "title": "無法存取更新服務",
+        "description": "QManager 無法存取本數據機上的更新端點。已安裝的版本未被更動，這只是一次讀取失敗，並非損失。"
+      }
+    },
+    "time": {
+      "just_now": "剛剛",
+      "minutes": "{{value}} 分鐘前",
+      "minutes_one": "一分鐘前",
+      "hours": "{{value}} 小時前",
+      "hours_one": "一小時前",
+      "days": "{{value}} 天前",
+      "days_one": "一天前"
+    },
+    "toast": {
+      "prerelease_on": "已啟用預先發行更新",
+      "prerelease_off": "已關閉預先發行更新",
+      "auto_on": "已啟用自動更新",
+      "auto_off": "已關閉自動更新",
+      "save_failed": "無法儲存該偏好設定"
+    },
+    "stall_dialog": {
+      "title": "現在重啟數據機？",
+      "description": "安裝似乎已卡住。重啟會中斷安裝並中斷目前的工作階段，數據機會自動恢復。",
+      "cancel": "繼續等待",
+      "confirm": "立即重啟"
+    }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "AT 終端",
+      "description": "直接向數據機發送 AT 命令，並原樣讀取它回傳的回覆。會讓射頻停止運作的命令會先等待您確認，還有少數命令會被直接拒絕。"
+    },
+    "card": {
+      "title": "主控台",
+      "description": "回覆以原始形式顯示，就是數據機自己的措辭。最近 100 條命令會保存在本瀏覽器中，直到您清除為止。"
+    },
+    "actions": {
+      "clear": "清除",
+      "export": "匯出"
+    },
+    "game": {
+      "playing": "正在玩 Signal Storm"
+    },
+    "empty": {
+      "title": "尚未發送任何命令",
+      "description": "在下方提示符處輸入 AT 命令，或者開啟「命令」從現成的命令中挑選一條。"
+    },
+    "transcript": {
+      "label": "命令記錄",
+      "copy": "複製這條命令及其回覆",
+      "copied": "已複製",
+      "status": {
+        "success": "成功",
+        "error": "失敗",
+        "blocked": "已攔截"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "按 Tab 鍵，用歷史記錄補全這條命令；按 Shift+Tab 離開輸入框。"
+    },
+    "gate": {
+      "title": "此命令可能切斷您的連線",
+      "confirm": "仍然發送",
+      "cancel": "取消"
+    },
+    "rules": {
+      "not_at": "此處只能傳送 AT 指令。請以 AT 開頭，例如 AT+CSQ。",
+      "qscanfreq": "此處拒絕執行頻率掃描。掃描期間射頻會停止運作數分鐘，而且全程沒有任何顯示——請改用「小區掃描」頁面，它會回報進度並且可以中止。",
+      "qscan": "此處拒絕執行網路掃描。掃描期間射頻會停止運作數分鐘，而且全程沒有任何顯示——請改用「小區掃描」頁面，它會回報進度並且可以中止。",
+      "resetfactory": "此處拒絕執行恢復原廠設定。它會一次清空數據機的所有設定，包括 QManager 連線裝置所需的那些，而且本頁面無法復原。",
+      "reboot": "此命令會重新啟動數據機。經由它的所有連線都會中斷，包括本頁面，正在進行的操作也會遺失——大約需要一分鐘才能恢復，而且時鐘會回到 1970 年 1 月，直到網路重新校時。",
+      "radio_off": "此命令會關閉數據機的射頻。如果您是透過數據機自身的連線（包括 Tailscale）開啟本頁面的，那麼在從裝置端重新開啟射頻之前，您將失去這個頁面。"
+    },
+    "input": {
+      "label": "AT 命令",
+      "placeholder": "AT+COPS?",
+      "send": "發送"
+    },
+    "responses": {
+      "failed": "命令執行失敗，數據機沒有給出原因。",
+      "unexpected": "這條命令未能發送。請查看「系統日誌」了解後端的回報。",
+      "unreachable": "無法連線到數據機上的 QManager 後端。請確認裝置仍可存取，然後重新發送。",
+      "game": "正在啟動 Signal Storm…"
+    },
+    "commands": {
+      "trigger": "命令",
+      "search_placeholder": "搜尋命令",
+      "empty": "沒有命令符合該搜尋條件。",
+      "count_one": "{{count}} 條命令",
+      "count_other": "{{count}} 條命令",
+      "manage": "管理命令",
+      "groups": {
+        "modem": "數據機",
+        "network": "網路模式",
+        "sim": "SIM 卡插槽",
+        "apn": "APN",
+        "bands": "頻段",
+        "passthrough": "IP 透傳",
+        "custom": "自訂"
+      },
+      "presets": {
+        "reboot": "重啟數據機",
+        "disconnect": "關閉射頻",
+        "connect": "開啟射頻",
+        "signal_info": "訊號資訊（服務小區）",
+        "ca_info": "載波聚合資訊",
+        "imei_show": "顯示 IMEI",
+        "mode_show": "顯示網路模式",
+        "mode_auto": "將網路模式設為自動",
+        "mode_nr_lte": "將網路模式設為 5G NR 和 LTE",
+        "mode_nr": "將網路模式設為僅 5G NR",
+        "mode_lte": "將網路模式設為僅 LTE",
+        "nr5g_disable_status": "顯示 SA 與 NSA 的啟用情況",
+        "nr5g_enable_both": "同時啟用 SA 和 NSA",
+        "nr5g_disable_sa": "僅停用 SA",
+        "nr5g_disable_nsa": "僅停用 NSA",
+        "sim_slot_get": "顯示目前 SIM 卡插槽",
+        "sim_slot_1": "切換到 SIM 卡插槽 1",
+        "sim_slot_2": "切換到 SIM 卡插槽 2",
+        "apn_list": "顯示 APN 清單",
+        "apn_nrbroadband": "將 APN 設為 NRBROADBAND",
+        "bands_nr_sa": "顯示已啟用的 5G NR SA 頻段",
+        "bands_nr_nsa": "顯示已啟用的 5G NR NSA 頻段",
+        "bands_lte": "顯示已啟用的 LTE 頻段",
+        "ippt_addresses": "顯示已指派的 IP 位址",
+        "ippt_enable": "啟用 IP 透傳",
+        "ippt_disable": "停用 IP 透傳"
+      },
+      "errors": {
+        "required": "名稱和命令都必須填寫。",
+        "must_start_at": "命令必須以 AT 開頭。",
+        "duplicate_command": "該命令已在清單中。",
+        "duplicate_label": "另一條命令已經使用了這個名稱。"
+      },
+      "manage_dialog": {
+        "title": "管理自訂命令",
+        "description": "您在這裡新增的命令會保存在本瀏覽器中，並顯示在清單的「自訂」分組下。",
+        "empty": "您還沒有新增任何自訂命令。",
+        "label_field": "命令名稱",
+        "label_placeholder": "命令名稱",
+        "command_field": "AT 命令",
+        "command_placeholder": "AT+…",
+        "add": "新增",
+        "delete": "刪除 {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "網頁主控台",
+      "description": "在瀏覽器中開啟的數據機 root shell。您在這裡輸入的一切都會以 root 身分執行在提供本頁面的裝置上——沒有任何確認步驟，也無法復原。"
+    },
+    "card": {
+      "title": "終端機",
+      "description": "工作階段在本頁面載入時開始，在您輸入 exit 或離開本頁面時結束。"
+    },
+    "chip": {
+      "connecting": "連線中",
+      "reconnecting": "重新連線中",
+      "connected": "已連線",
+      "unreachable": "未執行",
+      "refused": "已拒絕",
+      "dropped": "連結已中斷",
+      "ended": "工作階段已結束"
+    },
+    "hints": {
+      "copy": "複製",
+      "paste": "貼上",
+      "leave": "離開全螢幕"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "清除畫面",
+      "fullscreen": "全螢幕",
+      "exit_fullscreen": "離開全螢幕",
+      "reconnect": "重新連線",
+      "retry": "重試",
+      "start_session": "開始新的工作階段"
+    },
+    "terminal": {
+      "label": "數據機上的 root shell"
+    },
+    "states": {
+      "close": {
+        "code": "關閉代碼 {{code}}",
+        "reason": "關閉代碼 {{code}} — {{reason}}",
+        "none": "連線關閉時沒有回報任何代碼。"
+      },
+      "unreachable": {
+        "title": "主控台服務未在執行",
+        "description": "QManager 無法連線到 ttyd，也就是在數據機上提供這個終端機的小程式。它是安裝套件中的選用元件，可能從未下載過，也可能是它的服務已經停止。重新安裝或更新 QManager 會把它裝回來。"
+      },
+      "refused": {
+        "title": "數據機拒絕了這個工作階段",
+        "description": "ttyd 已回應，隨後用它自己給出的狀態關閉了連線。通常是因為它已經在服務另一個終端機，或者在交握過程中途停止。請關閉您開啟的其他主控台，然後重試。"
+      },
+      "dropped": {
+        "title": "與數據機的連線已中斷",
+        "description": "主控台原本正在執行，隨後連結消失了。Wi-Fi 換手、VPN 或數據機重啟都會造成這種情況。請確認裝置仍然可以存取，然後重新連線。"
+      },
+      "ended": {
+        "title": "工作階段已結束",
+        "description": "數據機上的 shell 已結束，因此這個終端機已關閉。沒有任何內容遺失——需要時隨時開始新的工作階段。"
+      }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "密碼",
+      "description": "變更您登入 QManager 所使用的密碼，或 SSH 的 root 密碼。每一項都需要先輸入其目前的密碼。"
+    },
+    "tabs": {
+      "aria": "要變更的密碼",
+      "web": "網頁密碼",
+      "ssh": "SSH 密碼"
+    },
+    "web": {
+      "label": "目前的網頁密碼",
+      "consequence": "您登入 QManager 所使用的密碼。",
+      "dialog_title": "變更網頁密碼",
+      "dialog_description": "變更後您將會登出。"
+    },
+    "ssh": {
+      "label": "目前的 SSH 密碼",
+      "consequence": "透過 SSH 登入本數據機的 root 密碼。",
+      "dialog_title": "變更 SSH 密碼",
+      "dialog_description": "立即生效，已建立的 SSH 工作階段不會中斷。",
+      "toast_saved": "SSH 密碼已更新。"
+    },
+    "continue": "繼續",
+    "toggle": {
+      "show": "顯示密碼",
+      "hide": "隱藏密碼"
+    },
+    "dialog": {
+      "new_label": "新密碼",
+      "confirm_label": "確認新密碼",
+      "match": "兩次密碼一致",
+      "mismatch": "兩次密碼不一致",
+      "cancel": "取消",
+      "save": "儲存密碼"
+    },
+    "errors": {
+      "too_short": "密碼至少需要 {{min}} 個字元。",
+      "weak": "密碼至少需要 {{min}} 個字元，且包含大寫字母、小寫字母和數字。",
+      "verify_failed": "無法驗證密碼，請再試一次。",
+      "change_failed": "無法變更密碼，請再試一次。",
+      "invalid_password_one": "密碼錯誤。還剩 {{count}} 次嘗試，之後登入將被暫時鎖定。",
+      "invalid_password_other": "密碼錯誤。還剩 {{count}} 次嘗試，之後登入將被暫時鎖定。",
+      "rate_limited_one": "錯誤嘗試次數過多。請在 {{count}} 秒後再試一次。",
+      "rate_limited_other": "錯誤嘗試次數過多。請在 {{count}} 秒後再試一次。"
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "裝置存取",
+      "description": "用於存取此數據機的密碼和連接埠。"
+    }
+  },
+  "config_backup": {
+    "page_title": "設定備份",
+    "page_description": "將 QManager 的設定儲存為加密檔案，或從檔案還原。",
+    "excluded": "密碼、權杖、Web 連接埠、SIM 紀錄、日誌和用量計數永遠不會包含在內。",
+    "not_supported_here": "此裝置不支援",
+    "mutex_parent_on": "由已選取的{{parent}}設定。",
+    "mutex_member_on": "取消選取{{members}}後才能包含此項。",
+    "group_count": "{{on}} / {{total}}",
+    "reboot_failed_toast": "無法開始重新啟動。重新啟動仍在橫幅中等待。",
+    "reboot_now_button": "立即重新啟動",
+    "groups": {
+      "connection": "連線",
+      "local_network": "區域網路",
+      "monitoring": "監控與警示",
+      "system": "系統"
+    },
+    "sections": {
+      "network_mode": "網路模式",
+      "bands": "LTE/5G 頻段",
+      "apn": "APN",
+      "tower_lock": "基地台鎖定",
+      "ttl_mtu": "TTL 與 MTU",
+      "imei": "IMEI",
+      "profiles": "自訂 SIM 設定檔",
+      "scenarios": "連線情境",
+      "ip_passthrough": "IP 直通",
+      "sms": "簡訊設定",
+      "lan": "LAN 與 DHCP",
+      "custom_dns": "自訂 DNS",
+      "ethernet": "乙太網路",
+      "traffic_engine": "流量引擎",
+      "watchdog": "看門狗",
+      "quality": "連線品質",
+      "sites": "延遲監控站點",
+      "alerts": "警示",
+      "adaptive_polling": "自適應輪詢",
+      "system": "系統設定"
+    },
+    "create": {
+      "card_title": "建立備份",
+      "card_description": "選擇要儲存的內容。檔案會在您的瀏覽器中加密。",
+      "group_encryption": "加密",
+      "passphrase_label": "密碼片語",
+      "warning": "至少 {{min}} 個字元。沒有它就無法還原備份。",
+      "passphrase_too_short": "請至少使用 {{min}} 個字元。",
+      "confirm_label": "確認密碼片語",
+      "confirm_match": "密碼片語相符",
+      "confirm_mismatch": "密碼片語不相符",
+      "passphrase_show_aria": "顯示密碼片語",
+      "passphrase_hide_aria": "隱藏密碼片語",
+      "selected_count_one": "已選取 {{count}} 個項目",
+      "selected_count_other": "已選取 {{count}} 個項目",
+      "stage_collecting": "正在讀取設定…",
+      "stage_encrypting": "正在加密…",
+      "stage_downloading": "正在儲存檔案…",
+      "button_default": "下載備份",
+      "toast_success": "備份已下載。",
+      "toast_unavailable_one": "備份已下載，但有 {{count}} 個項目無法讀取。",
+      "toast_unavailable_other": "備份已下載，但有 {{count}} 個項目無法讀取。",
+      "toast_failed": "無法建立備份。",
+      "load_failed_title": "無法載入備份選項",
+      "load_failed_description": "數據機未告知可以備份哪些設定。",
+      "empty_title": "沒有可備份的內容",
+      "empty_description": "此 QManager 版本沒有可備份的設定。"
+    },
+    "restore": {
+      "card_title": "從檔案還原",
+      "card_description": "開啟備份檔案並選擇要還原的內容。",
+      "idle_title": "尚未開啟備份",
+      "reading_title": "正在讀取檔案…",
+      "idle_description": "選擇一個 .qmbackup 檔案。您需要儲存時使用的密碼片語。",
+      "upload_button": "選擇檔案",
+      "button_choose_another": "選擇其他檔案",
+      "read_failed": "無法讀取此檔案。",
+      "receipt_model": "來源裝置",
+      "receipt_created": "建立時間",
+      "passphrase_label": "密碼片語",
+      "passphrase_consequence": "建立此備份時設定的密碼片語。",
+      "password_incorrect": "密碼片語錯誤，或檔案已被修改。",
+      "button_unlock": "解鎖",
+      "model_warning": "此備份來自 {{from}}，而此數據機是 {{to}}。無法使用的設定將被略過。",
+      "backup_first": "還原會取代您目前的設定。請先下載目前設定的備份。",
+      "backup_first_action": "先備份",
+      "overwrite_label": "將取代您目前的設定",
+      "note_reboot": "需要重新啟動。",
+      "note_lan": "可能會變更您連到 QManager 的位址。需要重新啟動。",
+      "note_profiles_imei": "需要重新啟動。IMEI 與此數據機不同的設定檔將失去該 IMEI，除非您在下方選擇保留。",
+      "profiles_imei_confirm_one": "{{count}} 個設定檔在啟用時會設定不同的 IMEI。保留這些 IMEI。",
+      "profiles_imei_confirm_other": "{{count}} 個設定檔在啟用時會設定不同的 IMEI。保留這些 IMEI。",
+      "imei_confirm": "以 IMEI {{backup}} 覆寫此數據機的 {{current}}。",
+      "selected_count_one": "將還原 {{count}} 個項目",
+      "selected_count_other": "將還原 {{count}} 個項目",
+      "button_apply": "還原",
+      "toast_success": "設定已還原。",
+      "toast_partial_one": "還原已完成，但有 {{count}} 個項目失敗。",
+      "toast_partial_other": "還原已完成，但有 {{count}} 個項目失敗。",
+      "toast_cancelled_one": "還原在 {{count}} 個項目後停止。",
+      "toast_cancelled_other": "還原在 {{count}} 個項目後停止。",
+      "toast_crashed": "還原意外停止。",
+      "toast_failed": "無法開始還原。",
+      "toast_stop_failed": "無法停止還原。",
+      "reboot_dialog_title": "重新啟動以完成還原？",
+      "reboot_dialog_description": "部分還原的設定在重新啟動後生效。連線將中斷約一分鐘。",
+      "reboot_later_button": "稍後"
+    },
+    "pipeline": {
+      "title": "正在還原設定",
+      "description": "來自在 {{model}} 上建立的備份。",
+      "preparing": "正在準備…",
+      "stopping": "將在此項目完成後停止…",
+      "step_progress": "第 {{current}} 項，共 {{total}} 項",
+      "done_headline": "還原完成",
+      "done_sub_one": "已還原 {{count}} 個項目。",
+      "done_sub_other": "已還原 {{count}} 個項目。",
+      "partial_headline": "還原完成但有問題",
+      "partial_sub": "已還原 {{restored}} / {{total}} 個項目。",
+      "cancelled_sub": "在所有項目還原之前已停止。",
+      "failed_headline": "還原失敗",
+      "failed_sub": "沒有還原任何內容。",
+      "crashed_sub": "還原意外停止。",
+      "detail_incompatible": "不相容",
+      "detail_not_supported": "此裝置不支援",
+      "detail_sim_mismatch": "SIM 卡不同",
+      "detail_unchanged": "已略過",
+      "detail_retrying": "第 {{n}} 次重試",
+      "detail_failed": "失敗",
+      "note_ignored_one": "{{count}} 項設定在此裝置不受支援",
+      "note_ignored_other": "{{count}} 項設定在此裝置不受支援",
+      "note_dropped_one": "已略過 {{count}} 個項目（無效）",
+      "note_dropped_other": "已略過 {{count}} 個項目（無效）",
+      "state_done": "完成",
+      "state_running": "進行中",
+      "state_retrying": "重試中",
+      "state_failed": "失敗",
+      "state_skipped": "已略過",
+      "state_pending": "等待中",
+      "progress_aria": "還原進度",
+      "ledger_aria": "項目",
+      "reboot_notice": "需要重新啟動才能完成。關閉此視窗後您可以選擇重新啟動的時間。",
+      "failed_hint": "失敗的項目保留了目前的設定。您可以再次還原。",
+      "close": "關閉",
+      "stop": "停止"
+    }
+  },
+  "adaptive_polling": {
+    "page_title": "自適應輪詢",
+    "page_description": "無人開啟 QManager 時，減少查詢數據機的頻率。",
+    "card_title": "自適應輪詢",
+    "card_description": "頁面開啟時狀態按全速重新整理，之後逐步放慢。",
+    "tier": {
+      "active": "全速",
+      "idle": "空閒（降速）",
+      "deep": "深度空閒（最低）"
+    },
+    "tier_aria": "當前輪詢：{{tier}}",
+    "enabled": {
+      "label": "空閒時降速",
+      "on": "寬限期過後輪詢降速。",
+      "off": "狀態始終按全速重新整理。",
+      "hint_label": "哪些功能保持執行",
+      "hint": "提醒和連線看門狗在任何速率下都正常工作，僅狀態重新整理會放慢。"
+    },
+    "fields": {
+      "active_grace": {
+        "label": "寬限期",
+        "consequence": "最後一個頁面關閉後，仍按全速執行這麼久（{{min}} 至 {{max}} 秒）。"
+      },
+      "idle_interval": {
+        "label": "空閒間隔",
+        "consequence": "空閒時兩次重新整理的間隔（{{min}} 至 {{max}} 秒）。"
+      },
+      "idle_threshold": {
+        "label": "進入深度空閒前",
+        "consequence": "重新整理進一步放慢前的空閒時間（{{min}} 至 {{max}} 秒）。"
+      },
+      "deep_idle_interval": {
+        "label": "深度空閒間隔",
+        "consequence": "深度空閒時兩次重新整理的間隔（{{min}} 至 {{max}} 秒）。"
+      }
+    },
+    "unit_seconds": "秒",
+    "error_title": "無法載入自適應輪詢",
+    "error_description": "設定未能載入，請稍後重試。",
+    "save_failed_status": "未儲存",
+    "default_status": "預設時間",
+    "toast_saved": "自適應輪詢已儲存。",
+    "toast_failed": "無法儲存自適應輪詢。"
+  },
+  "web_port": {
+    "card_title": "網頁連接埠",
+    "card_description": "本介面監聽的連接埠。",
+    "http_label": "HTTP 連接埠",
+    "http_consequence": "明文 HTTP 只會轉址到 HTTPS 連接埠。",
+    "https_label": "HTTPS 連接埠",
+    "https_consequence": "本介面使用的加密連接埠。",
+    "pending": "套用後將在 {{origin}} 開啟。",
+    "moving": "正在切換到 {{origin}}… 若瀏覽器提示，請接受新連接埠的憑證。",
+    "invalid": "請輸入 1 到 65535 之間的整數。",
+    "same": "HTTP 與 HTTPS 需要使用不同的連接埠。",
+    "confirm_title": "變更網頁連接埠？",
+    "confirm_description": "QManager 將在新連接埠上重新啟動，本頁面會跳轉到 {{origin}}。若新連接埠無法啟動，將自動恢復舊連接埠。",
+    "confirm_action": "變更連接埠",
+    "toast_failed": "無法變更網頁連接埠。",
+    "toast_unchanged": "網頁連接埠已儲存。",
+    "toast_unreachable": "新連接埠沒有回應，QManager 仍使用舊連接埠。",
+    "toast_back_on": "新連接埠未能啟動，QManager 已恢復到 {{origin}}。",
+    "toast_timeout": "連接埠變更尚未完成，請稍後重新載入此頁面。",
+    "open_origin": "開啟",
+    "error_title": "無法讀取網頁連接埠",
+    "error_description": "連接埠未能載入，請稍後重試。"
   }
 }

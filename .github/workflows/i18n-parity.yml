@@ -81,19 +81,24 @@ jobs:
             async function upsertComment(body) {
               if (!isPR || !prNumber) return; // no-op on push events
               const { owner, repo } = context.repo;
-              const existing = await github.paginate(
-                github.rest.issues.listComments,
-                { owner, repo, issue_number: prNumber, per_page: 100 }
-              );
-              const mine = existing.find(c => c.body && c.body.includes(MARKER));
-              if (mine) {
-                await github.rest.issues.updateComment({
-                  owner, repo, comment_id: mine.id, body,
-                });
-              } else {
-                await github.rest.issues.createComment({
-                  owner, repo, issue_number: prNumber, body,
-                });
+              // Fork PRs get a read-only token; a failed comment must not skip the gate.
+              try {
+                const existing = await github.paginate(
+                  github.rest.issues.listComments,
+                  { owner, repo, issue_number: prNumber, per_page: 100 }
+                );
+                const mine = existing.find(c => c.body && c.body.includes(MARKER));
+                if (mine) {
+                  await github.rest.issues.updateComment({
+                    owner, repo, comment_id: mine.id, body,
+                  });
+                } else {
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: prNumber, body,
+                  });
+                }
+              } catch (e) {
+                core.warning(`Could not post the PR comment (read-only token on fork PRs?): ${e.message}`);
               }
             }
 
@@ -207,6 +212,7 @@ jobs:
 
             const body = lines.join('\n');
             await upsertComment(body);
+            await core.summary.addRaw(body).write();
 
             // Note: this step does NOT fail the job — the final step does, based
             // purely on `report.ok`. Warnings must never block merge.

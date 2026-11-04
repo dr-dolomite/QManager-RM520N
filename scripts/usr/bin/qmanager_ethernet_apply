@@ -9,12 +9,30 @@
 #   qmanager_ethernet_apply 1000     — cap at 1 Gb/s
 #   qmanager_ethernet_apply 2500     — cap at 2.5 Gb/s
 
+# Pin PATH: sudo passes the caller's PATH to this root helper.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
+
 ETH_INTERFACE="eth0"
 ETHTOOL="/usr/sbin/ethtool"
 ETHERNET_SPEED_FILE="/etc/qmanager/ethernet_speed"
 CONF_DIR="/etc/qmanager"
 
 . /usr/lib/qmanager/ethtool_helper.sh
+
+# /etc/qmanager is www-data-writable: mktemp (O_EXCL, random name) so a planted
+# symlink at a fixed .tmp path can't redirect root's write; then rename over.
+persist_speed() {
+    mkdir -p "$CONF_DIR"
+    # Build in a root-only dir on the same fs, then move into the PARENT dir under the
+    # same name: a planted symlink (even to a dir) is replaced, never followed. No mv -T here.
+    _d=$(mktemp -d /etc/.qmanager-tmp.XXXXXX) || return 1
+    _n="${ETHERNET_SPEED_FILE##*/}"
+    printf '%s\n' "$speed_limit" > "$_d/$_n" && chmod 644 "$_d/$_n" \
+        && mv -f "$_d/$_n" "${ETHERNET_SPEED_FILE%/*}/"
+    _rc=$?
+    rm -rf "$_d"
+    return "$_rc"
+}
 
 # --- Input validation ---------------------------------------------------------
 speed_limit="$1"
@@ -37,9 +55,7 @@ esac
 if [ ! -e "/sys/class/net/$ETH_INTERFACE" ]; then
     echo "qmanager_ethernet_apply: $ETH_INTERFACE not present (no RTL8125B NIC attached) — skipping ethtool, preference persisted" >&2
 
-    mkdir -p "$CONF_DIR"
-    printf '%s\n' "$speed_limit" > "${ETHERNET_SPEED_FILE}.tmp"
-    mv "${ETHERNET_SPEED_FILE}.tmp" "$ETHERNET_SPEED_FILE"
+    persist_speed || exit 1
 
     printf '{"success":true,"speed_limit":"%s","applied":false,"reason":"no_nic"}\n' "$speed_limit"
     exit 0
@@ -87,9 +103,7 @@ fi
 "$ETHTOOL" -r "$ETH_INTERFACE" 2>/dev/null || true
 
 # --- Persist atomically ------------------------------------------------------
-mkdir -p "$CONF_DIR"
-printf '%s\n' "$speed_limit" > "${ETHERNET_SPEED_FILE}.tmp"
-mv "${ETHERNET_SPEED_FILE}.tmp" "$ETHERNET_SPEED_FILE"
+persist_speed || exit 1
 
 printf '{"success":true,"speed_limit":"%s"}\n' "$speed_limit"
 exit 0

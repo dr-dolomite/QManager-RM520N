@@ -36,9 +36,10 @@ case "$action" in
         _reboot_cmd="reboot"
         command -v run_reboot >/dev/null 2>&1 && _reboot_cmd="run_reboot"
         # Classify this reboot as user-initiated in crash.log BEFORE it
-        # happens, via the sudoers-gated root helper (www-data cannot write
-        # crash.log directly — see qmanager_crash_log_append). alert_engine.sh
-        # reads this on the next boot to skip the default "unplanned" cause.
+        # happens, via the sudoers-gated root helper (www-data cannot write the
+        # root-owned /usrdata/qmanager/crash.log — see qmanager_crash_log_append).
+        # alert_engine.sh reads this on the next boot to skip the default
+        # "unplanned" cause.
         # A failed append still lets the reboot proceed (";" not "&&") — the
         # user asked to reboot, not to be blocked by alert bookkeeping.
         ( ( sleep 1; $_SUDO /usr/bin/qmanager_crash_log_append user 2>/dev/null; $_reboot_cmd ) </dev/null >/dev/null 2>&1 & )

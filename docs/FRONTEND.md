@@ -32,7 +32,7 @@ app/                            # Next.js App Router
 ├── layout.tsx                  # Root layout (fonts, ThemeProvider, Toaster)
 ├── page.tsx                    # Redirect → /dashboard
 ├── globals.css                 # Tailwind + OKLCH theme variables
-├── fonts/                      # Euclid Circular B WOFF2 files
+├── fonts/                      # Rethink Sans + JetBrains Mono (vendored) + Material Symbols WOFF2 files
 ├── login/page.tsx              # Authentication page
 ├── dashboard/                  # Home dashboard
 ├── cellular/                   # Cellular management
@@ -49,7 +49,9 @@ app/                            # Next.js App Router
 │   ├── ip-passthrough/         # IP passthrough
 │   └── custom-dns/             # DNS settings
 ├── monitoring/                 # Monitoring & alerts
-│   ├── page.tsx                # Network events hub
+│   ├── page.tsx                # Redirect → /monitoring/events
+│   ├── events/                 # Network events hub
+│   ├── connection-quality/     # Probe targets + quality limits (sidebar group head)
 │   ├── latency/                # Latency monitoring
 │   ├── alerts/                 # Centralized Alerts (SMS + email + Discord)
 │   ├── email-alerts/           # Redirect → /monitoring/alerts (legacy bookmark)
@@ -105,16 +107,16 @@ constants/                      # Static configuration data
 | `/cellular/settings` | CellularSettings | Mode, roaming, AMBR settings |
 | `/cellular/settings/apn-management` | APNSettings | APN profile CRUD |
 | `/cellular/settings/imei-settings` | IMEISettings | IMEI read/write/backup |
-| `/cellular/settings/network-priority` | NetworkPriority | LTE/NR mode preferences |
-| `/cellular/settings/fplmn-settings` | FPLMNSettings | Forbidden network cleanup |
+| `/cellular/settings/network-priority` | NetworkPriority | RAT acquisition order (`AT+QNWPREFCFG="rat_acq_order"`), reorderable |
+| `/cellular/settings/fplmn-settings` | FPLMNSettings | **Blocked Networks** — forbidden-PLMN (FPLMN) list read + clear |
 | `/cellular/cell-locking` | BandLocking | LTE/NR band selection |
 | `/cellular/cell-locking/tower-locking` | TowerLocking | PCI-based tower lock (with Simple Mode dropdowns sourced from live QCAINFO) |
 | `/cellular/cell-locking/frequency-locking` | FrequencyLocking | EARFCN/ARFCN lock |
 | `/cellular/cell-scanner` | CellScanner | Active cell scanning |
 | `/cellular/cell-scanner/neighbourcell-scanner` | NeighbourScanner | Neighbor cells |
 | `/cellular/cell-scanner/frequency-calculator` | FrequencyCalculator | EARFCN ↔ freq |
-| `/cellular/custom-profiles` | CustomProfile | SIM profile CRUD + apply |
-| `/cellular/custom-profiles/connection-scenarios` | ConnectionScenario | Preset templates |
+| `/cellular/custom-profiles` | CustomProfile | SIM profile CRUD + apply, **and** Connection Scenarios — one merged page |
+| `/cellular/custom-profiles/connection-scenarios` | *(retired)* | Client-side `router.replace` redirect to `/cellular/custom-profiles`; kept only for old bookmarks and deep links |
 | `/cellular/sms` | SMS | SMS inbox/send |
 | `/local-network` | EthernetStatus | Ethernet hub |
 | `/local-network/ethernet` | EthernetSettings | Link speed/duplex |
@@ -122,8 +124,9 @@ constants/                      # Static configuration data
 | `/local-network/mtu` | MTUSettings | MTU configuration |
 | `/local-network/ip-passthrough` | IPPassthrough | IP passthrough mode |
 | `/local-network/custom-dns` | CustomDNS | DNS override |
-| `/monitoring` | NetworkEvents | Event log hub |
-| `/monitoring/latency` | LatencyMonitoring | Real-time + history charts |
+| `/monitoring/connection-quality` | ConnectionQualitySettings | Probe targets and latency / loss limits; sidebar group over Latency Monitor and Network Events (`/system-settings/connection-quality` redirects here) |
+| `/monitoring/events` | NetworkEvents | Event log hub (`/monitoring` redirects here) |
+| `/monitoring/latency` | LatencyMonitoring | Right now (live 60-probe strip), History (1 h / 6 h / 24 h average line) and Sites (per-site connect time) — see `docs/reference/latency-monitor.md` |
 | `/monitoring/alerts` | Alerts | Centralized SMS + email + Discord downtime/reboot alerts |
 | `/monitoring/email-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
 | `/monitoring/sms-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
@@ -169,6 +172,7 @@ const { data, isLoading, isStale, error, refresh } = useModemStatus({
 ```
 
 - **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_data.sh`
+- **Shared store**: every caller reads one module-level snapshot fetched by one timer, at the shortest interval any mounted caller asks for, capped at 10 s; a new caller fetches at once; no polling while the tab is hidden. See `docs/reference/adaptive-polling.md`
 - **Returns**: `ModemStatus | null` (null before first fetch)
 - **Staleness**: Data marked stale if timestamp > 10 seconds old
 - **Error handling**: Preserves last good data on error, sets `isStale: true`
@@ -184,17 +188,16 @@ Fetches per-antenna signal history for charting.
 
 Fetches ping history for latency charts.
 
-- **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh`
+- **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh` (`last` option → `?last=N`; the dashboard asks for 400)
 - **Returns**: `PingHistoryEntry[]`
-- **Tabs**: Real Time (last 10 samples), Hourly, 12h, Daily
+- **Consumers**: the dashboard Connection Quality card and the Latency Monitor's History card (1 h / 6 h / 24 h)
 
-#### `useDataUsed(options?)`
+#### `useDataUsedReset()`
 
-Persistent session data-usage counter. Polls at 2 s to stay in sync with the poller's write rate. Provides a `resetCounter()` mutation.
+Reset mutation for the persistent data-usage counter. It does not poll: the counter itself comes from `.data_used` in `useModemStatus`'s payload.
 
-- **Fetch endpoint**: `GET /cgi-bin/quecmanager/network/data_used.sh`
 - **Reset endpoint**: `POST /cgi-bin/quecmanager/network/data_used_reset.sh`
-- **Returns**: `{ data, isLoading, isResetting, error, resetCounter, refresh }`
+- **Returns**: `{ isResetting, resetCounter }` (`resetCounter()` resolves `true` on a 2xx)
 
 ### One-Shot Hooks (Fetch + Save)
 
@@ -206,8 +209,15 @@ const { settings, isLoading, isSaving, error, saveSettings, refresh } = useFeatu
 
 // Save changes
 const result = await saveSettings({ field: "value" });
-if (result.success) { /* toast success */ }
+if (result.success) {
+  markSaved();
+  toast.success(t("feature.toast.saved"));
+} else {
+  toast.error(t("feature.toast.save_failed"), { description: result.error });
+}
 ```
+
+Every finished user action is confirmed by exactly one `sonner` toast, success or failure, fired from the component handler that owns the action (**The Toast-Confirms Rule**). The failure reason comes from the call's returned result, never from the hook's `error` state read after an `await` (a stale closure); a fading Applied/Saved chip is retired. Many hooks in this tree still return a bare `Promise<boolean>` from `saveSettings`, which carries no reason, so the handler shows a fixed translated title; changing a mutator to return `{ success, error? }` means updating every caller in the same commit, because an unchanged `if (await save())` is truthy for every outcome. See [reference/toast-confirmation.md](reference/toast-confirmation.md).
 
 | Hook | CGI Endpoint | Types File |
 |------|-------------|------------|
@@ -335,14 +345,14 @@ It's a thin wrapper around `fetch()` that:
 
 ### Development Proxy
 
-In development, `next.config.ts` proxies `/cgi-bin/*` to the modem at `192.168.224.1`:
+In development, `next.config.ts` proxies `/cgi-bin/*` to the modem at `192.168.225.1`:
 
 ```typescript
 // next.config.ts
 async rewrites() {
   return [{
     source: "/cgi-bin/:path*",
-    destination: "http://192.168.224.1/cgi-bin/:path*",
+    destination: "http://192.168.225.1/cgi-bin/:path*",
   }];
 }
 ```
@@ -381,24 +391,44 @@ Event type labels, descriptions, and severity mappings for the events UI.
 
 ### Card Pattern
 
-Most settings pages use a consistent card layout:
+Settings pages use one card shape: plain header, content, and an editable card commits from its own footer (**The Card-Foot Apply Rule**, `DESIGN.md` > Layout > Named Rules).
 
 ```tsx
-<Card>
+const { saved, markSaved } = useSaveFlash();
+
+<Card className="@container/card">
   <CardHeader>
-    <CardTitle>Feature Name</CardTitle>
-    <CardDescription>Brief explanation</CardDescription>
+    <CardTitle>{t("feature.title")}</CardTitle>
+    <CardDescription>{t("feature.description")}</CardDescription>
   </CardHeader>
   <CardContent>
     {/* Form fields or data display */}
   </CardContent>
-  <CardFooter>
-    <Button onClick={save} disabled={isSaving}>
-      {isSaving ? "Saving..." : "Save Changes"}
-    </Button>
-  </CardFooter>
+  <CardFoot
+    status={isDirty ? t("feature.unsaved", { count: changeCount }) : undefined}
+    actions={
+      <>
+        <Button variant="ghost" onClick={discard} disabled={!isDirty || isSaving}>
+          {t("feature.discard")}
+        </Button>
+        <SaveButton
+          isSaving={isSaving}
+          saved={saved}
+          label={t("feature.save")}
+          disabled={!isDirty}
+          onClick={handleSave}
+        />
+      </>
+    }
+  />
 </Card>
 ```
+
+- `CardFoot` (`components/ui/card-foot.tsx`) is layout only: status on the left edge, actions on the right, `SaveButton` last, a borderless persistent row with a fixed minimum height. It takes translated content from the caller and imports neither icon set. Use it instead of shadcn `CardFooter`, whose `[.border-t]:pt-6` fights the row's padding.
+- Discard and any secondary action beside Save are ghost or `tonal-neutral`, never a stroked `outline` button. Never wrap `SaveButton` in `AnimatePresence`.
+- The `feature.*` keys above are illustrative: a real card adds its own keys to **all five** catalogs (`en id it zh-CN zh-TW`).
+- Exempt: dialogs and wizards (their own `DialogFooter`), per-row and inline actions, and operational actions that are not a draft commit.
+- **Swept 2026-10-06:** every non-exempt `SaveButton` now commits from a `CardFoot` or the `CARD_FOOT` + `CARD_FOOT_ACTIONS` constants. A page whose one apply spans several cards puts one footer on the card it belongs to most: Cellular Settings on the Network card (`cellular/settings/apply-foot.tsx`). Watchdog splits its apply instead: Ladder and Detection each commit their own fields (`monitoring/watchdog/watchdog-foot.tsx`). There is no page-level save bar anywhere; don't add one.
 
 ### Loading / Error / Empty States
 
@@ -417,7 +447,7 @@ Features that require a device reboot (MBN, IMEI, IP Passthrough, Tailscale resy
 ```tsx
 const success = await saveSettings(payload);
 if (!success) {
-  toast.error("Failed to save settings");
+  toast.error(t("feature.toast.save_failed"));
   return;
 }
 
@@ -430,7 +460,7 @@ document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
 window.location.href = "/reboot/";
 ```
 
-Reference implementations: `components/nav-user.tsx` (manual reboot), `components/cellular/settings/apn-management/mbn-card.tsx` (MBN apply), `components/local-network/ip-passthrough/ip-passthrough-card.tsx` (IPPT save). The countdown page itself lives at `components/reboot/reboot-countdown.tsx` and fires the `reboot_ack` request on mount.
+Reference implementations: `components/nav-user.tsx` (manual reboot), `components/cellular/settings/apn-management/mbn-card.tsx` (MBN apply), `components/local-network/ip-passthrough/ip-passthrough-card.tsx` (IPPT save), `hooks/use-imei-settings.ts` (`rebootDevice`, which returns `void` — a reboot is never awaitable; see [reference/cellular-settings-family.md](reference/cellular-settings-family.md)). The countdown page itself lives at `components/reboot/reboot-countdown.tsx` and fires the `reboot_ack` request on mount.
 
 ### Self-Contained Cards
 

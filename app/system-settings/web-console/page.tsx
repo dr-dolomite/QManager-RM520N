@@ -1,11 +1,7 @@
-import WebConsoleCard from "@/components/system-settings/web-console/web-console-card";
+import WebConsole from "@/components/system-settings/web-console/web-console";
 
 const WebConsolePage = () => {
-  return (
-    <div className="@container/main mx-auto h-full p-2">
-      <WebConsoleCard />
-    </div>
-  );
+  return <WebConsole />;
 };
 
 export default WebConsolePage;

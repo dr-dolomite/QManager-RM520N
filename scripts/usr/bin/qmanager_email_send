@@ -1,0 +1,134 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_email_send — Root helper: send the canned QManager test email.
+# =============================================================================
+# WHY THIS EXISTS
+# ---------------
+# msmtprc now lives at /etc/qmanager-secrets/msmtprc, 0600 root:root inside a
+# 0700 root:root directory, because it embeds the plaintext Gmail app password
+# (see qmanager_secret_set). The CGI used to send the test email itself — it
+# sourced email_alerts.sh and ran `msmtp -C <msmtprc>` INLINE, as www-data.
+# That no longer works: www-data cannot read the credential, and cannot even
+# stat it to tell you why.
+#
+# So relocating the credential relocated the send. This helper is the root half
+# of the test-send path. The poller/alert_engine already run as root and keep
+# calling email_alerts.sh directly — they need nothing from here.
+#
+# THIS GRANTS www-data NO NEW CAPABILITY.
+# ---------------------------------------
+# www-data owns /etc/qmanager/email_alerts.json (the CGI writes it), so it
+# already controls the sender and recipient addresses, and it could already
+# trigger a test send — that button has always existed. What changes is that
+# www-data no longer needs to READ THE CREDENTIAL to do it. This helper strictly
+# narrows the web process's reach; it does not widen it.
+#
+# Everything that could be attacker-influenced is therefore pinned here:
+#   * exactly one verb, `test`, and NOTHING is read from stdin;
+#   * the subject and body are canned constants below — no caller-supplied text
+#     is ever templated into the message, so this cannot be used as an open
+#     relay for arbitrary content;
+#   * sender/recipient come from email_alerts.json, which root reads directly.
+#
+# Usage:  qmanager_email_send test
+# Output: one line of JSON on stdout. Exit 0 = sent, 1 = not sent.
+#
+# Called via sudoers: www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_email_send
+# Install location: /usr/bin/qmanager_email_send
+# =============================================================================
+
+# sudo hands over a stripped environment; without this neither jq (Entware,
+# /opt/bin) nor msmtp is on PATH.
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+EMAIL_LIB="/usr/lib/qmanager/email_alerts.sh"
+QLOG_LIB="/usr/lib/qmanager/qlog.sh"
+
+# The message itself is canned in the library: _ea_send_test_email() sends the
+# fixed subject "Test Alert" with the fixed _ea_build_test_html() body. Nothing
+# from this helper's caller reaches it — see the header.
+
+fail() {
+    printf '{"success":false,"error":"%s","detail":"%s"}\n' "$1" "$2"
+    exit 1
+}
+
+# --- Strict argv gate: one literal verb, nothing else ------------------------
+# `$#` is checked too, so a stray second argument is rejected rather than
+# silently ignored.
+if [ "$#" -ne 1 ] || [ "$1" != "test" ]; then
+    fail "invalid_action" "the only supported action is: test"
+fi
+
+# --- Logging (optional) ------------------------------------------------------
+# email_alerts.sh calls qlog_* unconditionally, so they must exist even if the
+# logging library does not.
+#
+# The `[ -f ]` guard is load-bearing and is NOT the idiom used elsewhere in this
+# tree: POSIX says a non-interactive shell SHALL ABORT when `.` cannot find its
+# operand, so the common `. "$LIB" 2>/dev/null || { stubs }` shape does not fall
+# through to the stubs — it kills the script silently, with no JSON on stdout
+# and the caller left guessing. (Reproduced: every action returned empty until
+# this was changed.) Existing scripts get away with it only because the library
+# is always installed. Testing for the file first means the fallback actually
+# runs; `command -v` then covers a library that loaded but defined nothing.
+if [ -f "$QLOG_LIB" ]; then
+    # shellcheck source=/dev/null
+    . "$QLOG_LIB" 2>/dev/null
+fi
+if ! command -v qlog_info >/dev/null 2>&1; then
+    qlog_init() { :; }
+    qlog_debug() { :; }
+    qlog_info() { :; }
+    qlog_warn() { :; }
+    qlog_error() { :; }
+    qlog_state_change() { :; }
+fi
+qlog_init "email_send"
+
+# --- Load the channel library ------------------------------------------------
+# Same abort hazard as above — test for the file BEFORE sourcing it, so a
+# missing library produces a JSON error the UI can show instead of an empty
+# response.
+if [ ! -f "$EMAIL_LIB" ]; then
+    fail "library_missing" "Email alerts library not found"
+fi
+# shellcheck source=/dev/null
+. "$EMAIL_LIB" 2>/dev/null || fail "library_missing" "Email alerts library could not be loaded"
+
+if ! command -v _ea_send_test_email >/dev/null 2>&1; then
+    fail "library_missing" "Email alerts library did not define the send entry point"
+fi
+
+# --- Preconditions -----------------------------------------------------------
+# _ea_read_config is the ONE authority on "is email configured": it requires
+# enabled + sender + recipient + the app_password_set marker. The CGI
+# deliberately does not re-check any of that — two checks that can disagree are
+# worse than one that cannot.
+_ea_read_config
+if [ "$_ea_enabled" != "true" ]; then
+    fail "not_configured" "Email alerts must be enabled and fully configured before sending a test"
+fi
+
+if [ -z "$_EA_MSMTP_BIN" ] || [ ! -x "$_EA_MSMTP_BIN" ]; then
+    fail "msmtp_missing" "msmtp is not installed on this device"
+fi
+
+if [ ! -f "$_EA_MSMTP_CONFIG" ]; then
+    fail "msmtp_missing" "Save settings first to generate msmtp configuration"
+fi
+
+# --- Send --------------------------------------------------------------------
+# _ea_send_test_email renders the canned test template, sends it, and writes the
+# NDJSON log entry itself. It is called ONLY from here now, so every writer of
+# /tmp/qmanager_email_log.json is root — see the ownership note in
+# email_alerts.sh's _ea_log_event.
+if _ea_send_test_email; then
+    qlog_info "Test email sent to $_ea_recipient"
+    printf '{"success":true}\n'
+    exit 0
+fi
+
+qlog_error "Test email failed"
+fail "send_failed" "Failed to send test email. Check msmtp configuration and network connectivity."

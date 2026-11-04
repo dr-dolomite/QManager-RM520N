@@ -1,6 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/ethtool_helper.sh
+. /usr/lib/qmanager/network_validate.sh
 # =============================================================================
 # ethernet.sh — CGI Endpoint: Ethernet Link Status & Speed Limit (GET + POST)
 # =============================================================================
@@ -87,19 +88,35 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         *)          auto_negotiation="Unknown" ;;
     esac
 
-    # --- Persisted speed limit ---
-    speed_limit="auto"
-    if [ -f "$ETHERNET_SPEED_FILE" ]; then
-        persisted=$(cat "$ETHERNET_SPEED_FILE" 2>/dev/null | tr -d '[:space:]')
-        case "$persisted" in
-            auto|10|100|1000|2500) speed_limit="$persisted" ;;
-        esac
+    # --- Is there a controller at all? ---
+    # `link_status` cannot answer this. An unplugged cable and an absent eth0
+    # both read "down", so the UI has no way to tell "the cable is out" from
+    # "this device has no ethernet port" — and the second is a DESIGNED outcome,
+    # not a fault. It is exactly why qmanager-ethernet.service puts its
+    # ConditionPathExists in [Unit] (the unit reports `inactive`, not `failed`)
+    # and why docs/reference/ethernet.md warns against "fixing" that.
+    #
+    # sysfs, not ethtool: the directory either exists or it does not, it costs
+    # no fork, and it is readable by www-data. Measured present on both
+    # reference devices (RM520N-GL 61368cd2, RG501Q-EU b7e3d6f1), so the false
+    # branch is unreachable there — stated rather than implied.
+    #
+    # Emitted below with --argjson, NOT --arg: a quoted "false" is a non-empty
+    # string, and every non-empty string is truthy in JavaScript, so a stringly
+    # typed field would report every device as having a port.
+    if [ -d "/sys/class/net/$ETH_INTERFACE" ]; then
+        interface_present=true
+    else
+        interface_present=false
     fi
+
+    # --- Persisted speed limit ---
+    speed_limit=$(qm_eth_persisted)
 
     # --- 2.5G support ---
     sup2500=$(supports_2500)
 
-    qlog_info "link=$link_status speed=$speed duplex=$duplex autoneg=$auto_negotiation limit=$speed_limit 2500=$sup2500"
+    qlog_info "link=$link_status speed=$speed duplex=$duplex autoneg=$auto_negotiation limit=$speed_limit 2500=$sup2500 present=$interface_present"
 
     jq -n \
         --arg link_status "$link_status" \
@@ -108,6 +125,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --arg auto_negotiation "$auto_negotiation" \
         --arg speed_limit "$speed_limit" \
         --argjson supports_2500 "$sup2500" \
+        --argjson interface_present "$interface_present" \
         '{
             success: true,
             link_status: $link_status,
@@ -115,7 +133,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             duplex: $duplex,
             auto_negotiation: $auto_negotiation,
             speed_limit: $speed_limit,
-            supports_2500: $supports_2500
+            supports_2500: $supports_2500,
+            interface_present: $interface_present
         }'
     exit 0
 fi
@@ -133,36 +152,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
-    # --- Validate ---
-    case "$speed_limit" in
-        auto|10|100|1000|2500) ;;
-        *)
-            cgi_error "invalid_speed" "speed_limit must be one of: auto, 10, 100, 1000, 2500"
-            exit 0
-            ;;
-    esac
-
-    # --- Reject 2500 if PHY doesn't support it ---
-    if [ "$speed_limit" = "2500" ]; then
-        sup2500=$(supports_2500)
-        if [ "$sup2500" != "true" ]; then
-            cgi_error "unsupported_speed" "2.5G is not supported by this PHY"
-            exit 0
-        fi
-    fi
-
-    qlog_info "Applying speed_limit=$speed_limit"
-
-    apply_out=$(sudo -n /usr/bin/qmanager_ethernet_apply "$speed_limit" 2>&1)
-    apply_rc=$?
-
-    if [ "$apply_rc" -ne 0 ]; then
-        qlog_error "qmanager_ethernet_apply failed rc=$apply_rc: $apply_out"
-        cgi_error "apply_failed" "Failed to apply ethernet speed limit"
+    # --- Validate, gate 2.5G, apply (lib: network_validate.sh) ---
+    if ! qm_eth_save "$speed_limit"; then
+        cgi_error "$QM_ETH_ERR" "$QM_ETH_ERR_DETAIL"
         exit 0
     fi
-
-    qlog_info "Speed limit applied: $speed_limit"
 
     jq -n \
         --arg speed_limit "$speed_limit" \
