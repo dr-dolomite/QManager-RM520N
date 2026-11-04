@@ -1,6 +1,6 @@
 # 🚀 QManager RM520N BETA v0.1.18
 
-QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so both modems get lighter polling, a faster SMS Center with conversation threads and fresher signal readings, plus a live **Now** view for Sites and a redesign of the dashboard, Cellular and System Settings pages to match QManager on the RM551E.
+A security release first: the Web Console now requires sign-in, SSH and the devices behind the modem are no longer reachable from the mobile network, and fresh installs no longer share a default SSH password. It also adds a setup wizard, encrypted config backup, a changeable web port and LAN address, and a faster SMS Center with conversations. The modem broker now runs on both the RM520N-GL and the RG501Q-EU, with lighter polling and fresher signal readings. The dashboard, Cellular, Local Network and System Settings pages are redesigned to match QManager on the RM551E.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
@@ -24,6 +24,7 @@ QManager's modem broker now runs on both the RM520N-GL and the RG501Q-EU, so bot
 - **Your sent messages show up in the conversation.** Texts you send from **SMS Center** now appear in their conversation, failed ones included, instead of disappearing after sending. (Kept on the modem in `/etc/qmanager/sms_sent.json`, newest 300.)
 - **Update Tailscale from its page.** **Monitoring → Tailscale** shows the installed version with an **Update** button when a newer stable release is out; Uninstall is held while an update runs. (Checks pkgs.tailscale.com, cached for 6 hours.)
 - **Pick the IP Passthrough device from a list.** **Local Network → IP Passthrough** now lets you choose the target as **Automatic**, **By MAC**, or **From LAN**, which lists the devices connected to the modem with a Rescan button; From LAN only applies a device the latest scan still lists. (Built from the DHCP leases and the LAN neighbour table by `network/lan_devices.sh`.)
+- **Russian (Русский) language pack.** **System Settings → Languages** can now download Russian, about 91 % translated; anything not yet translated shows in English. Thanks to akorshun and a18186 for the translation. (A community pack, not part of the five built-in languages; installed on the modem without an update.)
 
 ## 🛠️ Improvements
 
