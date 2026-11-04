@@ -168,13 +168,7 @@
     "hours_ago_one": "{{count}} ч назад",
     "hours_ago_other": "{{count}} ч назад",
     "days_ago_one": "{{count}} дн. назад",
-    "days_ago_other": "{{count}} дн. назад",
-    "days_ago_few": "{{count}} дн. назад",
-    "days_ago_many": "{{count}} дн. назад",
-    "hours_ago_few": "{{count}} ч назад",
-    "hours_ago_many": "{{count}} ч назад",
-    "minutes_ago_few": "{{count}} мин назад",
-    "minutes_ago_many": "{{count}} мин назад"
+    "days_ago_other": "{{count}} дн. назад"
   },
   "language": {
     "label": "Язык",
@@ -210,9 +204,7 @@
     "attempts_left_other": "Неверный пароль. Осталось {{count}} попытки.",
     "password_to_manage": "Введите пароль для управления {{hostname}}.",
     "password_to_manage_bare": "Введите пароль.",
-    "locked_countdown": "Заблокировано ({{seconds}})",
-    "attempts_left_few": "Неверный пароль. Осталось {{count}} попытки.",
-    "attempts_left_many": "Неверный пароль. Осталось {{count}} попыток."
+    "locked_countdown": "Заблокировано ({{seconds}})"
   },
   "overview": {
     "title": "Обзор модема",
@@ -258,11 +250,7 @@
       "bandwidth": "{{bandwidth}} МГц",
       "rsrp_unit": "{{rsrp}} dBm",
       "section_count_one": "Несущая",
-      "section_count_other": "Несущие",
-      "section_count_few": "Несущие",
-      "section_count_many": "Несущие",
-      "count_few": "{{count}} активны",
-      "count_many": "{{count}} активны"
+      "section_count_other": "Несущие"
     },
     "metrics": {
       "rsrp": "RSRP",
@@ -485,9 +473,7 @@
       "unsaved_one": "{{count}} несохранённое изменение",
       "unsaved_other": "{{count}} несохранённого изменения",
       "mac_label": "Целевой MAC-адрес",
-      "mac_placeholder": "XX:XX:XX:XX:XX:XX",
-      "unsaved_few": "{{count}} несохранённых изменения",
-      "unsaved_many": "{{count}} несохранённых изменений"
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
     },
     "groups": {
       "passthrough": "Проброс",
@@ -573,11 +559,7 @@
       "repeating": "Повторяется",
       "repeat_meta_one": "{{count}} изменение за {{span}}",
       "repeat_meta_other": "{{count}} изменения за {{span}}",
-      "nothing_repeating": "Ничего не повторяется.",
-      "ongoing_few": "{{count}} проблемы продолжаются",
-      "ongoing_many": "{{count}} проблем продолжаются",
-      "repeat_meta_few": "{{count}} изменения за {{span}}",
-      "repeat_meta_many": "{{count}} изменений за {{span}}"
+      "nothing_repeating": "Ничего не повторяется."
     },
     "activity": {
       "title": "Активность",
@@ -592,23 +574,13 @@
       "now": "Сейчас",
       "problems": "Проблемы",
       "recoveries": "Восстановления",
-      "routine": "Штатные",
-      "column_few": "С {{from}} до {{to}}: {{count}} события",
-      "column_many": "С {{from}} до {{to}}: {{count}} событий",
-      "window_all_few": "Все {{count}} события с момента запуска модема.",
-      "window_all_many": "Все {{count}} событий с момента запуска модема.",
-      "window_last_few": "Последние {{count}} события за {{span}}.",
-      "window_last_many": "Последние {{count}} событий за {{span}}."
+      "routine": "Штатные"
     },
     "span": {
       "minutes_one": "{{count}} мин",
       "minutes_other": "{{count}} мин",
       "hours_one": "{{count}} час",
-      "hours_other": "{{count}} часа",
-      "minutes_few": "{{count}} мин",
-      "minutes_many": "{{count}} мин",
-      "hours_few": "{{count}} часа",
-      "hours_many": "{{count}} часов"
+      "hours_other": "{{count}} часа"
     },
     "log": {
       "title": "Журнал событий",
@@ -622,9 +594,7 @@
       "meta_one": "{{count}} событие за {{span}}",
       "meta_other": "{{count}} события за {{span}}",
       "show": "Показать {{count}}",
-      "hide": "Скрыть",
-      "meta_few": "{{count}} события за {{span}}",
-      "meta_many": "{{count}} событий за {{span}}"
+      "hide": "Скрыть"
     },
     "filters": {
       "all": "Все",
@@ -856,13 +826,7 @@
         "hours_one": "{{count}} ч назад",
         "hours_other": "{{count}} ч назад",
         "days_one": "{{count}} дн. назад",
-        "days_other": "{{count}} дн. назад",
-        "hours_few": "{{count}} ч назад",
-        "hours_many": "{{count}} ч назад",
-        "minutes_few": "{{count}} мин назад",
-        "minutes_many": "{{count}} мин назад",
-        "days_few": "{{count}} дн. назад",
-        "days_many": "{{count}} дн. назад"
+        "days_other": "{{count}} дн. назад"
       },
       "empty": {
         "title": "Пока ничего не произошло",
@@ -924,9 +888,7 @@
       "peersEyebrow": "Пиры онлайн",
       "exitNodes_one": "{{count}} выходной узел",
       "exitNodes_other": "{{count}} выходного узла",
-      "noExitNode": "Нет выходного узла",
-      "exitNodes_few": "{{count}} выходных узла",
-      "exitNodes_many": "{{count}} выходных узлов"
+      "noExitNode": "Нет выходного узла"
     },
     "connection": {
       "title": "Соединение",
@@ -1004,9 +966,7 @@
       "emptyTitle": "Других устройств нет",
       "emptyDescription": "К этому tailnet пока никто не присоединился. Добавьте устройство из админ-консоли Tailscale, и оно появится здесь.",
       "offlineTitle": "Не подключено",
-      "offlineDescription": "Подключите Tailscale, чтобы увидеть другие устройства в вашем tailnet.",
-      "countExitNodes_few": "{{count}} выходных узла",
-      "countExitNodes_many": "{{count}} выходных узлов"
+      "offlineDescription": "Подключите Tailscale, чтобы увидеть другие устройства в вашем tailnet."
     },
     "install": {
       "title": "Tailscale",
@@ -1240,13 +1200,7 @@
         "hours_one": "{{count}} ч назад",
         "hours_other": "{{count}} ч назад",
         "days_one": "{{count}} дн. назад",
-        "days_other": "{{count}} дн. назад",
-        "days_few": "{{count}} дн. назад",
-        "days_many": "{{count}} дн. назад",
-        "hours_few": "{{count}} ч назад",
-        "hours_many": "{{count}} ч назад",
-        "minutes_few": "{{count}} мин назад",
-        "minutes_many": "{{count}} мин назад"
+        "days_other": "{{count}} дн. назад"
       },
       "empty": {
         "title": "Активности восстановления пока нет",
@@ -1504,9 +1458,7 @@
     "timer_aria_other": "Осталось {{count}} секунды",
     "timer_overtime_aria": "Переподключение занимает больше времени, чем обычно",
     "seconds_unit": "с",
-    "escape": "Возможно, устройству нужно ручное вмешательство. Перейти ко входу",
-    "timer_aria_few": "Осталось {{count}} секунды",
-    "timer_aria_many": "Осталось {{count}} секунд"
+    "escape": "Возможно, устройству нужно ручное вмешательство. Перейти ко входу"
   },
   "change_password": {
     "title": "Изменить пароль",

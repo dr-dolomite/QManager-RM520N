@@ -191,17 +191,7 @@
         "caption_warnings_one": "Нет ошибок в {{count}} прочитанной строке",
         "caption_warnings_other": "Нет ошибок в {{count}} прочитанной строки",
         "caption_clean_one": "Нет предупреждений в {{count}} прочитанной строке",
-        "caption_clean_other": "Нет предупреждений в {{count}} прочитанной строки",
-        "warnings_few": "{{count}} предупреждения",
-        "warnings_many": "{{count}} предупреждений",
-        "errors_few": "{{count}} ошибки",
-        "errors_many": "{{count}} ошибок",
-        "caption_errors_few": "{{count}} предупреждения в {{lines}} прочитанных строках",
-        "caption_errors_many": "{{count}} предупреждений в {{lines}} прочитанных строках",
-        "caption_warnings_few": "Нет ошибок в {{count}} прочитанных строках",
-        "caption_warnings_many": "Нет ошибок в {{count}} прочитанных строках",
-        "caption_clean_few": "Нет предупреждений в {{count}} прочитанных строках",
-        "caption_clean_many": "Нет предупреждений в {{count}} прочитанных строках"
+        "caption_clean_other": "Нет предупреждений в {{count}} прочитанной строки"
       },
       "feed": {
         "eyebrow": "Поток",
@@ -218,9 +208,7 @@
         "size": "{{size}} КБ",
         "caption_one": "{{count}} строка, в архиве {{rotated}}",
         "caption_other": "{{count}} строки, в архиве {{rotated}}",
-        "caption_unread": "Размер не сообщён",
-        "caption_few": "{{count}} строки, в архиве {{rotated}}",
-        "caption_many": "{{count}} строк, в архиве {{rotated}}"
+        "caption_unread": "Размер не сообщён"
       }
     },
     "card": {
@@ -329,11 +317,7 @@
         "caption_built_in_other": "{{count}} встроенного",
         "caption_with_downloaded_one": "Встроенных: {{builtIn}}, загружен {{count}}",
         "caption_with_downloaded_other": "Встроенных: {{builtIn}}, загружено {{count}}",
-        "caption_unknown": "Не удалось прочитать список",
-        "caption_with_downloaded_few": "Встроенных: {{builtIn}}, загружено {{count}}",
-        "caption_with_downloaded_many": "Встроенных: {{builtIn}}, загружено {{count}}",
-        "caption_built_in_few": "{{count}} встроенных",
-        "caption_built_in_many": "{{count}} встроенных"
+        "caption_unknown": "Не удалось прочитать список"
       },
       "catalog": {
         "eyebrow": "Каталог сообщества",
@@ -342,9 +326,7 @@
         "caption_none": "Пока ничего не опубликовано",
         "caption_available": "Готово к установке",
         "caption_updates_one": "Доступно {{count}} обновление",
-        "caption_updates_other": "Доступно {{count}} обновления",
-        "caption_updates_few": "Доступно {{count}} обновления",
-        "caption_updates_many": "Доступно {{count}} обновлений"
+        "caption_updates_other": "Доступно {{count}} обновления"
       }
     },
     "display": {
@@ -374,9 +356,7 @@
       "contributors_one": "{{count}} переводчик",
       "contributors_other": "{{count}} переводчика",
       "contributors_none": "Сообщество",
-      "incompatible": "Требуется более новый QManager",
-      "contributors_few": "{{count}} переводчика",
-      "contributors_many": "{{count}} переводчиков"
+      "incompatible": "Требуется более новый QManager"
     },
     "install": {
       "percent": "{{pct}}%",
@@ -544,11 +524,7 @@
         "latency_other": "{{count}} замера дольше {{ms}} мс",
         "loss_one": "{{count}} замера с потерями от {{pct}}%",
         "loss_other": "{{count}} замера с потерями от {{pct}}%",
-        "pending": "Введите порог",
-        "loss_few": "{{count}} замеров с потерями от {{pct}}%",
-        "loss_many": "{{count}} замеров с потерями от {{pct}}%",
-        "latency_few": "{{count}} замеров дольше {{ms}} мс",
-        "latency_many": "{{count}} замеров дольше {{ms}} мс"
+        "pending": "Введите порог"
       },
       "now": {
         "latency": "{{ms}} мс",
@@ -927,9 +903,7 @@
         "command_placeholder": "AT+...",
         "add": "Добавить",
         "delete": "Удалить {{label}}"
-      },
-      "count_few": "{{count}} команды",
-      "count_many": "{{count}} команд"
+      }
     }
   },
   "web_console": {
@@ -1039,11 +1013,7 @@
       "invalid_password_one": "Неверный пароль. Осталась {{count}} попытка, потом вход будет на время заблокирован.",
       "invalid_password_other": "Неверный пароль. Осталось {{count}} попытки, потом вход будет на время заблокирован.",
       "rate_limited_one": "Слишком много неверных попыток. Повторите через {{count}} секунду.",
-      "rate_limited_other": "Слишком много неверных попыток. Повторите через {{count}} секунды.",
-      "invalid_password_few": "Неверный пароль. Осталось {{count}} попытки, потом вход будет на время заблокирован.",
-      "invalid_password_many": "Неверный пароль. Осталось {{count}} попыток, потом вход будет на время заблокирован.",
-      "rate_limited_few": "Слишком много неверных попыток. Повторите через {{count}} секунды.",
-      "rate_limited_many": "Слишком много неверных попыток. Повторите через {{count}} секунд."
+      "rate_limited_other": "Слишком много неверных попыток. Повторите через {{count}} секунды."
     }
   },
   "device_access": {
