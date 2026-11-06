@@ -1,12 +1,13 @@
 # 🚀 QManager RM520N BETA v0.1.19-draft
 
-Summary line to be written with the first change of this release.
+This release speeds up internet outage detection: when the main probe target stops answering, the backup targets are now checked all at once.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
-## 🐛 Fixes
+## 🛠️ Improvements
 
-- _Nothing yet._
+- **Faster, steadier internet check** — When the first probe target stops answering, the other three are now tried at the same time, so a failing check takes about 4 seconds instead of up to 13, and the **sensitive** profile reacts much sooner. (`qmanager_ping` runs the fallback legs in parallel, uses fewer process forks per cycle, and times the debounce from the start of the first failing probe.)
+- **Packet loss and jitter no longer reset** — Switching to a backup target no longer wipes the latency history on the dashboard and **Monitoring → Connection Quality**, so loss and jitter stay meaningful on a flaky link. (The history ring records which leg answered; jitter only compares samples from the same target.)
 
 ## 📥 Installation
 
