@@ -84,7 +84,7 @@ What QManager should not look or feel like. These sit beside the binding referen
 ## Evidence on Hand
 
 - **A live RM520N-GL** is reachable over SSH for verifying platform claims directly. The device is the source of truth; documentation drifts.
-- **The shipped product itself** — a large, coherent, working interface across roughly forty routes. Any claim about how QManager behaves is checkable against the code and the device.
+- **The shipped product itself** — a large, coherent, working interface across roughly fifty routes. Any claim about how QManager behaves is checkable against the code and the device.
 - **The mark**, at `public/qmanager-mark.svg`.
 - **The reference implementations** the user has confirmed they want preserved: the dashboard and the Cellular / Radio Information surfaces.
 - **Measured colour data.** Contrast and colour-vision-deficiency separation for the token system have been computed rather than estimated, and more than one shipped value is a correctness fix rather than a taste change.

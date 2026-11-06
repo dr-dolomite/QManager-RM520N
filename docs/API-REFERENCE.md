@@ -105,9 +105,10 @@ Sets `qm_session` (HttpOnly) and `qm_logged_in=1` cookies.
   "success": false,
   "error": "invalid_password",
   "detail": "Invalid password",
-  "retry_after": 30
+  "attempts_remaining": 4
 }
 ```
+After too many failed attempts, `error` is `rate_limited` and the response carries `retry_after` (seconds) and `attempts_remaining`.
 
 ### POST `/auth/logout.sh`
 
@@ -752,9 +753,9 @@ Values: `"auto"`, `"10"`, `"100"`, `"1000"`
 ```
 `"disable"` POST to remove MTU override.
 
-### GET/POST `/network/dns.sh`
+### GET/POST `/network/custom_dns.sh`
 
-Custom DNS override settings.
+Custom DNS override settings. Writes the QManager-managed dnsmasq block and applies it through `qmanager_dns_apply`.
 
 ### GET/POST `/network/ip_passthrough.sh`
 
@@ -805,7 +806,7 @@ Create or update a profile.
 }
 ```
 
-`scenario_id` is optional. Valid values: `""` (no binding), `balanced`, `gaming`, `streaming`, or a `custom-<timestamp>` ID that exists at `/etc/qmanager/scenarios/<id>.json`. The server validates against this enum and returns an `invalid_scenario_id` error otherwise.
+`scenario_id` is optional. Valid values: `""` (no binding), `balanced`, `gaming`, `streaming`, or a `custom-<timestamp>` ID that exists at `/etc/qmanager/scenarios/<id>.json`. No `invalid_scenario_id` error exists in the code. An ID whose scenario file is gone is reported at apply time as a skipped step (see the apply status section above).
 
 ### POST `/profiles/delete.sh`
 
@@ -1028,8 +1029,12 @@ Connectivity probe sensitivity and target configuration. Controls the `qmanager_
   "success": true,
   "settings": {
     "profile": "regular",
-    "target_1": "http://cp.cloudflare.com/",
-    "target_2": "http://www.gstatic.com/generate_204"
+    "interval_sec": 5,
+    "interval_override": null,
+    "target_host_1": "cp.cloudflare.com",
+    "target_host_2": "www.gstatic.com",
+    "target_ip_1": "1.1.1.1",
+    "target_ip_2": "8.8.8.8"
   }
 }
 ```
@@ -1039,28 +1044,27 @@ Connectivity probe sensitivity and target configuration. Controls the `qmanager_
 {
   "action": "save_settings",
   "profile": "regular",
-  "target_1": "youtube.com",
-  "target_2": "google.com"
+  "target_host_1": "youtube.com",
+  "target_host_2": "google.com",
+  "target_ip_1": "1.1.1.1",
+  "target_ip_2": "8.8.8.8"
 }
 ```
 
-- `profile`: one of `"aggressive"`, `"regular"`, `"relaxed"` — controls the sensitivity preset (check interval, streak thresholds) applied by `qmanager_ping`.
-- `target_1`: primary probe URL. Probed on every tick.
-- `target_2`: secondary probe URL. Only probed when `target_1` returns `Disconnected` (primary-then-fallback, not alternating).
+`{ "action": "clear_interval" }` drops the stored `interval_sec` override so the profile's own cadence applies.
 
-**Validation rules for `target_1` / `target_2`:**
-- Both fields are required on every `save_settings` POST.
-- Each must be nonempty after whitespace trim, at most 256 characters, and contain only URL-safe characters (no shell metacharacters).
-- Bare hostnames are accepted (`youtube.com` → daemon auto-prefixes `https://`); hostnames with paths are also accepted (`example.com/health` → `https://example.com/health`).
-- `http://` and `https://` schemes are accepted. Other schemes (`ftp://`, `file://`, etc.) are rejected.
+- `profile`: optional. One of `"sensitive"`, `"regular"`, `"relaxed"`, `"quiet"` — the sensitivity preset applied by `qmanager_ping`. When omitted, the stored profile is kept.
+- `target_host_1` / `target_host_2`: probe hostnames. `target_ip_1` / `target_ip_2`: IPv4 literals.
+- Hostnames are at most 128 characters with no whitespace (`mv_validate_target` in `scripts/usr/lib/qmanager/monitoring_validate.sh`).
 
 **Error codes:**
 
 | Code | Meaning |
 |------|---------|
-| `invalid_target` | `target_1` or `target_2` failed validation (empty, too long, bad scheme, or disallowed characters) |
-| `missing_field` | Required POST field absent |
-| `invalid_profile` | `profile` value not in the accepted set |
+| `invalid_target` | A host or IP field failed validation |
+| `invalid_profile` | `profile` is not one of `sensitive`, `regular`, `relaxed`, `quiet` |
+| `invalid_interval` | `interval_sec` is not an integer from 1 to 60 |
+| `unknown_action` | `action` is not `save_settings` or `clear_interval` |
 
 ---
 
@@ -1080,7 +1084,7 @@ System log output.
 
 ### GET/POST `/system/settings.sh`
 
-System preferences, scheduled reboot, and low power mode.
+System preferences and scheduled reboot. Low Power Mode has been removed (see `CLAUDE.md`).
 
 **GET Response:**
 ```json
@@ -1099,12 +1103,6 @@ System preferences, scheduled reboot, and low power mode.
   "scheduled_reboot": {
     "enabled": false,
     "time": "04:00",
-    "days": [0, 1, 2, 3, 4, 5, 6]
-  },
-  "low_power": {
-    "enabled": false,
-    "start_time": "23:00",
-    "end_time": "06:00",
     "days": [0, 1, 2, 3, 4, 5, 6]
   }
 }
@@ -1151,25 +1149,8 @@ System preferences, scheduled reboot, and low power mode.
 ```
 
 - `days`: array of integers 0-6 (0=Sunday, 6=Saturday)
-- Manages cron entries for `/usr/bin/qmanager_scheduled_reboot`
+- Arms or disarms the scheduled-reboot timer through the `qmanager_scheduled_reboot_arm` sudo helper. The timer runs `/usr/bin/qmanager_scheduled_reboot`.
 - Config persisted in the JSON config store via `qm_config_set settings sched_reboot_*` (`/etc/qmanager/`, no UCI)
-
-**POST (save_low_power):**
-
-```json
-{
-  "action": "save_low_power",
-  "enabled": true,
-  "start_time": "23:00",
-  "end_time": "06:00",
-  "days": [0, 1, 2, 3, 4, 5, 6]
-}
-```
-
-- Creates two cron entries: `enter` at start_time on selected days, `exit` at end_time on all 7 days
-- Exit cron fires on all days to handle overnight windows (e.g., 23:00-06:00) — no-ops if flag absent
-- Enables/disables the `qmanager_low_power_check` systemd service via `svc_enable`/`svc_disable` (boot-time window check); persistence is a `multi-user.target.wants/` symlink, since `systemctl enable` does not work on this platform
-- Disabling while active immediately triggers `qmanager_low_power exit` (restores CFUN=1)
 
 ### POST `/system/reboot.sh`
 
@@ -1208,19 +1189,17 @@ Check current version, update availability, and update worker status.
 
 Control the OTA update worker. All install/rollback actions invoke `/usr/bin/qmanager_update` via `sudo -n` so the worker runs as root.
 
-**Check for updates:**
-```json
-{ "action": "check" }
-```
+**Check for updates:** `GET /system/update.sh` with no `action` parameter.
 
-**Download update:**
+**Download (stage) a release:**
 ```json
-{ "action": "download", "url": "https://github.com/.../qmanager-0.1.6.tar.gz" }
+{ "action": "download", "version": "0.1.6" }
 ```
+`version` must be a valid release tag. The staged tarball is installed by `install_staged`.
 
-**Install (direct URL):**
+**Legacy one-step install** (used by the auto-updater):
 ```json
-{ "action": "install", "url": "https://github.com/.../qmanager-0.1.6.tar.gz" }
+{ "action": "install", "download_url": "https://github.com/.../qmanager-0.1.6.tar.gz" }
 ```
 
 **Install staged (already downloaded):**
@@ -1233,17 +1212,11 @@ Control the OTA update worker. All install/rollback actions invoke `/usr/bin/qma
 { "action": "rollback" }
 ```
 
-**Cancel:**
-```json
-{ "action": "cancel" }
-```
+**Preferences:** `{ "action": "save_prerelease", "enabled": true }` and `{ "action": "save_auto_update", "enabled": true, "time": "04:00" }` (`time` is `HH:MM`).
 
 During installation the worker tails `=== Step N/M: <label> ===` lines from `/tmp/qmanager_install.log` and mirrors them as `status: "installing", message: "<label>"` in the status JSON. Poll GET to track progress.
 
-**Error response** (worker could not be started):
-```json
-{ "success": false, "error": "worker_error", "detail": "..." }
-```
+**Error response:** `{ "success": false, "error": "<code>", "detail": "..." }`. POST codes: `missing_action`, `unknown_action`, `missing_version`, `invalid_version`, `missing_url`, `no_staged`, `no_rollback`, `invalid_rollback`, `invalid_value`, `update_in_progress`, `restore_in_progress`. GET check codes: `ota_check_failed`, `ota_rate_limited`.
 
 ### GET `/system/modem-subsys.sh`
 
@@ -1399,7 +1372,7 @@ Poll verification test progress/results.
 
 ### GET `/network/video_optimizer.sh?action=install_status`
 
-Poll nfqws installation progress/results.
+Poll binary installation progress/results.
 
 **Response (idle — no install started):**
 ```json
@@ -1451,12 +1424,17 @@ Saving Full Bypass settings restarts the `qmanager-dpi` service to apply changes
 {"action": "verify"}
 ```
 
-**Install nfqws binary** (downloads from zapret GitHub releases):
+**Install the tpws binary** (the engine; `nfqws` is the legacy name). The helper fetches a pinned zapret release and verifies its SHA-256:
 ```json
 {"action": "install"}
 ```
 
 Returns `{"success": true, "status": "started"}` if the installer was spawned, or `{"success": true, "status": "running"}` if an install is already in progress. Poll `?action=install_status` for progress.
+
+**Remove the tpws binary (idempotent):**
+```json
+{"action": "uninstall"}
+```
 
 ---
 
@@ -1465,3 +1443,42 @@ Returns `{"success": true, "status": "started"}` if the installer was spawned, o
 ### GET/POST `/vpn/tailscale.sh`
 
 Tailscale VPN status and configuration.
+
+---
+
+## Additional Endpoints
+
+Brief entries for endpoints without a full section above. Each script's header comment (`scripts/www/cgi-bin/quecmanager/<path>`) has the full request and response shape.
+
+### Access and identity
+
+- `POST /auth/ssh_password.sh` — change the root SSH password. Body: `current_password`, `new_password`, `confirm_password`, `enforce_strong`. `verify_only: true` checks the current password without changing it.
+- `GET /public/hostname.sh`, `GET /public/overview.sh`, `GET /public/units.sh` — **unauthenticated**. Hostname for the login screen, an allowlisted subset of the status cache, and the unit preference.
+- `GET /system/console_token.sh` — issues a single-use, 30-second token that the web console requires before it opens a shell.
+
+### Radio and SMS
+
+- `GET /at_cmd/speedtest_servers.sh` — nearby speed test servers.
+- `GET/POST /cellular/sms_storage.sh` — where incoming SMS are stored (`ME` or `SM`) and the routing setting.
+
+### Network
+
+- `GET /network/data_used.sh` — accumulated data usage from the poller. `POST /network/data_used_reset.sh` — queues a counter reset for the poller.
+- `GET/POST /network/lan_config.sh` — LAN gateway IP and subnet.
+- `GET /network/lan_devices.sh` — connected LAN devices (DHCP leases merged with the neighbour table).
+
+### Monitoring and settings
+
+- `GET/POST /monitoring/sites.sh` — site monitor. `GET ?range=now|1h|3h|6h|12h|24h|7d|30d|90d` returns the latest result and history.
+- `GET/POST /settings/quality_thresholds.sh` — latency and loss presets, and the alert wait (`alert_after_min`).
+- `GET/POST /system/adaptive_polling.sh` — poller activity tiers.
+
+### System
+
+- `GET /system/config-backup/collect.sh`, `POST /system/config-backup/apply.sh`, `GET /system/config-backup/apply_status.sh`, `POST /system/config-backup/apply_cancel.sh` — configuration backup export and restore.
+- `POST /system/diagnostics.sh` — body `{"action":"capture"}` returns a debug report.
+- `POST /system/health-check/run.sh`, `GET /system/health-check/status.sh`, `GET /system/health-check/download.sh`, `POST /system/health-check/clear.sh` — System Health Check runner.
+- `GET/POST /system/known_sims.sh` — database of ICCIDs the device has seen.
+- `GET/POST /system/sim_registry.sh` — persistent SIM registry (carrier, phone number, dismissed flag).
+- `GET /system/language-packs/list.sh`, `POST /system/language-packs/install.sh`, `GET /system/language-packs/install_status.sh`, `POST /system/language-packs/install_cancel.sh`, `POST /system/language-packs/remove.sh` — runtime language packs.
+- `GET/POST /system/web_port.sh` — HTTP and HTTPS web ports. `last_result` reports the apply status.

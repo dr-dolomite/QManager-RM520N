@@ -121,9 +121,9 @@ Fixed template — the file's normal end-state is a **single active release entr
 
 **Tone per bullet:** bold plain-English lead → one short sentence of user-visible behavior (say where in the UI) → optional compressed technical parenthetical for power users. ~1–2 sentences per entry; 3 only for a migration note. No post-mortem paragraphs — that register belongs in `docs/`, not release notes.
 
-## Removed/Deferred Features (dev-rm520 Branch)
+## Removed/Deferred Features (development Branch)
 
-The following features have been **completely removed** from the `dev-rm520` branch. Their backend scripts, frontend components, hooks, and types no longer exist. Do NOT reference, modify, or create code for these features unless explicitly re-porting them.
+The following features have been **completely removed** from the `development` branch. Their backend scripts, frontend components, hooks, and types no longer exist. Do NOT reference, modify, or create code for these features unless explicitly re-porting them.
 
 | Feature | Reason | Scope of Removal |
 |---------|--------|-----------------|

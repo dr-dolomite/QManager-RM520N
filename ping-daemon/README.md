@@ -26,7 +26,7 @@ bash build-ping-daemon.sh --debug
 
 Output goes to `../scripts/usr/bin/qmanager_ping`. The QManager installer picks it up from there.
 
-**Do not UPX-compress.** Rust ARM binaries packed with UPX segfault on exit. Same rule as `atcli_smd11`. The build script intentionally does not call upx.
+**Do not UPX-compress.** Rust ARM binaries packed with UPX segfault on exit. The old `atcli_smd11` binary followed the same rule (removed 2026-10-29). The build script intentionally does not call upx.
 
 ## Test
 

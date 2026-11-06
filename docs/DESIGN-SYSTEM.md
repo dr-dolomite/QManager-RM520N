@@ -20,22 +20,22 @@ Do not re-document it here; point to it.
 
 | Topic | Authority |
 |-------|-----------|
-| OKLCH color tokens (light + dark), functional colors, chart ramp, signal-quality ramp | `DESIGN.md` §2 Colors |
-| Typography (Rethink Sans, JetBrains Mono machine voice, weight discipline) | `DESIGN.md` §3 Typography |
-| Radius role scale (`rounded-inline/field/tile/card/hero` = 8/10/12/16/20px, plus `rounded-pill`) and spacing scale | `DESIGN.md` frontmatter (`rounded`, `spacing`) |
-| Elevation, shadows, tonal layering | `DESIGN.md` §4 Elevation |
-| Motion system (durations, springs, reduced-motion, presets) | `DESIGN.md` §4a Motion System |
-| Buttons, badges, cards, inputs, dialogs, the signature components | `DESIGN.md` §5 Components |
-| Icon libraries and the Icon-Boundary Rule (Material Symbols on the sidebar, `/dashboard`, the pre-auth `/` and `/login/`, and all of `/cellular/**`; lucide elsewhere; `HintIcon` Material on every route) | `DESIGN.md` §5 Components > Icons, and [reference/icon-system.md](reference/icon-system.md) |
-| Do's and Don'ts | `DESIGN.md` §6 |
+| OKLCH color tokens (light + dark), functional colors, chart ramp, signal-quality ramp | `DESIGN.md` > Colors |
+| Typography (Rethink Sans, JetBrains Mono machine voice, weight discipline) | `DESIGN.md` > Typography |
+| Radius role scale (`rounded-inline/field/tile/card/hero` = 8/10/12/16/20px, plus `rounded-pill`; defined in `app/globals.css`) and spacing scale | `DESIGN.md` frontmatter (`rounded`, `spacing`) |
+| Elevation, shadows, tonal layering | `DESIGN.md` > Elevation & Depth |
+| Motion system (durations, springs, reduced-motion, presets) | `DESIGN.md` > Motion |
+| Buttons, badges, cards, inputs, dialogs, the signature components | `DESIGN.md` > Components |
+| Icon libraries and the Icon-Boundary Rule (Material Symbols on the sidebar, `/dashboard`, the pre-auth `/` and `/login/`, and all of `/cellular/**`; lucide elsewhere; `HintIcon` Material on every route) | `DESIGN.md` > Components > Icons, and [reference/icon-system.md](reference/icon-system.md) |
+| Do's and Don'ts | `DESIGN.md` > Do's and Don'ts |
 
 > ℹ️ NOTE: Two claims in the older version of this file were **wrong** and are corrected in
 > `DESIGN.md`: (1) **Status badges are filled tonal chips** — a `Badge` variant carrying
 > `bg-{role}-container` + `text-on-{role}-container`, no border, pill radius, and an icon. Both the
 > old solid `variant="default"`/`variant="destructive"` fills and the outline-plus-tint pattern that
-> briefly replaced them are retired; see `DESIGN.md` > The Filled-Chip Rule. (2) The fonts are
+> briefly replaced them are retired; see `DESIGN.md` > Components > Chips and tags. (2) The fonts are
 > **Rethink Sans** (UI, including every changing numeric figure) and **JetBrains Mono** (identifiers and
-> raw machine strings, bound to `--font-jetbrains-mono`). See `DESIGN.md` §3. Every face is vendored under `app/fonts/` and loaded through `next/font/local`; **never `next/font/google`**, whose build-time fetch from Google Fonts fails the production build on a slow or absent link.
+> raw machine strings, bound to `--font-jetbrains-mono`). See `DESIGN.md` > Typography. Every face is vendored under `app/fonts/` and loaded through `next/font/local`; **never `next/font/google`**, whose build-time fetch from Google Fonts fails the production build on a slow or absent link.
 
 ---
 
@@ -113,7 +113,7 @@ Never read the hook's `error` state after the `await` (it is the previous render
 
 ## Responsive Recipes
 
-`DESIGN.md` §5 states the *rules* (container queries inside cards, one breakpoint authority per
+`DESIGN.md` > Layout and Components state the *rules* (container queries inside cards, one breakpoint authority per
 card, toolbars flex-wrap, tables wrap prose). These are the concrete snippets that implement them.
 
 ### Container scope
@@ -193,7 +193,7 @@ Container-query breakpoints (inside a card that declares `@container/card`):
 
 ## Dark Mode Implementation
 
-`DESIGN.md` §2/§4 cover the dark palette and the tonal-layering rationale. This is the mechanism.
+`DESIGN.md` > Colors and > Elevation & Depth cover the dark palette and the tonal-layering rationale. This is the mechanism.
 
 Theming uses `next-themes` with class-based toggling. `app/layout.tsx` wraps the app in
 `ThemeProvider` with `attribute="class"` and `defaultTheme="system"` (both themes are first-class;
@@ -206,7 +206,7 @@ neither is "the default"). The `.dark` variant is declared in `app/globals.css`:
 All colors switch through CSS variables, so components never need theme conditionals.
 
 - Never use hardcoded colors (`#fff`, `rgb(0,0,0)`); always semantic tokens (`text-foreground`,
-  `bg-card`). See the OKLCH-Only and Semantic-Token rules in `DESIGN.md` §2.
+  `bg-card`). See the Named Rules under `DESIGN.md` > Colors.
 - Test both themes when adding a surface. Dark-mode functional colors are deliberately brighter for
   contrast against the dark canvas.
 

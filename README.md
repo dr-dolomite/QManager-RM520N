@@ -28,7 +28,7 @@
 
 > **Note:** QManager is the successor to [SimpleAdmin](https://github.com/dr-dolomite/simpleadmin-mockup), rebuilt from the ground up with a modern tech stack and improved user experience. This branch targets the **Quectel RM520N-GL** modem running its internal Linux OS (SDXLEMUR, ARMv7l, kernel 5.4.210).
 
-> **Other modems:** This build is primarily developed and tested against the RM520N-GL (Qualcomm SDXLEMUR chipset), but since it targets the vanilla Linux OS running on the modem itself rather than a device-specific stack, it may also work on other Quectel modems with a similar internal architecture -- notably Qualcomm **SDX55 / SDXPRAIRIE**-based models. These aren't officially validated -- your mileage may vary, and issue reports from other SDX55/SDXPRAIRIE modems are welcome.
+> **Other modems:** This build is primarily developed and tested against the RM520N-GL (Qualcomm SDXLEMUR chipset), but since it targets the vanilla Linux OS running on the modem itself rather than a device-specific stack, it may also work on other Quectel modems with a similar internal architecture -- notably Qualcomm **SDX55 / SDXPRAIRIE**-based models. The **Quectel RG501Q-EU** (SDX55) is supported at the community tier: it is not validated by the maintainers, so your mileage may vary, and issue reports from RG501Q-EU or other SDX55/SDXPRAIRIE modems are welcome.
 
 ---
 
@@ -178,7 +178,7 @@ This removes the stored password hash (`/etc/qmanager/auth.json`) and the active
 
 - **Bundled with installer:** `qmanager_atd` (QManager's own Rust AT/SMS broker, static ARMv7; `qcmd` and `qsms` are links to it), `jq` (Entware package), `dropbear` (SSH server)
 - **Downloaded during install:** `speedtest` (Ookla Speedtest CLI, ARMv7 armhf — downloaded from `install.speedtest.net`)
-- **Installed from Entware:** `lighttpd` + `lighttpd-mod-openssl`, `sudo`, `coreutils-timeout`
+- **Installed from Entware:** `lighttpd` + `lighttpd-mod-openssl`, `sudo`, and `coreutils-timeout` (only on BusyBox older than 1.30, where `timeout` uses the legacy `-t` form)
 - **Optional:** `msmtp` (email alerts) -- can be installed from within the app
 
 ---
@@ -202,7 +202,7 @@ This removes the stored password hash (`/etc/qmanager/auth.json`) and the active
 ```
 Browser --- authFetch() --- lighttpd --- CGI Scripts --- qcmd --- qmanager_atd --- /dev/smd11 --- Modem
                 |                  |                       |
-                |          Shell Libraries (12)      flock serialization
+                |          Shell Libraries (51)      flock serialization
                 |
         reads /tmp/qmanager_status.json
                 |
@@ -215,8 +215,8 @@ The frontend is a statically-exported Next.js app served by lighttpd from `/usrd
 **Key Data Flow:**
 
 - **Poller daemon** queries the modem via AT commands each cycle (measured ~3.7-4.0s; per-antenna every 5 cycles, warm reads every 15) while a browser is polling, drops to `idle` and `deep` tiers with longer AT intervals when none is, and writes a JSON cache file ([adaptive polling](docs/reference/adaptive-polling.md))
-- **CGI endpoints** (63 scripts) read the cache for GET requests, execute AT commands for POST requests
-- **React hooks** (31 custom hooks) poll the CGI layer and provide loading/error/staleness states
+- **CGI endpoints** (95 scripts) read the cache for GET requests, execute AT commands for POST requests
+- **React hooks** (72 custom hooks) poll the CGI layer and provide loading/error/staleness states
 - **AT transport** uses `qcmd`, a link to the `qmanager_atd` broker, on `/dev/smd11` directly (no socat PTY bridge needed); all writes and live AT reads go this way
 - **QMI lane** (read-only, over QRTR) fills LTE signal on idle/deep cycles and data-call settings; SMS runs on QMI WMS via `qsms` with no AT lock ([QMI lane](docs/reference/qmi-lane.md), [SMS](docs/reference/sms.md))
 
@@ -244,8 +244,8 @@ The frontend is a statically-exported Next.js app served by lighttpd from `/usrd
 
 ```bash
 # Clone the repository
-git clone https://github.com/dr-dolomite/qmanager.git
-cd qmanager && git checkout dev-rm520
+git clone https://github.com/dr-dolomite/QManager-RM520N.git
+cd QManager-RM520N && git checkout development
 
 # Install dependencies
 bun install
@@ -274,7 +274,7 @@ The `package` script builds the frontend, bundles it with backend scripts and de
 
 ```
 QManager/
-├── app/                        # Next.js App Router pages (35 routes)
+├── app/                        # Next.js App Router pages (51 routes)
 │   ├── dashboard/              # Home — live signal monitoring
 │   ├── cellular/               # Cellular info, SMS, profiles, band/tower/freq locking,
 │   │                           #   cell scanner, APN, IMEI, FPLMN, network priority,
@@ -283,14 +283,14 @@ QManager/
 │   ├── monitoring/             # Network events, latency, email alerts, watchdog
 │   ├── system-settings/        # System config, AT terminal, logs, software updates
 │   └── (login, setup, reboot, about-device, support)
-├── components/                 # React components (~173 files)
+├── components/                 # React components (358 .tsx files)
 │   ├── ui/                     # shadcn/ui primitives (42+ components)
 │   ├── cellular/               # Cellular management UI
 │   ├── dashboard/              # Home dashboard cards
 │   ├── local-network/          # Network settings UI
 │   ├── monitoring/             # Monitoring & alerts UI
 │   └── system-settings/        # System configuration UI
-├── hooks/                      # Custom React hooks (31 files)
+├── hooks/                      # Custom React hooks (72 files)
 ├── types/                      # TypeScript interfaces
 ├── lib/                        # Utilities (auth-fetch, earfcn, csv)
 ├── constants/                  # Static data (MNO presets, event labels)
@@ -298,9 +298,9 @@ QManager/
 │   ├── etc/systemd/system/     # Systemd units (27)
 │   ├── etc/sudoers.d/          # CGI privilege escalation rules
 │   ├── etc/qmanager/           # Default config files
-│   ├── usr/bin/                # Daemons & utilities (19)
-│   ├── usr/lib/qmanager/       # Shared shell libraries (12)
-│   ├── www/cgi-bin/            # CGI endpoints (63 scripts)
+│   ├── usr/bin/                # Daemons & utilities (51)
+│   ├── usr/lib/qmanager/       # Shared shell libraries (51)
+│   ├── www/cgi-bin/quecmanager/ # CGI endpoints (95 scripts)
 │   ├── install_rm520n.sh       # Device installation script
 │   └── uninstall_rm520n.sh     # Clean removal script
 ├── dependencies/               # Bundled ARM binaries and packages
@@ -315,20 +315,35 @@ QManager/
 
 ## Backend Services
 
-QManager ships 27 `qmanager-*` systemd units (25 services, 2 timers); the core ones are:
+QManager ships 27 `qmanager-*` systemd units (25 services, 2 timers: `qmanager-auto-update.timer` and `qmanager-dpi-ensure.timer`). All 25 services:
 
 | Service | Purpose |
 |---------|---------|
-| `qmanager-firewall` | Port firewall — restricts 80/443 to trusted interfaces before lighttpd starts |
-| `qmanager-setup` | One-shot boot setup — directories, permissions, config init |
-| `qmanager-poller` | Main poller daemon — tiered AT polling, JSON cache, event detection |
-| `qmanager-ping` | Latency monitor — 5s ping cycle, NDJSON history (24h) |
+| `qmanager-atd` | AT/SMS/QMI broker (`qmanager_atd`) — owns `/dev/smd11`; `qcmd` and `qsms` link to it |
+| `qmanager-auto-update` | Unattended update check (run daily by its timer) |
+| `qmanager-cfun-fix` | Boot-time CFUN=1 fix — radio recovery |
 | `qmanager-console` | Web console — ttyd on localhost:8080, reverse-proxied by lighttpd |
-| `qmanager-watchcat` | Connection watchdog — 4-tier auto-recovery state machine |
-| `qmanager-ttl` | TTL/HL — applies iptables rules at boot |
-| `qmanager-mtu` | MTU — applies interface MTU settings at boot |
+| `qmanager-discord` | Discord bot (optional binary, started only when installed) |
+| `qmanager-dpi` | Traffic Engine — tpws DPI bypass daemon |
+| `qmanager-dpi-ensure` | Re-asserts the Traffic Engine REDIRECT rule (boot, then periodically via its timer) |
+| `qmanager-ethernet` | Re-applies the saved Ethernet link speed at boot |
+| `qmanager-firewall` | Port firewall — restricts 80/443 to trusted interfaces before lighttpd starts |
+| `qmanager-firewall-watch` | Keeps the IPv6 forward firewall rules in place |
 | `qmanager-imei-check` | IMEI integrity — verifies IMEI backup on boot |
+| `qmanager-mtu` | MTU — applies interface MTU settings at boot |
+| `qmanager-ping` | Latency monitor — 5s ping cycle, NDJSON history (24h) |
+| `qmanager-poller` | Main poller daemon — tiered AT polling, JSON cache, event detection |
+| `qmanager-scenario-schedule` | Applies scheduled connection-scenario changes |
+| `qmanager-scheduled-reboot` | Performs scheduled reboots |
+| `qmanager-setup` | One-shot boot setup — directories, permissions, config init |
+| `qmanager-sites` | Sites monitor daemon |
+| `qmanager-sms-forward` | SMS forwarding daemon |
+| `qmanager-sms-storage` | Boot self-heal for SMS storage routing |
 | `qmanager-tower-failover` | Tower failover — restores lock after cell loss (config-gated) |
+| `qmanager-tower-schedule-apply` | Applies scheduled tower locks |
+| `qmanager-tower-schedule-clear` | Clears scheduled tower locks |
+| `qmanager-ttl` | TTL/HL — applies iptables rules at boot |
+| `qmanager-watchcat` | Connection watchdog — 4-tier auto-recovery state machine |
 
 ---
 

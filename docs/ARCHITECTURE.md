@@ -36,12 +36,12 @@ QManager is a two-tier application, but both tiers live on the modem:
 │  │  │ cgi_base.sh (auth + headers + JSON helpers)  │    ││
 │  │  │ platform.sh (systemctl/sudo/pid_alive)       │    ││
 │  │  └──────────────────────────────────────────────┘    ││
-│  │       │ reads cache        │ executes AT             ││
+│  │       │ reads cache        │ runs AT + QMI reads     ││
 │  │       ▼                    ▼                          ││
-│  │  /tmp/qmanager_      qcmd → qmanager_atd → /dev/smd11 ││
-│  │  status.json              (flock-serialized)          ││
-│  │       ▲                                               ││
-│  │       │ writes every ~2s                              ││
+│  │  /tmp/qmanager_      qcmd → qmanager_atd (broker)     ││
+│  │  status.json         │  AT lane  → /dev/smd11 (flock) ││
+│  │       ▲              │  QMI lane → QRTR (read-only)   ││
+│  │       │ writes every ~4s (measured cycle 3.7–4.0s)    ││
 │  │  ┌──────────────────────────────────────────────┐    ││
 │  │  │  qmanager_poller (main data collector)       │    ││
 │  │  │  + qmanager_ping  + qmanager_watchcat        │    ││
@@ -61,13 +61,13 @@ The rootfs is UBIFS and read-only on stock boot; the installer remounts it read-
 
 The poller daemon (`qmanager_poller`, at `/usr/bin/qmanager_poller`) is the single owner of the modem's AT channel for routine reads. Its design rule is **"Sip, Don't Gulp"**: acquire the AT lock, run one command, release, sleep, repeat — leaving gaps so the terminal, watchdog, and CGI writes can reach the modem too.
 
-It runs a tiered loop (base cadence `POLL_INTERVAL=2s`) and writes everything into one cache file:
+It runs a tiered loop and writes everything into one cache file. Each cycle body is followed by a `POLL_INTERVAL=2s` sleep, so the measured period is ~3.7–4.0 s, not 2 s:
 
 | Tier | Cadence | Data Collected | Source |
 |------|---------|----------------|--------|
-| **Tier 1 (Hot)** | every cycle (~2s) | Serving cell (RSRP/RSRQ/SINR/RSSI), carrier aggregation, traffic/data-usage counters, CPU/mem/uptime, modem crash watcher, system health | `AT+QENG="servingcell"`, `AT+QCAINFO`, `/proc/net/dev`, sysfs |
-| **Tier 1.5 (Signal)** | every 5 cycles (~10s) | Per-antenna signal, signal-history NDJSON, ping-history NDJSON, watchcat state | `AT+QRSRP;+QRSRQ;+QSINR` |
-| **Tier 2 (Warm)** | every 15 cycles (~30s) | Temperature, carrier/COPS, SIM slot & status, APN + WAN IPs, timing advance, MIMO layers, CFUN | `AT+QTEMP;+COPS?;+QUIMSLOT?;+CPIN?`, `AT+CGCONTRDP`, `AT+QNWCFG=...` |
+| **Tier 1 (Hot)** | every cycle (~4s) | Serving cell (RSRP/RSRQ/SINR/RSSI), carrier aggregation, traffic/data-usage counters, CPU/mem/uptime, modem crash watcher, system health | `AT+QENG="servingcell"`, `AT+QCAINFO`, `/proc/net/dev`, sysfs; QMI overlay fills LTE RSRP/RSRQ/RSSI when the cycle has no fresh `+QENG` reply |
+| **Tier 1.5 (Signal)** | every 5 cycles (~20s) | Per-antenna signal, signal-history NDJSON, ping-history NDJSON, watchcat state | `AT+QRSRP;+QRSRQ;+QSINR` |
+| **Tier 2 (Warm)** | every 15 cycles (~60s) | Temperature, carrier/COPS, SIM slot & status, APN + WAN IPs, timing advance, MIMO layers, CFUN | `AT+QTEMP;+COPS?;+QUIMSLOT?;+CPIN?`, `AT+CGCONTRDP`, `AT+QNWCFG=...` |
 | **Boot (once)** | at startup | Firmware, model, IMEI, IMSI, ICCID, phone number, capabilities, supported bands, IP-passthrough config, active-profile auto-apply | `AT+CVERSION;+CGMM;+CGSN;+CIMI;+QCCID;+CNUM;+QGETCAPABILITY`, `AT+QNWPREFCFG="policy_band"` |
 
 Key mechanics verified from the poller source:
@@ -76,7 +76,8 @@ Key mechanics verified from the poller source:
 - **Single atomic cache write.** Each cycle ends in `write_cache`, which builds `/tmp/qmanager_status.json` with `jq` into a `.tmp` file and `mv`s it into place — readers never see a half-written file.
 - **`system_health` is precomputed.** Tier 1 runs `update_system_health()`, a no-AT, sysfs-only collector (modem subsystem state, crash counters, load, CPU freq, `/usrdata` storage) that fills the top-level `system_health` block. The `/system/modem-subsys.sh` CGI is a thin reader over that block — no live computation at request time.
 - **Data-usage counter.** Tier 1 also runs `update_data_used()`, which accumulates kernel RX/TX bytes from `/proc/net/dev` (`rmnet_ipa0`) into a persistent, reboot-surviving JSON at `/usrdata/qmanager/data_used.json`. Counter orientation (which raw field is download vs upload) is resolved once at startup from the SoC branch name. Full detail: [`reference/data-usage-counter.md`](reference/data-usage-counter.md).
-- **Activity tiers.** The table above is the `active` tier, which holds while a browser has fetched `fetch_data.sh` or `overview.sh` within 20 s (those CGIs rewrite `/tmp/qmanager_ui_active`). With no browser the poller drops to `idle` and then `deep`, running the AT reads on longer uptime deadlines; local work still runs every cycle. The tier is published as `.device.poller_tier`. Full detail: [`reference/adaptive-polling.md`](reference/adaptive-polling.md).
+- **Activity tiers.** The table above is the `active` tier, which holds while a browser has fetched `fetch_data.sh` or `overview.sh` within 20 s (those CGIs rewrite `/tmp/qmanager_ui_active`). With no browser the poller drops to `idle` (no heartbeat for 20 s+) and, after 300 s without one, to `deep`. Idle runs the serving-cell, CA and per-antenna reads every 15 s and Tier 2 every 60 s; Deep runs the serving-cell read every 60 s and Tier 2 every 300 s. Local work still runs every cycle. The tier is published as `.device.poller_tier`. Full detail: [`reference/adaptive-polling.md`](reference/adaptive-polling.md).
+- **QMI overlay.** Read-only QMI reads (NAS, DMS, UIM, WDS, DSD over QRTR) do not go through the AT lane. The broker answers them on its own lane, and the poller merges the sidecar `/var/run/qmanager/qmi.json` into the cache via `qmi_merge.sh`. Every write, the active-cycle serving cell, all NR reads and the eUICC APDU path still use AT. SMS goes over QMI WMS, not AT.
 - **On-demand refresh flags.** Touching `/tmp/qmanager_tier2_refresh` (e.g. from a SIM-slot-change CGI) pulls the warm refresh into the next cycle instead of waiting up to ~30s.
 
 ### Frontend Polling
@@ -86,7 +87,7 @@ The frontend never touches the modem. Each polling hook fetches a CGI endpoint t
 ```
 useModemStatus()    ── GET /at_cmd/fetch_data.sh           ── reads /tmp/qmanager_status.json
   (one shared timer per tab: the shortest interval any caller asks for,
-   2s by default, never longer than 10s; stopped while the tab is hidden)
+   5s by default, never longer than 10s; stopped while the tab is hidden)
 
 useSignalHistory()  ── GET /at_cmd/fetch_signal_history.sh ── reads signal-history NDJSON
   (every 10s)
@@ -133,12 +134,14 @@ CGI scripts are grouped by subsystem under `/usrdata/qmanager/www/cgi-bin/quecma
 |-----------|----------------|
 | `at_cmd/` | Cache readers (`fetch_data`, `fetch_*_history`, `fetch_events`), raw AT (`send_command`), scan & speedtest start/status |
 | `auth/` | Login, logout, setup check, password + SSH-password change |
+| `public/` | Pre-login read-only overview (`overview`, `units`, `hostname`); these set `_SKIP_AUTH=1` |
 | `cellular/` | Serving-cell/SIM settings, band & network-mode control |
 | `bands/` · `frequency/` · `tower/` | Band locking, frequency locking, tower (PCI) locking + failover |
 | `profiles/` · `scenarios/` | SIM profiles and Connection Scenarios (CRUD + async apply) |
 | `network/` | TTL/HL, MTU, custom DNS, IP passthrough, ethernet link speed |
 | `monitoring/` | Ping profile, quality thresholds, email/SMS/Discord alerts |
 | `settings/` · `system/` · `device/` | System settings, OTA update, health, web console, modem-subsystem status |
+| `vpn/` | Tailscale status and control (`tailscale.sh`) |
 
 Every script sources `cgi_base.sh` first (which enforces auth, sets `PATH` to include Entware's `/opt/bin`, and loads `platform.sh`). See [`API-REFERENCE.md`](API-REFERENCE.md) for per-endpoint request/response schemas.
 
@@ -161,7 +164,7 @@ QManager uses cookie-based session auth, implemented in `cgi_auth.sh` and enforc
 4. **401 handling**: `authFetch()` catches `401` → clears `qm_logged_in` → redirects to `/login`.
 5. **Session model**: one file per session (the file's contents are the creation epoch), so there is no shared-file race. Expired files are pruned lazily on the next login.
 
-`cgi_base.sh` enforces auth on **every** CGI by default. The handful of endpoints that must run pre-login (`auth/check.sh`, `auth/login.sh`) set `_SKIP_AUTH=1` before sourcing the base library. Login is rate-limited (5 attempts / 5-minute window → 5-minute lockout) via `/tmp/qmanager_auth_attempts.json`.
+`cgi_base.sh` enforces auth on **every** CGI by default. The handful of endpoints that must run pre-login (`auth/check.sh`, `auth/login.sh`) set `_SKIP_AUTH=1` before sourcing the base library. Login is rate-limited via `/tmp/qmanager_auth_attempts.json`: 5 failed attempts within a 5-minute window start a progressive lockout (30 s → 120 s → 300 s → 900 s, capped at the last step).
 
 > ⚠️ WARNING: Validate CGI endpoints as `www-data`, not root. Testing with a root shell and `_SKIP_AUTH=1` masks the file-permission and PATH bugs that only appear under lighttpd's stripped-down CGI environment.
 
@@ -174,15 +177,15 @@ QManager uses cookie-based session auth, implemented in `cgi_auth.sh` and enforc
 | Pattern | Examples | Behavior |
 |---------|----------|----------|
 | **Polling Hooks** | `useModemStatus`, `useSignalHistory`, `useLatencyHistory`, `useRecentActivities` | Auto-fetch at interval, staleness detection, manual refresh |
-| **One-Shot Hooks** | `useCellularSettings`, `useApnSettings` (`use-wan-profiles`), `useMbnSettings` | Fetch on mount, local cache, explicit `saveSettings()` |
+| **One-Shot Hooks** | `useCellularSettings`, `useApnSettings` (`use-apn-settings`), `useMbnSettings` | Fetch on mount, local cache, explicit `saveSettings()` |
 | **Form Hooks** | `useAuth`, `useAutoLogout` | Cookie check, submit actions, rate-limit handling |
 | **Async Process Hooks** | `useProfileApply`, `useCellScanner`, `useSpeedtest`, `useNeighbourScanner` | Start operation → poll status → completion/error |
 
-All ~40 hooks live in `hooks/` and talk to the CGI layer exclusively through `authFetch()`. See [`FRONTEND.md`](FRONTEND.md) for the full hook/component catalogue.
+All ~70 hooks live in `hooks/` and talk to the CGI layer exclusively through `authFetch()`. See [`FRONTEND.md`](FRONTEND.md) for the full hook/component catalogue.
 
 ### Backend State Files
 
-Runtime state is coordinated entirely through files — **no IPC sockets or signals**. Daemons write files; CGIs read them; CGIs write config and "poke" trigger files that daemons notice on their next tick.
+Runtime state is coordinated through files. The one socket is the AT/QMI broker, `/var/run/qmanager_atd.sock`, which `qcmd` talks to. Daemons write files; CGIs read them; CGIs write config and "poke" trigger files that daemons notice on their next tick.
 
 | File | Owner | Format | Purpose |
 |------|-------|--------|---------|
@@ -191,6 +194,8 @@ Runtime state is coordinated entirely through files — **no IPC sockets or sign
 | `/tmp/qmanager_ping_history.json` | poller | NDJSON | Latency history (24 h, max 8640 lines @ 10s) |
 | `/tmp/qmanager_events.json` | poller (+ 4 other producers) | NDJSON | Network events (max 300 entries) |
 | `/tmp/qmanager_pci_state.json` | poller | JSON | SCC PCI tracking for event detection |
+| `/var/run/qmanager/qmi.json` (+ `qmi.env`, `/tmp/qmanager_qmi.json`) | broker QMI snapshot sampler | JSON | QMI sidecar the poller merges; `/tmp` copy is for CGIs |
+| `/var/run/qmanager_atd.sock` | broker (`qmanager_atd`) | Unix socket | Request channel for `qcmd` (AT and QMI verbs) |
 | `/usrdata/qmanager/data_used.json` | poller | JSON | Persistent RX/TX byte accounting (survives reboot) |
 | `/tmp/qmanager_ping.json` | ping daemon | JSON | Current connectivity/latency result |
 | `/tmp/qmanager_watchcat.json` | watchcat | JSON | Watchdog state machine |
@@ -227,8 +232,10 @@ qmanager-watchcat.service   qmanager_watchcat — connection-health watchdog
 lighttpd.service            web server (serves the static frontend + CGI)
 tailscaled.service          Tailscale VPN daemon
 qmanager-discord.service    qmanager_discord — optional Discord bot
-qmanager-console.service    qmanager_console_mgr — web console (ttyd)
+qmanager-console.service    web console (ttyd, started directly by the unit)
 ```
+
+Other shipped units (services unless noted): `qmanager-dpi` (+ `qmanager-dpi-ensure` oneshot, `.timer` every 60 s monotonic), `qmanager-firewall-watch`, `qmanager-auto-update` (+ `.timer`, daily), `qmanager-scenario-schedule`, `qmanager-scheduled-reboot`, `qmanager-sites`, `qmanager-sms-forward`, `qmanager-sms-storage`, `qmanager-tower-schedule-apply`, `qmanager-tower-schedule-clear`. The repo ships 27 `qmanager-*` units: 25 services and 2 timers.
 
 Boot-time one-shots (apply persisted config, then exit):
 
@@ -242,7 +249,7 @@ qmanager-tower-failover.service  qmanager_tower_failover — tower-lock failover
 qmanager-cfun-fix.service     qmanager_cfun_fix — recovers a modem stuck in CFUN=0
 ```
 
-Scheduled work (runtime systemd `OnCalendar` timers, configured by `system/settings.sh`; see [`reference/scheduled-timers.md`](reference/scheduled-timers.md)): `qmanager_scheduled_reboot` fires a reboot at a user-configured time.
+Scheduled work: `qmanager_scheduled_reboot` fires a reboot at a user-configured time. Its timer is armed at runtime (`qmanager_scheduled_reboot_arm`) rather than shipped as a unit, and the runtime timer setup is described in [`reference/scheduled-timers.md`](reference/scheduled-timers.md). The only timers shipped in the repo are `qmanager-auto-update.timer` (daily) and `qmanager-dpi-ensure.timer` (60 s monotonic).
 
 For the full unit dependency graph, Entware bootstrap, and lighttpd config, see [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md).
 
