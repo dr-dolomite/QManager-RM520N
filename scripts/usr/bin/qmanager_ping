@@ -1,120 +1,7 @@
 #!/bin/sh
-# =============================================================================
-# qmanager_ping — QManager Unified Ping Daemon
-# =============================================================================
-# The SINGLE source of internet reachability and latency data.
-# All consumers (poller, watchcat, frontend) read from this daemon's output.
-# This daemon NEVER touches the modem serial port.
-#
-# THE QUESTION THIS DAEMON ANSWERS
-# --------------------------------
-#   "There is signal and the network is registered, but is there an internet
-#    connection?"
-#
-# The verdict is BINARY: reachable, or not. There is no captive-portal state,
-# no auth-gateway state, no carrier-intercept classification and no
-# reason-for-failure field. Two consequences are accepted and documented, not
-# fixed: DNS is part of the verdict (no resolution, no internet), and a
-# DNS-hijacking captive portal that answers ICMP reads as connected.
-#
-# THE PROBE CHAIN
-# ---------------
-# Probing is ICMP (iputils ping on both supported devices) — NOT HTTP. Each
-# cycle walks four legs in a fixed order and SHORT-CIRCUITS on the first
-# success:
-#
-#   1. target_host_1  (default cloudflare.com)  hostname — the RESOLVER picks
-#   2. target_host_2  (default google.com)      the address family, not a
-#                                               config slot
-#   3. target_ip_1    (default 1.1.1.1)         IPv4 literal, DNS-independent
-#   4. target_ip_2    (default 8.8.8.8)         IPv4 literal, DNS-independent
-#
-# The two literal legs run whenever BOTH hostname legs fail, for ANY reason —
-# they are deliberately NOT gated on a resolution-specific failure. A hostname
-# leg can fail without DNS being at fault, telling the two apart means parsing
-# stderr prose, and the total cost is bounded by the per-leg deadline anyway.
-#
-# A probe succeeds when a numeric round-trip time > 0 is parsed from the ping
-# output ("round-trip min/avg/max = a/b/c" or the iputils "rtt min/avg/max/mdev
-# = a/b/c/d" summary line — the grep below only pulls the first 3 numbers,
-# a/b/c, so both formats parse the same way). 100% packet loss yields no
-# round-trip line, hence no rtt, hence a probe failure — the fail-safe.
-# Reachability requires ONE leg to answer; failure requires ALL FOUR to fail.
-#
-# THE CYCLE BUDGET
-# ----------------
-# Two mechanisms keep a four-leg chain from outrunning its consumers:
-#
-#   * Per-leg deadline: `qm_timeout $PROBE_DEADLINE ping -c1 -W $PROBE_TIMEOUT`
-#     (never a bare `timeout` -- the two devices take different CLI forms).
-#     Failure is NON-ZERO, never a literal code.
-#
-#   * Fixed-rate loop. The tail sleep is (interval_sec − elapsed), floored at
-#     1 — not a flat `sleep interval` after the work. The cycle PERIOD
-#     therefore equals interval_sec whenever the chain fits inside it.
-#
-# The invariant the consumers depend on:
-#
-#     n_targets * (PROBE_TIMEOUT + 1)  <  stale_floor
-#             4 * 3                    =  12  <  15
-#
-# where stale_floor is the max(3 * interval_sec, 15) staleness threshold the
-# poller and the watchdog each derive for themselves. If a worst-case chain
-# ever exceeded it, an outage would make this cache look STALE — the verdict
-# would read "unknown" instead of "disconnected", and the internet_lost alert
-# would be swallowed by exactly the outage it exists to report.
-#
-# THE DEBOUNCE IS WALL-CLOCK
-# --------------------------
-# fail_secs / recover_secs are presented to the user as SECONDS, so the
-# `reachable` flip is driven by accumulated MONOTONIC SECONDS, not by a count
-# of cycles. The old cycle-count thresholds are deleted outright rather than
-# renamed: a stale reader must break loudly instead of silently changing what a
-# number means. streak_success / streak_fail stay plain COUNTS — the watchdog
-# reads them and that contract is unchanged.
-#
-# Output: /tmp/qmanager_ping.json (atomic writes, slim — no stats/history)
-# Also: /tmp/qmanager_dns.json — carrier-resolver lookup time, sampled by a detached
-# background job (never inline in the probe loop; see the DNS section below).
-# History: /tmp/qmanager_ping_history (flat-file ring buffer, read by poller)
-#
-# The history file is TRUNCATED whenever the winning target changes, so a
-# switch renders as a GAP in the latency chart rather than a phantom latency
-# step, and jitter is only ever computed across one host.
-#
-# Stats (avg/min/max/jitter/loss) and history JSON array are computed by the
-# poller in a single awk pass over the raw history file — not here.
-#
-# Consumers:
-#   - Poller:   reads ping.json (reachability/streaks) + history file (stats)
-#   - Watchcat: reads ping.json → streak_fail drives recovery decisions
-#   - Frontend: reads via status.json (merged by poller)
-#
-# Config: /etc/qmanager/ping_profile.json (JSON, NOT UCI — this is
-# RM520N-GL/vanilla Linux, not OpenWRT). Keys:
-#   profile        — sensitive | regular | relaxed | quiet (daemon owns the
-#                    interval/fail/recover table below; CGI only writes the name)
-#   target_host_1  — first hostname leg  (default cloudflare.com)
-#   target_host_2  — second hostname leg (default google.com)
-#   target_ip_1    — first IPv4 literal leg  (default 1.1.1.1)
-#   target_ip_2    — second IPv4 literal leg (default 8.8.8.8)
-#   interval_sec, fail_secs, recover_secs, history_secs — optional per-field
-#                    overrides on top of the profile table. interval_sec in
-#                    particular is Watchdog-owned (Connection Quality "Probe
-#                    Targets" cadence writes here) — read directly, never
-#                    reinvented as a separate "interval_override" key.
-#
-# Every one of the four target keys is defaulted INDEPENDENTLY, so a device
-# that somehow never ran the installer's migration probes CORRECTLY rather
-# than merely not crashing.
-#
-# Install location: /usr/bin/qmanager_ping
-# Dependencies: iputils ping, jq, awk, grep, cut, date, tail, mv, plus
-# /usr/lib/qmanager/platform.sh for qm_timeout. All resolve under the DAEMON's PATH.
-# =============================================================================
+# qmanager_ping: the one source of internet reachability and latency (ICMP only).
+# Design and output contract: docs/reference/connection-quality.md.
 
-# --- Logging -----------------------------------------------------------------
-# Guarded with -f: BusyBox ash exits when `.` cannot find its file.
 if [ -f /usr/lib/qmanager/qlog.sh ]; then
     . /usr/lib/qmanager/qlog.sh
 else
@@ -127,40 +14,16 @@ else
 fi
 qlog_init "ping"
 
-# --- Portable command bounding (qm_timeout) ----------------------------------
-# Fallback keeps probes running unbounded rather than failing them outright,
-# which is what an undefined qm_timeout would do.
 [ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
 if ! command -v qm_timeout >/dev/null 2>&1; then
-    qlog_error "platform.sh missing - probe legs run unbounded (broken install)"
+    qlog_error "platform.sh missing - hostname legs run unbounded (broken install)"
     qm_timeout() {
         shift
         "$@"
     }
 fi
 
-# mono_now() (boot-relative monotonic seconds from /proc/uptime) is not yet
-# part of RM520N-GL's qlog.sh — define a local fallback so this daemon can
-# still emit the "mono" field the slim schema promises. If qlog.sh grows its
-# own mono_now() later, that definition wins and this one is skipped.
-if ! command -v mono_now >/dev/null 2>&1; then
-    mono_now() {
-        _up=$(cut -d' ' -f1 /proc/uptime 2>/dev/null | cut -d. -f1)
-        case "$_up" in
-            ''|*[!0-9]*) echo 0 ;;
-            *)           echo "$_up" ;;
-        esac
-    }
-fi
-
-# --- Configuration -----------------------------------------------------------
-# Defaults — overridable via /etc/qmanager/ping_profile.json (JSON, seeded by
-# the installer at scripts/etc/qmanager/ping_profile.json). These are
-# fallbacks only; load_config() below re-reads the JSON at startup and on
-# every reload-flag trip. The active profile name drives interval + fail/
-# recover SECONDS via resolve_profile(); per-field JSON keys
-# (interval_sec/fail_secs/recover_secs/history_secs) override the profile
-# table when present.
+# --- Configuration (fallbacks; load_config re-reads the JSON) ---------------
 PING_PROFILE="${PING_PROFILE:-relaxed}"
 DEFAULT_HOST_1="cloudflare.com"
 DEFAULT_HOST_2="google.com"
@@ -171,14 +34,14 @@ PING_TARGET_HOST_2="$DEFAULT_HOST_2"
 PING_TARGET_IP_1="$DEFAULT_IP_1"
 PING_TARGET_IP_2="$DEFAULT_IP_2"
 PING_INTERVAL="${PING_INTERVAL:-5}"
-FAIL_SECS=30               # wall-clock seconds of failure before reachable=false
-RECOVER_SECS=10            # wall-clock seconds of success before reachable=true
+FAIL_SECS=30
+RECOVER_SECS=10
 HISTORY_SIZE="${HISTORY_SIZE:-60}"
-PROBE_COUNT=1              # ping -c : ICMP echo requests per probe
-PROBE_TIMEOUT=2            # ping -W : per-probe wait
-PROBE_DEADLINE=3           # timeout : per-leg hard deadline = PROBE_TIMEOUT + 1
+PROBE_WAIT=2               # ping -W: wait for the reply (s)
+PROBE_DEADLINE=3           # ping -w: hard deadline per leg (s)
+HOST_DEADLINE=4            # qm_timeout for hostname legs: -w does not bound the lookup
+SLEEP_FLOOR_CS=20          # never sleep less than 0.2 s between cycles
 
-# --- File Paths --------------------------------------------------------------
 CONFIG_FILE="${CONFIG_FILE:-/etc/qmanager/ping_profile.json}"
 CACHE_FILE="/tmp/qmanager_ping.json"
 CACHE_TMP="/tmp/qmanager_ping.json.tmp"
@@ -186,92 +49,81 @@ HISTORY_FILE="/tmp/qmanager_ping_history"
 RECOVERY_FLAG="/tmp/qmanager_recovery_active"
 RELOAD_FLAG="/tmp/qmanager_ping_reload"
 PID_FILE="/tmp/qmanager_ping.pid"
+FAN_PREFIX="/tmp/qmanager_ping_fan"   # mktemp -d "$FAN_PREFIX.XXXXXX", root 0700
 
-# --- State Variables ---------------------------------------------------------
-streak_success=0        # COUNT of consecutive successful cycles (watchdog reads it)
-streak_fail=0           # COUNT of consecutive failed cycles (watchdog reads it)
+# --- State --------------------------------------------------------------------
+streak_success=0           # per-cycle counts: the watchcat's contract
+streak_fail=0
 reachable="true"
-last_family="none"      # ipv4 | ipv6 | none — which family answered last cycle
-last_target=""          # the exact target string that produced last_rtt_ms
-prev_winner=""          # last NON-EMPTY winner, for target-switch detection
-history_count=0         # tracked in shell — avoids wc -l fork every cycle
-
-# Wall-clock debounce accumulators, in monotonic seconds. fail_elapsed_sec is
-# emitted; recover_elapsed_sec is internal. Both are "seconds since the first
-# cycle of the current run of failures / successes", 0 when not in that run.
+last_family="none"
+last_target=""
+last_leg="-"               # h1 | h2 | i1 | i2 | -
 fail_elapsed_sec=0
-recover_elapsed_sec=0
-_fail_since=0           # mono timestamp of the first failure of this run, 0 = none
-_recover_since=0        # mono timestamp of the first success of this run, 0 = none
+cycle_ms=0
+history_count=0
+FAN_DIR=""
+_fan_pids=""
+_fail_since=""             # centiseconds at the start of the current failure run
+_ok_since=""
+_clk_last=0
+_cfg_pending=0             # 1 = jq was not mounted yet at the last load
+_sleep_frac=1
 
-# =============================================================================
-# HELPERS
-# =============================================================================
+# Sets _CS to /proc/uptime in centiseconds without a fork; rc 1 when unreadable.
+_uptime_cs() {
+    _CS=0
+    _u_up=""
+    { read -r _u_up _u_idle < /proc/uptime; } 2>/dev/null
+    _u_int="${_u_up%%.*}"
+    case "$_u_int" in ''|*[!0-9]*) return 1 ;; esac
+    case "$_u_up" in
+        *.*) _u_frac="${_u_up#*.}" ;;
+        *) _u_frac=0 ;;
+    esac
+    case "$_u_frac" in ???*) _u_frac="${_u_frac%"${_u_frac#??}"}" ;; esac
+    case "$_u_frac" in ''|*[!0-9]*) _u_frac=0 ;; esac
+    case "$_u_frac" in ?) _u_frac="${_u_frac}0" ;; esac
+    # Leading zeros read as octal in $(( )).
+    while :; do
+        case "$_u_frac" in 0?*) _u_frac="${_u_frac#0}" ;; *) break ;; esac
+    done
+    while :; do
+        case "$_u_int" in 0?*) _u_int="${_u_int#0}" ;; *) break ;; esac
+    done
+    _CS=$(( _u_int * 100 + _u_frac ))
+}
 
-# --- Ceil division: ceil(a/b) using POSIX integer math, minimum result 1 ----
-# Survives ONLY for HISTORY_SIZE. The fail/recover thresholds are wall-clock
-# seconds now and are never divided by the interval.
+# _CS = monotonic centiseconds; if /proc/uptime is unreadable it advances one interval per call.
+_clock() {
+    if _uptime_cs; then
+        _clk_last="$_CS"
+        return 0
+    fi
+    _clk_last=$(( _clk_last + PING_INTERVAL * 100 ))
+    _CS="$_clk_last"
+}
+
 ceil_div_min1() {
     _n=$(( ($1 + $2 - 1) / $2 ))
     [ "$_n" -lt 1 ] && _n=1
     echo "$_n"
 }
 
-# --- Resolve the active profile name to {interval, fail/recover secs, history} -
-# Table (seconds): sensitive 1/15/3/300 · regular 2/20/6/300 ·
-# relaxed 5/30/10/300 · quiet 10/60/20/600 (interval/fail/recover/history).
-# The daemon owns this table; the JSON config only stores the profile NAME
-# plus optional per-field overrides. fail/recover are carried through as
-# SECONDS — they are compared against accumulated monotonic seconds, never
-# converted into a count of cycles.
-#
-# WHY NO fail_secs IS BELOW 14 (retuned 2026-09-02)
-# ------------------------------------------------
-# `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible
-# down-verdict is cycle 2 — i.e. one whole cycle period after the outage
-# starts. A fail_secs shorter than one cycle is therefore not "aggressive",
-# it is UNACHIEVABLE: the verdict lands a cycle later regardless and the
-# number shown to the user is a promise the chain cannot keep.
-#
-# Worst-case failing cycle, read off this file rather than guessed:
-#     4 legs x PROBE_DEADLINE (3s)                    = 12.0s   (the hard cap;
-#                                                                reachable but
-#                                                                silent targets)
-#   + ~35 forks of ping/grep/cut/awk/jq on a Cortex-A7 ~  0.4s
-#   + the floored `sleep 1` at the bottom of main()   =  1.0s
-#                                                     ----------
-#                                                       ~13.4s  -> floor 14s
-#
-# The deadlines are deliberately NOT shortened to buy a faster verdict: a
-# slow-but-alive cellular link must not be called down. The consequence is
-# that the fast end of this table is clamped, and "sensitive" now means
-# "the earliest verdict the chain can honestly deliver", not 6 seconds.
-#
-# recover_secs is NOT inflated to match. The success path short-circuits on
-# leg 1, so a healthy cycle costs ~0.3s and the fixed-rate loop makes its
-# period exactly interval_sec — every recover_secs below is >= its own
-# interval_sec, which is the only floor that path has. The degraded case
-# (legs 1-3 dead, leg 4 answering, ~10s) recovers LATER than promised, which
-# is the conservative direction.
+# Profile table (interval/fail/recover/history s); conn_state_cadence mirrors it.
 resolve_profile() {
     case "$PING_PROFILE" in
         sensitive) _interval=1;  _fail_secs=15; _recover_secs=3;  _history_secs=300 ;;
         regular)   _interval=2;  _fail_secs=20; _recover_secs=6;  _history_secs=300 ;;
         quiet)     _interval=10; _fail_secs=60; _recover_secs=20; _history_secs=600 ;;
-        relaxed|*)
-            # Unknown/empty falls back to relaxed defaults.
+        *)
             PING_PROFILE="relaxed"
             _interval=5;  _fail_secs=30; _recover_secs=10; _history_secs=300
             ;;
     esac
-
-    # Per-field JSON overrides win over the profile table (Watchdog writes
-    # interval_sec directly to retune probe cadence without changing profile).
     [ -n "$JSON_INTERVAL_SEC" ] && _interval="$JSON_INTERVAL_SEC"
     [ -n "$JSON_FAIL_SECS" ] && _fail_secs="$JSON_FAIL_SECS"
     [ -n "$JSON_RECOVER_SECS" ] && _recover_secs="$JSON_RECOVER_SECS"
     [ -n "$JSON_HISTORY_SECS" ] && _history_secs="$JSON_HISTORY_SECS"
-
     [ "$_interval" -gt 0 ] 2>/dev/null || _interval=1
 
     PING_INTERVAL="$_interval"
@@ -280,236 +132,271 @@ resolve_profile() {
     HISTORY_SIZE=$(ceil_div_min1 "$_history_secs" "$_interval")
 }
 
-# --- Load configuration from JSON and re-resolve the profile ----------------
-# Reads the profile name, the FOUR probe targets and the optional per-field
-# overrides from /etc/qmanager/ping_profile.json.
-#
-# Every target key is defaulted INDEPENDENTLY. That is deliberate belt and
-# braces: a device that somehow misses the installer's migrate_ping_targets()
-# still probes the four documented defaults correctly, rather than merely not
-# crashing. The legacy keys (the old HTTP target_1/target_2 URLs and the
-# two-slot ICMP pair that replaced them) are NOT read here — carrying a user's
-# customised value across is the migration's job, and doing it in both places
-# would make the migration untestable.
+# Target charsets (the CGI's rules), plus no leading '-' so a value is never a ping option.
+_host_ok() {
+    case "$1" in ''|-*|*[!0-9A-Za-z.-]*) return 1 ;; esac
+    [ "${#1}" -le 253 ]
+}
+_ip4_ok() {
+    case "$1" in ''|-*|*[!0-9.]*) return 1 ;; esac
+    [ "${#1}" -le 15 ]
+}
+
+# _pick <kind> <value> <default> <key>: _PV = value when valid, else the default.
+_pick() {
+    _PV="$3"
+    [ -n "$2" ] && [ "$2" != "-" ] || return 0
+    if "_$1_ok" "$2"; then
+        _PV="$2"
+    else
+        qlog_warn "$4 rejected (bad charset or length), using $3"
+    fi
+}
+
+# _IV = $1 as a decimal integer without leading zeros ("08" is octal in $(( ))), "" when not one.
+_int() {
+    _IV="$1"
+    case "$_IV" in ''|*[!0-9]*) _IV=""; return 0 ;; esac
+    [ "${#_IV}" -le 6 ] || { _IV=""; return 0; }
+    while :; do
+        case "$_IV" in 0?*) _IV="${_IV#0}" ;; *) break ;; esac
+    done
+}
+
+# One jq read of the config; each target slot defaults independently.
 load_config() {
-    _profile=""
-    _h1=""
-    _h2=""
-    _i1=""
-    _i2=""
+    _row=""
     JSON_INTERVAL_SEC=""
     JSON_FAIL_SECS=""
     JSON_RECOVER_SECS=""
     JSON_HISTORY_SECS=""
-
+    _cfg_pending=0
     if [ -f "$CONFIG_FILE" ]; then
-        _profile=$(jq -r '.profile // empty' "$CONFIG_FILE" 2>/dev/null)
-        _h1=$(jq -r '.target_host_1 // empty' "$CONFIG_FILE" 2>/dev/null)
-        _h2=$(jq -r '.target_host_2 // empty' "$CONFIG_FILE" 2>/dev/null)
-        _i1=$(jq -r '.target_ip_1 // empty' "$CONFIG_FILE" 2>/dev/null)
-        _i2=$(jq -r '.target_ip_2 // empty' "$CONFIG_FILE" 2>/dev/null)
-        JSON_INTERVAL_SEC=$(jq -r '.interval_sec // empty' "$CONFIG_FILE" 2>/dev/null)
-        JSON_FAIL_SECS=$(jq -r '.fail_secs // empty' "$CONFIG_FILE" 2>/dev/null)
-        JSON_RECOVER_SECS=$(jq -r '.recover_secs // empty' "$CONFIG_FILE" 2>/dev/null)
-        JSON_HISTORY_SECS=$(jq -r '.history_secs // empty' "$CONFIG_FILE" 2>/dev/null)
+        if command -v jq >/dev/null 2>&1; then
+            _row=$(jq -r 'def s: if . == null or . == "" then "-" else tostring end;
+                [(.profile|s), (.target_host_1|s), (.target_host_2|s), (.target_ip_1|s),
+                 (.target_ip_2|s), (.interval_sec|s), (.fail_secs|s), (.recover_secs|s),
+                 (.history_secs|s)] | @tsv' "$CONFIG_FILE" 2>/dev/null </dev/null)
+        else
+            # /usr/bin/jq points into /opt, which mounts ~30 s into boot.
+            _cfg_pending=1
+        fi
     fi
+    _profile="-"; _h1="-"; _h2="-"; _i1="-"; _i2="-"
+    if [ -n "$_row" ]; then
+        IFS="$(printf '\t')" read -r _profile _h1 _h2 _i1 _i2 JSON_INTERVAL_SEC \
+            JSON_FAIL_SECS JSON_RECOVER_SECS JSON_HISTORY_SECS <<EOF
+$_row
+EOF
+    fi
+    [ -n "$_profile" ] && [ "$_profile" != "-" ] && PING_PROFILE="$_profile"
 
-    [ -n "$_profile" ] && PING_PROFILE="$_profile"
+    _pick host "$_h1" "$DEFAULT_HOST_1" target_host_1; PING_TARGET_HOST_1="$_PV"
+    _pick host "$_h2" "$DEFAULT_HOST_2" target_host_2; PING_TARGET_HOST_2="$_PV"
+    _pick ip4 "$_i1" "$DEFAULT_IP_1" target_ip_1; PING_TARGET_IP_1="$_PV"
+    _pick ip4 "$_i2" "$DEFAULT_IP_2" target_ip_2; PING_TARGET_IP_2="$_PV"
 
-    # Reset to the documented defaults first so a cleared config key reverts
-    # cleanly on reload rather than sticking from a prior load. Four separate
-    # assignments, one per slot — never a single all-or-nothing fallback.
-    PING_TARGET_HOST_1="$DEFAULT_HOST_1"
-    PING_TARGET_HOST_2="$DEFAULT_HOST_2"
-    PING_TARGET_IP_1="$DEFAULT_IP_1"
-    PING_TARGET_IP_2="$DEFAULT_IP_2"
-    [ -n "$_h1" ] && PING_TARGET_HOST_1="$_h1"
-    [ -n "$_h2" ] && PING_TARGET_HOST_2="$_h2"
-    [ -n "$_i1" ] && PING_TARGET_IP_1="$_i1"
-    [ -n "$_i2" ] && PING_TARGET_IP_2="$_i2"
-
-    # Numeric overrides only — a non-numeric JSON value is treated as unset.
-    case "$JSON_INTERVAL_SEC" in ''|*[!0-9]*) JSON_INTERVAL_SEC="" ;; esac
-    case "$JSON_FAIL_SECS" in ''|*[!0-9]*) JSON_FAIL_SECS="" ;; esac
-    case "$JSON_RECOVER_SECS" in ''|*[!0-9]*) JSON_RECOVER_SECS="" ;; esac
-    case "$JSON_HISTORY_SECS" in ''|*[!0-9]*) JSON_HISTORY_SECS="" ;; esac
+    _int "$JSON_INTERVAL_SEC"; JSON_INTERVAL_SEC="$_IV"
+    _int "$JSON_FAIL_SECS"; JSON_FAIL_SECS="$_IV"
+    _int "$JSON_RECOVER_SECS"; JSON_RECOVER_SECS="$_IV"
+    _int "$JSON_HISTORY_SECS"; JSON_HISTORY_SECS="$_IV"
 
     resolve_profile
 }
 
-# --- Execute a single ICMP probe against one target --------------------------
-# $1 = target host or IPv4 literal.
-#
-# Runs `qm_timeout $PROBE_DEADLINE ping -c 1 -W $PROBE_TIMEOUT <target>`.
-# Non-zero just means no rtt was parsed, which is already the failure path.
-#
-# Parses the average RTT from the summary line ("min/avg/max[/mdev] = X/Y/Z[/W]",
-# avg = 2nd field), falling back to a per-packet "time=<n>" field. The rtt is
-# formatted to 1 decimal via awk. SUCCESS only when a numeric rtt > 0 is
-# extracted — 100% loss produces no round-trip line, so no rtt, so failure (the
-# fail-safe).
-#
-# Also sets PROBE_FAMILY from the resolved address iputils prints on its first
-# line ("PING cloudflare.com (104.16.132.229)"): a ':' in that address means
-# ipv6, anything else ipv4. Results travel via globals, not stdout, so they
-# survive into the caller — a command substitution would discard them.
-PROBE_RTT=""
-PROBE_FAMILY="none"
-do_ping_icmp() {
-    target="$1"
-    PROBE_RTT=""
-    PROBE_FAMILY="none"
-
-    out=$(qm_timeout "$PROBE_DEADLINE" ping -c "$PROBE_COUNT" -W "$PROBE_TIMEOUT" "$target" 2>/dev/null)
-
-    # Preferred: average from the round-trip summary line (avg = 2nd of a/b/c).
-    rtt=$(printf '%s\n' "$out" \
-        | grep -oE 'min/avg/max[^=]*= [0-9.]+/[0-9.]+/[0-9.]+' \
-        | grep -oE '[0-9.]+/[0-9.]+/[0-9.]+' \
-        | cut -d'/' -f2)
-
-    # Fallback: a per-packet "time=<n>" reading when no summary line is present.
-    if [ -z "$rtt" ]; then
-        rtt=$(printf '%s\n' "$out" \
-            | grep -oE 'time=[0-9.]+' \
-            | head -n1 \
-            | cut -d'=' -f2)
-    fi
-
-    # Must be numeric (digits + optional dot).
-    case "$rtt" in
-        ''|*[!0-9.]*) return 1 ;;
+# parse_rtt <ping output>: _RTT = average RTT to one decimal (summary line, else
+# the first time=); rc 1 when nothing numeric > 0 is found (100% loss included).
+parse_rtt() {
+    _RTT=""
+    case "$1" in
+        *"min/avg/max"*"= "*)
+            _pr="${1#*min/avg/max}"
+            _pr="${_pr#*= }"
+            _pr="${_pr#*/}"
+            _pr="${_pr%%/*}"
+            ;;
+        *"time="*)
+            _pr="${1#*time=}"
+            _pr="${_pr%% *}"
+            ;;
+        *) return 1 ;;
     esac
-
-    # Normalize to 1 decimal place; reject a non-positive / unparseable delta.
-    rtt=$(awk -v r="$rtt" 'BEGIN { printf "%.1f", r }')
-    case "$rtt" in
-        ''|*[!0-9.]*) return 1 ;;
+    case "$_pr" in ''|.*|*[!0-9.]*|*.*.*) return 1 ;; esac
+    _pi="${_pr%%.*}"
+    case "$_pr" in
+        *.*) _pf="${_pr#*.}00" ;;
+        *) _pf="00" ;;
     esac
-    awk -v r="$rtt" 'BEGIN { exit (r > 0) ? 0 : 1 }' || return 1
-
-    # Resolved address from the banner line: "PING <target> (<addr>) ...".
-    _addr=$(printf '%s\n' "$out" \
-        | grep -oE '\([0-9A-Fa-f:.]+\)' \
-        | head -n1 \
-        | tr -d '()')
-    case "$_addr" in
-        *:*) PROBE_FAMILY="ipv6" ;;
-        ?*)  PROBE_FAMILY="ipv4" ;;
-        *)   PROBE_FAMILY="ipv4" ;;
-    esac
-
-    PROBE_RTT="$rtt"
-    return 0
+    _pf="${_pf%"${_pf#??}"}"
+    while :; do
+        case "$_pi" in 0?*) _pi="${_pi#0}" ;; *) break ;; esac
+    done
+    [ "${#_pi}" -le 6 ] || return 1
+    # "1$_pf - 100" keeps a leading-zero fraction out of octal.
+    _pt=$(( _pi * 100 + 1$_pf - 100 ))
+    _pt=$(( (_pt + 5) / 10 ))
+    [ "$_pt" -gt 0 ] || return 1
+    _RTT="$(( _pt / 10 )).$(( _pt % 10 ))"
 }
 
-# --- Probe one cycle: four legs in a fixed order, short-circuit on success ---
-# Walks target_host_1 → target_host_2 → target_ip_1 → target_ip_2 and stops at
-# the first leg that answers. On success sets PROBE_RTT, last_family and
-# last_target and returns 0; on total failure clears PROBE_RTT, sets
-# last_family="none", last_target="" and returns 1.
-#
-# The two literal legs are reached whenever BOTH hostname legs failed, for any
-# reason at all — no attempt is made to decide whether DNS specifically was to
-# blame.
-probe_cycle() {
-    for _t in "$PING_TARGET_HOST_1" "$PING_TARGET_HOST_2" \
-              "$PING_TARGET_IP_1" "$PING_TARGET_IP_2"; do
-        [ -n "$_t" ] || continue
-        if do_ping_icmp "$_t"; then
-            last_family="$PROBE_FAMILY"
-            last_target="$_t"
-            return 0
-        fi
-    done
+# probe_leg <target>: _RTT and _FAM (family of the address that answered) on success.
+probe_leg() {
+    _FAM="ipv4"
+    case "$1" in
+        *[!0-9.]*)
+            _pl_out=$(qm_timeout "$HOST_DEADLINE" ping -c 1 -W "$PROBE_WAIT" -w "$PROBE_DEADLINE" "$1" 2>/dev/null </dev/null)
+            # Banner "PING <name> (<addr>) ...": the resolver chose the family.
+            _pl_addr="${_pl_out#*(}"
+            _pl_addr="${_pl_addr%%)*}"
+            case "$_pl_addr" in *:*) _FAM="ipv6" ;; esac
+            ;;
+        *)
+            _pl_out=$(ping -c 1 -W "$PROBE_WAIT" -w "$PROBE_DEADLINE" "$1" 2>/dev/null </dev/null)
+            ;;
+    esac
+    parse_rtt "$_pl_out"
+}
 
+# Background body of one fan-out leg: writes "<rtt> <family>" to its file on success.
+leg_job() { # target file
+    # Inherited traps would remove the daemon's PID file when this job exits.
+    trap - EXIT INT TERM
+    if probe_leg "$1"; then
+        printf '%s %s\n' "$_RTT" "$_FAM" > "$2"
+    fi
+    exit 0
+}
+
+# A killed leg leaves its ping running until the leg deadline (<= 4 s); systemctl stop kills the whole cgroup.
+_fan_kill() {
+    # shellcheck disable=SC2086
+    [ -n "$_fan_pids" ] && kill $_fan_pids 2>/dev/null
+    _fan_pids=""
+}
+
+_fan_dir_ok() {
+    [ -n "$FAN_DIR" ] && [ -d "$FAN_DIR" ] && return 0
+    FAN_DIR=$(mktemp -d "${FAN_PREFIX}.XXXXXX" 2>/dev/null) || FAN_DIR=""
+    [ -n "$FAN_DIR" ]
+}
+
+# _fan_take <leg> <target>: rc 0 and the result globals set when that leg answered.
+_fan_take() {
+    _fr_rtt=""
+    _fr_fam=""
+    { read -r _fr_rtt _fr_fam < "$FAN_DIR/$1"; } 2>/dev/null
+    case "$_fr_rtt" in ''|*[!0-9.]*) return 1 ;; esac
+    case "$_fr_fam" in ipv6) ;; *) _fr_fam="ipv4" ;; esac
+    PROBE_RTT="$_fr_rtt"; last_family="$_fr_fam"; last_target="$2"; last_leg="$1"
+}
+
+_take() { # leg target
+    PROBE_RTT="$_RTT"; last_family="$_FAM"; last_target="$2"; last_leg="$1"
+}
+
+# One cycle: sets PROBE_RTT, last_family, last_target, last_leg; rc 0 when a leg answered.
+PROBE_RTT=""
+probe_cycle() {
+    if probe_leg "$PING_TARGET_HOST_1"; then
+        _take h1 "$PING_TARGET_HOST_1"
+        return 0
+    fi
+
+    if _fan_dir_ok; then
+        rm -f "$FAN_DIR/h2" "$FAN_DIR/i1" "$FAN_DIR/i2" 2>/dev/null
+        leg_job "$PING_TARGET_HOST_2" "$FAN_DIR/h2" </dev/null >/dev/null 2>&1 &
+        _fan_pids="$!"
+        leg_job "$PING_TARGET_IP_1" "$FAN_DIR/i1" </dev/null >/dev/null 2>&1 &
+        _fan_pids="$_fan_pids $!"
+        leg_job "$PING_TARGET_IP_2" "$FAN_DIR/i2" </dev/null >/dev/null 2>&1 &
+        _fan_pids="$_fan_pids $!"
+        # shellcheck disable=SC2086
+        wait $_fan_pids
+        _fan_pids=""
+        _fan_take h2 "$PING_TARGET_HOST_2" && return 0
+        _fan_take i1 "$PING_TARGET_IP_1" && return 0
+        _fan_take i2 "$PING_TARGET_IP_2" && return 0
+    else
+        # No scratch dir: the legs run one after another.
+        if probe_leg "$PING_TARGET_HOST_2"; then _take h2 "$PING_TARGET_HOST_2"; return 0; fi
+        if probe_leg "$PING_TARGET_IP_1"; then _take i1 "$PING_TARGET_IP_1"; return 0; fi
+        if probe_leg "$PING_TARGET_IP_2"; then _take i2 "$PING_TARGET_IP_2"; return 0; fi
+    fi
+
+    PROBE_RTT=""
     last_family="none"
     last_target=""
-    PROBE_RTT=""
+    last_leg="-"
     return 1
 }
 
-# --- Write slim JSON cache atomically ----------------------------------------
-# Exactly THIRTEEN keys, one `jq -n` object literal, no conditional branches:
-#   timestamp mono profile targets interval_sec last_rtt_ms reachable
-#   streak_success streak_fail during_recovery last_family last_target
-#   fail_elapsed_sec
-# `targets` is the four configured slots IN PROBE ORDER. Stats (avg/min/max/
-# jitter/loss) and the history array are computed by the poller, not here.
+# _JS = $1 with \ and " escaped (targets are charset-checked; this guards the profile name).
+_json_str() {
+    _js_in="$1"
+    _JS=""
+    while :; do
+        case "$_js_in" in
+            *[\\\"]*)
+                _js_pre=${_js_in%%[\\\"]*}
+                _js_in=${_js_in#"$_js_pre"}
+                _js_c=${_js_in%"${_js_in#?}"}
+                _js_in=${_js_in#?}
+                _JS="${_JS}${_js_pre}\\${_js_c}"
+                ;;
+            *)
+                _JS="${_JS}${_js_in}"
+                break
+                ;;
+        esac
+    done
+}
+
+# Atomic cache write; a failed write keeps the previous file.
 write_cache() {
-    rtt="$1"      # "34.2" or "null"
-
+    rtt="$1"
     timestamp=$(date +%s)
-    mono=$(mono_now)
-
+    case "$timestamp" in ''|*[!0-9]*) timestamp=0 ;; esac
+    _uptime_cs
+    mono=$(( _CS / 100 ))
     during_recovery="false"
     [ -f "$RECOVERY_FLAG" ] && during_recovery="true"
+    case "$rtt" in ''|*[!0-9.]*) rtt="null" ;; esac
+    _json_str "$PING_PROFILE"
 
-    jq -n \
-        --argjson timestamp "$timestamp" \
-        --argjson mono "$mono" \
-        --arg profile "$PING_PROFILE" \
-        --arg host1 "$PING_TARGET_HOST_1" \
-        --arg host2 "$PING_TARGET_HOST_2" \
-        --arg ip1 "$PING_TARGET_IP_1" \
-        --arg ip2 "$PING_TARGET_IP_2" \
-        --argjson interval "$PING_INTERVAL" \
-        --argjson last_rtt "$rtt" \
-        --argjson reachable "$reachable" \
-        --argjson streak_s "$streak_success" \
-        --argjson streak_f "$streak_fail" \
-        --argjson during_rec "$during_recovery" \
-        --arg last_family "$last_family" \
-        --arg last_target "$last_target" \
-        --argjson fail_elapsed "$fail_elapsed_sec" \
-        '{
-            timestamp: $timestamp,
-            mono: $mono,
-            profile: $profile,
-            targets: [$host1, $host2, $ip1, $ip2],
-            interval_sec: $interval,
-            last_rtt_ms: $last_rtt,
-            reachable: $reachable,
-            streak_success: $streak_s,
-            streak_fail: $streak_f,
-            during_recovery: $during_rec,
-            last_family: $last_family,
-            last_target: $last_target,
-            fail_elapsed_sec: $fail_elapsed
-        }' > "$CACHE_TMP" && [ -s "$CACHE_TMP" ] && mv "$CACHE_TMP" "$CACHE_FILE" && return 0
-    # Keep the last good file: readers would otherwise see an empty or partial one.
-    qlog_warn "ping cache write failed, keeping previous file"
-    rm -f "$CACHE_TMP"
+    if printf '{"timestamp":%s,"mono":%s,"profile":"%s","targets":["%s","%s","%s","%s"],"interval_sec":%s,"last_rtt_ms":%s,"reachable":%s,"streak_success":%s,"streak_fail":%s,"during_recovery":%s,"last_family":"%s","last_target":"%s","fail_elapsed_sec":%s,"cycle_ms":%s}\n' \
+            "$timestamp" "$mono" "$_JS" \
+            "$PING_TARGET_HOST_1" "$PING_TARGET_HOST_2" "$PING_TARGET_IP_1" "$PING_TARGET_IP_2" \
+            "$PING_INTERVAL" "$rtt" "$reachable" "$streak_success" "$streak_fail" \
+            "$during_recovery" "$last_family" "$last_target" "$fail_elapsed_sec" "$cycle_ms" \
+            > "$CACHE_TMP" 2>/dev/null \
+        && [ -s "$CACHE_TMP" ] \
+        && mv -f "$CACHE_TMP" "$CACHE_FILE" 2>/dev/null; then
+        _wc_warned=0
+        return 0
+    fi
+    rm -f "$CACHE_TMP" 2>/dev/null
+    if [ "${_wc_warned:-0}" = "0" ]; then
+        qlog_warn "ping cache write failed, keeping previous file"
+        _wc_warned=1
+    fi
 }
 
 # =============================================================================
-# DNS LOOKUP LATENCY (detached job — the probe loop's 12s budget must not grow)
+# DNS lookup latency (detached job, so the probe loop's budget never grows)
 # =============================================================================
 DNS_NAME="one.one.one.one"
 DNS_FILE="${DNS_FILE:-/tmp/qmanager_dns.json}"
 RESOLV_CONF="${RESOLV_CONF:-/etc/resolv.conf}"
-DNS_INTERVAL=60          # seconds between scheduled lookups
-DNS_MIN_GAP=10           # floor between lookups when an outage edge forces one
-DNS_LOOKUP_TIMEOUT=5     # hard bound on the nslookup itself
-DNS_JOB_MAX=15           # a job older than this is presumed gone (pid-reuse guard)
+DNS_INTERVAL=60
+DNS_MIN_GAP=10             # floor between lookups when an outage edge forces one
+DNS_LOOKUP_TIMEOUT=5
+DNS_JOB_MAX=15             # a job older than this is presumed gone (pid-reuse guard)
 _dns_pid=""
-_dns_started=""          # whole uptime seconds of the last spawn, "" = never
-_dns_force=0             # 1 = lookup on the next free slot, interval or not
+_dns_started=""
+_dns_force=0
 _dns_prev_reach=""
 _dm=0
 
-# Sets _CS to /proc/uptime in centiseconds, no fork (no sub-second clock otherwise).
-_uptime_cs() {
-    _CS=0
-    { read -r _u_up _u_idle < /proc/uptime; } 2>/dev/null
-    case "${_u_up%%.*}" in ''|*[!0-9]*) return 1 ;; esac
-    _u_frac="${_u_up#*.}"
-    _u_frac="${_u_frac#0}"
-    case "$_u_frac" in *[!0-9]*) _u_frac=0 ;; esac
-    _CS=$(( ${_u_up%%.*} * 100 + ${_u_frac:-0} ))
-}
-
-# The detached job: first nameserver in resolv.conf, re-read every run (it changes on reattach).
 dns_job() {
     trap - EXIT INT TERM
     _res=$(awk '$1 == "nameserver" { print $2; exit }' "$RESOLV_CONF" 2>/dev/null)
@@ -546,7 +433,7 @@ dns_job() {
     exit 0
 }
 
-# True while the last spawned job runs. A reaped or zombie pid is free; so is one older than DNS_JOB_MAX.
+# True while the last spawned job runs; a reaped, zombie or too-old pid is free.
 _dns_busy() {
     [ -n "$_dns_pid" ] || return 1
     _dl=""
@@ -561,9 +448,8 @@ _dns_busy() {
     return 0
 }
 
-# Once per cycle, after the verdict is written: spawns at most one detached job.
 dns_probe_maybe() {
-    _uptime_cs
+    _uptime_cs || return 0
     _dm=$((_CS / 100))
     # A true -> false edge forces a fresh lookup so an outage never shows an old good number.
     if [ "$_dns_prev_reach" = "true" ] && [ "$reachable" = "false" ]; then
@@ -590,14 +476,44 @@ dns_probe_maybe() {
 }
 
 # =============================================================================
-# MAIN LOOP
+# Main loop
 # =============================================================================
 
+_sleep_cs() {
+    if [ "$_sleep_frac" = "1" ]; then
+        _cs_frac=$(( $1 % 100 ))
+        [ "$_cs_frac" -lt 10 ] && _cs_frac="0$_cs_frac"
+        sleep "$(( $1 / 100 )).$_cs_frac"
+    else
+        _s=$(( ($1 + 50) / 100 ))
+        [ "$_s" -lt 1 ] && _s=1
+        sleep "$_s"
+    fi
+}
+
+# Fixed-rate sleep: what is left of the interval, floored at SLEEP_FLOOR_CS. BusyBox's
+# builtin sleep returns early when a background job exits, so it resumes (at most 3 times).
+_cycle_sleep() { # cycle start (cs)
+    _clock
+    _cs_left=$(( PING_INTERVAL * 100 - (_CS - $1) ))
+    [ "$_cs_left" -lt "$SLEEP_FLOOR_CS" ] && _cs_left="$SLEEP_FLOOR_CS"
+    _sl_end=$(( _CS + _cs_left ))
+    _sl_n=0
+    while [ "$_sl_n" -lt 4 ] && [ "$_cs_left" -ge 5 ]; do
+        _sleep_cs "$_cs_left"
+        _sl_n=$(( _sl_n + 1 ))
+        _clock
+        _cs_left=$(( _sl_end - _CS ))
+    done
+}
+
+_cleanup() {
+    _fan_kill
+    rm -f "$PID_FILE" "$CACHE_TMP" 2>/dev/null
+    [ -n "$FAN_DIR" ] && rm -rf "$FAN_DIR" 2>/dev/null
+}
+
 main() {
-    # Prevent duplicate instances. Cross-user-safe: this daemon always runs
-    # as its own user (root, via systemd), so a plain kill -0 is fine here —
-    # it is not a www-data-vs-root cross-user check like the CGI layer's
-    # pid_alive helper is for.
     if [ -f "$PID_FILE" ]; then
         old_pid=$(cat "$PID_FILE" 2>/dev/null)
         if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
@@ -608,122 +524,82 @@ main() {
     fi
     echo $$ > "$PID_FILE"
 
-    # Remove PID file on exit. BusyBox/ash-derived shells run an INT/TERM
-    # trap handler but do NOT exit afterward — without the explicit `exit`,
-    # a SIGTERM'd daemon deletes its PID file via the trap yet keeps looping
-    # and writing stale JSON, so a restart leaves a zombie until systemd's
-    # SIGKILL fallback. The EXIT trap covers cleanup on every path; INT/TERM
-    # additionally force the exit.
-    trap 'rm -f "$PID_FILE" "$CACHE_TMP"' EXIT
-    trap 'rm -f "$PID_FILE" "$CACHE_TMP"; exit' INT TERM
+    # ash runs an INT/TERM handler but does not exit afterwards: hence the explicit exit.
+    trap '_cleanup' EXIT
+    trap '_cleanup; exit 0' INT TERM
 
-    # Load profile + the four targets from JSON (resolves interval + the
-    # wall-clock fail/recover windows).
     load_config
+    sleep 0.01 2>/dev/null || _sleep_frac=0
 
     qlog_info "========================================"
     qlog_info "QManager Ping Daemon starting (PID $$)"
-    qlog_info "Profile: ${PING_PROFILE}"
-    qlog_info "Chain: ${PING_TARGET_HOST_1} -> ${PING_TARGET_HOST_2} -> ${PING_TARGET_IP_1} -> ${PING_TARGET_IP_2}"
-    qlog_info "Interval: ${PING_INTERVAL}s, Fail after: ${FAIL_SECS}s, Recover after: ${RECOVER_SECS}s"
-    qlog_info "History size: ${HISTORY_SIZE}, Probe count: ${PROBE_COUNT}, Probe timeout: ${PROBE_TIMEOUT}s, Leg deadline: ${PROBE_DEADLINE}s"
+    qlog_info "Profile: ${PING_PROFILE}, interval ${PING_INTERVAL}s, fail ${FAIL_SECS}s, recover ${RECOVER_SECS}s, history ${HISTORY_SIZE}"
+    qlog_info "Legs: h1=${PING_TARGET_HOST_1}, then in parallel h2=${PING_TARGET_HOST_2} i1=${PING_TARGET_IP_1} i2=${PING_TARGET_IP_2}"
+    [ "$_cfg_pending" = "1" ] && qlog_info "jq not mounted yet, using defaults until it is"
     qlog_info "========================================"
 
-    # Clean up stale files from previous run
     rm -f "$CACHE_TMP" /tmp/qmanager_dns_out.* "${DNS_FILE}".??????
-    : > "$HISTORY_FILE"  # Start with empty history
+    rm -rf "${FAN_PREFIX}".?????? 2>/dev/null
+    : > "$HISTORY_FILE"
     history_count=0
+    _clock
+    _cyc_prev=""
 
     while true; do
-        cycle_start=$(mono_now)
-
-        # Live reload: re-read the JSON config (profile/targets/thresholds)
-        # within one cycle when the CGI drops the flag, then clear it. No
-        # systemd restart needed.
-        if [ -f "$RELOAD_FLAG" ]; then
+        if [ -f "$RELOAD_FLAG" ] || { [ "$_cfg_pending" = "1" ] && command -v jq >/dev/null 2>&1; }; then
             load_config
             rm -f "$RELOAD_FLAG"
-            qlog_info "Reloaded config: profile=${PING_PROFILE} interval=${PING_INTERVAL}s fail=${FAIL_SECS}s recover=${RECOVER_SECS}s chain=${PING_TARGET_HOST_1},${PING_TARGET_HOST_2},${PING_TARGET_IP_1},${PING_TARGET_IP_2}"
+            qlog_info "Loaded config: profile=${PING_PROFILE} interval=${PING_INTERVAL}s fail=${FAIL_SECS}s recover=${RECOVER_SECS}s legs=${PING_TARGET_HOST_1},${PING_TARGET_HOST_2},${PING_TARGET_IP_1},${PING_TARGET_IP_2}"
         fi
+
+        _clock
+        _cyc_start="$_CS"
+        if [ -n "$_cyc_prev" ]; then
+            cycle_ms=$(( (_cyc_start - _cyc_prev) * 10 ))
+        else
+            cycle_ms=$(( PING_INTERVAL * 1000 ))
+        fi
+        _cyc_prev="$_cyc_start"
 
         if probe_cycle; then
             rtt="$PROBE_RTT"
         else
             rtt=""
         fi
-
-        now_mono=$(mono_now)
+        _clock
+        _probe_end="$_CS"
 
         if [ -n "$rtt" ]; then
-            # --- Some leg answered ---
             streak_success=$((streak_success + 1))
             streak_fail=0
-
-            # Wall-clock accumulators: the failing run is over, the
-            # succeeding run started at the first success of this run.
-            _fail_since=0
+            _fail_since=""
             fail_elapsed_sec=0
-            if [ "$_recover_since" -eq 0 ] 2>/dev/null; then
-                _recover_since="$now_mono"
-            fi
-            recover_elapsed_sec=$((now_mono - _recover_since))
-            [ "$recover_elapsed_sec" -lt 0 ] && recover_elapsed_sec=0
-
-            qlog_debug "PING OK: target=${last_target} family=${last_family} rtt=${rtt}ms (streak_success=${streak_success})"
-
-            # Flip reachable back to true after RECOVER_SECS of sustained
-            # success, measured in seconds and not in cycles.
-            if [ "$reachable" = "false" ] && [ "$recover_elapsed_sec" -ge "$RECOVER_SECS" ]; then
+            [ -z "$_ok_since" ] && _ok_since="$_cyc_start"
+            _el=$(( _probe_end - _ok_since ))
+            qlog_debug "PING OK: leg=${last_leg} target=${last_target} family=${last_family} rtt=${rtt}ms (streak_success=${streak_success})"
+            if [ "$reachable" = "false" ] && [ "$_el" -ge $(( RECOVER_SECS * 100 )) ]; then
                 reachable="true"
                 qlog_state_change "reachable" "false" "true"
             fi
-
-            # Latency history belongs to ONE host: when the winning target
-            # changes, the samples taken against the previous one are dropped
-            # so the chart draws a gap rather than a phantom latency step and
-            # jitter is never computed across two hosts.
-            if [ -n "$prev_winner" ] && [ "$last_target" != "$prev_winner" ]; then
-                qlog_info "Probe winner changed ${prev_winner} -> ${last_target}, truncating latency history"
-                : > "$HISTORY_FILE"
-                history_count=0
-            fi
-            prev_winner="$last_target"
-
-            # Append to history ring buffer
-            echo "$rtt" >> "$HISTORY_FILE"
+            echo "$rtt $last_leg" >> "$HISTORY_FILE"
         else
-            # --- All four legs failed ---
             rtt="null"
             streak_fail=$((streak_fail + 1))
             streak_success=0
-
-            # Wall-clock accumulators: the succeeding run is over, the failing
-            # run started at the first failure of this run. prev_winner is
-            # deliberately NOT cleared — a total outage is a gap in the same
-            # host's series, not a switch to a different one.
-            _recover_since=0
-            recover_elapsed_sec=0
-            if [ "$_fail_since" -eq 0 ] 2>/dev/null; then
-                _fail_since="$now_mono"
-            fi
-            fail_elapsed_sec=$((now_mono - _fail_since))
-            [ "$fail_elapsed_sec" -lt 0 ] && fail_elapsed_sec=0
-
-            qlog_debug "PING FAIL: all four legs unreachable (streak_fail=${streak_fail}, fail_elapsed_sec=${fail_elapsed_sec})"
-
-            # Only mark unreachable after FAIL_SECS of sustained failure,
-            # measured in seconds and not in cycles.
-            if [ "$reachable" = "true" ] && [ "$fail_elapsed_sec" -ge "$FAIL_SECS" ]; then
+            _ok_since=""
+            [ -z "$_fail_since" ] && _fail_since="$_cyc_start"
+            _el=$(( _probe_end - _fail_since ))
+            [ "$_el" -lt 0 ] && _el=0
+            fail_elapsed_sec=$(( _el / 100 ))
+            qlog_debug "PING FAIL: no leg answered (streak_fail=${streak_fail}, fail_elapsed_sec=${fail_elapsed_sec})"
+            if [ "$reachable" = "true" ] && [ "$_el" -ge $(( FAIL_SECS * 100 )) ]; then
                 reachable="false"
                 qlog_state_change "reachable" "true" "false"
-                qlog_warn "Internet unreachable after ${fail_elapsed_sec}s of continuous failure"
+                qlog_warn "Internet unreachable after ${fail_elapsed_sec}s of continuous failure (${streak_fail} probes)"
             fi
-
-            # Append null to history
-            echo "null" >> "$HISTORY_FILE"
+            echo "null -" >> "$HISTORY_FILE"
         fi
 
-        # Trim history using shell counter (no wc -l fork)
         history_count=$((history_count + 1))
         if [ "$history_count" -gt "$HISTORY_SIZE" ]; then
             tail -n "$HISTORY_SIZE" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp"
@@ -731,23 +607,11 @@ main() {
             history_count=$HISTORY_SIZE
         fi
 
-        # Write slim JSON cache
         write_cache "$rtt"
-
         dns_probe_maybe
-
-        # FIXED-RATE loop: sleep whatever is left of the interval after the
-        # chain, floored at 1. A flat `sleep $PING_INTERVAL` here would make
-        # the real cycle period (chain + interval) drift with however long the
-        # chain took — which is exactly the skew that made a cycle-count
-        # threshold dishonest.
-        cycle_end=$(mono_now)
-        elapsed=$((cycle_end - cycle_start))
-        [ "$elapsed" -lt 0 ] && elapsed=0
-        sleep_for=$((PING_INTERVAL - elapsed))
-        [ "$sleep_for" -lt 1 ] && sleep_for=1
-        sleep "$sleep_for"
+        _cycle_sleep "$_cyc_start"
     done
 }
 
-main "$@"
+# QM_PING_NO_MAIN=1 defines everything without running (for sourcing in checks).
+[ "${QM_PING_NO_MAIN:-0}" = "1" ] || main "$@"
