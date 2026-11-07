@@ -34,7 +34,10 @@ PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin; export PATH
 LP_PERSIST_DIR="/usrdata/qmanager/locales-packs"
 LP_SERVED_DIR="/usrdata/qmanager/www/locales-packs"
 LP_STAGING_ROOT="/usrdata/qmanager/locales-staging"
-LP_REQUIRED_NS="common sidebar dashboard"
+# Same list as language_packs.sh and ALL_NAMESPACES in lib/i18n/resources.ts
+# (checked by `bun run i18n:check`); duplicated so this root helper never
+# sources a www-data-writable library.
+LP_REQUIRED_NS="common sidebar dashboard cellular system-settings system-health-check errors onboarding local-network"
 
 fail() {
     printf '{"success":false,"error":"%s","detail":"%s"}\n' "$1" "$2"

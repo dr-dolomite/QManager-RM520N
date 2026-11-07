@@ -44,9 +44,12 @@ LP_INPUT_FILE="/tmp/qmanager_language_install_input.json"
 # attempt — 409 immediately if busy — rather than that pattern's poll loop).
 LP_LOCK_FILE="/tmp/qmanager_language_install.lock"
 
-# Must match ALL_NAMESPACES in lib/i18n/resources.ts exactly. Increment 1 ships
-# 3 namespaces (NOT RM551E's 9) — keep this in lockstep with the frontend catalog.
-LP_REQUIRED_NS="common sidebar dashboard"
+# Must match ALL_NAMESPACES in lib/i18n/resources.ts exactly: it is both the
+# archive allow-list (lp_extract_tarball_safe) and the required file set
+# (lp_validate_pack_tree), and the frontend only switches to a pack once it
+# has fetched every one of these namespaces. `bun run i18n:check` fails if
+# this list and ALL_NAMESPACES drift apart.
+LP_REQUIRED_NS="common sidebar dashboard cellular system-settings system-health-check errors onboarding local-network"
 
 # Codes that ship in the firmware bundle — never removable via remove.sh.
 LP_BUNDLED_CODES="en zh-CN zh-TW it id"
