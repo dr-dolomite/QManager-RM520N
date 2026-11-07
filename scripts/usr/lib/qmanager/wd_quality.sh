@@ -55,10 +55,11 @@ wd_quality_read() {
     [ "$_n" -gt "$_w" ] && _n="$_w"
     [ "$_n" -ge "$WD_Q_MIN_SAMPLES" ] || return 1
     [ -f "$WD_PING_HISTORY" ] || return 1
-    # The ping daemon truncates history on a winner change, so count what tail really returns.
+    # History lines are "<rtt|null> <leg>"; count what tail really returns (the ring restarts with the daemon).
     _out=$(tail -n "$_n" "$WD_PING_HISTORY" 2>/dev/null | awk -v m="$WD_Q_MIN_SAMPLES" '
+        NF == 0 { next }
         { c++ }
-        $0 ~ /^[0-9]+(\.[0-9]+)?$/ { s += $0; k++; next }
+        $1 ~ /^[0-9]+(\.[0-9]+)?$/ { s += $1; k++; next }
         { nl++ }
         END {
             if (c < m) exit 1

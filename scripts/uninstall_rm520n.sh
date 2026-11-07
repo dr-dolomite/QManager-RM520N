@@ -596,6 +596,7 @@ rm -f  /tmp/.qmanager_web_port_result.* 2>/dev/null || true
 rm -f  /run/qmanager_profile_boot_applied 2>/dev/null || true
 rm -rf "$SESSION_DIR"
 rm -rf /tmp/qmanager_console_tokens
+rm -rf /tmp/qmanager_ping_fan.* 2>/dev/null || true   # ping daemon fan-out dirs (rm -f above skips dirs)
 rm -rf /tmp/qmanager_stage   # OTA stage dir (a staged download is tens of MB of RAM)
 
 # qmanager_atd broker runtime (/var/run, not /tmp) and the QMI sidecar
