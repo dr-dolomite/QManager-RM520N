@@ -1,6 +1,6 @@
 # Plan: port the rewritten `qmanager_ping` to RM520N
 
-Status: **approved, option A** (2026-11-06); built in `feat/ping-daemon-rewrite`. Large change: the daemon feeds the watchdog, alerts, poller and dashboard.
+Status: **done** — option A, device-verified on RM520N-GL `61368cd2` and merged to `development` 2026-11-07 (`eaf4e036`); figures in `docs/reference/connection-quality.md` > Measured on hardware. Large change: the daemon feeds the watchdog, alerts, poller and dashboard.
 
 Source: RM551E `development-home` merge `bd8f42d0` (`scripts/usr/bin/qmanager_ping`, `docs/plans/ping-daemon-rewrite.md`).
 
@@ -38,7 +38,7 @@ Built-in IPv6 literal legs (RM551E's P6/S6) are **left out** under A and B: the 
 
 - Static: CRLF check, BusyBox ash audit (no multi-var `local`, octal guards, traps end in `exit`, leg jobs reset traps), `bash -n` / `sh -n`.
 - Blind `qm-verifier` pass on the diff.
-- On the RM520N (currently **offline**: SSH and ICMP both time out from this host): first read-only probes (iputils `ping -w`, fractional `sleep`, `/var/run/qmanager` ownership, live config and history), then deploy to `/usr/bin` with `sync` + md5 check, keeping the old files in `/tmp/qm_ping_backup/`:
+- On the RM520N: first read-only probes (iputils `ping -w`, fractional `sleep`, `/var/run/qmanager` ownership, live config and history), then deploy to `/usr/bin` with `sync` + md5 check, keeping the old files in `/tmp/qm_ping_backup/`:
   1. Healthy: one probe per cycle, period = interval, dashboard latency/jitter/loss normal.
   2. Leg-1 failure: temporarily set `target_host_1` to an unresolvable/unreachable value → a fan-out leg wins in ~4–8 s, `reachable` stays true, history not truncated.
   3. Total outage: temporary iptables rule dropping ICMP out of `rmnet+` only (LAN SSH unaffected), with a detached 300 s failsafe delete. Measure time-to-fail and recover for `relaxed` and `sensitive`; check the watchcat sees the streak.

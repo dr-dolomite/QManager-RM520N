@@ -81,7 +81,7 @@ A leg **succeeds** when the daemon parses a numeric round-trip time greater than
 
 **Per-leg deadline.** Literal legs run `ping -c1 -W2 -w3 <ip>`: `-w` is iputils' hard deadline, so no `timeout` fork is needed. Hostname legs run `qm_timeout 4 ping -c1 -W2 -w3 <host>`, because `-w` does not cover the name lookup. The bound goes through **`qm_timeout`** (`platform.sh`), never a bare `timeout` — the two devices accept *different* CLI forms (see [platform facts](#platform-facts-that-shape-this-design)). Failure is tested as a **non-zero exit status, never as a literal code**.
 
-**Worst case** is `h1` hung on a dead resolver (4 s) plus the fan-out bounded by its slowest hostname leg (4 s): about **8 s**, against 12–13 s for the old sequential chain. A plain blackholed `h1` costs ~2 s, and then the fan-out ~2 s. Every case stays under the 15 s floor of the [derived staleness threshold](#derived-staleness-threshold); if a cycle ever exceeded it, an outage would make this cache look *stale* — `unknown` instead of `disconnected` — and swallow the `internet_lost` alert.
+**Worst case** is `h1` hung on a dead resolver (4 s) plus the fan-out bounded by its slowest hostname leg (4 s): about **8 s**, against 12–13 s for the old sequential chain. A blackholed `h1` plus a blackholed fan-out measured **6.4 s** (2026-11-07). Every case stays under the 15 s floor of the [derived staleness threshold](#derived-staleness-threshold); if a cycle ever exceeded it, an outage would make this cache look *stale* — `unknown` instead of `disconnected` — and swallow the `internet_lost` alert.
 
 **Fixed-rate loop.** The sleep at the bottom of the loop is `interval_sec − elapsed`, in fractional seconds with a 0.2 s floor (integer seconds if the device's `sleep` refuses a fraction, detected once at start). The cycle **period** therefore equals `interval_sec` whenever the cycle fits inside it. `cycle_ms` in the cache is the last measured period, start to start.
 
@@ -213,7 +213,7 @@ The daemon reads `/etc/qmanager/ping_profile.json` (env vars override it; hardco
 | relaxed *(default)* | 5 | 30 | 10 | 300 |
 | quiet | 10 | 60 | 20 | 600 |
 
-**Why nothing here promises a fail window under 14 seconds** (retuned 2026-09-02). `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible down-verdict is one whole cycle period after the outage starts. When this table was set, a failing cycle could take about **13.4s** (four sequential 3s legs, forks, and a 1s sleep floor), so a `fail_secs` below that was a promise the chain could not keep. Since the 2026-11-06 rewrite a failing cycle takes ~4s (~8s with a hung resolver), so the fast end of the table could now be lowered; that is a user-facing change and has not been made. The old table promised 6s and 10s.
+**Why nothing here promises a fail window under 14 seconds** (retuned 2026-09-02). `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible down-verdict is one whole cycle period after the outage starts. When this table was set, a failing cycle could take about **13.4s** (four sequential 3s legs, forks, and a 1s sleep floor), so a `fail_secs` below that was a promise the chain could not keep. Since the 2026-11-06 rewrite a failing cycle measures 6.4s (~8s with a hung resolver), so the fast end of the table could now be lowered; that is a user-facing change and has not been made. The old table promised 6s and 10s.
 
 The per-leg deadlines were deliberately **not** shortened to buy a faster verdict — that would risk calling a slow-but-alive cellular link down. The consequence is that the fast end of the table is clamped: `sensitive` now means "the earliest verdict this chain can honestly deliver", not six seconds. The four profiles stay distinct in both axes (cadence 1/2/5/10, window 15/20/30/60).
 
@@ -246,6 +246,16 @@ Every figure below is **quoted from the on-device measurement record of 2026-09-
 | Dead-DNS-server cost (reachable but unanswering resolver) | **10.04s** | RM520N-GL |
 | Dead-DNS-server cost | **10.20s** | RG501Q-EU |
 | Cold hostname resolve (no data plan) | **0.37s** for `cloudflare.com` | RM520N-GL |
+
+Parallel-cycle rewrite, measured 2026-11-07 on RM520N-GL `61368cd2` (`cycle_ms` from the cache; ICMP echo dropped on `rmnet+`, DNS still answering):
+
+| What | Measured |
+|------|----------|
+| Healthy cycle period, `interval_sec` 5 | **5.01s** |
+| Failing cycle (`h1` blackholed, then all fan-out legs blackholed) | **6.4s** |
+| `h1` unresolvable (NXDOMAIN), `h2` answering | **5.01s** period, `h2` every cycle |
+| Down verdict, `relaxed` (fail 30s) / recover (10s) | **33s** / **9s** |
+| Down verdict, `sensitive` with a saved `interval_sec` 5 (fail 15s) / recover (3s) | **20s** / **5s** |
 
 The dead-DNS figure is the **slow** case, and it needs the distinction spelled out: an unanswering-but-reachable resolver costs the full wait, whereas when the bearer itself drops, the link-scoped route to the carrier's DNS servers disappears and the send fails `ENETUNREACH` (network unreachable) **immediately**. Only the first case is expensive, and the per-leg `timeout` wrapper is the knob that bounds it.
 
