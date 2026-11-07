@@ -334,14 +334,18 @@
       "endc": "EN-DC активна",
       "none": "Нет агрегации",
       "released_one": "{{count}} несущая освобождена",
-      "released_other": "{{count}} несущей освобождено"
+      "released_other": "{{count}} несущей освобождено",
+      "released_few": "{{count}} несущие освобождены",
+      "released_many": "{{count}} несущих освобождено"
     },
     "role": {
       "pcc": "{{tech}} PCC",
       "anchor": "NR-анкер",
       "scc": "{{tech}} SCC",
       "released": "Освобождена"
-    }
+    },
+    "released_minutes_few": "Освобождена {{count}} мин назад",
+    "released_minutes_many": "Освобождена {{count}} мин назад"
   },
   "activities": {
     "title": "Последние события",
@@ -353,7 +357,9 @@
     "chip": {
       "quiet": "Всё чисто",
       "unresolved_one": "{{count}} не решена",
-      "unresolved_other": "{{count}} не решены"
+      "unresolved_other": "{{count}} не решены",
+      "unresolved_few": "{{count}} не решены",
+      "unresolved_many": "{{count}} не решены"
     },
     "severity": {
       "routine": "Обычное",
@@ -369,7 +375,13 @@
       "hours_one": "{{count}} ч назад",
       "hours_other": "{{count}} ч назад",
       "days_one": "{{count}} дн. назад",
-      "days_other": "{{count}} дн. назад"
+      "days_other": "{{count}} дн. назад",
+      "hours_few": "{{count}} ч назад",
+      "hours_many": "{{count}} ч назад",
+      "minutes_few": "{{count}} мин назад",
+      "minutes_many": "{{count}} мин назад",
+      "days_few": "{{count}} дн. назад",
+      "days_many": "{{count}} дн. назад"
     },
     "events": {
       "network_mode": "Смена режима",
@@ -438,6 +450,8 @@
     "empty_description": "Проверка связи не запущена, поэтому данных о задержке, джиттере и потерях нет.",
     "empty_action": "Открыть «Качество связи»",
     "error_title": "Нет связи с модемом",
-    "error_description": "Не удалось прочитать состояние модема, поэтому показать качество связи нечего."
+    "error_description": "Не удалось прочитать состояние модема, поэтому показать качество связи нечего.",
+    "axis_reach_few": "{{count}} мин назад",
+    "axis_reach_many": "{{count}} мин назад"
   }
 }

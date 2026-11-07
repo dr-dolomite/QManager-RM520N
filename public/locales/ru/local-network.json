@@ -251,6 +251,18 @@
     "verify_throttled": "с троттлингом",
     "verify_unthrottled": "без троттлинга",
     "verify_scope": "Это измеряет ваше соединение, а не запущенный движок. Для этого смотрите живое состояние выше.",
-    "verify_footnote": "Скорость линии — эталон: медленный результат на всех трёх означает медленное соединение, а не троттлинг."
+    "verify_footnote": "Скорость линии — эталон: медленный результат на всех трёх означает медленное соединение, а не троттлинг.",
+    "import_duplicate_few": "{{count}} домена уже были в списке.",
+    "import_duplicate_many": "{{count}} доменов уже были в списке.",
+    "acts_on_domains_few": "{{count}} домена",
+    "acts_on_domains_many": "{{count}} доменов",
+    "import_added_few": "Импортировано {{count}} домена",
+    "import_added_many": "Импортировано {{count}} доменов",
+    "import_dropped_few": "{{count}} домена не поместились в лимит {{max}}.",
+    "import_dropped_many": "{{count}} доменов не поместились в лимит {{max}}.",
+    "toast_export_few": "Экспортировано {{count}} домена",
+    "toast_export_many": "Экспортировано {{count}} доменов",
+    "import_invalid_few": "{{count}} строки не являются доменами.",
+    "import_invalid_many": "{{count}} строк не являются доменами."
   }
 }

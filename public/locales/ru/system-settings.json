@@ -191,7 +191,17 @@
         "caption_warnings_one": "Нет ошибок в {{count}} прочитанной строке",
         "caption_warnings_other": "Нет ошибок в {{count}} прочитанной строки",
         "caption_clean_one": "Нет предупреждений в {{count}} прочитанной строке",
-        "caption_clean_other": "Нет предупреждений в {{count}} прочитанной строки"
+        "caption_clean_other": "Нет предупреждений в {{count}} прочитанной строки",
+        "caption_warnings_few": "Нет ошибок в {{count}} прочитанных строках",
+        "caption_warnings_many": "Нет ошибок в {{count}} прочитанных строках",
+        "caption_errors_few": "{{count}} предупреждения в {{lines}} прочитанных строках",
+        "caption_errors_many": "{{count}} предупреждений в {{lines}} прочитанных строках",
+        "errors_few": "{{count}} ошибки",
+        "errors_many": "{{count}} ошибок",
+        "warnings_few": "{{count}} предупреждения",
+        "warnings_many": "{{count}} предупреждений",
+        "caption_clean_few": "Нет предупреждений в {{count}} прочитанных строках",
+        "caption_clean_many": "Нет предупреждений в {{count}} прочитанных строках"
       },
       "feed": {
         "eyebrow": "Поток",
@@ -208,7 +218,9 @@
         "size": "{{size}} КБ",
         "caption_one": "{{count}} строка, в архиве {{rotated}}",
         "caption_other": "{{count}} строки, в архиве {{rotated}}",
-        "caption_unread": "Размер не сообщён"
+        "caption_unread": "Размер не сообщён",
+        "caption_few": "{{count}} строки, в архиве {{rotated}}",
+        "caption_many": "{{count}} строк, в архиве {{rotated}}"
       }
     },
     "card": {
@@ -317,7 +329,11 @@
         "caption_built_in_other": "{{count}} встроенного",
         "caption_with_downloaded_one": "Встроенных: {{builtIn}}, загружен {{count}}",
         "caption_with_downloaded_other": "Встроенных: {{builtIn}}, загружено {{count}}",
-        "caption_unknown": "Не удалось прочитать список"
+        "caption_unknown": "Не удалось прочитать список",
+        "caption_with_downloaded_few": "Встроенных: {{builtIn}}, загружено {{count}}",
+        "caption_with_downloaded_many": "Встроенных: {{builtIn}}, загружено {{count}}",
+        "caption_built_in_few": "{{count}} встроенных",
+        "caption_built_in_many": "{{count}} встроенных"
       },
       "catalog": {
         "eyebrow": "Каталог сообщества",
@@ -326,7 +342,9 @@
         "caption_none": "Пока ничего не опубликовано",
         "caption_available": "Готово к установке",
         "caption_updates_one": "Доступно {{count}} обновление",
-        "caption_updates_other": "Доступно {{count}} обновления"
+        "caption_updates_other": "Доступно {{count}} обновления",
+        "caption_updates_few": "Доступно {{count}} обновления",
+        "caption_updates_many": "Доступно {{count}} обновлений"
       }
     },
     "display": {
@@ -356,7 +374,9 @@
       "contributors_one": "{{count}} переводчик",
       "contributors_other": "{{count}} переводчика",
       "contributors_none": "Сообщество",
-      "incompatible": "Требуется более новый QManager"
+      "incompatible": "Требуется более новый QManager",
+      "contributors_few": "{{count}} переводчика",
+      "contributors_many": "{{count}} переводчиков"
     },
     "install": {
       "percent": "{{pct}}%",
@@ -524,7 +544,11 @@
         "latency_other": "{{count}} замера дольше {{ms}} мс",
         "loss_one": "{{count}} замера с потерями от {{pct}}%",
         "loss_other": "{{count}} замера с потерями от {{pct}}%",
-        "pending": "Введите порог"
+        "pending": "Введите порог",
+        "loss_few": "{{count}} замеров с потерями от {{pct}}%",
+        "loss_many": "{{count}} замеров с потерями от {{pct}}%",
+        "latency_few": "{{count}} замеров дольше {{ms}} мс",
+        "latency_many": "{{count}} замеров дольше {{ms}} мс"
       },
       "now": {
         "latency": "{{ms}} мс",
@@ -903,7 +927,9 @@
         "command_placeholder": "AT+...",
         "add": "Добавить",
         "delete": "Удалить {{label}}"
-      }
+      },
+      "count_few": "{{count}} команды",
+      "count_many": "{{count}} команд"
     }
   },
   "web_console": {
@@ -1013,7 +1039,11 @@
       "invalid_password_one": "Неверный пароль. Осталась {{count}} попытка, потом вход будет на время заблокирован.",
       "invalid_password_other": "Неверный пароль. Осталось {{count}} попытки, потом вход будет на время заблокирован.",
       "rate_limited_one": "Слишком много неверных попыток. Повторите через {{count}} секунду.",
-      "rate_limited_other": "Слишком много неверных попыток. Повторите через {{count}} секунды."
+      "rate_limited_other": "Слишком много неверных попыток. Повторите через {{count}} секунды.",
+      "rate_limited_few": "Слишком много неверных попыток. Повторите через {{count}} секунды.",
+      "rate_limited_many": "Слишком много неверных попыток. Повторите через {{count}} секунд.",
+      "invalid_password_few": "Неверный пароль. Осталось {{count}} попытки, потом вход будет на время заблокирован.",
+      "invalid_password_many": "Неверный пароль. Осталось {{count}} попыток, потом вход будет на время заблокирован."
     }
   },
   "device_access": {
@@ -1021,5 +1051,234 @@
       "title": "Доступ к устройству",
       "description": "Пароль и порты, по которым можно подключиться к модему."
     }
+  },
+  "config_backup": {
+    "page_title": "Резервная копия",
+    "page_description": "Сохраните настройки QManager в зашифрованный файл или восстановите их из него.",
+    "excluded": "Пароли, токены, веб-порт, история SIM, журналы и счётчики трафика в копию никогда не попадают.",
+    "not_supported_here": "Здесь не поддерживается",
+    "mutex_parent_on": "Входит в выбранный раздел «{{parent}}».",
+    "mutex_member_on": "Снимите {{members}}, чтобы включить этот раздел.",
+    "group_count": "{{on}} из {{total}}",
+    "reboot_failed_toast": "Не удалось запустить перезагрузку. Она по-прежнему ждёт в баннере.",
+    "reboot_now_button": "Перезагрузить сейчас",
+    "groups": {
+      "connection": "Подключение",
+      "local_network": "Локальная сеть",
+      "monitoring": "Мониторинг и оповещения",
+      "system": "Система"
+    },
+    "sections": {
+      "network_mode": "Режим сети",
+      "bands": "Диапазоны LTE/5G",
+      "apn": "APN",
+      "tower_lock": "Привязка к вышке",
+      "ttl_mtu": "TTL и MTU",
+      "imei": "IMEI",
+      "profiles": "Свои профили SIM",
+      "scenarios": "Сценарии подключения",
+      "ip_passthrough": "Проброс IP",
+      "sms": "Настройки SMS",
+      "lan": "LAN и DHCP",
+      "custom_dns": "Свой DNS",
+      "ethernet": "Ethernet",
+      "traffic_engine": "Traffic Engine",
+      "watchdog": "Watchdog",
+      "quality": "Качество связи",
+      "sites": "Сайты для замера задержки",
+      "alerts": "Оповещения",
+      "adaptive_polling": "Адаптивный опрос",
+      "system": "Системные настройки"
+    },
+    "create": {
+      "card_title": "Создать копию",
+      "card_description": "Выберите, что сохранить. Файл шифруется прямо в браузере.",
+      "group_encryption": "Шифрование",
+      "passphrase_label": "Парольная фраза",
+      "warning": "Не меньше {{min}} символов. Без неё копию не восстановить.",
+      "passphrase_too_short": "Нужно не меньше {{min}} символов.",
+      "confirm_label": "Повторите парольную фразу",
+      "confirm_match": "Парольные фразы совпадают",
+      "confirm_mismatch": "Парольные фразы не совпадают",
+      "passphrase_show_aria": "Показать парольную фразу",
+      "passphrase_hide_aria": "Скрыть парольную фразу",
+      "selected_count_one": "Выбран {{count}} раздел",
+      "selected_count_other": "Выбрано {{count}} раздела",
+      "stage_collecting": "Чтение настроек…",
+      "stage_encrypting": "Шифрование…",
+      "stage_downloading": "Сохранение файла…",
+      "button_default": "Скачать копию",
+      "toast_success": "Копия скачана.",
+      "toast_unavailable_one": "Копия скачана, но {{count}} раздел прочитать не удалось.",
+      "toast_unavailable_other": "Копия скачана, но {{count}} раздела прочитать не удалось.",
+      "toast_failed": "Не удалось создать копию.",
+      "load_failed_title": "Не удалось загрузить параметры копии",
+      "load_failed_description": "Модем не сообщил, какие настройки он может сохранить.",
+      "empty_title": "Сохранять нечего",
+      "empty_description": "В этой сборке QManager нет настроек, которые можно сохранить.",
+      "selected_count_few": "Выбрано {{count}} раздела",
+      "selected_count_many": "Выбрано {{count}} разделов",
+      "toast_unavailable_few": "Копия скачана, но {{count}} раздела прочитать не удалось.",
+      "toast_unavailable_many": "Копия скачана, но {{count}} разделов прочитать не удалось."
+    },
+    "restore": {
+      "card_title": "Восстановить из файла",
+      "card_description": "Откройте файл копии и выберите, что восстановить.",
+      "idle_title": "Копия не открыта",
+      "reading_title": "Чтение файла…",
+      "idle_description": "Выберите файл .qmbackup. Понадобится парольная фраза, с которой он сохранён.",
+      "upload_button": "Выбрать файл",
+      "button_choose_another": "Выбрать другой файл",
+      "read_failed": "Не удалось прочитать этот файл.",
+      "receipt_model": "Сделана на",
+      "receipt_created": "Создана",
+      "passphrase_label": "Парольная фраза",
+      "passphrase_consequence": "Парольная фраза, заданная при создании этой копии.",
+      "password_incorrect": "Неверная парольная фраза, или файл был изменён.",
+      "button_unlock": "Открыть",
+      "model_warning": "Эта копия сделана на {{from}}, а этот модем — {{to}}. Неподходящие настройки будут пропущены.",
+      "backup_first": "Восстановление заменит текущие настройки. Сначала скачайте их копию.",
+      "backup_first_action": "Сначала сохранить",
+      "overwrite_label": "Заменит текущие настройки",
+      "note_reboot": "Нужна перезагрузка.",
+      "note_lan": "Может изменить адрес, по которому открывается QManager. Нужна перезагрузка.",
+      "note_profiles_imei": "Нужна перезагрузка. Профили с IMEI, отличным от IMEI этого модема, теряют его, если не оставить его ниже.",
+      "profiles_imei_confirm_one": "{{count}} профиль при активации задаёт другой IMEI. Оставить его.",
+      "profiles_imei_confirm_other": "{{count}} профиля при активации задают другой IMEI. Оставить их.",
+      "imei_confirm": "Записать IMEI {{backup}} вместо текущего {{current}} этого модема.",
+      "selected_count_one": "{{count}} раздел для восстановления",
+      "selected_count_other": "{{count}} раздела для восстановления",
+      "button_apply": "Восстановить",
+      "toast_success": "Настройки восстановлены.",
+      "toast_partial_one": "Восстановление завершено, но {{count}} раздел не удался.",
+      "toast_partial_other": "Восстановление завершено, но {{count}} раздела не удались.",
+      "toast_cancelled_one": "Восстановление остановлено после {{count}} раздела.",
+      "toast_cancelled_other": "Восстановление остановлено после {{count}} разделов.",
+      "toast_crashed": "Восстановление неожиданно прервалось.",
+      "toast_failed": "Не удалось начать восстановление.",
+      "toast_stop_failed": "Не удалось остановить восстановление.",
+      "reboot_dialog_title": "Перезагрузить, чтобы завершить восстановление?",
+      "reboot_dialog_description": "Часть восстановленных настроек вступит в силу после перезагрузки. Связь пропадёт примерно на минуту.",
+      "reboot_later_button": "Позже",
+      "profiles_imei_confirm_few": "{{count}} профиля при активации задают другой IMEI. Оставить их.",
+      "profiles_imei_confirm_many": "{{count}} профилей при активации задают другой IMEI. Оставить их.",
+      "selected_count_few": "{{count}} раздела для восстановления",
+      "selected_count_many": "{{count}} разделов для восстановления",
+      "toast_partial_few": "Восстановление завершено, но {{count}} раздела не удались.",
+      "toast_partial_many": "Восстановление завершено, но {{count}} разделов не удались.",
+      "toast_cancelled_few": "Восстановление остановлено после {{count}} разделов.",
+      "toast_cancelled_many": "Восстановление остановлено после {{count}} разделов."
+    },
+    "pipeline": {
+      "title": "Восстановление настроек",
+      "description": "Из копии, сделанной на {{model}}.",
+      "preparing": "Подготовка…",
+      "stopping": "Остановка после этого раздела…",
+      "step_progress": "Раздел {{current}} из {{total}}",
+      "done_headline": "Восстановление завершено",
+      "done_sub_one": "Восстановлен {{count}} раздел.",
+      "done_sub_other": "Восстановлено {{count}} раздела.",
+      "partial_headline": "Восстановление завершено с ошибками",
+      "partial_sub": "Восстановлено разделов: {{restored}} из {{total}}.",
+      "cancelled_sub": "Остановлено до того, как восстановились все разделы.",
+      "failed_headline": "Восстановление не удалось",
+      "failed_sub": "Ничего не восстановлено.",
+      "crashed_sub": "Восстановление неожиданно прервалось.",
+      "detail_incompatible": "Несовместимо",
+      "detail_not_supported": "Здесь не поддерживается",
+      "detail_sim_mismatch": "Другая SIM",
+      "detail_unchanged": "Пропущено",
+      "detail_retrying": "Попытка {{n}}",
+      "detail_failed": "Ошибка",
+      "note_ignored_one": "{{count}} настройка здесь не поддерживается",
+      "note_ignored_other": "{{count}} настройки здесь не поддерживаются",
+      "note_dropped_one": "{{count}} запись пропущена (недопустимая)",
+      "note_dropped_other": "{{count}} записи пропущены (недопустимые)",
+      "state_done": "Готово",
+      "state_running": "Выполняется",
+      "state_retrying": "Повтор",
+      "state_failed": "Ошибка",
+      "state_skipped": "Пропущено",
+      "state_pending": "Ожидание",
+      "progress_aria": "Ход восстановления",
+      "ledger_aria": "Разделы",
+      "reboot_notice": "Для завершения нужна перезагрузка. Когда её выполнить, можно выбрать после закрытия этого окна.",
+      "failed_hint": "Разделы с ошибкой сохранили текущие настройки. Восстановление можно повторить.",
+      "close": "Закрыть",
+      "stop": "Остановить",
+      "done_sub_few": "Восстановлено {{count}} раздела.",
+      "done_sub_many": "Восстановлено {{count}} разделов.",
+      "note_ignored_few": "{{count}} настройки здесь не поддерживаются",
+      "note_ignored_many": "{{count}} настроек здесь не поддерживаются",
+      "note_dropped_few": "{{count}} записи пропущены (недопустимые)",
+      "note_dropped_many": "{{count}} записей пропущено (недопустимые)"
+    }
+  },
+  "adaptive_polling": {
+    "page_title": "Адаптивный опрос",
+    "page_description": "Реже опрашивать модем, пока QManager никто не открыл.",
+    "card_title": "Адаптивный опрос",
+    "card_description": "Пока страница открыта, статус обновляется с полной частотой, потом реже.",
+    "tier": {
+      "active": "Полная частота",
+      "idle": "Простой (реже)",
+      "deep": "Глубокий простой (минимум)"
+    },
+    "tier_aria": "Сейчас опрос: {{tier}}",
+    "enabled": {
+      "label": "Замедлять при простое",
+      "on": "Опрос замедляется после задержки, указанной ниже.",
+      "off": "Статус всегда обновляется с полной частотой.",
+      "hint_label": "Что продолжает работать",
+      "hint": "Оповещения и Watchdog работают при любой частоте. Замедляется только обновление статуса."
+    },
+    "fields": {
+      "active_grace": {
+        "label": "Задержка",
+        "consequence": "Сколько ещё держится полная частота после закрытия последней страницы (от {{min}} до {{max}} с)."
+      },
+      "idle_interval": {
+        "label": "Интервал в простое",
+        "consequence": "Время между обновлениями в простое (от {{min}} до {{max}} с)."
+      },
+      "idle_threshold": {
+        "label": "Глубокий простой через",
+        "consequence": "Время простоя, после которого обновления становятся ещё реже (от {{min}} до {{max}} с)."
+      },
+      "deep_idle_interval": {
+        "label": "Интервал в глубоком простое",
+        "consequence": "Время между обновлениями в глубоком простое (от {{min}} до {{max}} с)."
+      }
+    },
+    "unit_seconds": "с",
+    "error_title": "Не удалось загрузить адаптивный опрос",
+    "error_description": "Настройки не загрузились. Попробуйте ещё раз чуть позже.",
+    "save_failed_status": "Не сохранено",
+    "default_status": "Значения по умолчанию",
+    "toast_saved": "Адаптивный опрос сохранён.",
+    "toast_failed": "Не удалось сохранить адаптивный опрос."
+  },
+  "web_port": {
+    "card_title": "Веб-порт",
+    "card_description": "Порты, на которых работает этот интерфейс.",
+    "http_label": "Порт HTTP",
+    "http_consequence": "Обычный HTTP только перенаправляет на порт HTTPS.",
+    "https_label": "Порт HTTPS",
+    "https_consequence": "Шифрованный порт, на котором открывается этот интерфейс.",
+    "pending": "После применения откроется на {{origin}}.",
+    "moving": "Переезд на {{origin}}… Если браузер спросит, примите сертификат для нового порта.",
+    "invalid": "Введите целое число от 1 до 65535.",
+    "same": "Для HTTP и HTTPS нужны разные порты.",
+    "confirm_title": "Сменить веб-порт?",
+    "confirm_description": "QManager перезапустится на новом порту, а эта страница переедет на {{origin}}. Если новый порт не запустится, старый вернётся сам.",
+    "confirm_action": "Сменить порт",
+    "toast_failed": "Не удалось сменить веб-порт.",
+    "toast_unchanged": "Веб-порт сохранён.",
+    "toast_unreachable": "Новый порт не ответил, поэтому QManager остался на старом.",
+    "toast_back_on": "Новый порт не запустился, поэтому QManager вернулся на {{origin}}.",
+    "toast_timeout": "Смена порта ещё не закончилась, обновите эту страницу чуть позже.",
+    "open_origin": "Открыть",
+    "error_title": "Не удалось прочитать веб-порт",
+    "error_description": "Порты не загрузились. Попробуйте ещё раз чуть позже."
   }
 }
