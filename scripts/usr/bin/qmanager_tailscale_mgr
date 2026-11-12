@@ -176,14 +176,67 @@ if ts_coherent; then
     mkdir -p /tmp/cache
     ln -sf /tmp/cache ~/.cache
 
-    if ! echo y | "$TAILSCALE_DIR/tailscale" update; then
-        write_status '{"success":false,"status":"error","op":"update"'"$RUN_FIELD"',"error":"update_failed","message":"Tailscale update failed"}'
-        echo "=== ERROR: tailscale update failed ==="
+    # Keep the current binaries for a rollback. Hard links cost no space on
+    # /usrdata: `tailscale update` writes *.new and renames them over the
+    # originals, so the links keep the previous files intact.
+    rm -f "$TAILSCALE_DIR/tailscale.prev" "$TAILSCALE_DIR/tailscaled.prev"
+    PREV=1
+    ln "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscale.prev" \
+        && ln "$TAILSCALE_DIR/tailscaled" "$TAILSCALE_DIR/tailscaled.prev" \
+        || { PREV=0; echo "WARNING: previous binaries not kept, no rollback possible"; }
+
+    # The state to get back to: a stopped service stays stopped, a logged-out
+    # node is not expected to come back Running.
+    WAS_ACTIVE=0; systemctl is-active --quiet tailscaled && WAS_ACTIVE=1
+    WAS_RUNNING=0
+    [ "$WAS_ACTIVE" = 1 ] && "$TAILSCALE_DIR/tailscale" status --json 2>/dev/null \
+        | grep -q '"BackendState": "Running"' && WAS_RUNNING=1
+
+    # Healthy = binary runs, daemon back if it was active, node back to Running
+    # if it was Running (checked for up to 90 s).
+    ts_healthy() {
+        "$TAILSCALE_DIR/tailscale" version >/dev/null 2>&1 || return 1
+        [ "$WAS_ACTIVE" = 1 ] || return 0
+        i=0
+        while [ $i -lt 18 ]; do
+            if systemctl is-active --quiet tailscaled; then
+                [ "$WAS_RUNNING" = 1 ] || return 0
+                "$TAILSCALE_DIR/tailscale" status --json 2>/dev/null \
+                    | grep -q '"BackendState": "Running"' && return 0
+            fi
+            sleep 5; i=$((i + 1))
+        done
+        return 1
+    }
+
+    rollback() {
+        [ "$PREV" = 1 ] || return 1
+        echo "Rolling back to the previous binaries..."
+        mv -f "$TAILSCALE_DIR/tailscale.prev" "$TAILSCALE_DIR/tailscale" \
+            && mv -f "$TAILSCALE_DIR/tailscaled.prev" "$TAILSCALE_DIR/tailscaled" || return 1
+        rm -f "$TAILSCALE_DIR/tailscale.new" "$TAILSCALE_DIR/tailscaled.new"
+        [ "$WAS_ACTIVE" = 1 ] && systemctl restart tailscaled
+        ts_healthy
+    }
+
+    fail_update() {
+        if rollback; then
+            write_status '{"success":false,"status":"error","op":"update"'"$RUN_FIELD"',"error":"update_failed_rolled_back","message":"'"$1"'; previous version restored"}'
+            echo "=== ERROR: $1 — previous version restored ==="
+        else
+            write_status '{"success":false,"status":"error","op":"update"'"$RUN_FIELD"',"error":"update_failed","message":"'"$1"'"}'
+            echo "=== ERROR: $1 — rollback not possible ==="
+        fi
         exit 1
-    fi
+    }
+
+    echo y | "$TAILSCALE_DIR/tailscale" update || fail_update "Tailscale update failed"
 
     # Pick up the new binary; a service the user stopped stays stopped.
     systemctl is-active --quiet tailscaled && systemctl restart tailscaled
+
+    ts_healthy || fail_update "New Tailscale version did not come back up"
+    rm -f "$TAILSCALE_DIR/tailscale.prev" "$TAILSCALE_DIR/tailscaled.prev"
 
     write_status '{"success":true,"status":"complete","op":"update"'"$RUN_FIELD"',"message":"Tailscale updated"}'
     echo "=== update complete ==="

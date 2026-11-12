@@ -45,6 +45,8 @@ Everything runs as a real `tailscaled` daemon on the modem's own Linux. QManager
 
 **Install vs update is decided by coherence, not by the binary alone.** A coherent install is the unit plus executable `tailscale` and `tailscaled` (`ts_coherent`, in the wrapper and the inner script). Only a coherent install takes the `tailscale update` branch. Anything else (e.g. binary left after the unit was removed) is cleaned (old binaries, `systemd/`, `/usrdata/tailscale_*_arm*`; `tailscaled.state` is kept) and installed fresh. `install_rm520n.sh` also rewrites a missing unit when the binary exists, so OTA heals that state too.
 
+**An update can roll back.** Before `tailscale update` the current binaries are kept as hard links (`tailscale.prev`, `tailscaled.prev`, no extra space on `/usrdata`). If the update fails, or the daemon does not come back to its previous state within 90 s (active, and `Running` if it was), the previous binaries are restored and the status reports `update_failed_rolled_back`.
+
 ---
 
 ## The GET is tiered, and the tiers are the contract
