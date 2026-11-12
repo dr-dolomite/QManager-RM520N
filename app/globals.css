@@ -1176,3 +1176,16 @@
     }
   }
 }
+
+/* Vietnamese: Rethink Sans has no Vietnamese glyphs, so swap the whole
+   interface face rather than mixing fonts letter by letter. The i18n provider
+   keeps <html lang> in sync with the active language. Redefining
+   --font-rethink-sans on body covers every font-sans utility (the theme maps
+   --font-sans to it inline); font-family covers body's own next/font class.
+   Specificity (0,1,2) beats the generated single-class rules. */
+html:lang(vi) body {
+  --font-rethink-sans: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui,
+    sans-serif;
+  font-family: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui,
+    sans-serif;
+}

@@ -87,6 +87,33 @@ const rethinkSans = localFont({
   ],
 });
 
+// Vietnamese interface font. Rethink Sans has no Vietnamese glyphs (ă đ ơ ư and
+// the stacked tone marks), so a vi UI rendered with per-letter fallbacks from
+// whatever system font the browser picked. Plus Jakarta Sans covers the full
+// Vietnamese set and is a variable font (wght 200-800), so one file per style.
+// It is only declared here; globals.css switches the interface font to it under
+// html:lang(vi), so other languages never download it.
+//
+// Source: google/fonts ofl/plusjakartasans, PlusJakartaSans[wght].ttf and the
+// italic, subset with pyftsubset to Latin, Latin Extended and Vietnamese
+// (U+0000-024F, U+0300-0323, U+1EA0-1EF9, general punctuation, arrows) and
+// written as woff2. SIL Open Font License 1.1.
+const plusJakartaSans = localFont({
+  variable: "--font-plus-jakarta-sans",
+  src: [
+    {
+      path: "./fonts/PlusJakartaSans-Variable-vi.woff2",
+      weight: "200 800",
+      style: "normal",
+    },
+    {
+      path: "./fonts/PlusJakartaSans-Italic-Variable-vi.woff2",
+      weight: "200 800",
+      style: "italic",
+    },
+  ],
+});
+
 export const metadata: Metadata = {
   title: "QManager",
   description:
@@ -101,7 +128,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${rethinkSans.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} ${rethinkSans.className} antialiased`}
+        className={`${rethinkSans.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} ${plusJakartaSans.variable} ${rethinkSans.className} antialiased`}
       >
         {/* Render-blocking: stamps data-motion on <html> from localStorage
             BEFORE anything paints, the same way next-themes avoids a theme
