@@ -3,5 +3,7 @@
   "native_name": "Tiếng Việt",
   "english_name": "Vietnamese",
   "rtl": false,
-  "contributors": []
+  "contributors": [
+    "jaycool01"
+  ]
 }
