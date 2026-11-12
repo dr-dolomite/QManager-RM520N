@@ -1,0 +1,1513 @@
+{
+  "actions": {
+    "save": "Lưu",
+    "save_settings": "Lưu cài đặt",
+    "save_and_apply": "Lưu & áp dụng",
+    "save_profile": "Lưu hồ sơ",
+    "update": "Cập nhật",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu!",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "apply": "Áp dụng",
+    "close": "Đóng",
+    "retry": "Thử lại",
+    "dismiss": "Bỏ qua",
+    "reboot": "Khởi động lại",
+    "log_out": "Đăng xuất",
+    "reboot_device": "Khởi động lại thiết bị",
+    "reconnect_modem": "Kết nối lại modem",
+    "change_display_name": "Đổi tên hiển thị",
+    "change_password": "Đổi mật khẩu",
+    "toggle_theme": "Đổi giao diện",
+    "discard": "Hủy bỏ"
+  },
+  "motion": {
+    "label": "Hiệu ứng động",
+    "system": "Theo hệ thống",
+    "full": "Đầy đủ",
+    "reduced": "Giảm bớt"
+  },
+  "state": {
+    "loading": "Đang tải…",
+    "saving": "Đang lưu…",
+    "applying": "Đang áp dụng…",
+    "disconnecting": "Đang ngắt kết nối…",
+    "reconnecting": "Đang kết nối lại…",
+    "installing": "Đang cài đặt…",
+    "removing": "Đang gỡ…",
+    "enabled": "Đã bật",
+    "disabled": "Đã tắt",
+    "on": "Bật",
+    "off": "Tắt"
+  },
+  "connection": {
+    "reconnecting": "Mất liên lạc với thiết bị. Đang kết nối lại…"
+  },
+  "ethernet": {
+    "page": {
+      "title": "Trạng thái Ethernet",
+      "description": "Theo dõi liên kết Ethernet và cấu hình tốc độ thương lượng."
+    },
+    "header": {
+      "refresh": "Làm mới"
+    },
+    "strip": {
+      "label": "Trạng thái liên kết",
+      "unresponsive": "Không phản hồi",
+      "unavailable_title": "Không đọc được cổng Ethernet",
+      "unavailable_body": "Đang thử lại mỗi 10 giây. Chưa có gì thay đổi.",
+      "absent_title": "Không có bộ điều khiển Ethernet",
+      "absent_body": "Thiết bị này không có cổng eth0, nên không có gì để báo cáo hay cấu hình."
+    },
+    "tiles": {
+      "link": {
+        "label": "Trạng thái liên kết",
+        "value_up": "Đã kết nối",
+        "value_down": "Mất kết nối",
+        "value_unknown": "Không rõ",
+        "caption_up": "Đã cắm cáp vào cổng",
+        "caption_down": "Không phát hiện cáp trên cổng",
+        "caption_unknown": "Đang chờ trạng thái liên kết"
+      },
+      "speed": {
+        "label": "Tốc độ thương lượng",
+        "caption": "Thương lượng với thiết bị đầu kia",
+        "caption_ceiling": "Trên mức {{ceiling}} cổng hỗ trợ",
+        "caption_down": "Cần có liên kết đang hoạt động"
+      },
+      "duplex": {
+        "label": "Song công",
+        "caption": "Gửi và nhận cùng lúc",
+        "caption_down": "Cần có liên kết đang hoạt động",
+        "caption_half": "Gửi và nhận luân phiên",
+        "value_full": "Toàn song công",
+        "value_half": "Bán song công"
+      },
+      "negotiation": {
+        "label": "Thương lượng",
+        "value_auto": "Tự động",
+        "value_forced": "Cố định",
+        "value_unknown": "Không rõ",
+        "caption_auto": "Không giới hạn tốc độ",
+        "caption_limited": "Giới hạn ở {{speed}}"
+      }
+    },
+    "settings": {
+      "title": "Giới hạn tốc độ liên kết",
+      "description": "Ép cổng chạy ở tốc độ cố định thay vì tự thương lượng.",
+      "row_label": "Giới hạn tốc độ",
+      "placeholder": "Chọn tốc độ",
+      "applying": "Đang áp dụng…",
+      "group_label": "Giới hạn tốc độ",
+      "option_auto": "Tự động (tối đa)",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "consequence": "Áp dụng sẽ ngắt liên kết khoảng 8 giây trong khi PHY thương lượng lại. Bạn đang kết nối qua liên kết này.",
+      "consequence_applying": "Liên kết đang ngắt trong khi PHY thương lượng lại. Trang này sẽ tự xác nhận tốc độ mới.",
+      "consequence_unresponsive": "Modem ngừng phản hồi, nên điều khiển này bị khóa cho đến lần đọc thành công tiếp theo.",
+      "consequence_unread": "Modem chưa phản hồi, nên chưa có gì để thay đổi cho đến lần đọc đầu tiên.",
+      "consequence_absent": "Thiết bị này không có cổng Ethernet để cấu hình.",
+      "toast_success": "Đã cập nhật tốc độ liên kết",
+      "toast_error": "Không đặt được tốc độ liên kết",
+      "toast_confirm_error": "Không xác nhận được tốc độ mới. Hãy kiểm tra liên kết.",
+      "apply": "Áp dụng",
+      "discard": "Hủy bỏ"
+    },
+    "lan_config": {
+      "card_title": "Địa chỉ LAN",
+      "card_description": "Đặt địa chỉ IP LAN của router (gateway mà thiết bị của bạn dùng) và kích thước mạng nội bộ.",
+      "label_gateway": "Địa chỉ IP gateway",
+      "help_gateway": "Địa chỉ của router trên LAN. Các thiết bị dùng địa chỉ này làm gateway mặc định.",
+      "label_subnet": "Subnet mask",
+      "help_subnet": "Chọn kích thước mạng LAN theo tiền tố CIDR.",
+      "action_apply": "Áp dụng thay đổi",
+      "confirm_title": "Đổi địa chỉ LAN?",
+      "confirm_body": "LAN sẽ chuyển sang {{address}} (netmask {{netmask}}). Modem sẽ khởi động lại để áp dụng, nên kết nối hiện tại sẽ bị ngắt.",
+      "confirm_reconnect": "Modem sẽ không truy cập được khoảng 1–2 phút trong khi khởi động lại. Router hoặc thiết bị dùng DHCP sẽ tự kết nối lại; thiết bị dùng IP tĩnh phải được chuyển sang subnet mới thủ công. Trang này sẽ mở địa chỉ mới khi modem hoạt động trở lại.",
+      "confirm_action": "Áp dụng & khởi động lại",
+      "applied_title": "Địa chỉ LAN đang thay đổi",
+      "applied_body": "Modem đang khởi động lại với địa chỉ {{address}} và chưa phản hồi ở đó. Khởi động lại mất khoảng {{seconds}} giây. Cắm lại cáp LAN hoặc Ethernet nếu cần, rồi mở địa chỉ mới:",
+      "applied_body_auto": "Modem đang khởi động lại với địa chỉ {{address}} và chưa phản hồi ở đó. Router dùng DHCP sẽ tự kết nối lại trong khoảng {{seconds}} giây và nhận gateway mới. Nếu không, hãy cắm lại cáp rồi mở địa chỉ mới:",
+      "reconnecting_title": "Đang khởi động lại với địa chỉ mới…",
+      "reconnecting_auto_note": "Modem đang khởi động lại, mất khoảng 1–2 phút. Trang này sẽ mở địa chỉ mới khi modem hoạt động trở lại.",
+      "reconnecting_opening": "Đang mở địa chỉ mới…",
+      "toast_error_save": "Không áp dụng được cài đặt LAN",
+      "error_invalid_ipaddr": "Nhập địa chỉ IPv4 unicast hợp lệ (vd: 192.168.1.1).",
+      "error_invalid_host_in_subnet": "Đây là địa chỉ mạng hoặc broadcast của subnet đã chọn. Hãy chọn địa chỉ host dùng được.",
+      "error_invalid_prefix": "Chọn tiền tố subnet từ /16 đến /30.",
+      "errors": {
+        "fetch_failed": "Không tải được cài đặt LAN",
+        "save_failed": "Không lưu được cài đặt LAN",
+        "parse_failed": "Không đọc được phản hồi lưu"
+      },
+      "action_discard": "Hủy bỏ",
+      "toast_no_change": "Địa chỉ LAN đã là giá trị đó",
+      "error_invalid_private": "Dùng địa chỉ riêng: 10.x.x.x, 172.16–31.x.x hoặc 192.168.x.x.",
+      "server_errors": {
+        "no_body": "Yêu cầu tới modem bị trống. Hãy thử lại",
+        "invalid_ipaddr": "Địa chỉ IP không hợp lệ",
+        "invalid_prefix": "Tiền tố subnet nằm ngoài phạm vi",
+        "invalid_host_in_subnet": "Không thể dùng địa chỉ đó làm host trong subnet đã chọn",
+        "lan_read_failed": "Không đọc được cài đặt LAN hiện tại",
+        "lan_save_failed": "Không lưu được cài đặt LAN",
+        "invalid_private_address": "Địa chỉ phải thuộc dải riêng (10.x, 172.16–31.x hoặc 192.168.x)",
+        "update_in_progress": "Đang cập nhật phần mềm. Thử lại khi cập nhật xong",
+        "lan_busy": "Một thay đổi LAN khác đang được áp dụng"
+      }
+    }
+  },
+  "profile_override": {
+    "banner": "{{controls}} đang do hồ sơ SIM tùy chỉnh <strong>{{profile_name}}</strong> quản lý."
+  },
+  "time": {
+    "just_now": "Vừa xong",
+    "now": "Bây giờ",
+    "unknown": "Không rõ",
+    "minutes_ago_one": "{{count}} phút trước",
+    "minutes_ago_other": "{{count}} phút trước",
+    "hours_ago_one": "{{count}} giờ trước",
+    "hours_ago_other": "{{count}} giờ trước",
+    "days_ago_one": "{{count}} ngày trước",
+    "days_ago_other": "{{count}} ngày trước"
+  },
+  "language": {
+    "label": "Ngôn ngữ",
+    "switch_aria": "Đổi ngôn ngữ"
+  },
+  "login": {
+    "ssh_sync_failed": "Mật khẩu QManager đã được đặt, nhưng không cập nhật được mật khẩu SSH root. Hãy đặt trong Cài đặt hệ thống → Truy cập thiết bị.",
+    "brand_label": "QManager · Quản lý modem Quectel",
+    "welcome": "Chào mừng đến với QManager",
+    "password_label": "Mật khẩu",
+    "submit": "Đăng nhập",
+    "signing_in": "Đang đăng nhập…",
+    "locked": "Đã khóa ({{seconds}})",
+    "lockout_seconds": "{{seconds}} giây",
+    "show_password": "Hiện mật khẩu",
+    "hide_password": "Ẩn mật khẩu",
+    "session_expired": "Thiết bị không truy cập được quá lâu. Đăng nhập lại để tiếp tục.",
+    "signing_in_to": "Đang đăng nhập vào {{hostname}}",
+    "sign_in_to_label": "Đăng nhập vào",
+    "signing_in_as": "Đăng nhập với {{hostname}}",
+    "recovery": {
+      "toggle": "Không đăng nhập được?",
+      "intro": "Nếu bạn quên mật khẩu quản trị, có hai cách khôi phục:",
+      "option_reset": "Mở phiên SSH tới thiết bị và chạy {{command}} để đặt mật khẩu quản trị mới. (Cần bật truy cập SSH.)",
+      "option_backup": "Nếu bạn đã lưu tệp .qmbackup, hãy nạp lại firmware cho thiết bị rồi khôi phục từ tệp đó.",
+      "option_reset_command": "Mở phiên SSH tới thiết bị và chạy {{command}} để đặt mật khẩu quản trị mới. (Cần bật truy cập SSH.)"
+    },
+    "session_expired_title": "Phiên đã kết thúc",
+    "locked_title": "Thử quá nhiều lần",
+    "locked_body": "Đã khóa {{seconds}} để bảo vệ thiết bị.",
+    "invalid_password": "Sai mật khẩu.",
+    "attempts_left_one": "Sai mật khẩu. Còn {{count}} lần thử.",
+    "attempts_left_other": "Sai mật khẩu. Còn {{count}} lần thử.",
+    "password_to_manage": "Nhập mật khẩu để quản lý {{hostname}}.",
+    "password_to_manage_bare": "Nhập mật khẩu.",
+    "locked_countdown": "Đã khóa ({{seconds}})"
+  },
+  "overview": {
+    "title": "Tổng quan modem",
+    "tagline": "Trạng thái modem trực tiếp",
+    "login_button": "Đăng nhập",
+    "header": {
+      "carrier": "Nhà mạng",
+      "network": "Mạng",
+      "bands": "Băng thông"
+    },
+    "status": {
+      "overall": "Tổng thể",
+      "connectivity": "Internet",
+      "temperature": "Nhiệt độ"
+    },
+    "actions": {
+      "login": "Đăng nhập để quản lý",
+      "theme_toggle_aria": "Đổi giao diện",
+      "theme_light": "Sáng",
+      "theme_dark": "Tối",
+      "theme_system": "Theo hệ thống"
+    },
+    "field": {
+      "carrier": "Nhà mạng",
+      "aggregation": "Băng tần",
+      "uptime": "Thời gian hoạt động",
+      "temperature": "Nhiệt độ",
+      "temp_warn": "Đang nóng",
+      "temp_danger": "Quá nhiệt",
+      "empty": "—"
+    },
+    "aggregation": {
+      "band_with_bw": "{{band}} ({{bandwidth}} MHz)",
+      "band_only": "{{band}}",
+      "pci_label": "PCI"
+    },
+    "bands": {
+      "toggle_multi_band": "Băng tần đang dùng",
+      "toggle_single_band": "Một sóng mang",
+      "section": "Băng tần",
+      "count_one": "{{count}} đang dùng",
+      "count_other": "{{count}} đang dùng",
+      "bandwidth": "{{bandwidth}} MHz",
+      "rsrp_unit": "{{rsrp}} dBm",
+      "section_count_one": "Sóng mang",
+      "section_count_other": "Sóng mang"
+    },
+    "metrics": {
+      "rsrp": "RSRP",
+      "rsrq": "RSRQ",
+      "sinr": "SINR",
+      "rsrp_value": "{{rsrp}} dBm",
+      "rsrq_value": "{{rsrq}} dB",
+      "sinr_value": "{{sinr}} dB",
+      "toggle_aria": "Đổi chỉ số tín hiệu băng tần"
+    },
+    "signal": {
+      "dual": "{{rsrp}} dBm · {{sinr}} dB SINR",
+      "rsrp_only": "{{rsrp}} dBm",
+      "sinr_only": "{{sinr}} dB SINR",
+      "none": "—"
+    },
+    "quality": {
+      "overall_label": "Tổng thể",
+      "excellent": "Rất tốt",
+      "good": "Tốt",
+      "fair": "Khá",
+      "poor": "Kém",
+      "bad": "Rất yếu",
+      "none": "Không có tín hiệu"
+    },
+    "connection": {
+      "connected": "Đã kết nối",
+      "searching": "Đang dò mạng",
+      "limited": "Hạn chế",
+      "inactive": "Không hoạt động",
+      "error": "Lỗi",
+      "disconnected": "Mất kết nối",
+      "unknown": "Không rõ",
+      "modem_unreachable": "Ngoại tuyến"
+    },
+    "stale_indicator": "Dữ liệu có thể đã cũ",
+    "redirecting_setup": "Đang chuyển tới thiết lập lần đầu…",
+    "loading_status": "Đang tải trạng thái modem…",
+    "empty": {
+      "title": "Không có trạng thái modem",
+      "subtitle": "Modem đã không báo về trong một phút. Có thể modem đang khởi động lại, số liệu sẽ tự cập nhật lại.",
+      "fetch_error": "Không kết nối được thiết bị.",
+      "retry": "Thử lại"
+    },
+    "uptime": {
+      "days": "{{days}} ngày {{hours}} giờ",
+      "hours": "{{hours}} giờ {{minutes}} phút",
+      "minutes": "{{minutes}} phút"
+    },
+    "copyright": "© {{year}} QManager",
+    "stale": {
+      "banner": "Số liệu đã cũ <age>{{age}}</age>. Thiết bị có thể đang bận."
+    },
+    "footer": {
+      "updated_ago": "cập nhật {{age}} trước",
+      "retrying": "thử lại mỗi {{seconds}} giây",
+      "signin_works": "vẫn đăng nhập được"
+    },
+    "loading_chip": "Đang đọc",
+    "unreachable": {
+      "banner": "Modem hiện không phản hồi. Có thể đang bận hoặc đang khởi động lại."
+    }
+  },
+  "sim_swap": {
+    "title": "Phát hiện thẻ SIM mới",
+    "carrier_unknown": "Nhà mạng không rõ",
+    "no_phone_number": "Chưa có số điện thoại",
+    "description_match": "Hồ sơ <strong>{{profile_name}}</strong> khớp với SIM này.",
+    "description_no_match": "Không có hồ sơ đã lưu nào khớp với SIM này.",
+    "apply_profile": "Áp dụng hồ sơ",
+    "create_profile": "Tạo hồ sơ",
+    "dismiss_aria": "Ngừng cảnh báo cho SIM này",
+    "toast_dismissed": "Đã tắt cảnh báo cho SIM này",
+    "toast_dismissed_detail": "Các SIM khác vẫn hiện cảnh báo SIM mới. Bật lại cho SIM này trong Cài đặt hệ thống → SIM được theo dõi.",
+    "toast_dismiss_failed": "Không tắt được cảnh báo cho SIM này",
+    "dismiss_dialog": {
+      "title": "Ngừng cảnh báo cho SIM này?",
+      "description": "QManager sẽ ngừng hiện cảnh báo SIM mới chỉ cho SIM {{carrier}} này. Mọi SIM khác vẫn hiện cảnh báo, và bạn có thể bật lại SIM này bất cứ lúc nào trong Cài đặt hệ thống → SIM được theo dõi.",
+      "sim_label": "SIM này (ICCID)",
+      "confirm": "Ngừng cảnh báo",
+      "dismissing": "Đang tắt…"
+    }
+  },
+  "ttlMtu": {
+    "page": {
+      "title": "TTL & MTU",
+      "description": "Ghi lại số hop và kích thước gói mà modem đặt trên giao diện di động."
+    },
+    "header": {
+      "refresh": "Làm mới"
+    },
+    "strip": {
+      "label": "Đang áp dụng",
+      "chip_custom": "Tùy chỉnh",
+      "chip_default": "Mặc định nhà mạng",
+      "retry": "Thử lại",
+      "unavailable_title": "Không đọc được TTL hoặc MTU",
+      "unavailable_body": "Modem không phản hồi. Chưa có gì thay đổi trên modem.",
+      "idle_title": "Không có ghi đè nào",
+      "idle_body": "Modem đang dùng TTL và MTU của nhà mạng đúng như đã thương lượng. Bật một tùy chọn bên dưới để thay đổi."
+    },
+    "tiles": {
+      "shared": {
+        "caption_pending": "Vẫn đang đọc",
+        "caption_unread": "Modem không phản hồi"
+      },
+      "ttl": {
+        "label": "TTL (IPv4)",
+        "caption_active": "Ghi lại trên mọi gói",
+        "caption_idle": "Không ghi lại"
+      },
+      "hl": {
+        "label": "Hop limit (IPv6)",
+        "caption_active": "Ghi lại trên mọi gói",
+        "caption_idle": "Không ghi lại"
+      },
+      "mtu": {
+        "label": "MTU",
+        "unit": "byte",
+        "caption_active": "Mặc định nhà mạng là {{carrier}}",
+        "caption_idle": "Do nhà mạng thương lượng"
+      }
+    },
+    "banner": {
+      "title": "TTL và hop limit lấy từ hồ sơ {{profile}}",
+      "body": "Kích hoạt hồ sơ đó sẽ ghi cả hai giá trị, nên thẻ này bị khóa để tránh hai bên ghi đè nhau. Hãy đổi trong hồ sơ, hoặc kích hoạt hồ sơ không đặt TTL."
+    },
+    "cards": {
+      "ttl": {
+        "title": "TTL & Hop Limit",
+        "description": "Áp dụng cho các gói gửi ra trên giao diện di động."
+      },
+      "mtu": {
+        "title": "Đơn vị truyền tối đa (MTU)",
+        "description": "Gói lớn nhất mà giao diện di động gửi đi mà không phân mảnh."
+      }
+    },
+    "rows": {
+      "shared": {
+        "consequence_off": "Bật ghi lại để đặt giá trị.",
+        "consequence_unread": "Modem chưa phản hồi, nên chưa có gì để thay đổi."
+      },
+      "rewrite": {
+        "label": "Ghi lại số hop",
+        "consequence": "Tắt nghĩa là modem chuyển tiếp nguyên số hop mà thiết bị gửi. Một số nhà mạng đếm hop để phát hiện chia sẻ mạng (tethering)."
+      },
+      "ttl_value": {
+        "label": "Giá trị TTL",
+        "tag": "IPv4",
+        "placeholder": "64",
+        "consequence": "{{min}}–{{max}}. Thiết bị nằm sau modem một hop thường cần 64."
+      },
+      "hl_value": {
+        "label": "Giá trị hop limit",
+        "tag": "IPv6",
+        "placeholder": "64",
+        "consequence": "Giá trị tương đương cho IPv6. Đặt cả hai trừ khi bạn biết thiết bị chỉ dùng một giao thức."
+      },
+      "mtu_toggle": {
+        "label": "Ghi đè MTU",
+        "consequence": "Tắt sẽ đưa giao diện di động về mặc định 1500."
+      },
+      "mtu_value": {
+        "label": "Giá trị MTU",
+        "placeholder": "1500",
+        "consequence": "{{min}}–{{max}}. Dưới khoảng 1400 có thể làm hỏng việc dò path-MTU trên các trang chặn ICMP.",
+        "consequence_off": "Bật ghi đè để đặt giá trị."
+      }
+    },
+    "values": {
+      "on": "Bật",
+      "off": "Tắt"
+    },
+    "footer": {
+      "discard": "Hủy bỏ",
+      "unsaved": "{{count}} thay đổi chưa lưu"
+    },
+    "errors": {
+      "value_range": "TTL và hop limit phải nằm trong khoảng {{min}} đến {{max}}.",
+      "no_value": "Nhập TTL hoặc hop limit trước khi áp dụng.",
+      "mtu_range": "MTU phải nằm trong khoảng {{min}} đến {{max}}."
+    },
+    "toast_ttl_applied": "Đã áp dụng (TTL {{ttl}}, hop limit {{hl}}).",
+    "toast_ttl_cleared": "Modem đã trở về số hop của nhà mạng.",
+    "toast_ttl_error": "Không áp dụng được TTL và hop limit.",
+    "toast_mtu_applied": "Đã đặt MTU là {{mtu}}.",
+    "toast_mtu_cleared": "MTU đã trở về mặc định 1500.",
+    "toast_mtu_error": "Không áp dụng được MTU.",
+    "toast_mtu_disable_error": "Không tắt được MTU tùy chỉnh.",
+    "mtu_load_error": "Không đọc được cài đặt MTU.",
+    "ttl_load_error": "Không đọc được cài đặt TTL."
+  },
+  "ipPassthrough": {
+    "page": {
+      "title": "IP Passthrough",
+      "description": "Chuyển thẳng IP công khai của modem cho một thiết bị thay vì định tuyến cho toàn bộ LAN."
+    },
+    "header": {
+      "refresh": "Làm mới"
+    },
+    "status": {
+      "label": "Áp dụng gần nhất",
+      "mode_title": {
+        "disabled": "Chế độ router",
+        "eth": "Passthrough qua Ethernet",
+        "usb": "Passthrough qua USB"
+      },
+      "blurb": {
+        "disabled": "Modem định tuyến cho LAN",
+        "eth": "Đặt để chuyển IP WAN cho thiết bị Ethernet",
+        "usb": "Đặt để chuyển IP WAN cho thiết bị USB"
+      },
+      "no_target": "Chưa chọn thiết bị",
+      "gateway": "Gateway LAN",
+      "gateway_served": "Có phục vụ",
+      "gateway_not_served": "Không phục vụ"
+    },
+    "card": {
+      "title": "Cấu hình passthrough",
+      "description": "Áp dụng sẽ ghi mọi cài đặt và khởi động lại modem.",
+      "apply": "Áp dụng và khởi động lại",
+      "discard": "Hủy thay đổi",
+      "unsaved_one": "{{count}} thay đổi chưa lưu",
+      "unsaved_other": "{{count}} thay đổi chưa lưu",
+      "mac_label": "Địa chỉ MAC đích",
+      "mac_placeholder": "XX:XX:XX:XX:XX:XX"
+    },
+    "groups": {
+      "passthrough": "Passthrough",
+      "network": "Mạng"
+    },
+    "rows": {
+      "mode": {
+        "label": "Chế độ"
+      },
+      "target": {
+        "label": "Thiết bị đích",
+        "pick_mode": "Chọn chế độ trước."
+      },
+      "nat": {
+        "label": "NAT",
+        "hint": "Có NAT phù hợp với hầu hết mọi cấu hình.",
+        "hint_label": "Về NAT"
+      },
+      "usb": {
+        "label": "Kết nối USB"
+      },
+      "dns": {
+        "label": "DNS proxy",
+        "hint": "Khi bật, modem trả lời DNS qua DHCP cho thiết bị đích.",
+        "hint_label": "Về DNS proxy"
+      }
+    },
+    "options": {
+      "mode_disabled": "Router",
+      "mode_eth": "Ethernet",
+      "mode_usb": "USB",
+      "target_automatic": "Tự động",
+      "target_device": "Từ LAN",
+      "target_manual": "Theo MAC",
+      "nat_on": "Có NAT",
+      "nat_off": "Không NAT",
+      "dns_off": "Tắt",
+      "dns_on": "Bật"
+    },
+    "mode_note": {
+      "rest": "Ethernet hoặc USB sẽ chuyển IP WAN cho một thiết bị, và modem ngừng phản hồi ở gateway LAN. Hãy giữ Tailscale hoặc một cách truy cập khác.",
+      "to_passthrough": "Áp dụng sẽ khởi động lại modem và tab này sẽ mất kết nối. Sau đó gateway LAN ngừng phản hồi, nên hãy giữ Tailscale hoặc một cách truy cập khác.",
+      "to_router": "Áp dụng sẽ khởi động lại modem và tab này sẽ mất kết nối. Gateway LAN sẽ phản hồi lại sau khi khởi động lại."
+    },
+    "dialog": {
+      "title": "Áp dụng và khởi động lại ngay?",
+      "body": "Cài đặt sẽ được ghi và modem khởi động lại ngay. Trang này chuyển sang màn hình đếm ngược khởi động lại và đăng xuất bạn.",
+      "body_gateway": "Khi passthrough hoạt động, modem ngừng phản hồi ở địa chỉ gateway LAN. Hãy đảm bảo bạn có Tailscale, chính thiết bị passthrough, hoặc cổng serial để truy cập lại.",
+      "body_persist": "Cài đặt được giữ qua các lần khởi động lại sau.",
+      "cancel": "Hủy",
+      "confirm": "Áp dụng và khởi động lại"
+    },
+    "toast_apply_error": "Không áp dụng được cài đặt IP Passthrough",
+    "errors": {
+      "read_title": "Không đọc được cấu hình passthrough",
+      "read_body": "Chưa có gì thay đổi. Thử lại, hoặc kiểm tra modem có phản hồi không.",
+      "retry": "Thử lại",
+      "card_unread": "Modem chưa phản hồi, nên chưa có gì để thay đổi cho đến lần đọc đầu tiên.",
+      "mac_invalid": "Nhập đầy đủ địa chỉ MAC, sáu cặp chữ số hex.",
+      "no_changes": "Chưa có thay đổi nào.",
+      "device_unpicked": "Chọn một thiết bị đang kết nối trước."
+    },
+    "device": {
+      "label": "Thiết bị đích từ danh sách đang kết nối",
+      "placeholder": "Chọn thiết bị",
+      "scanning": "Đang tìm thiết bị đang kết nối…",
+      "error": "Không tải được danh sách thiết bị đang kết nối.",
+      "empty": "Không tìm thấy thiết bị nào. Kết nối thiết bị với modem rồi quét lại.",
+      "retry": "Thử lại",
+      "rescan": "Quét lại",
+      "rescan_label": "Quét lại thiết bị đang kết nối",
+      "enter_manually": "Nhập thủ công",
+      "unknown": "Thiết bị không rõ"
+    }
+  },
+  "networkEvents": {
+    "page": {
+      "title": "Sự kiện mạng",
+      "description": "Các thay đổi của sóng vô tuyến và kết nối, mới nhất trước."
+    },
+    "actions": {
+      "refresh": "Làm mới",
+      "updates_aria": "Cập nhật",
+      "live": "Trực tiếp",
+      "paused": "Tạm dừng"
+    },
+    "now": {
+      "title": "Hiện tại",
+      "description": "Những gì vẫn đang diễn ra, và những gì lặp lại.",
+      "ongoing_one": "{{count}} sự cố đang diễn ra",
+      "ongoing_other": "{{count}} sự cố đang diễn ra",
+      "oldest_started": "Sự cố lâu nhất bắt đầu {{age}}",
+      "clear": "Không có sự cố",
+      "last_problem": "Sự cố gần nhất {{age}}",
+      "no_problems": "Chưa ghi nhận sự cố",
+      "no_events": "Chưa ghi nhận sự kiện nào",
+      "repeating": "Đang lặp lại",
+      "repeat_meta_one": "{{count}} thay đổi trong {{span}}",
+      "repeat_meta_other": "{{count}} thay đổi trong {{span}}",
+      "nothing_repeating": "Không có gì lặp lại."
+    },
+    "activity": {
+      "title": "Hoạt động",
+      "window_last_one": "{{count}} sự kiện gần nhất, trong {{span}}.",
+      "window_last_other": "{{count}} sự kiện gần nhất, trong {{span}}.",
+      "window_all_one": "{{count}} sự kiện từ khi modem khởi động.",
+      "window_all_other": "Tất cả {{count}} sự kiện từ khi modem khởi động.",
+      "window_empty": "Không có sự kiện nào từ khi modem khởi động.",
+      "chart_aria": "Sự kiện theo thời gian",
+      "column_one": "{{from}} đến {{to}}: {{count}} sự kiện",
+      "column_other": "{{from}} đến {{to}}: {{count}} sự kiện",
+      "now": "Bây giờ",
+      "problems": "Sự cố",
+      "recoveries": "Phục hồi",
+      "routine": "Thông thường"
+    },
+    "span": {
+      "minutes_one": "{{count}} phút",
+      "minutes_other": "{{count}} phút",
+      "hours_one": "{{count}} giờ",
+      "hours_other": "{{count}} giờ"
+    },
+    "log": {
+      "title": "Nhật ký sự kiện",
+      "description_loading": "Đang tải sự kiện.",
+      "description_unreadable": "Không có số liệu khi không đọc được nhật ký.",
+      "description": "Sự kiện lặp lại được gộp nhóm; mở một nhóm để xem từng sự kiện.",
+      "scroll_aria": "Sự kiện"
+    },
+    "run": {
+      "title": "{{label}} thay đổi liên tục",
+      "meta_one": "{{count}} sự kiện trong {{span}}",
+      "meta_other": "{{count}} sự kiện trong {{span}}",
+      "show": "Hiện {{count}}",
+      "hide": "Ẩn"
+    },
+    "filters": {
+      "all": "Tất cả",
+      "radio": "Sóng vô tuyến",
+      "connectivity": "Kết nối",
+      "mode": "Chế độ"
+    },
+    "sort": {
+      "label": "Sắp xếp theo",
+      "newest": "Mới nhất trước",
+      "oldest": "Cũ nhất trước"
+    },
+    "row": {
+      "ongoing": "Đang diễn ra"
+    },
+    "day": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua"
+    },
+    "empty": {
+      "title": "Chưa có sự kiện",
+      "description": "Nhật ký bắt đầu lại khi modem khởi động lại. Sự kiện sẽ hiện ở đây khi xảy ra.",
+      "filtered_title": "Không có gì trong chế độ xem này",
+      "filtered_description": "Hiện không có sự kiện loại này trong nhật ký."
+    },
+    "error": {
+      "title": "Không tải được sự kiện",
+      "description": "{{message}}",
+      "retry": "Thử lại"
+    },
+    "notice": {
+      "stale": "Đang hiển thị các sự kiện đọc được gần nhất. {{message}}"
+    }
+  },
+  "alerts": {
+    "coverage": {
+      "title": "Phạm vi",
+      "description": "Những gì sẽ được gửi tới bạn, theo cài đặt đã lưu.",
+      "loading": "Đang tải phạm vi",
+      "event": {
+        "connection_lost": {
+          "name": "Mất kết nối"
+        },
+        "connection_restored": {
+          "name": "Kết nối được khôi phục"
+        },
+        "reboot": {
+          "name": "Modem đã khởi động lại"
+        }
+      },
+      "reason": {
+        "email_needs_internet": "Cần có Internet",
+        "discord_needs_internet": "Cần có Internet",
+        "not_supported": "Kênh này không gửi được sự kiện này"
+      },
+      "staleNotice": "Đang hiển thị cài đặt đọc được gần nhất từ thiết bị.",
+      "errorTitle": "Không tải được phạm vi",
+      "errorDesc": "Thiết bị không phản hồi, nên không thể hiển thị cảnh báo nào sẽ được gửi.",
+      "errorRetry": "Thử lại",
+      "emptyTitle": "Không có gì để định tuyến",
+      "emptyDesc": "Thiết bị không báo khả năng cảnh báo nào, nên không có gì để bật ở đây.",
+      "verdict": {
+        "all": "Đã phủ tất cả",
+        "outage": "Chưa phủ sự cố mất mạng",
+        "partial": "Đã phủ {{covered}}/{{total}}",
+        "none": "Sẽ không gửi gì"
+      },
+      "needsSetup": "{{channel}} cần thiết lập",
+      "notSent": "Không gửi"
+    },
+    "channels": {
+      "title": "Kênh",
+      "description": "Thiết lập cách mỗi kênh gửi tới bạn.",
+      "rail_label": "Kênh cảnh báo",
+      "loading": "Đang tải kênh cảnh báo",
+      "secret_saved": "Đã lưu",
+      "name": {
+        "sms": "SMS",
+        "email": "Email",
+        "discord": "Discord"
+      },
+      "status": {
+        "ready": "Sẵn sàng",
+        "incomplete": "Cần thiết lập",
+        "unused": "Không có sự kiện nào được định tuyến",
+        "off": "Tắt",
+        "needs_fixing": "Có lỗi chưa lưu"
+      },
+      "sms": {
+        "phone_label": "Số điện thoại nhận",
+        "phone_hint": "Ghi kèm mã quốc gia với dấu cộng ở đầu.",
+        "phone_error": "Nhập số kèm mã quốc gia, ví dụ +84901234567.",
+        "phone_missing": "Bắt buộc nhập số điện thoại nhận.",
+        "test": "Gửi SMS thử",
+        "title": "Cảnh báo SMS",
+        "sub": "Vẫn gửi được khi mất Internet."
+      },
+      "email": {
+        "sender_label": "Email gửi",
+        "sender_hint": "Tài khoản Gmail dùng để gửi cảnh báo.",
+        "sender_missing": "Bắt buộc nhập địa chỉ gửi.",
+        "recipient_label": "Email nhận",
+        "recipient_hint": "Nơi nhận cảnh báo.",
+        "recipient_missing": "Bắt buộc nhập địa chỉ nhận.",
+        "address_error": "Nhập địa chỉ email hợp lệ.",
+        "password_label": "Mật khẩu ứng dụng Gmail",
+        "password_hint": "Tạo mật khẩu ứng dụng cho thiết bị này trong Tài khoản Google.",
+        "password_link": "Mở mật khẩu ứng dụng Google",
+        "password_placeholder": "xxxx xxxx xxxx xxxx",
+        "password_keep": "Để trống để giữ mật khẩu đã lưu",
+        "password_missing": "Cần mật khẩu ứng dụng để gửi email.",
+        "password_show": "Hiện mật khẩu ứng dụng",
+        "password_hide": "Ẩn mật khẩu ứng dụng",
+        "mailer_missing": "Chưa cài trình gửi thư msmtp, nên chưa gửi được email. SMS và Discord vẫn lưu được.",
+        "mailer_install": "Cài msmtp",
+        "mailer_installing": "Đang cài",
+        "mailer_recheck": "Kiểm tra lại",
+        "test": "Gửi email thử",
+        "title": "Cảnh báo email",
+        "sub": "Gửi qua Gmail khi kết nối trở lại."
+      },
+      "discord": {
+        "id_label": "Discord ID của chủ sở hữu",
+        "id_hint": "Bật Developer Mode, nhấp chuột phải vào tên bạn, rồi chọn Copy User ID.",
+        "id_error": "Nhập Discord user ID dạng số, từ 15 đến 25 chữ số.",
+        "id_missing": "Bắt buộc nhập Discord ID của chủ sở hữu.",
+        "token_label": "Bot token",
+        "token_hint": "Tạo bot và sao chép token trong Discord Developer Portal.",
+        "token_link": "Mở Discord Developer Portal",
+        "token_placeholder": "Dán bot token",
+        "token_keep": "Để trống để giữ token đã lưu",
+        "token_missing": "Cần bot token để gửi cảnh báo Discord.",
+        "token_show": "Hiện bot token",
+        "token_hide": "Ẩn bot token",
+        "test": "Gửi tin nhắn thử",
+        "title": "Cảnh báo Discord",
+        "sub": "Tin nhắn riêng từ bot của bạn.",
+        "id_hint_label": "Cách tìm Discord ID"
+      },
+      "threshold_label": "Chờ trước khi cảnh báo",
+      "threshold_hint": "Sự cố ngắn hơn chỉ được ghi nhật ký, không gửi.",
+      "threshold_error": "Nhập số phút nguyên từ 1 đến 1440.",
+      "threshold_unit": "phút",
+      "test": {
+        "sending": "Đang gửi",
+        "succeeded": "Đã gửi {{channel}} thử",
+        "failed": "Không gửi được tin thử.",
+        "blocked_off": "Bật kênh này rồi lưu để gửi thử.",
+        "blocked_incomplete": "Hoàn tất thiết lập kênh này rồi lưu để gửi thử.",
+        "blocked_mailer": "Cài trình gửi thư msmtp để gửi email thử.",
+        "blocked_offline": "Bot Discord chưa kết nối.",
+        "blocked_dirty": "Hãy lưu thay đổi trước. Tin thử dùng cài đặt đã lưu.",
+        "blocked_busy": "Một lượt gửi thử khác vẫn đang chạy.",
+        "errors": {
+          "library_missing": "Kênh này không gửi được cảnh báo trên thiết bị này.",
+          "not_configured": "Bật kênh này và hoàn tất thiết lập trước khi gửi thử.",
+          "bot_not_running": "Bot Discord đang ngoại tuyến, nên chưa gửi tin thử.",
+          "msmtp_missing": "Chưa cài trình gửi thư, nên chưa gửi email thử.",
+          "send_failed_sms": "SMS thử chưa được gửi, hãy kiểm tra sóng, tài khoản SIM và số điện thoại.",
+          "send_failed_email": "Email thử chưa được gửi, hãy kiểm tra địa chỉ, mật khẩu ứng dụng và kết nối.",
+          "send_failed_discord": "Tin thử chưa tới được bot Discord, hãy thử lại."
+        }
+      },
+      "save": {
+        "clean": "Đã lưu mọi thay đổi",
+        "dirty": "Có thay đổi chưa lưu",
+        "blocked": "Sửa các ô được đánh dấu",
+        "blocked_in": "Sửa lỗi trong {{channels}}",
+        "discard": "Hủy bỏ",
+        "action": "Lưu cài đặt",
+        "succeeded": "Đã lưu cài đặt cảnh báo",
+        "failed": "Không lưu được cài đặt.",
+        "errors": {
+          "invalid_threshold": "Nhập thời gian chờ từ 1 đến 1440 phút.",
+          "invalid_phone": "Nhập số điện thoại 7 đến 15 chữ số, bắt đầu bằng mã quốc gia.",
+          "invalid_email": "Nhập địa chỉ email gửi và nhận hợp lệ.",
+          "missing_app_password": "Nhập mật khẩu ứng dụng email.",
+          "invalid_discord_id": "Nhập Discord user ID từ 15 đến 25 chữ số.",
+          "missing_bot_token": "Nhập Discord bot token.",
+          "invalid_secret": "Mật khẩu ứng dụng hoặc bot token chứa ký tự không được phép.",
+          "partial": "Mật khẩu hoặc token đã được lưu, nhưng cài đặt chưa cập nhật xong, hãy lưu lại.",
+          "service_restart_failed": "Đã lưu cài đặt nhưng không khởi động lại được bot Discord.",
+          "service_enable_failed": "Đã lưu cài đặt nhưng không đặt được bot Discord chạy khi khởi động."
+        }
+      },
+      "empty": {
+        "title": "Không có kênh nào",
+        "description": "Thiết bị không trả về kênh cảnh báo nào, nên chưa có gì để cấu hình."
+      },
+      "sends_for": "Gửi cho",
+      "error": {
+        "title": "Không tải được kênh",
+        "description": "Thiết bị không phản hồi. Thử lại sau giây lát.",
+        "retry": "Thử lại"
+      }
+    },
+    "activity": {
+      "title": "Hoạt động",
+      "description": "Cảnh báo đã gửi và các lần khởi động lại, mới nhất trước.",
+      "event": {
+        "reboot": "Modem đã khởi động lại"
+      },
+      "cause": {
+        "unexpected": "Bất ngờ",
+        "watchdog": "Watchdog",
+        "planned": "Có kế hoạch",
+        "scheduled": "Theo lịch"
+      },
+      "channel": {
+        "sms": "SMS",
+        "email": "Email",
+        "discord": "Discord"
+      },
+      "sr": {
+        "sent": "Đã gửi cảnh báo",
+        "failed": "Gửi cảnh báo thất bại",
+        "reboot": "Đã ghi nhận khởi động lại"
+      },
+      "day": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua",
+        "undated": "Không có thời gian ghi nhận"
+      },
+      "time": {
+        "just_now": "Vừa xong",
+        "unknown": "Không rõ",
+        "minutes_one": "{{count}} phút trước",
+        "minutes_other": "{{count}} phút trước",
+        "hours_one": "{{count}} giờ trước",
+        "hours_other": "{{count}} giờ trước",
+        "days_one": "{{count}} ngày trước",
+        "days_other": "{{count}} ngày trước"
+      },
+      "empty": {
+        "title": "Chưa có gì xảy ra",
+        "description": "Cảnh báo sẽ hiện ở đây khi một kênh gửi đi, và các lần khởi động lại được ghi nhận tự động kèm nguyên nhân."
+      },
+      "error": {
+        "title": "Không tải được hoạt động",
+        "description": "Thiết bị không phản hồi. Thử lại sau giây lát.",
+        "retry": "Thử lại"
+      },
+      "notice": {
+        "stale": "Đang hiển thị hoạt động đọc được gần nhất."
+      },
+      "transcript_label": "Lịch sử cảnh báo và khởi động lại",
+      "trigger": {
+        "test": "Cảnh báo thử",
+        "alert": "Cảnh báo"
+      }
+    },
+    "page": {
+      "title": "Cảnh báo",
+      "description": "Ai sẽ được báo khi kết nối mất, khôi phục, hoặc modem khởi động lại.",
+      "refresh": "Làm mới",
+      "unreadable": "Thiết bị không phản hồi."
+    }
+  },
+  "tailscale": {
+    "actions": {
+      "cancel": "Hủy",
+      "retry": "Thử lại"
+    },
+    "page": {
+      "title": "Tailscale VPN",
+      "description": "Mạng VPN mesh của bạn: modem này đang làm gì trên tailnet, và còn ai khác trong đó.",
+      "refresh": "Làm mới",
+      "stale": "Đang hiển thị trạng thái đọc được gần nhất. {{message}}",
+      "unreadableTitle": "Không đọc được trạng thái Tailscale",
+      "unreadable": "Thiết bị không phản hồi."
+    },
+    "status": {
+      "aria": "Trạng thái Tailscale",
+      "running": "Đã kết nối",
+      "needsLogin": "Cần đăng nhập",
+      "disconnected": "Mất kết nối",
+      "serviceStopped": "Dịch vụ đã dừng",
+      "notInstalled": "Chưa cài đặt",
+      "unknown": "Không rõ"
+    },
+    "band": {
+      "dash": "—",
+      "connectionEyebrow": "Kết nối",
+      "version": "Phiên bản {{version}}",
+      "versionUnknown": "Không rõ phiên bản",
+      "deviceEyebrow": "Thiết bị này",
+      "deviceUnknown": "Chưa có địa chỉ tailnet",
+      "tailnetEyebrow": "Tailnet",
+      "magicDnsOn": "MagicDNS đang bật",
+      "magicDnsOff": "MagicDNS đang tắt",
+      "peersEyebrow": "Thiết bị trực tuyến",
+      "exitNodes_one": "{{count}} exit node",
+      "exitNodes_other": "{{count}} exit node",
+      "noExitNode": "Không có exit node"
+    },
+    "connection": {
+      "title": "Kết nối",
+      "description": "Modem này có tham gia tailnet không, và hoạt động thế nào khi đã tham gia.",
+      "connect": "Kết nối",
+      "connecting": "Đang kết nối…",
+      "disconnect": "Ngắt kết nối",
+      "disconnecting": "Đang ngắt kết nối…",
+      "startService": "Khởi động dịch vụ",
+      "starting": "Đang khởi động…",
+      "stopService": "Dừng dịch vụ",
+      "stopping": "Đang dừng…",
+      "logout": "Đăng xuất",
+      "logoutDialogTitle": "Đăng xuất khỏi Tailscale?",
+      "logoutDialogDescription": "Thao tác này xóa modem khỏi tailnet. Bạn sẽ cần đăng nhập lại trước khi modem có thể kết nối lại.",
+      "authTitle": "Đăng nhập để hoàn tất kết nối",
+      "authDescription": "Mở trang đăng nhập và xác thực bằng tài khoản Tailscale. Modem sẽ tham gia tailnet ngay khi bạn chấp thuận.",
+      "openLogin": "Mở trang đăng nhập",
+      "authWaiting": "Đang chờ bạn đăng nhập",
+      "bootTitle": "Chạy khi khởi động",
+      "bootDescription": "Tự bật Tailscale sau khi modem khởi động lại.",
+      "sshTitle": "Tailscale SSH",
+      "sshDescription": "Cho phép thành viên tailnet mở phiên SSH tới modem này, tuân theo ACL trong trang quản trị.",
+      "sshPending": "Đang chờ, sẽ áp dụng ở lần kết nối tiếp theo của modem.",
+      "sshLocked": "Kết nối Tailscale để thay đổi mục này.",
+      "sshDialogTitle": "Bật Tailscale SSH?",
+      "sshDialogDescription": "Thành viên tailnet sẽ có thể SSH vào modem này dựa trên ACL trong trang quản trị Tailscale. Hãy xem lại chính sách đó trước, để chỉ những người bạn muốn mới truy cập được thiết bị.",
+      "sshConfirm": "Bật SSH",
+      "on": "Bật",
+      "off": "Tắt",
+      "updating": "Đang cập nhật…",
+      "updateAvailable": "Có bản cập nhật ({{version}})",
+      "updateDialogTitle": "Cập nhật Tailscale lên {{version}}?",
+      "updateDialogDescription": "Đường hầm sẽ kết nối lại trong vài giây khi phiên bản mới khởi động.",
+      "update": "Cập nhật",
+      "updateLogTitle": "Nhật ký cập nhật"
+    },
+    "device": {
+      "title": "Thiết bị này",
+      "description": "Cách modem tự định danh trên tailnet.",
+      "hostname": "Hostname",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "dnsName": "Tên DNS",
+      "tailnet": "Tailnet",
+      "magicDns": "MagicDNS",
+      "relay": "DERP relay",
+      "emptyTitle": "Chưa ở trên tailnet",
+      "emptyDescription": "Kết nối Tailscale và địa chỉ, tên DNS cùng relay của modem này sẽ hiện ở đây.",
+      "version": "Phiên bản"
+    },
+    "peers": {
+      "title": "Thiết bị trong mạng",
+      "description": "Các thiết bị khác trên tailnet, và có truy cập được không.",
+      "dash": "—",
+      "unnamed": "Thiết bị không tên",
+      "exitNode": "Exit node",
+      "colDevice": "Thiết bị",
+      "colAddress": "Địa chỉ",
+      "colOs": "Hệ điều hành",
+      "colStatus": "Trạng thái",
+      "colLastSeen": "Lần cuối thấy",
+      "online": "Trực tuyến",
+      "offline": "Ngoại tuyến",
+      "seenNow": "Bây giờ",
+      "seenUnknown": "Không rõ",
+      "seenJustNow": "Vừa xong",
+      "seenMinutes": "{{n}} phút trước",
+      "seenHours": "{{n}} giờ trước",
+      "seenDays": "{{n}} ngày trước",
+      "countOnline": "{{online}}/{{total}} trực tuyến",
+      "countExitNodes_one": "{{count}} exit node",
+      "countExitNodes_other": "{{count}} exit node",
+      "errorTitle": "Không tải được danh sách thiết bị",
+      "emptyTitle": "Không có thiết bị khác",
+      "emptyDescription": "Chưa có thiết bị nào khác tham gia tailnet này. Thêm thiết bị từ trang quản trị Tailscale và nó sẽ hiện ở đây.",
+      "offlineTitle": "Chưa kết nối",
+      "offlineDescription": "Kết nối Tailscale để xem các thiết bị khác trên tailnet."
+    },
+    "install": {
+      "title": "Tailscale",
+      "description": "Mạng VPN mesh để truy cập modem này từ bất cứ đâu, không cần mở cổng.",
+      "conditionTitle": "Chưa cài Tailscale",
+      "conditionDescription": "Cài đặt sẽ tải các gói Tailscale qua chính kết nối di động mà phiên này đang dùng, nên sẽ tốn dung lượng dữ liệu và kết nối sẽ chậm hơn trong lúc cài.",
+      "install": "Cài Tailscale",
+      "installing": "Đang cài đặt…",
+      "checkAgain": "Kiểm tra lại",
+      "done": "Đã cài Tailscale.",
+      "failed": "Cài đặt chưa hoàn tất.",
+      "manualLabel": "Hoặc cài từ shell",
+      "copyCommand": "Sao chép lệnh cài đặt",
+      "logTitle": "Nhật ký cài đặt",
+      "logWaiting": "Đang chờ đầu ra…"
+    },
+    "danger": {
+      "title": "Gỡ Tailscale",
+      "description": "Gỡ các gói Tailscale và quy tắc tường lửa khỏi modem này.",
+      "uninstall": "Gỡ cài đặt",
+      "removing": "Đang gỡ…",
+      "dialogTitle": "Gỡ cài đặt Tailscale?",
+      "dialogDescription": "Thao tác này xóa các gói Tailscale, quy tắc tường lửa và toàn bộ trạng thái kết nối khỏi modem. Khởi động lại sau đó sẽ dọn những gì còn sót.",
+      "rebootTitle": "Nên khởi động lại",
+      "rebootDescription": "Đã gỡ Tailscale. Khởi động lại sẽ dọn các quy tắc tường lửa và dữ liệu còn sót. Khởi động lại ngay?",
+      "rebootLater": "Để sau",
+      "rebootNow": "Khởi động lại ngay",
+      "rebooting": "Đang khởi động lại…"
+    },
+    "toast": {
+      "bootEnabled": "Tailscale sẽ chạy khi khởi động",
+      "bootDisabled": "Tailscale sẽ không chạy khi khởi động",
+      "bootFailed": "Không đổi được cài đặt khởi động",
+      "sshEnabled": "Tailscale SSH đã bật",
+      "sshEnableFailed": "Không bật được Tailscale SSH",
+      "sshDisabled": "Tailscale SSH đã tắt",
+      "sshDisableFailed": "Không tắt được Tailscale SSH",
+      "connected": "Đang kết nối Tailscale",
+      "connectFailed": "Không bắt đầu kết nối được",
+      "disconnected": "Đã ngắt kết nối Tailscale",
+      "disconnectFailed": "Không ngắt kết nối được",
+      "loggedOut": "Đã đăng xuất khỏi Tailscale",
+      "logoutFailed": "Không đăng xuất được",
+      "serviceStarted": "Đã khởi động dịch vụ Tailscale",
+      "serviceStartFailed": "Không khởi động được dịch vụ Tailscale",
+      "serviceStopped": "Đã dừng dịch vụ Tailscale",
+      "serviceStopFailed": "Không dừng được dịch vụ Tailscale",
+      "uninstalled": "Đã gỡ cài đặt Tailscale",
+      "uninstallFailed": "Không gỡ cài đặt được Tailscale",
+      "copied": "Đã sao chép lệnh",
+      "copyFailed": "Không sao chép được lệnh",
+      "installed": "Đã cài Tailscale",
+      "installFailed": "Cài đặt Tailscale chưa hoàn tất",
+      "updated": "Đã cập nhật Tailscale lên {{version}}",
+      "updateFailed": "Không cập nhật được Tailscale"
+    }
+  },
+  "watchdog": {
+    "page": {
+      "title": "Watchdog",
+      "description": "Giám sát kết nối Internet và thực hiện các bước phục hồi khi mất kết nối.",
+      "refresh": "Làm mới",
+      "unreadableTitle": "Không đọc được cài đặt watchdog",
+      "unreadable": "Modem không phản hồi.",
+      "retry": "Thử lại"
+    },
+    "band": {
+      "checks": "Lần kiểm tra thất bại",
+      "recoveries": "Phục hồi",
+      "reboots": "Khởi động lại",
+      "absent": "Không có số liệu",
+      "checksCaption": "Trước khi bắt đầu phục hồi",
+      "cooldownCaption": "Kiểm tra lại sau {{seconds}} giây",
+      "recoveriesLast": "Bước {{tier}}, {{ago}}",
+      "recoveriesNone": "Chưa có",
+      "rebootsCaption": "Trong giờ qua",
+      "rebootsOff": "Bước khởi động lại đang tắt",
+      "aria": "Trạng thái watchdog",
+      "cooldownStep": "Đã chạy bước {{tier}}. Kiểm tra lại sau {{seconds}} giây."
+    },
+    "phase": {
+      "off": {
+        "label": "Tắt",
+        "blurb": "Watchdog không theo dõi kết nối."
+      },
+      "unknown": {
+        "label": "Không rõ",
+        "blurb": "Modem không phản hồi, nên không biết watchdog đang làm gì."
+      },
+      "starting": {
+        "label": "Đang khởi động",
+        "blurb": "Dịch vụ vừa được bật và chưa báo về."
+      },
+      "not_running": {
+        "label": "Không báo số liệu",
+        "blurb": "Đã bật nhưng dịch vụ chưa báo về từ khi khởi động."
+      },
+      "auto_disabled": {
+        "label": "Đã tự tắt",
+        "blurb": "Đã đạt giới hạn khởi động lại. Bật lại khi kết nối ổn định."
+      },
+      "monitor": {
+        "label": "Đang giám sát",
+        "blurb": "Kết nối ổn định. Đang theo dõi sự cố."
+      },
+      "suspect": {
+        "label": "Đang kiểm tra",
+        "blurb": "Một lần kiểm tra kết nối vừa thất bại. Đang xác nhận trước khi xử lý."
+      },
+      "recovery": {
+        "label": "Đang phục hồi",
+        "blurb": "Đang lần lượt thực hiện các bước phục hồi để khôi phục kết nối."
+      },
+      "cooldown": {
+        "label": "Đang chờ",
+        "blurb": "Đang chờ bước phục hồi trước ổn định rồi mới kiểm tra lại."
+      },
+      "locked": {
+        "label": "Tạm dừng",
+        "blurb": "Đang bảo trì, nên watchdog tạm dừng."
+      },
+      "disabled": {
+        "label": "Đã tắt",
+        "blurb": "Dịch vụ đang chạy nhưng đã tắt."
+      },
+      "ssr_hold": {
+        "label": "Đang chờ",
+        "blurb": "Baseband đang tự khởi động lại. Phục hồi sẽ chờ baseband hoạt động trở lại."
+      }
+    },
+    "master": {
+      "aria": "Bật watchdog kết nối"
+    },
+    "ladder": {
+      "title": "Các bước phục hồi",
+      "description": "Thử lần lượt, nhẹ nhất trước.",
+      "aria": "Các bước phục hồi",
+      "status": {
+        "blocked": "Cần khe SIM",
+        "done": "Đã thử",
+        "running": "Đang chạy"
+      },
+      "tier1": {
+        "name": "Đăng ký lại vào mạng",
+        "consequence": "Kết nối mất vài giây."
+      },
+      "tier2": {
+        "name": "Khởi động lại sóng",
+        "consequence": "Bỏ qua khi đang khóa trạm."
+      },
+      "tier3": {
+        "name": "Chuyển sang SIM dự phòng",
+        "consequence": "Dùng SIM dự phòng cho đến khi bạn chuyển lại.",
+        "slotLabel": "Khe SIM dự phòng",
+        "slot": "Khe {{slot}}"
+      },
+      "tier4": {
+        "name": "Khởi động lại thiết bị",
+        "consequence": "Ngoại tuyến khoảng một phút.",
+        "capLabel": "Số lần khởi động lại tối đa mỗi giờ",
+        "capLead": "Tối đa",
+        "capUnit": "mỗi giờ"
+      },
+      "tierAria": "Bật bước phục hồi này: {{name}}",
+      "failback": {
+        "name": "Chuyển lại SIM chính",
+        "consequence": "Thử lại SIM chính; kết nối ngắt trong giây lát mỗi lần thử.",
+        "lead": "Mỗi",
+        "unit": "phút",
+        "intervalLabel": "Chu kỳ kiểm tra lại SIM chính"
+      }
+    },
+    "detection": {
+      "title": "Phát hiện",
+      "description": "Kết nối không phản hồi bao lâu thì tính là sự cố.",
+      "probe": {
+        "label": "Kiểm tra mỗi",
+        "short": "{{seconds}} giây"
+      },
+      "threshold": {
+        "label": "Mất kết nối sau",
+        "unit": "lần kiểm tra thất bại"
+      },
+      "cooldown": {
+        "label": "Chờ giữa các bước",
+        "unit": "giây"
+      },
+      "timeline": {
+        "eyebrow": "Nếu mất kết nối",
+        "declaredStep": "Xác định sự cố, bước {{tier}}",
+        "declaredReboot": "Xác định sự cố, bước 4, khởi động lại",
+        "step": "Bước {{tier}}",
+        "reboot": "Bước 4, khởi động lại",
+        "about": "khoảng {{time}}",
+        "seconds": "{{s}} giây",
+        "minutes": "{{m}} phút",
+        "minutesSeconds": "{{m}} phút {{s}} giây",
+        "off": "Watchdog đang tắt, nên không có gì chạy.",
+        "none": "Không có bước nào được bật, nên không có gì chạy.",
+        "invalid": "Nhập giá trị phát hiện hợp lệ để xem trước dòng thời gian.",
+        "stopped": "Bước 3 chưa có khe SIM, nên các bước dừng ở đó."
+      },
+      "ssr": {
+        "label": "Chờ baseband khởi động lại",
+        "unit": "giây",
+        "caption": "Cho modem tự khởi động lại xong trước"
+      },
+      "quality": {
+        "label": "Kích hoạt theo chất lượng",
+        "unit": "lần kiểm tra",
+        "caption": "Trên {{ms}} ms hoặc mất {{pct}}% gói",
+        "link": "Ngưỡng"
+      }
+    },
+    "activity": {
+      "title": "Hoạt động phục hồi",
+      "description": "Những gì watchdog đã làm, mới nhất trước.",
+      "tier4Reboot": "Watchdog đã khởi động lại modem",
+      "type": {
+        "recovery": "Phục hồi",
+        "failover": "Chuyển SIM dự phòng"
+      },
+      "day": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua"
+      },
+      "time": {
+        "just_now": "Vừa xong",
+        "minutes_one": "{{count}} phút trước",
+        "minutes_other": "{{count}} phút trước",
+        "hours_one": "{{count}} giờ trước",
+        "hours_other": "{{count}} giờ trước",
+        "days_one": "{{count}} ngày trước",
+        "days_other": "{{count}} ngày trước"
+      },
+      "empty": {
+        "title": "Chưa có hoạt động phục hồi",
+        "description": "Các bước phục hồi và chuyển SIM dự phòng sẽ hiện ở đây khi watchdog xử lý sự cố. Hoạt động cũ sẽ hết hạn khỏi nhật ký sự kiện của modem."
+      },
+      "error": {
+        "title": "Không tải được hoạt động phục hồi",
+        "retry": "Thử lại"
+      },
+      "allEvents": "Tất cả sự kiện"
+    },
+    "save": {
+      "discard": "Hủy bỏ",
+      "action": "Lưu",
+      "clean": "Đã lưu mọi thay đổi",
+      "dirty": "Có thay đổi chưa lưu",
+      "blockedIn": "Kiểm tra {{fields}} trước khi lưu",
+      "toastOk": "Đã lưu cài đặt watchdog",
+      "toastFail": "Không lưu được cài đặt watchdog",
+      "confirmReboot": {
+        "title": "Cho phép watchdog khởi động lại modem?",
+        "body": "Lưu cài đặt này cho phép watchdog tự khởi động lại modem khi mọi bước nhẹ hơn đều thất bại. Trang này sẽ mất kết nối khoảng một phút trong khi modem hoạt động trở lại.",
+        "cap": "Số lần khởi động lại giới hạn ở {{cap}} mỗi giờ. Khi chạm giới hạn, watchdog tự tắt cho đến khi bạn bật lại.",
+        "cancel": "Hủy",
+        "action": "Cho phép khởi động lại"
+      }
+    },
+    "errors": {
+      "failThreshold": "Phải từ 1 đến 20",
+      "probeInterval": "Phải từ 1 đến 60 giây",
+      "cooldown": "Phải từ 10 đến 300 giây",
+      "maxReboots": "Phải từ 1 đến 10",
+      "backupSim": "Chọn khe SIM dự phòng để bật chuyển dự phòng",
+      "ssrGrace": "Phải từ 10 đến 120 giây",
+      "qualityConsecutive": "Phải từ 1 đến 60",
+      "recheckInterval": "Phải từ 5 đến 1440 phút"
+    },
+    "failover": {
+      "title": "Đang chạy bằng SIM dự phòng",
+      "body": "Đã chuyển sang khe {{current}} {{since}}. SIM gốc ở khe {{original}}.",
+      "recently": "gần đây",
+      "revert": "Chuyển lại SIM gốc",
+      "reverting": "Đang chuyển lại…",
+      "confirmTitle": "Chuyển lại SIM gốc?",
+      "confirmBody": "Thao tác này chuyển lại khe SIM {{original}}. Internet sẽ ngắt trong giây lát khi modem kết nối lại.",
+      "cancel": "Hủy",
+      "confirm": "Chuyển lại SIM",
+      "requested": "Đã yêu cầu chuyển lại SIM. Watchdog sẽ xử lý ngay.",
+      "failed": "Không gửi được yêu cầu chuyển lại SIM"
+    },
+    "strip": {
+      "title": "Lần kiểm tra",
+      "noReply": "{{n}} không phản hồi",
+      "average": "trung bình {{ms}} ms",
+      "ago": "{{minutes}} phút trước",
+      "now": "Bây giờ",
+      "empty": "Không có dữ liệu kiểm tra từ modem",
+      "aria": "{{total}} lần kiểm tra, {{missed}} không phản hồi"
+    }
+  },
+  "aboutDevice": {
+    "page": {
+      "title": "Thông tin thiết bị",
+      "description": "Định danh thiết bị, địa chỉ và phần mềm đang chạy."
+    },
+    "actions": {
+      "refresh": "Làm mới",
+      "refreshing": "Đang làm mới…",
+      "retry": "Thử lại"
+    },
+    "band": {
+      "label": "Định danh",
+      "not_responding": "Không phản hồi",
+      "unreachable": {
+        "title": "Thiết bị không phản hồi",
+        "detail": "{{reason}} từ {{endpoint}}. Chưa đọc được gì bên dưới.",
+        "no_reason": "Không phản hồi"
+      }
+    },
+    "tiles": {
+      "model": {
+        "eyebrow": "Model"
+      },
+      "firmware": {
+        "eyebrow": "Firmware modem",
+        "caption": "Build ngày {{date}}"
+      },
+      "host": {
+        "eyebrow": "Hệ thống chủ",
+        "caption": "Linux {{kernel}}"
+      },
+      "internet": {
+        "eyebrow": "Internet",
+        "reachable": "Truy cập được",
+        "not_reachable": "Không truy cập được",
+        "caption_reachable": "IP công khai {{address}}",
+        "caption_unreachable": "Không có phản hồi từ {{probe}}"
+      }
+    },
+    "modem": {
+      "title": "Modem",
+      "description": "Định danh phần cứng và phiên bản 3GPP mà mỗi mạng vô tuyến hỗ trợ."
+    },
+    "addresses": {
+      "title": "Địa chỉ",
+      "description": "Vị trí của thiết bị này trên LAN và trên mạng nhà mạng.",
+      "provenance": "Địa chỉ công khai được xác định qua {{probe}}. Dấu gạch ngang dài nghĩa là thiết bị không báo địa chỉ nào."
+    },
+    "groups": {
+      "three_gpp": "Phiên bản 3GPP",
+      "local": "Nội bộ",
+      "wwan": "WWAN",
+      "public": "Công khai"
+    },
+    "rows": {
+      "manufacturer": "Nhà sản xuất",
+      "model": "Model",
+      "firmware": "Firmware",
+      "firmware_revision": "Bản sửa đổi firmware",
+      "build_date": "Ngày build",
+      "imei": "IMEI",
+      "lte": "LTE",
+      "nr5g": "NR5G",
+      "device_ip": "IP thiết bị",
+      "lan_gateway": "Gateway LAN",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6"
+    },
+    "empty": {
+      "title": "Chưa đọc được gì",
+      "modem": "Các số liệu này lấy từ thiết bị, và thiết bị không phản hồi.",
+      "addresses": "Địa chỉ được đọc từ cùng yêu cầu đó."
+    },
+    "credits": {
+      "title": "Ghi công",
+      "description": "QManager dựa vào một số dịch vụ bên ngoài và dữ liệu mở. Cảm ơn tất cả những người đứng sau chúng.",
+      "roles": {
+        "apn": "Mẫu APN nhà mạng",
+        "logos": "Logo thương hiệu cho người gửi SMS và trang được giám sát",
+        "icons": "Biểu tượng trang web khi không tìm thấy logo"
+      }
+    },
+    "qmanager": {
+      "title": "Về QManager",
+      "note": "Chào bạn! Mình là Rus. QManager là phiên bản mới nhất của QuecManager, được xây dựng theo cách mới và ổn định hơn so với bản trước, đồng thời vẫn kết hợp cài đặt kỹ thuật cho người dùng nâng cao với giao diện đơn giản cho người mới bắt đầu. Đặc biệt cảm ơn iamromulan, clndwhr và Wutang Clan!",
+      "copyright": "© {{year}} QManager. Bảo lưu mọi quyền.",
+      "repository": "Kho GitHub",
+      "release_notes": "Ghi chú phát hành",
+      "support": "Ủng hộ dự án",
+      "credits": "Ghi công"
+    }
+  },
+  "support": {
+    "page": {
+      "title": "Hỗ trợ",
+      "description": "Báo lỗi, hỏi cộng đồng, hoặc liên hệ người duy trì."
+    },
+    "help": {
+      "title": "Nhận trợ giúp",
+      "description": "Bốn cách, theo thứ tự mà phần lớn mọi người cần.",
+      "bug": {
+        "label": "Báo lỗi"
+      },
+      "community": {
+        "label": "Hỏi cộng đồng"
+      },
+      "email": {
+        "label": "Email cho người duy trì"
+      },
+      "release_notes": {
+        "label": "Đọc ghi chú phát hành",
+        "dest": "Mới nhất: {{version}}"
+      }
+    },
+    "community": {
+      "title": "Cộng đồng",
+      "description": "Cellular Modem Talk/Development trên Discord.",
+      "body": "Người dùng chia sẻ cấu hình, cùng xử lý sự cố và trao đổi về mạng di động. Quét mã hoặc mở lời mời.",
+      "open_invite": "Mở lời mời",
+      "qr_alt": "Mã QR mời tham gia máy chủ Discord QManager"
+    },
+    "opens_new_tab": "mở trong tab mới"
+  },
+  "donate": {
+    "dialog": {
+      "title": "Ủng hộ dự án",
+      "description": "Giúp QManager tiếp tục phát triển.",
+      "body": "Chào bạn, mình là Rus. QManager là dự án phụ mình duy trì miễn phí. Nếu bạn thấy nó hữu ích, một chút ủng hộ nhỏ cũng có ý nghĩa lớn và giúp mình tiếp tục.",
+      "thanks": "Cảm ơn bạn rất nhiều. 💙"
+    },
+    "links": {
+      "group_label": "Kênh ủng hộ",
+      "opens_new_tab": "mở trong tab mới"
+    },
+    "band": {
+      "title": "Ủng hộ dự án",
+      "body": "QManager là dự án phụ, được duy trì miễn phí. Nếu nó hữu ích với bạn, một chút ủng hộ sẽ giúp dự án tiếp tục, và dù sao cũng sẽ không có tính năng trả phí nào."
+    }
+  },
+  "not_found": {
+    "scene_label": "Đống lửa trại lách tách dưới bầu trời đầy sao",
+    "title": "Có vẻ bạn đã lạc đường rồi, nhà thám hiểm",
+    "description": "Quay lại cải thiện kết nối của bạn chứ?",
+    "home": "Về Bảng điều khiển",
+    "footer": "QManager"
+  },
+  "account": {
+    "photo_invalid": "Vui lòng chọn tệp ảnh.",
+    "photo_updated": "Đã cập nhật ảnh hồ sơ.",
+    "change_photo_aria": "Đổi ảnh hồ sơ",
+    "name_placeholder": "Tên của bạn",
+    "name_saved": "Đã cập nhật tên hiển thị.",
+    "name_save_failed": "Không cập nhật được tên hiển thị.",
+    "reconnect_description": "Modem sẽ ngắt kết nối vài giây, sau đó tự kết nối lại.",
+    "disconnecting_description": "Đang ngắt modem khỏi mạng…",
+    "reconnecting_description": "Đang kết nối lại modem vào mạng…",
+    "reconnect_action": "Kết nối lại",
+    "reconnect_complete": "Đã kết nối lại modem.",
+    "reconnect_failed": "Không kết nối lại được modem.",
+    "reboot_description": "Thiết bị sẽ khởi động lại và mọi kết nối mạng sẽ mất cho đến khi thiết bị hoạt động trở lại.",
+    "reboot_sent": "Đã gửi lệnh khởi động lại. Bạn sẽ sớm bị đăng xuất…",
+    "reboot_now": "Khởi động lại ngay"
+  },
+  "pending_reboot": {
+    "title": "Khởi động lại để hoàn tất thay đổi",
+    "reboot_now": "Khởi động lại ngay",
+    "rebooting": "Đang khởi động lại…",
+    "dismiss": "Bỏ qua",
+    "reboot_failed_toast": "Không khởi động lại được. Hãy thử lại.",
+    "description": {
+      "config_restore": "Thay đổi IMEI hoặc hồ sơ SIM từ bản khôi phục sẽ có hiệu lực sau lần khởi động lại tiếp theo.",
+      "imei": "IMEI mới có hiệu lực sau lần khởi động lại tiếp theo.",
+      "mbn": "Hồ sơ nhà mạng mới có hiệu lực sau khi modem khởi động lại.",
+      "default": "Một số thay đổi có hiệu lực sau lần khởi động lại tiếp theo."
+    },
+    "dismiss_dialog": {
+      "title": "Bỏ qua lời nhắc khởi động lại?",
+      "description": "Các thay đổi cần khởi động lại sẽ không có hiệu lực cho đến khi modem khởi động lại. Chỉ bỏ qua nếu bạn đã khởi động lại.",
+      "keep": "Giữ lời nhắc",
+      "confirm": "Bỏ qua"
+    }
+  },
+  "reboot_page": {
+    "phase": {
+      "shutting_down": "Đang tắt…",
+      "restarting": "Đang khởi động lại dịch vụ…",
+      "almost_ready": "Sắp xong…",
+      "overtime": "Lâu hơn bình thường…"
+    },
+    "subtitle": {
+      "normal": "Thiết bị sẽ sớm hoạt động trở lại",
+      "overtime": "Thiết bị vẫn đang khởi động lại"
+    },
+    "timer_aria_one": "Còn {{count}} giây",
+    "timer_aria_other": "Còn {{count}} giây",
+    "timer_overtime_aria": "Đang kết nối lại, lâu hơn bình thường",
+    "seconds_unit": "giây",
+    "escape": "Thiết bị có thể cần xử lý thủ công. Đi tới đăng nhập"
+  },
+  "change_password": {
+    "title": "Đổi mật khẩu",
+    "description": "Bạn sẽ bị đăng xuất sau khi đổi mật khẩu.",
+    "current_label": "Mật khẩu hiện tại",
+    "new_label": "Mật khẩu mới",
+    "confirm_label": "Xác nhận mật khẩu mới",
+    "match": "Mật khẩu khớp",
+    "mismatch": "Mật khẩu không khớp",
+    "error_weak": "Mật khẩu mới phải có ít nhất 6 ký tự.",
+    "error_weak_strong": "Mật khẩu mới phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường và số.",
+    "error_mismatch": "Mật khẩu mới không khớp.",
+    "failed_toast": "Không đổi được mật khẩu. Hãy thử lại.",
+    "cancel": "Hủy",
+    "submit": "Đổi mật khẩu",
+    "submitting": "Đang đổi…"
+  },
+  "password_rules": {
+    "requirements_label": "Yêu cầu mật khẩu",
+    "rule": {
+      "length": "Ít nhất 6 ký tự",
+      "uppercase": "Chữ hoa",
+      "lowercase": "Chữ thường",
+      "number": "Chữ số"
+    },
+    "met": "(đạt)",
+    "not_met": "(chưa đạt)",
+    "strong_label": "Dùng mật khẩu mạnh",
+    "strong_hint_label": "Về mật khẩu mạnh",
+    "strong_hint": "Yêu cầu có chữ hoa, chữ thường và chữ số."
+  }
+}

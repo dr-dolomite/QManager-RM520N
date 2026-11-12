@@ -1,0 +1,2673 @@
+{
+  "antenna_alignment": {
+    "page": {
+      "title": "Căn chỉnh ăng-ten",
+      "description": "Hướng hoặc dời ăng-ten trong khi theo dõi điểm trực tiếp, sau đó ghi lại tối đa ba vị trí để so sánh."
+    },
+    "mode": {
+      "lte": "4G LTE",
+      "nr": "5G NR",
+      "lte_short": "LTE",
+      "nr_short": "NR"
+    },
+    "aim": {
+      "title": "Căn chỉnh trực tiếp",
+      "description": "Chuỗi thu chính, được chấm điểm cùng thang với các vị trí bạn đã ghi.",
+      "score_label": "Điểm căn chỉnh",
+      "score_sr": "Điểm căn chỉnh {{score}} trên 100",
+      "no_reading": "Chưa có điểm, chuỗi thu chính không gửi số liệu",
+      "peak": "Cao nhất",
+      "updated": "Cập nhật",
+      "delta_up": "đã cải thiện so với lần đọc trước",
+      "delta_down": "đã giảm so với lần đọc trước",
+      "partial": "Chỉ {{leg}}",
+      "not_reported": "Không có số liệu",
+      "primary_chain": "Main / PRX là chuỗi dùng để tính điểm"
+    },
+    "quality": {
+      "excellent": "Rất tốt",
+      "good": "Tốt",
+      "fair": "Khá",
+      "poor": "Kém",
+      "bad": "Rất yếu",
+      "none": "Không có số liệu"
+    },
+    "recorder": {
+      "title": "Vị trí",
+      "description_directional": "Ghi tối đa ba góc và so sánh chúng. Mỗi lần ghi lấy trung bình {{samples}} lần đọc từ modem, mất vài giây.",
+      "description_omni": "Ghi tối đa ba vị trí đặt và so sánh chúng. Mỗi lần ghi lấy trung bình {{samples}} lần đọc từ modem, mất vài giây.",
+      "type_directional": "Định hướng",
+      "type_omni": "Đa hướng",
+      "reset": "Đặt lại",
+      "position": "Vị trí {{letter}}",
+      "placeholder_angle": "Góc",
+      "placeholder_position": "Vị trí đặt",
+      "record_angle": "Ghi góc",
+      "record_position": "Ghi vị trí",
+      "not_recorded": "Chưa ghi",
+      "recorded_at": "Đã ghi {{time}}",
+      "sample_progress": "Lần đọc {{current}}/{{total}}",
+      "waiting": "Đang chờ modem",
+      "cancel": "Hủy",
+      "clear": "Xóa {{label}}",
+      "label_sr": "Nhãn cho ô {{index}}",
+      "slot_sr": "Ô {{index}}: {{label}}, {{status}}",
+      "status": {
+        "recording": "đang ghi",
+        "recorded": "đã ghi",
+        "recorded_best": "đã ghi, kết quả tốt nhất",
+        "empty": "trống"
+      },
+      "best": "Tốt nhất",
+      "best_margin": "Tốt nhất, hơn {{margin}}",
+      "not_comparable": "Không có số liệu để xếp hạng, nên không thể so sánh vị trí này.",
+      "partial": "Chỉ chấm điểm trên một chỉ số.",
+      "confirm_cancel": "Giữ lại",
+      "reset_confirm_title": "Xóa tất cả vị trí đã ghi?",
+      "reset_confirm_body": "Mọi vị trí bạn đã ghi sẽ bị xóa. Không thể hoàn tác.",
+      "reset_confirm_action": "Xóa tất cả",
+      "clear_confirm_title": "Xóa bản ghi này?",
+      "clear_confirm_body": "Số liệu đã ghi cho {{label}} sẽ bị xóa. Không thể hoàn tác.",
+      "clear_confirm_action": "Xóa",
+      "all_recorded_hint": "Đã ghi đủ cả ba vị trí. Xóa một vị trí để ghi lại.",
+      "recording_hint": "Hãy hoàn tất hoặc hủy lần ghi đang chạy trước.",
+      "record_slot": "Ghi {{label}}",
+      "cancel_slot": "Hủy ghi {{label}}"
+    },
+    "recommendation": {
+      "title": "Tốt nhất hiện tại: {{label}}",
+      "body_directional": "Góc này cho tín hiệu tổng hợp mạnh nhất trong các vị trí bạn đã ghi.",
+      "body_omni": "Vị trí đặt này cho tín hiệu tổng hợp mạnh nhất trong các vị trí bạn đã ghi.",
+      "mixed_radios": "Các bản ghi thuộc cả hai mạng vô tuyến, nên phép so sánh kém chính xác hơn bình thường.",
+      "remaining": "Ghi các ô còn lại để so sánh đầy đủ hơn."
+    },
+    "ports": {
+      "title": "Chuỗi thu",
+      "description": "Những ăng-ten đang góp vào điểm số.",
+      "reporting": "{{live}}/{{total}} đang báo số liệu",
+      "not_reporting": "Không báo số liệu",
+      "twin_hint": "Xem chi tiết từng chỉ số của mọi chuỗi thu tại",
+      "twin_link": "Thống kê ăng-ten"
+    },
+    "states": {
+      "loading_sr": "Đang tải căn chỉnh ăng-ten",
+      "retry": "Thử lại",
+      "error_banner": "Không kết nối được modem. Số liệu này có thể đã cũ.",
+      "stale_banner": "Dữ liệu tín hiệu đã cũ. Modem có thể không phản hồi.",
+      "unreachable": {
+        "title": "Không kết nối được modem",
+        "description": "Không tải được số liệu ăng-ten. Hãy kiểm tra dịch vụ poller đang chạy rồi thử lại."
+      },
+      "no_readings": {
+        "title": "Không có số liệu ăng-ten",
+        "description": "Modem đã phản hồi nhưng không chuỗi thu nào báo số đo. Modem có thể đang dò mạng, hoặc một ăng-ten bị ngắt kết nối. Số liệu sẽ tự hiện lại khi có chuỗi thu báo về."
+      }
+    }
+  },
+  "antenna_statistics": {
+    "page": {
+      "title": "Thống kê ăng-ten",
+      "description": "Tín hiệu theo từng ăng-ten cho mọi chuỗi thu. So sánh các cổng Main, Diversity và MIMO để phát hiện ăng-ten yếu hoặc không hoạt động."
+    },
+    "context": {
+      "mimo": {
+        "label": "MIMO đang hoạt động",
+        "caption": "Số lớp modem báo về",
+        "unavailable": "Không có số liệu"
+      },
+      "mode": {
+        "label": "Chế độ phục vụ",
+        "caption": "Mạng vô tuyến đang báo số liệu",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "Không có dịch vụ"
+      },
+      "chains": {
+        "label": "Chuỗi thu có số liệu",
+        "caption": "Cổng ăng-ten có số đo",
+        "value": "{{live}}/{{total}}"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "Tín hiệu LTE",
+        "description": "Chỉ số theo từng ăng-ten cho 4G LTE",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "Tín hiệu NR5G",
+        "description": "Chỉ số theo từng ăng-ten cho 5G NR",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "Không có tín hiệu LTE",
+        "description": "Chỉ số theo từng ăng-ten sẽ hiện khi 4G LTE hoạt động."
+      },
+      "nr": {
+        "title": "Không có tín hiệu 5G NR",
+        "description": "Chỉ số theo từng ăng-ten sẽ hiện khi 5G NR hoạt động."
+      }
+    },
+    "port": {
+      "not_reporting": "Không báo số liệu",
+      "not_reported": "Không có số liệu"
+    },
+    "quality": {
+      "excellent": "Rất tốt",
+      "good": "Tốt",
+      "fair": "Khá",
+      "poor": "Kém",
+      "bad": "Rất yếu",
+      "none": "Không có số liệu"
+    },
+    "states": {
+      "loading_sr": "Đang tải thống kê ăng-ten",
+      "retry": "Thử lại",
+      "error_banner": "Không kết nối được modem. Số liệu này có thể đã cũ.",
+      "stale_banner": "Dữ liệu tín hiệu đã cũ. Modem có thể không phản hồi.",
+      "unreachable": {
+        "title": "Không kết nối được modem",
+        "description": "Không tải được số liệu ăng-ten. Hãy kiểm tra dịch vụ poller đang chạy rồi thử lại."
+      }
+    }
+  },
+  "band_locking": {
+    "controls_label": "Khóa băng tần",
+    "page": {
+      "title": "Khóa băng tần",
+      "description": "Giới hạn các băng tần LTE và 5G mà modem được phép sử dụng."
+    },
+    "gate": {
+      "scenario_title": "Băng tần đang do kịch bản {{scenario}} quản lý.",
+      "scenario_note": "Chuyển sang kịch bản Cân bằng để tự điều khiển.",
+      "profile_note": "Kịch bản hiện tại được lên lịch thay đổi lúc {{time}}."
+    },
+    "card": {
+      "status_scenario": "Do kịch bản điều khiển",
+      "status_unrestricted": "Tất cả băng tần",
+      "status_locked": "Đã khóa {{count}}/{{total}}",
+      "status_unavailable": "Không đọc được",
+      "unavailable_note": "Không đọc được cấu hình khóa băng tần hiện tại nên các điều khiển này bị vô hiệu. Áp dụng lựa chọn lúc này sẽ ghi đè một cấu hình khóa mà thẻ này không hiển thị được. Hãy bấm Làm mới ở trên khi modem phản hồi.",
+      "pending_one": "{{count}} thay đổi chờ áp dụng",
+      "pending_other": "{{count}} thay đổi chờ áp dụng",
+      "legend_selected": "Đã chọn",
+      "legend_live": "Đang khóa",
+      "empty_title": "Không có gì để khóa",
+      "empty_body": "Modem không báo băng tần nào được hỗ trợ trong nhóm này."
+    },
+    "actions": {
+      "lock_selected": "Khóa các băng tần đã chọn",
+      "restore_all": "Khôi phục tất cả băng tần hỗ trợ",
+      "select_all": "Chọn tất cả",
+      "select_none": "Bỏ chọn",
+      "refresh": "Làm mới"
+    },
+    "toast": {
+      "locked": "Đã khóa băng tần {{category}}",
+      "unlocked": "Đã khôi phục băng tần {{category}}",
+      "lock_error": "Không áp dụng được khóa băng tần {{category}}",
+      "unlock_error": "Không khôi phục được băng tần {{category}}",
+      "refresh_error": "Không làm mới được cấu hình băng tần",
+      "none_selected": "Chọn ít nhất một băng tần để khóa",
+      "locked_success": "Đã khóa băng tần {{category_label}} thành công",
+      "unlocked_success": "Đã mở khóa băng tần {{category_label}}"
+    },
+    "a11y": {
+      "applying": "Đang áp dụng khóa băng tần {{category}}…",
+      "refreshing": "Đang làm mới cấu hình băng tần…",
+      "refresh_blocked_watcher": "Tạm dừng làm mới trong khi bộ giám sát dự phòng kiểm tra sóng.",
+      "band_selected": "{{band}}, đã chọn",
+      "band_unselected": "{{band}}, chưa chọn",
+      "band_live": "{{band}}, đã chọn và đang hoạt động trên modem"
+    },
+    "settings_card": {
+      "band_failover_label": "Dự phòng băng tần",
+      "band_failover_tooltip": "Nếu các băng tần đã khóa không có tín hiệu trong khoảng 30 giây, modem sẽ quay lại dùng tất cả băng tần hỗ trợ.",
+      "band_failover_info_aria": "Thông tin dự phòng băng tần",
+      "status": {
+        "disabled": "Đã tắt",
+        "ready": "Sẵn sàng",
+        "fallback": "Đang dùng dự phòng",
+        "monitoring": "Đang kiểm tra"
+      },
+      "toast": {
+        "failover_enabled": "Đã bật dự phòng băng tần",
+        "failover_disabled": "Đã tắt dự phòng băng tần"
+      }
+    },
+    "cards": {
+      "lte": {
+        "title": "Khóa băng tần LTE",
+        "description": "Chọn các băng tần LTE cần khóa cho thiết bị."
+      },
+      "nsa_nr5g": {
+        "title": "Khóa băng tần NSA",
+        "description": "Chọn các băng tần 5G NSA cần khóa (5G qua neo LTE)."
+      },
+      "sa_nr5g": {
+        "title": "Khóa băng tần SA",
+        "description": "Chọn các băng tần 5G SA cần khóa (5G độc lập)."
+      }
+    },
+    "card_badges": {
+      "bands_locked": "{{locked}} / {{total}} băng tần",
+      "scenario": "Do kịch bản điều khiển",
+      "unrestricted": "Tất cả băng tần",
+      "unavailable": "Không đọc được",
+      "unknown": "Không có số liệu",
+      "profile": "Do hồ sơ điều khiển"
+    },
+    "card_empty": "Modem không báo băng tần hỗ trợ nào cho nhóm này.",
+    "card_buttons": {
+      "lock_selected": "Khóa các băng tần đã chọn",
+      "select_all": "Chọn tất cả",
+      "deselect_all": "Bỏ chọn tất cả",
+      "unlock_all": "Mở khóa tất cả"
+    },
+    "card_live_region": "Đang áp dụng khóa băng tần {{category_label}}…",
+    "card_category_label": {
+      "lte": "LTE",
+      "nsa_nr5g": "NSA",
+      "sa_nr5g": "SA"
+    },
+    "scenario_gate_title": "Kịch bản {{scenario}} đang quản lý băng tần",
+    "scenario_gate_action": "Mở kịch bản",
+    "scenario_gate_note": "Chuyển sang kịch bản Cân bằng để khóa băng tần thủ công.",
+    "read_error_title": "Không đọc được cấu hình băng tần",
+    "refresh_blocked_watcher": "Chờ kiểm tra dự phòng hoàn tất",
+    "refreshing": "Đang đọc cấu hình băng tần…",
+    "legend": {
+      "selected": "Đã chọn",
+      "live": "Đang khóa"
+    },
+    "errors": {
+      "read_failed": "Modem không trả về cấu hình băng tần. Thử lại sau giây lát.",
+      "no_bands": "Chọn ít nhất một băng tần để khóa.",
+      "no_supported": "Modem chưa báo các băng tần được hỗ trợ.",
+      "lock_failed": "Không áp dụng được khóa băng tần.",
+      "failover_failed": "Không cập nhật được dự phòng băng tần."
+    },
+    "status": {
+      "title": "Trạng thái băng tần",
+      "on_air": "Đang phát sóng",
+      "on_air_summary_one": "{{count}} sóng mang ({{mhz}} MHz)",
+      "on_air_summary_other": "{{count}} sóng mang ({{mhz}} MHz)",
+      "on_air_empty_title": "Không có sóng mang nào",
+      "on_air_empty_body": "Modem hiện không kết nối với cell nào.",
+      "tile_aria": "Sóng mang {{tech}}, {{role}}",
+      "tech_lte": "LTE",
+      "tech_nr": "5G NR",
+      "mhz": "{{value}} MHz",
+      "earfcn": "EARFCN {{value}}",
+      "pci": "PCI {{value}}",
+      "dbm": "{{value}} dBm",
+      "rsrp": "RSRP",
+      "no_value": "–",
+      "quality": {
+        "excellent": "Tín hiệu rất tốt",
+        "good": "Tín hiệu tốt",
+        "fair": "Tín hiệu khá",
+        "poor": "Tín hiệu kém",
+        "none": "Không có số liệu"
+      },
+      "posture": "Tình trạng khóa",
+      "subtitle_locked": "Đã khóa {{count}}/{{total}} nhóm",
+      "subtitle_unrestricted": "Mọi nhóm đều dùng tất cả băng tần",
+      "subtitle_unknown": "Modem chưa báo băng tần",
+      "subtitle_unavailable": "Không đọc được cấu hình băng tần",
+      "ratio": "{{count}}/{{total}} băng tần",
+      "ratio_unavailable": "Không đọc được",
+      "rail_locked": "Đã khóa",
+      "rail_unrestricted": "Tất cả băng tần",
+      "rail_unknown": "Không có số liệu",
+      "rail_unavailable": "Không rõ",
+      "rail_aria": "{{category}}: {{ratio}} ({{status}})"
+    }
+  },
+  "cell_scanner": {
+    "page": {
+      "title": "Quét cell",
+      "description": "Quét mọi băng tần được hỗ trợ để tìm các trạm trong vùng phủ. Cho kết quả tốt nhất khi tháo SIM."
+    },
+    "run": {
+      "title": "Quét toàn mạng",
+      "link_neighbour_short": "Lân cận",
+      "progress_label": "Tiến độ quét ước tính",
+      "ledger": {
+        "col_carrier": "Nhà mạng",
+        "col_cells": "Cell",
+        "col_bands": "Băng tần",
+        "col_best": "Tín hiệu tốt nhất",
+        "your_sim": "SIM của bạn",
+        "cells_unit_one": "cell",
+        "cells_unit_other": "cell",
+        "dbm_unit": "dBm"
+      },
+      "description": "Một lượt quét qua mọi băng tần modem hỗ trợ.",
+      "start": "Quét tất cả băng tần",
+      "rerun": "Quét lại",
+      "scanning_action": "Đang quét…",
+      "download": "Tải CSV",
+      "link_neighbour": "Cell lân cận",
+      "link_blocked": "Có sẵn khi quét xong.",
+      "summary_empty": "Lượt quét kết thúc mà không tìm thấy cell nào, nên không có gì để phân tích.",
+      "summary_provider_unknown": "Nhà mạng không tên",
+      "summary_others_one": "Thêm 1 nhà mạng",
+      "summary_others_other": "Thêm {{count}} nhà mạng",
+      "verdict_all_good_one": "Cell duy nhất có báo mức tín hiệu đạt mức tốt. Quét đo mà không có sự hỗ trợ của cell phục vụ, nên mức này thực sự là ứng viên mạnh.",
+      "verdict_all_good_other": "Cả {{count}} cell có báo mức tín hiệu đều đạt mức tốt. Quét đo mà không có sự hỗ trợ của cell phục vụ, nên các mức này thực sự là ứng viên mạnh.",
+      "verdict_all_fair_one": "Cell duy nhất có báo mức tín hiệu ở mức khá. Quét đo mà không có sự hỗ trợ của cell phục vụ, và khi quét trong nhà thường thấp hơn 10 đến 15 dB so với số liệu trên bảng điều khiển.",
+      "verdict_all_fair_other": "Cả {{count}} cell có báo mức tín hiệu đều ở mức khá. Quét đo mà không có sự hỗ trợ của cell phục vụ, và khi quét trong nhà thường thấp hơn 10 đến 15 dB so với số liệu trên bảng điều khiển.",
+      "verdict_all_poor_one": "Cell duy nhất có báo mức tín hiệu đạt mức yếu. Quét đo mà không có sự hỗ trợ của cell phục vụ, và khi quét trong nhà thường thấp hơn 10 đến 15 dB so với số liệu trên bảng điều khiển, nên điều này không có nghĩa kết nối của bạn đang yếu.",
+      "verdict_all_poor_other": "Cả {{count}} cell có báo mức tín hiệu đều yếu, nên toàn bộ bảng nằm ở cuối thang. Quét đo mà không có sự hỗ trợ của cell phục vụ, và khi quét trong nhà thường thấp hơn 10 đến 15 dB so với số liệu trên bảng điều khiển, nên điều này không có nghĩa kết nối của bạn đang yếu.",
+      "verdict_no_readings": "Modem liệt kê các cell này nhưng không báo mức tín hiệu cho cell nào, nên không thể đánh giá.",
+      "idle_title": "Chưa quét",
+      "idle_body": "Chưa quét gì từ khi tải trang này. Một lượt quét sẽ liệt kê mọi trạm trong vùng phủ, trên mọi băng tần.",
+      "scanning_title": "Đang dò mọi băng tần",
+      "scanning_body": "Giữ tab này mở, kết quả sẽ hiện ở đây khi modem quét xong.",
+      "complete_title": "Đã quét xong",
+      "failed_title": "Quét thất bại",
+      "failed_body": "Modem có thể đang bận hoặc không kết nối được. Kiểm tra kết nối rồi quét lại."
+    },
+    "results": {
+      "title": "Cell tìm thấy",
+      "description": "Sắp xếp theo tín hiệu, lọc theo nhà mạng, khóa vào bất kỳ dòng nào.",
+      "filter_placeholder": "Lọc theo nhà mạng",
+      "columns": "Cột",
+      "previous": "Trước",
+      "next": "Tiếp",
+      "count_one": "{{count}} cell",
+      "count_other": "{{count}} cell",
+      "filtered_one": "{{count}}/{{total}} cell",
+      "filtered_other": "{{count}}/{{total}} cell",
+      "no_match_title": "Không có cell nào khớp bộ lọc",
+      "no_match_body": "Xóa bộ lọc nhà mạng để xem mọi cell của lượt quét này.",
+      "empty_title": "Chưa có cell",
+      "empty_body": "Chạy một lượt quét để liệt kê mọi trạm trong vùng phủ, kèm băng tần, kênh và tín hiệu.",
+      "error_title": "Quét thất bại",
+      "error_body": "Modem có thể đang bận hoặc không kết nối được. Kiểm tra kết nối rồi quét lại.",
+      "error_retry": "Quét lại",
+      "note_lock": "Khóa một dòng sẽ khóa modem vào cell đó ngay lập tức, và giữ nguyên cho đến khi bạn gỡ khóa ở mục Khóa trạm.",
+      "tally_rows_one": "1 dòng",
+      "tally_rows_other": "{{count}} dòng",
+      "tally_good_one": "1 tốt",
+      "tally_good_other": "{{count}} tốt",
+      "tally_fair_one": "1 khá",
+      "tally_fair_other": "{{count}} khá",
+      "tally_poor_one": "1 yếu",
+      "tally_poor_other": "{{count}} yếu",
+      "tally_none_one": "1 chưa đánh giá",
+      "tally_none_other": "{{count}} chưa đánh giá"
+    },
+    "columns": {
+      "network": "Mạng",
+      "provider": "Nhà mạng",
+      "band": "Băng tần",
+      "earfcn": "EARFCN",
+      "pci": "PCI",
+      "cell_id": "Cell ID",
+      "tac": "TAC",
+      "bandwidth": "Băng thông",
+      "signal": "Tín hiệu"
+    },
+    "cells": {
+      "bandwidth": "{{value}} MHz",
+      "bandwidth_prb": "{{value}} PRB",
+      "signal": "{{value}} dBm"
+    },
+    "signal": {
+      "good": "Tốt",
+      "fair": "Khá",
+      "poor": "Yếu",
+      "none": "Không có dữ liệu"
+    },
+    "actions": {
+      "lock_cell": "Khóa vào cell này",
+      "lock_other_network": "Không phải mạng của SIM"
+    },
+    "a11y": {
+      "network_codes": "Mã mạng",
+      "row_menu": "Thao tác với cell"
+    },
+    "lock": {
+      "title": "Khóa vào cell {{pci}}?",
+      "description": "Modem sẽ chỉ bám vào cell này và không chuyển sang cell mạnh hơn cho đến khi bạn gỡ khóa.",
+      "target": "{{network}} · PCI {{pci}} · kênh {{earfcn}}",
+      "target_with_provider": "{{network}} · PCI {{pci}} · kênh {{earfcn}} · {{provider}}",
+      "confirm": "Khóa cell",
+      "cancel": "Hủy",
+      "locking": "Đang khóa…"
+    },
+    "toast": {
+      "scan_complete_title": "Quét hoàn tất",
+      "scan_complete_desc_one": "Tìm thấy {{count}} cell",
+      "scan_complete_desc_other": "Tìm thấy {{count}} cell",
+      "poll_failed_title": "Mất kết nối với modem",
+      "poll_failed_desc": "Lượt quét có thể vẫn đang chạy. Tải lại trang để tiếp tục theo dõi.",
+      "locked_title": "Đã khóa cell",
+      "locked_desc": "Đang bám {{network}} PCI {{pci}}, kênh {{earfcn}}.",
+      "lock_failed_title": "Khóa thất bại",
+      "lock_failed_unknown": "Modem từ chối lệnh khóa.",
+      "lock_failed_network": "Không kết nối được modem."
+    },
+    "error": {
+      "scan_failed": "Quét thất bại",
+      "poll_lost": "Mất kết nối với modem trong khi đang quét.",
+      "start_failed": "Modem không bắt đầu quét.",
+      "start_unreachable": "Không kết nối được bộ quét. Kiểm tra modem có phản hồi không.",
+      "other_scan_running": "Một lượt đọc cell lân cận đang dùng modem. Sẽ xong trong vài giây, sau đó hãy quét lại.",
+      "scan_vanished": "Lượt quét kết thúc mà không trả về kết quả. Hãy chạy lại để thử lại."
+    },
+    "neighbour": {
+      "page": {
+        "title": "Cell lân cận",
+        "description": "Đọc các trạm mà cell phục vụ đang theo dõi, không cần quét băng tần."
+      },
+      "run": {
+        "title": "Quét cell lân cận",
+        "ledger": {
+          "figure_unit_one": "cell lân cận",
+          "figure_unit_other": "cell lân cận"
+        },
+        "description": "Yêu cầu danh sách cell lân cận mà trạm phục vụ đang theo dõi, không quét thêm băng tần.",
+        "start": "Đọc cell lân cận",
+        "rerun": "Đọc lại",
+        "scanning_action": "Đang đọc…",
+        "link_sweep": "Quét cell",
+        "link_blocked": "Có sẵn khi lượt đọc này hoàn tất.",
+        "summary_empty": "Lượt đọc kết thúc mà không có cell lân cận nào, nên không có gì để phân tích.",
+        "idle_title": "Chưa đọc",
+        "idle_body": "Chưa đọc gì từ khi tải trang này. Một lượt đọc sẽ liệt kê các cell lân cận mà cell phục vụ đang đo.",
+        "scanning_title": "Đang hỏi cell phục vụ",
+        "scanning_body": "Sẽ xong trong vài giây.",
+        "complete_title": "Đã đọc xong",
+        "failed_title": "Đọc thất bại",
+        "failed_body": "Modem có thể đang bận hoặc không kết nối được. Kiểm tra kết nối rồi đọc lại."
+      },
+      "results": {
+        "title": "Báo cáo cell lân cận",
+        "description": "Sắp xếp theo tín hiệu, lọc theo kênh, khóa vào bất kỳ dòng LTE nào.",
+        "filter_placeholder": "Lọc theo kênh",
+        "empty_title": "Chưa có cell lân cận",
+        "empty_body": "Chạy một lượt đọc để liệt kê các cell mà trạm phục vụ đang đo, kèm kênh và tín hiệu.",
+        "error_title": "Đọc thất bại",
+        "error_retry": "Đọc lại",
+        "note_channel_only": "Cell lân cận chỉ báo kênh thì không có số đo đi kèm, nên không có chất lượng và không thể khóa. Khóa một dòng LTE có số đo sẽ khóa modem vào cell đó ngay, cho đến khi bạn gỡ khóa ở mục Khóa trạm.",
+        "tally_measured_one": "1 có số đo",
+        "tally_measured_other": "{{count}} có số đo",
+        "tally_channel_only_one": "1 chỉ có kênh",
+        "tally_channel_only_other": "{{count}} chỉ có kênh"
+      },
+      "columns": {
+        "cell_type": "Quan hệ",
+        "frequency": "Kênh",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "Cùng tần số",
+        "inter": "Khác tần số",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "Không có số liệu",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "Khóa (chỉ cell LTE)"
+      },
+      "toast": {
+        "complete_title": "Đọc hoàn tất",
+        "complete_desc_one": "Có {{count}} cell lân cận",
+        "complete_desc_other": "Có {{count}} cell lân cận",
+        "poll_failed_title": "Mất kết nối với modem",
+        "poll_failed_desc": "Lượt đọc có thể vẫn đang chạy. Tải lại trang để tiếp tục theo dõi."
+      },
+      "error": {
+        "failed": "Đọc thất bại",
+        "poll_lost": "Mất kết nối với modem trong khi đang đọc.",
+        "start_failed": "Modem không bắt đầu lượt đọc.",
+        "start_unreachable": "Không kết nối được bộ quét. Kiểm tra modem có phản hồi không.",
+        "other_scan_running": "Một lượt quét toàn băng tần đang dùng modem. Có thể mất tới ba phút, hãy đọc lại cell lân cận khi quét xong.",
+        "scan_vanished": "Lượt đọc kết thúc mà không trả về kết quả. Hãy chạy lại để thử lại."
+      }
+    },
+    "calculator": {
+      "page": {
+        "title": "Tính tần số",
+        "description": "Chuyển EARFCN hoặc NR-ARFCN thành tần số và băng tần hoạt động, cho LTE và 5G NR.",
+        "sibling": "Quét cell"
+      },
+      "form": {
+        "title": "Máy tính E/ARFCN",
+        "description": "Nhập số kênh để biết tần số và băng tần.",
+        "mode_auto": "Tự động",
+        "mode_lte": "LTE",
+        "mode_nr": "NR",
+        "label_auto": "Giá trị E/ARFCN",
+        "label_lte": "E-ARFCN",
+        "label_nr": "NR-ARFCN",
+        "placeholder": "vd: 1350 hoặc 627264",
+        "submit": "Tính"
+      },
+      "error": {
+        "empty": "Hãy nhập số kênh trước, ô đang trống.",
+        "not_a_number": "Đây không phải là số. Nhập số kênh nguyên, ví dụ 1850.",
+        "no_band": "Không có băng tần nào khớp {{value}}. Kiểm tra lại số, hoặc chọn LTE hay NR thay vì Tự động.",
+        "unexpected": "Tính toán thất bại: {{message}}. Kiểm tra giá trị rồi thử lại.",
+        "negative": "Số kênh bắt đầu từ 0. Nhập giá trị dương.",
+        "auto_gap": "Chế độ Tự động không xác định được {{value}}, không có gì được định nghĩa giữa {{low}} và {{high}}. Chọn LTE hoặc NR để vẫn tính."
+      },
+      "result": {
+        "title": "Kết quả",
+        "network_type": "Loại mạng",
+        "earfcn": "EARFCN",
+        "nrarfcn": "NR-ARFCN",
+        "frequency": "Tần số",
+        "bands_title": "Băng tần có thể dùng",
+        "band_lte": "Băng tần {{band}}",
+        "band_nr": "n{{band}}",
+        "downlink": "Đường xuống",
+        "uplink": "Đường lên",
+        "range_mhz_label": "Dải",
+        "in_band": "Trong băng tần",
+        "of_range": "trong {{low}} – {{high}}",
+        "tdd_uplink": "Đường lên dùng chung sóng mang với đường xuống (TDD).",
+        "sdl_uplink": "Chỉ đường xuống. Băng tần này không có đường lên.",
+        "position_aria": "Ở mức {{pct}}% của băng tần",
+        "method": "Tính theo {{spec}}.",
+        "bands_description": "Mọi băng tần có dải kênh chứa số này.",
+        "bands_empty_title": "Chưa có băng tần",
+        "bands_empty_body": "Tính một số kênh và các băng tần có thể mang nó sẽ được liệt kê ở đây.",
+        "bands_agree_one": "{{count}} băng tần khớp với kênh này.",
+        "bands_agree_other": "{{count}} băng tần dùng chung số kênh này và cùng chế độ song công, nên đường lên ở trên đúng cho tất cả.",
+        "bands_conflict_one": "{{count}} băng tần khớp với kênh này.",
+        "bands_conflict_other": "{{count}} băng tần dùng chung số kênh này nhưng khác chế độ song công, đường lên sẽ khác tùy băng tần mà mạng của bạn thực sự dùng."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "range_mhz": "{{low}} – {{high}} MHz",
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
+      },
+      "history": {
+        "title": "Lịch sử tính",
+        "description": "Mười phép tính gần nhất, lưu trong trình duyệt này.",
+        "clear": "Xóa",
+        "empty_title": "Chưa có phép tính",
+        "empty_body": "Tính một số kênh và nó sẽ được lưu ở đây, để bạn so sánh vài kênh mà không cần gõ lại.",
+        "band_lte": "B{{band}}",
+        "band_nr": "n{{band}}",
+        "no_timestamp": "Không có thời gian",
+        "time_now": "Vừa xong",
+        "time_minutes_one": "{{count}} phút trước",
+        "time_minutes_other": "{{count}} phút trước",
+        "time_hours_one": "{{count}} giờ trước",
+        "time_hours_other": "{{count}} giờ trước",
+        "time_yesterday": "Hôm qua",
+        "time_days_one": "{{count}} ngày trước",
+        "time_days_other": "{{count}} ngày trước"
+      },
+      "a11y": {
+        "delete_entry": "Xóa mục lịch sử này",
+        "recall_entry": "Dùng lại {{value}}"
+      },
+      "readout": {
+        "idle_title": "Chưa có kênh",
+        "idle_body": "Tần số và băng tần sẽ hiện ở đây.",
+        "failed_title": "Không có gì để hiển thị",
+        "failed_body": "Sửa số kênh rồi tính lại.",
+        "channel_lte": "EARFCN {{value}} · đường xuống",
+        "channel_nr": "NR-ARFCN {{value}} · đường xuống",
+        "several_bands_one": "{{count}} băng tần có thể mang kênh này.",
+        "several_bands_other": "{{count}} băng tần có thể mang kênh này."
+      }
+    }
+  },
+  "core_settings": {
+    "apn": {
+      "page": {
+        "title": "Cài đặt APN",
+        "description": "Đặt APN, giao thức IP và ngữ cảnh dữ liệu mà SIM dùng để kết nối.",
+        "error_load_title": "Không tải được cài đặt APN",
+        "error_load_description": "Giá trị hiển thị có thể đã cũ."
+      },
+      "card": {
+        "title": "Cấu hình APN",
+        "description": "Tên điểm truy cập (APN) mà modem dùng để thiết lập kết nối dữ liệu."
+      },
+      "cards": {
+        "unread": "Chưa đọc được gì từ modem, nên thẻ này chưa có giá trị để hiển thị."
+      },
+      "save_connection_notice": "Khi lưu, modem sẽ ngắt và kết nối lại mạng. Dữ liệu di động mất khoảng bốn giây, và nếu bạn đang kết nối qua cổng Ethernet của modem, trang này cũng sẽ mất kết nối rồi tự kết nối lại.",
+      "carrier_default": {
+        "button": "Dùng mặc định của nhà mạng",
+        "dialog": {
+          "title": "Dùng APN mặc định của nhà mạng?",
+          "description": "Nhà mạng sẽ tự chọn APN. Kết nối di động sẽ ngắt trong giây lát khi modem kết nối lại.",
+          "confirm": "Dùng mặc định của nhà mạng",
+          "cancel": "Hủy"
+        }
+      },
+      "toast": {
+        "saved": "Đã lưu cài đặt APN",
+        "save_error": "Không lưu được cài đặt APN",
+        "deactivated": "Đã trở về APN mặc định của nhà mạng",
+        "deactivate_error": "Không trở về được mặc định của nhà mạng",
+        "reconciling": "Đang xác nhận kết nối đã trở lại…",
+        "saved_not_persisted": "Đã áp dụng APN nhưng không lưu được, nên có thể mất sau khi khởi động lại.",
+        "deactivated_not_persisted": "Đã trở về APN mặc định của nhà mạng nhưng không lưu được thay đổi."
+      },
+      "controls_label": "Cấu hình APN",
+      "managed_by_profile_fallback": "Hồ sơ SIM tùy chỉnh đang dùng",
+      "edit": {
+        "fields": {
+          "apn": {
+            "label": "APN *",
+            "placeholder": "fast.t-mobile.com",
+            "error_required": "Bắt buộc nhập APN",
+            "presets": {
+              "trigger": "Hiện APN gợi ý",
+              "group_network": "Gợi ý cho SIM này",
+              "group_mvno": "Thương hiệu khác trên mạng này"
+            }
+          },
+          "pdp_type": {
+            "label": "Loại PDP",
+            "placeholder": "Chọn loại PDP",
+            "aria": "Loại PDP",
+            "options": {
+              "ipv4": "IPv4",
+              "ipv6": "IPv6",
+              "ipv4v6": "IPv4v6"
+            }
+          },
+          "modem_profile": {
+            "label": "CID",
+            "placeholder": "Chọn CID",
+            "aria": "Ngữ cảnh PDP (CID)",
+            "option_template": "CID {{cid}}",
+            "for_internet": "Internet",
+            "ims_badge": "IMS",
+            "sos_badge": "SOS"
+          }
+        },
+        "cid_confirm": {
+          "title": "Dùng ngữ cảnh dành riêng?",
+          "description_ims": "CID {{cid}} được nhà mạng dành cho IMS (VoLTE / gọi Wi-Fi). Ghi APN dữ liệu vào đây có thể làm gián đoạn cuộc gọi thoại. Vẫn tiếp tục?",
+          "description_sos": "CID {{cid}} được dành cho cuộc gọi khẩn cấp (SOS). Ghi APN dữ liệu vào đây có thể làm gián đoạn cuộc gọi khẩn cấp. Vẫn tiếp tục?",
+          "confirm": "Vẫn dùng",
+          "cancel": "Hủy"
+        },
+        "reserved_dialog": {
+          "unverified_body": "Ngữ cảnh này thường dành cho VoLTE hoặc cuộc gọi khẩn cấp, nhưng modem chưa báo loại của nó. Ghi APN dữ liệu vào đây có thể làm hỏng các dịch vụ đó."
+        }
+      },
+      "rows": {
+        "apn": {
+          "label": "Tên APN",
+          "consequence": "Giá trị này do nhà mạng quyết định. Nếu không chắc, hãy để nhà mạng chọn."
+        },
+        "pdp_type": {
+          "label": "Giao thức IP",
+          "consequence": "IPv4v6 an toàn ở hầu hết mọi nơi. Chỉ cố định một loại khi nhà mạng yêu cầu."
+        },
+        "cid": {
+          "label": "Ngữ cảnh dữ liệu",
+          "consequence": "Ngữ cảnh PDP mà APN được ghi vào. Ngữ cảnh dành riêng sẽ yêu cầu xác nhận."
+        }
+      },
+      "save_apn": "Lưu APN",
+      "cid_in_use": "CID {{cid}} đang dùng cho Internet",
+      "cid_unknown": "Chưa báo ngữ cảnh Internet",
+      "readout": {
+        "title": "Mạng đã cấp gì",
+        "description": "Đọc trực tiếp từ modem, không phải từ giá trị đã lưu.",
+        "granted_ip": "IP được cấp",
+        "bearer_state": "Trạng thái bearer",
+        "ipv4": "Địa chỉ IPv4",
+        "ipv6": "Địa chỉ IPv6",
+        "attached": "Đã kết nối mạng",
+        "not_attached": "Chưa kết nối mạng",
+        "ip_v4_only": "Chỉ IPv4",
+        "ip_v6_only": "Chỉ IPv6",
+        "ip_both": "IPv4 và IPv6",
+        "ip_none": "Chưa được cấp",
+        "error_title": "Không có trạng thái trực tiếp",
+        "error_body": "Luồng trạng thái modem không phản hồi. Các giá trị bên dưới có thể bị thiếu.",
+        "configured_label": "Bạn đã cấu hình",
+        "granted_label": "Mạng đã cấp",
+        "source_stored": "Từ cài đặt đã lưu",
+        "source_negotiated": "Thương lượng với mạng",
+        "stale": "Số liệu bị đóng băng",
+        "stale_body": "Luồng trạng thái modem không báo về gần đây. Các giá trị trên có thể không còn đúng.",
+        "reread": "Đọc lại từ modem",
+        "mode_label": "Chế độ",
+        "custom": "APN tùy chỉnh",
+        "context_label": "Ngữ cảnh dữ liệu",
+        "not_connected": "Chưa kết nối",
+        "matches": "Khớp với APN đã lưu",
+        "not_live_note": "Mạng đang dùng APN khác với APN đã lưu."
+      },
+      "mbn": {
+        "title": "Hồ sơ nhà mạng (MBN)",
+        "description": "Gói firmware đặt mặc định APN, IMS và băng tần theo từng nhà mạng.",
+        "auto": {
+          "label": "Tự động chọn",
+          "consequence": "Modem tự chọn gói theo SIM. Tắt để tự cố định một gói."
+        },
+        "list_label": "Các gói có sẵn",
+        "selected_caption": "Đã chọn, đang chạy từ lần khởi động trước",
+        "pending_note": "Thay đổi có hiệu lực sau khi khởi động lại.",
+        "save": "Áp dụng hồ sơ",
+        "empty": {
+          "title": "Không có gói nào",
+          "body": "Firmware này không trả về danh sách hồ sơ nhà mạng. Chỉ có tùy chọn tự động chọn."
+        },
+        "error_title": "Không tải được hồ sơ nhà mạng",
+        "toast": {
+          "error": "Không áp dụng được hồ sơ nhà mạng",
+          "auto_enabled": "Đã bật tự động chọn, cần khởi động lại",
+          "auto_disabled": "Đã tắt tự động chọn, cần khởi động lại",
+          "profile_applied": "Đã áp dụng hồ sơ nhà mạng, cần khởi động lại",
+          "reboot_error": "Khởi động lại thất bại, hãy khởi động lại thiết bị thủ công"
+        },
+        "reboot": {
+          "title": "Cần khởi động lại",
+          "description": "Thay đổi hồ sơ nhà mạng có hiệu lực sau khi khởi động lại. Khởi động lại ngay?",
+          "later": "Để sau",
+          "now": "Khởi động lại ngay",
+          "rebooting": "Đang khởi động lại…"
+        },
+        "errors": {
+          "load_failed": "Modem không trả về hồ sơ nhà mạng. Thử lại sau giây lát.",
+          "save_failed": "Không áp dụng được cài đặt hồ sơ nhà mạng.",
+          "autosel_failed": "Modem không chấp nhận thay đổi tự động chọn.",
+          "deactivate_failed": "Modem không gỡ được hồ sơ nhà mạng hiện tại.",
+          "select_failed": "Modem không chấp nhận hồ sơ nhà mạng đó."
+        }
+      },
+      "status": {
+        "carrier_default": "Mặc định nhà mạng",
+        "network_using_label": "Mạng đang dùng",
+        "not_live": "Chưa hoạt động"
+      },
+      "errors": {
+        "load_failed": "Modem không trả về cài đặt APN. Thử lại sau giây lát.",
+        "save_failed": "Không lưu được APN.",
+        "deactivate_failed": "Không chuyển được sang APN mặc định của nhà mạng."
+      }
+    },
+    "basic": {
+      "page": {
+        "title": "Cài đặt di động cơ bản",
+        "description": "Thay đổi cách modem dùng SIM, sóng vô tuyến và mạng mà nó kết nối.",
+        "error_title": "Không đọc được modem",
+        "error_body": "Giá trị hiển thị có thể đã cũ.",
+        "retry": "Thử lại"
+      },
+      "sim_card": {
+        "title": "SIM & nguồn sóng",
+        "description": "SIM mà modem dùng, và sóng vô tuyến có đang bật không."
+      },
+      "network_card": {
+        "title": "Chế độ mạng & chuyển vùng",
+        "description": "Cách modem chọn mạng để kết nối."
+      },
+      "cards": {
+        "unread": "Không đọc được gì từ modem, nên chưa có gì để thay đổi ở đây."
+      },
+      "rows": {
+        "sim_slot": {
+          "label": "Khe SIM",
+          "consequence": "Đổi khe sẽ ngắt kết nối khoảng 15 giây.",
+          "options": {
+            "slot_1": "SIM 1",
+            "slot_2": "SIM 2"
+          }
+        },
+        "cfun": {
+          "label": "Nguồn sóng",
+          "consequence": "Tắt sóng cũng tắt nguồn SIM, chế độ máy bay vẫn giữ nguồn SIM, và trong cả hai trường hợp vẫn truy cập được giao diện qua Ethernet.",
+          "options": {
+            "normal": "Bình thường",
+            "radio_off": "Tắt sóng",
+            "airplane": "Máy bay"
+          }
+        },
+        "mode_pref": {
+          "label": "Loại mạng ưu tiên",
+          "consequence": "Chỉ cố định công nghệ khi đang xử lý sự cố.",
+          "options": {
+            "auto": "Tự động",
+            "lte_nr": "LTE + 5G",
+            "nr_only": "Chỉ 5G",
+            "lte_only": "Chỉ LTE"
+          }
+        },
+        "nr5g_mode": {
+          "label": "Kiến trúc 5G",
+          "consequence": "Để Tự động trừ khi nhà mạng yêu cầu SA (5G độc lập) hoặc NSA (5G neo vào LTE).",
+          "options": {
+            "auto": "Tự động",
+            "nsa": "Chỉ NSA",
+            "sa": "Chỉ SA"
+          }
+        },
+        "roam_pref": {
+          "label": "Chuyển vùng",
+          "consequence": "Mạng đối tác có thể tính phí riêng.",
+          "options": {
+            "any": "Mọi mạng",
+            "home": "Chỉ mạng nhà",
+            "partner": "Mạng đối tác"
+          }
+        },
+        "sim_detect": {
+          "label": "Phát hiện thay SIM nóng",
+          "consequence": "Nếu tắt, SIM được thay sẽ không được nhận cho đến lần khởi động lại tiếp theo.",
+          "on": "Bật",
+          "off": "Tắt"
+        }
+      },
+      "save_bar": {
+        "count_one": "{{count}} thay đổi đang chờ",
+        "count_other": "{{count}} thay đổi đang chờ",
+        "note": "Áp dụng sẽ ngắt kết nối trong giây lát. Modem không khởi động lại.",
+        "discard": "Hủy bỏ",
+        "save": "Lưu cài đặt",
+        "failed": "Không áp dụng được {{fields}}. Các thay đổi khác đã được lưu."
+      },
+      "toast": {
+        "saved": "Đã áp dụng cài đặt.",
+        "save_failed": "Không áp dụng được cài đặt."
+      },
+      "apply": {
+        "writing": "Đang ghi vào modem",
+        "recovering": "Đang chờ sóng ổn định",
+        "verifying": "Đang xác nhận những gì modem đã áp dụng"
+      },
+      "footer": {
+        "refresh": "Làm mới"
+      },
+      "strip": {
+        "label": "Trạng thái trực tiếp",
+        "stale": "Đã cũ",
+        "network": "Mạng",
+        "sim": "SIM",
+        "aggregation": "Gộp sóng",
+        "data_path": "Đường dữ liệu",
+        "carrier_none": "Không có nhà mạng",
+        "bands_none": "Không có băng tần",
+        "ip_dual": "Đã cấp IPv4 và IPv6",
+        "ip_v4": "Chỉ IPv4",
+        "ip_v6": "Chỉ IPv6",
+        "ip_none": "Chưa được cấp địa chỉ",
+        "unavailable_title": "Không đọc được modem",
+        "unavailable_retrying": "Lần đọc gần nhất thất bại. QManager vẫn đang thử lại."
+      },
+      "rate_ceiling": {
+        "eyebrow": "Giới hạn tốc độ do mạng cấp",
+        "in_force": "Đang áp dụng AMBR {{radio}}",
+        "no_ceiling": "Không đọc được giới hạn",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "provenance": "Giới hạn tốc độ là mức trần do mạng cấp, không phải tốc độ đo thực tế. Được đọc khi mở trang và sau mỗi lần lưu.",
+        "unavailable": "Lần đọc gần nhất thất bại. Dùng \"Đọc lại từ modem\" bên dưới để thử lại."
+      },
+      "readout": {
+        "slot_n": "SIM {{slot}}",
+        "unknown": "Không rõ",
+        "no_apn": "Không có",
+        "ca_none": "Không hoạt động",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
+      },
+      "sim_status": {
+        "ready": "Sẵn sàng",
+        "pin_required": "Cần mã PIN",
+        "puk_required": "Cần mã PUK",
+        "not_inserted": "Không có SIM",
+        "error": "Lỗi",
+        "unknown": "Không rõ"
+      },
+      "sim_slots": {
+        "empty": "Trống",
+        "sr_active": "SIM {{slot}}, đang dùng, thẻ có đuôi {{last4}}",
+        "sr_standby": "SIM {{slot}}, chờ, thẻ có đuôi {{last4}}",
+        "sr_empty": "SIM {{slot}}, không phát hiện thẻ"
+      },
+      "ambr": {
+        "lte_heading": "Giới hạn tốc độ LTE",
+        "nr_heading": "Giới hạn tốc độ 5G",
+        "governing": "Đang áp dụng",
+        "not_governing": "Không áp dụng",
+        "nsa_note": "5G NSA chạy trên phiên dữ liệu LTE, nên giới hạn này được áp dụng.",
+        "lte_empty_reason": "Modem chỉ công bố giới hạn LTE khi có phiên dữ liệu LTE đang chạy.",
+        "nr_empty_reason": "Modem chỉ công bố giới hạn 5G khi có phiên dữ liệu 5G đang chạy.",
+        "download": "Tải xuống",
+        "upload": "Tải lên",
+        "governing_unread": "Kết nối của bạn dùng mạng vô tuyến này. Không đọc được giới hạn khi mở trang.",
+        "lte_short": "LTE",
+        "nr_short": "5G NR"
+      }
+    },
+    "fplmn": {
+      "page": {
+        "title": "Mạng bị chặn",
+        "description": "SIM lưu danh sách các mạng đã từng từ chối thiết bị này. Xóa danh sách có thể khôi phục kết nối và cải thiện chuyển vùng.",
+        "note": "Thao tác xóa ghi vào SIM, không phải modem, và không cần khởi động lại. Danh sách sẽ tự tạo lại nếu có mạng từ chối thiết bị lần nữa."
+      },
+      "card": {
+        "title": "Danh sách mạng bị cấm",
+        "description": "QManager đọc danh sách này trực tiếp từ SIM mỗi khi bạn mở trang.",
+        "learn_more": "Tìm hiểu thêm"
+      },
+      "states": {
+        "loading": {
+          "title": "Đang kiểm tra SIM",
+          "description": "Đang đọc danh sách mạng bị cấm lưu trên thẻ."
+        },
+        "clean": {
+          "title": "Không có mạng bị chặn",
+          "description": "Danh sách cấm trên SIM đang trống. Không cần làm gì."
+        },
+        "entries": {
+          "title": "Phát hiện mạng bị chặn",
+          "description": "SIM đang từ chối một hoặc nhiều mạng, có thể khiến modem không kết nối được. Nên xóa danh sách."
+        },
+        "error": {
+          "title": "Không kiểm tra được SIM"
+        },
+        "unknown": {
+          "title": "Không rõ trạng thái",
+          "description": "QManager không xác định được SIM có mạng bị chặn hay không. Chưa có gì thay đổi, hãy thử đọc lại."
+        }
+      },
+      "actions": {
+        "refresh": "Làm mới trạng thái",
+        "clear": "Xóa mạng bị chặn",
+        "clearing": "Đang xóa…"
+      },
+      "confirm": {
+        "title": "Xóa danh sách mạng bị chặn?",
+        "description": "Thao tác này xóa danh sách mạng bị cấm lưu trên thẻ SIM và không thể hoàn tác. Không cần khởi động lại và modem vẫn giữ kết nối. Danh sách sẽ tự tạo lại nếu có mạng từ chối thiết bị lần nữa.",
+        "confirm": "Xóa danh sách"
+      },
+      "toast": {
+        "cleared": "Đã xóa mạng bị chặn",
+        "clear_failed": "Không xóa được mạng bị chặn"
+      },
+      "errors": {
+        "read_failed": "Thiết bị không đọc được danh sách mạng bị cấm trên SIM.",
+        "unreachable": "Không kết nối được thiết bị."
+      }
+    },
+    "imei": {
+      "page": {
+        "title": "Cài đặt IMEI",
+        "description": "Đọc, ghi và kiểm tra mã định danh mà modem gửi lên mạng.",
+        "error_title": "Không đọc được cài đặt IMEI",
+        "error_body": "Modem không phản hồi: {{detail}}"
+      },
+      "legal": {
+        "title": "Việc thay đổi IMEI bị pháp luật quản lý ở hầu hết các quốc gia",
+        "body": "Ghi một mã định danh không thuộc về bạn là hành vi vi phạm pháp luật ở nhiều nơi. Hãy kiểm tra luật địa phương trước khi thay đổi bất cứ gì trên trang này."
+      },
+      "reboot": {
+        "banner": {
+          "title": "Cần khởi động lại để áp dụng IMEI mới",
+          "description": "Mã định danh đã được ghi. Modem vẫn dùng mã cũ cho đến khi khởi động lại.",
+          "review": "Xem lại",
+          "reboot": "Khởi động lại"
+        },
+        "dialog": {
+          "title": "Khởi động lại để áp dụng IMEI mới",
+          "description": "IMEI đã được lưu, nhưng modem vẫn dùng mã cũ cho đến khi khởi động lại. Khởi động lại sẽ mất kết nối khoảng một phút.",
+          "now": "Khởi động lại ngay",
+          "later": "Để sau"
+        },
+        "toast_failed": "Không khởi động lại được. Việc này vẫn đang chờ, bạn có thể thử lại từ thanh thông báo."
+      },
+      "device": {
+        "title": "IMEI thiết bị",
+        "description": "Mã modem đang báo hiện tại, và mã sẽ báo sau lần khởi động tiếp theo.",
+        "rows": {
+          "write": {
+            "label": "Ghi IMEI mới",
+            "consequence": "15 chữ số. Chỉ có hiệu lực sau khi khởi động lại.",
+            "placeholder": "15 chữ số"
+          }
+        },
+        "errors": {
+          "length": "IMEI có đúng 15 chữ số. Bạn đã nhập {{entered}}.",
+          "luhn": "15 chữ số này không vượt qua kiểm tra số cuối, nên mạng sẽ từ chối. Đổi chữ số cuối, hoặc tạo số hợp lệ trong Công cụ IMEI."
+        },
+        "status": {
+          "empty": "Không có gì để ghi. Ô đang trống.",
+          "unchanged": "Đây đã là IMEI hiện tại trên modem.",
+          "ready": "Sẵn sàng ghi. Modem giữ định danh hiện tại cho đến khi khởi động lại.",
+          "unchanged_tip_label": "Về dấu kiểm"
+        },
+        "actions": {
+          "write": "Ghi IMEI",
+          "reset": "Đặt lại về IMEI trên modem",
+          "reset_short": "Đặt lại"
+        },
+        "toasts": {
+          "saved": "Đã ghi IMEI. Sẽ áp dụng ở lần khởi động lại tiếp theo.",
+          "failed": "Modem không chấp nhận IMEI đó.",
+          "copied": "Đã sao chép IMEI.",
+          "copy_failed": "Không sao chép được IMEI."
+        }
+      },
+      "backup": {
+        "title": "IMEI dự phòng",
+        "description": "Mã định danh thứ hai mà thiết bị khôi phục nếu mã chính bị mất sau sự cố firmware.",
+        "rows": {
+          "keep": {
+            "label": "Giữ bản dự phòng",
+            "consequence_off": "Tắt. Không lưu mã định danh dự phòng.",
+            "consequence_on": "Bật. Thiết bị sẽ khôi phục {{imei}} nếu mã chính bị từ chối."
+          },
+          "value": {
+            "label": "Mã định danh dự phòng",
+            "consequence": "15 chữ số. Chỉ dùng khi mã chính bị từ chối.",
+            "placeholder": "15 chữ số"
+          }
+        },
+        "errors": {
+          "length": "IMEI có đúng 15 chữ số. Bạn đã nhập {{entered}}.",
+          "luhn": "15 chữ số này không vượt qua kiểm tra số cuối, nên mạng cũng sẽ từ chối bản dự phòng. Đổi chữ số cuối, hoặc tạo số hợp lệ trong Công cụ IMEI."
+        },
+        "actions": {
+          "save": "Lưu dự phòng",
+          "reset": "Đặt lại về bản dự phòng đã lưu"
+        },
+        "toasts": {
+          "saved": "Đã lưu cài đặt dự phòng.",
+          "failed": "Không lưu được cài đặt dự phòng."
+        },
+        "dialog": {
+          "title": "Về khôi phục dự phòng",
+          "description": "Khi có bản dự phòng, sau mỗi lần khởi động thiết bị sẽ kiểm tra xem mạng có từ chối IMEI không. Nếu có, thiết bị chuyển sang mã dự phòng và tự khởi động lại.",
+          "confirm": "Giữ bản dự phòng"
+        }
+      },
+      "tools": {
+        "title": "Công cụ IMEI",
+        "description": "Tạo số hợp lệ theo Luhn từ mã TAC, hoặc kiểm tra một số bạn đã có.",
+        "generate": {
+          "tac_label": "Mã phân bổ loại (TAC)",
+          "tac_consequence": "Tám chữ số đầu, cho biết dòng máy mà số này đại diện.",
+          "tac_placeholder": "Chọn dòng máy",
+          "custom": "Mã tùy chỉnh",
+          "prefix_label": "Tiền tố",
+          "prefix_consequence": "8 đến 12 chữ số. Phần còn lại sẽ được điền tự động.",
+          "prefix_placeholder": "8–12 chữ số",
+          "prefix_error": "Tiền tố gồm 8 đến 12 chữ số. Bạn đã nhập {{entered}}.",
+          "action": "Tạo"
+        },
+        "check": {
+          "label": "Kiểm tra số",
+          "placeholder": "Dán hoặc tạo 15 chữ số",
+          "valid": "Hợp lệ theo Luhn",
+          "invalid": "Không hợp lệ theo Luhn",
+          "empty": "Nhập 15 chữ số để xem cấu trúc của số.",
+          "lookup": "Tra cứu trực tuyến"
+        },
+        "actions": {
+          "copy": "Sao chép số này"
+        },
+        "toasts": {
+          "copied": "Đã sao chép số.",
+          "copy_failed": "Không sao chép được số."
+        },
+        "breakdown": {
+          "tac": "TAC",
+          "serial": "Số sê-ri",
+          "check": "Kiểm tra"
+        },
+        "footnote": "Cấu trúc hợp lệ không có nghĩa là bạn được phép dùng số đó. Không có gì ở đây được ghi vào modem."
+      }
+    },
+    "network_priority": {
+      "page": {
+        "title": "Ưu tiên mạng",
+        "description": "Thứ tự modem thử các công nghệ vô tuyến khi đăng ký mạng."
+      },
+      "card": {
+        "title": "Thứ tự kết nối",
+        "description": "Kéo để sắp xếp lại. Modem sẽ đăng ký lại khi bạn lưu, làm mất kết nối vài giây."
+      },
+      "rats": {
+        "NR5G": "5G NR",
+        "LTE": "LTE",
+        "WCDMA": "WCDMA"
+      },
+      "hints": {
+        "WCDMA": "Tốc độ dữ liệu giảm mạnh ở đây."
+      },
+      "position": {
+        "first": "Thử đầu tiên. Tự chuyển xuống nếu không có cell nào phản hồi.",
+        "middle": "Thử tiếp theo khi các mục phía trên không đăng ký được.",
+        "last": "Phương án cuối. Chỉ dùng khi các mục phía trên không đăng ký được.",
+        "only": "Công nghệ duy nhất modem sẽ thử."
+      },
+      "serving_now": "Đang phục vụ",
+      "handle_aria": "Sắp xếp lại {{name}}, vị trí {{rank}}/{{total}}",
+      "save_bar": {
+        "count_one": "{{count}} thay đổi đang chờ",
+        "count_other": "{{count}} thay đổi đang chờ",
+        "note": "Modem sẽ đăng ký lại khi lưu. Mất dữ liệu khoảng 3 giây.",
+        "discard": "Hủy bỏ",
+        "save": "Lưu thứ tự ưu tiên"
+      },
+      "apply": {
+        "writing": "Đang ghi thứ tự mới",
+        "recovering": "Đang đăng ký lại với mạng",
+        "verifying": "Đang đọc lại thứ tự"
+      },
+      "states": {
+        "error": {
+          "title": "Không đọc được thứ tự ưu tiên",
+          "description": "Modem không trả lời truy vấn thứ tự kết nối. Có thể modem đang bận, hãy thử lại sau giây lát."
+        },
+        "empty": {
+          "title": "Không có công nghệ nào",
+          "description": "Modem trả về thứ tự kết nối trống, nên không có gì để sắp xếp. Đọc lại, hoặc kiểm tra sóng vô tuyến đã bật chưa."
+        }
+      },
+      "toast": {
+        "saved": "Đã cập nhật ưu tiên mạng",
+        "save_error": "Không đặt được ưu tiên mạng"
+      }
+    }
+  },
+  "custom_profiles": {
+    "suggestions": {
+      "badge": "Gợi ý",
+      "create": "Tạo",
+      "creating": "Đang tạo",
+      "create_aria": "Tạo hồ sơ {{name}}",
+      "rationale_bands": "Khóa băng tần giữ modem trên các băng tần 5G chính của nhà mạng, thường giúp ổn định hơn. Nhưng cũng có thể làm giảm vùng phủ ở nơi chỉ có băng tần khác. Các băng tần modem không báo là hỗ trợ sẽ bị bỏ qua, và tắt hồ sơ sẽ gỡ khóa.",
+      "rationale_ttl": "TTL và hop limit được đặt là 64 để lưu lượng từ thiết bị phía sau modem đi ra với cùng giá trị như lưu lượng từ chính modem. Tắt hồ sơ sẽ khôi phục giá trị trước đó."
+    },
+    "page": {
+      "title": "Hồ sơ SIM tùy chỉnh",
+      "description": "Hồ sơ chứa định danh: APN, TTL và hop limit, và IMEI tùy chọn. Hồ sơ gắn với một kịch bản kết nối, kịch bản này điều khiển sóng vô tuyến. Kích hoạt hồ sơ sẽ cấu hình lại modem đang chạy.",
+      "new_profile": "Hồ sơ mới",
+      "new_scenario": "Kịch bản mới"
+    },
+    "hero": {
+      "eyebrow": "ĐANG ÁP DỤNG",
+      "iccid": "ICCID {{value}}",
+      "edit": "Sửa",
+      "deactivate": "Tắt",
+      "reapply": "Áp dụng lại hồ sơ",
+      "notice": {
+        "unknown_step": "không rõ",
+        "applying_title": "Đang áp dụng {{name}}",
+        "applying_body": "Bước {{step}}/{{total}}. Kết nối có thể ngắt trong giây lát khi sóng kết nối lại.",
+        "partial_title": "Chỉ áp dụng một phần",
+        "partial_body": "Bước {{step}} không thành công và được giữ nguyên. Modem báo:",
+        "mismatch_title": "Đang cắm SIM khác",
+        "mismatch_body": "Đây không phải SIM mà hồ sơ đã lưu. APN và TTL vẫn được áp dụng, hãy cập nhật hồ sơ hoặc kích hoạt hồ sơ khớp với SIM."
+      },
+      "tiles": {
+        "identity": "Định danh",
+        "imei_override": "Ghi đè IMEI",
+        "scenario": "Kịch bản đang áp dụng",
+        "scheduled": "Đã lên lịch",
+        "not_scheduled": "Chưa lên lịch",
+        "radio": "Cấu hình sóng",
+        "band_locking": "Khóa băng tần",
+        "network_mode": "Chế độ mạng",
+        "lte_bands": "Băng tần LTE",
+        "nr_bands": "Băng tần NR",
+        "bands_auto": "Tất cả băng tần"
+      },
+      "scenario": {
+        "unknown": "Kịch bản không rõ",
+        "next_change": "{{name}} sẽ áp dụng lúc {{time}}"
+      },
+      "ribbon": {
+        "title": "Lịch hôm nay",
+        "edit": "Sửa lịch",
+        "unknown_scenario": "Kịch bản không rõ",
+        "aria_label": "Lịch kịch bản hôm nay: {{schedule}}",
+        "aria_segment": "{{name}} đến {{end}}",
+        "aria_join": ", sau đó ",
+        "aria_empty": "Không có lịch kịch bản cho hôm nay"
+      },
+      "badge": {
+        "live": "Đang hoạt động",
+        "applying": "Đang áp dụng",
+        "partial": "Áp dụng một phần",
+        "mismatch": "SIM không khớp"
+      }
+    },
+    "hero_empty": {
+      "title": "Không có hồ sơ nào hoạt động",
+      "description": "Modem đang chạy APN gốc và kịch bản kết nối mặc định. Lưu một hồ sơ để gắn APN, TTL và lịch kịch bản cho SIM này.",
+      "description_saved": "Hiện không có gì được áp dụng. Kích hoạt một hồ sơ đã lưu bên dưới để đưa định danh và cách hoạt động sóng đã biết trở lại.",
+      "activate_action": "Kích hoạt hồ sơ"
+    },
+    "hero_error": {
+      "title": "Không có thông tin hồ sơ",
+      "description": "Một hồ sơ đang hoạt động trên modem nhưng không tải được thông tin. Không có gì thay đổi trên thiết bị, đây chỉ là lỗi hiển thị.",
+      "retry": "Thử lại"
+    },
+    "view": {
+      "title": "Hồ sơ đã lưu",
+      "description": "Quản lý các hồ sơ SIM tùy chỉnh.",
+      "count_one": "Đã lưu {{count}} hồ sơ",
+      "count_other": "Đã lưu {{count}} hồ sơ",
+      "subtitle": "Kích hoạt, sửa hoặc xóa các hồ sơ di động trên thiết bị này.",
+      "none_saved_yet": "Chưa lưu hồ sơ nào. Bắt đầu từ một gợi ý bên dưới, hoặc tự tạo.",
+      "activating": "Đang kích hoạt",
+      "scenario_always_on": "{{scenario}}, luôn bật",
+      "delete_description": "Thao tác này xóa hồ sơ khỏi thiết bị. Mọi lịch gắn với hồ sơ cũng bị xóa. Không thể hoàn tác.",
+      "delete_keep": "Giữ hồ sơ",
+      "mismatch_note": "SIM trong modem không khớp ICCID của hồ sơ này. Thiết bị giữ cài đặt hiện tại cho đến khi cắm SIM khớp.",
+      "toast": {
+        "deactivated": "Đã tắt {{name}}",
+        "deactivate_error": "Không tắt được hồ sơ",
+        "deleted": "Đã xóa {{name}}",
+        "delete_error": "Không xóa được hồ sơ",
+        "activated": "{{name}} đang hoạt động",
+        "activated_partial": "{{name}} đang hoạt động, một số bước bị bỏ qua",
+        "activate_error": "Không kích hoạt được hồ sơ."
+      },
+      "delete_title": "Xóa “{{name}}”?",
+      "row_menu_aria": "Thao tác cho {{name}}",
+      "reapply": "Áp dụng lại hồ sơ",
+      "mismatch_confirm": {
+        "title": "Áp dụng “{{name}}” cho SIM này?",
+        "description": "Hồ sơ này gắn với SIM khác. Cài đặt sẽ áp dụng cho SIM đang cắm trong modem và tự tắt ở lần khởi động lại hoặc đổi SIM tiếp theo.",
+        "confirm": "Áp dụng cho SIM này"
+      },
+      "scenario_scheduled": "{{scenario}} theo lịch hằng ngày"
+    },
+    "table": {
+      "headers": {
+        "profile": "Hồ sơ",
+        "status": "Trạng thái",
+        "actions": ""
+      },
+      "status_badge": {
+        "active": "Đang hoạt động",
+        "inactive": "Không hoạt động",
+        "sim_mismatch": "SIM không khớp"
+      },
+      "pagination": {
+        "total_one": "Tổng {{count}} hồ sơ",
+        "total_other": "Tổng {{count}} hồ sơ",
+        "previous": "Trước",
+        "next": "Tiếp"
+      },
+      "empty_row": "Chưa có hồ sơ. Tạo một hồ sơ để bắt đầu.",
+      "actions_menu": {
+        "open_menu": "Mở menu",
+        "edit": "Sửa",
+        "activate": "Kích hoạt",
+        "deactivate": "Tắt",
+        "delete": "Xóa"
+      },
+      "delete_confirm": {
+        "title": "Xóa hồ sơ",
+        "description": "Bạn có chắc muốn xóa \"{{name}}\"? Không thể hoàn tác. Xóa hồ sơ này sẽ không thay đổi cấu hình modem hiện tại.",
+        "confirm_button": "Xóa",
+        "deleting": "Đang xóa…"
+      }
+    },
+    "form": {
+      "create_title": "Tạo hồ sơ SIM tùy chỉnh",
+      "create_description": "Tạo hồ sơ SIM tùy chỉnh với cài đặt APN, TTL và IMEI riêng.",
+      "edit_title": "Sửa hồ sơ",
+      "edit_description": "Đang sửa \"{{name}}\". Cập nhật các trường bên dưới.",
+      "load_current_button": "Tải SIM hiện tại",
+      "fields": {
+        "profile_name_label": "Tên hồ sơ",
+        "profile_name_placeholder": "Hồ sơ LTE của tôi",
+        "profile_name_required": "Bắt buộc nhập tên hồ sơ.",
+        "sim_iccid_required": "Bắt buộc nhập ICCID của SIM.",
+        "sim_iccid_duplicate": "Đã có hồ sơ dùng ICCID này.",
+        "apn_name_required": "Bắt buộc nhập tên APN.",
+        "sim_iccid_label": "ICCID của SIM",
+        "sim_iccid_placeholder": "Tự điền từ SIM hiện tại",
+        "mno_label": "Nhà mạng di động",
+        "mno_placeholder": "Chọn nhà mạng…",
+        "mno_custom": "Tùy chỉnh",
+        "reuse_apn_label": "Hồ sơ APN",
+        "reuse_apn_placeholder": "Chọn APN đã lưu…",
+        "reuse_apn_custom": "Tùy chỉnh",
+        "use_saved_apn": "Dùng APN đã lưu ({{apn}})",
+        "apn_name_label": "Tên APN",
+        "apn_name_placeholder": "internet",
+        "ip_protocol_label": "Giao thức IP",
+        "ip_protocol_ipv4": "Chỉ IPv4",
+        "ip_protocol_ipv6": "Chỉ IPv6",
+        "ip_protocol_dual": "IPv4 + IPv6 (Dual Stack)",
+        "cid_label": "Khe hồ sơ (CID)",
+        "cid_error": "CID phải từ 1–15.",
+        "imei_label": "IMEI ưu tiên",
+        "imei_placeholder": "Để trống để giữ IMEI hiện tại",
+        "imei_error": "IMEI phải đúng 15 chữ số.",
+        "ttl_label": "Giá trị TTL",
+        "ttl_error": "TTL phải từ 0–255.",
+        "hl_label": "Hop Limit",
+        "hl_error": "HL phải từ 0–255.",
+        "sim_iccid_hint": "Để trống để áp dụng hồ sơ này cho mọi SIM.",
+        "imei_danger": "Đổi IMEI sẽ ghi lại định danh của modem và khởi động lại modem khi kích hoạt. Để trống để giữ IMEI hiện tại."
+      },
+      "buttons": {
+        "create_submit": "Tạo hồ sơ",
+        "update_submit": "Cập nhật hồ sơ",
+        "reset": "Đặt lại",
+        "back": "Quay lại",
+        "next": "Tiếp"
+      },
+      "toast": {
+        "create_success": "Đã tạo hồ sơ.",
+        "create_error": "Không tạo được hồ sơ.",
+        "update_success": "Đã cập nhật hồ sơ.",
+        "update_error": "Không cập nhật được hồ sơ."
+      },
+      "scenario": {
+        "section_title": "Kịch bản",
+        "section_description": "Gắn hồ sơ này với một kịch bản kết nối, được áp dụng tự động khi hồ sơ kích hoạt. Có thể lên lịch các kịch bản khác nhau theo giờ trong ngày.",
+        "default_label": "Kịch bản mặc định",
+        "default_hint": "Áp dụng khi hồ sơ kích hoạt, và dùng cho mọi khung giờ không nằm trong lịch bên dưới.",
+        "schedule_toggle_label": "Lên lịch theo giờ trong ngày",
+        "schedule_toggle_hint": "Tự động chuyển kịch bản theo thời gian biểu hằng ngày.",
+        "add_block": "Thêm khung giờ",
+        "remove_block_aria": "Xóa khung giờ",
+        "block_label": "Khung giờ {{index}}",
+        "start_label": "Bắt đầu",
+        "end_label": "Kết thúc",
+        "block_scenario_label": "Kịch bản",
+        "otherwise_label": "Còn lại",
+        "entries_cap_hint": "Tối đa {{max}} khung giờ. Xóa một khung để thêm khung khác.",
+        "empty_schedule_hint": "Chưa có khung giờ, hoạt động giống như chỉ dùng {{name}}.",
+        "overlap_warning": "Khung giờ này chồng lên khung khác. Khi chồng nhau, khung ở trên cùng được ưu tiên.",
+        "schedule_invalid": "Sửa các mục lịch được đánh dấu trước khi lưu.",
+        "deleted_scenario": "(kịch bản đã xóa)",
+        "block_errors": {
+          "invalid_start": "Nhập giờ bắt đầu hợp lệ (HH:MM).",
+          "invalid_end": "Nhập giờ kết thúc hợp lệ (HH:MM).",
+          "zero_length": "Giờ bắt đầu và kết thúc phải khác nhau.",
+          "no_days": "Chọn ít nhất một ngày."
+        },
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "Chuyển khung giờ lên",
+        "move_down_aria": "Chuyển khung giờ xuống",
+        "expand_rule_aria": "Sửa khung giờ",
+        "overnight_hint": "Kết thúc ngày hôm sau",
+        "create_new": "Tạo kịch bản mới"
+      },
+      "loading_current": "Đang đọc SIM…",
+      "advanced": {
+        "title": "Nâng cao",
+        "summary_imei": "Ghi đè IMEI",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
+      "back_to_list": "Quay lại danh sách hồ sơ",
+      "edit_loading": "Đang tải hồ sơ…",
+      "steps": {
+        "nav_aria": "Các bước tạo hồ sơ",
+        "identity_label": "Định danh & nhà mạng",
+        "identity_short": "Định danh",
+        "apn_short": "APN",
+        "apn_label": "APN & kết nối",
+        "advanced_label": "Nâng cao",
+        "advanced_short": "Nâng cao",
+        "advanced_desc": "Hiếm khi cần. Để nguyên trừ khi bạn thực sự cần thay đổi.",
+        "scenario_label": "Kịch bản kết nối",
+        "scenario_short": "Kịch bản",
+        "review_short": "Xem lại",
+        "review_label": "Xem lại",
+        "scenario_desc": "Chọn kịch bản áp dụng khi hồ sơ kích hoạt, và có thể lên lịch thay đổi trong ngày.",
+        "optional": "Tùy chọn",
+        "step_of": "Bước {{current}}/{{total}}",
+        "state_current": "bước hiện tại",
+        "state_complete": "đã xong",
+        "state_error": "có lỗi",
+        "state_upcoming": "sắp tới"
+      },
+      "sections": {
+        "identity_title": "Định danh",
+        "identity_desc": "Đặt tên hồ sơ và chọn nhà mạng tương ứng.",
+        "apn_title": "APN & kết nối",
+        "apn_desc": "Cách modem kết nối với mạng dữ liệu của nhà mạng.",
+        "advanced_title": "Nâng cao",
+        "advanced_desc": "Hiếm khi cần. Chỉ thay đổi khi bạn biết chắc là cần."
+      },
+      "summary": {
+        "title": "Xem trước",
+        "desc": "Hồ sơ này hiển thị thế nào trong danh sách, và thay đổi gì khi kích hoạt.",
+        "untitled": "Hồ sơ chưa đặt tên",
+        "reboot_note": "Kích hoạt sẽ khởi động lại modem để áp dụng IMEI mới."
+      },
+      "discard_dialog": {
+        "title": "Bỏ thay đổi?",
+        "description": "Bạn có thay đổi chưa lưu. Rời đi bây giờ sẽ mất các thay đổi đó.",
+        "confirm": "Hủy bỏ",
+        "keep": "Tiếp tục sửa"
+      },
+      "add_title": "Thêm hồ sơ",
+      "add_description": "Thêm hồ sơ di động mới cho thiết bị.",
+      "edit_description_simple": "Cập nhật hồ sơ di động này rồi lưu thay đổi.",
+      "load_from_sim": "Tải từ SIM",
+      "loaded_from_sim": "Đã tải cài đặt hiện tại từ SIM",
+      "save_failed": "Không lưu được hồ sơ",
+      "profile_added": "Đã thêm hồ sơ",
+      "profile_updated": "Đã cập nhật hồ sơ",
+      "submit_add": "Gửi",
+      "submit_edit": "Lưu thay đổi",
+      "cancel": "Hủy",
+      "next": "Tiếp",
+      "tab_network": "Mạng",
+      "network_desc": "Cách modem kết nối với mạng dữ liệu của nhà mạng.",
+      "identity_load_hint": "Đặt tên hồ sơ và chọn nhà mạng tương ứng.",
+      "sim_iccid_placeholder_inline": "Tự phát hiện hoặc nhập ICCID",
+      "sim_iccid_hint_inline": "Xác định hồ sơ này dành cho SIM nào.",
+      "mno_hint": "Bạn có thể chọn nhà mạng đã cấu hình sẵn ở đây.",
+      "cid_default_option": "CID 1 (mặc định)",
+      "scenario_desc_inline": "Chọn kịch bản hồ sơ này chạy, và có thể đổi kịch bản vào các giờ nhất định trong ngày.",
+      "default_scenario_label": "Kịch bản mặc định",
+      "default_scenario_hint": "Chạy khi không có khung giờ nào đang hoạt động.",
+      "create_scenario_option": "Tạo kịch bản mới",
+      "schedule_inline_label": "Lịch theo thời gian",
+      "schedule_inline_hint": "Đổi kịch bản trong tối đa hai khung giờ mỗi ngày.",
+      "windows_empty": "Chưa có khung giờ. Thêm một khung để đổi kịch bản vào giờ đã định.",
+      "window_label": "Khung giờ {{index}}",
+      "window_remove_aria": "Xóa khung giờ {{index}}",
+      "window_from": "Từ",
+      "window_to": "Đến",
+      "windows_count": "{{count}}/{{max}} khung giờ",
+      "add_window": "Thêm khung giờ",
+      "review_desc_add": "Xem lại hồ sơ rồi thêm vào thiết bị.",
+      "review_desc_edit": "Xem lại hồ sơ rồi lưu thay đổi.",
+      "review_edit_aria": "Sửa",
+      "review": {
+        "section_identity": "Định danh",
+        "section_network": "Mạng",
+        "section_scenario": "Kịch bản",
+        "profile_name": "Tên hồ sơ",
+        "sim_iccid": "ICCID của SIM",
+        "all_sims": "Mọi SIM",
+        "operator": "Nhà mạng",
+        "apn": "APN",
+        "ip_protocol": "Giao thức IP",
+        "profile_slot": "Khe hồ sơ",
+        "cid_value": "CID {{cid}}",
+        "cid_value_default": "CID {{cid}} (mặc định)",
+        "preferred_imei": "IMEI ưu tiên",
+        "ttl_hl": "TTL / Hop Limit",
+        "default": "Mặc định",
+        "schedule": "Lịch",
+        "schedule_on_no_windows": "Bật, chưa có khung giờ",
+        "schedule_off": "Tắt",
+        "not_set": "Chưa đặt"
+      },
+      "pdp_inline": {
+        "ipv4": "IPv4",
+        "ipv6": "IPv6",
+        "dual": "IPv4 & IPv6"
+      }
+    },
+    "deactivate_dialog": {
+      "title": "Tắt hồ sơ",
+      "working_title": "Đang tắt hồ sơ",
+      "verifying_title": "Đang xác nhận đã tắt",
+      "description": "Tắt hồ sơ này? APN sẽ trở về mặc định của nhà mạng, làm mất kết nối di động trong giây lát. Cài đặt IMEI và TTL được giữ nguyên.",
+      "confirm": "Tắt",
+      "unknown_profile": "Không có tên hồ sơ",
+      "confirm_headline": "Trở về APN mặc định của nhà mạng?",
+      "working_headline": "Đang khôi phục APN và kết nối lại",
+      "verifying_headline": "Đang kết nối lại với modem",
+      "working_sub": "Modem đang ngắt kết nối, ghi APN mặc định của nhà mạng và kết nối lại mạng. Thường mất khoảng 10 giây, và kết nối di động bị gián đoạn trong lúc đó. Vui lòng không rời trang.",
+      "verifying_sub": "Modem ngắt liên kết Ethernet vài giây khi kết nối lại mạng, nên phản hồi cho yêu cầu này bị mất trên đường về. Chưa có gì được gửi lại, QManager đang đọc modem để biết thực tế đã xảy ra gì.",
+      "toast": {
+        "success": "Đã tắt {{name}}",
+        "busy_title": "Modem đang bận, chưa có gì thay đổi",
+        "busy_body": "Một thao tác APN khác đang giữ khóa, nên không lệnh nào được gửi. Thử lại sau giây lát.",
+        "link_lost_title": "Không xác nhận được việc tắt hồ sơ",
+        "link_lost_body": "Kết nối tới modem bị ngắt trong lúc kết nối lại mạng và hồ sơ vẫn được đánh dấu là đang hoạt động. Tải lại trang để xem trạng thái hiện tại; nếu vẫn hiện là đang hoạt động, việc khôi phục APN chưa hoàn tất.",
+        "deregistered_title": "Modem có thể đã mất mạng",
+        "deregistered_body": "APN đã được khôi phục nhưng modem không kết nối lại được sau ba lần thử. Hồ sơ vẫn đang hoạt động. Kiểm tra kết nối, rồi khởi động lại modem nếu không tự phục hồi.",
+        "unconfirmed_title": "Đã kết nối lại nhưng chưa xác nhận",
+        "unconfirmed_body": "Modem đã kết nối lại nhưng không báo có kết nối dữ liệu. Hồ sơ vẫn đang hoạt động, hãy kiểm tra kết nối trước khi thử lại.",
+        "failed_title": "Không tắt được hồ sơ",
+        "failed_body": "Khôi phục APN thất bại. Modem không thay đổi, vẫn đăng ký mạng, và hồ sơ vẫn đang hoạt động."
+      }
+    },
+    "apply_dialog": {
+      "title": "Đang áp dụng hồ sơ",
+      "description": "Đang ghi cài đặt của hồ sơ này vào modem.",
+      "status_badge": {
+        "applying": "Đang áp dụng…",
+        "complete": "Hoàn tất",
+        "partial": "Một phần",
+        "failed": "Thất bại"
+      },
+      "step_labels": {
+        "apn": "Cấu hình APN",
+        "ttl_hl": "TTL / Hop Limit",
+        "imei": "IMEI",
+        "scenario": "Kịch bản kết nối"
+      },
+      "preparing": "Đang chuẩn bị…",
+      "step_progress": "Bước {{current}}/{{total}}",
+      "complete_headline": "Hồ sơ đang hoạt động",
+      "complete_sub": "Mọi cài đặt áp dụng được đã có trên modem.",
+      "partial_hero_headline_one": "Đã áp dụng, còn một bước chưa xong",
+      "partial_hero_headline_other": "Đã áp dụng, còn {{count}} bước chưa xong",
+      "partial_hero_sub_one": "Hồ sơ đang chạy. Một cài đặt không được áp dụng.",
+      "partial_hero_sub_other": "Hồ sơ đang chạy. {{count}} cài đặt không được áp dụng.",
+      "failed_headline": "Kích hoạt thất bại",
+      "failed_sub": "Modem chưa được cấu hình lại hoàn toàn.",
+      "details_label": "Các bước",
+      "partial_notice_title": "Một phần hồ sơ không được áp dụng",
+      "failed_notice_title": "Hồ sơ chưa được áp dụng",
+      "reapply_notice": "Áp dụng lại sẽ chạy toàn bộ quy trình từ đầu, modem không thể thử lại từng bước riêng lẻ.",
+      "reapply_action": "Áp dụng lại hồ sơ",
+      "reboot_notice_deferred": "Hồ sơ này ghi IMEI, nên modem sẽ khởi động lại để áp dụng. Kết nối sẽ ngắt trong giây lát.",
+      "step_state_unchanged": "Không đổi",
+      "errors": {
+        "start_failed": "Không bắt đầu áp dụng hồ sơ được.",
+        "not_started": "Việc áp dụng hồ sơ chưa bắt đầu. Vui lòng thử lại."
+      }
+    },
+    "empty_state": {
+      "refresh": "Làm mới",
+      "card_title": "Hồ sơ SIM tùy chỉnh",
+      "card_description": "Các gói cài đặt APN, IMEI và TTL đã lưu, áp dụng vào modem chỉ trong một bước.",
+      "teaching_headline": "Chưa có hồ sơ",
+      "teaching_body": "Hồ sơ SIM tùy chỉnh gói tên APN, giao thức IP, ghi đè TTL/HL và IMEI tùy chọn thành một mẫu đã lưu. Kích hoạt sẽ áp dụng mọi cài đặt cùng lúc, nên việc đổi nhà mạng hay khe SIM chỉ mất vài giây thay vì nhập lại thủ công.",
+      "cta_new": "Hồ sơ mới"
+    },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "APN mặc định",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "Ghi đè IMEI",
+      "apn_prefix": "APN ",
+      "other_sim": "SIM khác"
+    },
+    "card": {
+      "label_updated": "Cập nhật"
+    },
+    "registry": {
+      "error_title": "Không tải được hồ sơ"
+    }
+  },
+  "frequency_locking": {
+    "page": {
+      "title": "Khóa tần số",
+      "description": "Giới hạn sóng vô tuyến vào các kênh cụ thể. Chỉ khóa kênh, không khóa PCI, nên modem vẫn tự chọn cell.",
+      "experimental": "Thử nghiệm"
+    },
+    "live": {
+      "title": "Hiện tại",
+      "refresh": "Làm mới",
+      "camped_title": "Đang bám",
+      "camped_meta": "{{count}} sóng mang · {{bandwidth}} MHz",
+      "camped_empty_title": "Không có sóng mang",
+      "camped_empty_body": "Modem không báo cell phục vụ. Vẫn có thể nhập kênh thủ công.",
+      "add_hint": "Thêm sẽ chép kênh vào danh sách bên dưới. Khóa tần số không dùng PCI, nên modem vẫn tự chọn cell.",
+      "compare_hint": "Khóa trạm đã cố định cả kênh lẫn cell. Khóa tần số là lựa chọn lỏng hơn: cùng kênh, cell nào cũng được.",
+      "compare_hint_unknown": "Không đọc được trạng thái khóa trạm. Khóa tần số bị từ chối khi đang khóa trạm, nên không thể áp dụng gì ở đây cho đến khi đọc được.",
+      "add_blocked": "Không thể thêm cho đến khi gỡ khóa trạm.",
+      "add_blocked_unknown": "Không thể thêm cho đến khi đọc được trạng thái khóa trạm.",
+      "outside_list": "Sóng mang có viền đang phát ngoài danh sách kênh của bạn."
+    },
+    "verdict": {
+      "unlocked_title": "Cho phép mọi kênh",
+      "unlocked_body": "Modem có thể dùng bất kỳ kênh nào trong các băng tần đã bật và tự do chọn lại cell. Cho phép một kênh để thu hẹp lại.",
+      "locked_title": "Đã khóa theo danh sách kênh",
+      "locked_body": "Modem chỉ được dùng các kênh bên dưới. Modem vẫn tự chọn cell, nên PCI có thể thay đổi.",
+      "blocked_title": "Khóa trạm đang giữ sóng",
+      "blocked_body": "QManager sẽ không ghi khóa tần số khi đang khóa trạm. Gỡ khóa trạm để dùng trang này.",
+      "blocked_unknown_title": "Chưa xác nhận được trạng thái khóa trạm",
+      "blocked_unknown_body": "QManager không đọc được có đang khóa trạm hay không. Thay đổi khóa tần số bị chặn cho đến khi đọc được, vì áp dụng khóa tần số khi đang khóa trạm có thể làm treo modem. Làm mới để thử lại.",
+      "unknown_title": "Không có trạng thái khóa",
+      "unknown_body": "Modem không trả lời lần đọc trạng thái gần nhất. Làm mới để thử lại.",
+      "serving_in_list": "Kênh phục vụ nằm trong danh sách",
+      "serving_out_of_list": "Kênh phục vụ nằm ngoài danh sách",
+      "tower_lock_off": "Khóa trạm đang tắt, có thể dùng chức năng này",
+      "no_recovery": "Không tự động phục hồi",
+      "open_tower_locking": "Mở Khóa trạm"
+    },
+    "legs": {
+      "lte": {
+        "title": "Kênh LTE",
+        "description": "Tối đa 2 EARFCN. Modem chỉ được dùng các kênh này."
+      },
+      "nr": {
+        "title": "Kênh 5G NR",
+        "description": "Tối đa 32 ARFCN, mỗi kênh kèm khoảng cách sóng mang con."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr": "5G NR"
+    },
+    "card": {
+      "status_locked": "Đã khóa",
+      "status_unlocked": "Chưa khóa",
+      "status_blocked": "Bị chặn",
+      "status_unknown": "Không có số liệu",
+      "status_applying": "Đang áp dụng",
+      "empty_title": "Danh sách chưa có kênh",
+      "empty_body_lte": "Thêm sóng mang từ phía trên, hoặc nhập EARFCN.",
+      "empty_body_nr": "Thêm sóng mang NR phía trên, hoặc nhập ARFCN và chọn khoảng cách sóng mang con.",
+      "blocked_body": "Gỡ khóa trạm để sửa danh sách này.",
+      "scs_warning": "Khoảng cách sai trông vẫn như mục hợp lệ, nhưng modem sẽ không bao giờ dùng. Giá trị được chép từ sóng mang khi bạn thêm từ phía trên.",
+      "no_pci_note": "Khóa tần số không bao giờ cố định cell. Modem vẫn tiếp tục chọn lại cell trong các kênh bạn cho phép.",
+      "count": "{{used}}/{{max}}",
+      "unused": "Kênh có viền đã được khóa nhưng sóng không nằm trên đó."
+    },
+    "blocked": {
+      "tower_lock_active": "Khóa trạm đang giữ sóng này. Gỡ khóa trạm trước khi khóa tần số.",
+      "tower_lock_unknown": "Không đọc được trạng thái khóa trạm, nên lệnh khóa này bị từ chối cho đến khi modem phản hồi. Làm mới để thử lại."
+    },
+    "slots": {
+      "slot": "Khe {{index}}",
+      "earfcn_placeholder": "EARFCN",
+      "arfcn_placeholder": "NR-ARFCN",
+      "optional": "Tùy chọn. Kênh thứ hai mở rộng danh sách cho phép.",
+      "scs_label": "Khoảng cách",
+      "scs_unit": "{{value}} kHz",
+      "serving": "Phục vụ",
+      "aggregated": "Gộp sóng",
+      "staged": "Đã chuẩn bị",
+      "in_list": "Trong danh sách",
+      "remove": "Xóa mục",
+      "staged_count": "Đã chuẩn bị {{count}}/{{max}} mục. Chưa có gì được ghi vào modem.",
+      "on_air": "Đang phát"
+    },
+    "actions": {
+      "use_current": "Dùng hiện tại",
+      "use_current_none": "Không có sóng mang",
+      "use_current_hint": "Điền từ các kênh modem đang dùng",
+      "add": "Thêm",
+      "add_channel": "Thêm kênh",
+      "apply": "Áp dụng khóa",
+      "apply_lte": "Áp dụng khóa LTE",
+      "apply_nr": "Áp dụng khóa NR",
+      "clear_all": "Xóa tất cả",
+      "clear_lte": "Gỡ khóa LTE",
+      "clear_nr": "Gỡ khóa NR",
+      "clear_fields": "Xóa các ô",
+      "refresh": "Làm mới"
+    },
+    "apply": {
+      "disclaimer": "Áp dụng sẽ ngắt kết nối trong giây lát khi sóng đăng ký lại. Kênh không có vùng phủ sẽ khiến modem mất dịch vụ cho đến khi bạn gỡ khóa.",
+      "no_recovery": "Khóa tần số không có bộ giám sát dự phòng. Khác với khóa băng tần và khóa trạm, sẽ không có gì tự khôi phục dịch vụ nếu các kênh này mất vùng phủ.",
+      "readback_label": "Modem báo",
+      "readback_none": "Modem không có khóa tần số",
+      "readback_lte": "LTE {{channels}}",
+      "readback_nr": "NR {{channels}}",
+      "readback_serving": "đang phục vụ {{channel}}",
+      "live_title": "Khóa đang hoạt động trên modem",
+      "blocked_title": "Không thể áp dụng khi đang khóa trạm",
+      "blocked_readback": "Đang khóa trạm · không dùng được khóa tần số",
+      "blocked_unknown_title": "Không thể áp dụng cho đến khi đọc được trạng thái khóa trạm",
+      "blocked_unknown_readback": "Không rõ trạng thái khóa trạm, nên việc ghi bị chặn",
+      "applying_title": "Đang chờ modem phản hồi lại",
+      "applying_readback": "Đã gửi {{seconds}} giây trước",
+      "clobbered_title": "Khóa tần số đã mất",
+      "clobbered_body": "Modem không còn báo khóa mà trang này đã áp dụng. Đặt khóa trạm sẽ thay thế khóa tần số mà không cảnh báo, nên đó có thể là nguyên nhân."
+    },
+    "progress": {
+      "title": "Đang ghi kênh",
+      "accepted": "Đã nhận lệnh",
+      "reregistering": "Sóng đang đăng ký lại",
+      "verifying": "Đang xác minh kênh phục vụ",
+      "wait_note": "Mất vài giây. Không khởi động lại.",
+      "no_service_title": "Tạm thời mất dịch vụ",
+      "carriers_dropped": "sóng mang đã mất",
+      "carriers_return": "Sóng mang sẽ hiện lại khi modem đăng ký trên một kênh được phép.",
+      "stuck_warning": "Nếu không có gì trở lại trong vòng một phút, các kênh đã chọn không có vùng phủ ở đây. Gỡ khóa sẽ khôi phục việc dò sóng bình thường.",
+      "paused": "Tạm dừng chỉnh sửa cho đến khi modem phản hồi.",
+      "sent": "Đã gửi"
+    },
+    "dialog": {
+      "lock_lte_title": "Khóa kênh LTE?",
+      "lock_lte_body": "Modem sẽ chỉ dùng {{channels}} và có thể mất kết nối trong giây lát khi đăng ký lại.",
+      "lock_nr_title": "Khóa kênh 5G NR?",
+      "lock_nr_body": "Modem sẽ chỉ dùng {{channels}} và có thể mất kết nối trong giây lát khi đăng ký lại.",
+      "unlock_lte_title": "Gỡ khóa LTE?",
+      "unlock_lte_body": "Modem sẽ được tự do dùng bất kỳ kênh nào trong các băng tần đã bật, và có thể mất kết nối trong giây lát.",
+      "unlock_nr_title": "Gỡ khóa 5G NR?",
+      "unlock_nr_body": "Modem sẽ được tự do dùng bất kỳ kênh nào trong các băng tần đã bật, và có thể mất kết nối trong giây lát.",
+      "unsupported_title": "Các kênh này nằm ngoài băng tần modem hỗ trợ",
+      "unsupported_body": "Khóa vào băng tần modem không hỗ trợ có thể khiến modem khởi động lại bất ngờ, và không có gì ở đây tự khôi phục được.",
+      "unsupported_matched": "Băng tần khớp",
+      "unsupported_supported": "Băng tần hỗ trợ",
+      "unsupported_unknown": "Không rõ",
+      "unsupported_confirm": "Vẫn khóa",
+      "cancel": "Hủy",
+      "confirm_lock": "Khóa kênh",
+      "confirm_unlock": "Gỡ khóa",
+      "no_recovery": "Khóa tần số không có bộ giám sát dự phòng. Khác với khóa băng tần và khóa trạm, sẽ không có gì tự khôi phục dịch vụ nếu các kênh này mất vùng phủ."
+    },
+    "bands": {
+      "possible": "Băng tần có thể:",
+      "none": "Không có băng tần khớp cho {{label}}",
+      "this_frequency": "kênh này",
+      "unsupported_suffix": "không hỗ trợ"
+    },
+    "toast": {
+      "lte_locked": "Đã áp dụng khóa tần số LTE",
+      "lte_lock_failed": "Không áp dụng được khóa tần số LTE",
+      "lte_cleared": "Đã gỡ khóa tần số LTE",
+      "lte_clear_failed": "Không gỡ được khóa tần số LTE",
+      "nr_locked": "Đã áp dụng khóa tần số 5G NR",
+      "nr_lock_failed": "Không áp dụng được khóa tần số 5G NR",
+      "nr_cleared": "Đã gỡ khóa tần số 5G NR",
+      "nr_clear_failed": "Không gỡ được khóa tần số 5G NR",
+      "filled_from_current": "Đã điền từ các sóng mang đang phát",
+      "no_channels_title": "Chưa nhập kênh",
+      "no_channels_body": "Nhập ít nhất một kênh trước khi áp dụng."
+    },
+    "error": {
+      "load_title": "Không đọc được trạng thái khóa",
+      "load_body": "Modem không phản hồi. Làm mới để thử lại.",
+      "tower_lock_active": "Đang khóa trạm, nên modem sẽ không nhận khóa tần số.",
+      "invalid_channel": "Số kênh chỉ được gồm chữ số.",
+      "retry": "Thử lại"
+    },
+    "a11y": {
+      "refresh": "Làm mới trạng thái khóa",
+      "remove_entry": "Xóa kênh này",
+      "add_carrier": "Thêm sóng mang này vào danh sách"
+    },
+    "errors": {
+      "tower_state_unknown": "Modem không báo có đang khóa trạm hay không, nên khóa tần số chưa được ghi. Làm mới rồi thử lại."
+    }
+  },
+  "profiles": {
+    "list": {
+      "bands_more": "+{{n}}",
+      "bands_more_aria": "Thêm {{n}} băng tần",
+      "status": {
+        "sim_changed": "Đã đổi SIM"
+      },
+      "suggestion_meta": "Đề xuất cho SIM của bạn"
+    },
+    "today": {
+      "armed": "Lịch đang bật",
+      "not_armed": "Không có lịch",
+      "summary": {
+        "until": "áp dụng đến {{time}}, sau đó là {{next}}",
+        "rest_of_day": "áp dụng đến hết hôm nay",
+        "all_day": "áp dụng cả ngày"
+      }
+    }
+  },
+  "radio_info": {
+    "common": {
+      "not_available": "—",
+      "value_unavailable": "Không có số liệu"
+    },
+    "page": {
+      "title": "Thông tin di động và sóng vô tuyến",
+      "description": "Mọi thông tin modem đang báo về liên kết vô tuyến: định danh, phổ tần đang dùng và chất lượng tín hiệu theo từng sóng mang."
+    },
+    "alert": {
+      "modem_unreachable": "Không kết nối được modem, đang hiển thị giá trị nhận được gần nhất."
+    },
+    "header": {
+      "cadence": "Cập nhật mỗi vài giây",
+      "refresh": "Làm mới ngay",
+      "copy": "Sao chép chẩn đoán",
+      "copied": "Đã sao chép",
+      "copy_success": "Đã sao chép chẩn đoán vào bộ nhớ tạm",
+      "copy_error": "Không sao chép được vào bộ nhớ tạm. Hãy chọn và sao chép giá trị thủ công."
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "Không có số liệu"
+    },
+    "tiles": {
+      "network": {
+        "label": "Loại mạng",
+        "caption_nsa": "Non-standalone, neo trên LTE",
+        "caption_sa": "Lõi 5G độc lập",
+        "caption_lte": "Không có kết nối 5G",
+        "caption_unknown": "Modem không báo công nghệ truy cập"
+      },
+      "bandwidth": {
+        "label": "Băng thông đang dùng",
+        "unit": "MHz",
+        "caption_unavailable": "Modem không báo",
+        "caption_single": "Một sóng mang",
+        "caption_breakdown": "{{parts}} MHz"
+      },
+      "carriers": {
+        "label": "Gộp sóng mang",
+        "value_one": "{{count}} sóng mang",
+        "value_other": "{{count}} sóng mang",
+        "caption": "LTE {{lte}}    NR {{nr}}",
+        "caption_none": "Không có sóng mang"
+      },
+      "mimo": {
+        "label": "MIMO đang hoạt động",
+        "caption_link": "Chi tiết từng ăng-ten",
+        "caption_unavailable": "Modem không báo"
+      }
+    },
+    "states": {
+      "loading_sr": "Đang tải thông tin sóng vô tuyến",
+      "retry": "Thử lại",
+      "no_sim": {
+        "title": "Không phát hiện SIM",
+        "description": "Modem không thấy thẻ SIM, nên không có liên kết vô tuyến để báo. Kiểm tra SIM đã cắm đúng vào khe đang dùng chưa."
+      },
+      "no_service": {
+        "title": "Không có dịch vụ",
+        "description": "Có SIM nhưng modem chưa đăng ký vào mạng nào. Chỉ số tín hiệu sẽ trống cho đến khi kết nối được."
+      },
+      "searching": {
+        "title": "Đang dò mạng",
+        "description": "Modem đang dò cell dùng được. Thông tin sóng sẽ hiện ngay khi đăng ký được."
+      },
+      "unknown": {
+        "title": "Không có trạng thái sóng",
+        "description": "Modem trả về trạng thái mà trang này không nhận ra. Thử làm mới; nếu vẫn bị, có thể cần khởi động lại dịch vụ poller."
+      }
+    },
+    "cellular_card": {
+      "title": "Chi tiết kết nối",
+      "description": "Do mạng báo trong lần kết nối hiện tại."
+    },
+    "groups": {
+      "connection": "Kết nối",
+      "cell_identity": "Định danh cell",
+      "addressing": "Địa chỉ"
+    },
+    "rows": {
+      "operator": "Nhà mạng",
+      "apn": "Tên điểm truy cập",
+      "network_type": "Loại mạng",
+      "carrier_aggregation": "Gộp sóng mang",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "Sector",
+      "tac": "Mã vùng theo dõi (TAC)",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "DNS chính",
+      "secondary_dns": "DNS phụ",
+      "link_uptime": "Thời gian kết nối",
+      "traffic_family": "Đang truyền dữ liệu qua",
+      "distance": "Khoảng cách đến trạm"
+    },
+    "actions": {
+      "edit_apn": "Sửa"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE ({{count}} sóng mang)",
+      "lte_carriers_other": "LTE ({{count}} sóng mang)",
+      "nr_carriers_one": "NR ({{count}} sóng mang)",
+      "nr_carriers_other": "NR ({{count}} sóng mang)",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "Không hoạt động"
+    },
+    "value": {
+      "unknown": "Không có số liệu",
+      "not_assigned": "Chưa được cấp",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "Không có phản hồi",
+      "estimated": "Ước tính",
+      "distance_hint": "Tính từ giá trị timing advance của mạng, được báo theo các bước thô. Hãy xem đây là khoảng cách ước lượng tới cell phục vụ, không phải khoảng cách đo được."
+    },
+    "copy": {
+      "aria": "Sao chép {{label}} vào bộ nhớ tạm",
+      "success": "Đã sao chép {{label}} vào bộ nhớ tạm",
+      "error": "Không sao chép được vào bộ nhớ tạm",
+      "copied": "Đã sao chép"
+    },
+    "a11y": {
+      "show_full_address": "Hiện đầy đủ {{label}}, không rút gọn"
+    },
+    "bands": {
+      "title": "Phổ tần đang dùng",
+      "description_one": "{{count}} sóng mang đang hoạt động, kèm chỉ số tín hiệu trực tiếp bên dưới.",
+      "description_other": "{{count}} sóng mang đang hoạt động, kèm chỉ số tín hiệu trực tiếp cho từng sóng mang.",
+      "cadence": "Cập nhật mỗi vài giây",
+      "stale": "Tạm dừng số liệu",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "NEO",
+        "scc": "SCC {{index}}"
+      },
+      "released": "Đã giải phóng",
+      "released_note": "Sóng mang này ngừng được báo từ {{seconds}} giây trước. Nó vẫn được liệt kê thêm một lúc phòng khi quay lại.",
+      "quality": {
+        "excellent": "Rất tốt",
+        "good": "Tốt",
+        "fair": "Khá",
+        "poor": "Kém",
+        "bad": "Rất yếu",
+        "none": "Không có số liệu"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "Công suất thu băng rộng",
+        "not_reported": "Không có số liệu cho sóng mang này",
+        "not_reported_short": "Không có số liệu"
+      },
+      "detail": {
+        "band_name": "Tên băng tần",
+        "bandwidth": "Băng thông",
+        "dl_frequency": "Tần số DL",
+        "ul_frequency": "Tần số UL",
+        "pci": "PCI",
+        "arfcn": "ARFCN",
+        "earfcn": "EARFCN",
+        "scs": "Khoảng cách sóng mang con",
+        "unknown": "Không rõ",
+        "scs_derived": "Suy ra",
+        "scs_derived_hint": "Modem chỉ báo khoảng cách sóng mang con cho cell NR phục vụ. Giá trị này được suy ra từ chế độ song công của băng tần, không đọc từ sóng.",
+        "duplex": "Song công"
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "SNR trên sóng mang này là {{value}} dB, thuộc mức kém.",
+      "empty": {
+        "title": "Không có sóng mang",
+        "description": "Modem hiện không báo sóng mang gộp nào. Điều này bình thường khi sóng đang dò mạng, nghỉ, hoặc đang chuyển giao."
+      },
+      "scanner": {
+        "body": "Muốn tìm sóng mang mà modem chưa dùng? Trình quét cell sẽ quét mọi băng tần modem hỗ trợ.",
+        "link": "Mở trình quét cell"
+      },
+      "reference": {
+        "show": "Hiện bảng tham chiếu băng tần",
+        "hide": "Ẩn bảng tham chiếu băng tần"
+      }
+    }
+  },
+  "scenarios": {
+    "card": {
+      "title": "Kịch bản kết nối",
+      "description": "Cấu hình sóng. Hồ sơ gắn với các kịch bản này; kịch bản đang hoạt động điều khiển khóa băng tần."
+    },
+    "ownership_notice": "Khi một hồ sơ có lịch đang hoạt động, việc kích hoạt kịch bản do lịch đó quản lý. Khóa băng tần thủ công bị tắt cho đến khi bạn tắt hồ sơ.",
+    "controls_label": "Kích hoạt kịch bản",
+    "icons": {
+      "sparkles": "Lấp lánh",
+      "gamepad": "Chơi game",
+      "play": "Giải trí",
+      "zap": "Hiệu năng",
+      "globe": "Lướt web",
+      "rocket": "Tốc độ",
+      "video": "Gọi video",
+      "download": "Tải xuống",
+      "shield": "Bảo mật",
+      "plane": "Du lịch",
+      "moon": "Ban đêm",
+      "briefcase": "Công việc"
+    },
+    "default_balanced_name": "Cân bằng",
+    "default_gaming_name": "Chơi game",
+    "default_streaming_name": "Xem phim",
+    "default_balanced_description": "Tự chọn băng tần",
+    "default_gaming_description": "Độ trễ thấp, ưu tiên SA",
+    "default_streaming_description": "Băng thông cao, kết nối ổn định",
+    "error": {
+      "title": "Không tải được kịch bản",
+      "body": "Đang hiển thị danh sách gần nhất. Thử lại sau giây lát."
+    },
+    "toast": {
+      "activate_success": "Đã chuyển sang kịch bản {{name}}.",
+      "activate_error": "Không kích hoạt được kịch bản {{name}}.",
+      "create_success": "Đã tạo kịch bản.",
+      "create_success_from_profile": "Đã tạo kịch bản. Quay lại hồ sơ và chọn kịch bản này.",
+      "create_error": "Không tạo được kịch bản.",
+      "delete_success": "Đã xóa kịch bản.",
+      "delete_error": "Không xóa được kịch bản.",
+      "update_success": "Đã cập nhật kịch bản.",
+      "update_error": "Không cập nhật được kịch bản."
+    },
+    "dialog": {
+      "add": {
+        "title": "Kịch bản kết nối mới"
+      },
+      "edit": {
+        "title": "Sửa cấu hình"
+      },
+      "fields": {
+        "name_label": "Tên kịch bản",
+        "name_placeholder_add": "vd: Làm việc tại nhà",
+        "name_placeholder_edit": "Tên kịch bản",
+        "description_label": "Mô tả",
+        "description_placeholder_add": "vd: Tối ưu cho gọi video",
+        "description_placeholder_edit": "Mô tả kịch bản",
+        "network_mode_label": "Chế độ mạng",
+        "lte_band_label": "Khóa băng tần LTE",
+        "lte_band_placeholder": "vd: 1, 3, 7, 28 (để trống = Tự động)",
+        "sa_band_label": "Khóa băng tần NR5G-SA",
+        "nsa_band_label": "Khóa băng tần NR5G-NSA",
+        "band_placeholder": "vd: 41, 78",
+        "optimization_label": "Nhãn tối ưu",
+        "optimization_placeholder": "vd: Độ trễ, Thông lượng, Tùy chỉnh",
+        "icon_label": "Biểu tượng",
+        "preview_description_fallback": "Cấu hình tùy chỉnh"
+      },
+      "buttons": {
+        "create": "Tạo kịch bản",
+        "creating": "Đang tạo…",
+        "save_changes": "Lưu thay đổi",
+        "saving": "Đang lưu…"
+      },
+      "description": "Để trống ô băng tần để modem tự chọn.",
+      "name_required": "Hãy đặt tên cho kịch bản."
+    },
+    "active_config": {
+      "title": "Cấu hình {{name}}",
+      "status": {
+        "applying": "Đang áp dụng…",
+        "active": "Đang hoạt động",
+        "inactive": "Không hoạt động"
+      },
+      "activate": "Kích hoạt",
+      "edit_aria": "Sửa cài đặt kịch bản",
+      "disabled_tooltip": "Việc kích hoạt kịch bản đang do hồ sơ SIM tùy chỉnh {{profile}} quản lý.",
+      "rows": {
+        "network_mode": "Chế độ mạng",
+        "optimization": "Tối ưu",
+        "lte_bands": "Băng tần LTE",
+        "nr_sa_bands": "Băng tần NR5G-SA",
+        "nr_nsa_bands": "Băng tần NR5G-NSA"
+      },
+      "edit": "Sửa",
+      "show_details": "Hiện chi tiết",
+      "hide_details": "Ẩn chi tiết"
+    },
+    "tile": {
+      "in_force": "Đang áp dụng",
+      "caption_next": "Tiếp theo lúc {{time}}",
+      "delete_dialog": {
+        "title": "Xóa kịch bản",
+        "description": "Bạn có chắc muốn xóa \"{{name}}\"? Không thể hoàn tác.",
+        "confirm": "Xóa"
+      },
+      "add": {
+        "title": "Kịch bản mới"
+      }
+    },
+    "redirect": {
+      "label": "Đang mở Hồ sơ SIM tùy chỉnh…"
+    },
+    "network_mode": {
+      "auto": "Tự động",
+      "lte_only": "Chỉ LTE",
+      "nr5g_only": "Chỉ 5G SA",
+      "lte_nr5g": "5G SA / NSA"
+    },
+    "optimization": {
+      "balanced": "Cân bằng",
+      "latency": "Độ trễ",
+      "throughput": "Thông lượng",
+      "custom": "Tùy chỉnh"
+    },
+    "bands_auto": "Tự động",
+    "schedule_lock": {
+      "badge": "Đã lên lịch",
+      "next_change": "Thay đổi tiếp theo lúc {{time}}"
+    },
+    "scenario_item": {
+      "band_lock": "Khóa băng tần"
+    },
+    "errors": {
+      "load_failed": "Modem không trả về danh sách kịch bản. Thử lại sau giây lát.",
+      "activate_failed": "Không kích hoạt được kịch bản.",
+      "save_failed": "Không lưu được kịch bản.",
+      "delete_failed": "Không xóa được kịch bản."
+    }
+  },
+  "sms": {
+    "page": {
+      "title": "Trung tâm SMS",
+      "description": "Xem, quản lý và gửi tin nhắn SMS từ modem."
+    },
+    "inbox": {
+      "buttons": {
+        "delete_all": "Xóa tất cả"
+      },
+      "delete_single_confirm": {
+        "deleting": "Đang xóa…"
+      },
+      "delete_all_confirm": {
+        "title": "Xóa tất cả tin nhắn",
+        "description": "Mọi tin nhắn và cuộc hội thoại đã lưu sẽ bị xóa vĩnh viễn. Không thể hoàn tác.",
+        "confirm": "Xóa tất cả",
+        "cancel": "Giữ tin nhắn",
+        "deleting": "Đang xóa tất cả…"
+      },
+      "toast": {
+        "delete_all_success": "Đã xóa tất cả tin nhắn"
+      }
+    },
+    "compose": {
+      "title": "Tin nhắn mới",
+      "description": "Soạn và gửi tin nhắn SMS.",
+      "fields": {
+        "phone_label": "Số điện thoại",
+        "phone_placeholder": "+84901234567",
+        "message_label": "Tin nhắn",
+        "message_placeholder": "Nhập tin nhắn..."
+      },
+      "buttons": {
+        "send": "Gửi",
+        "sending": "Đang gửi…"
+      },
+      "toast": {
+        "success": "Đã gửi SMS",
+        "partial": "Chỉ gửi được {{sent}}/{{parts}} phần; gửi lại sẽ lặp lại các phần đó."
+      },
+      "encoding_hint": "Ký tự ngoài bảng chữ GSM sẽ chuyển tin nhắn sang UCS-2 và giới hạn mỗi phần ở 70 ký tự.",
+      "encoding": {
+        "gsm7": "GSM 7 bit",
+        "ucs2": "UCS-2"
+      }
+    },
+    "forwarding": {
+      "page": {
+        "title": "Chuyển tiếp",
+        "description": "Chuyển tiếp mọi tin nhắn đến sang số khác, và theo dõi việc chuyển tiếp có thực sự thành công không."
+      },
+      "health": {
+        "toast_test_success": "Đã gửi tin nhắn thử tới số chuyển tiếp.",
+        "toast_clear_success": "Đã xóa.",
+        "card_title": "Gửi & tình trạng",
+        "card_description": "Tin nhắn đến có tới được số của bạn không.",
+        "state_active": "Đang hoạt động",
+        "state_issue": "Đang gửi nhưng có lỗi",
+        "state_unconfigured": "Chưa đặt số nhận",
+        "state_off": "Chuyển tiếp đang tắt",
+        "destination_label": "Đang gửi tới",
+        "destination_none": "Bật chuyển tiếp và lưu một số để bắt đầu chuyển tiếp tin nhắn.",
+        "state_unconfigured_description": "Chuyển tiếp đang bật nhưng chưa có số nhận. Thêm một số để bắt đầu chuyển tiếp.",
+        "preview_label": "Người nhận sẽ thấy",
+        "preview_hint_label": "Về bản xem trước này",
+        "preview_hint": "Số ở dòng Từ chỉ là người gửi ví dụ. Số bạn đã lưu sẽ nhận tin nhắn này, không phải gửi đi.",
+        "preview_from": "Từ {{sender}}:",
+        "preview_sample_body": "Chào bạn, 3 giờ chiều vẫn hẹn nhé?",
+        "failures_title_one": "{{count}} tin nhắn không chuyển tiếp được",
+        "failures_title_other": "{{count}} tin nhắn không chuyển tiếp được",
+        "failures_description": "Chuyển tiếp vẫn bật cho tin nhắn mới. Các tin này đã bị bỏ sau 3 lần thử thất bại:",
+        "failures_unknown_sender": "Người gửi không rõ",
+        "clear_button": "Xóa cảnh báo",
+        "failures_empty": "Không có lỗi gửi.",
+        "test_hint": "Gửi tin thử tới số đã lưu.",
+        "test_disabled_hint": "Bật chuyển tiếp và lưu một số để gửi tin thử.",
+        "test_sending": "Đang gửi…",
+        "test_button": "Gửi thử"
+      },
+      "sms": {
+        "loading_label": "Đang tải cài đặt chuyển tiếp",
+        "error_load": "Không tải được cài đặt chuyển tiếp",
+        "validation_phone": "Nhập số điện thoại hợp lệ (vd: +84901234567).",
+        "toast_save_success": "Đã lưu cài đặt chuyển tiếp.",
+        "card_title": "Chuyển tiếp SMS",
+        "card_description": "Tự động gửi lại mỗi tin nhắn đến tới số bạn chọn.",
+        "enable_label": "Chuyển tiếp tin nhắn đến",
+        "target_label": "Chuyển tới",
+        "target_hint_label": "Về tin nhắn chuyển tiếp",
+        "target_description": "Mỗi tin nhắn mới sẽ được gửi lại tới đây dưới dạng \"From <sender>: <message>\".",
+        "target_placeholder": "+84901234567"
+      },
+      "errors": {
+        "load_failed": "Modem không trả về cài đặt chuyển tiếp. Thử lại sau giây lát.",
+        "save_failed": "Không lưu được cài đặt chuyển tiếp.",
+        "test_failed": "Không gửi được tin nhắn thử.",
+        "clear_failed": "Không xóa được cảnh báo."
+      }
+    },
+    "center": {
+      "toast": {
+        "message_marked_unread": "Đã đánh dấu chưa đọc",
+        "mark_unread_failed": "Không đánh dấu chưa đọc được",
+        "thread_marked_read": "Đã đánh dấu đã đọc",
+        "message_deleted": "Đã xóa tin nhắn",
+        "message_delete_failed": "Không xóa được tin nhắn",
+        "thread_deleted": "Đã xóa cuộc hội thoại",
+        "thread_delete_failed": "Không xóa được cuộc hội thoại",
+        "address_copied": "Đã sao chép địa chỉ người gửi",
+        "copy_failed": "Không sao chép được. Trình duyệt chặn truy cập bộ nhớ tạm trên kết nối này.",
+        "message_copied": "Đã sao chép tin nhắn"
+      },
+      "header": {
+        "synced": "Đồng bộ {{seconds}} giây trước",
+        "refresh_failed": "Không làm mới được"
+      },
+      "actions": {
+        "refresh": "Làm mới",
+        "more": "Tùy chọn khác",
+        "back": "Quay lại tất cả tin nhắn",
+        "copy_address": "Sao chép địa chỉ người gửi",
+        "thread_options": "Tùy chọn hội thoại",
+        "mark_read": "Đánh dấu tất cả đã đọc",
+        "delete_thread": "Xóa cuộc hội thoại",
+        "copy_text": "Sao chép nội dung",
+        "forward": "Chuyển tiếp…",
+        "mark_unread": "Đánh dấu chưa đọc",
+        "details": "Chi tiết…",
+        "delete_message": "Xóa",
+        "compose": "Tin nhắn mới"
+      },
+      "states": {
+        "missing": {
+          "title": "Cuộc hội thoại không còn",
+          "description": "Cuộc hội thoại không còn được lưu. Có thể đã bị xóa sau khi liên kết này được tạo.",
+          "action": "Quay lại tất cả tin nhắn"
+        },
+        "no_selection": {
+          "title": "Chọn một cuộc hội thoại",
+          "description": "Chọn một cuộc hội thoại bên trái, hoặc soạn tin nhắn mới."
+        },
+        "loading_thread_sr": "Đang tải cuộc hội thoại",
+        "thread_empty": {
+          "title": "Chưa có gì ở đây",
+          "description": "Cuộc hội thoại này chưa có tin nhắn nào được lưu. Gửi một tin để bắt đầu."
+        },
+        "loading_sr": "Đang tải hội thoại",
+        "error": {
+          "title": "Không tải được tin nhắn",
+          "description": "Tin nhắn đã lưu vẫn an toàn. Thử lại sau giây lát.",
+          "retry": "Thử lại"
+        },
+        "no_matches": {
+          "title": "Không có kết quả",
+          "description": "Không có hội thoại nào khớp tìm kiếm. Thử tìm theo tên, số điện thoại hoặc một từ trong tin nhắn."
+        },
+        "no_unread": {
+          "title": "Không có tin chưa đọc",
+          "description": "Mọi tin nhắn đã lưu đều đã được mở trong trình duyệt này."
+        },
+        "empty": {
+          "title": "Không có tin nhắn",
+          "description": "Tin nhắn bạn nhận sẽ hiện ở đây.",
+          "action": "Soạn tin nhắn"
+        }
+      },
+      "delete_thread": {
+        "title": "Xóa cuộc hội thoại này?",
+        "description": "Mọi tin nhắn đã lưu của {{contact}} sẽ bị xóa. Không thể hoàn tác.",
+        "confirm": "Xóa cuộc hội thoại"
+      },
+      "delete_message": {
+        "title": "Xóa tin nhắn này?",
+        "description": "Tin nhắn sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
+        "confirm": "Xóa tin nhắn"
+      },
+      "composer": {
+        "segments_one": "{{count}} SMS",
+        "segments_other": "{{count}} SMS",
+        "aria": "Trả lời {{contact}}",
+        "placeholder": "Tin nhắn văn bản",
+        "remaining_one": "Còn {{count}} ký tự",
+        "remaining_other": "Còn {{count}} ký tự",
+        "send": "Gửi tin nhắn",
+        "no_reply": "Người gửi này là tên, không phải số, nên không thể trả lời."
+      },
+      "identity": {
+        "matched": "Đã khớp"
+      },
+      "time": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua"
+      },
+      "send": {
+        "sending": "Đang gửi…",
+        "failed": "Không gửi được",
+        "retry": "Thử lại",
+        "discard": "Hủy bỏ",
+        "sent_at": "Đã gửi {{time}}"
+      },
+      "phishing": {
+        "with_logo": "Có chứa liên kết. Tên người gửi có thể bị giả mạo, nên {{name}} có thể không phải người gửi tin này.",
+        "generic": "Có chứa liên kết. Chỉ mở nếu bạn đang chờ tin nhắn này."
+      },
+      "code": {
+        "copied": "Đã sao chép",
+        "copy": "Sao chép mã"
+      },
+      "forward": {
+        "prefix": "Từ {{addr}}:",
+        "title": "Chuyển tiếp tin nhắn",
+        "description": "Gửi một tin nhắn mới từ modem này. Tin gốc vẫn giữ nguyên.",
+        "to_label": "Đến",
+        "alpha_disabled": "Tên người gửi không nhận được tin nhắn",
+        "include_sender": "Kèm người gửi gốc",
+        "include_sender_hint": "Thêm dòng \"Từ {{addr}}:\" ở đầu tin",
+        "submit": "Chuyển tiếp"
+      },
+      "details": {
+        "kind": {
+          "msisdn": "Số điện thoại",
+          "shortcode": "Đầu số ngắn",
+          "alphanumeric": "Tên người gửi"
+        },
+        "title": "Chi tiết tin nhắn",
+        "description": "Mọi thông tin QManager có về tin nhắn này.",
+        "to": "Đến",
+        "from": "Từ",
+        "sender_type": "Loại người gửi",
+        "sent_at": "Đã gửi",
+        "received_at": "Đã nhận",
+        "length": "Độ dài",
+        "length_value_one": "{{count}} ký tự",
+        "length_value_other": "{{count}} ký tự",
+        "close": "Đóng"
+      },
+      "storage": {
+        "unknown": "Không có số liệu",
+        "label": "Bộ nhớ tin nhắn",
+        "modem": "Bộ nhớ modem",
+        "sim": "Bộ nhớ SIM",
+        "combined_caption": "Số ô đã dùng trên cả hai bộ nhớ"
+      },
+      "search": {
+        "aria": "Tìm tin nhắn",
+        "placeholder": "Tìm tin nhắn"
+      },
+      "filters": {
+        "all": "Tất cả",
+        "unread": "Chưa đọc"
+      },
+      "sort": {
+        "to_oldest": "Cũ nhất trước",
+        "to_newest": "Mới nhất trước"
+      },
+      "preview": {
+        "you": "Bạn:"
+      },
+      "a11y": {
+        "unread_count_one": "{{count}} tin nhắn chưa đọc",
+        "unread_count_other": "{{count}} tin nhắn chưa đọc"
+      }
+    },
+    "errors": {
+      "delete_all": "Không xóa được tin nhắn",
+      "send": "Không gửi được SMS",
+      "fetch": "Không tải được tin nhắn"
+    },
+    "settings": {
+      "title": "Cài đặt SMS",
+      "description": "Chọn cách modem gửi và lưu tin nhắn.",
+      "smsc": {
+        "toast_saved": "Đã lưu số trung tâm tin nhắn.",
+        "save_failed": "Không lưu được số trung tâm tin nhắn.",
+        "title": "Số trung tâm tin nhắn",
+        "hint_label": "Về số trung tâm tin nhắn",
+        "hint": "Còn gọi là trung tâm dịch vụ SMS (SMSC). Do nhà mạng đặt, chỉ thay đổi khi không gửi được tin nhắn.",
+        "description": "Số của nhà mạng dùng để định tuyến tin nhắn gửi đi.",
+        "placeholder": "vd: +84980200030",
+        "invalid": "Nhập 3 đến 20 chữ số, có thể bắt đầu bằng +.",
+        "unreadable": "Không đọc được số hiện tại. Bạn vẫn có thể đặt số mới."
+      }
+    },
+    "storage": {
+      "full": "Đầy",
+      "nearly_full": "Sắp đầy",
+      "card_title": "Bộ nhớ tin nhắn",
+      "card_description": "Nơi lưu tin nhắn mới. Tin nhắn cũ vẫn ở nguyên chỗ.",
+      "load_failed": "Không đọc được bộ nhớ tin nhắn.",
+      "toast_saved": "Đã lưu cài đặt bộ nhớ tin nhắn.",
+      "field_label": "Lưu tin nhắn mới vào",
+      "hint_label": "Về bộ nhớ tin nhắn",
+      "hint": "Modem chứa được nhiều tin nhắn hơn. Tin nhắn trên SIM sẽ đi theo SIM sang thiết bị khác.",
+      "option_modem": "Modem",
+      "option_sim": "SIM",
+      "row_modem": "Modem",
+      "row_sim": "SIM",
+      "used_of_total": "{{used}}/{{total}}",
+      "unavailable": "Không khả dụng",
+      "save_failed": "Không lưu được cài đặt bộ nhớ tin nhắn."
+    }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "Khóa trạm",
+      "description": "Cố định modem vào một cell vật lý cụ thể theo PCI và kênh."
+    },
+    "live": {
+      "title": "Hiện tại",
+      "camped_empty_title": "Không có sóng mang",
+      "camped_empty_body": "Modem hiện không bám vào cell nào. Khóa vẫn được áp dụng khi modem kết nối.",
+      "absent_nr_title": "Không có sóng mang 5G",
+      "absent_lte_title": "Không có neo LTE",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_no_value": "—",
+      "tile_blocked_nsa": "Khóa 5G cần chế độ SA",
+      "tile_blocked_lte_only": "Không có kết nối 5G để khóa",
+      "tile_blocked_slots_full": "Đã đặt đủ ba cell LTE",
+      "refresh": "Đọc lại trạng thái khóa từ modem",
+      "persist_label": "Giữ khóa sau khi khởi động lại",
+      "persist_help": "Lưu khóa ngay trên modem, nên sẽ tự khôi phục sau khi khởi động lại.",
+      "persist_state_on": "Bật",
+      "persist_state_off": "Tắt",
+      "persist_state_split": "Chỉ một mạng",
+      "persist_state_unknown": "Không có số liệu",
+      "persist_split_help": "Modem báo đã lưu cho một mạng vô tuyến nhưng không cho mạng kia. Tắt rồi bật lại để ghi lại cả hai.",
+      "persist_toast_enabled": "Khóa sẽ được giữ sau khi khởi động lại",
+      "persist_toast_disabled": "Khóa sẽ không được giữ sau khi khởi động lại",
+      "failover_label": "Dự phòng tín hiệu",
+      "failover_help_label": "Về dự phòng tín hiệu",
+      "failover_help": "Tự động gỡ khóa trạm nếu chất lượng tín hiệu ở dưới ngưỡng, để một cell kém không làm treo kết nối. Gỡ khóa cả hai mạng vô tuyến, không chỉ mạng yếu.",
+      "failover_state_disabled": "Đã tắt",
+      "failover_state_stalled": "Không giám sát",
+      "failover_state_unknown": "Không có số liệu",
+      "threshold_label": "Gỡ khi dưới",
+      "threshold_invalid": "Nhập giá trị từ 0 đến 100",
+      "threshold_unread": "Chưa đọc từ modem.",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "Không có số liệu",
+      "verdict_on_target_title": "Đúng mục tiêu",
+      "verdict_on_target_body": "Sóng đang bám vào cell bạn đã khóa.",
+      "verdict_off_target_title": "Sai mục tiêu",
+      "verdict_off_target_body": "Đã đặt khóa nhưng sóng đang ở nơi khác.",
+      "verdict_unverified_title": "Không xác minh được",
+      "verdict_unverified_body": "Đã đặt khóa nhưng không có gì đang phát để so sánh.",
+      "verdict_unlocked_title": "Không khóa",
+      "verdict_unlocked_body": "Modem tự chọn cell và tự do chọn lại.",
+      "verdict_unknown_title": "Chưa đọc",
+      "verdict_unknown_body": "Chưa đọc lại được trạng thái khóa từ modem.",
+      "target_serving": "Phục vụ",
+      "band_channel": "{{band}} ({{channel}})",
+      "target_pair": "{{channel}}, PCI {{pci}}",
+      "tile_add": "Thêm băng tần {{band}}, PCI {{pci}} vào khóa",
+      "tile_lock": "Khóa vào băng tần {{band}}, PCI {{pci}}",
+      "tile_replace": "Đổi sang khóa băng tần {{band}}, PCI {{pci}}",
+      "tile_unlock": "Bỏ băng tần {{band}}, PCI {{pci}} khỏi khóa"
+    },
+    "automation": {
+      "title": "Khi không có ai theo dõi",
+      "description": "Khóa hoạt động thế nào khi khởi động lại, khi tín hiệu kém và theo hẹn giờ.",
+      "failover_help": "Gỡ khóa trạm nếu chất lượng tín hiệu ở dưới ngưỡng, để một cell kém không làm treo kết nối. Gỡ khóa cả hai mạng vô tuyến, không chỉ mạng yếu.",
+      "failover_help_label": "Về dự phòng tín hiệu",
+      "failover_hint": "Đã đặt khóa nhưng dự phòng đang tắt. Khóa không bao giờ tự bật dự phòng.",
+      "failover_label": "Dự phòng tín hiệu",
+      "failover_state_disabled": "Tắt",
+      "failover_state_ready": "Sẵn sàng",
+      "failover_state_released": "Đã gỡ (tín hiệu yếu)",
+      "failover_state_stalled": "Không giám sát",
+      "failover_state_unknown": "Không có số liệu",
+      "failover_state_watching": "Đang giám sát",
+      "quality_unknown": "Chất lượng tín hiệu hiện tại: không có số liệu",
+      "quality_value": "Chất lượng tín hiệu hiện tại: {{value}}%",
+      "threshold_invalid": "Nhập giá trị từ 0 đến 100",
+      "threshold_label": "Gỡ khi dưới",
+      "threshold_unread": "Không đọc được ngưỡng."
+    },
+    "legs": {
+      "lte": {
+        "title": "Trạm LTE",
+        "description": "Cố định sóng 4G vào tối đa ba cell, theo kênh và PCI."
+      },
+      "nr_sa": {
+        "title": "Trạm 5G NR-SA",
+        "description": "Cố định sóng 5G độc lập vào một cell."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "Kênh (EARFCN)",
+      "arfcn": "Kênh (NR-ARFCN)",
+      "pci": "Cell ID (PCI)",
+      "band": "Băng tần NR",
+      "scs": "Khoảng cách sóng mang con",
+      "slot": "Cell {{index}}",
+      "slot_clear": "Xóa cell {{index}}",
+      "scs_guess": "Điền theo mặc định của băng tần {{band}}. Kiểm tra lại với trạm của bạn nếu khóa thất bại.",
+      "pick_placeholder": "Chọn sóng mang đang phát",
+      "slot_in_use": "Ở cell {{index}}"
+    },
+    "card": {
+      "persist_label": "Giữ sau khi khởi động lại",
+      "persist_aria": "Giữ khóa {{leg}} sau khi khởi động lại",
+      "gate_nsa_title": "Không khả dụng ở 5G NSA",
+      "gate_nsa_body": "Khóa SA cần modem ở chế độ SA. Hiện modem đang dùng 5G neo vào cell LTE.",
+      "gate_lte_title": "Không có kết nối 5G",
+      "gate_lte_body": "Modem chỉ đang dùng LTE, nên không có cell NR để cố định.",
+      "empty_title": "Chưa có cell mục tiêu",
+      "empty_body": "Chọn một cell từ danh sách phía trên, hoặc nhập kênh và PCI.",
+      "simple_mode": "Chọn từ sóng mang đang phát",
+      "input_mode": "Nhập cell theo",
+      "mode_pick": "Phát hiện",
+      "mode_type": "Thủ công",
+      "unread_note": "Modem không báo trạng thái khóa.",
+      "unused_lte": "Các cell có viền đã được khóa nhưng modem không dùng.",
+      "unused_nr": "Đã khóa nhưng modem không dùng cell này."
+    },
+    "schedule": {
+      "title": "Lịch khóa",
+      "description": "Chỉ áp dụng khóa trạm trong một khung giờ hằng ngày.",
+      "enable_label": "Khóa theo lịch",
+      "start": "Bắt đầu",
+      "end": "Kết thúc",
+      "days": "Lặp lại vào",
+      "days_a11y": "Các ngày trong tuần",
+      "day_selected": "{{day}}, đã chọn",
+      "day_unselected": "{{day}}, chưa chọn",
+      "day_0": "CN",
+      "day_1": "T2",
+      "day_2": "T3",
+      "day_3": "T4",
+      "day_4": "T5",
+      "day_5": "T6",
+      "day_6": "T7",
+      "status_active": "Đang hoạt động",
+      "status_inactive": "Không hoạt động",
+      "toast_saved": "Đã cập nhật lịch",
+      "toast_error": "Không lưu được lịch",
+      "arm_warning": "Đã lưu nhưng lịch chưa được kích hoạt: {{reason}}",
+      "arm_reason_unit_absent": "dịch vụ lập lịch chưa được cài trên thiết bị này, hãy cập nhật firmware mới nhất để bật",
+      "arm_reason_unknown": "không rõ lý do",
+      "no_days": "Chọn ít nhất một ngày",
+      "toast_disabled": "Đã tắt lịch khóa",
+      "toast_enabled": "Đã bật lịch khóa"
+    },
+    "actions": {
+      "lock": "Khóa trạm",
+      "unlock": "Gỡ khóa",
+      "clear_fields": "Xóa các ô",
+      "refresh": "Làm mới"
+    },
+    "dialog": {
+      "lock_lte_title": "Khóa LTE vào cell này?",
+      "lock_lte_body_one": "Modem sẽ ngắt kết nối trong giây lát rồi kết nối lại vào {{summary}}. Nếu không tới được cell đó, bạn có thể mất dịch vụ cho đến khi gỡ khóa.",
+      "lock_lte_body_other": "Modem sẽ ngắt kết nối trong giây lát rồi kết nối lại vào một trong {{count}} cell. Nếu không tới được cell nào, bạn có thể mất dịch vụ cho đến khi gỡ khóa.",
+      "lock_nr_title": "Khóa 5G vào cell này?",
+      "lock_nr_body": "Modem sẽ ngắt kết nối trong giây lát rồi kết nối lại vào {{summary}}. Nếu không tới được cell đó, bạn có thể mất dịch vụ cho đến khi gỡ khóa.",
+      "unlock_title": "Gỡ khóa trạm {{leg}}?",
+      "unlock_body": "Sóng sẽ quay lại tự chọn cell. Kết nối ngắt trong giây lát khi kết nối lại."
+    },
+    "toast": {
+      "persist_enabled": "Khóa {{leg}} sẽ được giữ sau khi khởi động lại",
+      "persist_disabled": "Khóa {{leg}} sẽ không được giữ sau khi khởi động lại",
+      "locked": "Đã áp dụng khóa trạm {{leg}}",
+      "unlocked": "Đã gỡ khóa trạm {{leg}}",
+      "incomplete": "Điền đủ mọi ô trước khi khóa",
+      "filled": "Đã điền {{leg}} từ băng tần {{band}}, PCI {{pci}}",
+      "slots_full": "Đã đặt đủ ba cell LTE",
+      "cell_added": "Đã thêm cell vào khóa {{leg}}",
+      "cell_exists": "Cell này đã được thêm",
+      "cell_removed": "Đã bỏ cell khỏi khóa {{leg}}",
+      "failover_disabled": "Đã tắt dự phòng tín hiệu",
+      "failover_enabled": "Đã bật dự phòng tín hiệu",
+      "refresh_error": "Không làm mới được trạng thái khóa",
+      "threshold_saved": "Đã cập nhật ngưỡng dự phòng"
+    },
+    "warning": {
+      "service_enable_failed": "Khóa đang hoạt động nhưng không đặt được để chạy khi khởi động, nên sẽ mất sau khi khởi động lại.",
+      "service_disable_failed": "Đã gỡ khóa nhưng không xóa được khỏi danh sách khởi động, có thể khóa sẽ quay lại sau khi khởi động lại.",
+      "persist_command_failed": "\"Giữ khóa sau khi khởi động lại\" không thành công. Modem từ chối lệnh lưu.",
+      "dismiss": "Bỏ qua"
+    },
+    "error": {
+      "title": "Không đọc được trạng thái khóa trạm",
+      "body": "Modem không phản hồi sau ba lần thử. Mọi thứ bên dưới không phản ánh trạng thái khóa thực của sóng cho đến khi đọc được.",
+      "retry": "Thử lại",
+      "retrying": "Đang thử lại…"
+    },
+    "blocked": {
+      "lock_empty_lte": "Nhập kênh và PCI, hoặc chọn một cell từ các ô phía trên.",
+      "lock_incomplete_lte": "Mỗi khe bạn đã bắt đầu điền cần có cả kênh và PCI.",
+      "lock_empty_nr": "Nhập kênh, PCI, khoảng cách và băng tần, hoặc chọn một cell từ các ô phía trên.",
+      "lock_incomplete_nr": "Cần đủ cả bốn ô trước khi khóa cell này.",
+      "lock_gated_nsa": "Modem đang ở 5G NSA, nhánh 5G không có cell độc lập để khóa.",
+      "lock_gated_lte_only": "Modem không có sóng mang 5G nào đang phát, nên không có gì để khóa.",
+      "refresh_writing": "Đang áp dụng một thay đổi trạm."
+    },
+    "a11y": {
+      "applying": "Đang áp dụng khóa trạm {{leg}}…",
+      "refreshing": "Đang đọc lại trạng thái khóa trạm…"
+    },
+    "errors": {
+      "in_flight": "Một thay đổi trạm khác vẫn đang được áp dụng.",
+      "lock_failed": "Không áp dụng được khóa trạm.",
+      "no_cells": "Nhập ít nhất một kênh và PCI trước.",
+      "read_failed": "Modem không báo trạng thái khóa trạm.",
+      "schedule_failed": "Không lưu được lịch khóa.",
+      "settings_failed": "Không lưu được cài đặt trạm.",
+      "unlock_failed": "Không gỡ được khóa trạm."
+    }
+  }
+}

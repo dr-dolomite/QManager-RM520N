@@ -1,0 +1,1236 @@
+{
+  "known_sims": {
+    "section": "SIM được theo dõi",
+    "rows": {
+      "count": {
+        "consequence": "QManager ghi nhớ các SIM đã thấy, nên chỉ cảnh báo khi cắm SIM thực sự mới. Xóa sẽ quên mọi SIM trừ SIM đang cắm.",
+        "label": "SIM đã ghi nhớ"
+      }
+    },
+    "states": {
+      "empty_title": "Chưa theo dõi SIM nào",
+      "empty_description": "QManager ghi nhận mỗi SIM ở lần cắm đầu tiên. Cắm một SIM để bắt đầu danh sách.",
+      "error_title": "Không đọc được danh sách SIM được theo dõi",
+      "error_description": "Thiết bị không phản hồi. Chưa có gì bị quên; đây là lỗi đọc và số liệu vẫn còn trên modem."
+    },
+    "clear_button": "Xóa",
+    "clear_dialog_title": "Xóa danh sách SIM đã biết?",
+    "clear_dialog_description": "Thao tác này quên mọi SIM QManager đã thấy, trừ SIM đang cắm, nên SIM đang dùng sẽ không bị đánh dấu là mới. Các SIM đã dùng trước đây sẽ lại cảnh báo ở lần cắm tiếp theo.",
+    "clear_dialog_confirm": "Xóa",
+    "clear_dialog_clearing": "Đang xóa…",
+    "toast_cleared": "Đã xóa danh sách SIM đã biết",
+    "toast_clear_failed": "Không xóa được danh sách SIM đã biết",
+    "toast_cleared_partial": "Đã xóa danh sách SIM đã biết nhưng chưa hoàn toàn",
+    "toast_cleared_partial_detail": "Thiết bị đã quên các SIM nhưng không cập nhật được bản ghi theo từng SIM. Tải lại trang để kiểm tra."
+  },
+  "page": {
+    "title": "Cài đặt hệ thống",
+    "description": "Cách thiết bị giữ giờ, khi nào khởi động lại, và ghi nhớ những SIM nào.",
+    "refresh": "Làm mới"
+  },
+  "band": {
+    "head": "Đang áp dụng",
+    "unreachable": "Không truy cập được",
+    "clock": {
+      "eyebrow": "Đồng hồ thiết bị",
+      "caption_applied": "{{zone}}, đã áp dụng",
+      "caption_drifted": "Đã lưu {{zone}}, nhưng đồng hồ chưa đổi",
+      "caption_unread": "Không đọc được đồng hồ",
+      "caption_unreported": "Đã lưu {{zone}}, không rõ đồng hồ thực"
+    },
+    "reboot": {
+      "eyebrow": "Lần khởi động lại tiếp theo",
+      "off": "Tắt",
+      "day_separator": ", ",
+      "caption_repeats": "Lặp lại vào {{days}}",
+      "caption_off": "Không tự khởi động lại",
+      "caption_no_day": "Đã bật nhưng chưa chọn ngày",
+      "caption_unread": "Không đọc được lịch",
+      "never": "Không bao giờ"
+    },
+    "sims": {
+      "eyebrow": "SIM được theo dõi",
+      "caption_none": "Chưa ghi nhận gì",
+      "caption_known": "Chỉ SIM mới mới gây cảnh báo",
+      "caption_unread": "Không đọc được số lượng"
+    },
+    "stale": "Lần đọc xác nhận gần nhất"
+  },
+  "preferences": {
+    "section": "Thời gian & đơn vị",
+    "card": {
+      "title": "Thiết bị & đơn vị",
+      "description": "Cách modem giữ giờ, đơn vị số liệu, và các SIM được ghi nhớ.",
+      "save": "Lưu tùy chọn"
+    },
+    "rows": {
+      "unsaved": "Chưa lưu",
+      "timezone": {
+        "label": "Múi giờ",
+        "consequence": "Modem không có pin giữ đồng hồ. Mọi dòng nhật ký, sự kiện và lịch đều được tính theo múi giờ này.",
+        "placeholder": "Chọn múi giờ",
+        "search": "Tìm múi giờ…",
+        "empty": "Không có múi giờ nào khớp."
+      },
+      "temperature": {
+        "label": "Nhiệt độ",
+        "consequence": "Áp dụng cho mọi số đo nhiệt độ trong QManager.",
+        "celsius": "Độ C (°C)",
+        "fahrenheit": "Độ F (°F)"
+      },
+      "distance": {
+        "label": "Khoảng cách",
+        "consequence": "Áp dụng cho khoảng cách trạm trên trang quét cell và ăng-ten.",
+        "km": "Kilômét (km)",
+        "miles": "Dặm (mi)"
+      }
+    },
+    "states": {
+      "error_title": "Không đọc được tùy chọn",
+      "error_body": "QManager không đọc được tùy chọn của thiết bị. Chưa có gì thay đổi, múi giờ và đơn vị đã lưu vẫn đang áp dụng trên modem.",
+      "error_body_detail": "QManager không đọc được tùy chọn của thiết bị. Chưa có gì thay đổi, múi giờ và đơn vị đã lưu vẫn đang áp dụng trên modem. Thiết bị báo: {{detail}}",
+      "stale": "Modem không trả lời yêu cầu gần nhất. Nội dung hiển thị là trạng thái xác nhận gần nhất.",
+      "tz_not_applied_chip": "Đồng hồ chưa cập nhật",
+      "tz_not_applied_body": "Đã lưu là {{zone}}, nhưng đồng hồ thiết bị vẫn chạy ở {{offset}}. Có thể sẽ sớm cập nhật, hoặc firmware này thiếu dữ liệu của múi giờ đó."
+    },
+    "toast": {
+      "saved": "Đã lưu tùy chọn",
+      "failed": "Không lưu được tùy chọn",
+      "tz_not_applied": "Đã lưu tùy chọn, nhưng múi giờ chưa được áp dụng vào đồng hồ thiết bị"
+    }
+  },
+  "reboot": {
+    "card": {
+      "title": "Khởi động lại theo lịch",
+      "description": "Tự động khởi động lại modem theo lịch cố định hằng tuần."
+    },
+    "rows": {
+      "enabled": {
+        "label": "Tự khởi động lại",
+        "armed": "Đã bật",
+        "off": "Tắt",
+        "consequence": "Modem khởi động lại theo lịch này. Phiên của bạn mất kết nối khoảng chín mươi giây rồi tự kết nối lại.",
+        "no_day": "Không bao giờ chạy"
+      },
+      "time": {
+        "label": "Giờ",
+        "consequence": "Giờ địa phương của thiết bị, không phải của trình duyệt."
+      },
+      "days": {
+        "label": "Lặp lại vào",
+        "consequence": "Nếu không chọn ngày nào, lịch sẽ không bao giờ chạy.",
+        "rail": "Các ngày khởi động lại trong tuần"
+      },
+      "clock": {
+        "label": "Giờ modem",
+        "consequence": "Ngày giờ mà lịch dựa vào, theo múi giờ đặt trong Thiết bị & đơn vị.",
+        "unsynced": "Chưa đặt",
+        "unsynced_consequence": "Modem chưa đồng bộ đồng hồ từ mạng, nên lịch khởi động lại không chạy được cho đến khi đồng bộ."
+      }
+    },
+    "days": {
+      "sun": "CN",
+      "mon": "T2",
+      "tue": "T3",
+      "wed": "T4",
+      "thu": "T5",
+      "fri": "T6",
+      "sat": "T7"
+    },
+    "states": {
+      "error": {
+        "title": "Không đọc được lịch khởi động lại",
+        "description": "QManager không tải được lịch khởi động lại của thiết bị. Lịch đã lưu trước đó vẫn đang bật trên modem, đây là lỗi đọc, không phải đã tắt."
+      },
+      "stale": "QManager mất liên lạc khi làm mới. Đây là các giá trị đọc được gần nhất từ thiết bị.",
+      "autosave": "Tự động lưu",
+      "saving": "Đang lưu…"
+    },
+    "toast": {
+      "enabled": "Đã bật khởi động lại theo lịch",
+      "disabled": "Đã tắt khởi động lại theo lịch",
+      "saved": "Đã lưu lịch khởi động lại",
+      "save_failed": "Không lưu được lịch khởi động lại",
+      "update_failed": "Không cập nhật được lịch khởi động lại",
+      "unsaved": "Thay đổi lịch khởi động lại chưa được lưu, bạn đã rời trang trước khi kịp lưu.",
+      "not_armed": "Đã lưu lịch khởi động lại nhưng không kích hoạt được trên thiết bị này: {{detail}}",
+      "reason_unknown": "không rõ lý do",
+      "reasons": {
+        "unit_absent": "dịch vụ lập lịch chưa được cài trên thiết bị này, hãy cập nhật firmware mới nhất để bật",
+        "no_schedule": "chưa cấu hình lịch nào để kích hoạt"
+      },
+      "rejected": {
+        "no_days": "Chọn ít nhất một ngày, hoặc tắt lịch.",
+        "invalid_time": "Giờ không hợp lệ. Dùng định dạng 24 giờ HH:MM.",
+        "network": "Không kết nối được thiết bị để lưu. Kiểm tra kết nối rồi thử lại.",
+        "invalid_day": "Một trong các ngày đã chọn không hợp lệ. Chọn từ Chủ nhật đến Thứ bảy.",
+        "missing_enabled": "Thiết bị không nhận được cài đặt bật/tắt. Hãy thử lại."
+      }
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "Nhật ký hệ thống",
+      "description": "QManager lưu nhật ký trong bộ nhớ RAM của modem, nên nhật ký trống sau mỗi lần khởi động lại và không làm hao mòn bộ nhớ flash. Lọc ở đây để xem từng thành phần đã làm gì.",
+      "refresh": "Làm mới",
+      "clear": "Xóa nhật ký",
+      "copy": "Sao chép"
+    },
+    "band": {
+      "head": "Tình trạng nhật ký",
+      "severity": {
+        "eyebrow": "Mức độ",
+        "errors_one": "{{count}} lỗi",
+        "errors_other": "{{count}} lỗi",
+        "warnings_one": "{{count}} cảnh báo",
+        "warnings_other": "{{count}} cảnh báo",
+        "clean": "Sạch",
+        "caption_unread": "Chưa có lần đọc nào",
+        "caption_errors_one": "{{count}} cảnh báo trong {{lines}} dòng đã đọc",
+        "caption_errors_other": "{{count}} cảnh báo trong {{lines}} dòng đã đọc",
+        "caption_warnings_one": "Không có lỗi trong {{count}} dòng đã đọc",
+        "caption_warnings_other": "Không có lỗi trong {{count}} dòng đã đọc",
+        "caption_clean_one": "Không có cảnh báo trong {{count}} dòng đã đọc",
+        "caption_clean_other": "Không có cảnh báo trong {{count}} dòng đã đọc"
+      },
+      "feed": {
+        "eyebrow": "Luồng dữ liệu",
+        "live": "Trực tiếp",
+        "paused": "Tạm dừng",
+        "stopped": "Đã dừng",
+        "caption_unread": "Đang chờ lần đọc đầu tiên",
+        "caption_live": "Làm mới {{age}}, mỗi 10 giây",
+        "caption_paused": "Tạm dừng tự làm mới, đọc {{age}}",
+        "caption_stopped": "Lần đọc gần nhất thất bại, {{age}}"
+      },
+      "file": {
+        "eyebrow": "Tệp nhật ký",
+        "size": "{{size}} KB",
+        "caption_one": "{{count}} dòng, {{rotated}} đã lưu trữ",
+        "caption_other": "{{count}} dòng, {{rotated}} đã lưu trữ",
+        "caption_unread": "Không có thông tin dung lượng"
+      }
+    },
+    "card": {
+      "title": "Nội dung",
+      "description": "Đang hiển thị {{shown}} dòng. Nhật ký trực tiếp có {{held}} dòng.",
+      "description_loading": "Đang đọc nhật ký...",
+      "description_unreadable": "QManager không đọc được nhật ký."
+    },
+    "rail": {
+      "label": "Lọc theo mức độ",
+      "all": "Tất cả",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "WARN": "Warn",
+      "ERROR": "Lỗi"
+    },
+    "filters": {
+      "search_label": "Tìm trong nhật ký",
+      "search_placeholder": "Tìm tin nhắn",
+      "component_label": "Lọc theo thành phần",
+      "component_all": "Tất cả thành phần",
+      "lines_label": "Số dòng cần đọc",
+      "lines_option": "{{lines}} dòng",
+      "archived": "Bao gồm bản lưu trữ"
+    },
+    "day": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "unknown": "Không có ngày"
+    },
+    "time": {
+      "now": "vừa xong",
+      "seconds": "{{value}} giây trước",
+      "minutes": "{{value}} phút trước",
+      "hours": "{{value}} giờ trước",
+      "days": "{{value}} ngày trước"
+    },
+    "severity": {
+      "DEBUG": "Debug",
+      "INFO": "Thông tin",
+      "WARN": "Cảnh báo",
+      "ERROR": "Lỗi"
+    },
+    "notice": {
+      "stale": "QManager mất liên lạc khi làm mới. Đây là các dòng đọc được gần nhất từ thiết bị."
+    },
+    "empty": {
+      "title": "Nhật ký trống",
+      "description": "QManager lưu nhật ký trong bộ nhớ và xóa ở mỗi lần khởi động lại, nên chưa có gì được ghi từ lần khởi động gần nhất."
+    },
+    "empty_filtered": {
+      "title": "Không có gì khớp bộ lọc",
+      "description": "Nhật ký có dữ liệu nhưng không dòng nào khớp mức độ, thành phần hoặc từ khóa bạn chọn.",
+      "action": "Xóa bộ lọc"
+    },
+    "error": {
+      "title": "Không đọc được nhật ký",
+      "description": "QManager không kết nối được trình đọc nhật ký trên thiết bị này. Bản thân nhật ký vẫn nguyên vẹn, đây là lỗi đọc chứ không phải mất dữ liệu.",
+      "retry": "Thử lại"
+    },
+    "clear_dialog": {
+      "title": "Xóa nhật ký hệ thống?",
+      "description": "Thao tác này làm trống nhật ký trực tiếp và xóa cả hai tệp lưu trữ. Những gì đã ghi sẽ mất vĩnh viễn, và dòng mới sẽ bắt đầu được ghi ngay.",
+      "cancel": "Hủy",
+      "confirm": "Xóa nhật ký",
+      "clearing": "Đang xóa..."
+    },
+    "toast": {
+      "cleared": "Đã xóa nhật ký hệ thống",
+      "clear_failed": "Không xóa được nhật ký hệ thống",
+      "refresh_failed": "Không đọc được nhật ký hệ thống",
+      "copied": "Đã sao chép nhật ký vào bộ nhớ tạm",
+      "copy_failed": "Không sao chép được nhật ký"
+    }
+  },
+  "languages": {
+    "page": {
+      "title": "Ngôn ngữ",
+      "description": "Chọn ngôn ngữ hiển thị giao diện QManager, và cài các gói dịch cộng đồng được phát hành cho thiết bị này."
+    },
+    "actions": {
+      "refresh": "Làm mới",
+      "refreshing": "Đang làm mới…",
+      "refresh_aria": "Làm mới danh sách ngôn ngữ đã cài và danh mục cộng đồng",
+      "check_again": "Kiểm tra lại",
+      "install": "Cài đặt",
+      "update": "Cập nhật",
+      "cancel": "Hủy",
+      "install_aria": "Cài {{language}}",
+      "update_aria": "Cập nhật {{language}}",
+      "cancel_aria": "Hủy cài {{language}}",
+      "remove_aria": "Gỡ gói {{language}}",
+      "copy_command": "Sao chép lệnh cài thủ công"
+    },
+    "band": {
+      "head": "Trên thiết bị này",
+      "display": {
+        "eyebrow": "Ngôn ngữ hiển thị",
+        "caption_built_in": "Có sẵn, {{code}}",
+        "caption_downloaded": "Đã tải về, {{code}}",
+        "caption_unknown": "Không có trong danh mục của thiết bị"
+      },
+      "ready": {
+        "eyebrow": "Sẵn sàng sử dụng",
+        "caption_built_in_one": "{{count}} có sẵn",
+        "caption_built_in_other": "{{count}} có sẵn",
+        "caption_with_downloaded_one": "{{builtIn}} có sẵn, {{count}} đã tải về",
+        "caption_with_downloaded_other": "{{builtIn}} có sẵn, {{count}} đã tải về",
+        "caption_unknown": "Không đọc được danh sách"
+      },
+      "catalog": {
+        "eyebrow": "Danh mục cộng đồng",
+        "value_unreachable": "Không truy cập được",
+        "caption_unreachable": "Không kết nối được GitHub",
+        "caption_none": "Chưa có gói nào được phát hành",
+        "caption_available": "Sẵn sàng cài đặt",
+        "caption_updates_one": "Có bản cập nhật",
+        "caption_updates_other": "Có {{count}} bản cập nhật"
+      }
+    },
+    "display": {
+      "title": "Ngôn ngữ hiển thị",
+      "description": "Chọn ngôn ngữ cho giao diện QManager. Thay đổi có hiệu lực ngay, và chỉ trên thiết bị này.",
+      "group_aria": "Ngôn ngữ hiển thị",
+      "built_in": "Có sẵn",
+      "version": "v{{version}}"
+    },
+    "remove": {
+      "title": "Gỡ {{language}}?",
+      "description": "Thao tác này xóa gói {{language}} đã tải khỏi thiết bị. Bạn có thể cài lại bất cứ lúc nào.",
+      "description_active": "{{language}} là ngôn ngữ bạn đang dùng. Gỡ sẽ chuyển QManager về tiếng Anh.",
+      "cancel": "Giữ lại",
+      "confirm": "Gỡ",
+      "removing": "Đang gỡ…"
+    },
+    "community": {
+      "title": "Gói cộng đồng",
+      "description": "Các gói dịch cho QManager do cộng đồng phát hành. Cài một gói sẽ thêm nó vào danh sách phía trên.",
+      "list_aria": "Gói ngôn ngữ cộng đồng",
+      "completeness": "Đã dịch {{pct}}%",
+      "size": {
+        "kb": "{{value}} KB",
+        "mb": "{{value}} MB"
+      },
+      "contributors_one": "{{count}} người dịch",
+      "contributors_other": "{{count}} người dịch",
+      "contributors_none": "Cộng đồng",
+      "incompatible": "Cần QManager mới hơn"
+    },
+    "install": {
+      "percent": "{{pct}}%",
+      "progress_aria": "Đang cài {{language}}"
+    },
+    "steps": {
+      "pending": "Đang xếp hàng",
+      "downloading": "Đang tải",
+      "verifying": "Đang kiểm tra checksum",
+      "extracting": "Đang giải nén",
+      "validating": "Đang xác thực",
+      "installing": "Đang cài",
+      "cancelling": "Đang hủy",
+      "working": "Đang xử lý"
+    },
+    "failure": {
+      "manual": "Chưa có gì thay đổi trên thiết bị. Bạn có thể cài gói này thủ công qua SSH:"
+    },
+    "states": {
+      "unreachable": {
+        "title": "Không kết nối được danh mục gói",
+        "description": "Thiết bị không tải được danh sách gói cộng đồng từ GitHub. Các ngôn ngữ đã cài vẫn nguyên vẹn, đây chỉ là lỗi đọc và không có gì trên modem bị thay đổi."
+      },
+      "none": {
+        "title": "Chưa có gói cộng đồng",
+        "description": "Chưa ai phát hành gói dịch tải về được cho QManager. Các ngôn ngữ phía trên được tích hợp sẵn trong firmware và luôn có thể dùng."
+      }
+    },
+    "loading": {
+      "status": "Đang tải ngôn ngữ"
+    },
+    "toast": {
+      "switched": "Đã chuyển sang {{language}}",
+      "switch_failed": "Không tải được gói {{language}}",
+      "switch_failed_detail": "Có thể cần cài lại gói này.",
+      "installing": "Đang cài {{language}}…",
+      "installed": "Đã cài {{language}}",
+      "install_failed": "Không cài được {{language}}",
+      "install_failed_generic": "Cài gói ngôn ngữ thất bại",
+      "use_now": "Dùng ngay",
+      "install_cancelled": "Đã hủy cài đặt",
+      "removed": "Đã gỡ {{language}}",
+      "removed_active": "Đã gỡ {{language}}, chuyển về tiếng Anh",
+      "remove_failed": "Không gỡ được {{language}}",
+      "copied": "Đã sao chép lệnh cài đặt",
+      "copy_failed": "Không sao chép được lệnh cài đặt"
+    },
+    "errors": {
+      "generic": "Không cài được gói ngôn ngữ.",
+      "checksum_mismatch": "Tệp tải về không vượt qua kiểm tra toàn vẹn và đã bị loại bỏ.",
+      "sha256_mismatch": "Tệp tải về không vượt qua kiểm tra toàn vẹn và đã bị loại bỏ.",
+      "insufficient_space": "Thiết bị không đủ dung lượng trống để cài gói này.",
+      "download_failed": "Thiết bị không tải được gói. Kiểm tra kết nối rồi thử lại.",
+      "manifest_fetch_failed": "Thiết bị không kết nối được danh mục gói trên GitHub.",
+      "incompatible": "Gói này cần phiên bản QManager mới hơn.",
+      "bundled_immutable": "Không thể gỡ ngôn ngữ có sẵn.",
+      "extract_failed": "Không giải nén được gói.",
+      "validate_failed": "Gói không vượt qua xác thực và đã bị loại bỏ.",
+      "pack_not_found": "Gói đó không còn trong danh mục.",
+      "install_in_progress": "Một gói ngôn ngữ khác đang được cài."
+    }
+  },
+  "connection_quality": {
+    "page": {
+      "title": "Chất lượng kết nối",
+      "description": "Các điểm đích modem ping và các ngưỡng biến một liên kết chậm thành sự kiện."
+    },
+    "targets": {
+      "title": "Đích kiểm tra",
+      "description": "Ping lần lượt cho đến khi có phản hồi, để biết Internet có hoạt động không.",
+      "restore": "Khôi phục mặc định",
+      "unsaved": "Chưa lưu",
+      "save": "Lưu đích kiểm tra",
+      "save_failed": "Không lưu được đích kiểm tra",
+      "cadence_clear_failed": "Không đặt lại được chu kỳ kiểm tra",
+      "leg": {
+        "host_1": "Hostname 1",
+        "host_2": "Hostname 2",
+        "ip_1": "IPv4 1",
+        "ip_2": "IPv4 2"
+      },
+      "error": {
+        "title": "Không đọc được đích kiểm tra",
+        "body": "Các đích đã lưu vẫn đang được dùng.",
+        "retry": "Thử lại"
+      },
+      "empty": {
+        "title": "Chưa lưu chuỗi kiểm tra",
+        "body": "Thiết bị này chưa có đích kiểm tra nào. Khôi phục mặc định để có chuỗi ping.",
+        "action": "Khôi phục mặc định"
+      },
+      "toast": {
+        "saved": "Đã lưu đích kiểm tra",
+        "cadence_cleared": "Chu kỳ kiểm tra giờ theo hồ sơ"
+      },
+      "validation": {
+        "empty": "Nhập đích.",
+        "too_long": "Dùng tối đa {{max}} ký tự.",
+        "spaces": "Không được có dấu cách.",
+        "disallowed": "Chứa ký tự không được phép.",
+        "host_invalid": "Hostname không hợp lệ.",
+        "ipv4_required": "Ô này cần địa chỉ IPv4. Không chấp nhận hostname ở đây.",
+        "ipv4_invalid": "Địa chỉ IPv4 không hợp lệ."
+      },
+      "verdict": {
+        "answering": "Đích {{n}} đang phản hồi",
+        "fallback": "DNS không phân giải",
+        "none": "Không phản hồi",
+        "unknown": "Không báo số liệu"
+      },
+      "group": {
+        "hostnames": "Hostname",
+        "fallback": "IPv4 dự phòng",
+        "sensitivity": "Độ nhạy"
+      },
+      "fallback_hint": "Không cần DNS, nên lỗi bộ phân giải sẽ không bị tính là mất mạng.",
+      "fallback_hint_label": "Về IPv4 dự phòng",
+      "interval": {
+        "label": "Chu kỳ kiểm tra",
+        "value": "Mỗi {{seconds}} giây",
+        "override": "Mỗi {{seconds}} giây (Watchdog)",
+        "use_profile": "Dùng chu kỳ theo hồ sơ"
+      },
+      "failed": "Không lưu được",
+      "profile": {
+        "sensitive": "Nhạy",
+        "regular": "Thường",
+        "relaxed": "Thoải mái",
+        "quiet": "Ít kiểm tra"
+      }
+    },
+    "thresholds": {
+      "title": "Ngưỡng chất lượng",
+      "description": "Khi nào một liên kết chậm hoặc mất gói được ghi thành sự kiện mạng.",
+      "latency": {
+        "title": "Độ trễ"
+      },
+      "loss": {
+        "title": "Mất gói"
+      },
+      "preset": {
+        "standard": "Tiêu chuẩn",
+        "tolerant": "Dễ chịu",
+        "very_tolerant": "Rất dễ chịu",
+        "custom": "Tùy chỉnh"
+      },
+      "unsaved": "Chưa lưu",
+      "save": "Lưu ngưỡng",
+      "save_failed": "Không lưu được ngưỡng",
+      "error": {
+        "title": "Không đọc được ngưỡng chất lượng",
+        "body": "Các giới hạn đã lưu vẫn đang được dùng.",
+        "retry": "Thử lại"
+      },
+      "toast": {
+        "saved": "Đã lưu ngưỡng chất lượng"
+      },
+      "row": {
+        "flags": "Đánh dấu sau",
+        "now": "Hiện tại",
+        "limit": "Giới hạn"
+      },
+      "flags": {
+        "latency_one": "{{count}} mẫu trên {{ms}} ms",
+        "latency_other": "{{count}} mẫu trên {{ms}} ms",
+        "loss_one": "{{count}} mẫu từ {{pct}}% trở lên",
+        "loss_other": "{{count}} mẫu từ {{pct}}% trở lên",
+        "pending": "Nhập giới hạn"
+      },
+      "now": {
+        "latency": "{{ms}} ms",
+        "loss": "{{pct}}%",
+        "no_reply": "Không phản hồi",
+        "collecting": "Đang thu thập",
+        "over_latency": "Vượt giới hạn {{ms}} ms",
+        "over_loss": "Vượt giới hạn {{pct}}%"
+      },
+      "default_chip": "Mặc định có sẵn",
+      "failed": "Không lưu được",
+      "unit": {
+        "latency": "ms",
+        "loss": "%"
+      },
+      "validation": {
+        "range": "Nhập số nguyên từ {{min}} đến {{max}}."
+      }
+    }
+  },
+  "software_update": {
+    "page": {
+      "title": "Cập nhật phần mềm",
+      "description": "QManager kiểm tra GitHub xem có bản phát hành mới hơn không và tự cài lên modem. Cài đặt sẽ thay ứng dụng và khởi động lại thiết bị, nên phiên bạn đang dùng sẽ mất kết nối rồi tự kết nối lại."
+    },
+    "actions": {
+      "check": "Kiểm tra cập nhật",
+      "checking": "Đang kiểm tra...",
+      "check_again": "Kiểm tra lại",
+      "download": "Tải {{version}}",
+      "downloading": "Đang tải...",
+      "install": "Cài {{version}}",
+      "installing": "Đang cài...",
+      "try_again": "Thử lại",
+      "retry": "Thử lại",
+      "read_full_notes": "Đọc toàn bộ ghi chú",
+      "rebooting": "Đang khởi động lại...",
+      "verifying": "Đang xác minh...",
+      "retry_download": "Tải lại",
+      "reboot_now": "Khởi động lại ngay"
+    },
+    "band": {
+      "head": "Trạng thái cập nhật",
+      "chip_offline": "Ngoại tuyến",
+      "chip_in_progress": "Đang thực hiện",
+      "installed": {
+        "eyebrow": "Đã cài",
+        "caption_stable": "Kênh ổn định",
+        "caption_prerelease": "Kênh thử nghiệm",
+        "caption_interrupted": "Cài đặt có thể chưa hoàn tất"
+      },
+      "latest": {
+        "eyebrow": "Bản phát hành mới nhất",
+        "caption_checked": "Đã kiểm tra {{ago}}",
+        "caption_downloading": "Đang tải {{size}}...",
+        "caption_verified": "Đã tải và xác minh",
+        "caption_installing": "Bước {{step}}/4, không tắt nguồn",
+        "caption_failed": "Không kết nối được GitHub",
+        "caption_never": "Chưa kiểm tra",
+        "value_none_label": "Không có thông tin phát hành",
+        "caption_downloading_plain": "Đang tải gói...",
+        "caption_verifying": "Đang kiểm tra gói...",
+        "caption_failed_download": "Tải xuống chưa hoàn tất",
+        "caption_failed_install": "Cài đặt chưa hoàn tất"
+      },
+      "auto": {
+        "eyebrow": "Tự động cập nhật",
+        "value_on": "Bật",
+        "value_off": "Tắt",
+        "caption_on": "Kiểm tra hằng ngày vào giờ ngẫu nhiên",
+        "caption_off": "Chỉ cập nhật thủ công"
+      },
+      "chip_failed": "Thất bại"
+    },
+    "card": {
+      "loading": {
+        "title": "Đang kiểm tra cập nhật",
+        "description": "Đang đọc danh sách phát hành từ GitHub."
+      },
+      "unreachable": {
+        "title": "Dịch vụ cập nhật không khả dụng",
+        "description": "QManager không kết nối được điểm cập nhật trên modem này, nên không biết đã cài gì hay có gì mới."
+      },
+      "check_failed": {
+        "title": "Kiểm tra cập nhật thất bại",
+        "description": "Bản build trên modem vẫn nguyên. QManager chỉ không đọc được danh sách phát hành lần này."
+      },
+      "download_failed": {
+        "title": "Tải xuống chưa hoàn tất",
+        "description": "Chưa có gì bị thay thế. Bản build trên modem vẫn nguyên, nên có thể an toàn tải lại."
+      },
+      "install_failed": {
+        "title": "Cài đặt chưa hoàn tất",
+        "description": "Modem có thể đang chạy lẫn lộn các tệp. Cài lại sẽ đưa về một bản build xác định."
+      },
+      "up_to_date": {
+        "title": "Bạn đang dùng bản mới nhất",
+        "description": "Không có gì để cài. Bốn bước bên dưới là những gì một bản cập nhật sẽ làm khi có."
+      },
+      "available": {
+        "title": "Có bản cập nhật",
+        "description": "Tải và cài mất vài phút và kết thúc bằng khởi động lại. Đây chính xác là những gì sẽ diễn ra."
+      },
+      "downloading": {
+        "title": "Đang tải bản cập nhật",
+        "description": "Gói đang được tải từ GitHub. Chưa có gì bị thay thế và modem vẫn hoạt động."
+      },
+      "verifying": {
+        "title": "Đang xác minh tệp tải về",
+        "description": "QManager đang kiểm tra gói theo SHA-256 trước khi thay thế bất cứ gì."
+      },
+      "staged": {
+        "title": "Sẵn sàng cài đặt",
+        "description": "Gói đã được tải và xác minh. Cài đặt sẽ thay QManager và khởi động lại modem."
+      },
+      "installing": {
+        "title": "Đang cài bản cập nhật",
+        "description": "Ứng dụng, các dịch vụ và script CGI đang được thay thế. Không tắt nguồn modem."
+      },
+      "rebooting": {
+        "title": "Đang khởi động lại modem",
+        "description": "Đã cài xong. Modem đang khởi động lại và phiên này sẽ mất kết nối cho đến khi modem hoạt động trở lại."
+      },
+      "chip": {
+        "loading": "Đang kiểm tra",
+        "unreachable": "Không truy cập được",
+        "check_failed": "Kiểm tra thất bại",
+        "download_failed": "Tải thất bại",
+        "install_failed": "Cài thất bại",
+        "up_to_date": "Đã mới nhất",
+        "available": "Có bản mới",
+        "downloading": "Đang tải",
+        "verifying": "Đang xác minh",
+        "staged": "Sẵn sàng",
+        "installing": "Đang cài",
+        "rebooting": "Đang khởi động lại"
+      }
+    },
+    "delta": {
+      "installed": "Đã cài",
+      "available": "Có bản mới",
+      "channel_stable": "Ổn định",
+      "channel_prerelease": "Thử nghiệm"
+    },
+    "steps": {
+      "aria_label": "Các bước cập nhật",
+      "download": {
+        "label": "Tải xuống",
+        "detail": "Tải qmanager.tar.gz từ GitHub"
+      },
+      "verify": {
+        "label": "Xác minh",
+        "detail": "Kiểm tra gói theo SHA-256"
+      },
+      "install": {
+        "label": "Cài đặt",
+        "detail": "Thay ứng dụng, dịch vụ và script CGI"
+      },
+      "reboot": {
+        "label": "Khởi động lại",
+        "detail": "Modem khởi động lại. Phiên của bạn sẽ mất kết nối."
+      },
+      "state": {
+        "done": "Xong",
+        "active": "Đang chạy"
+      }
+    },
+    "notice": {
+      "rest": "Cài đặt sẽ khởi động lại modem, làm mất phiên này và mọi kết nối qua modem trong khoảng một phút.",
+      "staged": "Cài đặt sẽ thay QManager và khởi động lại modem. Phiên này sẽ mất kết nối rồi tự kết nối lại.",
+      "running": "Không tắt nguồn modem.",
+      "failed_check": "QManager không đọc được danh sách phát hành. Bản build trên modem vẫn nguyên, đây là lỗi đọc chứ không phải mất dữ liệu.",
+      "failed_download": "Tải xuống chưa hoàn tất, nên chưa có gì được cài. Bản build trên modem vẫn nguyên.",
+      "versions": "Mọi tùy chọn ở đây đều khởi động lại modem, và bản build cũ hơn có thể hủy các cài đặt mà bản mới hơn đã thêm.",
+      "failed_install": "Cài đặt chưa hoàn tất, nên modem có thể đang chạy lẫn lộn các tệp. Cài lại sẽ đưa về một bản build xác định.",
+      "stalled": "Trình cài đặt đã im lặng hai phút. Nếu không tự phục hồi, hãy khởi động lại modem để hoàn tất hoặc hoàn tác việc cài đặt."
+    },
+    "notes": {
+      "title": "Có gì thay đổi",
+      "description": "Ghi chú phát hành kèm theo {{version}}.",
+      "empty_title": "Không có ghi chú phát hành",
+      "empty_description": "GitHub không trả về nhật ký thay đổi cho bản phát hành này, nên không có gì để hiển thị.",
+      "dialog_title": "Ghi chú phát hành cho {{version}}",
+      "region_label": "Ghi chú phát hành"
+    },
+    "preferences": {
+      "title": "Tùy chọn cập nhật",
+      "description": "Cách modem quyết định khi nào tự cập nhật.",
+      "auto": {
+        "label": "Tự động cập nhật",
+        "description": "Kiểm tra mỗi ngày một lần vào giờ ngẫu nhiên và cài bản tìm được. Modem sẽ khởi động lại để hoàn tất.",
+        "error": "Không lưu được cài đặt tự động cập nhật"
+      },
+      "prerelease": {
+        "label": "Bao gồm bản thử nghiệm",
+        "description": "Đề xuất các bản build được đánh dấu pre-release trên GitHub. Các bản này ra sớm hơn và được kiểm thử ít hơn.",
+        "error": "Không lưu được cài đặt bản thử nghiệm"
+      }
+    },
+    "versions": {
+      "title": "Quản lý phiên bản",
+      "description": "Cài, cài lại hoặc quay về bất kỳ bản build nào đã phát hành.",
+      "select_label": "Chọn phiên bản để cài",
+      "select_placeholder": "Chọn phiên bản",
+      "install": "Cài đặt",
+      "current": "Hiện tại",
+      "no_binary": "Không có tệp cài",
+      "dialog": {
+        "title_install": "Cài {{version}}?",
+        "title_reinstall": "Cài lại {{version}}?",
+        "description_install": "Thao tác này cài {{version}} thay cho {{current}}. Modem sẽ khởi động lại khi xong.",
+        "description_reinstall": "Thao tác này cài lại {{version}} đè lên bản đang có trên modem để sửa lỗi. Modem sẽ khởi động lại khi xong.",
+        "size": "Dung lượng tải: {{size}}.",
+        "warning": "Không tắt nguồn modem trong khi đang cài.",
+        "cancel": "Hủy",
+        "confirm_install": "Cài ngay",
+        "confirm_reinstall": "Cài lại ngay"
+      },
+      "empty_title": "Không có phiên bản để chọn",
+      "empty_description": "GitHub không trả về bản phát hành nào có gói cài được, nên không có gì để cài hoặc quay về ở đây."
+    },
+    "banner": {
+      "title": "Lần cập nhật gần nhất chưa hoàn tất",
+      "description": "Dấu chờ cài cho {{pending}} vẫn còn sau khi khởi động lại trong khi {{version}} đang chạy, nên các tệp đã cài có thể bị lẫn lộn. Cài lại {{pending}} sẽ đưa modem về một bản build xác định.",
+      "action": "Hoàn tất cài đặt",
+      "description_unknown": "Một lần cài đặt chưa hoàn tất trong khi {{version}} đang chạy, nên các tệp đã cài có thể bị lẫn lộn. Cài lại sẽ đưa modem về một bản build xác định."
+    },
+    "states": {
+      "loading": {
+        "status": "Đang kiểm tra cập nhật",
+        "notes": "Đang tải ghi chú phát hành"
+      },
+      "unreachable": {
+        "title": "Không kết nối được dịch vụ cập nhật",
+        "description": "QManager không kết nối được điểm cập nhật trên modem này. Bản build đã cài vẫn nguyên, đây là lỗi đọc chứ không phải mất dữ liệu."
+      }
+    },
+    "time": {
+      "just_now": "vừa xong",
+      "minutes": "{{value}} phút trước",
+      "minutes_one": "một phút trước",
+      "hours": "{{value}} giờ trước",
+      "hours_one": "một giờ trước",
+      "days": "{{value}} ngày trước",
+      "days_one": "một ngày trước"
+    },
+    "toast": {
+      "prerelease_on": "Đã bật cập nhật bản thử nghiệm",
+      "prerelease_off": "Đã tắt cập nhật bản thử nghiệm",
+      "auto_on": "Đã bật tự động cập nhật",
+      "auto_off": "Đã tắt tự động cập nhật",
+      "save_failed": "Không lưu được tùy chọn đó"
+    },
+    "stall_dialog": {
+      "title": "Khởi động lại modem ngay?",
+      "description": "Việc cài đặt có vẻ bị treo. Khởi động lại sẽ ngắt quá trình cài và phiên này; modem sẽ tự hoạt động trở lại.",
+      "cancel": "Tiếp tục chờ",
+      "confirm": "Khởi động lại ngay"
+    }
+  },
+  "at_terminal": {
+    "page": {
+      "title": "AT Terminal",
+      "description": "Gửi lệnh AT trực tiếp tới modem và đọc phản hồi nguyên văn. Các lệnh có thể làm tắt sóng sẽ cần xác nhận trước, và một số lệnh bị từ chối hẳn."
+    },
+    "card": {
+      "title": "Console",
+      "description": "Phản hồi hiển thị nguyên văn như modem trả về. 100 lệnh gần nhất được lưu trong trình duyệt này cho đến khi bạn xóa."
+    },
+    "actions": {
+      "clear": "Xóa",
+      "export": "Xuất"
+    },
+    "game": {
+      "playing": "Đang chơi Signal Storm"
+    },
+    "empty": {
+      "title": "Chưa gửi lệnh nào",
+      "description": "Nhập lệnh AT vào ô bên dưới, hoặc mở Lệnh để chọn lệnh có sẵn."
+    },
+    "transcript": {
+      "label": "Lịch sử lệnh",
+      "copy": "Sao chép lệnh này và phản hồi",
+      "copied": "Đã sao chép",
+      "status": {
+        "success": "Thành công",
+        "error": "Thất bại",
+        "blocked": "Bị chặn"
+      }
+    },
+    "hint": {
+      "key": "Tab",
+      "label": "Nhấn Tab để hoàn thành lệnh từ lịch sử, hoặc Shift+Tab để rời ô nhập."
+    },
+    "gate": {
+      "title": "Lệnh này có thể ngắt kết nối của bạn",
+      "confirm": "Vẫn gửi",
+      "cancel": "Hủy"
+    },
+    "rules": {
+      "not_at": "Chỉ gửi được lệnh AT ở đây. Bắt đầu dòng bằng AT, ví dụ AT+CSQ.",
+      "qscanfreq": "Lệnh quét tần số bị từ chối ở đây. Lệnh này tắt sóng trong nhiều phút mà không hiển thị gì trong lúc chạy, hãy dùng trang Quét cell, có báo tiến độ và có thể dừng.",
+      "qscan": "Lệnh quét mạng bị từ chối ở đây. Lệnh này tắt sóng trong nhiều phút mà không hiển thị gì trong lúc chạy, hãy dùng trang Quét cell, có báo tiến độ và có thể dừng.",
+      "resetfactory": "Lệnh khôi phục cài đặt gốc bị từ chối ở đây. Lệnh này xóa mọi cài đặt trên modem cùng lúc, kể cả những cài đặt QManager cần để kết nối, và không có gì trên trang này hoàn tác được.",
+      "reboot": "Lệnh này khởi động lại modem. Mọi kết nối qua modem sẽ mất, kể cả trang này, và mọi thứ đang xử lý sẽ bị mất. Mất khoảng một phút để hoạt động trở lại, và đồng hồ sẽ về tháng 1/1970 cho đến khi mạng đặt lại.",
+      "radio_off": "Lệnh này tắt sóng của modem. Nếu bạn truy cập trang này qua chính kết nối của modem, kể cả Tailscale, bạn sẽ mất trang này cho đến khi bật lại sóng từ chính thiết bị."
+    },
+    "input": {
+      "label": "Lệnh AT",
+      "placeholder": "AT+COPS?",
+      "send": "Gửi"
+    },
+    "responses": {
+      "failed": "Lệnh thất bại và modem không cho biết lý do.",
+      "unexpected": "Không gửi được lệnh này. Xem Nhật ký hệ thống để biết backend đã báo gì.",
+      "unreachable": "Không kết nối được backend QManager trên modem. Kiểm tra thiết bị còn truy cập được không, rồi gửi lại.",
+      "game": "Đang khởi động Signal Storm..."
+    },
+    "commands": {
+      "trigger": "Lệnh",
+      "search_placeholder": "Tìm lệnh",
+      "empty": "Không có lệnh nào khớp.",
+      "count_one": "{{count}} lệnh",
+      "count_other": "{{count}} lệnh",
+      "manage": "Quản lý lệnh",
+      "groups": {
+        "modem": "Modem",
+        "network": "Chế độ mạng",
+        "sim": "Khe SIM",
+        "apn": "APN",
+        "bands": "Băng tần",
+        "passthrough": "IP passthrough",
+        "custom": "Tùy chỉnh"
+      },
+      "presets": {
+        "reboot": "Khởi động lại modem",
+        "disconnect": "Tắt sóng",
+        "connect": "Bật sóng",
+        "signal_info": "Thông tin tín hiệu (cell phục vụ)",
+        "ca_info": "Thông tin gộp sóng mang",
+        "imei_show": "Hiện IMEI",
+        "mode_show": "Hiện chế độ mạng",
+        "mode_auto": "Đặt chế độ mạng tự động",
+        "mode_nr_lte": "Đặt chế độ mạng 5G NR và LTE",
+        "mode_nr": "Đặt chế độ mạng chỉ 5G NR",
+        "mode_lte": "Đặt chế độ mạng chỉ LTE",
+        "nr5g_disable_status": "Hiện SA và NSA nào đang bật",
+        "nr5g_enable_both": "Bật cả SA và NSA",
+        "nr5g_disable_sa": "Chỉ tắt SA",
+        "nr5g_disable_nsa": "Chỉ tắt NSA",
+        "sim_slot_get": "Hiện khe SIM đang dùng",
+        "sim_slot_1": "Chuyển sang khe SIM 1",
+        "sim_slot_2": "Chuyển sang khe SIM 2",
+        "apn_list": "Hiện danh sách APN",
+        "apn_nrbroadband": "Đặt APN là NRBROADBAND",
+        "bands_nr_sa": "Hiện băng tần 5G NR SA đang bật",
+        "bands_nr_nsa": "Hiện băng tần 5G NR NSA đang bật",
+        "bands_lte": "Hiện băng tần LTE đang bật",
+        "ippt_addresses": "Hiện địa chỉ IP được cấp",
+        "ippt_enable": "Bật IP passthrough",
+        "ippt_disable": "Tắt IP passthrough"
+      },
+      "errors": {
+        "required": "Bắt buộc có cả tên và lệnh.",
+        "must_start_at": "Lệnh phải bắt đầu bằng AT.",
+        "duplicate_command": "Lệnh đó đã có trong danh sách.",
+        "duplicate_label": "Một lệnh khác đã dùng tên đó."
+      },
+      "manage_dialog": {
+        "title": "Quản lý lệnh tùy chỉnh",
+        "description": "Lệnh bạn thêm ở đây được lưu trong trình duyệt này và hiện trong mục Tùy chỉnh của danh sách.",
+        "empty": "Bạn chưa thêm lệnh tùy chỉnh nào.",
+        "label_field": "Tên lệnh",
+        "label_placeholder": "Tên lệnh",
+        "command_field": "Lệnh AT",
+        "command_placeholder": "AT+...",
+        "add": "Thêm",
+        "delete": "Xóa {{label}}"
+      }
+    }
+  },
+  "web_console": {
+    "page": {
+      "title": "Web Console",
+      "description": "Shell root trên modem, mở trong trình duyệt. Mọi thứ bạn gõ ở đây chạy với quyền root trên thiết bị đang phục vụ trang này, không có xác nhận và không thể hoàn tác."
+    },
+    "card": {
+      "title": "Terminal",
+      "description": "Phiên bắt đầu khi trang này tải và kết thúc khi bạn gõ exit hoặc rời trang."
+    },
+    "chip": {
+      "connecting": "Đang kết nối",
+      "reconnecting": "Đang kết nối lại",
+      "connected": "Đã kết nối",
+      "unreachable": "Không chạy",
+      "refused": "Bị từ chối",
+      "dropped": "Mất liên kết",
+      "ended": "Phiên đã kết thúc"
+    },
+    "hints": {
+      "copy": "Sao chép",
+      "paste": "Dán",
+      "leave": "Thoát toàn màn hình"
+    },
+    "keys": {
+      "ctrl": "Ctrl",
+      "shift": "Shift",
+      "esc": "Esc"
+    },
+    "actions": {
+      "clear": "Xóa",
+      "fullscreen": "Toàn màn hình",
+      "exit_fullscreen": "Thoát toàn màn hình",
+      "reconnect": "Kết nối lại",
+      "retry": "Thử lại",
+      "start_session": "Bắt đầu phiên mới"
+    },
+    "terminal": {
+      "label": "Shell root trên modem"
+    },
+    "states": {
+      "close": {
+        "code": "Mã đóng {{code}}",
+        "reason": "Mã đóng {{code}}: {{reason}}",
+        "none": "Kết nối đóng mà không báo mã."
+      },
+      "unreachable": {
+        "title": "Dịch vụ console không chạy",
+        "description": "QManager không kết nối được ttyd, chương trình nhỏ cung cấp terminal này từ modem. Đây là thành phần tùy chọn khi cài, nên có thể chưa bao giờ được tải, hoặc dịch vụ đã dừng. Cài lại hoặc cập nhật QManager sẽ khôi phục nó."
+      },
+      "refused": {
+        "title": "Modem từ chối phiên này",
+        "description": "ttyd đã phản hồi rồi đóng kết nối với trạng thái riêng. Thường là do nó đang phục vụ một terminal khác, hoặc dừng giữa chừng khi bắt tay. Đóng mọi console khác đang mở rồi thử lại."
+      },
+      "dropped": {
+        "title": "Mất kết nối tới modem",
+        "description": "Console đang chạy thì liên kết bị mất. Chuyển Wi-Fi, VPN hoặc modem khởi động lại đều có thể gây ra điều này. Kiểm tra bạn vẫn truy cập được thiết bị, rồi kết nối lại."
+      },
+      "ended": {
+        "title": "Phiên đã kết thúc",
+        "description": "Shell trên modem đã thoát, nên terminal này đã đóng. Không có gì bị mất, hãy bắt đầu phiên mới khi cần."
+      }
+    }
+  },
+  "passwords": {
+    "card": {
+      "title": "Mật khẩu",
+      "description": "Đổi mật khẩu đăng nhập QManager, hoặc mật khẩu root cho SSH. Mỗi loại đều yêu cầu nhập mật khẩu hiện tại trước."
+    },
+    "tabs": {
+      "aria": "Mật khẩu cần đổi",
+      "web": "Mật khẩu web",
+      "ssh": "Mật khẩu SSH"
+    },
+    "web": {
+      "label": "Mật khẩu web hiện tại",
+      "consequence": "Mật khẩu bạn dùng để đăng nhập QManager.",
+      "dialog_title": "Đổi mật khẩu web",
+      "dialog_description": "Bạn sẽ bị đăng xuất sau khi đổi."
+    },
+    "ssh": {
+      "label": "Mật khẩu SSH hiện tại",
+      "consequence": "Mật khẩu root cho các phiên SSH vào modem này.",
+      "dialog_title": "Đổi mật khẩu SSH",
+      "dialog_description": "Có hiệu lực ngay; các phiên SSH hiện có vẫn giữ nguyên.",
+      "toast_saved": "Đã cập nhật mật khẩu SSH."
+    },
+    "continue": "Tiếp tục",
+    "toggle": {
+      "show": "Hiện mật khẩu",
+      "hide": "Ẩn mật khẩu"
+    },
+    "dialog": {
+      "new_label": "Mật khẩu mới",
+      "confirm_label": "Xác nhận mật khẩu mới",
+      "match": "Mật khẩu khớp",
+      "mismatch": "Mật khẩu không khớp",
+      "cancel": "Hủy",
+      "save": "Lưu mật khẩu"
+    },
+    "errors": {
+      "too_short": "Mật khẩu phải có ít nhất {{min}} ký tự.",
+      "weak": "Mật khẩu phải có ít nhất {{min}} ký tự, gồm chữ hoa, chữ thường và số.",
+      "verify_failed": "Không kiểm tra được mật khẩu. Hãy thử lại.",
+      "change_failed": "Không đổi được mật khẩu. Hãy thử lại.",
+      "invalid_password_one": "Sai mật khẩu. Còn {{count}} lần thử trước khi đăng nhập bị khóa một lúc.",
+      "invalid_password_other": "Sai mật khẩu. Còn {{count}} lần thử trước khi đăng nhập bị khóa một lúc.",
+      "rate_limited_one": "Sai quá nhiều lần. Thử lại sau {{count}} giây.",
+      "rate_limited_other": "Sai quá nhiều lần. Thử lại sau {{count}} giây."
+    }
+  },
+  "device_access": {
+    "page": {
+      "title": "Truy cập thiết bị",
+      "description": "Mật khẩu và cổng dùng để truy cập modem này."
+    }
+  },
+  "config_backup": {
+    "page_title": "Sao lưu cấu hình",
+    "page_description": "Lưu cài đặt QManager vào tệp mã hóa, hoặc khôi phục từ tệp đó.",
+    "excluded": "Mật khẩu, token, cổng web, lịch sử SIM, nhật ký và bộ đếm dữ liệu không bao giờ được đưa vào.",
+    "not_supported_here": "Không hỗ trợ ở đây",
+    "mutex_parent_on": "Được đặt bởi {{parent}}, mục này đang được chọn.",
+    "mutex_member_on": "Bỏ chọn {{members}} để đưa mục này vào.",
+    "group_count": "{{on}}/{{total}}",
+    "reboot_failed_toast": "Không khởi động lại được. Việc này vẫn đang chờ ở thanh thông báo.",
+    "reboot_now_button": "Khởi động lại ngay",
+    "groups": {
+      "connection": "Kết nối",
+      "local_network": "Mạng nội bộ",
+      "monitoring": "Giám sát và cảnh báo",
+      "system": "Hệ thống"
+    },
+    "sections": {
+      "network_mode": "Chế độ mạng",
+      "bands": "Băng tần LTE/5G",
+      "apn": "APN",
+      "tower_lock": "Khóa trạm",
+      "ttl_mtu": "TTL & MTU",
+      "imei": "IMEI",
+      "profiles": "Hồ sơ SIM tùy chỉnh",
+      "scenarios": "Kịch bản kết nối",
+      "ip_passthrough": "IP Passthrough",
+      "sms": "Cài đặt SMS",
+      "lan": "LAN & DHCP",
+      "custom_dns": "DNS tùy chỉnh",
+      "ethernet": "Ethernet",
+      "traffic_engine": "Traffic Engine",
+      "watchdog": "Watchdog",
+      "quality": "Chất lượng kết nối",
+      "sites": "Trang theo dõi độ trễ",
+      "alerts": "Cảnh báo",
+      "adaptive_polling": "Thăm dò thích ứng",
+      "system": "Cài đặt hệ thống"
+    },
+    "create": {
+      "card_title": "Tạo bản sao lưu",
+      "card_description": "Chọn những gì cần lưu. Tệp được mã hóa ngay trong trình duyệt.",
+      "group_encryption": "Mã hóa",
+      "passphrase_label": "Cụm mật khẩu",
+      "warning": "Ít nhất {{min}} ký tự. Thiếu cụm mật khẩu sẽ không khôi phục được bản sao lưu.",
+      "passphrase_too_short": "Dùng ít nhất {{min}} ký tự.",
+      "confirm_label": "Xác nhận cụm mật khẩu",
+      "confirm_match": "Cụm mật khẩu khớp",
+      "confirm_mismatch": "Cụm mật khẩu không khớp",
+      "passphrase_show_aria": "Hiện cụm mật khẩu",
+      "passphrase_hide_aria": "Ẩn cụm mật khẩu",
+      "selected_count_one": "Đã chọn {{count}} mục",
+      "selected_count_other": "Đã chọn {{count}} mục",
+      "stage_collecting": "Đang đọc cài đặt…",
+      "stage_encrypting": "Đang mã hóa…",
+      "stage_downloading": "Đang lưu tệp…",
+      "button_default": "Tải bản sao lưu",
+      "toast_success": "Đã tải bản sao lưu.",
+      "toast_unavailable_one": "Đã tải bản sao lưu, nhưng không đọc được {{count}} mục.",
+      "toast_unavailable_other": "Đã tải bản sao lưu, nhưng không đọc được {{count}} mục.",
+      "toast_failed": "Không tạo được bản sao lưu.",
+      "load_failed_title": "Không tải được tùy chọn sao lưu",
+      "load_failed_description": "Modem không cho biết những cài đặt nào sao lưu được.",
+      "empty_title": "Không có gì để sao lưu",
+      "empty_description": "Bản QManager này không có cài đặt nào sao lưu được."
+    },
+    "restore": {
+      "card_title": "Khôi phục từ tệp",
+      "card_description": "Mở tệp sao lưu và chọn những gì cần khôi phục.",
+      "idle_title": "Chưa mở bản sao lưu",
+      "reading_title": "Đang đọc tệp…",
+      "idle_description": "Chọn tệp .qmbackup. Bạn sẽ cần cụm mật khẩu đã dùng khi lưu.",
+      "upload_button": "Chọn tệp",
+      "button_choose_another": "Chọn tệp khác",
+      "read_failed": "Không đọc được tệp này.",
+      "receipt_model": "Tạo trên",
+      "receipt_created": "Ngày tạo",
+      "passphrase_label": "Cụm mật khẩu",
+      "passphrase_consequence": "Cụm mật khẩu đặt khi tạo bản sao lưu này.",
+      "password_incorrect": "Sai cụm mật khẩu, hoặc tệp đã bị thay đổi.",
+      "button_unlock": "Mở khóa",
+      "model_warning": "Bản sao lưu này từ {{from}} còn modem này là {{to}}. Các cài đặt không dùng được sẽ bị bỏ qua.",
+      "backup_first": "Khôi phục sẽ thay thế cài đặt hiện tại. Hãy tải bản sao lưu cài đặt hiện tại trước.",
+      "backup_first_action": "Sao lưu trước",
+      "overwrite_label": "Thay thế cài đặt hiện tại",
+      "note_reboot": "Cần khởi động lại.",
+      "note_lan": "Có thể đổi địa chỉ bạn dùng để truy cập QManager. Cần khởi động lại.",
+      "note_profiles_imei": "Cần khởi động lại. Các hồ sơ có IMEI khác với modem này sẽ mất IMEI đó trừ khi bạn chọn giữ bên dưới.",
+      "profiles_imei_confirm_one": "{{count}} hồ sơ đặt IMEI khác khi kích hoạt. Giữ lại.",
+      "profiles_imei_confirm_other": "{{count}} hồ sơ đặt IMEI khác khi kích hoạt. Giữ lại.",
+      "imei_confirm": "Ghi IMEI {{backup}} đè lên {{current}} của modem này.",
+      "selected_count_one": "{{count}} mục cần khôi phục",
+      "selected_count_other": "{{count}} mục cần khôi phục",
+      "button_apply": "Khôi phục",
+      "toast_success": "Đã khôi phục cài đặt.",
+      "toast_partial_one": "Khôi phục xong nhưng {{count}} mục thất bại.",
+      "toast_partial_other": "Khôi phục xong nhưng {{count}} mục thất bại.",
+      "toast_cancelled_one": "Khôi phục dừng sau {{count}} mục.",
+      "toast_cancelled_other": "Khôi phục dừng sau {{count}} mục.",
+      "toast_crashed": "Khôi phục dừng đột ngột.",
+      "toast_failed": "Không bắt đầu khôi phục được.",
+      "toast_stop_failed": "Không dừng khôi phục được.",
+      "reboot_dialog_title": "Khởi động lại để hoàn tất khôi phục?",
+      "reboot_dialog_description": "Một số cài đặt đã khôi phục có hiệu lực sau khi khởi động lại. Kết nối sẽ mất khoảng một phút.",
+      "reboot_later_button": "Để sau"
+    },
+    "pipeline": {
+      "title": "Đang khôi phục cài đặt",
+      "description": "Từ bản sao lưu tạo trên {{model}}.",
+      "preparing": "Đang chuẩn bị…",
+      "stopping": "Sẽ dừng sau mục này…",
+      "step_progress": "Mục {{current}}/{{total}}",
+      "done_headline": "Khôi phục hoàn tất",
+      "done_sub_one": "Đã khôi phục {{count}} mục.",
+      "done_sub_other": "Đã khôi phục {{count}} mục.",
+      "partial_headline": "Khôi phục xong nhưng có lỗi",
+      "partial_sub": "Đã khôi phục {{restored}}/{{total}} mục.",
+      "cancelled_sub": "Đã dừng trước khi khôi phục hết các mục.",
+      "failed_headline": "Khôi phục thất bại",
+      "failed_sub": "Chưa khôi phục được gì.",
+      "crashed_sub": "Khôi phục dừng đột ngột.",
+      "detail_incompatible": "Không tương thích",
+      "detail_not_supported": "Không hỗ trợ ở đây",
+      "detail_sim_mismatch": "SIM khác",
+      "detail_unchanged": "Bỏ qua",
+      "detail_retrying": "Thử lại lần {{n}}",
+      "detail_failed": "Thất bại",
+      "note_ignored_one": "{{count}} cài đặt không được hỗ trợ ở đây",
+      "note_ignored_other": "{{count}} cài đặt không được hỗ trợ ở đây",
+      "note_dropped_one": "Bỏ qua {{count}} mục (không hợp lệ)",
+      "note_dropped_other": "Bỏ qua {{count}} mục (không hợp lệ)",
+      "state_done": "Xong",
+      "state_running": "Đang chạy",
+      "state_retrying": "Đang thử lại",
+      "state_failed": "Thất bại",
+      "state_skipped": "Bỏ qua",
+      "state_pending": "Đang chờ",
+      "progress_aria": "Tiến độ khôi phục",
+      "ledger_aria": "Các mục",
+      "reboot_notice": "Cần khởi động lại để hoàn tất. Bạn có thể chọn thời điểm sau khi đóng hộp thoại này.",
+      "failed_hint": "Các mục thất bại vẫn giữ cài đặt hiện tại. Bạn có thể khôi phục lại.",
+      "close": "Đóng",
+      "stop": "Dừng"
+    }
+  },
+  "adaptive_polling": {
+    "page_title": "Thăm dò thích ứng",
+    "page_description": "Truy vấn modem ít hơn khi không ai mở QManager.",
+    "card_title": "Thăm dò thích ứng",
+    "card_description": "Trạng thái được làm mới tối đa khi có trang đang mở, sau đó chậm lại.",
+    "tier": {
+      "active": "Tối đa",
+      "idle": "Nghỉ (chậm lại)",
+      "deep": "Nghỉ sâu (tối thiểu)"
+    },
+    "tier_aria": "Đang thăm dò: {{tier}}",
+    "enabled": {
+      "label": "Chậm lại khi nghỉ",
+      "on": "Thăm dò chậm lại sau khoảng chờ bên dưới.",
+      "off": "Trạng thái luôn được làm mới ở tốc độ tối đa.",
+      "hint_label": "Những gì vẫn chạy",
+      "hint": "Cảnh báo và watchdog kết nối vẫn hoạt động ở mọi tốc độ. Chỉ việc làm mới trạng thái chậm lại."
+    },
+    "fields": {
+      "active_grace": {
+        "label": "Khoảng chờ",
+        "consequence": "Tốc độ tối đa được giữ trong khoảng này sau khi đóng trang cuối cùng ({{min}} đến {{max}} giây)."
+      },
+      "idle_interval": {
+        "label": "Chu kỳ khi nghỉ",
+        "consequence": "Thời gian giữa các lần làm mới khi nghỉ ({{min}} đến {{max}} giây)."
+      },
+      "idle_threshold": {
+        "label": "Nghỉ sâu sau",
+        "consequence": "Thời gian nghỉ trước khi làm mới chậm hơn nữa ({{min}} đến {{max}} giây)."
+      },
+      "deep_idle_interval": {
+        "label": "Chu kỳ khi nghỉ sâu",
+        "consequence": "Thời gian giữa các lần làm mới khi nghỉ sâu ({{min}} đến {{max}} giây)."
+      }
+    },
+    "unit_seconds": "giây",
+    "error_title": "Không tải được thăm dò thích ứng",
+    "error_description": "Không tải được cài đặt. Thử lại sau giây lát.",
+    "save_failed_status": "Chưa lưu",
+    "default_status": "Thời gian mặc định",
+    "toast_saved": "Đã lưu thăm dò thích ứng.",
+    "toast_failed": "Không lưu được thăm dò thích ứng."
+  },
+  "web_port": {
+    "card_title": "Cổng web",
+    "card_description": "Các cổng mà giao diện này lắng nghe.",
+    "http_label": "Cổng HTTP",
+    "http_consequence": "HTTP thường chỉ chuyển hướng sang cổng HTTPS.",
+    "https_label": "Cổng HTTPS",
+    "https_consequence": "Cổng mã hóa mà giao diện này phục vụ.",
+    "pending": "Mở tại {{origin}} sau khi áp dụng.",
+    "moving": "Đang chuyển sang {{origin}}… Nếu trình duyệt hỏi, hãy chấp nhận chứng chỉ cho cổng mới.",
+    "invalid": "Dùng số nguyên từ 1 đến 65535.",
+    "same": "HTTP và HTTPS cần dùng cổng khác nhau.",
+    "confirm_title": "Đổi cổng web?",
+    "confirm_description": "QManager khởi động lại trên cổng mới và trang này chuyển sang {{origin}}. Nếu cổng mới không khởi động được, cổng cũ sẽ tự hoạt động lại.",
+    "confirm_action": "Đổi cổng",
+    "toast_failed": "Không đổi được cổng web.",
+    "toast_unchanged": "Đã lưu cổng web.",
+    "toast_unreachable": "Cổng mới không phản hồi, nên QManager giữ cổng cũ.",
+    "toast_back_on": "Cổng mới không khởi động, nên QManager quay lại {{origin}}.",
+    "toast_timeout": "Việc đổi cổng chưa xong, hãy tải lại trang này sau giây lát.",
+    "open_origin": "Mở",
+    "error_title": "Không đọc được cổng web",
+    "error_description": "Không tải được cổng. Thử lại sau giây lát."
+  }
+}
