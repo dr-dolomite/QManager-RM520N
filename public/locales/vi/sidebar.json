@@ -1,0 +1,85 @@
+{
+  "groups": {
+    "dashboard": "Bảng điều khiển",
+    "cellular": "Di động",
+    "local_network": "Mạng nội bộ",
+    "monitoring": "Giám sát",
+    "system": "Hệ thống"
+  },
+  "items": {
+    "home": "Trang chủ",
+    "cellular_information": "Thông tin di động",
+    "antenna_statistics": "Thống kê ăng-ten",
+    "antenna_alignment": "Căn chỉnh ăng-ten",
+    "sms_center": "Trung tâm SMS",
+    "sms_forwarding": "Chuyển tiếp SMS",
+    "custom_profiles": "Hồ sơ tùy chỉnh",
+    "connection_scenarios": "Kịch bản kết nối",
+    "band_locking": "Khóa băng tần",
+    "tower_locking": "Khóa trạm",
+    "frequency_locking": "Khóa tần số",
+    "cell_scanner": "Quét cell",
+    "neighboring_cells": "Cell lân cận",
+    "frequency_calculator": "Tính tần số",
+    "settings": "Cài đặt",
+    "apn_management": "Quản lý APN",
+    "network_priority": "Ưu tiên mạng",
+    "imei_settings": "Cài đặt IMEI",
+    "fplmn_settings": "Mạng bị chặn",
+    "ethernet_status": "Trạng thái Ethernet",
+    "local_network_settings": "Cài đặt",
+    "ip_passthrough": "IP Passthrough",
+    "ttl_mtu_settings": "Cài đặt TTL & MTU",
+    "custom_dns": "DNS tùy chỉnh",
+    "network_events": "Sự kiện mạng",
+    "latency_monitor": "Theo dõi độ trễ",
+    "alerts": "Cảnh báo",
+    "watchdog": "Watchdog",
+    "tailscale": "Tailscale VPN",
+    "system_settings": "Cài đặt hệ thống",
+    "logs": "Nhật ký",
+    "config_backup": "Sao lưu cấu hình",
+    "system_health_check": "Kiểm tra sức khỏe hệ thống",
+    "connection_quality": "Chất lượng kết nối",
+    "languages": "Ngôn ngữ",
+    "device_access": "Truy cập thiết bị",
+    "adaptive_polling": "Thăm dò thích ứng",
+    "software_update": "Cập nhật phần mềm",
+    "terminals": "Terminal",
+    "at_terminal": "AT Terminal",
+    "web_console": "Web Console",
+    "about_device": "Thông tin thiết bị",
+    "support": "Hỗ trợ",
+    "donate": "Ủng hộ dự án",
+    "traffic_engine": "Traffic Engine",
+    "cellular_overview": "Tổng quan",
+    "sms_inbox": "Hộp thư đến",
+    "band_locking_bands": "Khóa băng tần",
+    "cell_scanner_full_scan": "Quét toàn bộ",
+    "cellular_settings_general": "Chung",
+    "connection_quality_overview": "Tổng quan",
+    "system_settings_general": "Chung"
+  },
+  "header": {
+    "role": "Quản trị viên"
+  },
+  "user": {
+    "signed_in": "Đã đăng nhập"
+  },
+  "actions": {
+    "toggle_section": "Mở/đóng mục {{section}}",
+    "toggle_sidebar": "Mở/đóng thanh bên",
+    "skip_to_content": "Chuyển tới nội dung chính"
+  },
+  "status": {
+    "watchdog_acting": "đang xử lý",
+    "watchdog_acting_detail": "Watchdog đang khôi phục kết nối (bước {{tier}}).",
+    "watchdog_settling": "đang ổn định",
+    "watchdog_settling_detail": "Watchdog đang xác minh kết nối có giữ được sau khi phục hồi."
+  },
+  "mobile": {
+    "title": "Thanh bên",
+    "description": "Điều hướng chính của QManager."
+  },
+  "breadcrumb": "Đường dẫn"
+}

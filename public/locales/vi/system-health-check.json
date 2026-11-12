@@ -1,0 +1,188 @@
+{
+  "page": {
+    "title": "Kiểm tra sức khỏe hệ thống",
+    "description": "Kiểm tra mọi hệ thống con của QManager trên thiết bị này, gồm tệp chạy, quyền, kết nối AT, dịch vụ và cấu hình, rồi tải gói đã ẩn thông tin nhạy cảm để gửi cho bộ phận hỗ trợ."
+  },
+  "actions": {
+    "run": "Chạy chẩn đoán",
+    "running": "Đang chạy…",
+    "download": "Tải gói",
+    "downloading": "Đang tải…",
+    "clear": "Xóa",
+    "clearing": "Đang xóa…",
+    "retry": "Thử lại"
+  },
+  "clear_dialog": {
+    "title": "Xóa kết quả chẩn đoán?",
+    "description": "Thao tác này xóa lượt chạy gần nhất, mọi tệp đầu ra của từng bài kiểm tra, và gói tải về khỏi thiết bị. Trang sẽ trở về trạng thái trống.",
+    "cancel": "Hủy",
+    "confirm": "Xóa kết quả"
+  },
+  "band": {
+    "head": "Chẩn đoán gần nhất",
+    "unreachable": "Thiết bị không phản hồi",
+    "stale": "Đang hiển thị lần đọc gần nhất",
+    "result": {
+      "eyebrow": "Kết quả",
+      "unreachable": "Không truy cập được",
+      "none": "Chưa chạy",
+      "running": "{{done}} / {{total}}",
+      "failed_one": "{{count}} thất bại",
+      "failed_other": "{{count}} thất bại",
+      "warned_one": "{{count}} cảnh báo",
+      "warned_other": "{{count}} cảnh báo",
+      "passed": "Tất cả đều đạt",
+      "errored": "Lượt chạy thất bại",
+      "caption_errored": "Công cụ chạy dừng sớm",
+      "caption_unreachable": "Thiết bị không phản hồi",
+      "caption_none": "Chưa kiểm tra",
+      "caption_running": "Bắt đầu {{when}}",
+      "caption_finished": "Hoàn tất {{when}}",
+      "caption_warnings_one": "{{count}} cảnh báo · hoàn tất {{when}}",
+      "caption_warnings_other": "{{count}} cảnh báo · hoàn tất {{when}}"
+    },
+    "checks": {
+      "eyebrow": "Bài kiểm tra",
+      "value": "Đạt {{passed}} / {{total}}",
+      "caption_one": "{{count}} hệ thống con",
+      "caption_other": "{{count}} hệ thống con",
+      "caption_skipped_one": "Bỏ qua {{count}} · {{subsystems}}",
+      "caption_skipped_other": "Bỏ qua {{count}} · {{subsystems}}",
+      "caption_none": "Chưa đo gì"
+    },
+    "bundle": {
+      "eyebrow": "Gói hỗ trợ",
+      "value_ready": "Sẵn sàng",
+      "value_building": "Đang tạo…",
+      "caption_ready": "Sẵn sàng tải",
+      "caption_building": "Được tạo khi lượt chạy xong",
+      "caption_absent": "Được tạo sau một lượt chạy",
+      "caption_unavailable": "Lượt chạy này không có gói"
+    }
+  },
+  "status": {
+    "pass": "Đạt",
+    "fail": "Thất bại",
+    "warn": "Cảnh báo",
+    "skip": "Bỏ qua",
+    "running": "Đang chạy",
+    "pending": "Đang chờ"
+  },
+  "attention": {
+    "title": "Cần chú ý",
+    "description": "Mọi bài kiểm tra thất bại hoặc có cảnh báo trong lượt chạy gần nhất. Hãy bắt đầu từ đây."
+  },
+  "all_checks": {
+    "title": "Tất cả bài kiểm tra",
+    "description": "Mọi bài kiểm tra mà chẩn đoán đã chạy, nhóm theo hệ thống con."
+  },
+  "tally": {
+    "failed_one": "{{count}} thất bại",
+    "failed_other": "{{count}} thất bại",
+    "warnings_one": "{{count}} cảnh báo",
+    "warnings_other": "{{count}} cảnh báo",
+    "passed_one": "{{count}} đạt",
+    "passed_other": "{{count}} đạt"
+  },
+  "states": {
+    "empty": {
+      "title": "Chưa chạy chẩn đoán",
+      "description": "QManager kiểm tra mọi hệ thống con trên thiết bị này và đóng gói kết quả thành gói đã ẩn thông tin nhạy cảm để bạn gửi cho bộ phận hỗ trợ.",
+      "checks_one": "{{count}} bài kiểm tra",
+      "checks_other": "{{count}} bài kiểm tra"
+    },
+    "running": {
+      "title": "Chưa có gì thất bại",
+      "description": "Chẩn đoán vẫn đang chạy các bài kiểm tra. Mọi bài thất bại hoặc có cảnh báo sẽ hiện ở đây."
+    },
+    "incomplete": {
+      "title": "Chẩn đoán này chưa hoàn tất",
+      "description": "Công cụ chạy dừng trước khi mọi bài kiểm tra báo kết quả, nên các bài chưa chạy tới không có kết quả. Không có gì ở đây cho thấy thiết bị ổn, hãy chạy lại chẩn đoán."
+    },
+    "all_clear": {
+      "title_one": "Cả {{count}} bài kiểm tra đều đạt",
+      "title_other": "Cả {{count}} bài kiểm tra đều đạt",
+      "description": "Không có gì thất bại hay có cảnh báo. Mọi hệ thống con đều phản hồi đúng như mong đợi."
+    },
+    "all_clear_skipped": {
+      "title_one": "Bài kiểm tra đã chạy ({{count}}) đều đạt",
+      "title_other": "Cả {{count}} bài kiểm tra đã chạy đều đạt",
+      "description_one": "Không có gì thất bại hay có cảnh báo. {{count}} bài kiểm tra bị bỏ qua, nên lượt chạy này không cho biết gì về nó.",
+      "description_other": "Không có gì thất bại hay có cảnh báo. {{count}} bài kiểm tra bị bỏ qua, nên lượt chạy này không cho biết gì về chúng."
+    },
+    "error": {
+      "title": "Không đọc được chẩn đoán",
+      "description": "QManager đã hỏi thiết bị về lượt kiểm tra sức khỏe gần nhất nhưng không nhận được phản hồi."
+    }
+  },
+  "notice": {
+    "run_error": "Công cụ chạy đã báo sự cố trong lúc chạy chẩn đoán này."
+  },
+  "loading": {
+    "status": "Đang tải kết quả chẩn đoán",
+    "output": "Đang tải…"
+  },
+  "output": {
+    "show": "Hiện đầu ra của {{label}}",
+    "hide": "Ẩn đầu ra của {{label}}",
+    "truncated": "Đang hiển thị 4 KB đầu ra cuối cùng.",
+    "empty": "(không có đầu ra)",
+    "failed": "Không tải được đầu ra: {{error}}"
+  },
+  "time": {
+    "just_now": "vừa xong",
+    "seconds": "{{count}} giây trước",
+    "minutes": "{{count}} phút trước",
+    "hours": "{{count}} giờ trước",
+    "days": "{{count}} ngày trước"
+  },
+  "toast": {
+    "run_failed": "Không bắt đầu được chẩn đoán",
+    "cleared": "Đã xóa kết quả chẩn đoán",
+    "clear_failed": "Không xóa được kết quả",
+    "download_failed": "Không tải được gói"
+  },
+  "category": {
+    "binaries": {
+      "label": "Tệp chạy & phiên bản",
+      "description": "Kiểm tra tệp chạy cần thiết và phiên bản"
+    },
+    "permissions": {
+      "label": "Hệ thống tệp & quyền",
+      "description": "Quyền sở hữu, chế độ tệp và nhóm người dùng"
+    },
+    "at_transport": {
+      "label": "Kết nối AT",
+      "description": "Kiểm tra lệnh qcmd khứ hồi tới modem"
+    },
+    "sms": {
+      "label": "Hệ thống SMS",
+      "description": "Mức sẵn sàng của dịch vụ SMS và SIM"
+    },
+    "sudoers": {
+      "label": "Sudoers",
+      "description": "Khả năng thấy công cụ sudoers của www-data"
+    },
+    "services": {
+      "label": "Dịch vụ systemd",
+      "description": "Sự tồn tại, trạng thái bật và trạng thái chạy của unit systemd"
+    },
+    "network": {
+      "label": "Mạng",
+      "description": "DNS, IPv4, đường dữ liệu modem, lighttpd, tường lửa"
+    },
+    "configuration": {
+      "label": "Cấu hình",
+      "description": "Tệp cấu hình QManager và độ mới của bộ nhớ đệm poller"
+    }
+  },
+  "diagnostics": {
+    "card_title": "Báo cáo gỡ lỗi",
+    "card_description": "Ảnh chụp trạng thái modem để chia sẻ khi xử lý sự cố.",
+    "body": "Tạo ảnh chụp dạng văn bản về trạng thái hiện tại của modem (trạng thái sóng, cấu hình mạng và nhật ký gần đây) và tải về thiết bị của bạn. Không có dữ liệu nào rời khỏi modem cho đến khi bạn chọn chia sẻ tệp.",
+    "button_capture": "Tải báo cáo gỡ lỗi",
+    "button_capturing": "Đang thu thập…",
+    "toast_success": "Đã tải báo cáo gỡ lỗi",
+    "toast_failed": "Không thu thập được chẩn đoán. Vui lòng thử lại."
+  }
+}
