@@ -19,14 +19,14 @@
 |------|-------|
 | Frontend page | `/monitoring/connection-quality` (`components/monitoring/connection-quality/` — shell `connection-quality.tsx`, `shapes.ts`, `probe-targets-card.tsx`, `quality-thresholds-card.tsx`, `condition-block.tsx`) |
 | Producer daemon | `qmanager_ping` — `#!/bin/sh` **ICMP `ping`** daemon (source: `scripts/usr/bin/qmanager_ping`, installed to `/usr/bin/qmanager_ping`) |
-| Probe chain | Four legs, fixed order, short-circuit on first success: `cloudflare.com` → `google.com` → `1.1.1.1` → `8.8.8.8` (all four configurable) |
-| Producer key contract | **13 keys**, one `jq -n` literal, no branches — [see below](#the-producer-key-contract) |
+| Probe chain | Leg 1 `cloudflare.com` alone; if it fails, `google.com`, `1.1.1.1` and `8.8.8.8` run in parallel and the first in that order wins (all four configurable) |
+| Producer key contract | **14 keys**, one `printf` line, no branches — [see below](#the-producer-key-contract) |
 | Shared reader | `scripts/usr/lib/qmanager/conn_state.sh` — the **only** reader of `/tmp/qmanager_ping.json` (`conn_state_read`), the staleness rule, `conn_state_down_for` / `conn_state_is_up`, `conn_state_cadence`, the one latency/loss preset table, `cq_thresholds_load` / `cq_thresholds_refresh`, `cq_alert_after_min`, `cq_quality_merge` |
 | Poller | `qmanager_poller` (`scripts/usr/bin/qmanager_poller`) — derives latency/jitter/loss/history **and** the `status` verdict; runs the one link detector (`detect_data_connection_events`) and the alert engine each cycle |
 | Consumer (recovery) | `qmanager_watchcat` — reads the cache through `conn_state.sh`, never probes; see [connection-watchdog.md](connection-watchdog.md) |
 | Ping verdict cache | `/tmp/qmanager_ping.json` (written by `qmanager_ping`, read only through `conn_state.sh`) — **slim schema, no stats/history** |
 | DNS lookup cache | `/tmp/qmanager_dns.json` (root, atomic; written by `qmanager_ping`'s detached DNS job, read by the poller) — [see below](#dns-lookup-time--tmpqmanager_dnsjson) |
-| History ring buffer | `/tmp/qmanager_ping_history` (flat file, one RTT float or `null` per line, read by poller for stats) |
+| History ring buffer | `/tmp/qmanager_ping_history` (flat file, one `<rtt\|null> <leg>` line per cycle, read by the poller and `wd_quality.sh`) |
 | History-as-array CGI | `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh` (serves `/tmp/qmanager_ping_history.json` NDJSON as a JSON array) |
 | Daemon config | `/etc/qmanager/ping_profile.json` — owned by Connection Quality; two CGIs write it, both by atomic key-merge — [see below](#ping_profilejson--one-owner-two-write-paths) |
 | Daemon reload flag | `/tmp/qmanager_ping_reload` |
@@ -56,49 +56,40 @@ qmanager_ping (PRODUCER)
 
 **Short version:** `qmanager_ping` is a small always-on POSIX-shell (`#!/bin/sh`) daemon that pings a short list of well-known internet hosts every few seconds and writes "did anything come back?" to a JSON file. It replaced a compiled Rust HTTP/204 daemon; the switch was an explicit port from the RM551E sibling project for feature parity, and it consciously drops the old tri-state.
 
-### The four-leg chain (2026-09-02)
+### The probe cycle (rewritten 2026-11-06)
 
-Each cycle walks **four legs in a fixed order and short-circuits on the first success**:
+Four legs, all configurable:
 
-| # | Config key | Default | Kind |
+| Leg | Config key | Default | Kind |
 |---|-----------|---------|------|
-| 1 | `target_host_1` | `cloudflare.com` | hostname — the resolver picks the address family |
-| 2 | `target_host_2` | `google.com` | hostname |
-| 3 | `target_ip_1` | `1.1.1.1` | IPv4 literal — DNS-independent |
-| 4 | `target_ip_2` | `8.8.8.8` | IPv4 literal — DNS-independent |
+| `h1` | `target_host_1` | `cloudflare.com` | hostname — the resolver picks the address family |
+| `h2` | `target_host_2` | `google.com` | hostname |
+| `i1` | `target_ip_1` | `1.1.1.1` | IPv4 literal — DNS-independent |
+| `i2` | `target_ip_2` | `8.8.8.8` | IPv4 literal — DNS-independent |
 
-**Why the hostnames come first.** A bare `ping <hostname>` delegates address-family selection to the **resolver** — the system library that turns a name into an address — instead of to a config slot. One target therefore covers an IPv4-only bearer, an IPv6-only bearer and a dual-stack bearer with **zero configuration**. Measured on both devices (see [Measured on hardware](#measured-on-hardware)): glibc's RFC 3484 address-sorting rules correctly *deprioritised* IPv6 for a dual-stack name when no IPv6 source address existed, and correctly *selected* IPv6 for an AAAA-only name (`ipv6.google.com`). This replaces the old hand-rolled `target_ipv4` → `target_ipv6` fallback outright; there is no v4/v6 slot distinction any more.
+**Cycle.** `h1` is probed alone. If it answers, the cycle is done: a healthy cycle sends one probe. If it fails, `h2`, `i1` and `i2` start **in parallel** as background jobs, each writing its result into a per-run scratch dir (`mktemp -d /tmp/qmanager_ping_fan.XXXXXX`, root 0700), and the daemon `wait`s for all three. The winner is the first leg **in the fixed order `h2` > `i1` > `i2`** that answered, so the reported RTT is deterministic. Ported from the RM551E rewrite (merge `bd8f42d0` there); RM520N keeps its four user slots and its hostname-first order (user decision, 2026-11-06).
 
-**When the literal legs run.** Legs 3–4 are reached whenever **both** hostname legs fail, **for any reason** — deliberately *not* gated on a resolution-specific failure. A hostname leg can fail without DNS being at fault, telling the two apart means parsing stderr prose, and the total cost is bounded by the budget invariant below anyway.
+**Why the hostnames come first.** A bare `ping <hostname>` delegates address-family selection to the **resolver** — the system library that turns a name into an address — instead of to a config slot. One target therefore covers an IPv4-only bearer, an IPv6-only bearer and a dual-stack bearer with **zero configuration**. Measured on both devices (see [Measured on hardware](#measured-on-hardware)): glibc's RFC 3484 address-sorting rules correctly *deprioritised* IPv6 for a dual-stack name when no IPv6 source address existed, and correctly *selected* IPv6 for an AAAA-only name (`ipv6.google.com`). There are no built-in IPv6 literal legs: the hostname legs reach IPv6, and a winner outside the four slots would show the Probe Targets card's "unknown" chip. The cost of this order: a healthy cycle does one DNS lookup (no on-device cache), and the latency series follows whatever address the resolver returns.
 
-**The verdict.** Any single leg answering is probe success; a probe fails only when **all four** fail. A healthy link therefore costs **one** leg per cycle, not four.
+**When the literal legs run.** On every cycle where `h1` fails, **for any reason** — deliberately *not* gated on a resolution-specific failure. Telling DNS failure apart from a dead host means parsing stderr prose, and the parallel fan-out makes the extra legs cost no wall-clock time.
 
-A leg **succeeds** when the daemon parses a numeric round-trip time greater than 0 from the ping summary line (`min/avg/max[/mdev] = a/b/c[/d]`, average = 2nd field), falling back to a per-packet `time=<n>` reading. 100 % packet loss produces no round-trip line → no RTT → leg failure. That is the fail-safe: silence reads as "down", never as "up".
+**The verdict.** Any single leg answering is probe success; a probe fails only when **all four** fail.
+
+A leg **succeeds** when the daemon parses a numeric round-trip time greater than 0 from the ping summary line (`min/avg/max[/mdev] = a/b/c[/d]`, average = 2nd field), falling back to a per-packet `time=<n>` reading. Parsing is shell builtins only (`parse_rtt`). 100 % packet loss produces no round-trip line → no RTT → leg failure. That is the fail-safe: silence reads as "down", never as "up".
 
 ### The cycle budget
 
-Two mechanisms keep a four-leg chain from outrunning its consumers.
+**Per-leg deadline.** Literal legs run `ping -c1 -W2 -w3 <ip>`: `-w` is iputils' hard deadline, so no `timeout` fork is needed. Hostname legs run `qm_timeout 4 ping -c1 -W2 -w3 <host>`, because `-w` does not cover the name lookup. The bound goes through **`qm_timeout`** (`platform.sh`), never a bare `timeout` — the two devices accept *different* CLI forms (see [platform facts](#platform-facts-that-shape-this-design)). Failure is tested as a **non-zero exit status, never as a literal code**.
 
-**Per-leg deadline.** Every leg runs as:
+**Worst case** is `h1` hung on a dead resolver (4 s) plus the fan-out bounded by its slowest hostname leg (4 s): about **8 s**, against 12–13 s for the old sequential chain. A blackholed `h1` plus a blackholed fan-out measured **6.4 s** (2026-11-07). Every case stays under the 15 s floor of the [derived staleness threshold](#derived-staleness-threshold); if a cycle ever exceeded it, an outage would make this cache look *stale* — `unknown` instead of `disconnected` — and swallow the `internet_lost` alert.
 
-```sh
-qm_timeout "$PROBE_DEADLINE" ping -c1 -W "$PROBE_TIMEOUT" <target>
-```
+**Fixed-rate loop.** The sleep at the bottom of the loop is `interval_sec − elapsed`, in fractional seconds with a 0.2 s floor (integer seconds if the device's `sleep` refuses a fraction, detected once at start). The cycle **period** therefore equals `interval_sec` whenever the cycle fits inside it. `cycle_ms` in the cache is the last measured period, start to start.
 
-with `PROBE_DEADLINE = PROBE_TIMEOUT + 1` (= 3s) — the `+1` is the name-resolution allowance. The bound goes through **`qm_timeout`** (`platform.sh`), never a bare `timeout` — the two devices accept *different* CLI forms, so no literal invocation works on both (see [platform facts](#platform-facts-that-shape-this-design)). Failure is tested as a **non-zero exit status, never as a literal code**.
+**Clock.** Every timing read is `/proc/uptime` in centiseconds through the `read` builtin: no fork. Leading zeros are stripped before `$(( ))`, where they would read as octal.
 
-**Fixed-rate loop.** The sleep at the bottom of the loop is `interval_sec − elapsed`, floored at 1 — *not* a flat `sleep interval` after the work. The cycle **period** therefore equals `interval_sec` whenever the chain fits inside it. A flat sleep would have made the real period drift by however long the chain took, which is exactly the skew that made a cycle-count threshold dishonest.
+> ℹ️ NOTE — during a full outage the effective cadence floors at the cycle cost: at `sensitive` (`interval_sec` 1) a failing cycle takes ~4 s, not 1 s. Wall-clock debouncing is what keeps `fail_secs` truthful regardless.
 
-**The invariant, asserted by harness rather than by inspection:**
-
-```
-n_targets × (PROBE_TIMEOUT + 1)  <  stale_floor
-        4  ×  3                  =  12   <   15    ✓
-```
-
-`stale_floor` is the 15-second floor of the [derived staleness threshold](#derived-staleness-threshold) the poller and the watchdog each compute for themselves. Worst case falls from an unbounded ~29s to a hard **12s**. If a worst-case chain ever exceeded the floor, an outage would make this cache look *stale* — the verdict would read `unknown` instead of `disconnected`, and the `internet_lost` alert would be swallowed by exactly the outage it exists to report.
-
-> ℹ️ NOTE — the consequence, stated plainly: during a full outage the effective cadence floors at the chain cost. At the `sensitive` profile (`interval_sec` 1) the real cadence becomes about 12s. That is inherent to a four-leg chain; wall-clock debouncing is what keeps `fail_secs` truthful regardless.
+**Boot.** `/usr/bin/jq` points into `/opt`, which mounts ~30 s into boot. If `jq` is not on `PATH` when the config is loaded, the daemon runs on the defaults and re-loads the config on the first cycle where `jq` exists. The cache itself is written with `printf`, so it never needs `jq`.
 
 <a id="accepted-consequences"></a>
 ### Two accepted consequences — settled, not defects
@@ -143,7 +134,8 @@ Atomic write (`.tmp` + `mv`) every cycle. The schema is now **slim** — the dae
   "during_recovery": false,
   "last_family": "ipv4",
   "last_target": "cloudflare.com",
-  "fail_elapsed_sec": 0
+  "fail_elapsed_sec": 0,
+  "cycle_ms": 5000
 }
 ```
 
@@ -159,25 +151,26 @@ Atomic write (`.tmp` + `mv`) every cycle. The schema is now **slim** — the dae
 | `streak_success` | Consecutive successful cycles. Still a plain **count** — contract unchanged. |
 | `streak_fail` | **Consecutive failed cycles**, a plain count. The Watchdog uses it only to leave MONITOR (`> 0` → SUSPECT); the down declaration is wall-clock (`fail_elapsed_sec`). `events.sh` holds latency/loss *entry* while it is `> 0`. |
 | `during_recovery` | `true` while `/tmp/qmanager_recovery_active` exists (the watchdog is mid-recovery). The poller's `status` reads `recovery` while it is set. It never changes the `reachable` verdict, and no consumer may treat it as one. |
-| `last_family` | `ipv4` \| `ipv6` \| `none` — which address family answered last cycle. Now **derived** by parsing the resolved address out of ping's first output line (`PING host (ADDR)`); a `:` in that address means `ipv6`, anything else `ipv4`. The output format is identical on both devices. `none` means nothing answered. |
+| `last_family` | `ipv4` \| `ipv6` \| `none` — which address family answered last cycle. For a hostname leg it is parsed from ping's first output line (`PING host (ADDR)`); a `:` in that address means `ipv6`. Literal legs are `ipv4`. `none` means nothing answered. |
 | `last_target` | The exact target string that produced `last_rtt_ms`, or `""` when nothing answered. See below. |
-| `fail_elapsed_sec` | Monotonic seconds since the first failure of the current run of failures; `0` when healthy. See below. |
+| `fail_elapsed_sec` | Monotonic seconds from the **start** of the first failing cycle of the current run; `0` when healthy. See below. |
+| `cycle_ms` | The last measured cycle period (start to start), in ms. Diagnostic; no reader depends on it. |
 
-**`last_target` — why latency is attributed to the leg that actually replied.** The chain short-circuits, so `targets[0]` is the winner only on a link where the first leg answers. The daemon also **truncates `/tmp/qmanager_ping_history` whenever the winning target changes** from the previous cycle, so a switch renders as a **gap** in the latency chart rather than a phantom latency step, and jitter is only ever computed across one host.
+**`last_target` — why latency is attributed to the leg that actually replied.** `targets[0]` is the winner only on a link where the first leg answers. `last_target` is always one of the four slot values (the Probe Targets card matches it against them). The history ring records the winning leg on every line instead of being truncated when the winner changes (it was, until 2026-11-06, which wiped loss and jitter on a flapping link): see [Poller inputs](#poller-inputs).
 
 > ℹ️ NOTE — the rejected alternative. Pinning latency to target 1 unconditionally was considered and rejected: a device whose carrier blocks target 1 — the [documented ICMP regression path](#known-tradeoffs-and-the-icmp-regression-path) — would read "connected" via a fallback leg while its latency chart stayed permanently empty.
 
 **`fail_elapsed_sec` — the Watchdog's down clock.** `conn_state_down_for N` is true only when the read is fresh, `reachable` is `false`, **and** `fail_elapsed_sec >= N`. The Watchdog passes `fail_threshold × interval_sec`. Because `reachable` itself only flips after `fail_secs`, the effective trigger is the **later** of `fail_secs` and `fail_threshold × interval_sec`.
 
 <a id="the-producer-key-contract"></a>
-### The producer key contract — exactly these thirteen keys
+### The producer key contract — exactly these fourteen keys
 
-> ⚠️ WARNING: the table above is the **complete** key set, not a selection from it. `write_cache()` (`scripts/usr/bin/qmanager_ping`) is a single `jq -n` object literal with thirteen members and no conditional branches, so every cycle writes all thirteen and **never** a fourteenth. A consumer that reads any other key gets its own fallback — forever, on every device, silently.
+> ⚠️ WARNING: the table above is the **complete** key set, not a selection from it. `write_cache()` (`scripts/usr/bin/qmanager_ping`) is a single `printf` line with fourteen members and no conditional branches, so every cycle writes all fourteen and **never** a fifteenth. A failed write keeps the previous file. A consumer that reads any other key gets its own fallback — forever, on every device, silently.
 
 ```
 timestamp  mono  profile  targets  interval_sec  last_rtt_ms  reachable
 streak_success  streak_fail  during_recovery  last_family
-last_target  fail_elapsed_sec
+last_target  fail_elapsed_sec  cycle_ms
 ```
 
 **Fields that are GONE** (emitted by the retired Rust HTTP daemon, never written by the shell daemon): `connectivity`, `limited_reason`, `down_reason`, `streak_limited`, `probe_target_used`, `http_code_seen`, `tcp_reused`. The `connectivity` / `state` tri-state does not exist at the producer, and nothing downstream may claim otherwise — see [The absent-key trap](#the-absent-key-trap).
@@ -187,7 +180,7 @@ If you add a key to `write_cache()`, add it to the list above in the same change
 <a id="dns-lookup-time--tmpqmanager_dnsjson"></a>
 ### DNS lookup time — `/tmp/qmanager_dns.json`
 
-`qmanager_ping` is still the only prober, and it also times one DNS lookup: `one.one.one.one` against the **carrier resolver**, the first `nameserver` line in `/etc/resolv.conf`, re-read on every run because it changes on reattach. The file is a separate key set, not part of the thirteen-key contract above:
+`qmanager_ping` is still the only prober, and it also times one DNS lookup: `one.one.one.one` against the **carrier resolver**, the first `nameserver` line in `/etc/resolv.conf`, re-read on every run because it changes on reattach. The file is a separate key set, not part of the fourteen-key contract above:
 
 ```json
 { "ms": 250, "ok": true, "resolver": "10.151.151.44", "name": "one.one.one.one", "mono": 84213, "ts": 1760000000 }
@@ -220,11 +213,11 @@ The daemon reads `/etc/qmanager/ping_profile.json` (env vars override it; hardco
 | relaxed *(default)* | 5 | 30 | 10 | 300 |
 | quiet | 10 | 60 | 20 | 600 |
 
-**Why nothing here promises a fail window under 14 seconds** (retuned 2026-09-02). `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible down-verdict is one whole cycle period after the outage starts. A failing cycle is capped at four legs × `PROBE_DEADLINE` (3s) = 12s, plus roughly 0.4s of forks on a Cortex-A7, plus the floored 1-second sleep at the bottom of the loop — about **13.4s**. A `fail_secs` below that is not a more aggressive setting, it is a promise the chain cannot keep: the verdict lands a cycle later regardless and the number shown to the user is wrong. The old table promised 6s and 10s, both unachievable by construction.
+**Why nothing here promises a fail window under 14 seconds** (retuned 2026-09-02). `fail_elapsed_sec` is 0 on the first failing cycle, so the earliest possible down-verdict is one whole cycle period after the outage starts. When this table was set, a failing cycle could take about **13.4s** (four sequential 3s legs, forks, and a 1s sleep floor), so a `fail_secs` below that was a promise the chain could not keep. Since the 2026-11-06 rewrite a failing cycle measures 6.4s (~8s with a hung resolver), so the fast end of the table could now be lowered; that is a user-facing change and has not been made. The old table promised 6s and 10s.
 
 The per-leg deadlines were deliberately **not** shortened to buy a faster verdict — that would risk calling a slow-but-alive cellular link down. The consequence is that the fast end of the table is clamped: `sensitive` now means "the earliest verdict this chain can honestly deliver", not six seconds. The four profiles stay distinct in both axes (cadence 1/2/5/10, window 15/20/30/60).
 
-`recover_secs` was **not** inflated to match. The success path short-circuits on leg 1, so a healthy cycle costs ~0.3s and the fixed-rate loop makes its period exactly `interval_sec`; every `recover_secs` above is at or over its own `interval_sec`, which is the only floor that path has. The degraded case (legs 1–3 dead, leg 4 answering, ~10s) recovers *later* than promised, which is the conservative direction.
+`recover_secs` was **not** inflated to match. A healthy cycle sends one probe and the fixed-rate loop makes its period exactly `interval_sec`; every `recover_secs` above is at or over its own `interval_sec`, which is the only floor that path has. The degraded case (`h1` dead, a fan-out leg answering, ~2–4s per cycle) recovers *later* than promised, which is the conservative direction.
 
 Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`) override the profile table when present and numeric. `interval_sec` is the one override a UI writes: `settings/ping_profile.sh` accepts it directly (1–60), and the Watchdog page writes it through `monitoring/watchdog.sh` (see [one owner, two write paths](#ping_profilejson--one-owner-two-write-paths)). A stored `interval_sec` is the cadence the **Watchdog page owns**, and a profile save **never removes it** (user decision, 2026-11-02). The profile still sets the debounce windows (`fail_secs` / `recover_secs`), but while an override is stored it also shadows the profile's cadence, so the UI shows "Every N s (Watchdog)" and links to the Watchdog page. There is no separate ownership marker: any stored `interval_sec` counts, and the only writers are the Watchdog page's changed-value save and an explicit `interval_sec` in a `ping_profile.sh` POST (which no UI sends). `watchdog.sh` writes `.interval_sec` whenever the posted Probe every differs from the effective cadence, so once any Watchdog cadence is saved it stays, and the profile selector only changes the debounce windows. The one way back is the Probe Targets card's **Use profile cadence** button, shown only while `interval_override` is set: it POSTs `{ "action": "clear_interval" }`, and the CGI runs `del(.interval_sec)` through the same guarded atomic write (a non-object file is refused with `write_failed`; a missing file is a no-op), touches `/tmp/qmanager_ping_reload`, and returns `{ "success": true, "interval_sec": <new effective cadence> }`. No other key is touched, and `watchdog.sh` is not involved. `conn_state_cadence` resolves the effective cadence the same way `resolve_profile()` does (override, else the profile table); both CGIs' GETs report that value.
 
@@ -254,6 +247,16 @@ Every figure below is **quoted from the on-device measurement record of 2026-09-
 | Dead-DNS-server cost | **10.20s** | RG501Q-EU |
 | Cold hostname resolve (no data plan) | **0.37s** for `cloudflare.com` | RM520N-GL |
 
+Parallel-cycle rewrite, measured 2026-11-07 on RM520N-GL `61368cd2` (`cycle_ms` from the cache; ICMP echo dropped on `rmnet+`, DNS still answering):
+
+| What | Measured |
+|------|----------|
+| Healthy cycle period, `interval_sec` 5 | **5.01s** |
+| Failing cycle (`h1` blackholed, then all fan-out legs blackholed) | **6.4s** |
+| `h1` unresolvable (NXDOMAIN), `h2` answering | **5.01s** period, `h2` every cycle |
+| Down verdict, `relaxed` (fail 30s) / recover (10s) | **33s** / **9s** |
+| Down verdict, `sensitive` with a saved `interval_sec` 5 (fail 15s) / recover (3s) | **20s** / **5s** |
+
 The dead-DNS figure is the **slow** case, and it needs the distinction spelled out: an unanswering-but-reachable resolver costs the full wait, whereas when the bearer itself drops, the link-scoped route to the carrier's DNS servers disappears and the send fails `ENETUNREACH` (network unreachable) **immediately**. Only the first case is expensive, and the per-leg `timeout` wrapper is the knob that bounds it.
 
 <a id="platform-facts-that-shape-this-design"></a>
@@ -278,7 +281,7 @@ Three device facts are load-bearing here and are worth reading before editing th
 The poller reads two files the daemon produces:
 
 - `/tmp/qmanager_ping.json` — through `conn_state_read` (`conn_state.sh`), one `jq @tsv` read into `CQ_*` variables (`CQ_REACHABLE`, `CQ_RTT_MS`, `CQ_STREAK_FAIL`, `CQ_FAIL_ELAPSED_SEC`, `CQ_DURING_RECOVERY`, `CQ_INTERVAL_SEC`, `CQ_PROFILE`, `CQ_LAST_FAMILY`, `CQ_LAST_TARGET`, `CQ_TARGET` = `targets[0]`, …). The poller and the watchdog share this one reader; neither parses the cache itself any more.
-- `/tmp/qmanager_ping_history` — a flat ring buffer of RTT samples (one float or literal `null` per line), trimmed to `history_secs / interval_sec` entries, read directly.
+- `/tmp/qmanager_ping_history` — a flat ring buffer, one `<rtt|null> <leg>` line per cycle (leg `h1|h2|i1|i2`, `-` when nothing answered), trimmed to `history_secs / interval_sec` entries and never truncated on a winner change. Readers use `$1`, so an old one-column line still parses. Jitter is computed only between consecutive answers from the **same leg**, so a winner change never shows as a latency jump; loss counts every `null`. The ring restarts empty when the daemon starts.
 
 `conn_state_read` is **fail-closed**: rc 0 only for a fresh read. On a missing, unreadable or stale cache it returns 1 with every verdict variable neutral (`CQ_REACHABLE="null"`, never `true`), and `conn_state_why` gives the reason for the log line.
 
@@ -299,7 +302,7 @@ stale_threshold = max(3 × interval_sec, 15)
 - **An empty or non-numeric `timestamp` is stale**, and so is a `mono` ahead of `/proc/uptime` (a cache from a previous boot).
 - **An implausible `interval_sec` is clamped to 5** (accepted range 1–300; non-numeric = unset). A garbage value would otherwise compute a threshold so large that staleness detection switches off — failing open on the one failure mode the guard exists to prevent.
 
-The floor of 15 is the same number the [four-leg probe budget](#the-cycle-budget) is checked against: `4 × 3 = 12 < 15`. A stale read must never be mistaken for an outage: it reads `unknown`, and the [link detector](#one-detector-one-alert) treats it as "no transition".
+The floor of 15 is the same number the [cycle budget](#the-cycle-budget) is checked against: a worst-case cycle of ~8s stays under it. A stale read must never be mistaken for an outage: it reads `unknown`, and the [link detector](#one-detector-one-alert) treats it as "no transition".
 
 From those, in a single pass, it derives the `connectivity` block written into `/tmp/qmanager_status.json` and typed as `ConnectivityStatus` (`types/modem-status.ts`). **This table is the complete block** — no other keys are emitted:
 
@@ -329,7 +332,7 @@ From those, in a single pass, it derives the `connectivity` block written into `
 
 > ⚠️ **Ratio statistics go null below `MIN_STAT_SAMPLES` (10).** `jitter_ms` and `packet_loss_pct` are ratios over the window, so unlike `min`/`avg`/`max` — point statistics that are honest at one sample — they say nothing until the window is long enough to carry one. The poller emits a real JSON `null` for both below the floor, using the same literal-`null` idiom the latency stats already used at zero valid samples.
 >
-> This is not a theoretical case. `qmanager_ping` **truncates** `/tmp/qmanager_ping_history` on every probe-winner change, so a one-sample window is a *recurring* state on a link that flaps between legs, not a once-per-boot transient. The old code emitted `jitter 0.0, loss 0%` from that window — byte-identical to a measured perfect link — and four consumers believed it, including `append_ping_history()`, which archived the zeros into the persistent 24-hour record.
+> Short windows happen after every daemon start, and (until 2026-11-06) after every probe-winner change, when the daemon truncated the ring. The old code emitted `jitter 0.0, loss 0%` from that window — byte-identical to a measured perfect link — and four consumers believed it, including `append_ping_history()`, which archived the zeros into the persistent 24-hour record.
 >
 > The floor is 10 because a window of *n* samples can only express loss in steps of `100/n` percent, and that quantum must stay below the smallest loss cut any consumer compares against — 15 % (the `standard` preset, which is also the `degraded` gate when selected). At n=9 the quantum is 11.1 %, close enough to a cut that every window reads either "0 %" or an instant breach, and the "0 %" half is the dangerous one.
 >
@@ -388,7 +391,7 @@ Copy lives in `public/locales/*/dashboard.json` under `network.internet_*` and `
 
 The chain, layer by layer:
 
-1. `qmanager_ping` writes a fixed key set and no `connectivity` key. (It was eleven keys when this bug was live; the [contract](#the-producer-key-contract) is thirteen as of 2026-09-02, and still no `connectivity`.)
+1. `qmanager_ping` writes a fixed key set and no `connectivity` key. (It was eleven keys when this bug was live; the [contract](#the-producer-key-contract) is fourteen as of 2026-11-06, and still no `connectivity`.)
 2. `qmanager_poller` read it as `(.connectivity // "unknown")` and emitted the result through `jq --arg`, which forces a JSON **string**. So `connectivity.state` in `status.json` was permanently the string `"unknown"` — never `null`, which is what the type's own doc comment claimed the pipeline could produce.
 3. `buildInternetChip()` guarded with `if (c?.state)`. `"unknown"` is truthy, so the documented rolling-upgrade fallback to `internet_available` beneath it was **unreachable code**, and the switch landed in `default:` every time: a grey chip with a minus-in-circle glyph over a healthy link. The amber branch had never rendered in production.
 
@@ -448,7 +451,7 @@ The card owns the **sensitivity profile** and the **four probe slots** — `targ
 Behavior:
 
 - Inputs are **ICMP targets** (hostname or IPv4 literal), **not HTTP URLs** — no scheme is prepended.
-- The four legs are walked in the order listed, short-circuiting on the first success. There is no v4/v6 slot distinction: the resolver picks the family for the two hostname legs.
+- Leg 1 runs alone; when it fails, the other three run in parallel and the first in the order listed wins. There is no v4/v6 slot distinction: the resolver picks the family for the two hostname legs.
 - Client-side validation mirrors the CGI's two validator kinds and re-runs on every slot at submit; the CGI re-validates server-side. Values are trimmed before the POST.
 - A config the CGI could not read comes back as four blanks; the card then shows the *No probe chain saved* condition with a Restore defaults action instead of the form.
 

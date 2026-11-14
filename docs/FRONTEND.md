@@ -17,11 +17,12 @@ This document covers the frontend architecture, component patterns, hooks, routi
 | React Hook Form | 7.71.2 | Form state management |
 | Zod | 4.3.6 | Schema validation |
 | Motion | 12.38.0 | Animations |
-| @dnd-kit | 6.3/10.0 | Drag-and-drop (sortable lists) |
+| @dnd-kit | core 6.3.1 / sortable 10.0.0 | Drag-and-drop (sortable lists) |
 | @tanstack/react-table | 8.21.3 | Data tables |
 | Lucide React | 0.562.0 | Icons |
 | next-themes | 0.4.6 | Dark/light mode |
 | sonner | 2.0.7 | Toast notifications |
+| i18next / react-i18next | 26.0.5 / 17.0.4 | Translations (`lib/i18n`, `components/i18n`) |
 
 ---
 
@@ -30,7 +31,7 @@ This document covers the frontend architecture, component patterns, hooks, routi
 ```
 app/                            # Next.js App Router
 ├── layout.tsx                  # Root layout (fonts, ThemeProvider, Toaster)
-├── page.tsx                    # Redirect → /dashboard
+├── page.tsx                    # Public overview splash; confirmed sessions → /dashboard
 ├── globals.css                 # Tailwind + OKLCH theme variables
 ├── fonts/                      # Rethink Sans + JetBrains Mono (vendored) + Material Symbols WOFF2 files
 ├── login/page.tsx              # Authentication page
@@ -100,8 +101,10 @@ constants/                      # Static configuration data
 
 | Route | Component | Description |
 |-------|-----------|-------------|
-| `/` | Redirect | → `/dashboard` |
+| `/` | OverviewCard (`app/page.tsx`) | Public overview splash; a session confirmed by `auth/check.sh` is sent on to `/dashboard/` |
 | `/login` | LoginForm | Authentication (login or first-time setup) |
+| `/setup` | OnboardingWizard | First-time setup wizard (redirects to `/dashboard/` or `/login/` when already set up) |
+| `/reboot` | RebootCountdown | Reboot countdown and reconnect |
 | `/dashboard` | HomeComponent | Real-time signal and device status |
 | `/cellular` | CellularInformation | Cellular info cards |
 | `/cellular/settings` | CellularSettings | Mode, roaming, AMBR settings |
@@ -117,24 +120,35 @@ constants/                      # Static configuration data
 | `/cellular/cell-scanner/frequency-calculator` | FrequencyCalculator | EARFCN ↔ freq |
 | `/cellular/custom-profiles` | CustomProfile | SIM profile CRUD + apply, **and** Connection Scenarios — one merged page |
 | `/cellular/custom-profiles/connection-scenarios` | *(retired)* | Client-side `router.replace` redirect to `/cellular/custom-profiles`; kept only for old bookmarks and deep links |
+| `/cellular/antenna-alignment` | AntennaAlignmentComponent | Antenna alignment (live aim, port strip, recorder) |
+| `/cellular/antenna-statistics` | AntennaStatistics | Per-antenna statistics |
 | `/cellular/sms` | SMS | SMS inbox/send |
-| `/local-network` | EthernetStatus | Ethernet hub |
-| `/local-network/ethernet` | EthernetSettings | Link speed/duplex |
-| `/local-network/ttl-settings` | TTLSettings | IPv4 TTL / IPv6 HL |
-| `/local-network/mtu` | MTUSettings | MTU configuration |
+| `/cellular/sms/forwarding` | ForwardingCenterComponent | SMS forwarding rules and delivery health |
+| `/local-network` | Redirect | → `/local-network/ethernet` (legacy bookmark) |
+| `/local-network/ethernet` | EthernetStatusComponent | Ethernet link status and speed cap |
+| `/local-network/ttl-settings` | TTLandMTUSettingsComponent | IPv4 TTL / IPv6 HL, and the MTU card (`MtuSettingsCard`) on the same page |
 | `/local-network/ip-passthrough` | IPPassthrough | IP passthrough mode |
 | `/local-network/custom-dns` | CustomDNS | DNS override |
+| `/local-network/dpi-masking` | DPIMaskingPage | DPI masking |
+| `/local-network/traffic-engine` | TrafficEngine | Traffic engine (`?mode=` deep link) |
 | `/monitoring/connection-quality` | ConnectionQualitySettings | Probe targets and latency / loss limits; sidebar group over Latency Monitor and Network Events (`/system-settings/connection-quality` redirects here) |
 | `/monitoring/events` | NetworkEvents | Event log hub (`/monitoring` redirects here) |
 | `/monitoring/latency` | LatencyMonitoring | Right now (live 60-probe strip), History (1 h / 6 h / 24 h average line) and Sites (per-site connect time) — see `docs/reference/latency-monitor.md` |
 | `/monitoring/alerts` | Alerts | Centralized SMS + email + Discord downtime/reboot alerts |
-| `/monitoring/email-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
-| `/monitoring/sms-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
 | `/monitoring/discord-bot` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
 | `/monitoring/watchdog` | Watchdog | Connection health |
-| `/monitoring/logs` | SystemLogs | Log viewer |
 | `/monitoring/tailscale` | Tailscale | VPN status |
 | `/system-settings` | SystemSettings | System preferences, scheduled ops |
+| `/system-settings/logs` | SystemLogs | Log viewer (there is no `/monitoring/logs` route) |
+| `/system-settings/adaptive-polling` | AdaptivePollingSettings | Adaptive polling tiers |
+| `/system-settings/at-terminal` | ATTerminal | AT terminal |
+| `/system-settings/config-backup` | ConfigurationBackup | Config backup and restore |
+| `/system-settings/connection-quality` | Redirect | → `/monitoring/connection-quality` |
+| `/system-settings/device-access` | DeviceAccessSettings | Device access (web and SSH password) |
+| `/system-settings/languages` | Languages | Display language and language packs |
+| `/system-settings/software-update` | SoftwareUpdateComponent | OTA software update |
+| `/system-settings/system-health-check` | SystemHealthCheck | System health check |
+| `/system-settings/web-console` | WebConsole | Web console (ttyd) |
 | `/about-device` | AboutDevice | Device info |
 | `/support` | Support | Project info & links |
 
@@ -166,7 +180,7 @@ The primary polling hook — fetches the cached modem status JSON.
 
 ```typescript
 const { data, isLoading, isStale, error, refresh } = useModemStatus({
-  pollInterval: 2000,  // default: 2000ms
+  pollInterval: 5000,  // default: 5000ms (shared timer capped at 10000ms)
   enabled: true,       // default: true
 });
 ```
@@ -222,16 +236,16 @@ Every finished user action is confirmed by exactly one `sonner` toast, success o
 | Hook | CGI Endpoint | Types File |
 |------|-------------|------------|
 | `useCellularSettings` | `/cellular/settings.sh` | `cellular-settings.ts` |
-| `useAPNSettings` | `/cellular/apn.sh` | `apn-settings.ts` |
-| `useMBNSettings` | `/cellular/mbn.sh` | `mbn-settings.ts` |
-| `useIMEISettings` | `/cellular/imei.sh` | `imei-settings.ts` |
+| `useApnSettings` | `/cellular/apn.sh` | `apn-settings.ts` |
+| `useMbnSettings` | `/cellular/mbn.sh` | `mbn-settings.ts` |
+| `useImeiSettings` | `/cellular/imei.sh` | `imei-settings.ts` |
 | `useBandLocking` | `/bands/lock.sh` | `band-locking.ts` |
 | `useFrequencyLocking` | `/frequency/lock.sh` | `frequency-locking.ts` |
 | `useTowerLocking` | `/tower/lock.sh` | `tower-locking.ts` |
-| `useTTLSettings` | `/network/ttl.sh` | — |
-| `useMTUSettings` | `/network/mtu.sh` | — |
-| `useDNSSettings` | `/network/dns.sh` | — |
-| `useIPPassthrough` | `/network/ip_passthrough.sh` | `ip-passthrough.ts` |
+| `useTtlSettings` | `/network/ttl.sh` | — |
+| `useMtuSettings` | `/network/mtu.sh` | — |
+| `useCustomDns` | `/network/custom_dns.sh` | — |
+| `useIpPassthrough` | `/network/ip_passthrough.sh` | `ip-passthrough.ts` |
 | `useAlerts` | `/monitoring/alerts.sh` | `alerts.ts` |
 | `useAlertsLog` | `/monitoring/alerts.sh` (`action=get_log`) | `alerts.ts` |
 | `useWatchdogSettings` | `/monitoring/watchdog.sh` | In hook file |
@@ -254,16 +268,15 @@ For long-running operations that run in the background:
 | Hook | Purpose |
 |------|---------|
 | `useLogin` | Login page (setup detection + login/setup actions) |
-| `useAuth` | Sidebar auth (change password, logout) |
-| `useBreadcrumbs` | Auto-generates breadcrumb trail from current route |
+| `isLoggedIn` (`use-auth.ts`) | Client-side login check; login flow types (`LoginStatus`, `LockoutState`) |
 | `useUnitPreferences` | Cached unit preferences (temp/distance) for dashboard display |
-| `useMobile` | Responsive breakpoint detection |
+| `useIsMobile` | Responsive breakpoint detection |
 | `useRecentActivities` | Fetches network events for the dashboard |
 | `useCurrentSettings` | Fetches current modem settings for profile creation |
 | `useConnectionScenarios` | CRUD for connection scenario templates |
 | `useSimProfiles` | CRUD for custom SIM profiles |
 | `useAboutDevice` | Fetches device information |
-| `useSMS` | SMS inbox and send |
+| `useSms` | SMS inbox and send |
 
 ---
 
@@ -464,7 +477,7 @@ Reference implementations: `components/nav-user.tsx` (manual reboot), `component
 
 ### Self-Contained Cards
 
-Some features (Network Priority, FPLMN, Ethernet Status) are self-contained cards that don't use a separate hook or types file. They handle fetch/save/display within the component file itself. `components/local-network/ethernet-card.tsx` polls `network/ethernet.sh` every 10 s and implements its own optimistic speed-change + post-save link confirmation loop.
+Some features (Network Priority, FPLMN, Ethernet Status) are self-contained cards that don't use a separate hook or types file. They handle fetch/save/display within the component file itself. `components/local-network/ethernet/ethernet-status.tsx` polls `network/ethernet.sh` every 10 s and implements its own optimistic speed-change + post-save link confirmation loop.
 
 ---
 

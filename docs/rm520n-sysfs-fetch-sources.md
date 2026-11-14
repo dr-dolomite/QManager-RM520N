@@ -2,6 +2,8 @@
 
 **Status:** Investigation, 2026-05-08. Read-only exploration of `/sys`, `/proc`, and `/sys/kernel/debug` on a live RM520N-GL running QManager v0.1.7. Goal: identify which AT-command-driven fetches in the QManager poller can be replaced by direct kernel-exposed reads.
 
+> ℹ️ **Status update (docs check, 2026-11-06).** The poller now reads traffic counters (`/proc/net/dev`), CPU, memory and uptime (`/proc`), and modem-subsystem state (`subsys0`) from sysfs and proc. Temperature is still `AT+QTEMP`: the poller has no `/sys/class/thermal` read, so the thermal row of the TL;DR is still a proposal. The QMI section and its "Implementation paths" and "Recommended next steps" are the 2026-05-08 proposals. The QMI lane has since shipped as a read-only broker lane (NAS, DMS, UIM, WDS, DSD) that the poller merges through `qmi_merge.sh`; see [reference/qmi-lane.md](reference/qmi-lane.md) and [AT Command Transport](reference/at-command-transport.md). Read the QMI section as history, not as the current plan.
+
 **Platform under test:** SDXLEMUR (SDX65), kernel 5.4.210, distro `qti-distro-nogplv3-perf` (`LE.UM.6.3.6.r1-02600-SDX65.0`).
 
 ## TL;DR

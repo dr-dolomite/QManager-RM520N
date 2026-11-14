@@ -57,7 +57,18 @@ function loadEnv(): { host: string; port: number; username: string; password: st
   return { host, port: Number(get("SSH_PORT")) || 22, username, password, serial: get("SERIAL") || DEVICE.serial, hostkey: get("HOSTKEY_SHA256") };
 }
 
-const ENV = loadEnv();
+let ENV = loadEnv();
+
+// Re-read .env on every call so an IP or credential edit applies without restarting the bridge.
+function refreshEnv(): void {
+  let fresh: ReturnType<typeof loadEnv>;
+  try { fresh = loadEnv(); } catch { return; }
+  const key = (e: typeof ENV) => [e.host, e.port, e.username, e.password, e.serial, e.hostkey].join("\0");
+  if (key(fresh) === key(ENV)) return;
+  console.error(`[modem-mcp] .env changed for ${DEVICE.label}, reconnecting`);
+  ENV = fresh;
+  if (conn) { const old = conn; conn = null; old.end(); }
+}
 
 // Scrub any accidental echo of the password from text we return.
 function redact(s: string): string {
@@ -94,6 +105,7 @@ let conn: Client | null = null;
 let connecting: Promise<Client> | null = null;
 
 function connect(): Promise<Client> {
+  if (!connecting) refreshEnv();
   if (conn) return Promise.resolve(conn);
   if (connecting) return connecting;
   connecting = new Promise<Client>((res, rej) => {

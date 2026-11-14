@@ -599,6 +599,8 @@ Ethernet PHY helpers for `network/ethernet.sh`. Wraps `ethtool` output parsing i
 
 Caller must set `ETH_INTERFACE` before sourcing (default `eth0` in `ethernet.sh`).
 
+**Other libraries in `/usr/lib/qmanager/`** (not described individually above; see the owning feature docs in [`reference/`](reference/)): `adaptive_polling.sh`, `apn_apply.sh`, `config_backup_{connection,monitoring,polling,radio,sections,system}.sh`, `connection_validate.sh`, `downloader.sh`, `lan_subnet.sh`, `language_packs.sh`, `monitoring_validate.sh`, `network_validate.sh`, `qmi_merge.sh` (QMI overlay gate used by the poller's `write_cache`), `radio_validate.sh`, `schedule_timer.sh`, `sim_db.sh`, `sim_registry.sh`, `slot_verify.sh`, `sms_sent.sh`, `system_validate.sh`, `web_port.sh`, and the `wd_*.sh` watchdog helpers (`wd_common`, `wd_quality`, `wd_recheck`, `wd_ssr`).
+
 ---
 
 ## 5. Daemons & Utilities
@@ -619,7 +621,7 @@ Main data collection daemon. Sources `qlog.sh`, `parse_at.sh`, `events.sh`, and 
 
 | Tier | Interval | AT commands |
 |------|----------|-------------|
-| Tier 1 (hot) | Every cycle (~2.6–4 s measured, not 2 s) | `AT+QENG="servingcell"`, `AT+QCAINFO`, `/proc` traffic stats |
+| Tier 1 (hot) | Every cycle (~3.7–4.0 s measured, not 2 s: the `POLL_INTERVAL=2` sleep runs after the body) | `AT+QENG="servingcell"`, `AT+QCAINFO`, `/proc` traffic stats |
 | Tier 1.5 (signal) | Every 5 cycles | `AT+QRSRP;+QRSRQ;+QSINR` (one compound call) |
 | Tier 2 (warm) | Every 15 cycles | `AT+QTEMP;+COPS?;+QUIMSLOT?;+CNUM;+QSIMSTAT?;+CPIN?`, `AT+CGCONTRDP;+QMAP="WWAN"`, the network-mode-gated `AT+QNWCFG="*_time_advance"` / `"*_mimo_layers"` reads |
 | Boot-only | Once at startup | `AT+CVERSION`, `AT+CGSN`, `AT+CIMI`, `AT+QCCID`, `AT+CNUM`, `AT+QGETCAPABILITY`, `AT+QNWPREFCFG="policy_band"`, IPPT parsers |
@@ -895,6 +897,8 @@ Read and format log entries. Called via `sudo -n` from `system/logs.sh` CGI.
 
 OTA update worker. See §12 for full pipeline description. Called via `sudo -n` from `system/update.sh` CGI. Runs as root; manages its own log at `/tmp/qmanager_update.log`.
 
+**Shipped but not described above:** `qmanager_config_restore`, `qmanager_debug_report`, `qmanager_language_install`, `qmanager_web_port`, plus the `qmanager_cfun_fix`, `qmanager_dpi_run`, `qmanager_scenario_schedule`, `qmanager_sms_forward` and `qmanager_sms_storage` binaries that the units in §6 run.
+
 ---
 
 ## 6. Systemd Services
@@ -920,6 +924,19 @@ OTA update worker. See §12 for full pipeline description. Called via `sudo -n` 
 | `qmanager-tower-failover.service` | simple | `/usr/bin/qmanager_tower_failover` | Tower lock failover; guarded by config check in `ExecStartPre` |
 | `qmanager-ttl.service` | oneshot (RemainAfterExit) | inline sh | TTL/HL rule persistence; `ConditionPathExists=/etc/qmanager/ttl_state` |
 | `qmanager-watchcat.service` | simple | `/usr/bin/qmanager_watchcat` | Connection watchdog; guarded by `qm_config_get watchcat enabled` |
+| `qmanager-auto-update.service` | oneshot | `/usr/bin/qmanager_auto_update` | Checks GitHub for a newer release; fired by `qmanager-auto-update.timer` (`OnCalendar=daily`), which is armed at runtime by `system/update.sh` |
+| `qmanager-cfun-fix.service` | oneshot | `/usr/bin/qmanager_cfun_fix` | Recovers a modem stuck in `CFUN=0` at boot |
+| `qmanager-discord.service` | simple | `/usr/bin/qmanager_discord` | Optional Discord bot; gated at boot by its config (see `UCI_GATED_SERVICES` above) |
+| `qmanager-dpi.service` | simple | `/usr/bin/qmanager_dpi_run` | DPI masking runner |
+| `qmanager-dpi-ensure.service` | oneshot | `/usr/bin/qmanager_dpi_run --ensure` | Ensures DPI state; driven by `qmanager-dpi-ensure.timer` (`OnBootSec=60`, `OnUnitActiveSec=60`, monotonic) |
+| `qmanager-ethernet.service` | oneshot | `/usr/bin/qmanager_ethernet_apply` | Re-applies the persisted eth0 link-speed cap from `/etc/qmanager/ethernet_speed` |
+| `qmanager-firewall-watch.service` | simple | `/usr/bin/qmanager_firewall watch` | Firewall watcher; companion to `qmanager-firewall.service` |
+| `qmanager-scenario-schedule.service` | oneshot | `/usr/bin/qmanager_scenario_schedule --now` | Runs the Connection Scenario schedule once |
+| `qmanager-scheduled-reboot.service` | oneshot | `/usr/bin/qmanager_scheduled_reboot` | Scheduled reboot; its `OnCalendar` timer is written and armed at runtime by `qmanager_scheduled_reboot_arm` |
+| `qmanager-sms-forward.service` | simple | `/usr/bin/qmanager_sms_forward` | SMS forwarding daemon |
+| `qmanager-sms-storage.service` | oneshot | `/usr/bin/qmanager_sms_storage` | SMS storage housekeeping |
+| `qmanager-tower-schedule-apply.service` | oneshot | `/usr/bin/qmanager_tower_schedule apply` | Applies the tower-lock schedule |
+| `qmanager-tower-schedule-clear.service` | oneshot | `/usr/bin/qmanager_tower_schedule clear` | Clears the tower-lock schedule |
 | `tailscaled.service` | notify | `/usrdata/tailscale/tailscaled` | Tailscale daemon; staged only -- see note below |
 
 **`tailscaled.service`** is staged in `/usr/lib/qmanager/tailscaled.service` (source: `scripts/etc/systemd/system/tailscaled.service`). It is only copied to `/lib/systemd/system/` when the user installs Tailscale via `qmanager_tailscale_mgr install`. `ExecStartPost=/bin/chmod 755 /usrdata/tailscale` restores directory permissions after tailscaled resets them to 700.

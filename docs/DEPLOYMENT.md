@@ -73,14 +73,14 @@ See `bash install_rm520n.sh --help` for all options (`--skip-packages`, `--force
 ### Development Build
 
 ```bash
-cd QManager
+cd QManager-RM520N
 bun install
 bun run dev
 ```
 
-Opens at `http://localhost:3000`. API requests are proxied to `http://192.168.225.1` (the modem's IP).
+Opens at `http://localhost:3000`. Requests to `/cgi-bin/` are not proxied by default. To proxy them to the modem, uncomment the `rewrites()` block in `next.config.ts` (default target `http://192.168.225.1`, the modem's IP), and comment it out again before `bun run build`.
 
-To change the proxy target, edit `next.config.ts`:
+To change the proxy target, edit the `destination` in that block:
 
 ```typescript
 destination: "http://192.168.225.1/cgi-bin/:path*",
@@ -163,7 +163,10 @@ cat /etc/qmanager/VERSION
 ├── local-network/
 ├── login/
 ├── about-device/
+├── reboot/
+├── setup/
 ├── support/
+├── system-settings/
 └── cgi-bin/
     └── quecmanager/        # CGI API endpoints
         ├── auth/
@@ -175,7 +178,9 @@ cat /etc/qmanager/VERSION
         ├── monitoring/
         ├── network/
         ├── profiles/
+        ├── public/
         ├── scenarios/
+        ├── settings/
         ├── system/
         ├── tower/
         └── vpn/
@@ -214,25 +219,41 @@ cat /etc/qmanager/VERSION
 ├── email_alerts.sh         # Email alert logic
 └── sms_alerts.sh           # SMS alert logic
 
-/lib/systemd/system/
-├── qmanager-firewall.service
-├── qmanager-setup.service
-├── qmanager-poller.service
-├── qmanager-ping.service
+/lib/systemd/system/          # shipped QManager units: 25 services + 2 timers (scripts/etc/systemd/system/)
+├── qmanager-atd.service
+├── qmanager-auto-update.service
+├── qmanager-auto-update.timer
+├── qmanager-cfun-fix.service
 ├── qmanager-console.service
-├── qmanager-watchcat.service
-├── qmanager-ttl.service
-├── qmanager-mtu.service
+├── qmanager-discord.service
+├── qmanager-dpi.service
+├── qmanager-dpi-ensure.service
+├── qmanager-dpi-ensure.timer
+├── qmanager-ethernet.service
+├── qmanager-firewall.service
+├── qmanager-firewall-watch.service
 ├── qmanager-imei-check.service
-└── qmanager-tower-failover.service
+├── qmanager-mtu.service
+├── qmanager-ping.service
+├── qmanager-poller.service
+├── qmanager-scenario-schedule.service
+├── qmanager-scheduled-reboot.service
+├── qmanager-setup.service
+├── qmanager-sites.service
+├── qmanager-sms-forward.service
+├── qmanager-sms-storage.service
+├── qmanager-tower-failover.service
+├── qmanager-tower-schedule-apply.service
+├── qmanager-tower-schedule-clear.service
+├── qmanager-ttl.service
+└── qmanager-watchcat.service
 
 /etc/qmanager/             # Persistent configuration
 ├── VERSION                # Installed version (written atomically at install end)
 ├── VERSION.pending        # Present during install; mv'd to VERSION on success
-├── shadow                 # Password hash
+├── auth.json              # Password hash + salt
 ├── profiles/              # Custom SIM profiles
 ├── tower_lock.json
-├── band_lock.json
 ├── imei_backup.json
 └── last_iccid
 
@@ -243,7 +264,7 @@ cat /etc/qmanager/VERSION
 ├── email_app_password     # Raw Gmail app password (0600)
 └── msmtprc                # Email SMTP config, embeds the password (0600, no logfile directive)
 
-/etc/sudoers.d/qmanager    # www-data privilege escalation rules (includes qmanager_update)
+/opt/etc/sudoers.d/qmanager  # www-data privilege escalation rules (or /etc/sudoers.d/qmanager when Entware sudo is absent)
 
 /tmp/                      # Runtime state (lost on reboot)
 ├── qmanager_status.json
@@ -252,7 +273,7 @@ cat /etc/qmanager/VERSION
 ├── qmanager_events.json
 ├── qmanager_ping.json
 ├── qmanager_watchcat.json
-├── qmanager_watchcat.lock # Touched during install/low-power to pause watchdog
+├── qmanager_watchcat.lock # Touched during install to pause watchdog
 ├── qmanager_update.log    # OTA update worker log (root-owned)
 ├── qmanager_install.log   # Installer log (step progress for UI streaming)
 ├── qmanager_sessions/
@@ -300,7 +321,7 @@ find scripts -name "*.sh" -exec sed -i 's/\r$//' {} \;
 
 1. **Check line endings** — CRLF is the #1 cause of silent CGI failures
 2. **Check permissions** — CGI scripts need `chmod +x`
-3. **Check syntax** — Run `sh -n /www/cgi-bin/quecmanager/<script>.sh`
+3. **Check syntax** — Run `sh -n /usrdata/qmanager/www/cgi-bin/quecmanager/<script>.sh`
 4. **Check logs** — `cat /tmp/qmanager.log | tail -50`
 
 ### Poller Not Producing Data
@@ -328,8 +349,8 @@ grep "poller" /tmp/qmanager.log
 # Check session directory
 ls /tmp/qmanager_sessions/
 
-# Check shadow file
-ls -la /etc/qmanager/shadow
+# Check password hash file
+ls -la /etc/qmanager/auth.json
 ```
 
 ### Service Won't Start
@@ -366,7 +387,7 @@ From v0.1.5 onward, updates are fully self-contained via the web UI: **System Se
 2. The worker downloads, verifies (`tar tzf` + grep for `install_rm520n.sh`), and runs the installer
 3. The CGI's spawn-line redirects to `/dev/null 2>&1` — the worker creates `/tmp/qmanager_update.log` as root, avoiding `fs.protected_regular=1` blocking root from truncating a www-data-owned log file
 4. The installer writes `=== Step N/M: <label> ===` lines to `/tmp/qmanager_install.log`; the worker tails this file and mirrors progress into the status JSON for UI step-streaming
-5. On completion, `finalize_version()` moves `/etc/qmanager/VERSION.pending` → `/etc/qmanager/VERSION`
+5. At the end of a successful installer run, `install_rm520n.sh` moves `/etc/qmanager/VERSION.pending` → `/etc/qmanager/VERSION`
 
 **OTA status values:** `idle` → `checking` → `update_available` → `downloading` → `verifying` → `ready` → `installing` → `rebooting` / `error`
 
@@ -422,7 +443,7 @@ The uninstaller:
 - Removes the web console (`/usrdata/qmanager/console/`) by default
 - With `--purge`: also tears down Tailscale (stops `tailscaled`, removes unit, removes `/usrdata/tailscale/` and symlinks)
 - Cleans up `/etc/qmanager/VERSION.pending` and `/etc/qmanager/updates/previous_version`
-- Wipes runtime state with a single prefix glob, `rm -f /tmp/qmanager_*` (plus `/tmp/qmanager.log*`, which has a dot rather than an underscore after the prefix) — see [Uninstaller coverage](reference/qmanager-independence.md#uninstaller-coverage)
+- Wipes runtime state with a prefix glob, `rm -f /tmp/qmanager_*` (plus `/tmp/qmanager.log*`, which has a dot rather than an underscore after the prefix), and removes `/var/run/qmanager_atd.sock` and `/var/run/qmanager/` — see [Uninstaller coverage](reference/qmanager-independence.md#uninstaller-coverage)
 - **Entware (`/opt/`) is always preserved** even with `--purge` — remove it manually if needed
 
 ---

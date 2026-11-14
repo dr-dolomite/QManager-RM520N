@@ -49,7 +49,7 @@ Success looks like:
 **Constraints that bind design.**
 
 - **BusyBox-era userland.** POSIX shell, an Entware `/opt`, a jq built without regex support, and a read-only root filesystem that must be remounted deliberately.
-- **AT is the only transport, and it is serialised.** There is no resident URC listener, so the product cannot react to unsolicited modem events; every value is polled. The poller's real cadence is roughly 3.7–4.0 seconds.
+- **Two transports, and AT is serialised.** Every write and every live AT read (active-cycle serving cell, all NR values, per-antenna signal, eUICC) goes through the `qmanager_atd` broker, which owns `/dev/smd11` and runs one command at a time ([`at-command-transport.md`](docs/reference/at-command-transport.md)). Beside it, a read-only QMI lane over QRTR supplies LTE signal on idle and deep cycles plus data-call settings ([`qmi-lane.md`](docs/reference/qmi-lane.md), [`qmi-probe.md`](docs/reference/qmi-probe.md)), and SMS runs entirely on QMI WMS with no AT lock ([`sms.md`](docs/reference/sms.md)). AT URCs cannot be consumed, so modem state is polled; only SMS arrivals wake anything, through WMS indications. The poller's real cadence is roughly 3.7–4.0 seconds while a page is open, with longer AT intervals when no one is looking ([`adaptive-polling.md`](docs/reference/adaptive-polling.md)).
 - **No working cron.** Every scheduled operation is a runtime systemd timer, and each must survive the 1970 boot window.
 - **Static export.** No server runtime, no server components, no API routes — the backend is CGI shell scripts.
 - **Self-hosted assets only.** Fonts and icon fonts are subset at build time. An affordance that depends on a CDN is not an affordance.
@@ -84,7 +84,7 @@ What QManager should not look or feel like. These sit beside the binding referen
 ## Evidence on Hand
 
 - **A live RM520N-GL** is reachable over SSH for verifying platform claims directly. The device is the source of truth; documentation drifts.
-- **The shipped product itself** — a large, coherent, working interface across roughly forty routes. Any claim about how QManager behaves is checkable against the code and the device.
+- **The shipped product itself** — a large, coherent, working interface across roughly fifty routes. Any claim about how QManager behaves is checkable against the code and the device.
 - **The mark**, at `public/qmanager-mark.svg`.
 - **The reference implementations** the user has confirmed they want preserved: the dashboard and the Cellular / Radio Information surfaces.
 - **Measured colour data.** Contrast and colour-vision-deficiency separation for the token system have been computed rather than estimated, and more than one shipped value is a correctness fix rather than a taste change.

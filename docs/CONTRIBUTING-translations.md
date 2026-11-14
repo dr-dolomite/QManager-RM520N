@@ -39,7 +39,7 @@ Three things, and only three:
 
 ## 2. Improving an existing language
 
-The five languages QManager already ships are English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), Italian (`it`), and Indonesian (`id`). Filling gaps in one of these is the easiest way to start.
+The five languages QManager ships built in are English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), Italian (`it`), and Indonesian (`id`). Russian (`ru`) is also in `public/locales/`, but it ships as a downloadable community pack (listed in `language-packs/manifest.json`), not built in. Filling gaps in any of these is the easiest way to start.
 
 1. **Fork and clone** the repository (the GitHub "Fork" button, then `git clone` your fork). Make a branch for your work:
 
@@ -156,7 +156,7 @@ All commands are `bun run lang <verb>`. The four a contributor needs:
 |---------|--------------|
 | `bun run lang status [<code>]` | Completeness table per namespace and overall. No code = every language. |
 | `bun run lang status <code> --todo` | Above, plus a list of every untranslated key and its English text — your work queue. |
-| `bun run lang status <code> --ns <namespace>` | Narrow status/todo to one namespace (`common`, `sidebar`, `dashboard`). |
+| `bun run lang status <code> --ns <namespace>` | Narrow status/todo to one namespace (e.g. `common`, `sidebar`, `dashboard`; English currently has nine: `cellular`, `common`, `dashboard`, `errors`, `local-network`, `onboarding`, `sidebar`, `system-health-check`, `system-settings`). |
 | `bun run lang check [<code>]` | Validate against English with teaching errors (file, line, the fix, and a "did you mean?" hint for typo'd keys). Partial passes; only structural problems fail. |
 | `bun run lang check --all` | Check every language at once. |
 | `bun run lang fmt <code>` | Reorder your keys to match English order with canonical 2-space / LF formatting, so English and your file diff line-for-line. Nothing is dropped — any extra keys are moved to the end. |

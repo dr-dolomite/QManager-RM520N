@@ -1,12 +1,17 @@
-# 🚀 QManager RM520N BETA v0.1.19-draft
+# 🚀 QManager RM520N BETA v0.1.19
 
-Summary line to be written with the first change of this release.
+This release fixes fresh installs, which v0.1.18 stopped partway through with a checksum error, and speeds up internet outage detection.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
+## 🛠️ Improvements
+
+- **Faster, steadier internet check** — When the first probe target stops answering, the other three are now tried at the same time, so a failing check takes about 4 seconds instead of up to 13, and the **sensitive** profile reacts much sooner. (`qmanager_ping` runs the fallback legs in parallel, uses fewer process forks per cycle, and times the debounce from the start of the first failing probe.)
+- **Packet loss and jitter no longer reset** — Switching to a backup target no longer wipes the latency history on the dashboard and **Monitoring → Connection Quality**, so loss and jitter stay meaningful on a flaky link. (The history ring records which leg answered; jitter only compares samples from the same target.)
+
 ## 🐛 Fixes
 
-- _Nothing yet._
+- **Fresh installs work again** — On a modem without Entware, the v0.1.18 installer stopped with "SHA-256 mismatch … discarding download" and never finished. It now installs normally; upgrades were never affected. (The pinned checksum for Entware's `opkg` was wrong; it now matches the file the mirror serves.)
 
 ## 📥 Installation
 

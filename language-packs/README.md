@@ -19,7 +19,7 @@ Language packs themselves are **`.tar.gz`** files. A maintainer publishes a pack
 bun run lang publish <code>
 ```
 
-The **future device-side downloader** (a later increment) will fetch this manifest, let the user pick a pack, download the tarball, verify its `sha256`, and unpack the namespace JSONs into the running app's locale directory.
+The device-side downloader (`qmanager_language_install`, started from the Languages settings page) fetches this manifest, lets the user pick a pack, downloads the tarball, verifies its `sha256`, and unpacks the namespace JSONs into the running app's locale directory.
 
 ## JSON schema
 

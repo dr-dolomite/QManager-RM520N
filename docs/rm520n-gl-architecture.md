@@ -1159,6 +1159,8 @@ multi-user.target
 
 ### QManager qcmd Integration
 
+> ⚠️ HISTORICAL — this subsection describes the pre-broker `qcmd` that wrapped `sms_tool` over the socat PTY bridge. `sms_tool` and `atcli_smd11` were removed on 2026-10-29, and `qcmd` now talks to the `qmanager_atd` broker (or runs in-process) on `/dev/smd11` directly. The diagrams, timeouts, PID-file details and boot-dependency chain below are stale. For the current contract see [AT Command Transport](reference/at-command-transport.md) and [BACKEND.md §5.5](BACKEND.md#55-helper-utilities).
+
 QManager uses `qcmd` as the single serialized entry point for all AT commands. Understanding how it interacts with the socat bridge is critical for debugging.
 
 **Architecture:**
@@ -1480,6 +1482,8 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 **How this was verified (2026-08-10, live RM520N-GL):** `stat -c %d` reports the same device id for `/etc`, `/etc/qmanager`, `/etc/data`, `/etc/systemd/system`, `/usrdata` and `/opt`, and a different one for `/` and `/lib/systemd/system`. `/proc/mounts` shows `/dev/ubi2_0 /etc ubifs rw`. A marker file written to `/etc/`, plus one each to `/usrdata/`, `/var/lib/` and `/tmp/`, survived a real reboot in `/etc/` and `/usrdata/` (still carrying the *previous* boot's `boot_id`) and was gone from `/var/lib/` and `/tmp/`. `qmanager_setup` contains exactly one remount, `mount -o remount,rw /` — nothing remounts `/etc`.
 
 ### Service Hierarchy
+
+> ⚠️ HISTORICAL — this tree is the SimpleAdmin-era layout (socat bridges, `ttyd.service`, `simplefirewall.service`, `ttl-override.service`). Current QManager units (27 `qmanager-*` units plus `lighttpd`/`tailscaled`) are listed in [ARCHITECTURE.md](ARCHITECTURE.md#daemon-architecture) and [BACKEND.md §6](BACKEND.md#6-systemd-services).
 
 ```
 systemd

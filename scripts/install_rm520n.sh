@@ -1327,9 +1327,9 @@ SHIMEOF
 
         ENTWARE_ARCH="armv7sf-k3.2"
         ENTWARE_PATH="bin.entware.net/${ENTWARE_ARCH}/installer"
-        # Pinned SHA-256 of the installer files (opkg d038e5b6). The hash, not
-        # the transport, is what makes them safe; update both if Entware rebuilds.
-        ENTWARE_OPKG_SHA256="82d693e3c928def1cbf584a1130f37fd51bcb3338e57d4af327e342a5f19ee3a"
+        # Pinned SHA-256 of the files as served by the mirror (opkg 752580 B,
+        # 2025-11-05); hash the download, never an installed copy. Check: scripts-dev/check-pins.sh
+        ENTWARE_OPKG_SHA256="c00a33892e950a16b3064fdca0b1a02ede9447351a61d00e27f9b415770a1cf9"
         ENTWARE_CONF_SHA256="bca7307a5d323911be95875037dfa83f0e0720a7c88a59ddc233b080495c6b5f"
 
         # Rename factory opkg if present (conflicts with Entware opkg)

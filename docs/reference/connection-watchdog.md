@@ -554,7 +554,7 @@ Detection pairs with the **Ladder**, not with Activity. The Ladder's height is f
 <a id="ping-source--split-ownership"></a>
 ## Ping source
 
-The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon**, an always-on ICMP prober that writes `/tmp/qmanager_ping.json` (four-leg chain, `fail_elapsed_sec`, `streak_fail`, `interval_sec`). It runs regardless of `watchcat.enabled`. The watchdog only ever *reads* that file, and only through `conn_state.sh`, the reader it shares with the poller — it never probes and never writes it. Producer details: [connection-quality.md → The producer](connection-quality.md#the-producer--qmanager_ping-shell-icmp-daemon).
+The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon**, an always-on ICMP prober that writes `/tmp/qmanager_ping.json` (four legs, the last three in parallel; `fail_elapsed_sec`, `streak_fail`, `interval_sec`). It runs regardless of `watchcat.enabled`. The watchdog only ever *reads* that file, and only through `conn_state.sh`, the reader it shares with the poller — it never probes and never writes it. Producer details: [connection-quality.md → The producer](connection-quality.md#the-producer--qmanager_ping-shell-icmp-daemon).
 
 <a id="ping-cache-staleness-is-derived"></a>
 ### Ping-cache staleness is derived, not hardcoded

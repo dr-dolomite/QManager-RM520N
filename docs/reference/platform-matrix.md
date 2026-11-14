@@ -286,7 +286,7 @@ nothing at all, including a `wget` to fix itself with.**
 
 The mechanism: `opkg` (the Entware package manager, an OpenWrt descendant) does not
 speak HTTP itself. It builds a command line and hands it to an external downloader.
-On the Entware build QManager installs — version `d038e5b6`, dated 2022-02-24 —
+On the Entware build QManager installs — version `80503d94`, dated 2025-11-05 (also measured on `d038e5b6`, 2022-02-24) —
 that downloader is hardcoded: there is **no `option downloader` line in
 `/opt/etc/opkg.conf`, and no such string anywhere in the binary**, so `curl` cannot
 be selected by configuration.

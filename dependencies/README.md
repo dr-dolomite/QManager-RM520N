@@ -16,4 +16,4 @@ Cortex-A7, kernel 5.4.210), ARM **EABI5**, AT pipe on the char device
 | `qmanager_atd` | internal (`native/`) | AT/SMS/QMI broker daemon; `/usr/bin/qcmd` and `/usr/bin/qsms` are symlinks to it. Static musl armhf build |
 
 
-`sms_tool` (patched `obsy/sms_tool`) and `atcli_smd11` shipped here until T5.1 S6; `qsms` and `qcmd` replace them.
+`sms_tool` (patched `obsy/sms_tool`) and `atcli_smd11` were shipped here until T5.1 S6 and were removed 2026-10-29; `qsms` and `qcmd` replace them.

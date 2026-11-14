@@ -364,10 +364,6 @@ CONN_HISTORY_SIZE=60
 # at all. At n=9 the quantum is 11.1% -- every window is either "0%" or an
 # instant threshold breach, and the "0%" is the dangerous half: it is
 # indistinguishable from a measured perfect link.
-#
-# This matters because qmanager_ping TRUNCATES /tmp/qmanager_ping_history on
-# every probe-winner change, which on a lossy link happens repeatedly, so a
-# 1-sample window is a recurring state and not a once-per-boot transient.
 MIN_STAT_SAMPLES=10
 
 # Connection uptime tracking
@@ -1772,17 +1768,19 @@ read_ping_data() {
         local _ha=""
         if [ -s "$PING_HISTORY_RAW" ]; then
             _ha=$(awk -v mins="$MIN_STAT_SAMPLES" '
-            BEGIN { n=0; lost=0; nv=0; have=0; sum=0; jsum=0 }
+            BEGIN { n=0; lost=0; nv=0; have=0; sum=0; jsum=0; jn=0 }
+            NF == 0 { next }
             {
-                n++; arr[n]=$0
-                if ($0=="null") { lost++ }
+                # "<rtt|null> <leg>": jitter pairs only consecutive answers from the same leg.
+                n++; arr[n]=$1
+                if ($1=="null") { lost++ }
                 else {
-                    val=$0+0; sum+=val; nv++
+                    val=$1+0; sum+=val; nv++
                     if (!have||val<min) min=val
                     if (!have||val>max) max=val
                     have=1
-                    if (nv>1) { d=val-prev; if(d<0)d=-d; jsum+=d }
-                    prev=val
+                    if (nv>1 && $2==pleg) { d=val-prev; if(d<0)d=-d; jsum+=d; jn++ }
+                    prev=val; pleg=$2
                 }
             }
             END {
@@ -1794,7 +1792,7 @@ read_ping_data() {
                 # and never as 0, which every consumer reads as a MEASURED
                 # perfect link. See MIN_STAT_SAMPLES for why the floor is 10.
                 if (n >= mins)  lossout = sprintf("%d", int(lost*100/n)); else lossout = "null"
-                if (nv >= mins) jitout  = sprintf("%.1f", (nv>1?jsum/(nv-1):0)); else jitout = "null"
+                if (nv >= mins && jn > 0) jitout = sprintf("%.1f", jsum/jn); else jitout = "null"
                 if (nv>0)
                     printf "%.1f|%.1f|%.1f|%s|%s|", min,sum/nv,max,jitout,lossout
                 else

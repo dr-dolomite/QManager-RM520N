@@ -36,8 +36,8 @@ QManager is a modern web-based GUI that runs **on the Quectel RM520N-GL modem it
 ### Development
 
 ```bash
-git clone https://github.com/dr-dolomite/qmanager.git
-cd qmanager
+git clone https://github.com/dr-dolomite/QManager-RM520N.git
+cd QManager-RM520N
 bun install
 bun run dev        # Start dev server at http://localhost:3000
 ```
