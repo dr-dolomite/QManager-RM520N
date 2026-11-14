@@ -23,6 +23,7 @@
 //   malformed JSON                   -> ERROR
 //   {{placeholder}} mismatch         -> ERROR
 //   HTML tag mismatch / imbalance    -> ERROR
+//   pack installer namespace drift   -> ERROR   (any mode; see checkShellNamespaces)
 //   unusual plural category          -> warning
 //   untranslated passthrough         -> warning (see lib/i18n/passthrough.ts)
 //
@@ -46,9 +47,46 @@
 //
 // Zero arguments = the strict gate. Exit code 1 if any errors, else 0.
 
+import { readFileSync } from "node:fs";
 import { buildBaseIndex, compareAll, type Issue, type IssueKind } from "./pack";
 import { scanLang, type PassthroughHit } from "./passthrough";
 import { AVAILABLE_LANGUAGES } from "./available-languages";
+import { ALL_NAMESPACES } from "./resources";
+
+/**
+ * The on-device pack installer keeps its own copy of the namespace list: it is
+ * the archive allow-list and the required file set, while the frontend only
+ * switches to a pack once it has every ALL_NAMESPACES file. When the two
+ * drifted (3 vs 9 namespaces) every downloaded pack was rejected as
+ * "unexpected archive contents", so any difference is an error in every mode.
+ */
+const SHELL_NS_FILES = [
+  "scripts/usr/lib/qmanager/language_packs.sh",
+  "scripts/usr/bin/qmanager_language_pack_apply",
+];
+
+function checkShellNamespaces(): string[] {
+  const want = [...ALL_NAMESPACES].join(" ");
+  const problems: string[] = [];
+  for (const file of SHELL_NS_FILES) {
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      problems.push(`${file}: cannot read it to compare LP_REQUIRED_NS with ALL_NAMESPACES`);
+      continue;
+    }
+    const m = text.match(/^LP_REQUIRED_NS="([^"]*)"/m);
+    const got = m ? m[1].trim().split(/\s+/).join(" ") : null;
+    if (got !== want) {
+      problems.push(
+        `${file}: LP_REQUIRED_NS is "${got ?? "(not found)"}" but ALL_NAMESPACES in ` +
+          `lib/i18n/resources.ts is "${want}" — downloaded language packs would be rejected`,
+      );
+    }
+  }
+  return problems;
+}
 
 /** The five shipped languages; any other folder under public/locales is a community pack. */
 const BUNDLED_LANGS: ReadonlySet<string> = new Set(AVAILABLE_LANGUAGES.map((l) => l.code));
@@ -188,6 +226,11 @@ function main(argv: string[]): number {
       `       ${r.lang}: ${completeness(r.translatedKeys, r.totalKeys)} translated ` +
         `(${r.translatedKeys}/${r.totalKeys})${ptNote}`,
     );
+  }
+
+  for (const p of checkShellNamespaces()) {
+    if (!opts.quiet) console.error(`[err]  ${p}`);
+    errors++;
   }
 
   const mode = opts.strict ? "strict" : "warn-only";
