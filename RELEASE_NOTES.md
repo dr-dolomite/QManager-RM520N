@@ -1,6 +1,6 @@
-# 🚀 QManager RM520N BETA v0.1.19-draft
+# 🚀 QManager RM520N BETA v0.1.19
 
-This release speeds up internet outage detection: when the main probe target stops answering, the backup targets are now checked all at once.
+This release fixes fresh installs, which v0.1.18 stopped partway through with a checksum error, and speeds up internet outage detection.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
